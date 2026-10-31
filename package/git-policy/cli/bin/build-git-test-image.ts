@@ -15,6 +15,12 @@ import {
   resolve
 } from 'node:path';
 import {
+  buildLimitArguments,
+  parallelJobs,
+  parseContainerLimitOptions,
+  runLimitArguments
+} from './container-limits.ts';
+import {
   NativeVerificationError,
   createContainer,
   runCommand
@@ -72,13 +78,24 @@ function isContainerId(text: string): boolean {
 }
 
 /**
- The source checkout path and any extra arguments, which are a usage error.
+ The source checkout path and the options after it.
  */
-const [sourceArgument, ...extra] = process.argv
+const [sourceArgument, ...sourceOptions] = process.argv
   .slice(2);
+/**
+ Container limits from the `--memory`, `--cpus` and `--pids-limit` options, and any extra arguments, which are a usage error.
+ */
+const {
+  limits: containerLimits,
+  rest: extra
+} = parseContainerLimitOptions({
+  options: sourceOptions,
+  acceptPidsLimit: true,
+  leadingOnly: false
+});
 if ((sourceArgument === undefined) || (sourceArgument === '')
   || (extra.length > 0))
-  throw new NativeVerificationError('Provide the audited git/git v2.56.0 source checkout path.');
+  throw new NativeVerificationError('Provide the audited git/git v2.56.0 source checkout path, optionally followed by --memory <size>, --cpus <count> and --pids-limit <count>.');
 /**
  Absolute path of the source checkout.
  */
@@ -187,7 +204,7 @@ await writeFile(
     `FROM ${base}`,
     'ADD git-source.tar /work/git-source/',
     'WORKDIR /work/git-source',
-    'ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2',
+    `ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))}`,
     '',
   ].join('\n')
 );
@@ -198,9 +215,7 @@ await runCommand({
     '--network=none',
     '--http-proxy=false',
     '--pull=never',
-    '--memory=2g',
-    '--cpu-period=100000',
-    '--cpu-quota=200000',
+    ...buildLimitArguments(containerLimits),
     '--tag',
     'localhost/cli-git-native-source:git-2.56.0',
     context.path,
@@ -212,7 +227,7 @@ await runCommand({
  */
 const make = [
   'make',
-  '--jobs=2',
+  `--jobs=${String(parallelJobs(containerLimits))}`,
   'prefix=/usr',
   'NO_GETTEXT=YesPlease',
   'NO_TCLTK=YesPlease',
@@ -221,14 +236,16 @@ const make = [
   'install'
 ];
 /**
- Bounds of the build and check containers: no network, 2 GiB, 2 CPUs, 128 processes and 4096 open files.
+ Bounds of the build and check containers: no network, the memory, CPUs and processes of the container limits,
+ and 4096 open files.
  */
 const limits = [
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=128',
+  ...runLimitArguments({
+    limits: containerLimits,
+    withPidsLimit: true
+  }),
   '--ulimit',
   'nofile=4096:4096'
 ];

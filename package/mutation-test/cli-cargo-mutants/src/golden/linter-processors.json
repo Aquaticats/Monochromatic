@@ -1,0 +1,96 @@
+{
+  "status": 0,
+  "errorMessage": "",
+  "stdout": "Mutation evidence: <WORK>/target/verification/mutation-<ID>\n",
+  "calls": [
+    [
+      "image",
+      "inspect",
+      "localhost/monochromatic-lint-test:golden",
+      "--format",
+      "{{.Id}}"
+    ],
+    [
+      "build",
+      "--network=none",
+      "--http-proxy=false",
+      "--pull=never",
+      "--memory=2g",
+      "--cpu-period=100000",
+      "--cpu-quota=200000",
+      "--iidfile",
+      "<PACKAGE>/linter/monochromatic-lint/node_modules/.monochromatic/monochromatic-lint/monochromatic-lint-mutation-<ID>/image-id",
+      "--tag",
+      "localhost/monochromatic-lint-mutation:golden",
+      "<PACKAGE>/linter/monochromatic-lint/node_modules/.monochromatic/monochromatic-lint/monochromatic-lint-mutation-<ID>"
+    ],
+    [
+      "create",
+      "--init",
+      "--network=none",
+      "--memory=2g",
+      "--cpus=2",
+      "--pids-limit=128",
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cargo",
+      "mutants",
+      "--in-place",
+      "--baseline",
+      "run",
+      "--build-timeout",
+      "300",
+      "--timeout",
+      "180",
+      "--no-config",
+      "--no-shuffle",
+      "--test-tool",
+      "nextest",
+      "--output",
+      "/work/mutation-report",
+      "--cargo-arg=--offline",
+      "--cargo-arg=--locked",
+      "--exclude-re",
+      "replace \\+= with \\*=",
+      "--exclude-re",
+      "replace -= with /=",
+      "--file",
+      "src/processors*.rs",
+      "--cargo-test-arg=processors"
+    ],
+    [
+      "container",
+      "inspect",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "--format",
+      "{{json .Config.Cmd}}"
+    ],
+    [
+      "start",
+      "--attach",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ],
+    [
+      "cp",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc:/work/mutation-report/.",
+      "<WORK>/target/verification/mutation-<ID>"
+    ],
+    [
+      "rm",
+      "--force",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+  ],
+  "containerfiles": [
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--build-timeout\",\"300\",\"--timeout\",\"180\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/work/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/processors*.rs\",\"--cargo-test-arg=processors\"]\n"
+  ],
+  "evidenceFiles": [
+    [
+      "verification/mutation-<ID>/exit.json",
+      "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true\n}\n"
+    ],
+    [
+      "verification/mutation-<ID>/manifest.json",
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"campaignImage\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n  \"shard\": null,\n  \"examine\": null,\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/processors*.rs\",\n    \"--cargo-test-arg=processors\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 128,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 180\n  }\n}\n"
+    ]
+  ]
+}

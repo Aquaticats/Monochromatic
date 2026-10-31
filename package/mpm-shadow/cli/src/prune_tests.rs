@@ -1,7 +1,13 @@
-//! What:     Unit tests of the prune rule in `prune.rs`, the registry scan in `registry.rs` and the install record
+//! What:
+//! Unit tests of the prune rule in `prune.rs`,
+//! the registry scan in `registry.rs` and the install record
 //!           reader in `installed.rs`.
-//! Why:      The rule deletes files, so each of its decisions (which version stays, which crates it never touches) has
-//!           a test, and the deletion itself runs against a disposable cargo home.
+//! Why:
+//! The rule deletes files,
+//! so each of its decisions (which version stays,
+//! which crates it never touches) has
+//!           a test,
+//! and the deletion itself runs against a disposable cargo home.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,8 +15,10 @@
 //! describe('findStale', () => { it('keeps the installed version', () => { ... }); });
 //! ```
 
-/// What:     `use std::collections::BTreeMap;` imports the sorted key-value map (see `installed.rs`).
-/// Why:      `find_stale` takes the installed versions as one.
+/// What:
+/// `use std::collections::BTreeMap;` imports the sorted key-value map (see `installed.rs`).
+/// Why:
+/// `find_stale` takes the installed versions as one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -18,7 +26,8 @@
 /// ```
 use std::collections::BTreeMap;
 
-/// Imports the file-system module (writes fixtures, checks what survived).
+/// Imports the file-system module (writes fixtures,
+/// checks what survived).
 use std::fs;
 
 /// Imports the owned path type.
@@ -29,9 +38,11 @@ use crate::prune::{find_stale, prune_stale_own_crates};
 use crate::registry::RegistryEntry;
 use crate::test_scratch::scratch;
 
-/// What:     `fn entry(crate_name: &str, version: &str) -> RegistryEntry` declares a helper that builds one registry
+/// What:
+/// `fn entry(crate_name: &str, version: &str) -> RegistryEntry` declares a helper that builds one registry
 ///           entry with a made-up path.
-/// Why:      The pure-rule tests need lists of entries but no files.
+/// Why:
+/// The pure-rule tests need lists of entries but no files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,8 +57,10 @@ fn entry(crate_name: &str, version: &str) -> RegistryEntry {
     };
 }
 
-/// What:     `fn versions_of(entries: &[RegistryEntry]) -> Vec<String>` declares a helper listing `crate-version` texts.
-/// Why:      Assertions compare short readable lists instead of whole records.
+/// What:
+/// `fn versions_of(entries: &[RegistryEntry]) -> Vec<String>` declares a helper listing `crate-version` texts.
+/// Why:
+/// Assertions compare short readable lists instead of whole records.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +71,8 @@ fn versions_of(entries: &[RegistryEntry]) -> Vec<String> {
     return entries.iter().map(|e| return format!("{}-{}", e.crate_name, e.version)).collect();
 }
 
-/// The installed version stays; every other cached version of that crate goes.
+/// The installed version stays;
+/// every other cached version of that crate goes.
 #[test]
 fn keeps_the_installed_version() {
     let mut installed: BTreeMap<String, String> = BTreeMap::new();
@@ -74,7 +88,8 @@ fn keeps_the_installed_version() {
     assert_eq!(versions_of(&stale), vec!["monochromatic-lint-0.1.0", "monochromatic-lint-0.5.0"]);
 }
 
-/// A crate with no install record keeps its newest cached version, compared as numbers.
+/// A crate with no install record keeps its newest cached version,
+/// compared as numbers.
 #[test]
 fn keeps_the_newest_version_without_an_install_record() {
     let stale = find_stale(
@@ -100,9 +115,11 @@ fn judges_a_crate_sharing_a_name_prefix_on_its_own_versions() {
     assert!(stale.is_empty());
 }
 
-/// What:     `fn write_record(cargo_home: &Path, key: &str)` declares a helper that writes cargo's install record with
+/// What:
+/// `fn write_record(cargo_home: &Path, key: &str)` declares a helper that writes cargo's install record with
 ///           one installed crate.
-/// Why:      The reader and the deletion tests need a record on disk.
+/// Why:
+/// The reader and the deletion tests need a record on disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,9 +130,11 @@ fn write_record(cargo_home: &Path, key: &str) {
     fs::write(cargo_home.join(".crates.toml"), format!("[v1]\n\"{key}\" = [\"bin\"]\n")).expect("write the record");
 }
 
-/// What:     `fn write_entry(cargo_home: &Path, kind: &str, name: &str)` declares a helper that creates one cached copy:
+/// What:
+/// `fn write_entry(cargo_home: &Path, kind: &str, name: &str)` declares a helper that creates one cached copy:
 ///           a file under `cache` (kind `cache`) or a directory under `src`.
-/// Why:      The deletion tests need real files and directories to delete.
+/// Why:
+/// The deletion tests need real files and directories to delete.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,7 +150,9 @@ fn write_entry(cargo_home: &Path, kind: &str, name: &str) {
     }
 }
 
-/// The record names the installed version; stale archives and sources go, the rest stay.
+/// The record names the installed version;
+/// stale archives and sources go,
+/// the rest stay.
 #[test]
 fn deletes_stale_archives_and_sources_and_keeps_the_installed_version() {
     let directory = scratch();
@@ -152,7 +173,8 @@ fn deletes_stale_archives_and_sources_and_keeps_the_installed_version() {
     assert!(index.join("src/index.crates.io-fixture/monochromatic-lint-0.4.0").exists());
 }
 
-/// Crates this repository does not publish are never touched, whatever their versions.
+/// Crates this repository does not publish are never touched,
+/// whatever their versions.
 #[test]
 fn never_touches_third_party_crates() {
     let directory = scratch();
@@ -171,7 +193,8 @@ fn deletes_nothing_when_the_registry_does_not_exist() {
     assert!(prune_stale_own_crates(directory.path()).is_empty());
 }
 
-/// An unreadable record means nothing is known as installed, so the newest cached version stays.
+/// An unreadable record means nothing is known as installed,
+/// so the newest cached version stays.
 #[test]
 fn falls_back_to_the_newest_version_when_the_record_is_malformed() {
     let directory = scratch();

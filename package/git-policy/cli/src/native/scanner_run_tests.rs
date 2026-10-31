@@ -23,7 +23,7 @@ use crate::git_metadata::strip_git_line;
 use crate::scanner_adapter::{CandidateScanner, RulesSource};
 use crate::scanner_test_support::{needle, rules_file, run_isolated};
 use crate::test_support::{REAL_GIT, git, repository};
-use forbidden_strings::{CandidateScan, ScanFinding};
+use forbidden_strings::{CandidateScan, RulesEntry, ScanFinding};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -32,7 +32,7 @@ use std::rc::Rc;
 ///  without the built-in baseline.
 pub(super) fn loaded(rules: &Path) -> CandidateScanner {
     let source: RulesSource = RulesSource {
-        path: rules.to_path_buf(),
+        entries: vec![RulesEntry { path: rules.to_path_buf(), optional: false }],
         explicit: true,
     };
     match CandidateScanner::load(&source, false) {
@@ -114,7 +114,7 @@ fn staged_bytes_are_scanned_not_the_worktree_body(directory: &Path) {
         .version(&CandidateSource::StagedAgainstHead)
         .expect("staged version");
     let scans: Vec<CandidateScan> =
-        scan_version(&scanner, &mut subject, &version, None).expect("scan pass");
+        scan_version(&scanner, &mut subject, &version, &[]).expect("scan pass");
     let reported: Vec<ScanFinding> = vec![ScanFinding::Content {
         line: 2,
         rule: String::from("0"),
@@ -183,7 +183,7 @@ fn committed_bytes_are_scanned_not_the_worktree_body(directory: &Path) {
         .version(&CandidateSource::Committed(landed))
         .expect("committed version");
     let scans: Vec<CandidateScan> =
-        scan_version(&scanner, &mut subject, &version, None).expect("scan pass");
+        scan_version(&scanner, &mut subject, &version, &[]).expect("scan pass");
     assert_eq!(
         findings_at(&version, &scans, b"committed-leak.txt"),
         vec![ScanFinding::Content {

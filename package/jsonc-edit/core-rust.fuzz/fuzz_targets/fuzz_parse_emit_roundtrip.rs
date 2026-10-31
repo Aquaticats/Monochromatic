@@ -21,7 +21,9 @@ use libfuzzer_sys::fuzz_target;
 ///      Import the shared invariants and the generated document type.
 /// Why:
 ///       This target asserts the round-trip contract and nothing else.
-use jsonc_edit_fuzz::{assert_canonical_stability, assert_comments_preserved, assert_depth_bound, GeneratedDocument};
+use jsonc_edit_fuzz::{
+    assert_canonical_stability, assert_comments_preserved, assert_depth_bound, assert_spans_consistent, GeneratedDocument,
+};
 /// What:
 ///      Import the parse and emit entry points.
 /// Why:
@@ -35,6 +37,7 @@ fuzz_target!(|document: GeneratedDocument| {
 
     assert_depth_bound(&parsed);
     assert_canonical_stability(&document.source);
+    assert_spans_consistent(&document.source);
 
     let emitted = emit_jsonc_value(&parsed);
     assert_comments_preserved(&parsed, &emitted);

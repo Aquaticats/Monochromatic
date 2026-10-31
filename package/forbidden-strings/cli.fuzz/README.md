@@ -112,6 +112,17 @@ The targets share a single tuned dictionary at
   digest,
   and engine payload must return a verdict without panic or out-of-bounds access.
 
+### `fuzz_rules_list`: rules-list grammar
+
+  Drives `forbidden_strings::parse_rules_list`, the one parser behind `--rules`, `FORBIDDEN_STRINGS_RULES`,
+  and `compile-rules --rules`, with raw UTF-8 text and with lists built from delimiter, marker, and path tokens.
+  The oracle in `src/rules_list.rs` compares every verdict (entries, optional flags, refusal kind and position)
+  with an independently written reference parse,
+  requires a successful parse to render back to the exact input,
+  and pins the single-path case (no comma and no trailing `?`) to one required entry equal to the whole value.
+  Committed seeds cover the shared plus optional local pair, a doubled marker, an empty entry, a repeated path,
+  and a plain path with a percent sign.
+
 ## Local commands (via mise)
 
 All commands run on nightly automatically:

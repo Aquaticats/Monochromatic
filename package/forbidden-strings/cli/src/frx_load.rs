@@ -4,8 +4,9 @@
 //! compiler instead of the resharp/`regex` pipeline.
 //!  Two sources feed a scan:
 //!
-//! - the resolved runtime rules file (the `forbidden-strings.local.txt` precedence
-//!   chain),
+//! - the resolved runtime rules list (`--rules`, then `FORBIDDEN_STRINGS_RULES`,
+//!   then `forbidden-strings.local.txt`; one or more comma-separated files, see
+//!   `crate::rules_list`), joined into one text and
 //!    loaded through the validated per-user runtime cache with text fallback;
 //!    and
 //! - the builtin baseline,
@@ -31,10 +32,11 @@ use anyhow::{anyhow, Result};
 /// Imports the engine's compiled-ruleset type held by each loaded set.
 use forbidden_regex::RegexSet;
 
-/// Imports the std filesystem module used to read the runtime rules file.
-use std::fs;
 /// Native rule-file paths must not be converted to lossy strings before filesystem reads.
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Imports the list entry type and the snapshot that reads and joins its files.
+use crate::{rules_list::RulesEntry, rules_snapshot::RulesSnapshot};
 
 /// Imports runtime cache module,
 ///  hybrid matcher,
@@ -105,10 +107,19 @@ pub struct LoadedRules {
     sets: Vec<ScanSet>,
     /// Redacted cache warnings emitted before findings.
     cache_warnings: Vec<runtime_cache::CacheWarning>,
+    /// Optional rules files that were absent and skipped,
+    ///  in list order.
+    skipped: Vec<PathBuf>,
 }
 
 /// Reads a value out of a `LoadedRules` for the scan path.
 impl LoadedRules {
+    /// Returns the optional rules files that were absent and skipped,
+    ///  so an embedding host without a log subscriber can report them.
+    pub(crate) fn skipped_optional(&self) -> &[PathBuf] {
+        return &self.skipped
+    }
+
     /// Iterates each compiled set with its rule-id base offset and name table.
     ///
     /// The scan path runs `line_matches` on each set and renders every rule id
@@ -175,6 +186,7 @@ fn parse_builtin_names(text: &str, expected: usize) -> Result<Vec<Option<String>
 ///  and a
 /// collision carries only the section name,
 ///  never rule text.
+#[cfg(any(test, feature = "fuzzing"))]
 pub fn load(
     rules_path: impl AsRef<Path>,
     builtin_rules: bool,
@@ -182,27 +194,65 @@ pub fn load(
     precompiled: &[u8],
     builtin_names: &str,
 ) -> Result<LoadedRules> {
-    let native_path: &Path = rules_path.as_ref();
+    let entries: [RulesEntry; 1] = [single_entry(rules_path.as_ref(), builtin_rules, explicit)];
+    return load_listed(&entries, builtin_rules, !explicit, precompiled, builtin_names);
+}
+
+/// Builds the one-entry list the one-path contract means.
+///
+/// Only the implicit default file may be absent,
+///  and only when the shipped baseline can scan alone;
+///  a path named by a flag or the environment is required.
+pub(crate) fn single_entry(path: &Path, builtin_rules: bool, explicit: bool) -> RulesEntry {
+    return RulesEntry { path: path.to_path_buf(), optional: builtin_rules && !explicit };
+}
+
+/// Loads the files of a rules list and,
+///  under the flag,
+///  the precompiled builtin baseline.
+///
+/// Every entry is read in list order and the present files are joined into one rule set
+/// (see [`crate::rules_list`] for the grammar and `RulesSnapshot` for the join).
+///  A required entry that cannot be read errors naming its path;
+///  an optional entry whose file is absent is skipped and logged at `info` level,
+///  and [`LoadedRules::skipped_optional`] lists it.
+///  When no file is present the baseline scans alone under `--builtin-rules`;
+///  without it the load fails closed, because scanning with no rules would pass every file.
+///  `quiet_absence` logs skipped optional entries at `debug` instead of `info`;
+///  only the implicit default file passes it,
+///  so a repository without a local rules file does not print a line on every scan.
+pub(crate) fn load_listed(
+    entries: &[RulesEntry],
+    builtin_rules: bool,
+    quiet_absence: bool,
+    precompiled: &[u8],
+    builtin_names: &str,
+) -> Result<LoadedRules> {
     let mut sets: Vec<ScanSet> = Vec::new();
     let mut cache_warnings: Vec<runtime_cache::CacheWarning> = Vec::new();
 
-    // Read and load the runtime rules file. A missing implicit default under
-    // `--builtin-rules` is the one tolerated absence; every other failure surfaces.
-    let user_rules = match fs::read_to_string(native_path) {
-        Ok(text) => {
-            let cache_load = runtime_cache::load_or_compile(native_path, &text)
-                .map_err(|reason| return anyhow!("rules {}: {}", native_path.display(), reason))?;
-            cache_warnings = cache_load.warnings;
-            Some(cache_load.compiled)
+    // Read the listed files. A required entry that cannot be read, and any unreadable present file,
+    // surfaces here with its path.
+    let snapshot = RulesSnapshot::read(entries)?;
+    let skipped: Vec<PathBuf> = snapshot.skipped();
+    for path in &skipped {
+        if quiet_absence {
+            tracing::debug!(path = %path.display(), "optional rules file is absent; skipped");
+        } else {
+            tracing::info!(path = %path.display(), "optional rules file is absent; skipped");
         }
-        Err(error)
-            if builtin_rules
-                && !explicit
-                && error.kind() == std::io::ErrorKind::NotFound =>
-        {
-            None
+    }
+
+    // With no present file the baseline may scan alone; otherwise there is nothing to scan with.
+    let user_rules = if snapshot.is_empty() {
+        if !builtin_rules {
+            snapshot.require_present()?;
         }
-        Err(error) => return Err(anyhow!("read rules {}: {}", native_path.display(), error)),
+        None
+    } else {
+        let cache_load = runtime_cache::load_or_compile(&snapshot)?;
+        cache_warnings = cache_load.warnings;
+        Some(cache_load.compiled)
     };
 
     // The runtime set takes ids 0..user_len; the builtin baseline is offset past it.
@@ -230,7 +280,7 @@ pub fn load(
             if builtin_set.contains(user_name.as_str()) {
                 return Err(anyhow!(
                     "rules {}: rule name '{}' collides with a builtin baseline rule name",
-                    native_path.display(),
+                    snapshot.label(),
                     user_name,
                 ));
             }
@@ -242,7 +292,7 @@ pub fn load(
         });
     }
 
-    return Ok(LoadedRules { sets, cache_warnings })
+    return Ok(LoadedRules { sets, cache_warnings, skipped })
 }
 
 /// Builds a single-set `LoadedRules` from in-memory rule text,
@@ -273,6 +323,7 @@ pub fn load_from_text(text: &str) -> std::result::Result<LoadedRules, crate::Loa
             names: compiled.names,
         }],
         cache_warnings: Vec::new(),
+        skipped: Vec::new(),
     })
 }
 
@@ -286,6 +337,7 @@ pub(crate) fn hybrid_from_text(text: &str) -> Result<LoadedRules> {
     return Ok(LoadedRules {
         sets: vec![ScanSet { matcher: ScanMatcher::Runtime(compiled), base: 0, names }],
         cache_warnings: Vec::new(),
+        skipped: Vec::new(),
     });
 }
 

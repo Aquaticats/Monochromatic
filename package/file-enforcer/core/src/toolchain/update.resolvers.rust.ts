@@ -172,8 +172,10 @@ export async function resolveRust(
         channel
       } manifest carries no [pkg.rust] version`,);
     }
+    // The manifest appends the commit hash and date (`1.99.1 (58cf8f9c3
+    // 2026-10-13)`); a rustup toolchain name is the leading release only.
     return {
-      version,
+      version: firstWord({ text: version, },),
       artifacts: {},
     };
   }

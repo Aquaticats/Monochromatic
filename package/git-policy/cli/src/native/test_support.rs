@@ -348,6 +348,43 @@ pub(crate) fn strip_hint_fields(text: &str) -> String {
     return rest;
 }
 
+/// Variable that tells a child test the directory it works in.
+pub(crate) const LIMITED_DIRECTORY_VARIABLE: &str = "CLI_GIT_LIMITED_CHILD_DIRECTORY";
+
+/// What:
+///  Run one `#[ignore]` child test in a process that may write no file past `limit` bytes, and return how it ended.
+/// Why:
+///  A file-size limit is the privilege-free way to make a write fail half way: the bytes below the limit are written
+///  and the rest fails with `EFBIG` (`SIGXFSZ` is ignored so that the error reaches the caller instead of ending the
+///  process). The limit is a property of the whole process, so the child runs alone and the parent's other tests
+///  never see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawnSync(process.execPath, [testBinary, '--exact', name, '--ignored'], { env: { DIRECTORY: directory }, limits: { fsize: limit } });
+/// ```
+#[cfg(unix)]
+pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, directory: &Path) -> std::process::ExitStatus {
+    use std::os::unix::process::CommandExt;
+    let mut command: Command = Command::new(std::env::current_exe().expect("test binary"));
+    command
+        .args(["--exact", test_name, "--ignored", "--nocapture"])
+        .env(LIMITED_DIRECTORY_VARIABLE, directory)
+        .stdin(std::process::Stdio::null());
+    // SAFETY: between fork and exec only `signal` and `setrlimit`, both async-signal-safe, run.
+    unsafe {
+        command.pre_exec(move || {
+            libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
+            let cap: libc::rlimit = libc::rlimit { rlim_cur: limit, rlim_max: limit };
+            if libc::setrlimit(libc::RLIMIT_FSIZE, &cap) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        });
+    }
+    return command.status().expect("the child test starts");
+}
+
 /// Controls for the fixture helpers above.
 #[path = "test_support_tests.rs"]
 mod tests;

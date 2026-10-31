@@ -14,3 +14,5 @@ RUN rustup toolchain install "${RUST_TOOLCHAIN}" --profile minimal \
 # Bake cargo-mutants so a run is one `podman run` with no in-container install step.
 # `--locked` pins its own dependency versions for a reproducible tool build.
 RUN cargo install cargo-mutants --locked
+# The campaign runs the baseline and every mutant through nextest, as the `test` task does.
+RUN cargo install cargo-nextest --locked

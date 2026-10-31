@@ -45,17 +45,17 @@ use super::repository_facts::RepositoryFacts;
 /// Import the repository location answer.
 use super::repository_location::RepositoryLocation;
 /// Import the scanner adapter and its failure.
-use super::scanner_adapter::{CandidateScanner, RulesSource, ScannerError};
+use super::scanner_adapter::{CandidateScanner, RulesSource, ScannerError, ScannerFailure};
 /// Import the code of each scanner and scan failure.
 use super::scanner_failure_code::{
     finding_failure_code, scan_run_failure_code, scanner_failure_code,
 };
 /// Import the rules-file precedence and which candidates are scanned.
-use super::scanner_selection::{is_scannable, rules_candidate_path, rules_source};
+use super::scanner_selection::{RULES_VARIABLE, is_scannable, rules_candidate_paths, rules_source};
 /// Import the worktree's top level from Git's answer.
 use super::worktree_identity::worktree_root;
 /// The scanner library's per-candidate result and per-match finding.
-use forbidden_strings::{CandidateScan, ScanFinding};
+use forbidden_strings::{CandidateScan, RulesListError, ScanFinding};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
 ///       must be UTF-8).
@@ -266,6 +266,15 @@ impl ScannerState {
     ) -> Result<&CandidateScanner, PolicyOutcome> {
         if self.loaded.is_none() {
             self.loaded = Some(CandidateScanner::load(rules, builtin_rules));
+            // An absent optional file is routine on a fresh clone, so it is logged for diagnosis, not warned.
+            if let Some(Ok(scanner)) = &self.loaded {
+                for skipped in scanner.skipped_optional_rules() {
+                    debug(
+                        "checkForbiddenStrings",
+                        format!("optional rules file is absent; skipped: {}", skipped.display()).as_str(),
+                    );
+                }
+            }
         }
         // `match` on the remembered attempt, lending the scanner when it loaded.
         match &self.loaded {
@@ -324,8 +333,8 @@ fn repository_root<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyO
 ///  or none when that cannot be
 ///       determined.
 ///  `&mut ContentState` lends the prepared candidates;
-///  `Option<&[u8]>` is the rules file's
-///       own pathname.
+///  `&[Vec<u8>]` are the rules files'
+///       own pathnames.
 /// Why:
 ///   Skipping content is only ever a saving.
 ///  When the parents cannot be listed,
@@ -342,13 +351,13 @@ fn repository_root<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyO
 fn known_content_or_none(
     content: &mut ContentState,
     lifecycle: &LifecycleContent,
-    rules_path: Option<&[u8]>,
+    rules_paths: &[Vec<u8>],
 ) -> KnownContent {
     // Only a lifecycle with candidates has a request to take the parents from.
     let LifecycleContent::Requested(request) = lifecycle else {
         return KnownContent::default();
     };
-    match content.known_content(request, rules_path) {
+    match content.known_content(request, rules_paths) {
         Ok(found) => return found,
         Err(error) => {
             warn(
@@ -426,16 +435,21 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
         Ok(found) => found,
         Err(outcome) => return outcome,
     };
-    let rules: RulesSource = rules_source(
-        // `.as_deref()` lends the optional owned text as optional borrowed text.
-        settings.options.rules_file.as_deref(),
+    // A malformed variable fails the policy only when something is scanned, like a missing rules file.
+    let selected: Result<RulesSource, RulesListError> = rules_source(
+        // `.as_deref()` lends the optional owned list as an optional borrowed slice.
+        settings.options.rules_files.as_deref(),
         settings.rules_variable.as_deref(),
         root.as_path(),
     );
-    let rules_path: Option<Vec<u8>> = rules_candidate_path(rules.path.as_path(), root.as_path());
+    let rules_paths: Vec<Vec<u8>> = match &selected {
+        Ok(rules) => rules_candidate_paths(rules, root.as_path()),
+        // `Vec::new()` is the empty list: no file is known to be a rules file.
+        Err(_) => Vec::new(),
+    };
     let mut any_scannable: bool = false;
     for candidate in version.candidates() {
-        if is_scannable(candidate, rules_path.as_deref()) {
+        if is_scannable(candidate, rules_paths.as_slice()) {
             any_scannable = true;
             break;
         }
@@ -443,13 +457,26 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
     if !any_scannable {
         return PolicyOutcome::Findings(Vec::new());
     }
+    let rules: RulesSource = match selected {
+        Ok(found) => found,
+        Err(error) => {
+            return failed(
+                scanner_failure_code(ScannerFailure::RulesNotLoaded),
+                format!(
+                    "cli-git could not load the forbidden-strings rules, so no file was scanned: \
+                     the value of {RULES_VARIABLE} is not a valid rules list: {error}."
+                )
+                .as_str(),
+            );
+        }
+    };
     let loaded: &CandidateScanner = match scanner.load(&rules, settings.options.builtin_rules) {
         Ok(found) => found,
         Err(outcome) => return outcome,
     };
-    let known: KnownContent = known_content_or_none(content, lifecycle, rules_path.as_deref());
+    let known: KnownContent = known_content_or_none(content, lifecycle, rules_paths.as_slice());
     let scans: Vec<CandidateScan> =
-        match content.scan_skipping(loaded, rules_path.as_deref(), &known) {
+        match content.scan_skipping(loaded, rules_paths.as_slice(), &known) {
             Ok(found) => found,
             // `.to_string()` renders the wrapped failure's message, which names no pathname.
             Err(error) => {

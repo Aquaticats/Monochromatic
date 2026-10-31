@@ -1,0 +1,99 @@
+# Shared true-peak core for the music player: the Catmull-Rom meter, the
+# attenuate-only gain math, the decoded-audio source trait, window-placement math,
+# the versioned policy identity that keys the cache, the probe resolver, the track
+# fingerprint and the Turso decision cache. Both apps depend on this crate by path
+# with the `service` and `fingerprint` features (../desktop-app/Cargo.toml and
+# ../android-app/rust/Cargo.toml), so a track is normalized under one shared policy on
+# either flavor and this crate's policy identity keys both apps' persistent caches. It
+# ships no classifier: the decided policy is classifier-free. See README.md, the
+# integration handover ../../../doc/handover/music-player-truepeak-core-integration.md,
+# and the plan ../../../doc/planning/music-player-shared-truepeak-core.md.
+[package]
+name = "truepeak-core"
+version = "0.2.0"
+edition = "2024"
+license = "LGPL-3.0-or-later"
+publish = false
+description = "Shared true-peak meter, attenuate-only gain math, and versioned policy identity for the desktop and Android music players. Catmull-Rom inter-sample peak estimation feeding a -1 dBTP normalization gain."
+
+[lints.clippy]
+complexity = { level = "allow", priority = -1 }
+disallowed_methods = "deny"
+implicit_return = "deny"
+needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+# Standalone crate: there is no root Cargo workspace in this repo, and the Android
+# package is its own Gradle island with an empty [workspace] table. Pinning this
+# crate as its own workspace root keeps its target/ and Cargo.lock local and stops a
+# future ancestor Cargo.toml from silently absorbing it, exactly as the Android crate
+# does. Desktop and Android reach it as a plain path dependency, which does not
+# require workspace membership.
+[workspace]
+
+[lib]
+# Crate paths use the Rust identifier form (underscore), so a consumer writes
+# `use truepeak_core::...` while the package on disk stays kebab-case.
+name = "truepeak_core"
+path = "src/lib.rs"
+
+# The pure surface (meter, gain, window math, policy identity, source contract, and the
+# resolver) has NO dependencies, so a consumer that only wants the meter cross-compiles for
+# the Android ABIs with nothing extra to clear. The persistent decision cache is behind the
+# optional `service` feature so it does not force `turso`/`tokio` onto the meter-only apps;
+# each platform enables it when it adopts the shared cache (desktop already carries these
+# crates, and the Android cross-compile of `turso` was proven by the Stage-zero spike).
+#
+# The track fingerprint (`track_fingerprint`, src/fingerprint.rs) is behind the optional
+# `fingerprint` feature for the same reason: it pulls `twox-hash`, which the meter-only build
+# does not need. Both apps enable it, so desktop and Android hash through this one function.
+[features]
+service = ["dep:turso", "dep:tokio", "dep:branches"]
+fingerprint = ["dep:twox-hash"]
+
+[dependencies]
+# The logging facade. Non-optional (unlike the cache crates below) so the pure meter,
+# resolver, and bones surface log in every build, including the meter-only bench: repo
+# policy is that everything is logged and logging is permanent infrastructure. The crate
+# is a tiny pure-Rust facade already resolved transitively in every consumer's lock, and
+# its macros compile to a cheap max-level check when no subscriber is installed, so it
+# adds no runtime cost to the meter-only apps. Binaries install the sink; this library
+# only emits, so the module path is the tag (mirroring the TS tagged loggers).
+tracing = { workspace = true }
+
+# Drives the Turso async API for the decision cache (behind the `service` feature). The
+# feature set mirrors the desktop cache: `rt` for a runtime, `sync` for the channels a
+# handle blocks on, `macros` for `select!`. Optional so the default build stays dep-free.
+tokio = { workspace = true, features = ["rt", "sync", "macros"], optional = true }
+
+# The pure-Rust SQLite rewrite that stores decision rows (behind the `service` feature).
+# Pinned to the 0.8 line (0.8.2 at the last bump; the desktop cache reaches it through this
+# crate), `default-features = false` to drop the full-text and mimalloc defaults (turso 0.8.2
+# still defaults to `mimalloc` and `fts`). Optional so it is absent from the meter-only build.
+turso = { workspace = true, default-features = false, optional = true }
+
+# `turso_core` depends on `branches` without its `std` feature. Without `std`, `branches::abort` calls
+# `core::intrinsics::abort` on nightly, which the newest nightly removed (E0425 and E0308 in branches 0.4.4 and
+# 0.4.6). Enabling `std` here, through feature unification, makes it call `std::process::abort` on every channel.
+# Drop this line once turso_core builds on the newest nightly by itself.
+branches = { workspace = true, default-features = false, features = ["std"], optional = true }
+
+# XXH3-64 for the track fingerprint (behind the `fingerprint` feature). `default-features = false`
+# drops `rand` and the other algorithms the defaults pull in; `xxhash3_64` is the only algorithm
+# compiled; `std` turns on the crate's run-time AVX2/SSE2/NEON selection, so no `-C target-feature`
+# build flag is needed. Deliberately NOT pinned to an exact release (owner's call): the requirement
+# is the plain caret `2.1.4` that the owner chose, Cargo.lock records the resolved release, and a
+# release that changed a digest would fail the known-answer tests in src/fingerprint_tests.rs.
+# turso_core also depends on twox-hash, so both share one lock entry.
+# See ../../../doc/decision/music-player-fingerprint-hash.md.
+twox-hash = { workspace = true, default-features = false, features = ["std", "xxhash3_64"], optional = true }
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+branches = { version = ">=0.4.6", default-features = false }
+tokio = ">=1.53.2"
+tracing = ">=0.1.44"
+turso = { version = ">=0.8.2", default-features = false }
+twox-hash = { version = ">=2.1.5", default-features = false }

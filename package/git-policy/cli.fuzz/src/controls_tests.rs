@@ -306,7 +306,7 @@ fn generated_arguments_reach_every_frontier_ending() {
     let mut rejected: usize = 0;
     let mut refused: usize = 0;
     let count: u8 = u8::try_from(CONTROL_TOKENS.len()).expect("the table fits in a byte");
-    for mode in 0..16_u8 {
+    for mode in 0..32_u8 {
         for first in 0..count {
             for second in 0..count {
                 let arguments: Vec<OsString> = control_arguments(&[first, second]);

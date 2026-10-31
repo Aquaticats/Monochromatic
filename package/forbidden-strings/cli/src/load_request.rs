@@ -17,17 +17,20 @@ use crate::{BUILTIN_NAMES, BUILTIN_PRECOMPILED};
 use anyhow::{anyhow, Result};
 /// Import a per-thread value slot.
 use std::cell::Cell;
-/// Imports borrowed caller paths and the owned copy a pending request keeps.
-use std::path::{Path, PathBuf};
+/// Imports the list entry whose owned copy a pending request keeps.
+use crate::rules_list::RulesEntry;
+/// Imports borrowed caller paths.
+use std::path::Path;
 
 /// Owned arguments crossing the no-capture callback boundary.
 struct LoadRequest {
-    /// PathBuf owns native path bytes after the caller's borrowed Path is released.
-    path: PathBuf,
+    /// Each entry's PathBuf owns native path bytes after the caller's borrowed values are released.
+    entries: Vec<RulesEntry>,
     /// Whether the shipped baseline participates.
     builtin: bool,
-    /// Whether missing runtime rules are an explicit setup error.
-    explicit: bool,
+    /// Whether the only entry is the implicit default file,
+    ///  whose absence is not worth a log line.
+    implicit: bool,
 }
 
 // What: thread_local! is the standard-library declaration for one Cell per native thread.
@@ -51,8 +54,8 @@ fn execute_pending() -> Result<LoadedRules> {
     let Some(request): Option<LoadRequest> = PENDING.take() else {
         return Err(anyhow!("Forbidden-strings rule loading had no pending request."));
     };
-    return frx_load::load(
-        request.path.as_path(), request.builtin, request.explicit, BUILTIN_PRECOMPILED, BUILTIN_NAMES,
+    return frx_load::load_listed(
+        request.entries.as_slice(), request.builtin, request.implicit, BUILTIN_PRECOMPILED, BUILTIN_NAMES,
     );
 }
 
@@ -75,8 +78,16 @@ fn protected_request(request: LoadRequest, operation: fn() -> Result<LoadedRules
 
 /// Load through the production compiler/cache with owned request arguments and a named callback.
 pub(crate) fn load(path: &Path, builtin: bool, explicit: bool) -> Result<LoadedRules> {
-    // Clone only the path's ownership; rule source remains under the existing authoritative loader.
-    let request: LoadRequest = LoadRequest { path: path.to_path_buf(), builtin, explicit };
+    // The one-path contract is a one-entry list.
+    let entry: RulesEntry = frx_load::single_entry(path, builtin, explicit);
+    let request: LoadRequest = LoadRequest { entries: vec![entry], builtin, implicit: !explicit };
+    return protected_request(request, execute_pending);
+}
+
+/// Load a rules list through the production compiler/cache with owned request arguments and a named callback.
+pub(crate) fn load_entries(entries: &[RulesEntry], builtin: bool) -> Result<LoadedRules> {
+    // Clone only the entries' ownership; rule source remains under the existing authoritative loader.
+    let request: LoadRequest = LoadRequest { entries: entries.to_vec(), builtin, implicit: false };
     return protected_request(request, execute_pending);
 }
 

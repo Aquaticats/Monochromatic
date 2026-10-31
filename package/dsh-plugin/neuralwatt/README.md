@@ -137,6 +137,13 @@ concern.
 
 ## Wiring
 
+`engines.dsh` declares the verified host version `0.2.1-rc.5` explicitly.
+The exact prerelease limits the compatibility claim to the tested host;
+revalidate activation before changing it.
+DSH reads this field before peer dependencies,
+so local directory links can retain the workspace's `catalog:` dependency specifications.
+See the [startup diagnosis](../../../doc/troubleshooting/dsh-rc5-profile-startup.md).
+
 The bundle is `@monochromatic-dev/dsh-plugin-neuralwatt`,
 installed through
 `plugin_manager` `install_bundle` like any workspace bundle.

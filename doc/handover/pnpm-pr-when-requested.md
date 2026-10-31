@@ -1,8 +1,24 @@
 # Post the pnpm pull requests when a maintainer asks
 
-## Status
+## Status: closed, nothing to post
 
-A background poller watches `pnpm/pnpm#17485` (the missing-workspace-link report) so the pull requests can be posted when a maintainer requests them.
+The poller fired once,
+at about 2026-10-29 17:21 EDT (exit code 10,
+`{"trigger":"issue-not-open","state":"closed"}`),
+and the unit is gone.
+`pnpm/pnpm#17485` was closed by `zkochan` when he merged `pnpm/pnpm#17487`,
+written by `snmsoodan`,
+which fixes both the Rust v12 and the TypeScript v11 paths.
+No maintainer requested a pull request,
+so none was posted,
+and the patches are superseded.
+The outcome is recorded in `doc/troubleshooting/pnpm-missing-workspace-link-repeat-install-fast-path.md`.
+Everything below is the original plan,
+kept in case a similar report needs the same steps.
+
+## Original status
+
+A background poller watched `pnpm/pnpm#17485` (the missing-workspace-link report) so the pull requests could be posted when a maintainer requested them.
 The user asked for this in their own words:
 "Setup a bg bash poller polling it for 24h so you can post the pr whenever it is requested."
 

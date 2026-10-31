@@ -1,0 +1,7 @@
+{
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  // The Rust crate has no TypeScript under src; the maintenance scripts in bin are the package's TypeScript.
+  "include": [
+    "bin/**/*.ts",
+  ],
+}

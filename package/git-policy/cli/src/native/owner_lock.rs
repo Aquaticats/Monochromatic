@@ -542,6 +542,14 @@ fn write_candidate(candidate: &Path, record: &OwnerLockRecord) -> Result<(), Own
     let record_path: PathBuf = candidate.join(OWNER_LOCK_RECORD_FILENAME);
     let bytes: String = encode_owner_lock_record(record);
     if let Err(error) = write_exclusive_synced(record_path.as_path(), bytes.as_bytes()) {
+        // The candidate was never published and nothing else names it, so it is removed with the failure: left
+        // beside the lock, it would stay for good.
+        if let Err(removal) = remove_tree(candidate) {
+            super::diagnostic_log::debug(
+                "writeCandidate",
+                format!("removing the unpublished lock candidate {} failed: {removal}", candidate.display()).as_str(),
+            );
+        }
         return Err(io_error(
             "writing the lock record",
             record_path.as_path(),

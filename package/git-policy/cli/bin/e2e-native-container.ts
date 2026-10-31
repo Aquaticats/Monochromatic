@@ -15,10 +15,13 @@
    The second starts from the base image (built first when it does not exist) and links the executable as
    `/opt/native/bin/git`.
    That image has no `/usr/bin/git`, so the native wrapper can only find the scenario's Git through `PATH` order.
- - `run` starts the suite in that image with `E2E_WRAPPER=native` (2 GiB, 2 CPUs, no network, `e2e/` mounted
+ - `run` starts the suite in that image with `E2E_WRAPPER=native` (the container limits, no network, `e2e/` mounted
    read-only).
    `usage_seed`, `usage_scenario` and `usage_git` (set by mise from `--seed`, `--scenario` and `--git`)
    select the seed, the scenario names and the Git versions.
+
+ Every subcommand accepts `--memory <size>` and `--cpus <count>` after it (2 GiB and 2 CPUs unless given);
+ mise passes the `run` task's flags as `usage_memory` and `usage_cpus`.
  */
 import {
   cp,
@@ -31,6 +34,13 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  buildLimitArguments,
+  memoryArguments,
+  parallelJobs,
+  parseContainerLimitOptions,
+  runLimitArguments,
+} from './container-limits.ts';
 import {
   scannerSnapshotEntries,
   type SnapshotEntry,
@@ -78,6 +88,61 @@ const baseTag = process.env
  Image holding the Git builds, Node and `ssh-keygen`.
  */
 const baseImage = `localhost/cli-git-concurrent-e2e:${baseTag}`;
+/**
+ Command-line option for a flag mise passed as an environment variable.
+
+ @param flag - option the variable stands for
+
+ @param variable - name of the environment variable holding the flag's value, unset or empty when the flag was not given
+
+ @returns the option and its value, or nothing when the flag was not given
+ */
+function environmentOption({
+  flag,
+  variable,
+}: {
+  readonly flag: string;
+  readonly variable: string;
+},): string[] {
+  /**
+   The flag's value as mise passed it.
+   */
+  const value = process.env[variable];
+  if ((value === undefined) || (value === ''))
+    return [];
+  return [
+    flag,
+    value,
+  ];
+}
+
+/**
+ The subcommand and the options after it. Mise passes the `run` task's `--memory` and `--cpus` flags as
+ `usage_memory` and `usage_cpus`, so those are read as the leading options.
+ */
+const [subcommand, ...subcommandOptions] = process.argv
+  .slice(2);
+/**
+ Container limits from the `--memory` and `--cpus` options, and the arguments left over, which are a usage error.
+ */
+const {
+  limits: containerLimits,
+  rest: extra,
+} = parseContainerLimitOptions({
+  options: [
+    ...environmentOption({
+      flag: '--memory',
+      variable: 'usage_memory',
+    }),
+    ...environmentOption({
+      flag: '--cpus',
+      variable: 'usage_cpus',
+    }),
+    ...subcommandOptions,
+  ],
+  acceptPidsLimit: false,
+  leadingOnly: false,
+});
 /**
  Converts the base image build time from milliseconds to the seconds the log line reports.
  */
@@ -184,7 +249,7 @@ async function buildBase(): Promise<void> {
     command: 'podman',
     args: [
       'build',
-      '--memory=2g',
+      ...memoryArguments(containerLimits),
       '--tag',
       baseImage,
       '--file',
@@ -233,7 +298,7 @@ async function buildImage(): Promise<void> {
       'COPY package /work/package',
       'COPY vendor /work/vendor',
       'COPY cargo-config /work/.cargo',
-      'ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0',
+      `ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_INCREMENTAL=0`,
       'WORKDIR /work/package/git-policy/cli',
       'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native"]',
       '',
@@ -253,9 +318,7 @@ async function buildImage(): Promise<void> {
       '--network=none',
       '--http-proxy=false',
       '--pull=never',
-      '--memory=2g',
-      '--cpu-period=100000',
-      '--cpu-quota=200000',
+      ...buildLimitArguments(containerLimits),
       '--tag',
       nativeImage,
       context.path,
@@ -272,8 +335,10 @@ async function runSuite(): Promise<void> {
     command: 'podman',
     args: [
       'run',
-      '--memory=2g',
-      '--cpus=2',
+      ...runLimitArguments({
+        limits: containerLimits,
+        withPidsLimit: false,
+      }),
       '--rm',
       '--network=none',
       '--env',
@@ -303,11 +368,6 @@ async function runSuite(): Promise<void> {
 
 // Dispatch on the subcommand.
 /**
- The subcommand and any extra arguments, which are a usage error.
- */
-const [subcommand, ...extra] = process.argv
-  .slice(2);
-/**
  The step each subcommand runs.
  */
 const actions = {
@@ -323,5 +383,5 @@ const action = Object.entries(actions)
     return name === subcommand;
   })?.[1];
 if ((extra.length > 0) || (action === undefined))
-  throw new NativeVerificationError('Usage: node bin/e2e-native-container.ts base|image|run');
+  throw new NativeVerificationError('Usage: node bin/e2e-native-container.ts base|image|run [--memory <size>] [--cpus <count>]');
 await action();

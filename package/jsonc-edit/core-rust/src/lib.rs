@@ -252,6 +252,32 @@ pub use parse::parse_jsonc;
 pub use text_units::{decode_quoted, encode_quoted, units_to_string};
 
 /// What:
+///  Source positions (byte offset,
+/// line,
+/// column) for parsed values and object keys.
+/// Why:
+///  Callers that decode a document into their own types need `file:line:col` for a value they reject,
+///  and the document tree itself stays position-free so existing constructors and comparisons keep working.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './span';
+/// ```
+mod span;
+/// What:
+///  Re-export the span types and the span-reporting parser entry point.
+/// Why:
+///  Positions are a parsing feature,
+/// so callers reach them from the crate root beside `parse_jsonc`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { parseJsoncWithSpans, jsoncPositionAt } from './span';
+/// export type { JsoncPosition, JsoncSpan, JsoncSpans, JsoncSpanned } from './span';
+/// ```
+pub use span::{JsoncPosition, JsoncSpan, JsoncSpanned, JsoncSpans, jsonc_position_at, parse_jsonc_with_spans};
+
+/// What:
 ///      Parser and emitter conformance tests over the public crate interface.
 /// Why:
 ///       Comment ownership,
@@ -266,6 +292,19 @@ pub use text_units::{decode_quoted, encode_quoted, units_to_string};
 /// ```
 #[cfg(test)]
 mod parse_tests;
+
+/// What:
+///  Tests for the span-reporting parse entry point and the position rule.
+/// Why:
+///  Positions are only trustworthy if slicing the text between a span's offsets returns the node's own token,
+///  which compilation cannot show.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './span.test';
+/// ```
+#[cfg(test)]
+mod span_tests;
 
 /// What:
 ///      Exact-number identity tests,

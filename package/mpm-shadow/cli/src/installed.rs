@@ -1,8 +1,14 @@
-//! What:     Reads cargo's install record (`<cargo home>/.crates.toml`) to learn which version of each crate is
+//! What:
+//! Reads cargo's install record (`<cargo home>/.crates.toml`) to learn which version of each crate is
 //!           installed right now.
-//! Why:      The installed version is the one that was just provisioned, so every other cached version of that crate is
-//!           stale. `.crates.toml` is the file both `cargo install` and `cargo binstall` update; `.crates2.json` is
-//!           updated by cargo only, so after a binstall it still names the previous version.
+//! Why:
+//! The installed version is the one that was just provisioned,
+//! so every other cached version of that crate is
+//!           stale.
+//! `.crates.toml` is the file both `cargo install` and `cargo binstall` update;
+//! `.crates2.json` is
+//!           updated by cargo only,
+//! so after a binstall it still names the previous version.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,9 +16,12 @@
 //! export function installedVersions(cargoHome: string): Map<string, string> { ... }
 //! ```
 
-/// What:     `use std::collections::BTreeMap;` imports a key-value map that keeps its keys sorted (sibling `HashMap`
+/// What:
+/// `use std::collections::BTreeMap;` imports a key-value map that keeps its keys sorted (sibling `HashMap`
 ///           has no order).
-/// Why:      A sorted map gives the same output order on every run, which keeps messages and tests stable.
+/// Why:
+/// A sorted map gives the same output order on every run,
+/// which keeps messages and tests stable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,10 +35,15 @@ use std::fs;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// What:     `pub fn installed_versions(cargo_home: &Path) -> BTreeMap<String, String>` declares a public function that
+/// What:
+/// `pub fn installed_versions(cargo_home: &Path) -> BTreeMap<String, String>` declares a public function that
 ///           borrows the cargo home and returns an owned map from crate name to installed version.
-/// Why:      A missing or unreadable record returns an empty map: the prune then falls back to the newest cached
-///           version, which is safe. `BTreeMap<String, String>` and not `HashMap` for the stable order.
+/// Why:
+/// A missing or unreadable record returns an empty map:
+/// the prune then falls back to the newest cached
+///           version,
+/// which is safe.
+/// `BTreeMap<String, String>` and not `HashMap` for the stable order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

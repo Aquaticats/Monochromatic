@@ -11,7 +11,10 @@
 
 /// Import the real source revalidation gate and content digest,
 ///  not a test substitute.
-use super::{source_path_still_matches, path::source_digest};
+use crate::rules_list::RulesEntry;
+use crate::rules_snapshot::RulesSnapshot;
+#[cfg(feature = "fuzzing")]
+use super::path::source_digest;
 
 /// Changed and missing source files fail the publication revalidation gate.
 #[test]
@@ -21,13 +24,33 @@ fn source_revalidation_rejects_changed_or_missing_bytes() {
     std::fs::create_dir(&directory).expect("fresh fixture");
     let path = directory.join("rules");
     std::fs::write(&path, b"ORIGINAL_FIXTURE_LONG\n").expect("original fixture");
-    let digest = source_digest(b"ORIGINAL_FIXTURE_LONG\n").expect("original digest");
-    // Borrow path ownership and copy the digest for each independent check.
-    assert!(source_path_still_matches(&path, digest));
+    let snapshot = RulesSnapshot::read(&[RulesEntry { path: path.clone(), optional: false }]).expect("read fixture");
+    assert!(snapshot.still_current());
     std::fs::write(&path, b"CHANGED_FIXTURE_LONG\n").expect("changed fixture");
-    assert!(!source_path_still_matches(&path, digest));
+    assert!(!snapshot.still_current());
     std::fs::remove_file(&path).expect("remove fixture source");
-    assert!(!source_path_still_matches(&path, digest));
+    assert!(!snapshot.still_current());
+    std::fs::remove_dir(&directory).expect("remove fixture directory");
+}
+
+/// An optional entry that appears after the read fails the gate, and one that stays absent passes it.
+#[test]
+fn source_revalidation_rejects_an_optional_file_that_appears() {
+    let directory = crate::test_scratch::scratch_root().join(format!("scanner-source-appears-{}", std::process::id()));
+    std::fs::create_dir(&directory).expect("fresh fixture");
+    let required = directory.join("shared");
+    let optional = directory.join("local");
+    std::fs::write(&required, b"SHARED_FIXTURE_LONG\n").expect("shared fixture");
+    let snapshot = RulesSnapshot::read(&[
+        RulesEntry { path: required.clone(), optional: false },
+        RulesEntry { path: optional.clone(), optional: true },
+    ])
+    .expect("read fixture");
+    assert!(snapshot.still_current());
+    std::fs::write(&optional, b"LOCAL_FIXTURE_LONG\n").expect("local fixture");
+    assert!(!snapshot.still_current());
+    std::fs::remove_file(&optional).expect("remove local");
+    std::fs::remove_file(&required).expect("remove shared");
     std::fs::remove_dir(&directory).expect("remove fixture directory");
 }
 

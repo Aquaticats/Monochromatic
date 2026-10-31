@@ -17,6 +17,10 @@ Design:
 Session state:
 [`doc/handover/monorepo-manager.md`](../handover/monorepo-manager.md).
 Supersedes `package/file-enforcer/core/DECISION.rust-migration.md` for the tool's file enforcement.
+Amended 2026-10-29 by [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md) (accepted):
+file enforcement is a standalone Rust library and CLI that meow links instead of rewriting,
+configured in JSONC rather than HCL,
+and the root `mise.toml` is no longer generated.
 
 ## Context
 
@@ -49,6 +53,9 @@ Supersedes `package/file-enforcer/core/DECISION.rust-migration.md` for the tool'
 
 - The tool is written in Rust,
    and file-enforcer's functionality is rewritten in Rust inside the same binary.
+  Amended 2026-10-29:
+   meow links the standalone `monochromatic-file-enforcer` library
+   (`doc/decision/file-enforcer-rust-rewrite.md`).
 - Rust is approved for this tool,
    for the approval question in `doc/planning/load-bearing-code-languages.md`.
 - Supported platforms,
@@ -71,6 +78,10 @@ Supersedes `package/file-enforcer/core/DECISION.rust-migration.md` for the tool'
    asked which record stands on 2026-09-17,
    with `file-enforcer.config.ts:718-721` and the generated header in `mise.toml:1` as evidence,
    the user answered "Correct the record".
+  Amended 2026-10-29:
+   `mise.no-env.toml` becomes the hand-written `mise.toml`,
+   with committed and gitignored `.config/mise/conf.d/` fragments,
+   so nothing generates `mise.toml` (`doc/decision/file-enforcer-rust-rewrite.md`).
 - The tool does not own Meta Package Manager's lifecycle (user,
    2026-09-17).
 - As many builds as possible ship;

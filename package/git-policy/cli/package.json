@@ -4,10 +4,18 @@
   "description": "Verification harness of the native Git policy wrapper (the Rust crate monochromatic-git-policy-cli).",
   "type": "module",
   "private": true,
+  "bin": {
+    "git-policy-native-test": "bin/test-native-container.ts",
+    "git-policy-native-mutation": "bin/mutate-native-container.ts",
+    "git-policy-native-interop": "bin/interop-native-container.ts",
+    "git-policy-native-e2e": "bin/e2e-native-container.ts",
+    "git-policy-test-git-image": "bin/build-git-test-image.ts"
+  },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },

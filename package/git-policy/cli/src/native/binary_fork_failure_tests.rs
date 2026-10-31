@@ -29,9 +29,20 @@ const SWEEP_WIDTH: usize = 6;
 /// How many consecutive `clone3` calls a burst refuses; far inside the retry budget.
 const BURST_LENGTH: usize = 3;
 
+/// The absolute path of `strace` on the test process's own `PATH`, or nothing when it is not installed.
+///  A traced command runs with the fixture's restricted `PATH`, which lacks the directory of `strace`, so a bare name
+///  would fail to start there even where the tool is installed.
+pub(super) fn strace_program() -> Option<PathBuf> {
+    let search = std::env::var_os("PATH")?;
+    return std::env::split_paths(&search).map(|directory| { return directory.join("strace"); })
+        .find(|candidate| { return candidate.is_file(); });
+}
+
 /// Whether `strace` can be started.
 pub(super) fn strace_available() -> bool {
-    return Command::new("strace").arg("--version").output().is_ok();
+    return strace_program().is_some_and(|program| {
+        return Command::new(program).arg("--version").output().is_ok();
+    });
 }
 
 /// A repository with one commit and `a.txt` staged, ready for an explicit-path commit.
@@ -47,7 +58,7 @@ fn staged_repository(fixture: &Fixture, name: &str) -> PathBuf {
 ///  at the `first`th, failing with `EAGAIN`, and the trace written to `trace`.
 fn failing_clone3(inner: &Command, first: usize, length: usize, trace: &std::path::Path) -> Command {
     let when: String = if length == 1 { format!("{first}") } else { format!("{first}..{}", first + length - 1) };
-    let mut outer: Command = Command::new("strace");
+    let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
     outer
         .arg("--follow-forks")
         .arg("--quiet")

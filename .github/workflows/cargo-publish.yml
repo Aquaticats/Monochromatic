@@ -15,6 +15,11 @@ on:
         - monochromatic-git-policy-cli
         - monochromatic-search-shadow
         - monochromatic-mpm-shadow
+        - monochromatic-xml-edit
+        - monochromatic-dependency-catalog
+        - monochromatic-browserslist
+        - monochromatic-file-enforcer
+        - monochromatic-file-enforcer-cli
         default: forbidden-strings
       dry-run:
         description: 'Dry run (package + verify, no crates.io upload, no GH release, no attestation)'
@@ -31,6 +36,11 @@ on:
     - 'package/git-policy/cli/Cargo.toml'
     - 'package/search-shadow/cli/Cargo.toml'
     - 'package/mpm-shadow/cli/Cargo.toml'
+    - 'package/xml-edit/core-rust/Cargo.toml'
+    - 'package/dependency-catalog/core-native/Cargo.toml'
+    - 'package/browserslist/core-rust/Cargo.toml'
+    - 'package/file-enforcer/core-rust/Cargo.toml'
+    - 'package/file-enforcer/cli/Cargo.toml'
 
 permissions:
   contents: read
@@ -2223,4 +2233,831 @@ jobs:
           --repo "$REPO" \
           --title "monochromatic-git-policy-cli v${VERSION}" \
           --notes "monochromatic-git-policy-cli v${VERSION}. crates.io: https://crates.io/crates/monochromatic-git-policy-cli/${VERSION}" \
+          --target "$SHA"
+
+  # The Rust file-enforcer (doc/decision/file-enforcer-rust-rewrite.md) is five crates that publish in
+  # dependency order: monochromatic-jsonc-edit (the xe, dc, bl and fe jobs below need its version that
+  # carries the span API), then monochromatic-xml-edit (xe), monochromatic-dependency-catalog (dc) and
+  # monochromatic-browserslist (bl), which have no first-party dependency on each other, then
+  # monochromatic-file-enforcer (fe), then monochromatic-file-enforcer-cli (fec), which also ships the
+  # `file-enforcer` binary. A crate's `cargo package` step verifies by compiling against crates.io, so a
+  # dependency published in the same run must already be indexed; the `needs:` below chain the publish
+  # jobs, and `!cancelled()` plus the result checks let a dependent run when a prerequisite was skipped
+  # because its own version did not change, but never when one failed. 0.1.0 of each crate is published by
+  # hand to bootstrap Trusted Publishing (doc/runbook/publish-crate-first-time.md); from then on the
+  # idempotent publish steps skip a version that is already on crates.io.
+
+
+  xe-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/xml-edit/core-rust/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, such as a merge whose second parent
+          # holds commits that were not on origin yet, so the pre-push head can lie
+          # outside the depth-2 checkout. Fetch it instead of reading its absence as
+          # a version bump; a failed fetch fails this job, so nothing publishes.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-xml-edit' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  xe-publish-crate:
+    needs: xe-detect
+    if: ${{ !cancelled() && needs.xe-detect.outputs.should_publish == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # Nothing after the checkout pushes or fetches; cargo reads the tree only.
+        persist-credentials: false
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: the crate has no dependencies, so the cold build takes about a second; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      working-directory: package/xml-edit/core-rust
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/xml-edit/core-rust/target/package/monochromatic-xml-edit-${{ needs.xe-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run }}
+      working-directory: package/xml-edit/core-rust
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
+      # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
+      # Idempotent: skips when the version is already present, so re-runs never fail on a
+      # duplicate upload.
+      if: ${{ !inputs.dry-run }}
+      working-directory: package/xml-edit/core-rust
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.xe-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-xml-edit/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-xml-edit ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi
+
+  dc-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/dependency-catalog/core-native/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, such as a merge whose second parent
+          # holds commits that were not on origin yet, so the pre-push head can lie
+          # outside the depth-2 checkout. Fetch it instead of reading its absence as
+          # a version bump; a failed fetch fails this job, so nothing publishes.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-dependency-catalog' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  dc-publish-crate:
+    needs: dc-detect
+    if: ${{ !cancelled() && needs.dc-detect.outputs.should_publish == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # Nothing after the checkout pushes or fetches; cargo reads the tree only.
+        persist-credentials: false
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: the only dependency is toml_edit, so the cold build takes a few seconds; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      working-directory: package/dependency-catalog/core-native
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/dependency-catalog/core-native/target/package/monochromatic-dependency-catalog-${{ needs.dc-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run }}
+      working-directory: package/dependency-catalog/core-native
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
+      # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
+      # Idempotent: skips when the version is already present, so re-runs never fail on a
+      # duplicate upload.
+      if: ${{ !inputs.dry-run }}
+      working-directory: package/dependency-catalog/core-native
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.dc-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-dependency-catalog/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-dependency-catalog ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi
+
+  bl-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/browserslist/core-rust/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, such as a merge whose second parent
+          # holds commits that were not on origin yet, so the pre-push head can lie
+          # outside the depth-2 checkout. Fetch it instead of reading its absence as
+          # a version bump; a failed fetch fails this job, so nothing publishes.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-browserslist' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  bl-publish-crate:
+    needs: bl-detect
+    if: ${{ !cancelled() && needs.bl-detect.outputs.should_publish == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # Nothing after the checkout pushes or fetches; cargo reads the tree only.
+        persist-credentials: false
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: the cold build takes about 15 s (the rustls and hyper stack is the only sizeable dependency); a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      working-directory: package/browserslist/core-rust
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/browserslist/core-rust/target/package/monochromatic-browserslist-${{ needs.bl-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run }}
+      working-directory: package/browserslist/core-rust
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
+      # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
+      # Idempotent: skips when the version is already present, so re-runs never fail on a
+      # duplicate upload.
+      if: ${{ !inputs.dry-run }}
+      working-directory: package/browserslist/core-rust
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.bl-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-browserslist/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-browserslist ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi
+
+  fe-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/file-enforcer/core-rust/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, such as a merge whose second parent
+          # holds commits that were not on origin yet, so the pre-push head can lie
+          # outside the depth-2 checkout. Fetch it instead of reading its absence as
+          # a version bump; a failed fetch fails this job, so nothing publishes.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-file-enforcer' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  fe-publish-crate:
+    needs: [fe-detect, je-detect, je-publish-crate]
+    if: ${{ !cancelled() && needs.fe-detect.outputs.should_publish == 'true' && needs.je-detect.result == 'success' && (needs.je-publish-crate.result == 'success' || needs.je-publish-crate.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # Nothing after the checkout pushes or fetches; cargo reads the tree only.
+        persist-credentials: false
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: the cold build takes about 10 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      working-directory: package/file-enforcer/core-rust
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/file-enforcer/core-rust/target/package/monochromatic-file-enforcer-${{ needs.fe-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run }}
+      working-directory: package/file-enforcer/core-rust
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
+      # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
+      # Idempotent: skips when the version is already present, so re-runs never fail on a
+      # duplicate upload.
+      if: ${{ !inputs.dry-run }}
+      working-directory: package/file-enforcer/core-rust
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.fe-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-file-enforcer/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-file-enforcer ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi
+
+  fec-detect:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 2
+
+    - name: Detect version bump
+      id: detect
+      env:
+        BEFORE_SHA: ${{ github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+        INPUT_CRATE: ${{ github.event.inputs.crate }}
+      run: |
+        set -euo pipefail
+        cargo_toml='package/file-enforcer/cli/Cargo.toml'
+        after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
+        before=''
+        if [ -n "${BEFORE_SHA:-}" ] \
+          && [ "$BEFORE_SHA" != '0000000000000000000000000000000000000000' ]; then
+          # A push can carry several generations, such as a merge whose second parent
+          # holds commits that were not on origin yet, so the pre-push head can lie
+          # outside the depth-2 checkout. Fetch it instead of reading its absence as
+          # a version bump; a failed fetch fails this job, so nothing publishes.
+          if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+          fi
+          if git cat-file -e "${BEFORE_SHA}:${cargo_toml}" 2>/dev/null; then
+            before=$(git show "${BEFORE_SHA}:${cargo_toml}" | awk -F'"' '/^version = / { print $2; exit }')
+          fi
+        fi
+        printf 'before=%s\nafter=%s\n' "$before" "$after"
+        if [ -z "$after" ]; then
+          echo 'No version found in Cargo.toml; refusing to publish.' >&2
+          exit 1
+        fi
+        publish=false
+        if [ "$EVENT_NAME" = 'workflow_dispatch' ] && [ "$INPUT_CRATE" = 'monochromatic-file-enforcer-cli' ]; then
+          publish=true
+        elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
+          publish=true
+        fi
+        if [ "$publish" = 'true' ]; then
+          {
+            echo "should_publish=true"
+            echo "version=$after"
+          } >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+        fi
+
+  fec-publish-crate:
+    needs: [fec-detect, je-detect, je-publish-crate, xe-detect, xe-publish-crate, dc-detect, dc-publish-crate, bl-detect, bl-publish-crate, fe-detect, fe-publish-crate]
+    if: ${{ !cancelled() && needs.fec-detect.outputs.should_publish == 'true' && needs.je-detect.result == 'success' && (needs.je-publish-crate.result == 'success' || needs.je-publish-crate.result == 'skipped') && needs.xe-detect.result == 'success' && (needs.xe-publish-crate.result == 'success' || needs.xe-publish-crate.result == 'skipped') && needs.dc-detect.result == 'success' && (needs.dc-publish-crate.result == 'success' || needs.dc-publish-crate.result == 'skipped') && needs.bl-detect.result == 'success' && (needs.bl-publish-crate.result == 'success' || needs.bl-publish-crate.result == 'skipped') && needs.fe-detect.result == 'success' && (needs.fe-publish-crate.result == 'success' || needs.fe-publish-crate.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # Nothing after the checkout pushes or fetches; cargo reads the tree only.
+        persist-credentials: false
+
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    # Not cached: the cold build takes about 15 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
+    - name: Build .crate package (verifies by compile)
+      working-directory: package/file-enforcer/cli
+      run: cargo package
+
+    - name: Attest .crate provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: 'package/file-enforcer/cli/target/package/monochromatic-file-enforcer-cli-${{ needs.fec-detect.outputs.version }}.crate'
+
+    - name: Authenticate with crates.io (Trusted Publishing)
+      if: ${{ !inputs.dry-run }}
+      id: auth
+      uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe
+
+    - name: Publish (dry run)
+      if: ${{ inputs.dry-run }}
+      working-directory: package/file-enforcer/cli
+      run: cargo publish --dry-run --no-verify
+
+    - name: Publish (skips if this version is already on crates.io)
+      # The first version is published by hand to bootstrap Trusted Publishing, because crates.io
+      # cannot configure it until the crate exists (doc/runbook/publish-crate-first-time.md).
+      # Idempotent: skips when the version is already present, so re-runs never fail on a
+      # duplicate upload.
+      if: ${{ !inputs.dry-run }}
+      working-directory: package/file-enforcer/cli
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        if curl -sSf -H 'User-Agent: monochromatic-ci' \
+          "https://crates.io/api/v1/crates/monochromatic-file-enforcer-cli/${VERSION}" >/dev/null 2>&1; then
+          echo "::notice::monochromatic-file-enforcer-cli ${VERSION} already on crates.io; skipping publish."
+        else
+          cargo publish --no-verify
+        fi
+
+
+  # Answers one question for the jobs below: does this version's release tag exist
+  # already? Releases are immutable here, so an existing tag cannot be refilled or
+  # replaced; a real run then skips the build and the release without failing.
+  # A dry run builds regardless, since dry-running the current version is the usual case.
+  fec-release-state:
+    needs: fec-detect
+    if: ${{ needs.fec-detect.outputs.should_publish == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      tag_exists: ${{ steps.state.outputs.tag_exists }}
+    permissions:
+      contents: read
+    steps:
+    - name: Look up the release tag
+      id: state
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        tag="monochromatic-file-enforcer-cli-v${VERSION}"
+        # A 404 means the tag is absent; any other failure (rate limit, outage) must fail
+        # this job rather than read as "absent" and fail later at `gh release create`.
+        if reply=$(gh api "repos/${REPO}/git/ref/tags/${tag}" 2>&1); then
+          echo "::notice::Tag ${tag} already exists; a real run skips the build and the release."
+          echo 'tag_exists=true' >> "$GITHUB_OUTPUT"
+        elif printf '%s' "$reply" | grep --quiet 'HTTP 404'; then
+          echo "Tag ${tag} does not exist yet."
+          echo 'tag_exists=false' >> "$GITHUB_OUTPUT"
+        else
+          printf '%s\n' "$reply" >&2
+          exit 1
+        fi
+
+  # The binary builds from the repository tree (path dependencies), not from the registry copy,
+  # so it does not wait for the publish job; the release job below does.
+  fec-build-binary:
+    needs: [fec-detect, fec-release-state]
+    # Not gated on !inputs.dry-run: a dry run builds every target too. A real run
+    # builds only while the release tag is free.
+    if: ${{ needs.fec-detect.outputs.should_publish == 'true' && (inputs.dry-run || needs.fec-release-state.outputs.tag_exists != 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        # The archive links the glibc of its build host, so the runners are named, not
+        # ubuntu-latest (GitHub moves that label to Ubuntu 26.04 in November 2026, which
+        # would raise the floor of every release archive). The arm64 runner is Ubuntu 24.04
+        # for the same glibc. The ms-build-binary matrix does the same. Linux only: the
+        # server listens on a Unix socket and uses flock.
+        - target: x86_64-unknown-linux-gnu
+          runner: ubuntu-24.04
+        - target: aarch64-unknown-linux-gnu
+          runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        # The build only reads the tree; nothing here needs the token in .git/config.
+        persist-credentials: false
+
+    - name: Add rust target
+      shell: bash
+      env:
+        TARGET: ${{ matrix.target }}
+      run: rustup target add "$TARGET"
+
+    - name: Show the toolchain that builds the release
+      shell: bash
+      run: rustc --version --verbose
+
+    # --locked builds the dependency versions the crate's Cargo.lock records.
+    - name: Build binary
+      shell: bash
+      working-directory: package/file-enforcer/cli
+      env:
+        TARGET: ${{ matrix.target }}
+      run: cargo build --release --locked --target "$TARGET"
+
+    # Each runner is native for its target, so the binary can run here. A build that
+    # links but cannot start, or that reports another version than Cargo.toml, fails
+    # before anything is packaged. The binary is `file-enforcer`, the crate is
+    # `monochromatic-file-enforcer-cli`, and every line the binary prints is one JSON object.
+    - name: Smoke-run the binary
+      shell: bash
+      env:
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+        TARGET: ${{ matrix.target }}
+      run: |
+        set -euo pipefail
+        bin='file-enforcer'
+        got=$("package/file-enforcer/cli/target/${TARGET}/release/${bin}" --version)
+        printf 'got:  %s\n' "$got"
+        printf '%s' "$got" | grep --fixed-strings --quiet '"type":"version"'
+        printf '%s' "$got" | grep --fixed-strings --quiet "file-enforcer ${VERSION}\""
+
+    # Layout is {name}-{version}-{target}/{bin}, the bin-dir of [package.metadata.binstall];
+    # the archive name is its pkg-url file name. The licenses sit beside the binary because
+    # the crate is LGPL-3.0-or-later and the archive is a redistribution.
+    - name: Package binary archive
+      id: pkg
+      shell: bash
+      env:
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+        TARGET: ${{ matrix.target }}
+      run: |
+        set -euo pipefail
+        crate='monochromatic-file-enforcer-cli'
+        bin='file-enforcer'
+        stage_dir="${crate}-${VERSION}-${TARGET}"
+        mkdir -p "dist/${stage_dir}/LICENSES"
+        cp "package/file-enforcer/cli/target/${TARGET}/release/${bin}" "dist/${stage_dir}/"
+        cp package/file-enforcer/cli/README.md "dist/${stage_dir}/"
+        cp package/file-enforcer/cli/LICENSES/*.txt "dist/${stage_dir}/LICENSES/"
+        archive="${stage_dir}.tar.gz"
+        (cd dist && tar czf "${archive}" "${stage_dir}")
+        archive_path="dist/${archive}"
+        echo "archive_path=${archive_path}" >> "$GITHUB_OUTPUT"
+        echo "archive_name=${archive}" >> "$GITHUB_OUTPUT"
+        ls -la dist/
+
+    # Extracts the archive as a consumer would and runs the extracted binary, so a
+    # wrong layout or a binary damaged by packaging fails here, not at install time.
+    - name: Verify the archive
+      shell: bash
+      env:
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+        TARGET: ${{ matrix.target }}
+        ARCHIVE_PATH: ${{ steps.pkg.outputs.archive_path }}
+      run: |
+        set -euo pipefail
+        crate='monochromatic-file-enforcer-cli'
+        bin='file-enforcer'
+        stage_dir="${crate}-${VERSION}-${TARGET}"
+        check_dir=$(mktemp -d)
+        tar xzf "$ARCHIVE_PATH" -C "$check_dir"
+        for member in "${bin}" README.md LICENSES/LGPL-3.0-or-later.txt LICENSES/GPL-3.0-or-later.txt; do
+          test -f "${check_dir}/${stage_dir}/${member}"
+        done
+        test -x "${check_dir}/${stage_dir}/${bin}"
+        got=$("${check_dir}/${stage_dir}/${bin}" --version)
+        printf 'extracted binary: %s\n' "$got"
+        printf '%s' "$got" | grep --fixed-strings --quiet '"type":"version"'
+        printf '%s' "$got" | grep --fixed-strings --quiet "file-enforcer ${VERSION}\""
+
+    - name: Attest binary provenance
+      if: ${{ !inputs.dry-run }}
+      uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+      with:
+        subject-path: ${{ steps.pkg.outputs.archive_path }}
+
+    # Uploaded in a dry run too, so the archive layout can be inspected and the
+    # binary run before anything is released. A dry run's copy lives one day.
+    - name: Upload archive as workflow artifact
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: fec-bin-${{ matrix.target }}
+        path: ${{ steps.pkg.outputs.archive_path }}
+        if-no-files-found: error
+        retention-days: ${{ inputs.dry-run && 1 || 7 }}
+
+  # Immutable releases (repo setting) means `gh release create` must include every
+  # asset at creation time, so every archive and the checksums file go up in one call.
+  # Tag / asset names are the ones [package.metadata.binstall] in the crate's Cargo.toml
+  # names: {name}-v{version} tag, {name}-{version}-{target}.tar.gz asset.
+  # Needs fec-publish-crate so no immutable release exists for a version that is not
+  # on crates.io: cargo-binstall reads the metadata from the registry copy of the manifest.
+  fec-create-release:
+    needs: [fec-detect, fec-release-state, fec-publish-crate, fec-build-binary]
+    # `!cancelled()` plus explicit results: fec-publish-crate needs the library publish jobs,
+    # which a run that publishes nothing new skips, and the implicit success() would then skip this job too.
+    if: ${{ !cancelled() && needs.fec-detect.result == 'success' && needs.fec-release-state.result == 'success' && needs.fec-publish-crate.result == 'success' && needs.fec-build-binary.result == 'success' && needs.fec-detect.outputs.should_publish == 'true' && !inputs.dry-run && needs.fec-release-state.outputs.tag_exists != 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+    - name: Download all binary archives
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        pattern: fec-bin-*
+        path: assets
+        merge-multiple: true
+
+    # A missing archive would become a permanent gap in an immutable release, so the
+    # expected set is named here instead of trusting whatever the artifacts hold.
+    - name: Write the checksums file
+      env:
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+      run: |
+        set -euo pipefail
+        crate='monochromatic-file-enforcer-cli'
+        cd assets
+        for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+          test -f "${crate}-${VERSION}-${target}.tar.gz"
+        done
+        test "$(ls | wc --lines)" -eq 2
+        sha256sum -- *.tar.gz > "${crate}-${VERSION}-sha256sums.txt"
+        cat "${crate}-${VERSION}-sha256sums.txt"
+
+    - name: Create GitHub release with all archives
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ needs.fec-detect.outputs.version }}
+        SHA: ${{ github.sha }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -euo pipefail
+        tag="monochromatic-file-enforcer-cli-v${VERSION}"
+        ls -la assets/
+        gh release create "$tag" assets/* \
+          --repo "$REPO" \
+          --title "file-enforcer v${VERSION}" \
+          --notes "monochromatic-file-enforcer-cli v${VERSION}. crates.io: https://crates.io/crates/monochromatic-file-enforcer-cli/${VERSION}. Linux only (x86_64 and aarch64 gnu). Verify an archive with sha256sum --check against the checksums file or with gh attestation verify." \
           --target "$SHA"

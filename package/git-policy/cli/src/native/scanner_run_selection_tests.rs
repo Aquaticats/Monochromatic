@@ -63,7 +63,7 @@ fn ineligible_candidates_are_not_scanned_body(directory: &Path) {
         &scanner,
         &mut subject,
         &version,
-        Some(rules_path.as_slice()),
+        std::slice::from_ref(&rules_path),
     )
     .expect("scan pass");
     // Only the ordinary file is scanned, and it is reported.
@@ -84,7 +84,7 @@ fn ineligible_candidates_are_not_scanned_body(directory: &Path) {
     assert!(!was_scanned(&version, &scans, b"config/rules.txt"));
     // Positive control: without naming the rules file, its candidate is scanned and reported.
     let unexcluded: Vec<CandidateScan> =
-        scan_version(&scanner, &mut subject, &version, None).expect("scan pass");
+        scan_version(&scanner, &mut subject, &version, &[]).expect("scan pass");
     assert_eq!(unexcluded.len(), 2);
     assert_eq!(
         findings_at(&version, &unexcluded, b"config/rules.txt"),
@@ -120,14 +120,14 @@ fn failures_end_the_pass_body(directory: &Path) {
         .version(&CandidateSource::StagedAgainstHead)
         .expect("staged version");
     assert_eq!(
-        scan_version(&scanner, &mut subject, &version, None)
+        scan_version(&scanner, &mut subject, &version, &[])
             .expect("scan pass")
             .len(),
         2
     );
     // After an invalidation the version's candidates are stale: nothing is scanned and nothing is returned.
     subject.invalidate();
-    let stale: ScanRunError = match scan_version(&scanner, &mut subject, &version, None) {
+    let stale: ScanRunError = match scan_version(&scanner, &mut subject, &version, &[]) {
         Ok(_) => panic!("a stale version must not be scanned"),
         Err(failure) => failure,
     };
@@ -150,7 +150,7 @@ fn failures_end_the_pass_body(directory: &Path) {
     );
     // A deleted candidate is skipped before its pathname matters.
     assert!(
-        scan_version(&scanner, &mut subject, &unnamed, None)
+        scan_version(&scanner, &mut subject, &unnamed, &[])
             .expect("skipped")
             .is_empty()
     );
@@ -163,7 +163,7 @@ fn failures_end_the_pass_body(directory: &Path) {
             object: parse_object_id(&[b'a'; 40]),
         }],
     );
-    let refused: ScanRunError = match scan_version(&scanner, &mut subject, &gitlink, None) {
+    let refused: ScanRunError = match scan_version(&scanner, &mut subject, &gitlink, &[]) {
         Ok(_) => panic!("an unnamed candidate must not be scanned"),
         Err(failure) => failure,
     };

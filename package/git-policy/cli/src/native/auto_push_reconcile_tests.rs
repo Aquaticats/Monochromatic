@@ -1288,3 +1288,154 @@ fn a_status_differs_only_when_its_bytes_do() {
     assert!(status_differs(b"", b" M a.txt\0"));
     assert!(status_differs(b" M a.txt\0", b" M b.txt\0"));
 }
+
+/// Run the shared reconcile loop for the repository under test with a caller-supplied merge push.
+fn integrate(
+    scenario: &Scenario,
+    landed: &str,
+    explicit: bool,
+    push_merge: &mut dyn FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>,
+) -> Integrated {
+    let plan = Reconcile {
+        destination: Destination {
+            remote: String::from("origin"),
+            merge_ref: String::from("refs/heads/main"),
+        },
+        local: landed.to_owned(),
+        branch_ref: Some("refs/heads/main"),
+        label: if explicit { "push" } else { "auto-push" },
+        explicit,
+    };
+    let rejected = PushAttempt {
+        exit_code: 1,
+        output: String::from(" ! [rejected] main -> main (fetch first)"),
+    };
+    return integrate_and_push(&push_git(&scenario.local), &plan, rejected, push_merge)
+        .expect("integrate");
+}
+
+/// What a run ended with, which must be a finished one.
+fn finished(integrated: Integrated) -> PushAttempt {
+    return match integrated {
+        Integrated::Finished(attempt) => attempt,
+        Integrated::NotDivergent(attempt) => {
+            panic!("the run was expected to finish, not stand down: {attempt:?}")
+        }
+    };
+}
+
+/// A diverged remote, a first merge push that fails with `first_output` after the remote moved once more, and a second
+/// merge push that is delivered to the real remote; returns how many merge pushes ran, how the run ended, and whether
+/// the landed commit reached the remote.
+fn failing_merge_push_while_the_remote_moves(
+    name: &str,
+    explicit: bool,
+    first_output: &str,
+) -> (u32, PushAttempt, bool) {
+    let s = scenario(name);
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    let mut pushes: u32 = 0;
+    let mut push_merge = |_destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        pushes += 1;
+        if pushes == 1 {
+            // The remote moved after the first fetch, and the first merge push failed with `first_output`.
+            advance_remote(&s, "c.txt", "moved\n");
+            return Ok(PushAttempt {
+                exit_code: 1,
+                output: first_output.to_owned(),
+            });
+        }
+        git(
+            &s.local,
+            &["push", "--quiet", "origin", &format!("{merge_oid}:refs/heads/main")],
+        );
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let attempt = finished(integrate(&s, &landed, explicit, &mut push_merge));
+    let delivered = text_of(&s.remote, &["show", "main:b.txt"]) == "local";
+    remove(&s.root);
+    return (pushes, attempt, delivered);
+}
+
+/// An explicit push that failed while the remote already holds the pushed commit failed for another reason: the run
+/// stands down and leaves the push's own report, where an auto-push would report the commit as delivered.
+#[test]
+fn an_explicit_push_whose_commit_the_remote_already_contains_stands_down() {
+    let s = scenario("ar-explicit-contained");
+    let landed = commit_local(&s, "b.txt", "local\n");
+    git(&s.local, &["push", "--quiet", "origin", "main"]);
+    advance_remote(&s, "a.txt", "remote\n");
+    let remote_before = text_of(&s.remote, &["rev-parse", "main"]);
+    let mut pushes: u32 = 0;
+    let mut push_merge = |_destination: &Destination, _merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        pushes += 1;
+        return Ok(PushAttempt {
+            exit_code: 0,
+            output: String::new(),
+        });
+    };
+    let integrated = integrate(&s, &landed, true, &mut push_merge);
+    let Integrated::NotDivergent(attempt) = integrated else {
+        panic!("an explicit push must stand down when the remote contains its commit");
+    };
+    assert_eq!(attempt.exit_code, 1);
+    assert_eq!(pushes, 0, "nothing is pushed");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), remote_before);
+    remove(&s.root);
+}
+
+/// An auto-push whose merge push fails for a reason that is not a stale update reports that failure at once: the remote
+/// moving meanwhile does not make the failure a race.
+#[test]
+fn an_auto_push_whose_merge_push_fails_for_another_reason_is_not_retried() {
+    let (pushes, attempt, delivered) = failing_merge_push_while_the_remote_moves(
+        "ar-auto-other-failure",
+        false,
+        "error: failed to push some refs (a pre-push hook declined)",
+    );
+    assert_eq!(pushes, 1, "the failure is final");
+    assert_eq!(attempt.exit_code, 1);
+    assert!(attempt.output.contains("a pre-push hook declined"), "{}", attempt.output);
+    assert!(!delivered, "nothing was published");
+}
+
+/// An auto-push whose merge push is refused as stale fetches again and merges again.
+#[test]
+fn an_auto_push_whose_merge_push_is_refused_as_stale_is_retried() {
+    let (pushes, attempt, delivered) = failing_merge_push_while_the_remote_moves(
+        "ar-auto-stale-failure",
+        false,
+        " ! [rejected] main -> main (fetch first)",
+    );
+    assert_eq!(pushes, 2, "the second merge sees the moved remote");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(delivered, "the landed commit was published");
+}
+
+/// An explicit push reports no output of its own, so a failed merge push is retried when the remote moved, whatever
+/// the refusal said.
+#[test]
+fn an_explicit_push_whose_merge_push_failed_is_retried_when_the_remote_moved() {
+    let (pushes, attempt, delivered) =
+        failing_merge_push_while_the_remote_moves("ar-explicit-failure", true, "");
+    assert_eq!(pushes, 2, "the second merge sees the moved remote");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(delivered, "the landed commit was published");
+}
+
+/// An explicit push whose merge push was refused with a stale marker is retried the same way.
+#[test]
+fn an_explicit_push_whose_merge_push_is_refused_as_stale_is_retried() {
+    let (pushes, attempt, delivered) = failing_merge_push_while_the_remote_moves(
+        "ar-explicit-stale-failure",
+        true,
+        " ! [rejected] main -> main (fetch first)",
+    );
+    assert_eq!(pushes, 2, "the second merge sees the moved remote");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(delivered, "the landed commit was published");
+}

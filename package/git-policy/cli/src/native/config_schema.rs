@@ -113,31 +113,55 @@ pub struct MarkdownAutofixOptions {
 }
 
 /// What:
+///  One rules file named by the `rulesFile` option:
+///  its path inside the repository and whether it may be absent.
+/// Why:
+///   The configuration names several files as an array,
+///  and a gitignored local file must be allowed to be missing
+///       on a fresh clone while a committed shared file must not.
+///       The path is the configuration's own text, with no comma or `?` syntax,
+///  because JSON can already say which file is meant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type RulesFileEntry = { path: string; optional: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RulesFileEntry {
+    /// The file,
+    ///  relative to the repository's top level and already checked to stay inside it.
+    pub path: String,
+    /// Whether the file may be absent;
+    ///  an absent optional file is skipped and an absent required file stops the policy.
+    pub optional: bool,
+}
+
+/// What:
 ///  Validated options of `security/forbidden-strings`.
-///  `Option<String>` is "a
-///       configured file name or nothing".
+///  `Option<Vec<RulesFileEntry>>` is "a
+///       configured list of files or nothing".
 /// Why:
 ///   The scanner is linked into cli-git,
 ///  so the remaining choices are whether its
-///       embedded baseline rules run and which repository file holds the private rules.
+///       embedded baseline rules run and which repository files hold the private rules.
 ///       There is deliberately no executable path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ForbiddenStringsOptions = { builtinRules: boolean; rulesFile?: string };
+/// type ForbiddenStringsOptions = { builtinRules: boolean; rulesFile?: string | (string | { path: string; optional?: boolean })[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ForbiddenStringsOptions {
     /// Whether the scanner's embedded baseline rules are loaded;
     ///  default `true`.
     pub builtin_rules: bool,
-    /// The private rules file,
-    ///  relative to the repository's top level,
-    ///  already checked to
+    /// The private rules files in the order they are read,
+    ///  each relative to the repository's top level and already checked to
     /// stay inside it;
+    ///  never an empty list;
     ///  when absent,
     ///  `FORBIDDEN_STRINGS_RULES` and then the default file apply.
-    pub rules_file: Option<String>,
+    pub rules_files: Option<Vec<RulesFileEntry>>,
 }
 
 /// What:
@@ -346,7 +370,7 @@ impl PolicyConfig {
             forbidden_strings: ForbiddenStringsOptions {
                 builtin_rules: true,
                 // `None` is the "absent" variant: no file is configured.
-                rules_file: None,
+                rules_files: None,
             },
             markdown_autofix: MarkdownAutofixOptions {
                 // `vec![...]` is a macro building an owned list from literal items.

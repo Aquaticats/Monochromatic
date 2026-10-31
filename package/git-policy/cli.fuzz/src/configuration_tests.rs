@@ -29,6 +29,10 @@ fn generated_documents_parse_to_their_expectation() {
     let mut scanner_baseline_off: usize = 0;
     let mut tuned: usize = 0;
     let mut severities_off: usize = 0;
+    let mut with_one_rules_file: usize = 0;
+    let mut with_several_rules_files: usize = 0;
+    let mut with_optional_rules_file: usize = 0;
+    let mut with_punctuated_rules_file: usize = 0;
     for byte in 0..=u8::MAX {
         for data in [
             vec![byte; 24],
@@ -73,6 +77,20 @@ fn generated_documents_parse_to_their_expectation() {
             if generated.expected.concurrency != CliGitConfig::defaults().concurrency {
                 tuned += 1;
             }
+            if let Some(files) = &generated.expected.policies.forbidden_strings.rules_files {
+                if files.len() == 1 && !files[0].optional {
+                    with_one_rules_file += 1;
+                }
+                if files.len() > 1 {
+                    with_several_rules_files += 1;
+                }
+                if files.iter().any(|file| return file.optional) {
+                    with_optional_rules_file += 1;
+                }
+                if files.iter().any(|file| return file.path.contains(',') || file.path.contains('?')) {
+                    with_punctuated_rules_file += 1;
+                }
+            }
             if generated
                 .expected
                 .policies
@@ -93,6 +111,10 @@ fn generated_documents_parse_to_their_expectation() {
         ),
         ("documents tuning concurrency", tuned),
         ("documents turning a built-in off", severities_off),
+        ("documents with one required rules file", with_one_rules_file),
+        ("documents with several rules files", with_several_rules_files),
+        ("documents with an optional rules file", with_optional_rules_file),
+        ("documents with a comma or question mark in a rules path", with_punctuated_rules_file),
     ] {
         assert!(count > 10, "{name} reached only {count} times");
     }

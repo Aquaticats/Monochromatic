@@ -1,5 +1,8 @@
-//! What:     Unit tests of the PATH lookup in `real_binary.rs`.
-//! Why:      The lookup decides which program actually runs, so a wrong answer would either loop the shadow into itself
+//! What:
+//! Unit tests of the PATH lookup in `real_binary.rs`.
+//! Why:
+//! The lookup decides which program actually runs,
+//! so a wrong answer would either loop the shadow into itself
 //!           or run the wrong program.
 //!
 //! In TS you'd write (pseudocode):
@@ -14,7 +17,9 @@ use crate::real_binary::find_in_path;
 /// Imports the scratch-directory helper (see `test_scratch.rs`).
 use crate::test_scratch::scratch;
 
-/// Imports the file-system module (writes fixture scripts, sets permissions, makes symlinks).
+/// Imports the file-system module (writes fixture scripts,
+/// sets permissions,
+/// makes symlinks).
 use std::fs;
 
 /// Imports the trait that adds `from_mode` to permissions (marks a fixture executable).
@@ -23,10 +28,14 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
-/// What:     `fn write_tool(directory: &Path, name: &str, mode: u32)` declares a helper writing a one-line script named
-///           `name` in `directory` with Unix permission bits `mode` (`u32`: unsigned 32-bit integer, siblings `i32`,
+/// What:
+/// `fn write_tool(directory: &Path, name: &str, mode: u32)` declares a helper writing a one-line script named
+///           `name` in `directory` with Unix permission bits `mode` (`u32`:
+/// unsigned 32-bit integer,
+/// siblings `i32`,
 ///           `u64`).
-/// Why:      Each test needs runnable and non-runnable fixture files.
+/// Why:
+/// Each test needs runnable and non-runnable fixture files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,7 +71,8 @@ fn skips_files_that_are_not_executable() {
     assert_eq!(find_in_path("mpm", &path_variable, Path::new("/nowhere")), Some(second.path().join("mpm")));
 }
 
-/// Any candidate that resolves to the shadow itself is skipped, however many links lead to it.
+/// Any candidate that resolves to the shadow itself is skipped,
+/// however many links lead to it.
 #[test]
 fn skips_every_link_that_resolves_to_the_shadow() {
     let shadow_home = scratch();
@@ -80,7 +90,8 @@ fn skips_every_link_that_resolves_to_the_shadow() {
     assert_eq!(find_in_path("mpm", &path_variable, &skip), Some(real.path().join("mpm")));
 }
 
-/// Nothing runnable on PATH gives `None`; empty PATH entries are ignored.
+/// Nothing runnable on PATH gives `None`;
+/// empty PATH entries are ignored.
 #[test]
 fn returns_none_when_nothing_is_found() {
     let empty = scratch();

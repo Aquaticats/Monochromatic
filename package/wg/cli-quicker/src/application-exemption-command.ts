@@ -28,12 +28,17 @@ const DEFAULT_COMMAND = 'wg-quicker-exempt';
 /**
  Package-directory name containing TypeScript CLI.
  */
-const WG_QUICKER_DIRECTORY = 'wg-quicker';
+const CLI_QUICKER_DIRECTORY = 'cli-quicker';
 
 /**
- Parent directory name shared by CLI packages.
+ Product-category directory name shared by wg packages.
  */
-const CLI_DIRECTORY = 'cli';
+const WG_DIRECTORY = 'wg';
+
+/**
+ Package-directory name containing Rust companion.
+ */
+const CLI_QUICKER_EXEMPT_DIRECTORY = 'cli-quicker-exempt';
 
 /**
  Sentinel for absent executable or package root.
@@ -167,9 +172,9 @@ async function firstExecutable(
 function packageRootCandidate(
   candidate: string,
 ): string | typeof COMMAND_NOT_FOUND {
-  if (basename(candidate,) !== WG_QUICKER_DIRECTORY)
+  if (basename(candidate,) !== CLI_QUICKER_DIRECTORY)
     return COMMAND_NOT_FOUND;
-  if (basename(dirname(candidate,),) !== CLI_DIRECTORY)
+  if (basename(dirname(candidate,),) !== WG_DIRECTORY)
     return COMMAND_NOT_FOUND;
   return candidate;
 }
@@ -233,14 +238,14 @@ async function findWorkspaceCompanion(): Promise<string | typeof COMMAND_NOT_FOU
   const candidates = [
     join(
       dirname(packageRoot,),
-      'wg-quicker-exempt',
+      CLI_QUICKER_EXEMPT_DIRECTORY,
       'target',
       'release',
       DEFAULT_COMMAND,
     ),
     join(
       dirname(packageRoot,),
-      'wg-quicker-exempt',
+      CLI_QUICKER_EXEMPT_DIRECTORY,
       'target',
       'debug',
       DEFAULT_COMMAND,

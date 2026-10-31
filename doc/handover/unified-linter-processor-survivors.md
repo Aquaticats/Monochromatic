@@ -1,5 +1,8 @@
 # Unified-linter processor mutation survivors
 
+Note 2026-10-30: `package/linter/monochromatic-lint/bin/test-container.mjs` and `clippy-container.mjs` are
+TypeScript files now; read those names here as `test-container.ts` and `clippy-container.ts`.
+
 ## Purpose and how to respond
 
 The first unrestricted `cargo-mutants` pass over the embedded processors of

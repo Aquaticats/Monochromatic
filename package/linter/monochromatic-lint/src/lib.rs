@@ -29,6 +29,8 @@ pub mod config_merge;
 pub mod cli_options;
 /// The `cargo` processes of the closure check.
 mod closure_cargo;
+/// The offline check that the Dylint driver exists or can be built from the cargo cache.
+mod closure_driver;
 /// Mapping of compiler reports to findings with the configured severity.
 mod closure_findings;
 /// The per-package prerequisite manifest of the closure check.

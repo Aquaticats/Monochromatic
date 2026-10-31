@@ -9,11 +9,11 @@ import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
 export default {
   'verify:evidence': {
     description: 'Reconcile retained source manifests with current compiled inputs without hiding mismatches',
-    run: 'node bin/verify-evidence.mjs',
+    run: 'node bin/verify-evidence.ts',
   },
   'verify:markdown': {
     description: 'Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline',
-    run: 'node bin/render-docs.mjs',
+    run: 'node bin/render-docs.ts',
   },
   'dependencies:fetch': {
     description: 'Fetch the existing locked dependency archives before offline container verification',
@@ -21,35 +21,35 @@ export default {
   },
   'lint:clippy:container': {
     description: 'Run all-target/all-feature Clippy with warnings denied in the bounded offline scanner snapshot',
-    run: 'node bin/test-container.mjs --clippy',
+    run: 'node bin/test-container.ts --clippy',
   },
   'test:release:container': {
     description: 'Verify the actual release scanner and all-feature embedding consumers inside the bounded snapshot',
-    run: 'node bin/test-container.mjs --release',
+    run: 'node bin/test-container.ts --release',
   },
   'test:guards:observe:container': {
     description: 'Verify exact failure causes, per-operation hook ownership, independent worker cases, and real parallel CLI faults',
-    run: 'node bin/observe-guards-container.mjs',
+    run: 'node bin/observe-guards-container.ts',
   },
   'test:guards:container': {
     description: 'Prove real executable and public-loader panic guards with passing and disabled disposable variants',
-    run: 'node bin/guard-container.mjs',
+    run: 'node bin/guard-container.ts',
   },
   'test:mutation:startup:container': {
     description: 'Re-test startup filter mutations with the full all-feature baseline and complete retained outcomes',
-    run: 'node bin/mutate-container.mjs --startup',
+    run: 'node bin/mutate-container.ts --startup',
   },
   'test:mutation:pathname:container': {
     description: 'Mutate only pathname normalization, prefix counting and component masking with the full all-feature baseline and complete retained outcomes',
-    run: 'node bin/mutate-container.mjs --pathname',
+    run: 'node bin/mutate-container.ts --pathname',
   },
   'test:mutation:container': {
     description: 'Mutation-test embedding owners in a bounded mount-free snapshot, retaining every outcome',
-    run: 'node bin/mutate-container.mjs',
+    run: 'node bin/mutate-container.ts',
   },
   'test:container': {
     description: 'Run binary and embedded scanner tests unprivileged with Git 2.56.0 in a bounded mount-free container',
-    run: 'node bin/test-container.mjs',
+    run: 'node bin/test-container.ts',
   },
   'build': {
     description: 'Build the forbidden-strings binary in release mode',

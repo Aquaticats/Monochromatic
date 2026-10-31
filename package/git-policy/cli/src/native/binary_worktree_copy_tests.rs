@@ -138,6 +138,49 @@ fn worktree_added_from_the_main_checkout_receives_the_rules_file() {
     remove(&fixture);
 }
 
+/// A configuration naming several rules files, one optional and present, one optional and absent,
+///  copies every ignored file the main checkout has,
+///  and the scanner in the new worktree reads both present files.
+#[test]
+fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
+    let fixture: Fixture = fixture("copy-listed");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(
+        repo.join("cli-git.config.jsonc"),
+        format!(
+            "{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": [\"{RULES_FILE}\", {{ \"path\": \".cache/local-rules.txt\", \"optional\": true }}, {{ \"path\": \".cache/never.txt\", \"optional\": true }}] }}] }} }}\n"
+        ),
+    )
+    .expect("configuration");
+    std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
+    std::fs::write(repo.join("a.txt"), format!("first\n{}\n", needle())).expect("shared needle file");
+    std::fs::write(repo.join("b.txt"), b"first\nLISTED_LOCAL_COPY_NEEDLE\n").expect("local needle file");
+    git(
+        &fixture,
+        repo.as_path(),
+        &["add", "--", "cli-git.config.jsonc", ".gitignore", "a.txt", "b.txt"],
+    );
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=configuration"]);
+    std::fs::create_dir_all(repo.join(".cache")).expect("cache directory");
+    std::fs::write(repo.join(RULES_FILE), format!("{}\n", needle())).expect("shared rules");
+    std::fs::write(repo.join(".cache/local-rules.txt"), b"LISTED_LOCAL_COPY_NEEDLE\n").expect("local rules");
+    let created: Observed = run_wrapped(
+        &fixture,
+        repo.as_path(),
+        &["worktree", "add", "--quiet", "-b", "one", "../one"],
+    );
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    let one: PathBuf = fixture.root.join("one");
+    assert!(one.join(RULES_FILE).exists(), "the required file is copied");
+    assert!(one.join(".cache/local-rules.txt").exists(), "the present optional file is copied");
+    assert!(!one.join(".cache/never.txt").exists(), "an absent optional file is not invented");
+    let checked: Observed = check_all(&fixture, one.as_path());
+    let stdout: String = String::from_utf8_lossy(&checked.stdout).into_owned();
+    assert_eq!(checked.code, Some(1), "{stdout} {}", stderr_of(&checked));
+    assert!(stdout.contains("a.txt") && stdout.contains("b.txt"), "both rules files apply: {stdout}");
+    remove(&fixture);
+}
+
 /// A worktree added from a linked worktree receives every ignored path of that worktree.
 #[test]
 fn worktree_added_from_a_linked_worktree_receives_all_ignored_state() {

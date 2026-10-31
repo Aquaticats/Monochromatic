@@ -315,19 +315,19 @@ fn scan_overlay(work: &Path) {
     facts.candidates_repository = Some(repo.clone());
     let mut content: ContentState = ContentState::new();
     let scanner: CandidateScanner = CandidateScanner::load(
-        &rules_source(None, Some(rules_file(work).as_os_str()), &repo),
+        &rules_source(None, Some(rules_file(work).as_os_str()), &repo).expect("rules source"),
         false,
     )
     .expect("rules");
     assert!(matches!(
-        content.scan(&scanner, None),
+        content.scan(&scanner, &[]),
         Err(ScanRunError::Candidate(_))
     ));
     content
         .version(&whole_worktree(), &mut facts)
         .expect("read")
         .expect("candidates");
-    let before: Vec<CandidateScan> = content.scan(&scanner, None).expect("scan");
+    let before: Vec<CandidateScan> = content.scan(&scanner, &[]).expect("scan");
     assert_eq!(before.len(), 1);
     assert_eq!(before[0].findings.len(), 1);
     content.apply(vec![Correction {
@@ -336,7 +336,7 @@ fn scan_overlay(work: &Path) {
         before: Rc::from(format!("{}\n", needle()).as_bytes()),
         after: Rc::from(&b"clean\n"[..]),
     }]);
-    let after: Vec<CandidateScan> = content.scan(&scanner, None).expect("scan");
+    let after: Vec<CandidateScan> = content.scan(&scanner, &[]).expect("scan");
     assert_eq!(after.len(), 1);
     assert_eq!(after[0].findings, Vec::new());
 }

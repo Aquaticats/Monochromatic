@@ -43,6 +43,13 @@ each attacking one published promise of the crate:
    a set must be visible at its address,
    and a delete must remove it.
 
+The roundtrip,
+reject-and-recover and depth-envelope targets also call the span checks in `src/span_invariants.rs`:
+every accepted document's `parse_jsonc_with_spans` result must equal the plain parse,
+every span must slice back to its own token,
+positions must agree with `jsonc_position_at`,
+and a rejected document must be rejected identically by both entry points.
+
 ## Why a structured generator
 
 Random bytes almost never form valid JSONC,
@@ -98,6 +105,8 @@ The house rule for that isolation is in `AGENTS.md` under hazardous commands.
    exact-depth documents,
    single mutations and replacement values.
 - `src/invariants.rs` holds the property checks shared by every target.
+- `src/span_invariants.rs` holds the span checks,
+  with negative controls in `src/span_invariants_tests.rs`.
 - `src/path_pick.rs` draws resolving addresses.
 - `fuzz_targets/` holds the four harnesses.
    Each needs an explicit `[[bin]]` entry in `Cargo.toml`:

@@ -550,7 +550,7 @@ impl ContentState {
 impl ContentState {
     /// What:
     ///  Scan the prepared version through `scanner`.
-    ///  `Option<&[u8]>` is the rules
+    ///  `&[Vec<u8>]` is the rules
     ///       file's own pathname,
     ///  which is not scanned,
     ///  or nothing.
@@ -566,9 +566,9 @@ impl ContentState {
     pub fn scan(
         &mut self,
         scanner: &CandidateScanner,
-        rules_path: Option<&[u8]>,
+        rules_paths: &[Vec<u8>],
     ) -> Result<Vec<CandidateScan>, ScanRunError> {
-        return self.scan_skipping(scanner, rules_path, &KnownContent::default());
+        return self.scan_skipping(scanner, rules_paths, &KnownContent::default());
     }
 
     /// What:
@@ -586,7 +586,7 @@ impl ContentState {
     pub fn scan_skipping(
         &mut self,
         scanner: &CandidateScanner,
-        rules_path: Option<&[u8]>,
+        rules_paths: &[Vec<u8>],
         known: &KnownContent,
     ) -> Result<Vec<CandidateScan>, ScanRunError> {
         match &mut self.prepared {
@@ -600,7 +600,7 @@ impl ContentState {
                     scanner,
                     &mut reader,
                     &prepared.version,
-                    rules_path,
+                    rules_paths,
                     known,
                 );
             }
@@ -611,7 +611,7 @@ impl ContentState {
     /// What:
     ///  The candidates of the prepared version whose content a parent commit's tree already holds,
     ///       as this lifecycle's request defines the parents.
-    ///  `Option<&[u8]>` is the rules file's own pathname.
+    ///  `&[Vec<u8>]` is the rules files' own pathnames.
     /// Why:
     ///   A file this invocation corrected holds new bytes whatever its object is,
     ///  so it is never known.
@@ -624,7 +624,7 @@ impl ContentState {
     pub fn known_content(
         &mut self,
         request: &CandidateRequest,
-        rules_path: Option<&[u8]>,
+        rules_paths: &[Vec<u8>],
     ) -> Result<KnownContent, CandidateError> {
         match &mut self.prepared {
             Some(Ok(prepared)) => {
@@ -632,7 +632,7 @@ impl ContentState {
                     &mut prepared.store,
                     &prepared.version,
                     &ContentBasis::of(request),
-                    rules_path,
+                    rules_paths,
                     &self.corrected,
                 );
             }

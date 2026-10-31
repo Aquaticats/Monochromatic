@@ -1,5 +1,7 @@
-//! What:     Finds cargo's home directory (`~/.cargo` unless `CARGO_HOME` says otherwise).
-//! Why:      The install record and the registry cache both live under it.
+//! What:
+//! Finds cargo's home directory (`~/.cargo` unless `CARGO_HOME` says otherwise).
+//! Why:
+//! The install record and the registry cache both live under it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,9 +11,13 @@
 //! }
 //! ```
 
-/// What:     `use std::path::PathBuf;` imports the owned, growable file path (sibling `&Path` is the borrowed,
+/// What:
+/// `use std::path::PathBuf;` imports the owned,
+/// growable file path (sibling `&Path` is the borrowed,
 ///           read-only one).
-/// Why:      The function hands a path back to its caller to keep, so it must own it.
+/// Why:
+/// The function hands a path back to its caller to keep,
+/// so it must own it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,11 +25,16 @@
 /// ```
 use std::path::PathBuf;
 
-/// What:     `pub fn cargo_home(cargo_home_variable: Option<String>, home_variable: Option<String>) -> Option<PathBuf>`
+/// What:
+/// `pub fn cargo_home(cargo_home_variable: Option<String>, home_variable: Option<String>) -> Option<PathBuf>`
 ///           declares a public function over two `Option<String>` inputs (each `Some(text)` when that environment
-///           variable is set, `None` when not) returning `Some(path)` or `None`.
-/// Why:      The caller reads the real environment; taking the values as inputs lets the tests pass fixtures without
-///           changing the process environment. `String` and not `&str` because the caller passes the owned values
+///           variable is set,
+/// `None` when not) returning `Some(path)` or `None`.
+/// Why:
+/// The caller reads the real environment;
+/// taking the values as inputs lets the tests pass fixtures without
+///           changing the process environment.
+/// `String` and not `&str` because the caller passes the owned values
 ///           `std::env::var(...).ok()` produces.
 ///
 /// In TS you'd write (pseudocode):

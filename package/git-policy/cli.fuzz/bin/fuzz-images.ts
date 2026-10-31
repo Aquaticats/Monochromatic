@@ -1,6 +1,10 @@
 /**
  Images and bounds the fuzz container campaign shares between its build and run phases.
  */
+import {
+  defaultContainerLimits,
+  runLimitArguments,
+} from '../../cli/bin/container-limits.ts';
 
 /**
  Same installed Rust runtime image as the linter's fuzz sidecar; the targets are pure and need no Git.
@@ -30,12 +34,13 @@ export const runImage: string = `localhost/git-policy-cli-fuzz-run:${imageTag}`;
 export const maxInputBytes = 4_096;
 
 /**
- No network, 2 GiB, 2 CPUs and 128 PIDs for every container the campaign starts.
+ No network, and the default memory, CPUs and PIDs of the container limits, for every container the campaign starts.
  */
 export const limits: readonly string[] = [
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=128',
+  ...runLimitArguments({
+    limits: defaultContainerLimits,
+    withPidsLimit: true,
+  }),
 ];

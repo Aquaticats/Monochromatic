@@ -1,0 +1,22 @@
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks."campaign:parallel"]
+description = "Start one capped systemd user unit per file: `-- --task <mise task> --tag-env <name> [options] <label> <file>...` (see README.md)"
+run = "node bin/mutation-parallel.ts"
+
+[tasks."campaign:gate-slot"]
+description = "Run `-- <command> [arguments...]` under the host-wide campaign slot limit"
+run = "node bin/gate-slot.ts"

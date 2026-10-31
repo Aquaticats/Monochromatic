@@ -1,0 +1,12 @@
+{
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  "compilerOptions": {
+    // The sidecar has no package.json of its own; its script imports the scanner's snapshot modules in ../cli/bin, so
+    // the project root has to contain both packages.
+    "rootDir": "..",
+  },
+  "include": [
+    "bin/**/*.ts",
+    "../cli/bin/**/*.ts",
+  ],
+}

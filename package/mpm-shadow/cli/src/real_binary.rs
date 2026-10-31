@@ -1,7 +1,13 @@
-//! What:     Finds the real `mpm` on PATH while skipping the shadow itself.
-//! Why:      The shadow is first on PATH under the name `mpm`, so a plain PATH search would find the shadow again and
-//!           run itself forever. The repository and global shadow directories can both be on PATH, so every candidate
-//!           that resolves to this executable is skipped, not only the first.
+//! What:
+//! Finds the real `mpm` on PATH while skipping the shadow itself.
+//! Why:
+//! The shadow is first on PATH under the name `mpm`,
+//! so a plain PATH search would find the shadow again and
+//!           run itself forever.
+//! The repository and global shadow directories can both be on PATH,
+//! so every candidate
+//!           that resolves to this executable is skipped,
+//! not only the first.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,12 +15,16 @@
 //! export function findInPath(name: string, pathVariable: string, skip: string): string | undefined { ... }
 //! ```
 
-/// Imports the file-system module (resolves symlinks, reads permissions).
+/// Imports the file-system module (resolves symlinks,
+/// reads permissions).
 use std::fs;
 
-/// What:     `use std::os::unix::fs::PermissionsExt;` imports a trait (a named bundle of methods, like a TS interface
+/// What:
+/// `use std::os::unix::fs::PermissionsExt;` imports a trait (a named bundle of methods,
+/// like a TS interface
 ///           that types can opt into) that makes `.mode()` available on file permissions.
-/// Why:      The execute bits live in the Unix mode number.
+/// Why:
+/// The execute bits live in the Unix mode number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,9 +35,16 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed and owned path types.
 use std::path::{Path, PathBuf};
 
-/// What:     `const EXECUTE_BITS: u32 = 0o111;` is a constant unsigned 32-bit integer (siblings `i32`, `u64`). The `0o`
-///           prefix writes it in base 8: the owner, group and other execute bits.
-/// Why:      A file is runnable when any of those bits is set; `u32` because `.mode()` returns that type.
+/// What:
+/// `const EXECUTE_BITS: u32 = 0o111;` is a constant unsigned 32-bit integer (siblings `i32`,
+/// `u64`).
+/// The `0o`
+///           prefix writes it in base 8:
+/// the owner,
+/// group and other execute bits.
+/// Why:
+/// A file is runnable when any of those bits is set;
+/// `u32` because `.mode()` returns that type.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -35,8 +52,11 @@ use std::path::{Path, PathBuf};
 /// ```
 const EXECUTE_BITS: u32 = 0o111;
 
-/// What:     `fn is_executable_file(path: &Path) -> bool` declares a private function over a borrowed path.
-/// Why:      The search must ignore directories, missing files and files without an execute bit.
+/// What:
+/// `fn is_executable_file(path: &Path) -> bool` declares a private function over a borrowed path.
+/// Why:
+/// The search must ignore directories,
+/// missing files and files without an execute bit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,9 +73,14 @@ fn is_executable_file(path: &Path) -> bool {
     return false;
 }
 
-/// What:     `pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf>` declares a public
-///           function with three borrowed inputs returning `Some(path)` when found, `None` when not.
-/// Why:      `skip` is the shadow executable's own resolved path, so the loop never returns the shadow. `PathBuf`
+/// What:
+/// `pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf>` declares a public
+///           function with three borrowed inputs returning `Some(path)` when found,
+/// `None` when not.
+/// Why:
+/// `skip` is the shadow executable's own resolved path,
+/// so the loop never returns the shadow.
+/// `PathBuf`
 ///           and not `&Path` because the result outlives the borrowed inputs.
 ///
 /// In TS you'd write (pseudocode):

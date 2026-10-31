@@ -522,10 +522,10 @@
       "request": {
         "channel": "nightly"
       },
-      "version": "nightly-2026-10-29",
+      "version": "nightly-2026-10-31",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-10-29",
+      "packageId": "nightly-2026-10-31",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -540,7 +540,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-10-29"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-10-31"
       },
       "options": {
         "rustComponents": [
@@ -605,7 +605,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "6.3.0",
+      "version": "6.3.2",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "cargo-dylint",
@@ -620,7 +620,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "6.3.0",
+      "version": "6.3.2",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "dylint-link",
@@ -680,7 +680,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.4.0",
+      "version": "0.4.4",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-git-policy-cli",
@@ -1171,7 +1171,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.7.0",
+      "version": "0.7.1",
       "route": "bin-sourced",
       "bins": [
         "superhtml"
@@ -1180,20 +1180,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/aarch64-linux.tar.xz",
-          "sha256": "9fa2ed1ec830464c38929531693e7129ae6df3ccb1bb3f01fec3322ed5759fc5"
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/aarch64-linux.tar.xz",
+          "sha256": "9ed5bbf8e61a94b13db68eca1666403c654ff4a12c12a458e217331f869394b3"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/aarch64-linux.tar.xz",
-          "sha256": "9fa2ed1ec830464c38929531693e7129ae6df3ccb1bb3f01fec3322ed5759fc5"
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/aarch64-linux.tar.xz",
+          "sha256": "9ed5bbf8e61a94b13db68eca1666403c654ff4a12c12a458e217331f869394b3"
         },
         "linux-x64": {
-          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/x86_64-linux-musl.tar.xz",
-          "sha256": "b75c6eeef539416096eac38729ee54e5f3b248f039cab4f57660f29a88742f68"
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/x86_64-linux-musl.tar.xz",
+          "sha256": "e5493cb412ea50e3686972f6e114137f0d4f612388d8041a294c8314efa55b35"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/x86_64-linux-musl.tar.xz",
-          "sha256": "b75c6eeef539416096eac38729ee54e5f3b248f039cab4f57660f29a88742f68"
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/x86_64-linux-musl.tar.xz",
+          "sha256": "e5493cb412ea50e3686972f6e114137f0d4f612388d8041a294c8314efa55b35"
         }
       }
     },
@@ -1422,7 +1422,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "1.12.1",
+      "version": "1.12.2",
       "route": "mpm-pnpm",
       "manager": "pnpm",
       "packageId": "socket",
@@ -1441,7 +1441,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "4.155.0",
+      "version": "4.156.0",
       "route": "mpm-pnpm",
       "manager": "pnpm",
       "packageId": "wrangler",

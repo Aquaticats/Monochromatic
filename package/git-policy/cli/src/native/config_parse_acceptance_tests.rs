@@ -15,7 +15,7 @@
 use super::parse_config;
 use crate::config_schema::{
     CliGitConfig, ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting,
-    unlisted_severity,
+    RulesFileEntry, unlisted_severity,
 };
 use crate::policy_registry::{POLICY_REGISTRY, PolicyId, Severity};
 
@@ -122,9 +122,46 @@ fn repository_translation_names_all_four_optional_policies() {
         config.policies.forbidden_strings,
         ForbiddenStringsOptions {
             builtin_rules: true,
-            rules_file: Some(String::from(".cache/forbidden-strings.rules.txt")),
+            rules_files: Some(vec![RulesFileEntry {
+                path: String::from(".cache/forbidden-strings.rules.txt"),
+                optional: false,
+            }]),
         }
     );
+}
+
+/// `rulesFile` takes one path (a required file, as before lists existed)
+///  or an array of paths and `{"path", "optional"}` objects, in the order written.
+#[test]
+fn rules_file_takes_a_path_or_an_array_of_entries() {
+    let single: CliGitConfig = parse_config(
+        r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": "a,b?.txt" }] } }"#,
+    )
+    .expect("single path");
+    // A configured string is never split: JSON already says which file is meant.
+    assert_eq!(
+        single.policies.forbidden_strings.rules_files,
+        Some(vec![RulesFileEntry { path: String::from("a,b?.txt"), optional: false }])
+    );
+    let listed: CliGitConfig = parse_config(
+        r#"{ "policies": { "security/forbidden-strings": { "rulesFile": [
+          "forbidden-strings.append.txt",
+          { "path": "forbidden-strings.append.local.txt", "optional": true },
+          { "path": "extra.txt" },
+          { "path": "never.txt", "optional": false },
+        ] } } }"#,
+    )
+    .expect("array of entries");
+    assert_eq!(
+        listed.policies.forbidden_strings.rules_files,
+        Some(vec![
+            RulesFileEntry { path: String::from("forbidden-strings.append.txt"), optional: false },
+            RulesFileEntry { path: String::from("forbidden-strings.append.local.txt"), optional: true },
+            RulesFileEntry { path: String::from("extra.txt"), optional: false },
+            RulesFileEntry { path: String::from("never.txt"), optional: false },
+        ])
+    );
+    assert!(listed.policies.forbidden_strings.builtin_rules);
 }
 
 /// A word-for-word translation of the TypeScript `policies` map names only three of them:
@@ -148,7 +185,7 @@ fn literal_translation_silently_stops_the_unlisted_policy() {
         config.policies.forbidden_strings,
         ForbiddenStringsOptions {
             builtin_rules: true,
-            rules_file: None,
+            rules_files: None,
         }
     );
 }

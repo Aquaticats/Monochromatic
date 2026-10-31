@@ -258,7 +258,7 @@ impl KnownContent {
 
 /// What:
 ///  Whether a candidate's content can be known from a parent's tree at all.
-///       `Option<&[u8]>` is the rules file's own pathname.
+///       `&[Vec<u8>]` is the rules files' own pathnames.
 /// Why:
 ///   Only a scanned blob has bytes that a parent could already hold.
 ///  A submodule entry is a commit name,
@@ -270,10 +270,10 @@ impl KnownContent {
 /// ```
 fn is_comparable(
     candidate: &Candidate,
-    rules_path: Option<&[u8]>,
+    rules_paths: &[Vec<u8>],
     corrected: &BTreeMap<Vec<u8>, InstallChange>,
 ) -> bool {
-    return is_scannable(candidate, rules_path)
+    return is_scannable(candidate, rules_paths)
         && candidate.object.is_some()
         && candidate.mode != CandidateMode::Gitlink
         && !corrected.contains_key(&candidate.path);
@@ -282,7 +282,7 @@ fn is_comparable(
 /// What:
 ///  Find every comparable candidate whose blob a parent's tree holds.
 ///  `&mut CandidateStore` lends the listing;
-///  `Option<&[u8]>` is the rules file's pathname;
+///  `&[Vec<u8>]` is the rules files' pathnames;
 ///  `&BTreeMap<..>` are the files a fix corrected.
 /// Why:
 ///   Parents are listed one after another and listing stops when every candidate is placed,
@@ -300,12 +300,12 @@ pub fn find_known_content(
     store: &mut CandidateStore,
     version: &CandidateVersion,
     basis: &ContentBasis,
-    rules_path: Option<&[u8]>,
+    rules_paths: &[Vec<u8>],
     corrected: &BTreeMap<Vec<u8>, InstallChange>,
 ) -> Result<KnownContent, CandidateError> {
     let mut pending: Vec<&Candidate> = Vec::new();
     for candidate in version.candidates() {
-        if is_comparable(candidate, rules_path, corrected) {
+        if is_comparable(candidate, rules_paths, corrected) {
             pending.push(candidate);
         }
     }

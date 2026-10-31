@@ -20,6 +20,9 @@
 use super::js_text::trim_javascript;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
+/// The in-process answer for the `f_fsid` GNU `stat` would print.
+#[cfg(target_os = "linux")]
+use super::filesystem_identity_fsid::f_fsid_text;
 /// The in-process answer for the UUID `findmnt` would print.
 #[cfg(target_os = "linux")]
 use super::filesystem_identity_mount::{MountUuid, mount_uuid};
@@ -56,7 +59,7 @@ pub enum FsIdSource {
     VolumeUuid,
     /// A Windows volume serial number.
     VolumeSerial,
-    /// A Linux `f_fsid` from `stat --file-system`.
+    /// A Linux `f_fsid`, spelled as `stat --file-system --format=%i` spells it and read in-process.
     FFsid,
     /// A device number.
     DeviceNumber,
@@ -245,7 +248,7 @@ fn command_output(command: &str, arguments: &[&std::ffi::OsStr]) -> Option<Strin
 ///  The Linux identity:
 ///  the filesystem UUID from `findmnt`,
 ///  or the degraded `f_fsid`
-///       from GNU `stat`.
+///       the kernel reports, spelled as GNU `stat` spells it.
 /// Why:
 ///   `resolveLinuxFsId`,
 ///  step for step.
@@ -299,14 +302,9 @@ fn linux_fs_id_with(
             }
         }
     }
-    let fallback: String = run_command(
-        "stat",
-        &[
-            std::ffi::OsStr::new("--file-system"),
-            std::ffi::OsStr::new("--format=%i"),
-            target,
-        ],
-    )?;
+    // The degraded identity needs no process: the kernel answers `statfs` in-process, so releasing a lock this
+    // process holds still works when the host refuses every start.
+    let fallback: String = f_fsid_text(path)?;
     return create_fs_id(FsIdSource::FFsid, fallback.as_str());
 }
 

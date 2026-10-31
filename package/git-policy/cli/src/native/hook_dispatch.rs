@@ -33,6 +33,8 @@ use super::transaction_registry::{TRANSACTION_ROOT_NAME, is_transaction_id};
 use super::entry::run_process;
 /// `OsStr`/`OsString` are operating-system text; `Command` starts Git.
 use std::ffi::{OsStr, OsString};
+/// The trait that gives standard error `writeln!`.
+use std::io::Write;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// Child process starting.
@@ -155,7 +157,9 @@ pub fn dispatch_environment(
 /// throw new Error('cli-git hook dispatcher: ' + message);
 /// ```
 fn dispatch_failure(message: &str) -> i32 {
-    eprintln!("cli-git hook dispatcher: {message}");
+    // `eprintln!` panics when standard error has no reader (a closed terminal or a broken pipe), which would turn
+    // the status this function documents into 101; a report that cannot be delivered is dropped.
+    let _ = writeln!(std::io::stderr(), "cli-git hook dispatcher: {message}");
     return 1;
 }
 

@@ -44,41 +44,46 @@ description = "Build the Podman image that runs mutation testing (one-time; laye
 # Single bare command; podman caches layers so re-runs are fast no-ops.
 run = "podman build --tag forbidden-regex-mutants --file mutants.Containerfile ."
 
+[tasks."test:mutation:snapshot"]
+description = "Bake the crate, its tests, its lockfile, its cargo-mutants configuration and its fetched dependencies into the source snapshot image a mutation campaign layers over; `-- --memory <size> --cpus <count>` bound the build"
+# Needs the base image of test:mutation:image and a network for `cargo fetch`; the campaign itself runs offline.
+run = "node bin/build-test-image.ts"
+
 [tasks."test:mutation"]
-description = "Mutation-test the engine inside a Podman container (mutated code must not run on the host)"
+description = "Mutation-test the engine in a mount-free, bounded container (mutated code must not run on the host); `-- --file src/<glob>.rs --examine <regex> --timeout <s> --memory <size> --cpus <count> --pids-limit <count>` go to the campaign step only"
 depends = ["test:mutation:image"]
-# cargo-mutants compiles and runs MUTATED source: arbitrary, unpredictable code that runs
-# ONLY inside this disposable rootless Podman container, never on the host. The crate is
-# mounted read-write (cargo-mutants writes its build copies and mutants.out); a named
-# volume caches the crates.io registry so only the first run downloads deps.
-#
-# cargo-mutants defaults to ONE mutant at a time, which left the box idle; this runs
-# `--jobs` mutants in parallel, scaled to the host (cores minus two, to keep the machine
-# responsive), and caps the container at the same core count and proportional memory per
-# the repo's heavy-run isolation rule (bounds stated explicitly). `--security-opt
-# label=disable` avoids relabeling the host crate tree (namespace isolation is what keeps
-# mutated code off the host). Extra cargo-mutants flags pass straight through (e.g.
-# `mise run test:mutation -- --file src/parse.rs` to scope, or `-- --list` to enumerate).
+# cargo-mutants compiles and runs MUTATED source: arbitrary, unpredictable code that runs ONLY inside a disposable
+# rootless Podman container with no network, never on the host. The crate is baked into the snapshot image, not mounted;
+# the crate's .cargo/mutants.toml excludes the proven-equivalent mutants. One campaign runs one container; several run
+# at once through the launcher of package/mutation-test/cli-cargo-mutants (its slot limiter bounds how many).
+run = ["node bin/build-test-image.ts", "node bin/mutate-container.ts"]
+
+[tasks."lint:scripts:types"]
+description = "Type-check the verification scripts in bin (TypeScript)"
+extends = "lint:types"
+
+[tasks."lint:scripts:oxlint"]
+description = "Lint explicitly selected engine TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
 shell = "node --input-type=module-typescript -e"
 run = """
-const os = await import('node:os')
-const { execFileSync } = await import('node:child_process')
-const cores = os.cpus().length
-const jobs = Math.max(1, cores - 2)
-const memGb = Math.max(6, Math.min(jobs * 2, 24))
-const extra = process.argv.slice(1)
-try {
-  execFileSync('podman', [
-    'run', '--rm', '--security-opt', 'label=disable',
-    `--cpus=${jobs}`, `--memory=${memGb}g`,
-    '--volume', `${process.cwd()}:/work`,
-    '--volume', 'forbidden-regex-mutants-registry:/usr/local/cargo/registry',
-    '--workdir', '/work', 'forbidden-regex-mutants',
-    'cargo', 'mutants', '--colors=never', '--jobs', String(jobs), ...extra,
-  ], { stdio: 'inherit' })
-} catch (err) {
-  // cargo-mutants exits non-zero when any mutant survives or times out; surface that exit
-  // code as the task's own (a CI gate) without a Node stack-trace dump over the report.
-  process.exitCode = err.status ?? 1
-}
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('lint:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
+"""
+
+[tasks."format:scripts:oxlint"]
+description = "Auto-fix explicitly selected engine TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to fix"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('format:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
 """

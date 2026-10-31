@@ -48,7 +48,7 @@ use super::git_metadata::path_from_git_bytes;
 /// ```ts
 /// import { type CacheWarning, type CandidateScan, Scanner } from 'forbidden-strings';
 /// ```
-use forbidden_strings::{CacheWarning, CandidateScan, Scanner};
+use forbidden_strings::{CacheWarning, CandidateScan, RulesEntry, Scanner};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::{Path, PathBuf};
 
@@ -133,25 +133,29 @@ impl std::fmt::Display for ScannerError {
 impl std::error::Error for ScannerError {}
 
 /// What:
-///  Which rules file to load and whether its absence is an error.
-///       `PathBuf` owns the path (sibling `&Path` would borrow the caller's).
+///  Which rules files to load,
+///  in which order,
+///  and whether each one's absence is an error.
+///       `Vec<RulesEntry>` is an owned list of the scanner library's own entries
+///  (a path and an `optional` flag).
 /// Why:
 ///   The standalone scanner tolerates a missing default rules file when the
 ///       built-in baseline is on,
 ///  and never a missing file that was named
-///       explicitly.
-///  The same two facts are passed to the library.
+///       explicitly unless its entry is optional.
+///  The same facts are passed to the library.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RulesSource = { path: string; explicit: boolean };
+/// type RulesSource = { entries: { path: string; optional: boolean }[]; explicit: boolean };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RulesSource {
-    /// The runtime rules file,
-    ///  absolute.
-    pub path: PathBuf,
-    /// Whether the file was named by configuration instead of being the default location.
+    /// The runtime rules files in the order they are read,
+    ///  each path absolute;
+    ///  one entry when `explicit` is false.
+    pub entries: Vec<RulesEntry>,
+    /// Whether the files were named by configuration or the environment variable instead of being the default location.
     pub explicit: bool,
 }
 
@@ -219,7 +223,12 @@ impl CandidateScanner {
         // ```ts
         // try { return new CandidateScanner(Scanner.load(...)); } catch (error) { throw new ScannerError(...); }
         // ```
-        match Scanner::load(rules.path.as_path(), builtin_rules, rules.explicit) {
+        let loaded = match (rules.explicit, rules.entries.as_slice()) {
+            // The default location keeps the scanner's one-path contract: absent only under the baseline.
+            (false, [only]) => Scanner::load(only.path.as_path(), builtin_rules, false),
+            (_, entries) => Scanner::load_entries(entries, builtin_rules),
+        };
+        match loaded {
             // `Ok(...)` is the success variant.
             Ok(scanner) => return Ok(CandidateScanner { scanner }),
             // `Err(...)` is the failure variant.
@@ -249,6 +258,22 @@ impl CandidateScanner {
     /// ```
     pub fn cache_warnings(&self) -> &[CacheWarning] {
         return self.scanner.cache_warnings();
+    }
+
+    /// What:
+    ///  The optional rules files that were absent and skipped by this load,
+    ///  in list order.
+    ///       `&[PathBuf]` borrows the list read-only.
+    /// Why:
+    ///   The scanner library has no log subscriber inside cli-git,
+    ///  so the caller reports the skipped files.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// get skippedOptionalRules(): readonly string[]
+    /// ```
+    pub fn skipped_optional_rules(&self) -> &[PathBuf] {
+        return self.scanner.skipped_optional_rules();
     }
 
     /// What:

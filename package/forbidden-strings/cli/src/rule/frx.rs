@@ -43,6 +43,9 @@ mod sections;
 /// Re-exports the redacted load-error type as this module's public failure.
 pub use error::LoadError;
 
+/// Re-exports the format decision and BOM strip a caller needs to join several rule sources.
+pub(crate) use format::{source_format, strip_source_bom, SourceFormat};
+
 /// Re-exports the literal-to-verbose-dialect escaper for the scanner's fuzz targets.
 ///
 /// The `fuzz_literal_roundtrip` target drives this escaper directly (not through the

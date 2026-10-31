@@ -1,5 +1,8 @@
-//! What:     Unit tests of the cargo home lookup in `cargo_home.rs`.
-//! Why:      Both the install record and the registry are found through it; a wrong answer would prune the wrong
+//! What:
+//! Unit tests of the cargo home lookup in `cargo_home.rs`.
+//! Why:
+//! Both the install record and the registry are found through it;
+//! a wrong answer would prune the wrong
 //!           directory or none.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,7 +26,8 @@ fn prefers_cargo_home_over_home() {
     );
 }
 
-/// Without `CARGO_HOME`, the default is `HOME/.cargo`.
+/// Without `CARGO_HOME`,
+/// the default is `HOME/.cargo`.
 #[test]
 fn falls_back_to_home_dot_cargo() {
     assert_eq!(cargo_home(None, Some("/home/me".to_string())), Some(PathBuf::from("/home/me/.cargo")));

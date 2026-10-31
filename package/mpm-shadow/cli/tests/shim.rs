@@ -1,7 +1,15 @@
-//! What:     End-to-end tests of the built `mpm-shadow` binary: it is started through a symlink named `mpm`, with a
-//!           fake "real" `mpm` script on PATH and a disposable cargo home, exactly as the toolchain will run it.
-//! Why:      The unit tests prove the pieces; only a real process shows that the arguments arrive untouched, the exit
-//!           status passes through, and the stale copies are gone afterwards.
+//! What:
+//! End-to-end tests of the built `mpm-shadow` binary:
+//! it is started through a symlink named `mpm`,
+//! with a
+//!           fake "real" `mpm` script on PATH and a disposable cargo home,
+//! exactly as the toolchain will run it.
+//! Why:
+//! The unit tests prove the pieces;
+//! only a real process shows that the arguments arrive untouched,
+//! the exit
+//!           status passes through,
+//! and the stale copies are gone afterwards.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,7 +17,8 @@
 //! const result = spawnSync(path.join(shadowDirectory, 'mpm'), ['list'], { env: { PATH, CARGO_HOME } });
 //! ```
 
-/// Imports the file-system module (writes the fake mpm, makes links and fixtures).
+/// Imports the file-system module (writes the fake mpm,
+/// makes links and fixtures).
 use std::fs;
 
 /// Imports the trait that adds `from_mode` to permissions (marks the fake mpm executable).
@@ -21,10 +30,14 @@ use std::path::Path;
 /// Imports `Command` (start a program) and `Output` (its result).
 use std::process::{Command, Output};
 
-/// What:     `fn fixture_root() -> tempfile::TempDir` declares a helper returning a disposable directory that is
+/// What:
+/// `fn fixture_root() -> tempfile::TempDir` declares a helper returning a disposable directory that is
 ///           removed when the returned guard drops.
-/// Why:      `env!("CARGO_TARGET_TMPDIR")` is a compile-time macro (the `!`) Cargo sets for integration tests: a
-///           directory in the build output, so no test writes under the system temporary directory.
+/// Why:
+/// `env!("CARGO_TARGET_TMPDIR")` is a compile-time macro (the `!`) Cargo sets for integration tests:
+/// a
+///           directory in the build output,
+/// so no test writes under the system temporary directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,8 +47,10 @@ fn fixture_root() -> tempfile::TempDir {
     return tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
 }
 
-/// What:     `fn write_fake_mpm(directory: &Path, script: &str)` declares a helper writing an executable `mpm` script.
-/// Why:      The shadow must find and run a program named `mpm` that is not itself.
+/// What:
+/// `fn write_fake_mpm(directory: &Path, script: &str)` declares a helper writing an executable `mpm` script.
+/// Why:
+/// The shadow must find and run a program named `mpm` that is not itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,9 +62,12 @@ fn write_fake_mpm(directory: &Path, script: &str) {
     fs::set_permissions(directory.join("mpm"), fs::Permissions::from_mode(0o755)).expect("make it executable");
 }
 
-/// What:     `fn start_shadow(root: &Path, arguments: &[&str]) -> Output` declares a helper that links the built binary
+/// What:
+/// `fn start_shadow(root: &Path, arguments: &[&str]) -> Output` declares a helper that links the built binary
 ///           as `mpm` and runs it with a PATH holding the link directory then the fake mpm's directory.
-/// Why:      This is the exact shape of the real setup: the link's directory first on PATH.
+/// Why:
+/// This is the exact shape of the real setup:
+/// the link's directory first on PATH.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,9 +88,12 @@ fn start_shadow(root: &Path, arguments: &[&str]) -> Output {
         .expect("run the shadow");
 }
 
-/// What:     `fn write_stale_copies(root: &Path)` declares a helper creating a cargo home with an install record and
+/// What:
+/// `fn write_stale_copies(root: &Path)` declares a helper creating a cargo home with an install record and
 ///           two cached versions of one of our crates.
-/// Why:      The record says 0.4.0 is installed, so the 0.1.0 archive and source must disappear.
+/// Why:
+/// The record says 0.4.0 is installed,
+/// so the 0.1.0 archive and source must disappear.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +115,9 @@ fn write_stale_copies(root: &Path) {
     .expect("write the install record");
 }
 
-/// The arguments arrive untouched, the child's exit code passes through, and the stale copies are gone afterwards.
+/// The arguments arrive untouched,
+/// the child's exit code passes through,
+/// and the stale copies are gone afterwards.
 #[test]
 fn passes_arguments_and_exit_code_through_then_prunes() {
     let root = fixture_root();
@@ -137,7 +160,8 @@ fn exits_127_when_no_real_mpm_is_on_path() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("no real mpm found on PATH"));
 }
 
-/// Started as `mpm-shadow`, the `prune` subcommand deletes the stale copies and says which.
+/// Started as `mpm-shadow`,
+/// the `prune` subcommand deletes the stale copies and says which.
 #[test]
 fn the_prune_subcommand_deletes_and_reports() {
     let root = fixture_root();

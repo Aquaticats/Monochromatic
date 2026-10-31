@@ -204,7 +204,43 @@ fn invalid_policy_options_are_rejected_by_key() {
         ),
         (
             r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": 1 }] } }"#,
-            "Configuration key policies.security/forbidden-strings[1].rulesFile must be a string, found a number.",
+            "Configuration key policies.security/forbidden-strings[1].rulesFile must be a file name, or an array of file names and objects with \"path\" and an optional \"optional\", found a number.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": [] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile must name at least one file",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": ["a.txt", 1] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[1] must be a file name or an object with \"path\" and an optional \"optional\", found a number.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": ["a.txt", "b/../c.txt"] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[1] must name a file relative to the repository's top level that stays inside it, but the value has a . or .. component.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": [{ "path": "/etc/rules.txt" }] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[0].path must name a file relative to the repository's top level that stays inside it, but the value starts with /.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": [{ "optional": true }] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[0] must have a \"path\" key naming the rules file.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": [{ "path": "a.txt", "optionnal": true }] }] } }"#,
+            "Unknown configuration key: policies.security/forbidden-strings[1].rulesFile[0].optionnal. Accepted keys: path, optional.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": [{ "path": "a.txt", "optional": "yes" }] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[0].optional must be true or false, found a string.",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": [{ "path": "a.txt", "path": "b.txt" }] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[0].path is defined more than once",
+        ),
+        (
+            r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": ["a.txt", { "path": "a.txt", "optional": true }] }] } }"#,
+            "Configuration key policies.security/forbidden-strings[1].rulesFile[1] names the same file as policies.security/forbidden-strings[1].rulesFile[0]",
         ),
         (
             r#"{ "policies": { "security/forbidden-strings": ["error", { "rulesFile": "../outside.txt" }] } }"#,

@@ -27,6 +27,7 @@ use super::{
     unloaded_scanner,
 };
 use crate::candidate_prediction::CandidateRequest;
+use crate::config_schema::RulesFileEntry;
 use crate::diagnostics::EngineFailureCode;
 /// The event form of a pathname.
 use crate::event_path::EventPath;
@@ -65,7 +66,9 @@ fn add(values: &[&str]) -> LifecycleContent {
 fn settings(rules_file: Option<&str>, variable: Option<&OsStr>, builtin: bool) -> ScannerSettings {
     let mut chosen: ScannerSettings = default_scanner_settings();
     chosen.options.builtin_rules = builtin;
-    chosen.options.rules_file = rules_file.map(String::from);
+    chosen.options.rules_files = rules_file.map(|name| {
+        return vec![RulesFileEntry { path: String::from(name), optional: false }];
+    });
     chosen.rules_variable = variable.map(OsStr::to_os_string);
     return chosen;
 }

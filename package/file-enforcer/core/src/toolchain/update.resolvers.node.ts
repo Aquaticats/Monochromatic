@@ -9,7 +9,9 @@ import { basename, } from 'node:path';
 import type { ToolPlanEntry, } from './types.ts';
 import {
   type Fetcher,
+  isDigits,
   isSha256Hex,
+  jsonObjectsOf,
   type MutableArtifacts,
   parseJson,
   stringField,
@@ -86,6 +88,45 @@ const SUMS_HOSTS = [
 ] as const;
 
 /**
+ Dot-separated numbers in a stable release tag: major, minor, patch.
+ */
+const STABLE_TAG_NUMBERS = 3;
+
+/**
+ Whether a release tag is a stable release: `v` and three dot-separated numbers, nothing after them.
+
+ The index lists pre-releases (`v27.0.0-alpha.0.0.0`) ahead of the stable releases, and a
+ pre-release publishes no sums rows for the recorded artifacts.
+
+ @param tag - release tag from the index `version` field
+
+ @returns whether the tag matches `v<major>.<minor>.<patch>` exactly
+
+ @example
+ ```ts
+ isStableTag({ tag: 'v26.13.0', },); // true
+ isStableTag({ tag: 'v27.0.0-alpha.0.0.0', },); // false
+ ```
+ */
+function isStableTag(
+  { tag, }: { readonly tag: string; },
+): boolean {
+  /**
+   Dot-separated numbers after the `v`.
+   */
+  const numbers = stripPrefix({
+    text: tag,
+    prefix: 'v',
+  },)
+    .split('.',);
+  return tag.startsWith('v',)
+    && (numbers.length === STABLE_TAG_NUMBERS)
+    && numbers.every(function isNumber(number,): boolean {
+      return isDigits({ text: number, },);
+    },);
+}
+
+/**
  Resolves `node` from nodejs.org's release index and sums files.
 
  @param entry - plan entry to resolve
@@ -94,7 +135,7 @@ const SUMS_HOSTS = [
 
  @returns new version and rows
 
- @throws Error when the index or a sums row is missing
+ @throws Error when the index lists no stable release or a sums row is missing
 
  @example
  ```ts
@@ -111,25 +152,28 @@ export async function resolveNode(
   },
 ): Promise<ToolResolution> {
   /**
-   Release index listing the newest release first.
+   Release index listing the newest release first, pre-releases included.
    */
   const index = parseJson({
     response: await fetcher('https://nodejs.org/dist/index.json',),
     label: 'nodejs.org index',
   },);
   /**
-   Newest release entry.
+   Release tags in index order (`v27.0.0-alpha.0.0.0`, `v26.13.0`, ...).
    */
-  const newest: unknown = Array.isArray(index,)
-    ? index[0]
-    : undefined;
+  const tags = jsonObjectsOf({ value: index, },)
+    .map(function versionOf(release,): string {
+      return stringField({
+        doc: release,
+        path: ['version',],
+      },);
+    },);
   /**
-   Newest release tag (`v26.12.1`).
+   Newest stable release tag (`v26.13.0`), empty when the index lists none.
    */
-  const newTag = stringField({
-    doc: newest,
-    path: ['version',],
-  },);
+  const newTag = tags.find(function isStable(tag,): boolean {
+    return isStableTag({ tag, },);
+  },) ?? '';
   if (newTag === '')
     throw new Error('nodejs.org reports no release',);
   /**

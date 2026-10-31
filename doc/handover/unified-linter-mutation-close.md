@@ -5,6 +5,9 @@
 > paths and names below this note are historical:
 > `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
 
+Note 2026-10-30: the fuzz sidecar scripts `package/linter/monochromatic-lint.fuzz/bin/container.mjs` and
+`planted-controls.mjs` are TypeScript files now; read those names here as `container.ts` and `planted-controls.ts`.
+
 ## Purpose and how to respond
 
 Mutation testing is a release acceptance gate for the native linter in `package/linter/monochromatic-lint`:

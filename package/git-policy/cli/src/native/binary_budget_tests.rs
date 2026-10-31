@@ -9,7 +9,7 @@
 
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::fork_failure::strace_available;
+use super::fork_failure::{strace_available, strace_program};
 use super::support::{Fixture, REAL_GIT, fixture, git, repository};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
@@ -24,13 +24,10 @@ use std::process::{Command, Output};
 //  (for example `findmnt` and `hash-object`) and must not return, and makes the failure message print that name.
 // Measured with host Git 2.56.0 on Linux, maintenance kept in the foreground (see `prepared_repository`), over five
 //  runs of every scenario; the counts were identical in every run.
-// Variance sources: `stat` depends on the filesystem under the temporary directory (see
-//  `STAT_WITHOUT_FILESYSTEM_UUID`); another Git than 2.56.0 may start other children (`gc`, `repack`) in the
-//  foreground maintenance of a commit, and the gate's Git is the authority for the budget.
-
-/// The `stat` starts of a commit on a filesystem that has no UUID (tmpfs, overlayfs): three filesystem identities
-///  fall back to `stat --file-system`. The test expects none on a filesystem with a UUID.
-const STAT_WITHOUT_FILESYSTEM_UUID: usize = 3;
+// Variance sources: another Git than 2.56.0 may start other children (`gc`, `repack`) in the foreground maintenance
+//  of a commit, and the gate's Git is the authority for the budget. The filesystem under the temporary directory is
+//  no source: the degraded `f_fsid` identity of a filesystem without a UUID (tmpfs, overlayfs) is read in-process,
+//  so `stat` starts on none.
 
 /// What one scenario may cost.
 struct Budget {
@@ -73,7 +70,7 @@ const NO_HOOKS: Budget = Budget {
         ("version", 1),
         ("write-tree", 1),
     ],
-    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", STAT_WITHOUT_FILESYSTEM_UUID)],
+    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
     wrapper_syncs: 33,
     git_syncs: &[("index-pack", 3)],
 };
@@ -108,7 +105,7 @@ const ONE_CONFIG_HOOK: Budget = Budget {
         ("version", 1),
         ("write-tree", 1),
     ],
-    other_starts: &[("findmnt", 0), ("sh", 1), ("stat", STAT_WITHOUT_FILESYSTEM_UUID)],
+    other_starts: &[("findmnt", 0), ("sh", 1), ("stat", 0)],
     wrapper_syncs: 37,
     git_syncs: &[("index-pack", 3)],
 };
@@ -142,7 +139,7 @@ const AMEND: Budget = Budget {
         ("version", 1),
         ("write-tree", 1),
     ],
-    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", STAT_WITHOUT_FILESYSTEM_UUID)],
+    other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
     wrapper_syncs: 33,
     git_syncs: &[("index-pack", 3)],
 };
@@ -186,7 +183,7 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
 /// The same command run under `strace` with the traced calls written to `trace`, in the environment and directory of
 ///  `inner`.
 fn traced(inner: &Command, trace: &Path) -> Command {
-    let mut outer: Command = Command::new("strace");
+    let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
     outer
         .arg("--follow-forks")
         .arg("--quiet")
@@ -264,23 +261,6 @@ fn differences(budgeted: &Figures, observed: &Figures) -> Vec<String> {
     return lines;
 }
 
-/// Whether the filesystem holding `directory` has a UUID, which is what lets the wrapper identify it without `stat`.
-fn filesystem_has_uuid(directory: &Path) -> bool {
-    let probe: Result<Output, std::io::Error> =
-        Command::new("findmnt").arg("--target").arg(directory).arg("--output=UUID").arg("--noheadings").output();
-    return probe.is_ok_and(|output| { return !String::from_utf8_lossy(&output.stdout).trim().is_empty(); });
-}
-
-/// The budget's other-program starts, with `stat` at zero when the fixture's filesystem has a UUID.
-fn other_starts_expected(budget: &Budget, fixture: &Fixture) -> Vec<(&'static str, usize)> {
-    let uuid: bool = filesystem_has_uuid(fixture.root.as_path());
-    return budget
-        .other_starts
-        .iter()
-        .map(|(name, allowed)| { return (*name, if *name == "stat" && uuid { 0 } else { *allowed }); })
-        .collect();
-}
-
 /// Run the scenario's commit under `strace` and require its counts to equal `budget`.
 fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     if !strace_available() {
@@ -309,9 +289,8 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let version: String = String::from_utf8_lossy(&Command::new(REAL_GIT).arg("--version").output().expect("git --version").stdout)
         .trim()
         .to_string();
-    let other_starts: Vec<(&str, usize)> = other_starts_expected(budget, &fixture);
     let differing: Vec<String> =
-        differences(&budget_figures(budget, other_starts.as_slice()), &observed_figures(&counts));
+        differences(&budget_figures(budget, budget.other_starts), &observed_figures(&counts));
     assert!(
         differing.is_empty(),
         "{label} ({version}): the counts differ from the budget in binary_budget_tests.rs. A saving lowers the constant; \

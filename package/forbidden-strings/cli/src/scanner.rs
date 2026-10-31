@@ -22,8 +22,10 @@ use crate::{BIN_PROBE_SIZE, ScanFinding};
 use anyhow::Result;
 /// Imports the fixed-token cache diagnostic retained from loading.
 use crate::runtime_cache::CacheWarning;
+/// Imports the list entry a host passes to name its rules files.
+use crate::rules_list::RulesEntry;
 /// Native paths preserve operating-system encoding until matching/display boundaries.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Caller-owned identity plus safely displayable results from one exact candidate snapshot.
@@ -75,6 +77,30 @@ impl Scanner {
         // Propagate the loader's existing redacted failure instead of accepting an incomplete ruleset.
         let loaded: LoadedRules = load_request::load(runtime_rules_path, builtin_rules, explicit)?;
         return Ok(Scanner { loaded });
+    }
+
+    /// What:
+    ///  Load the files of a rules list and the optional shipped baseline through the same cache/validation path.
+    /// Why:
+    ///  A host configured with several rules files (some optional) needs one scanner over their joined rules;
+    ///  the one-path [`Scanner::load`] stays for hosts that name one file.
+    ///  A required entry that cannot be read fails the load naming its path,
+    ///  and an absent optional entry is skipped and listed by [`Scanner::skipped_optional_rules`].
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function loadScannerFromList(entries: { path: string; optional: boolean }[], builtinRules: boolean): Scanner;
+    /// ```
+    pub fn load_entries(entries: &[RulesEntry], builtin_rules: bool) -> Result<Scanner> {
+        // Propagate the loader's existing redacted failure instead of accepting an incomplete ruleset.
+        let loaded: LoadedRules = load_request::load_entries(entries, builtin_rules)?;
+        return Ok(Scanner { loaded });
+    }
+
+    /// Borrow the optional rules files that were absent and skipped,
+    ///  for hosts without a log subscriber to report.
+    pub fn skipped_optional_rules(&self) -> &[PathBuf] {
+        return self.loaded.skipped_optional();
     }
 
     /// Borrow fixed-token cache warnings without recovering their fields from serialized terminal text.

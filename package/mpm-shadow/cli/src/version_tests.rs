@@ -1,5 +1,8 @@
-//! What:     Unit tests of the entry-name splitting and the version order in `version.rs`.
-//! Why:      The prune deletes files by what these functions say, so a wrong split or order would delete the wrong copy.
+//! What:
+//! Unit tests of the entry-name splitting and the version order in `version.rs`.
+//! Why:
+//! The prune deletes files by what these functions say,
+//! so a wrong split or order would delete the wrong copy.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -7,9 +10,11 @@
 //! describe('splitEntryName', () => { it('splits a crate name from its version', () => { ... }); });
 //! ```
 
-/// What:     `use crate::version::{...};` imports the items under test from this crate (`crate` means "the package I
+/// What:
+/// `use crate::version::{...};` imports the items under test from this crate (`crate` means "the package I
 ///           am in").
-/// Why:      The tests call them directly.
+/// Why:
+/// The tests call them directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -20,9 +25,12 @@ use crate::version::{EntryName, compare_versions, split_entry_name};
 /// Imports the comparison result type the order function returns.
 use std::cmp::Ordering;
 
-/// What:     `#[test]` is an attribute marking the next function as a test case the runner should run. The function
+/// What:
+/// `#[test]` is an attribute marking the next function as a test case the runner should run.
+/// The function
 ///           takes nothing and passes if it does not panic.
-/// Why:      Rust's built-in test runner (here driven by nextest) discovers tests by this attribute.
+/// Why:
+/// Rust's built-in test runner (here driven by nextest) discovers tests by this attribute.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,7 +55,8 @@ fn splits_a_crate_name_from_its_version() {
     );
 }
 
-/// A pre-release hyphen belongs to the version, not the crate name.
+/// A pre-release hyphen belongs to the version,
+/// not the crate name.
 #[test]
 fn keeps_a_pre_release_suffix_in_the_version() {
     assert_eq!(
@@ -79,7 +88,8 @@ fn returns_none_when_no_hyphen_is_followed_by_a_version() {
     assert_eq!(split_entry_name("monochromatic-lint-0.1"), None);
 }
 
-/// Parts compare as numbers, not text.
+/// Parts compare as numbers,
+/// not text.
 #[test]
 fn orders_by_numeric_core_not_text() {
     // `Ordering::Greater` means the left version is newer than the right one.

@@ -55,6 +55,15 @@
 "\\d"
 "\\w"
 
+# Rules-list grammar: separator, optional marker, doubled marker, empty entries, path lookalikes
+","
+",,"
+"?"
+"??"
+",?"
+"a.txt,b.txt?"
+"%2C"
+
 # Literal-shaped fragments and multi-byte boundaries
 "abc"
 "key=\"value\""

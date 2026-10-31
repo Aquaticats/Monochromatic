@@ -141,6 +141,8 @@ to TypeScript files of the same base names
 `design/wrap-annotation-shots.ts`),
 see issue 1794;
 the command is kept as it was run.
+`package/linter/monochromatic-lint/bin/test-container.mjs` was renamed on 2026-10-30 to
+`bin/test-container.ts` (and no longer uses the banned `spawnSync`).
 
 Works cleanly with `probe-categories-off.json`:
 `--print-config` prints `"categories": {"correctness":"allow"}`

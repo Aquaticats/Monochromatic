@@ -1,6 +1,6 @@
 //! What:
 //!  The `cargo` processes of the closure check:
-//!  the tool probe,
+//!  the tool probe (which also reads the `cargo-dylint` version),
 //!  the offline dependency probe and the Dylint run.
 //! Why:
 //!  Every process the check starts is built here from fixed arguments,
@@ -12,7 +12,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function cargoProgram(): Path;
-//! function dylintAvailable(cargo: Path): string | undefined; // reason to skip
+//! function dylintProbe(cargo: Path): string; // the version line; throws the reason to skip
 //! function dependenciesMissing(cargo: Path, manifest: Path): string | undefined;
 //! function runDylint(cargo: Path, library: Path, manifest: Path, setup: PackageSetup): Output; // throws string
 //! ```
@@ -97,35 +97,37 @@ pub fn cargo_program() -> PathBuf {
 }
 
 /// What:
-///  Check that `cargo dylint` runs on this machine.
+///  Check that `cargo dylint` runs on this machine and return what `--version` printed.
 /// Why:
-///  A machine without `cargo-dylint` skips every package with one note instead of failing them one by one.
+///  A machine without `cargo-dylint` skips every package with one note instead of failing them one by one,
+///  and the printed line carries the version that the pinned driver crate needs,
+///  so one process answers both questions.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dylintAvailable(cargo: Path): string | undefined;
+/// function dylintProbe(cargo: Path): string; // throws string, the reason to skip
 /// ```
-pub fn dylint_available(cargo: &Path) -> Option<String> {
-    let status = Command::new(cargo)
+pub fn dylint_probe(cargo: &Path) -> Result<String, String> {
+    let output = match Command::new(cargo)
         .args(["dylint", "--version"])
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status();
-    return match status {
-        Ok(done) => {
-            if done.success() {
-                None
-            } else {
-                Some(format!(
-                    "`cargo dylint --version` failed ({done}); install cargo-dylint and dylint-link with mise install"
-                ))
-            }
+        .output()
+    {
+        Ok(done) => done,
+        Err(error) => {
+            return Err(format!(
+                "cargo does not run ({error}); install the Rust toolchain, cargo-dylint and dylint-link with mise install"
+            ));
         }
-        Err(error) => Some(format!(
-            "cargo does not run ({error}); install the Rust toolchain, cargo-dylint and dylint-link with mise install"
-        )),
     };
+    if !output.status.success() {
+        return Err(format!(
+            "`cargo dylint --version` failed ({}); install cargo-dylint and dylint-link with mise install",
+            output.status
+        ));
+    }
+    return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
 }
 
 /// What:

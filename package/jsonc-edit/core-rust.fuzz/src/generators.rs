@@ -338,9 +338,9 @@ impl<'a> Arbitrary<'a> for GeneratedDocument {
 /// # Arguments
 ///
 /// * `depth` - Open containers to nest,
-///    where the innermost holds `0`.
+///   where the innermost holds `0`.
 /// * `malformed` - When true,
-///    omit every closing bracket so the input is both over depth and
+///   omit every closing bracket so the input is both over depth and
 ///   syntactically incomplete.
 ///
 /// In TS you'd write (pseudocode):

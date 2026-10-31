@@ -924,3 +924,34 @@ fn a_notice_that_announces_at_start_hears_the_first_repeat_one_interval_later() 
     assert!(!counter.slow.is_empty(), "{:?}", counter.slow);
     assert!(counter.slow[0] >= Duration::from_millis(150), "{:?}", counter.slow);
 }
+
+/// Child of the control below: take a lock whose owner record is larger than the process's file-size limit.
+#[cfg(unix)]
+#[test]
+#[ignore = "started as a child process, under a file-size limit, by the lock candidate control"]
+fn child_takes_a_lock_past_the_size_limit() {
+    let directory: PathBuf = PathBuf::from(std::env::var_os(crate::test_support::LIMITED_DIRECTORY_VARIABLE).expect("directory"));
+    let taken = try_acquire_owner_lock(directory.join("landing.lock").as_path(), None);
+    assert!(taken.is_err(), "the owner record does not fit the limit, so the lock cannot be taken");
+}
+
+/// A lock whose owner record cannot be written (a full disk) removes the candidate directory it made: nothing of the
+///  attempt stays beside the lock, where only a person would ever find it.
+#[cfg(unix)]
+#[test]
+fn a_lock_candidate_whose_record_fails_to_write_is_removed() {
+    let root: PathBuf = fixture("owner-lock-candidate-cut");
+    let status = crate::test_support::run_child_under_file_size_limit(
+        "owner_lock::tests::child_takes_a_lock_past_the_size_limit",
+        100,
+        root.as_path(),
+    );
+    assert!(status.success(), "the child's attempt must fail: {status:?}");
+    let left: Vec<String> = std::fs::read_dir(&root)
+        .expect("directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    assert_eq!(left, Vec::<String>::new(), "no candidate stays");
+    remove(root.as_path());
+}

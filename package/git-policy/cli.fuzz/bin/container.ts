@@ -12,6 +12,10 @@ import {
 import { join } from 'node:path';
 
 import {
+  buildLimitArguments,
+  defaultContainerLimits,
+} from '../../cli/bin/container-limits.ts';
+import {
   NativeVerificationError,
   runCommand,
 } from '../../cli/bin/native-verification-process.ts';
@@ -114,9 +118,7 @@ async function buildRunImage({
       '--network=none',
       '--http-proxy=false',
       '--pull=never',
-      '--memory=2g',
-      '--cpu-period=100000',
-      '--cpu-quota=200000',
+      ...buildLimitArguments(defaultContainerLimits),
       '--tag',
       runImage,
       '--file',
@@ -242,9 +244,9 @@ await writeFile(
       sanitizer: 'address',
       maxInputBytes,
       secondsPerTarget,
-      memory: '2g',
-      cpus: 2,
-      pids: 128,
+      memory: defaultContainerLimits.memory,
+      cpus: defaultContainerLimits.cpus,
+      pids: defaultContainerLimits.pidsLimit,
       compilerMount: 'read-only during compilation with container label isolation disabled; absent during fuzzing',
     },
     null,

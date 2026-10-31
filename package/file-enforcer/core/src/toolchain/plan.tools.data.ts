@@ -212,10 +212,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rust',
     request: { channel: 'nightly' },
-    version: 'nightly-2026-10-29',
+    version: 'nightly-2026-10-31',
     route: 'rustup-toolchain',
     manager: 'rustup',
-    packageId: 'nightly-2026-10-29',
+    packageId: 'nightly-2026-10-31',
     bins: [
       'cargo',
       'cargo-clippy',
@@ -241,7 +241,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
         'x86_64-linux-android'
       ],
     },
-    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-29' },
+    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-31' },
     artifacts: {},
   },
   {
@@ -269,7 +269,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:cargo-dylint',
     request: { track: 'latest' },
-    version: '6.3.0',
+    version: '6.3.2',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'cargo-dylint',
@@ -281,7 +281,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:dylint-link',
     request: { track: 'latest' },
-    version: '6.3.0',
+    version: '6.3.2',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'dylint-link',
@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.4.0',
+    version: '0.4.4',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -621,7 +621,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'superhtml',
     request: { track: 'latest' },
-    version: '0.7.0',
+    version: '0.7.1',
     route: 'bin-sourced',
     bins: ['superhtml'],
     options: {},
@@ -757,7 +757,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:socket',
     request: { track: 'latest' },
-    version: '1.12.1',
+    version: '1.12.2',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'socket',
@@ -775,7 +775,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:wrangler',
     request: { track: 'latest' },
-    version: '4.155.0',
+    version: '4.156.0',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'wrangler',

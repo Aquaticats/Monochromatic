@@ -98,6 +98,14 @@ export {
   versionMatches,
   type ToolObservation,
 } from './status.ts';
+export { isNewerVersion, } from './version.order.ts';
+export {
+  isRepositoryPublished,
+  keptNewerWarning,
+  lockOutcome,
+  REPOSITORY_CRATE_PREFIX,
+  type LockOutcome,
+} from './lock.outcome.ts';
 export {
   TOOL_ROUTES,
   type PostinstallLink,
@@ -116,6 +124,7 @@ export {
 export {
   mapGithubRows,
   parseShasums,
+  resolveAws,
   resolveGoModule,
   resolveGoRuntime,
   resolveNpm,

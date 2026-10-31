@@ -10,13 +10,15 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "dependencies": {
-    "@monochromatic-dev/file-enforcer-core": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/fs-path-core": "workspace:*",
-    "@monochromatic-dev/hyperscript-core": "workspace:*"
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "nano-spawn": "catalog:"
   },
   "version": "0.0.4",
   "repository": {

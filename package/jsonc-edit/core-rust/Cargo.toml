@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-jsonc-edit"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Aquaticat"]
 categories = ["parser-implementations", "encoding"]
 documentation = "https://docs.rs/monochromatic-jsonc-edit"

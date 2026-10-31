@@ -15,7 +15,9 @@
 
 /// Import the loader and the settings it produces.
 use super::{CONFIG_FILE_NAME, LoadedConfig, load_repository_config};
-use crate::config_schema::{ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting};
+use crate::config_schema::{
+    ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicySetting, RulesFileEntry,
+};
 use crate::policy_registry::{PolicyId, Severity};
 use std::path::PathBuf;
 
@@ -95,7 +97,10 @@ fn the_repository_configuration_sets_rules_file() {
         loaded.config.policies.forbidden_strings,
         ForbiddenStringsOptions {
             builtin_rules: true,
-            rules_file: Some(String::from(".cache/forbidden-strings.rules.txt")),
+            rules_files: Some(vec![RulesFileEntry {
+                path: String::from(".cache/forbidden-strings.rules.txt"),
+                optional: false,
+            }]),
         }
     );
 }

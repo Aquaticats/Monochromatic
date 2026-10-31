@@ -420,6 +420,130 @@ fn a_machine_without_cargo_dylint_skips_everything() {
     );
 }
 
+/// The answers that make the offline resolution of the throwaway driver crate fail.
+const COLD_DRIVER: [(&str, &str); 3] = [
+    ("dylint-version.stdout", "cargo-dylint 6.3.0\n"),
+    ("metadata.dylint-driver-probe.status", "101"),
+    (
+        "metadata.dylint-driver-probe.stderr",
+        "error: failed to select a version for the requirement `dylint_driver = \"=6.3.0\"`\n",
+    ),
+];
+
+/// Run the executable on a machine whose driver cache, scratch location and `rustup` are the stub's directories.
+/// `driver_version_line` installs a driver for the toolchain `nightly-fixture` that reports that line.
+/// The variables are set on the child only.
+fn run_on_machine(
+    fixture: &Fixture,
+    stub: &Scenario,
+    driver_version_line: Option<&str>,
+    arguments: &[&str],
+) -> Run {
+    let drivers: PathBuf = stub.directory.join("drivers");
+    std::fs::create_dir_all(&drivers).expect("driver directory");
+    if let Some(line) = driver_version_line {
+        let installed: PathBuf = drivers.join("nightly-fixture");
+        std::fs::create_dir_all(&installed).expect("toolchain driver directory");
+        if !installed.join("dylint-driver").exists() {
+            std::fs::hard_link(
+                closure_stub_support::stub_cargo(),
+                installed.join("dylint-driver"),
+            )
+            .expect("driver link");
+        }
+        std::fs::write(installed.join("-V.stdout"), line).expect("driver version");
+    }
+    let programs: PathBuf = stub.directory.join("programs");
+    std::fs::create_dir_all(&programs).expect("program directory");
+    // A second run on the same machine finds the stub installed already.
+    if !programs.join("rustup").exists() {
+        std::fs::hard_link(closure_stub_support::stub_cargo(), programs.join("rustup"))
+            .expect("rustup link");
+    }
+    std::fs::write(programs.join("show.stdout"), "nightly-fixture (default)\n")
+        .expect("toolchain name");
+    let mut search: Vec<PathBuf> = vec![programs];
+    search.extend(std::env::split_paths(
+        &std::env::var_os("PATH").unwrap_or_default(),
+    ));
+    let output: Output = Command::new(BINARY)
+        .args(arguments)
+        .current_dir(&fixture.path)
+        .stdin(Stdio::null())
+        .env("MONOCHROMATIC_LINT_CARGO", &stub.cargo)
+        .env("DYLINT_DRIVER_PATH", &drivers)
+        .env("XDG_CACHE_HOME", stub.directory.join("cache"))
+        .env("PATH", std::env::join_paths(search).expect("a search path"))
+        .output()
+        .expect("the executable runs");
+    return Run {
+        status: output.status.code().expect("the executable exits"),
+        stdout: String::from_utf8(output.stdout).expect("UTF-8 output"),
+        stderr: String::from_utf8(output.stderr).expect("UTF-8 error"),
+    };
+}
+
+/// A missing Dylint driver that the cargo cache cannot build is a skip note with the warm command and exit status 0,
+/// as for a cold dependency cache,
+/// and nothing is fetched or run.
+#[test]
+fn a_missing_driver_is_a_skip_note_and_exit_zero() {
+    let fixture: Fixture = Fixture::new();
+    let stub = scenario(&COLD_DRIVER);
+    let output: Run = run_on_machine(&fixture, &stub, None, &["my pkg"]);
+    assert_eq!((output.status, output.stdout.as_str()), (0, ""));
+    assert!(
+        output
+            .stderr
+            .starts_with("monochromatic-lint: rust/avoidable-closure skipped all 1 package(s):"),
+        "{}",
+        output.stderr
+    );
+    assert!(
+        output.stderr.contains(
+            "`env --unset=CARGO_NET_OFFLINE cargo dylint --path lib --manifest-path my pkg/Cargo.toml -- --locked`"
+        ),
+        "{}",
+        output.stderr
+    );
+    assert!(
+        output.stderr.contains("which this linter does not do"),
+        "{}",
+        output.stderr
+    );
+    let calls: Vec<String> = stub.calls();
+    assert!(
+        !calls
+            .iter()
+            .any(|call| return call.starts_with("dylint|") || call.contains("fetch")),
+        "{calls:?}"
+    );
+    let silent: Run = run_on_machine(&fixture, &stub, None, &["--silent", "my pkg"]);
+    assert_eq!(silent.status, 0);
+    assert!(
+        silent.stderr.contains("skipped"),
+        "a skip is not a finding, so --silent keeps it"
+    );
+}
+
+/// With a current driver on the same machine the run goes ahead,
+/// which proves the skip above is caused by the driver and not by the fixture.
+#[test]
+fn a_current_driver_is_not_skipped() {
+    let fixture: Fixture = Fixture::new();
+    let stub = scenario(&COLD_DRIVER);
+    let output: Run = run_on_machine(&fixture, &stub, Some("dylint-driver 6.3.0\n"), &["my pkg"]);
+    assert_eq!((output.status, output.stdout.as_str()), (0, ""));
+    assert!(!output.stderr.contains("skipped"), "{}", output.stderr);
+    assert!(
+        stub.calls()
+            .iter()
+            .any(|call| return call.starts_with("dylint|")),
+        "{:?}",
+        stub.calls()
+    );
+}
+
 /// The compile flags and the offline posture reach the process.
 #[test]
 fn the_process_gets_the_flags_and_the_offline_posture() {

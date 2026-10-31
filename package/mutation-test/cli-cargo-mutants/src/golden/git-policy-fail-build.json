@@ -1,0 +1,30 @@
+{
+  "status": 1,
+  "errorMessage": "Container command failed: build (status 1, signal none). ",
+  "stdout": "Mutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
+  "calls": [
+    [
+      "image",
+      "inspect",
+      "localhost/git-policy-native-test:golden",
+      "--format",
+      "{{.Id}}"
+    ],
+    [
+      "build",
+      "--network=none",
+      "--http-proxy=false",
+      "--pull=never",
+      "--memory=2g",
+      "--cpu-period=100000",
+      "--cpu-quota=200000",
+      "--iidfile",
+      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>/image-id",
+      "--tag",
+      "localhost/git-policy-native-mutation:golden",
+      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>"
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

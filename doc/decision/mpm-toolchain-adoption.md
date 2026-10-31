@@ -4,6 +4,18 @@ Status:
  accepted 2026-10-26 on the maintainer's direct instruction
  ("Migrate from Mise to <https://mpm.run> for the toolchain management part").
 This decision is in force.
+Amended 2026-10-29 by [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md) (accepted):
+`mpm.packages.toml` and `mpm.managers.toml` are deleted,
+because a prototype against mpm 8.2.0 showed `mpm restore` ignoring their versions for Cargo and pnpm
+and the managers overrides matching the direct `cargo binstall --version`
+([`doc/research/file-enforcer-rust-rewrite-mpm-files-prototype.md`](../research/file-enforcer-rust-rewrite-mpm-files-prototype.md));
+the typed policy moves to `toolchain.plan.jsonc`,
+and `mpm-shadow`,
+not file-enforcer,
+writes and checks `toolchain.lock.json` and runs sync,
+status,
+and update.
+The sections "Ownership split" and "Tool plan and generated artifacts" describe the state before this amendment.
 
 ## Decision
 

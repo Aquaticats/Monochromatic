@@ -8,6 +8,14 @@
 > `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`;
 > `package/cli/mvm` is now `package/mvm/cli`.
 
+Note 2026-10-30: the scanner scripts this document names under `package/forbidden-strings/cli/bin`
+(`container-snapshot`, `guard-container`, `observe-guards-container`, `render-docs`, `test-container`,
+`verify-evidence`) are TypeScript files now; read every `.mjs` name here as the same name ending in `.ts`.
+`container-snapshot.d.mts` is deleted, and the helpers moved into sibling modules (`scanner-run.ts`,
+`source-inventory.ts`, `snapshot-*.ts`, `guard-injection.ts`, `guard-control-selection.ts`, `evidence-*.ts`).
+`run` in `container-snapshot.ts` is asynchronous.
+The fuzz sidecar script `package/forbidden-strings/cli.fuzz/bin/smoke-container.mjs` is `smoke-container.ts` now.
+
 ## Purpose and scope
 
 Complete the delegated Linux verification of the in-process scanner authorized with the Rust cli-git rewrite.

@@ -37,15 +37,42 @@ export async function scratchParent(): Promise<string> {
     join,
   },);
   /**
+   Default user cache directory used when `XDG_CACHE_HOME` is unset.
+   */
+  const defaultCacheHome = join(
+    homedir(),
+    '.cache',
+  );
+  /**
+   User cache root from the XDG override or the default cache directory.
+   */
+  const cacheHome = process.env
+    .XDG_CACHE_HOME
+    ?? defaultCacheHome;
+  /**
    Directory under which every monochromatic tool keeps its scratch.
    */
   const base = nodeModules === NO_NODE_MODULES_FOUND
-    ? join(process.env['XDG_CACHE_HOME'] ?? join(homedir(), '.cache',), 'monochromatic-dev',)
-    : join(nodeModules, '.monochromatic',);
+    ? join(
+      cacheHome,
+      'monochromatic-dev',
+    )
+    : join(
+      nodeModules,
+      '.monochromatic',
+    );
   /**
    This tool's own scratch parent.
    */
-  const parent = join(base, 'wg-quicker',);
-  await mkdir(parent, { recursive: true, },);
+  const parent = join(
+    base,
+    'wg-quicker',
+  );
+  await mkdir(
+    parent,
+    {
+      recursive: true,
+    },
+  );
   return parent;
 }

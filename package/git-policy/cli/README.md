@@ -494,12 +494,40 @@ The last four run only where the file lists them.
   Options:
    `builtinRules` (boolean,
    load the scanner's built-in baseline) and `rulesFile` (a rules file path relative
-  to the repository top level).
-  The rules file is `rulesFile`,
+  to the repository top level, or an array of them).
+  The rules files are `rulesFile`,
    else the environment variable `FORBIDDEN_STRINGS_RULES`,
   else `forbidden-strings.local.txt` in the repository top level,
    which may be absent.
-  A file named by `rulesFile` or by the variable must exist.
+  A file named by `rulesFile` or by the variable must exist, unless it is marked optional.
+  Several files are read in order and scanned as one rule set,
+  and every one of them is left out of the scan, as the single rules file always was.
+
+The `rulesFile` option takes either form:
+
+```jsonc
+// One required file, the form that existed before lists.
+{ "rulesFile": ".cache/forbidden-strings.rules.txt" }
+// Several files; a string is a required file, an object may mark one optional.
+{ "rulesFile": [
+  "forbidden-strings.append.txt",
+  { "path": "forbidden-strings.append.local.txt", "optional": true }
+] }
+```
+
+An optional file that is absent is skipped and recorded in the debug log.
+A configured string is one path exactly as written, so a comma or a `?` in it needs no care;
+an array never needs the variable's list syntax.
+An empty array, an element that is neither a string nor an object with `path`, an object key other than `path` and
+`optional`, and a path named twice are configuration failures.
+Every path is checked the same way: relative to the repository top level, no `..`, no backslash.
+`FORBIDDEN_STRINGS_RULES` uses the scanner's comma-separated list (see
+`package/forbidden-strings/cli/README.md`, "Rules list"), where a trailing `?` marks an optional entry;
+a value that is not valid UTF-8 is one required path.
+Because the variable's entries are resolved against the repository top level too,
+the same `{{config_root}}`-anchored value serves the scanner and cli-git.
+An invalid variable fails the policy only when a candidate is scanned, like a missing file.
+The new-worktree copy takes every configured file that Git ignores and the main checkout has.
 
 #### Content already in history is not scanned again
 
@@ -641,6 +669,83 @@ Each line names what the command waits for,
 cli-git: still waiting for process 4242 to release the landing lock (/repo/.git/cli-git-transactions/landing.lock) after 12 seconds; giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.
 ```
 
+## Operating conditions
+
+This package is one of the few that must keep working under the conditions its host lives in every day,
+not only on a quiet machine.
+The wrapper, its recovery paths and its tests are expected to work under these conditions:
+
+- high CPU load from other sessions and builds;
+- memory pressure and heavy swap use;
+- slow SSD and other I/O trouble;
+- a nearly full disk, so a write can fail with no space left in the middle of a landing;
+- process and descriptor limits close to exhaustion;
+- a process killed at any instruction, which the journals and recovery exist for;
+- a closed terminal or a broken pipe;
+- slow fsync and unusual filesystems;
+- DNS or mirror trouble, where the wrapper recovers or falls back instead of wedging.
+
+### What pins each condition
+
+Each condition has permanent controls that start the built executable on real Git fixtures.
+The fault controls (`src/native/binary_fault_*_tests.rs`, method in `binary_fault_support.rs`) inject one fault at the
+`n`th call of one system call of an explicit-path commit, for every `n`, with `strace --inject` (a `ptrace` of the
+child, no privilege and no load; the wrapper's own thread alone is traced, so the `n`th call is the same call on every
+run) or with a resource limit set on the child between `fork` and `exec`.
+After each fault the next ordinary command must succeed without anyone repairing anything, the commit must be landed
+with a clean index or not made with its file still staged, `git fsck` must pass, a further commit must land, and
+nothing of the wrapper may stay behind.
+The `strace` sweeps report a skip and check nothing on a host without `strace`, as `binary_fork_failure_tests.rs` does,
+so the host suite is where they run.
+What the faults found, and the change for each, is in
+[the fault injection note](../../../doc/troubleshooting/git-wrapper-fault-injection-findings.md).
+
+- A nearly full disk: `binary_fault_enospc_tests.rs` fails every `write`, directory creation, rename, symbolic link,
+  hard link of the wrapper with `ENOSPC` (and every `write` of Git too), and every flush with `EIO`;
+  `binary_fault_limits_tests.rs` caps the file size so that a write stops half way and fails with `EFBIG`.
+  A cap cannot reach the records after the first, because the first record is the largest, so the sweep of calls is
+  the control for those.
+- A process killed at any instruction: `binary_fault_kill_tests.rs` kills the wrapper with `SIGKILL` before every
+  `write`, flush, rename, directory creation and removal of a commit (and the wrapper or a Git process before every
+  `write` and flush); older controls kill at the phase markers (`binary_landing_crash_tests.rs`,
+  `binary_merge_isolation_tests.rs`, `binary_worktree_copy_tests.rs`) and damage the records a kill leaves
+  (`binary_recovery_tearing_tests.rs`).
+  A staging directory or a retired lock copy (`*.pending`, `*.stale`) of a killed process stays on purpose and is
+  ignored by every reader.
+- Descriptor and process limits: `binary_fault_limits_tests.rs` sets `RLIMIT_NOFILE` from 4 to 48, fails every
+  `openat` and `pipe2` with `EMFILE`, and keeps `clone3` failing with `EAGAIN` from sampled starts on;
+  `binary_fork_failure_tests.rs` fails a short run of starts.
+  `RLIMIT_NPROC` counts the user's processes on the whole host, so it cannot be swept and is not used.
+- A closed terminal or a broken pipe: `binary_fault_signal_tests.rs` sends `SIGHUP`, `SIGINT` and `SIGQUIT` to the
+  wrapper while a hook runs and `SIGHUP` to the whole process group at each phase of the transaction;
+  `binary_fault_stream_tests.rs` closes the standard streams, gives them a pipe with no reader or a full device, and
+  requires that the status matches the one Git gives when started directly.
+- Slow fsync and unusual filesystems: `binary_fault_filesystem_tests.rs` delays every flush by 30 ms, and keeps hard
+  links, symbolic links and renames across devices refused and directory creation read-only from the `n`th call on.
+  Directory sync on a filesystem without it is a unit control on procfs
+  (`private_storage::tests::a_directory_that_cannot_be_synced_is_not_an_error`).
+  Not injected: real slow storage and real filesystems with these properties, which need privilege to mount.
+- DNS or mirror trouble: `binary_fault_remote_tests.rs` makes the push after a landed commit and an explicit push meet
+  a refused connection, a name under `.invalid`, a server that hangs up, a server that never answers (stopped at
+  `CLI_GIT_PUSH_DEADLINE_SECONDS`) and a `git-lfs` that never exits, and requires that the commit stays, the failure is
+  worded, no lock is held and no process the push started is left running; `binary_push_environment_tests.rs`,
+  `binary_lfs_pre_push_tests.rs` and `binary_lfs_server_tests.rs` cover the stalled push and the failing upload.
+- High CPU load, memory pressure and slow I/O: the shared bound and the byte copy of the wrapper
+  (the troubleshooting note below); no control injects memory pressure.
+  `RLIMIT_AS` is the only privilege-free candidate and was not tried: the address-space cap it sets is hit by Rust and
+  Git allocations alike at points that depend on the build, so it is not expected to tell a wrapper defect from an
+  allocator abort.
+
+Known gaps: a user hook that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (hooks run as long as they run,
+as documented, and are ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
+but not swept call by call; the Git steps of a commit that the wrapper bounds are killed without the processes below
+them.
+
+Tests therefore never wait for a quiet host.
+The shared 5-second bound on one wrapped command is deliberate;
+its measurements and the evidence needed to change it are in
+[the troubleshooting note](../../../doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md).
+
 ## State on disk
 
 The wrapper keeps its state beside the repository's Git data under `cli-git*` paths in the common Git directory.
@@ -701,6 +806,52 @@ cargo build --release --locked --bin cli-git-native
 The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
+
+### Container limits
+
+Every container the verification tasks start is bounded.
+The defaults are 2 GiB of memory, 2 CPUs and 128 processes, defined once in `bin/container-limits.ts`.
+Each task accepts overrides after the `--` of `mise run`, with these exact option names:
+
+- `--memory <size>` is a whole number with an optional unit `b`, `k`, `m` or `g`, such as `512m` or `2g`.
+- `--cpus <count>` is a number from `0.01` with at most two decimals, so `1`, `1.5` and `0.25` are valid.
+  The build CPU quota is derived as `cpus * 100000` microseconds per 100000 microsecond period.
+- `--pids-limit <count>` is a whole number of processes from `1`.
+  It is accepted only where the container has a process cap, and rejected with a message otherwise.
+
+A value is a separate token (`--memory 1g`); the `--memory=1g` form is not read and reaches the task's own option parser,
+which rejects it as an unknown argument.
+An invalid value stops the task before any container starts.
+The message names the option and the accepted forms.
+Options repeat with the last one winning, and the number of build jobs (`CARGO_BUILD_JOBS`, `make --jobs`) follows the
+whole CPUs of the limit, never below one.
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
+mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/lock.rs
+mise run //package/git-policy/cli:native:interop -- --cpus 1 old-format-driver
+mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
+mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
+```
+
+- `native:test:container` accepts all three options, and so do `native:mutation:scoped` and `test:git-image`
+  (the Git checkout path comes first there).
+- `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
+  so the gate runs at the defaults.
+  Run `native:test:container` with its own options first when both need changing.
+- `native:interop` accepts `--memory` and `--cpus` before the driver name, because everything after the driver name
+  belongs to the driver.
+  It has no process cap, so `--pids-limit` is rejected.
+- `test:e2e:concurrent:native` takes `--memory` and `--cpus` as task flags and applies them to the run.
+  The image build it depends on uses the defaults, and `test:e2e:concurrent:native:image` and
+  `test:e2e:concurrent:image` take the same options after the `--`.
+  The e2e containers have no process cap either.
+- The mutation manifest records the limits it ran with, and the gate and image-build manifests record the container
+  argument arrays.
+- `native:mutation:scoped` reuses the image of the last gate, whose `CARGO_BUILD_JOBS` was fixed when it was built.
+  Run the gate with the same `--cpus` for the job count to match.
+- The `package/git-policy/cli.fuzz` campaign uses the defaults from the same module and has no override options yet.
 
 ## License
 

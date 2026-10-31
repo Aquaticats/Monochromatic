@@ -45,6 +45,38 @@ fn strip_bom(text: &str) -> &str {
     return text.strip_prefix(BOM).unwrap_or(text);
 }
 
+/// Strips a leading UTF-8 BOM so a caller joining several sources can strip each one before the join.
+pub(crate) fn strip_source_bom(text: &str) -> &str {
+    return strip_bom(text);
+}
+
+/// The format a rule source is read in, decided exactly as [`parse_rules`] decides it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SourceFormat {
+    /// No significant line: blank lines and comments only.
+    Empty,
+    /// The first significant line is a strict `==> name <==` header.
+    Tail,
+    /// Any other first significant line.
+    Legacy,
+}
+
+/// Decides the format of one source after stripping its BOM.
+///
+/// Joining sources of different formats would reinterpret the later source's lines
+/// (a legacy line after a tail section becomes part of that section's body),
+///  so callers compare the formats before joining.
+pub(crate) fn source_format(text: &str) -> SourceFormat {
+    let stripped: &str = strip_bom(text);
+    if detect_tail_format(stripped) {
+        return SourceFormat::Tail;
+    }
+    if stripped.lines().any(is_significant) {
+        return SourceFormat::Legacy;
+    }
+    return SourceFormat::Empty;
+}
+
 /// Reports whether a line contributes a rule:
 ///  non-blank and not a `#`-comment.
 ///

@@ -1,6 +1,12 @@
-//! What:     The program entry point. It looks at the name it was started under: `mpm` means shadow mode; anything
+//! What:
+//! The program entry point.
+//! It looks at the name it was started under:
+//! `mpm` means shadow mode;
+//! anything
 //!           else (`mpm-shadow`) means the command-line tool.
-//! Why:      One binary serves both roles, so the link the toolchain plan creates as `mpm` needs no second program.
+//! Why:
+//! One binary serves both roles,
+//! so the link the toolchain plan creates as `mpm` needs no second program.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,9 +15,12 @@
 //! process.exit(invokedAs === 'mpm' ? runShim(process.argv.slice(2)) : runCli(process.argv));
 //! ```
 
-/// What:     `use mpm_shadow::cli::run_cli;` imports a function from this package's own library crate (`mpm_shadow`,
+/// What:
+/// `use mpm_shadow::cli::run_cli;` imports a function from this package's own library crate (`mpm_shadow`,
 ///           declared in `Cargo.toml`).
-/// Why:      `main` only chooses the mode; all logic lives in the library.
+/// Why:
+/// `main` only chooses the mode;
+/// all logic lives in the library.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,6 +30,9 @@ use mpm_shadow::cli::run_cli;
 
 /// Imports the name the shadow answers to.
 use mpm_shadow::constants::SHADOWED_NAME;
+
+/// Imports the launcher mode.
+use mpm_shadow::toolchain::launcher::{launch_record_of_current_exe, run_launcher};
 
 /// Imports the shadow-mode function.
 use mpm_shadow::shim::run_shim;
@@ -34,8 +46,11 @@ use std::env;
 /// Imports `Path` to take the file name off argv[0].
 use std::path::Path;
 
-/// What:     `fn main()` is the entry point the operating system calls; the exit code is set by `std::process::exit`.
-/// Why:      Every run starts here.
+/// What:
+/// `fn main()` is the entry point the operating system calls;
+/// the exit code is set by `std::process::exit`.
+/// Why:
+/// Every run starts here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,6 +65,11 @@ fn main() {
     let mut invoked_as: String = String::new();
     if let Some(file_name) = Path::new(&all_arguments[0]).file_name() {
         invoked_as = file_name.to_string_lossy().to_string();
+    }
+
+    // A hard link the toolchain made for a repository-published tool carries a record beside it: run as a launcher.
+    if let Some(record) = launch_record_of_current_exe() {
+        std::process::exit(run_launcher(&record, &all_arguments));
     }
 
     if invoked_as == SHADOWED_NAME {
