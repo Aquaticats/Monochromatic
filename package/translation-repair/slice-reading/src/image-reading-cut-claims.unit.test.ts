@@ -22,6 +22,7 @@ import {
   type ChatTextRequest,
   createReaskClaims,
   type ModelClient,
+  type ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { readPastRefusal, } from '../dist/final/node/index.mjs';
@@ -65,7 +66,13 @@ const READING = '走失猫咪 Mittens，虎斑，请电 555 0134。';
  ```
  */
 async function readWithBothReaders(
-  { bench, }: { readonly bench: readonly RosterModelId[]; },
+  {
+    bench,
+    reask,
+  }: {
+    readonly bench: readonly RosterModelId[];
+    readonly reask?: ReaskMode;
+  },
 ): Promise<readonly (readonly [RosterModelId, string])[]> {
   /**
    Asks the client saw.
@@ -112,6 +119,7 @@ async function readWithBothReaders(
       assetName: 'noticeboard.webp',
       benchModelIds: bench,
       claims,
+      ...((reask === undefined) ? {} : { reask, }),
       signal: AbortSignal.timeout(HANG_STOP_MS,),
       perCallTimeoutMs: HANG_STOP_MS,
       l: tagged({ tag: 'cut-claims-test', },),
@@ -134,6 +142,23 @@ await describe({
         },).map(function modelOf(ask,) {
           return ask[0];
         },),).toEqual([SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_VISION_UNSEATED,],);
+      },
+    },),
+
+    it({
+      name: 'RE-ASKS EACH CUT READER OF ITSELF WHERE THE CALLER IS A MEASUREMENT, bench and record notwithstanding: a '
+        + 'rival\'s reading scored as the reader\'s would measure the rival',
+      fn: async () => {
+        const asks = await readWithBothReaders({ bench: READERS, reask: 'measured-model', },);
+        expect(asks.filter(function isRetake(ask,): boolean {
+          return !READERS.includes(ask[0],);
+        },),).toEqual([],);
+        expect(asks.toSorted(),).toEqual([
+          [SEAT_HYPER_VISION, 'neuralwatt',],
+          [SEAT_HYPER_VISION, 'no hint',],
+          [SEAT_SYNTHETIC_VISION_WITHHELD, 'neuralwatt',],
+          [SEAT_SYNTHETIC_VISION_WITHHELD, 'no hint',],
+        ].toSorted(),);
       },
     },),
 
