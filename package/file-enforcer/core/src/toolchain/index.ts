@@ -87,6 +87,20 @@ export {
   type SyncReport,
 } from './sync.ts';
 export {
+  decideUpdatesSlice,
+  insideUpdatesSlice,
+  NOT_RELAUNCHED,
+  relaunchInUpdatesSlice,
+  runChild,
+  systemdRunArguments,
+  TOOLCHAIN_UPDATES_SLICE,
+  UPDATES_SLICE_GUARD_ENVIRONMENT,
+  UPDATES_SLICE_OPT_OUT_ENVIRONMENT,
+  type ChildOutcome,
+  type SystemdRunner,
+  type UpdatesSliceFacts,
+} from './updates-slice.ts';
+export {
   appliesToHost,
   syncOrder,
 } from './sync.order.ts';
