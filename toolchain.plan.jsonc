@@ -307,13 +307,13 @@
     // as a child and then deletes the superseded cached copies of the repository's own crates from cargo's registry
     // (doc/decision/mpm-toolchain-adoption.md, section on pruning the repository's own crates). Linux only: the release
     // archives are Linux builds.
-    // Pinned to a release tag on purpose, against the usual rule for the repository's own tools: this entry is the
-    // bootstrap. A fresh clone, a container or a CI runner has no mpm-shadow, so the lock must record the SHA-256 of
-    // one prebuilt archive that `sha256sum --check` can check before it runs
-    // (doc/decision/file-enforcer-rust-rewrite.md, "Bootstrap"); a cargo-binstall row records no artifact. Raise the
-    // tag when a release carries a command the repository needs, then run `mise run toolchain:update`.
+    // The bootstrap entry: a fresh clone, a container or a CI runner has no mpm-shadow, so the lock must record the
+    // SHA-256 of one prebuilt archive that `sha256sum --check` can check before it runs
+    // (doc/decision/file-enforcer-rust-rewrite.md, "Bootstrap"); a cargo-binstall row records no artifact. It floats
+    // like every repository-published tool: `@latest` with `tagPrefix` takes the newest non-prerelease release of this
+    // crate out of the repository's many tags, and `mise run toolchain:update` moves the lock.
     "mpm-shadow": {
-      "request": "github:Aquaticats/Monochromatic@monochromatic-mpm-shadow-v0.2.0",
+      "request": "github:Aquaticats/Monochromatic@latest",
       "route": "archive",
       "bins": [
         "mpm-shadow"
@@ -322,6 +322,7 @@
         "linux"
       ],
       "options": {
+        "tagPrefix": "monochromatic-mpm-shadow-v",
         "postinstall": {
           "when": "always",
           "link": {

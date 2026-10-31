@@ -43,6 +43,9 @@ fn options_value(options: &Options) -> Value {
     if let Some(pattern) = &options.asset {
         map.insert("asset".to_string(), Value::String(pattern.clone()));
     }
+    if let Some(prefix) = &options.tag_prefix {
+        map.insert("tagPrefix".to_string(), Value::String(prefix.clone()));
+    }
     if let Some(list) = &options.allow_builds {
         map.insert("allowBuilds".to_string(), text_array(list));
     }

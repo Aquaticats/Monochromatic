@@ -162,6 +162,7 @@ impl Disagreement {
 /// packageId,
 /// os,
 /// assetPattern,
+/// tagPrefix,
 /// cargoGit
 ///           and bootstrap are resolution-affecting;
 /// bins,
@@ -191,6 +192,9 @@ fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec
     }
     if plan.options.asset != locked.options.asset {
         resolution.push("options.asset".to_string());
+    }
+    if plan.options.tag_prefix != locked.options.tag_prefix {
+        resolution.push("options.tagPrefix".to_string());
     }
     if plan.options.bootstrap != locked.options.bootstrap {
         resolution.push("options.bootstrap".to_string());

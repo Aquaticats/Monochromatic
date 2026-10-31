@@ -260,6 +260,33 @@ or a Java major line such as `21`).
 - A platform with no matching asset is left out of the lock
   and fails at `install` with a message naming it.
 - The version is the tag without its `v` or `name-v` prefix.
+- `options.tagPrefix` picks one program's releases in a repository that tags several
+  (this repository tags `monochromatic-mpm-shadow-v0.2.0`,
+  `monochromatic-lint-v0.4.0`,
+  and so on).
+  With `"request": "github:Aquaticats/Monochromatic@latest"`
+  and `"tagPrefix": "monochromatic-mpm-shadow-v"`,
+  the resolver reads the release list
+  (100 per page,
+  at most 10 pages,
+  newest first)
+  and takes the first release that is neither a draft nor a prerelease
+  and whose tag is the prefix followed by a version
+  (a digit,
+  or `v` and a digit);
+  the version is the rest of the tag.
+  A range names a tag:
+  the prefix and the range as written,
+  then (unless the prefix ends in `v`) the prefix,
+  `v` and the range.
+  A list with no such release is an error that names the prefix.
+  Changing the prefix is a resolution-affecting edit:
+  it needs `mpm-shadow update`.
+  Characters other than letters,
+  digits,
+  `.`,
+  `_`
+  and `-` are refused.
 
 #### Lock rows
 

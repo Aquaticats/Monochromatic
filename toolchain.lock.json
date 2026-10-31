@@ -617,7 +617,7 @@
     },
     "cargo:monochromatic-search-shadow": {
       "request": "cargo:monochromatic-search-shadow@latest",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "route": "cargo-binstall",
       "bins": [
         "search-shadow"
@@ -641,7 +641,7 @@
       "artifacts": {}
     },
     "mpm-shadow": {
-      "request": "github:Aquaticats/Monochromatic@monochromatic-mpm-shadow-v0.2.0",
+      "request": "github:Aquaticats/Monochromatic@latest",
       "version": "0.2.0",
       "route": "archive",
       "bins": [
@@ -652,6 +652,7 @@
       ],
       "env": {},
       "options": {
+        "tagPrefix": "monochromatic-mpm-shadow-v",
         "postinstall": {
           "when": "always",
           "link": {
@@ -1478,5 +1479,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:9c375a1e34c55edd1017eb7a7f7b2fffa94264056702d180358a18c35c211332"
+  "digest": "sha256:2486fe871b416f522985ccf65adf48e35488f32e3eb95f27f4b4856e0e241eb6"
 }
