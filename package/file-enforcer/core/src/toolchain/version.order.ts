@@ -10,10 +10,25 @@ import { normalizeVersion, } from './version.ts';
 //region Semver order
 
 /**
+ Number of dot-separated numeric parts in the version core (`MAJOR.MINOR.PATCH`).
+ */
+const CORE_PART_COUNT = 3;
+
+/**
+ ASCII digits.
+ */
+const DIGITS = '0123456789';
+
+/**
+ Marks text that is not a semantic version.
+ */
+const NOT_SEMVER: unique symbol = Symbol('text outside the MAJOR.MINOR.PATCH grammar',);
+
+/**
  Parsed semantic version.
  */
 type Semver = {
-  readonly core: readonly [bigint, bigint, bigint,];
+  readonly core: readonly bigint[];
   readonly prerelease: readonly string[];
 };
 
@@ -25,14 +40,10 @@ type Semver = {
  @returns `true` for a run of `0` to `9`
  */
 function isDigits(text: string,): boolean {
-  if (text.length === 0)
+  if (text === '')
     return false;
-  for (let index = 0; index < text.length; index += 1) {
-    /**
-     Code of one character; `0` is 48 and `9` is 57.
-     */
-    const code = text.charCodeAt(index,);
-    if ((code < 48) || (code > 57))
+  for (const character of text) {
+    if (!DIGITS.includes(character,))
       return false;
   }
   return true;
@@ -43,9 +54,9 @@ function isDigits(text: string,): boolean {
 
  @param text - Normalized version text
 
- @returns The parsed version, or `undefined` when the text is not `MAJOR.MINOR.PATCH` with an optional pre-release
+ @returns The parsed version, or {@link NOT_SEMVER} when the text is not `MAJOR.MINOR.PATCH` with an optional pre-release
  */
-function parseSemver(text: string,): Semver | undefined {
+function parseSemver(text: string,): Semver | typeof NOT_SEMVER {
   /**
    Text before build metadata.
    */
@@ -55,33 +66,35 @@ function parseSemver(text: string,): Semver | undefined {
    */
   const dash = withoutBuild.indexOf('-',);
   /**
-   Numeric core parts.
+   Whether the text carries a pre-release.
    */
-  const parts = ((dash === -1)
-    ? withoutBuild
-    : withoutBuild.slice(
+  const hasPrerelease = withoutBuild.includes('-',);
+  /**
+   Text of the numeric core.
+   */
+  const coreText = hasPrerelease
+    ? withoutBuild.slice(
       0,
       dash,
-    )).split('.',);
+    )
+    : withoutBuild;
+  /**
+   Numeric core parts.
+   */
+  const parts = coreText.split('.',);
   /**
    Pre-release identifiers; none when the separator is absent.
    */
-  const prerelease = (dash === -1)
-    ? []
-    : withoutBuild.slice(dash + 1,)
-      .split('.',);
-  if ((parts.length !== 3) || !parts.every(isDigits,))
-    return undefined;
-  if (prerelease.some(function empty(identifier,): boolean {
-    return identifier.length === 0;
-  },) || ((dash !== -1) && (prerelease.length === 0)))
-    return undefined;
+  const prerelease = hasPrerelease
+    ? withoutBuild.slice(dash + 1,)
+      .split('.',)
+    : [];
+  if ((parts.length !== CORE_PART_COUNT) || (!parts.every(isDigits,)))
+    return NOT_SEMVER;
+  if (prerelease.includes('',))
+    return NOT_SEMVER;
   return {
-    core: [
-      BigInt(parts[0] ?? '0',),
-      BigInt(parts[1] ?? '0',),
-      BigInt(parts[2] ?? '0',),
-    ],
+    core: parts.map(BigInt,),
     prerelease,
   };
 }
@@ -112,8 +125,52 @@ function compareBigint(
 }
 
 /**
- Orders two pre-release identifier lists: numeric identifiers compare by value and sit below alphanumeric ones,
- alphanumeric ones compare in ASCII order, and a list that prefixes a longer one sits below it.
+ Orders two pre-release identifiers: numeric ones compare by value and sit below alphanumeric ones, alphanumeric
+ ones compare in ASCII order.
+
+ @param left - First identifier
+
+ @param right - Second identifier
+
+ @returns Negative, zero or positive like a sort comparator
+ */
+function compareIdentifier(
+  {
+    left,
+    right,
+  }: {
+    readonly left: string;
+    readonly right: string;
+  },
+): number {
+  /**
+   Whether each identifier is numeric.
+   */
+  const leftNumeric = isDigits(left,);
+  /**
+   Whether the second identifier is numeric.
+   */
+  const rightNumeric = isDigits(right,);
+  if (leftNumeric && rightNumeric) {
+    return compareBigint({
+      a: BigInt(left,),
+      b: BigInt(right,),
+    },);
+  }
+  if (leftNumeric !== rightNumeric) {
+    return leftNumeric
+      ? -1
+      : 1;
+  }
+  if (left === right)
+    return 0;
+  return (left < right)
+    ? -1
+    : 1;
+}
+
+/**
+ Orders two pre-release identifier lists identifier by identifier; a list that prefixes a longer one sits below it.
 
  @param a - First identifier list
 
@@ -130,42 +187,22 @@ function comparePrerelease(
     readonly b: readonly string[];
   },
 ): number {
-  for (let index = 0; index < Math.min(
-    a.length,
-    b.length,
-  ); index += 1) {
+  for (const [index, left,] of a.entries()) {
     /**
-     Identifier of each side at this position.
+     Identifier of the other list at the same position.
      */
-    const left = a[index] ?? '';
-    const right = b[index] ?? '';
+    const right = b[index];
+    if (right === undefined)
+      return 1;
     /**
-     Whether each identifier is numeric.
+     Order of this identifier pair.
      */
-    const leftNumeric = isDigits(left,);
-    const rightNumeric = isDigits(right,);
-    if (leftNumeric && rightNumeric) {
-      /**
-       Numeric order of this identifier pair.
-       */
-      const byValue = compareBigint({
-        a: BigInt(left,),
-        b: BigInt(right,),
-      },);
-      if (byValue !== 0)
-        return byValue;
-      continue;
-    }
-    if (leftNumeric !== rightNumeric) {
-      return leftNumeric
-        ? -1
-        : 1;
-    }
-    if (left !== right) {
-      return (left < right)
-        ? -1
-        : 1;
-    }
+    const byIdentifier = compareIdentifier({
+      left,
+      right,
+    },);
+    if (byIdentifier !== 0)
+      return byIdentifier;
   }
   return a.length - b.length;
 }
@@ -197,27 +234,41 @@ export function isNewerVersion(
   },
 ): boolean {
   /**
-   Parsed sides.
+   Parsed candidate.
    */
   const a = parseSemver(normalizeVersion(candidate,),);
+  /**
+   Parsed comparison version.
+   */
   const b = parseSemver(normalizeVersion(than,),);
-  if ((a === undefined) || (b === undefined))
+  if ((a === NOT_SEMVER) || (b === NOT_SEMVER))
     return false;
-  for (let index = 0; index < 3; index += 1) {
+  for (const [index, part,] of a.core
+    .entries()) {
     /**
      Order of one core part.
      */
     const byPart = compareBigint({
-      a: a.core[index] ?? 0n,
+      a: part,
       b: b.core[index] ?? 0n,
     },);
     if (byPart !== 0)
       return byPart > 0;
   }
+  /**
+   Number of pre-release identifiers on each side; none marks a release.
+   */
+  const candidateIdentifiers = a.prerelease
+    .length;
+  /**
+   Number of pre-release identifiers of the comparison version.
+   */
+  const thanIdentifiers = b.prerelease
+    .length;
   // Equal cores: a release sits above any pre-release of the same core.
-  if (a.prerelease.length === 0)
-    return b.prerelease.length > 0;
-  if (b.prerelease.length === 0)
+  if (candidateIdentifiers === 0)
+    return thanIdentifiers > 0;
+  if (thanIdentifiers === 0)
     return false;
   return comparePrerelease({
     a: a.prerelease,

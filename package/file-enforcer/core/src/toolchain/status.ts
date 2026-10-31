@@ -137,9 +137,7 @@ async function observeEntry(
    */
   const outcome = lockOutcome({
     entry,
-    observed: (observed === NOT_INSTALLED)
-      ? undefined
-      : observed,
+    observed,
   },);
   if ((outcome === 'kept-newer') && (observed !== NOT_INSTALLED)) {
     tagged({

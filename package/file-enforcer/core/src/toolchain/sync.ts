@@ -211,9 +211,7 @@ async function entryAction(
      */
     const outcome = lockOutcome({
       entry,
-      observed: (observed === NOT_INSTALLED)
-        ? undefined
-        : observed,
+      observed,
     },);
     if ((outcome === 'kept-newer') && (observed !== NOT_INSTALLED)) {
       log.warn(keptNewerWarning({
@@ -341,10 +339,10 @@ export async function syncToolchain(
   const failed: Record<string, string> = {};
 
   for (const entry of entries) {
-    // oxlint-disable-next-line no-await-in-loop -- staging order makes later probes depend on earlier installs
     /**
      Action this entry needs.
      */
+    // oxlint-disable-next-line no-await-in-loop -- staging order makes later probes depend on earlier installs
     const action = await entryAction({
       entry,
       paths,
@@ -467,6 +465,17 @@ export async function main(): Promise<void> {
     paths,
     env: process.env,
   },);
+  /**
+   Count of repository tools kept at a newer installed version.
+   */
+  const keptNewerCount = report.keptNewer
+    .length;
+  /**
+   Summary note for the kept tools; empty when none were kept.
+   */
+  const keptNewerNote = (keptNewerCount > 0)
+    ? ` (${keptNewerCount} kept at a newer installed version)`
+    : '';
   process.stdout
     .write(
     `toolchain sync: ${
@@ -475,13 +484,7 @@ export async function main(): Promise<void> {
     } installed, ${
       report.unchanged
         .length
-    } unchanged${
-      (report.keptNewer
-        .length
-        > 0)
-        ? ` (${report.keptNewer.length} kept at a newer installed version)`
-        : ''
-    }, ${
+    } unchanged${keptNewerNote}, ${
       Object.keys(report.failed,)
         .length
     } failed\n`,

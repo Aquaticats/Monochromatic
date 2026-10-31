@@ -8,6 +8,7 @@
  `doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md` records the incident behind it.
  */
 
+import { NOT_INSTALLED, } from './status.observe.ts';
 import type { ToolPlanEntry, } from './types.ts';
 import { versionMatches, } from './version.ts';
 import { isNewerVersion, } from './version.order.ts';
@@ -58,7 +59,7 @@ export type LockOutcome = 'absent' | 'at-lock' | 'kept-newer' | 'replace';
 
  @param entry - Plan entry; supplies the locked version and the repository-published signal
 
- @param observed - Installed version text, or `undefined` when nothing is installed
+ @param observed - Installed version text, or {@link NOT_INSTALLED} when nothing is installed
 
  @returns The outcome the sync and status act on
 
@@ -73,10 +74,10 @@ export function lockOutcome(
     observed,
   }: {
     readonly entry: ToolPlanEntry;
-    readonly observed: string | undefined;
+    readonly observed: string | typeof NOT_INSTALLED;
   },
 ): LockOutcome {
-  if (observed === undefined)
+  if (observed === NOT_INSTALLED)
     return 'absent';
   if (versionMatches({
     observed,
@@ -104,6 +105,12 @@ export function lockOutcome(
  @param locked - Version this tree's lock pins
 
  @returns One warning line naming the tool, both versions, why the newer one is kept, and how to upgrade the lock
+
+ @example
+ ```ts
+ keptNewerWarning({ id: 'cargo:monochromatic-lint', observed: '0.4.4', locked: '0.4.0', },);
+ // 'cargo:monochromatic-lint: this tree\'s lock pins 0.4.0 but 0.4.4 is installed, so this tree runs 0.4.4; ...'
+ ```
  */
 export function keptNewerWarning(
   {
