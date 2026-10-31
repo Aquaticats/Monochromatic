@@ -4411,3 +4411,46 @@ This block supersedes "State at 2026-10-29 (night, later)".
   fault-injection merge) was 2595 of 2595 with 5 skipped. The log does not list skipped test names, so the two extra
   skips are not attributed; the `strace` sweeps skip inside this image (it has no `strace`), which is the likely source
   but is not confirmed. Next: the user's decision on adding `strace` to the test image (task 76).
+
+## Update at 2026-10-30 (strace in the gate image, stale locks, state at this write)
+
+- Correction to the entry above: its line "the unit ended with `Result=success`" is not evidence. The unit was started
+  with `--collect`, so `systemctl show` after it ended reports defaults (`Result=success`, status 0) even for a failed
+  run (the second gate run below failed and showed the same). The evidence for 2649 of 2649 passed is the nextest
+  `Summary` line in `~/temp/agent/gate/postboot.log`.
+- User decision (AskUserQuestion, option A): the gate image gains `strace`, so the fault sweeps and the budget tests
+  run in the authority gate. Done as a static build from the pinned upstream source archive `strace-6.13.tar.xz`
+  (SHA-256 `e209daf0...3508a17a`, computed from the download because GitHub lists no digest for the asset), because the
+  image has no network and Debian's `strace` links `libunwind` and `liblzma`, which the image lacks.
+  Files: `package/git-policy/cli/bin/native-strace-snapshot.ts` (new), `native-test-containerfile.ts` (new, the
+  Containerfile text moved out of `test-native-container.ts`, which passed the 300-line limit by one line).
+  Commits `8173130329`, `bece7a8570`. `mutate-native-container.ts` reuses the same image, so one change covers both.
+- Finding: with `strace` present the first gate run failed two tests,
+  `budget::a_commit_with_no_hooks_stays_within_its_budget` and the one-config-hook variant, with
+  `strace starts: NotFound`. Cause: the traced command is built with `env_clear()` plus the fixture's restricted
+  `PATH`, so the bare name `strace` was not found there. The sweeps and budget tests had never run in the container, so
+  this was invisible. Fix `9dba5f1452`: `strace_program()` in `binary_fork_failure_tests.rs` resolves the absolute path
+  from the test process's own `PATH`; the three start sites use it. The remaining sweeps in the container are
+  unproven until a gate run gets past the budget tests (nextest stops at the first failure).
+- Finding: the other session's commit `2246208ec2` raised the `[workspace.dependencies]` floors in 24 `Cargo.toml`
+  files but not their `Cargo.lock` files, so `cargo vendor --locked` failed and the gate stopped before building.
+  Six locks the gate or my packages need were refreshed with a plain online `cargo metadata` (no `cargo update`):
+  `git-policy/cli`, `git-policy/cli.fuzz`, `linter/monochromatic-lint`, `linter/monochromatic-lint.fuzz`,
+  `forbidden-strings/cli`, `forbidden-strings/core`. Commit `0acc0eb452`, fast-forwarded onto main. The other 18
+  packages' locks were not touched and are probably stale in the same way (not checked; they are not mine).
+- State at this write: main is `0acc0eb452`. Gate run four (unit `cli-git-gate-strace4`, log
+  `~/temp/agent/gate/strace4.log`) is running from the clean detached worktree `~/temp/agent/gate-wt`, whose HEAD
+  is `0acc0eb452`; the main checkout is not used for gates while the other session's changes sit in it. The result is
+  not known yet. Read the nextest `Summary` line and any `FAIL` lines; do not infer from the unit state.
+- Next actions, in order:
+  1. Read gate four. If a fault sweep or budget test fails, that is a real defect the container could not show before:
+     fix it, commit, rerun. Record the final counts here.
+  2. Remove `~/temp/agent/gate-wt` with `git worktree remove` once the gate is green (the unit and the worktree stay
+     until then so the log paths remain valid).
+  3. Tasks 78 and 69 as listed in the earlier updates.
+  4. Release 0.4.3 with `crate-release` once the gate passes; the torn-record and stopped-push fixes are user-visible.
+  5. Mutation campaign over `private_storage`, `owner_lock`, `process_tree` and the changed index-lock path, now
+     that the sweeps can run in the container image the campaigns use.
+- Not mine and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `pnpm-lock.yaml` (modified in
+  the main checkout and, by `prepare:pnpm:install`, in the gate worktree; neither is committed by me), the
+  `standards-review-shadow-*` units the commit hook starts.
