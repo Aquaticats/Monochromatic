@@ -54,10 +54,6 @@ import {
   syncOrder,
 } from './sync.order.ts';
 import { observeTool, } from './status.ts';
-import {
-  NOT_RELAUNCHED,
-  runInUpdatesSlice,
-} from './updates-slice.ts';
 import { versionMatches, } from './version.ts';
 import {
   keptNewerWarning,
@@ -434,14 +430,6 @@ export async function syncToolchain(
  ```
  */
 export async function main(): Promise<void> {
-  /**
-   Exit code of the run when it was re-executed inside the clearnet updates slice.
-   */
-  const relaunched = await runInUpdatesSlice();
-  if (relaunched !== NOT_RELAUNCHED) {
-    process.exitCode = relaunched;
-    return;
-  }
   /**
    Whether this run targets the machine-global scope.
    */
