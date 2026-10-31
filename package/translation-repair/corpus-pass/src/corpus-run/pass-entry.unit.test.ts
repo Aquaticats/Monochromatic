@@ -20,8 +20,12 @@ import {
   mkdir,
   readdir,
   readFile,
+  writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { setImmediate as nextTurn, } from 'node:timers/promises';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -46,7 +50,10 @@ import { fixedPagePath, } from '@monochromatic-dev/translation-repair-page-check
 import {
   contextRoot,
   inEntryLogContext,
+  installRunLog,
+  openRunLog,
 } from '@monochromatic-dev/translation-repair-typography';
+import { readRunLogText, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   finishedEntryIds,
   republishRunPages,
@@ -3028,6 +3035,124 @@ await describe({
           lines: entryLines,
           attempt: ATTEMPT,
         },),).toStrictEqual([],);
+      },
+    },),
+    it({
+      name: 'WRITES THE LINES OF EVERY STAGE AND EVERY ENTRY LOGGER TO THE RUN FOLDER (ledger B1110): the `round:` '
+        + 'lines of the stages, the `SLICE-COST` lines of the lanes and the consolidation, and an entry-level warning '
+        + 'are records of the installed run log, beside the console, so the reports that read the folder read them',
+      fn: async ctx => {
+        await using dirs = await throwawayDirs();
+        await using runLog = await openRunLog({ runDir: dirs.runsDir, },);
+        using _recording = installRunLog({ log: runLog, },);
+        /**
+         Model schemas reached across the complete entry.
+         */
+        const served: string[] = [];
+        /**
+         Entry whose archive calls the page the author's own English, declined before any purchase.
+         */
+        const ownEnglish = {
+          id: 'CatEntryOwnEnglish',
+          sourceText: SOURCE_TEXT,
+          targetText: `<!-- 这只猫的原文即英文 -->\n\n${TARGET_TEXT}`,
+        };
+        // A page an earlier crash left for the declined entry, which the decline removes and says so as a warning.
+        await mkdir(
+          dirname(fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: ownEnglish.id,
+          },),),
+          { recursive: true, },
+        );
+        await writeFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: ownEnglish.id,
+          },),
+          'a page left by a crash\n',
+        );
+        /**
+         What the console showed of the lines that name an entry, the stubs holding it off the test's own output.
+         */
+        const shown = await entryLinesWritten({
+          sinon: ctx.sinon,
+          entryId: ENTRY.id,
+          run: async () => {
+            await inEntryLogContext({
+              entry: ENTRY.id,
+              generation: DIGEST,
+              attempt: ATTEMPT,
+              run: async () => {
+                await settleEntry({
+                  attempt: ATTEMPT,
+                  wallClock: fixedWallClock,
+                  client: entryClient({ served, },),
+                  entry: ENTRY,
+                  artifactsDir: dirs.artifactsDir,
+                  publishDir: dirs.publishDir,
+                  declinedDir: dirs.declinedDir,
+                  sliceCacheDir: dirs.sliceCacheDir,
+                  tip: 'a'.repeat(40,),
+                  pipelineDigest: DIGEST,
+                  pin: ENTRY_PIN,
+                  outsideReads: NO_OUTSIDE_READS,
+                  pictureSources: NO_PICTURE_SOURCES,
+                  hardCapMs: HANG_STOP_MS,
+                  baseSignal: new AbortController().signal,
+                  overlap: PASS_FALLBACK_OVERLAP,
+                  stageSettings: SCRIPTED_STAGE_SETTINGS,
+                },);
+              },
+            },);
+            await inEntryLogContext({
+              entry: ownEnglish.id,
+              generation: DIGEST,
+              attempt: ATTEMPT,
+              run: async () => {
+                await settleEntry({
+                  attempt: ATTEMPT,
+                  wallClock: fixedWallClock,
+                  client: entryClient({ served, },),
+                  entry: ownEnglish,
+                  artifactsDir: dirs.artifactsDir,
+                  publishDir: dirs.publishDir,
+                  declinedDir: dirs.declinedDir,
+                  sliceCacheDir: dirs.sliceCacheDir,
+                  tip: 'a'.repeat(40,),
+                  pipelineDigest: DIGEST,
+                  pin: ENTRY_PIN,
+                  outsideReads: NO_OUTSIDE_READS,
+                  pictureSources: NO_PICTURE_SOURCES,
+                  hardCapMs: HANG_STOP_MS,
+                  baseSignal: new AbortController().signal,
+                  overlap: PASS_FALLBACK_OVERLAP,
+                  stageSettings: SCRIPTED_STAGE_SETTINGS,
+                },);
+              },
+            },);
+          },
+        },);
+        await runLog.flush();
+
+        /**
+         Lines of the run folder's records, as the console printed them.
+         */
+        const records = (await readRunLogText({ path: dirs.runsDir, },)).split('\n',);
+
+        // The entry makes model calls, and the console showed the lines of the same loggers.
+        expect(served.length,).toBeGreaterThan(0,);
+        expect(shown.length,).toBeGreaterThan(0,);
+        expect(records.filter(function isRound(line,): boolean {
+          return line.includes(` [${ENTRY.id}] `,) && line.includes(' round: ',);
+        },).length,).toBeGreaterThan(0,);
+        expect(records.filter(function isCost(line,): boolean {
+          return line.includes(` [${ENTRY.id}] `,) && line.includes('SLICE-COST',);
+        },).length,).toBeGreaterThan(0,);
+        expect(records.filter(function isEntryWarn(line,): boolean {
+          return line.startsWith('[warn] ',) && line.includes(` [${ownEnglish.id}] `,)
+            && line.includes('removed a page an earlier crash left',);
+        },).length,).toBe(1,);
       },
     },),
     it({

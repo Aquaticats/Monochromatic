@@ -21,7 +21,7 @@ import {
 /**
  Name the pass imports `tagged` under, which a file is taken to bind without importing it.
  */
-const TAGGED = 'tagged';
+export const TAGGED = 'tagged';
 
 /**
  Name the pass imports the wrapper under.
@@ -76,7 +76,7 @@ type ConstBinding = readonly [
  const properties = nodeListOf({ value: options.properties, },);
  ```
  */
-function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNode[] {
+export function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNode[] {
   return Array.isArray(value,)
     ? value.filter(function isNode(item,): item is TreeNode {
       return isTreeNode(item,);
@@ -98,7 +98,7 @@ function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNod
  const names = localNamesOf({ nodes, imported: 'tagged', },); // Set { 'tagged', 'makeLogger', 'make' }
  ```
  */
-function localNamesOf(
+export function localNamesOf(
   {
     nodes,
     imported,
