@@ -193,11 +193,18 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> Outcome<()> {
     let Some(parent) = path.parent() else {
         return Err(BrowserslistError::Io { path: path.display().to_string(), message: "has no parent directory".to_string() });
     };
-    fs::create_dir_all(parent).map_err(|error| return io_error(parent, &error))?;
+    if let Err(error) = fs::create_dir_all(parent) {
+        return Err(io_error(parent, &error));
+    }
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::SeqCst);
     let temporary = parent.join(format!(".tmp-{}-{counter}", std::process::id()));
-    fs::write(&temporary, bytes).map_err(|error| return io_error(&temporary, &error))?;
-    return fs::rename(&temporary, path).map_err(|error| return io_error(path, &error));
+    if let Err(error) = fs::write(&temporary, bytes) {
+        return Err(io_error(&temporary, &error));
+    }
+    if let Err(error) = fs::rename(&temporary, path) {
+        return Err(io_error(path, &error));
+    }
+    return Ok(());
 }
 
 /// What:
@@ -257,11 +264,16 @@ pub fn decode_tarballs(caniuse_tgz: &[u8], node_releases_tgz: &[u8], firefox_esr
 
 /// Decode bytes as UTF-8 or fail naming the file.
 fn text_of(file: &str, bytes: &[u8]) -> Outcome<String> {
-    return String::from_utf8(bytes.to_vec()).map_err(|error| return BrowserslistError::Data {
-        file: file.to_string(),
-        offset: Some(error.utf8_error().valid_up_to()),
-        message: "not valid UTF-8".to_string(),
-    });
+    match String::from_utf8(bytes.to_vec()) {
+        Ok(text) => return Ok(text),
+        Err(error) => {
+            return Err(BrowserslistError::Data {
+                file: file.to_string(),
+                offset: Some(error.utf8_error().valid_up_to()),
+                message: "not valid UTF-8".to_string(),
+            });
+        }
+    }
 }
 
 /// What:

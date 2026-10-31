@@ -47,6 +47,28 @@ use std::collections::HashSet;
 /// ```
 const MAX_DEPTH: usize = 8;
 
+/// Whether a byte is an ASCII letter.
+fn is_letter_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphabetic();
+}
+
+/// Whether a byte is an ASCII letter or digit.
+fn is_alphanumeric_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric();
+}
+
+/// Whether a byte is an ASCII digit.
+fn is_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
+/// Whether a byte may not follow a number:
+/// a letter,
+/// a digit or a dot.
+fn is_number_tail_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || byte == b'.';
+}
+
 /// What:
 ///  The exact text every packed data file starts with.
 /// Why:
@@ -201,10 +223,10 @@ impl<'a> Cursor<'a> {
             return self.string();
         }
         let start = self.offset;
-        if !self.peek().is_some_and(|byte| return byte.is_ascii_alphabetic()) {
+        if !self.peek().is_some_and(is_letter_byte) {
             return Err(self.fail("expected an object key"));
         }
-        while self.peek().is_some_and(|byte| return byte.is_ascii_alphanumeric()) {
+        while self.peek().is_some_and(is_alphanumeric_byte) {
             self.offset += 1;
         }
         return Ok(String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned());
@@ -217,21 +239,21 @@ impl<'a> Cursor<'a> {
         if self.peek() == Some(b'0') {
             self.offset += 1;
         } else {
-            while self.peek().is_some_and(|byte| return byte.is_ascii_digit()) {
+            while self.peek().is_some_and(is_digit_byte) {
                 self.offset += 1;
             }
         }
         if self.peek() == Some(b'.') {
             self.offset += 1;
             let digits_start = self.offset;
-            while self.peek().is_some_and(|byte| return byte.is_ascii_digit()) {
+            while self.peek().is_some_and(is_digit_byte) {
                 self.offset += 1;
             }
             if self.offset == digits_start {
                 return Err(self.fail("a decimal point must be followed by digits"));
             }
         }
-        if self.peek().is_some_and(|byte| return byte.is_ascii_alphanumeric() || byte == b'.') {
+        if self.peek().is_some_and(is_number_tail_byte) {
             return Err(self.fail("number followed by a byte outside the subset"));
         }
         return Ok(JsValue::Number(String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned()));
@@ -241,7 +263,7 @@ impl<'a> Cursor<'a> {
     fn null(&mut self) -> Outcome<JsValue> {
         if self.bytes[self.offset..].starts_with(b"null") {
             self.offset += 4;
-            if self.peek().is_some_and(|byte| return byte.is_ascii_alphanumeric()) {
+            if self.peek().is_some_and(is_alphanumeric_byte) {
                 return Err(self.fail("identifier continues after null"));
             }
             return Ok(JsValue::Null);

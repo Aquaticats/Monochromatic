@@ -107,6 +107,15 @@ use std::collections::HashSet;
 /// browserslist's message for a `not` query with nothing before it (`index.js:348-354`).
 const NOT_FIRST_MESSAGE: &str = "Write any browsers query (for instance, `defaults`) before `not dead`";
 
+/// Order two keyed results by name ascending,
+/// then by version descending.
+fn compare_keyed(left: &((String, [u64; 3]), String), right: &((String, [u64; 3]), String)) -> Ordering {
+    match left.0.0.cmp(&right.0.0) {
+        Ordering::Equal => return right.0.1.cmp(&left.0.1),
+        other => return other,
+    }
+}
+
 /// browserslist rewrites a selected `<name> 0` to the browser's first version;
 /// no supported query selects one,
 /// so meeting one means the data changed shape and the crate refuses instead of guessing.
@@ -153,10 +162,12 @@ pub fn finalize(selected: &[String]) -> Outcome<Vec<String>> {
             keyed.push((sort_key(item)?, item.clone()));
         }
     }
-    keyed.sort_by(|left, right| -> Ordering {
-        return left.0.0.cmp(&right.0.0).then_with(|| return right.0.1.cmp(&left.0.1));
-    });
-    return Ok(keyed.into_iter().map(|(_, item)| return item).collect());
+    keyed.sort_by(compare_keyed);
+    let mut ordered: Vec<String> = Vec::with_capacity(keyed.len());
+    for (_, item) in keyed {
+        ordered.push(item);
+    }
+    return Ok(ordered);
 }
 
 /// What:

@@ -61,6 +61,11 @@ const PREFIX: &str = "sha512-";
 /// Length in bytes of a SHA-512 digest.
 const DIGEST_LENGTH: usize = 64;
 
+/// A byte as two lowercase hex digits.
+fn hex_byte(byte: &u8) -> String {
+    return format!("{byte:02x}");
+}
+
 /// Build the error for a malformed integrity string.
 fn malformed(integrity: &str, why: &str) -> BrowserslistError {
     return BrowserslistError::Data {
@@ -85,7 +90,10 @@ pub fn parse_sha512(integrity: &str) -> Outcome<Vec<u8>> {
     let Some(encoded) = integrity.strip_prefix(PREFIX) else {
         return Err(malformed(integrity, "it does not start with sha512-"));
     };
-    let decoded = STANDARD.decode(encoded).map_err(|error| return malformed(integrity, &error.to_string()))?;
+    let decoded = match STANDARD.decode(encoded) {
+        Ok(decoded) => decoded,
+        Err(error) => return Err(malformed(integrity, &error.to_string())),
+    };
     if decoded.len() != DIGEST_LENGTH {
         return Err(malformed(integrity, "the digest is not 64 bytes long"));
     }
@@ -143,7 +151,7 @@ pub fn verify(subject: &str, integrity: &str, bytes: &[u8]) -> Outcome<()> {
 /// ```
 pub fn cache_key(integrity: &str) -> Outcome<String> {
     let digest = parse_sha512(integrity)?;
-    return Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect());
+    return Ok(digest.iter().map(hex_byte).collect());
 }
 
 /// What:

@@ -249,7 +249,10 @@ impl Rule for BrowserslistRule {
     fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
         let config_text = self.require_text(view, &self.source, "query file")?;
         let lock_text = self.require_text(view, &self.lock, "data lock")?;
-        let rendered = self.renderer.render(&config_text, &lock_text).map_err(|error| return diagnose(&error, self))?;
+        let rendered = match self.renderer.render(&config_text, &lock_text) {
+            Ok(text) => text,
+            Err(error) => return Err(diagnose(&error, self)),
+        };
         let change = Change::Write { path: self.output.clone(), content: rendered.into_bytes(), mode: None };
         return Ok(RulePlan { changes: vec![change], warnings: Vec::new() });
     }

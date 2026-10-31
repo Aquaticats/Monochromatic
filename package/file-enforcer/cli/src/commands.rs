@@ -56,7 +56,17 @@ use std::time::Duration;
 /// How long a client keeps trying to reach or start a server.
 const CONNECT_DEADLINE: Duration = Duration::from_secs(15);
 
-/// The environment variable that overrides the idle seconds of servers this client starts (CI shutdown control).
+/// What:
+///  The environment variable that overrides the idle seconds of servers this client starts.
+/// Why:
+///  Containers and CI need a short,
+/// deterministic shutdown,
+/// and a variable reaches every client without a flag on each command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const IDLE_SECONDS_VARIABLE = 'FILE_ENFORCER_IDLE_SECONDS';
+/// ```
 pub const IDLE_SECONDS_VARIABLE: &str = "FILE_ENFORCER_IDLE_SECONDS";
 
 /// What:
@@ -71,7 +81,8 @@ pub const IDLE_SECONDS_VARIABLE: &str = "FILE_ENFORCER_IDLE_SECONDS";
 /// function idleSeconds(): number
 /// ```
 fn idle_seconds() -> u64 {
-    return std::env::var(IDLE_SECONDS_VARIABLE).ok().and_then(|text| return text.parse::<u64>().ok()).unwrap_or(120);
+    let Ok(text) = std::env::var(IDLE_SECONDS_VARIABLE) else { return 120 };
+    return text.parse::<u64>().unwrap_or(120);
 }
 
 /// What:
@@ -176,7 +187,8 @@ fn absolute_path(path: &Path) -> PathBuf {
     if path.is_absolute() {
         return path.to_path_buf();
     }
-    return std::env::current_dir().map(|current| return current.join(path)).unwrap_or_else(|_| return path.to_path_buf());
+    let Ok(current) = std::env::current_dir() else { return path.to_path_buf() };
+    return current.join(path);
 }
 
 /// What:

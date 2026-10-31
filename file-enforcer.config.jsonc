@@ -65,7 +65,7 @@
       "kind": "toml-keys",
       "id": "cargo-dylint",
       "manifests": ["package/*/*/Cargo.toml"],
-      "onlyDirs": ["package/ide/app", "package/linter/monochromatic-lint"],
+      "onlyDirs": ["package/file-enforcer/cli", "package/ide/app", "package/linter/monochromatic-lint"],
       "edits": [
         {
           "guard": ["lints", "rust", "unexpected_cfgs"],

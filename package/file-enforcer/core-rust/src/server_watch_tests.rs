@@ -217,6 +217,37 @@ fn watch_notices_an_absent_directory_being_created_and_then_a_file_inside_it() {
     assert_eq!(watch.finish(), 0);
 }
 
+/// What:
+///  A change made the moment the first run reports its write is noticed without the test repeating it.
+/// Why:
+///  The directories a run read are watched only after that run ends,
+/// so a change in that gap produced no event and was lost until the next unrelated change.
+/// The server now runs one more cycle after it arms a new watch,
+/// which is a condition the test can wait on,
+/// not a delay.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// it('notices a change made right after the first run', async () => { ... });
+/// ```
+#[test]
+fn a_change_made_right_after_the_first_run_is_not_lost() {
+    let runtime = short_runtime_dir();
+    let dir = scratch_dir();
+    let text = r#"{"rules": [{"kind": "concat", "id": "c", "output": "out.txt", "parts": [{"file": "in.txt"}]}]}"#;
+    write_files(dir.path(), &[("file-enforcer.config.jsonc", text), ("in.txt", "first\n")]);
+    let config = dir.path().join("file-enforcer.config.jsonc");
+    let server = TestServer::start(dir.path(), runtime.path(), Duration::from_secs(60));
+    let watch = WatchClient::start(&server.client(), &config);
+    watch.wait_for("watch-started", 10);
+    watch.wait_for("file-written", 10);
+    std::fs::write(dir.path().join("in.txt"), "second\n").expect("rewrite the input");
+    watch.wait_for("file-written", 30);
+    assert!(read_text(dir.path(), "out.txt").contains("second"), "{}", read_text(dir.path(), "out.txt"));
+    stop(server);
+    assert_eq!(watch.finish(), 0);
+}
+
 #[test]
 fn watch_on_the_per_user_server_follows_the_user_config() {
     let runtime = short_runtime_dir();
