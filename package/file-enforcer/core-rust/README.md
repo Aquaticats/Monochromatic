@@ -108,7 +108,9 @@ registry.register("browserslist", Box::new(MyBuilder));
   writing the changed text (the `toml-keys` and `rust-catalog` kinds).
   Two rules writing one path fail the run unless both compose.
   A rule that reads a path must come after every rule that writes it,
-  unless it writes that path itself.
+  unless it writes that path itself
+  or both rules compose
+  (a composing reader that plans no change to a file still precedes a composing rule that does).
 - Return `Err(Diagnostic)` for a failure that stops the run (exit 1).
   Put non-fatal notices in `warnings`;
   they are printed as `warning` events and are not drift.

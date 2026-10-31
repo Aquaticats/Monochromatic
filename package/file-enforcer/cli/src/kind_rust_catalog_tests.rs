@@ -115,6 +115,37 @@ fn either_order_with_a_toml_keys_rule_gives_the_same_manifest() {
     assert_eq!(results[0], results[1]);
 }
 
+/// A `toml-keys` rule that reads a manifest and changes nothing does not block a later catalog change:
+/// both compose, so the catalog rule transforms what the key rule left.
+#[test]
+fn a_conforming_toml_keys_rule_does_not_block_a_later_catalog_change() {
+    let config = r#"{"rules": [
+      {"kind": "toml-keys", "id": "base", "manifests": ["package/*/*/Cargo.toml"],
+       "edits": [{"guard": ["package"], "path": ["package", "edition"], "value": "2021"}], "blocks": []},
+      {"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]}
+    ]}"#;
+    let dir = scratch_dir();
+    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
+    let (code, events) = run_repository(dir.path(), config, RunMode::Write);
+    assert_eq!(code, 0, "{events:?}");
+    assert_eq!(count_code(&events, "rule-order"), 0);
+    assert!(read_text(dir.path(), "package/cli/a/Cargo.toml").contains("anyhow = { workspace = true }"));
+}
+
+/// A rule that does not compose and reads a manifest must still come after the catalog rule that rewrites it.
+#[test]
+fn a_non_composing_reader_before_the_catalog_rule_is_rejected() {
+    let config = r#"{"rules": [
+      {"kind": "concat", "id": "copy", "output": "copy.txt", "parts": [{"file": "package/cli/a/Cargo.toml"}]},
+      {"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]}
+    ]}"#;
+    let dir = scratch_dir();
+    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
+    let (code, events) = run_repository(dir.path(), config, RunMode::Write);
+    assert_eq!((code, count_code(&events, "rule-order")), (1, 1), "{events:?}");
+    assert_eq!(read_text(dir.path(), "package/cli/a/Cargo.toml"), LITERAL_CRATE, "a failing run writes nothing");
+}
+
 /// A missing catalog fails the run and names the file.
 #[test]
 fn a_missing_catalog_is_a_failure() {

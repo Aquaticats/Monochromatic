@@ -134,6 +134,28 @@ fn check_url(url: &str) -> Outcome<Uri> {
     }
 }
 
+/// What:
+///  An error with every cause it carries,
+/// joined by `: `.
+/// Why:
+///  hyper's client error prints only `client error (Connect)`;
+/// the cause (name resolution, refused connection, TLS alert) is what a person needs to act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function describeChain(error: Error): string
+/// ```
+fn describe_chain(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut text = error.to_string();
+    let mut cause = error.source();
+    while let Some(inner) = cause {
+        text.push_str(": ");
+        text.push_str(&inner.to_string());
+        cause = inner.source();
+    }
+    return text;
+}
+
 /// The asynchronous request:
 /// one GET,
 /// no redirects,
@@ -152,7 +174,7 @@ async fn get_once(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
         .header("accept-encoding", "identity")
         .body(Empty::<Bytes>::new())
         .map_err(|error| format!("cannot build the request: {error}"))?;
-    let response = client.request(request).await.map_err(|error| format!("{error}"))?;
+    let response = client.request(request).await.map_err(|error| return describe_chain(&error))?;
     if response.status().as_u16() != 200 {
         return Err(format!("the server answered HTTP {}, not 200", response.status().as_u16()));
     }
