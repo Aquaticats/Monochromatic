@@ -135,6 +135,55 @@ each finished branch is reviewed and merged into `main`):
   so it lands at cutover;
   until then the TypeScript sync warns only from `toolchain:sync` and `toolchain:status`
   (the user chose "Wait for the cutover" over releasing the launcher early).
+- Merged 2026-10-31:
+  loose ends (`9a0012f498`:
+  browserslist scripts lint-clean with a real conformance rerun byte-identical,
+  `XDG_CONFIG_HOME` in JetBrains discovery,
+  closure lints cleared in the cli,
+  browserslist and jsonc-edit,
+  the watch race fixed by rearming instead of a longer wait);
+  the TypeScript sync guard (`aa74110914`:
+  a `monochromatic-` cargo-binstall tool installed newer than the lock is kept with a warning and the upgrade remedy);
+  the cutover inventory (`5229c9fc69`,
+  `doc/planning/file-enforcer-rust-cutover.md`);
+  publish prep (jsonc-edit 0.1.2 and the five crates' metadata,
+  publish tasks,
+  `cargo-publish.yml` jobs,
+  runbook "The five file-enforcer crates 0.1.0").
+- Incident 2026-10-31:
+  two agent runs of `mise run file-enforcer` (23:52:20 and 00:09:55) applied the TypeScript tool's user-level rule and rewrote
+  `~/.config/JetBrains/IntelliJIdea2026.3/options/LanguageServersSettings.xml`.
+  The user chose "Leave it as written",
+  and for the cause (AGENTS.md `WC2` says to run the tool,
+  which has no project-only mode) chose "Wait for the cutover";
+  the shared agent brief now forbids agents to run it.
+- Publishing,
+  as the user chose ("Merge now, then token"):
+  the publish-prep merge lets CI release jsonc-edit 0.1.2,
+  with one expected red run for the five new crates;
+  then the owner creates one token (publish-new,
+  publish-update,
+  trusted-publishing) and runs `cargo login` in their own terminal;
+  then this session publishes xml-edit,
+  dependency-catalog,
+  browserslist,
+  file-enforcer,
+  and file-enforcer-cli in that order,
+  creates the five Trusted Publishing configs,
+  and the owner revokes the token.
+  mpm-shadow needs its own bump past 0.1.1 after the version-keyed install agent merges.
+- Adopted from the decision record and recorded unasked (veto open):
+  the CLI binaries reach CI and containers the way the decision's bootstrap says
+  (a prebuilt `mpm-shadow` archive with its SHA-256 in the lock,
+  then `cargo:monochromatic-file-enforcer-cli` through cargo-binstall from its release archives,
+  not a tag-pinned `github:` request,
+  which AGENTS.md `PIN` forbids for tools this repository publishes);
+  the IDE launcher's explicit path is `<worktree>/.cache/toolchain-bin/mpm-shadow`.
+- Asked at cutover time,
+  not before:
+  converting the real global plan under `~/.config/monochromatic-dev`,
+  which agents may not read unasked,
+  and its `asset` hints.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
@@ -186,7 +235,13 @@ Cutover reminders from finished agents:
   (decision record,
   "Consequences":
   "the root `mise.toml` is no longer generated"),
-  so it simply keeps the `ad9fe75d05` value as a committed file.
+  so the value from `ad9fe75d05` must survive the move the decision record specifies
+  ("Outputs that stop being generated":
+  `mise.no-env.toml` becomes the hand-written `mise.toml`,
+  and the static environment moves to the committed `.config/mise/conf.d/20-env.toml`).
+  Corrected 2026-10-31:
+  an earlier version of this note said `mise.toml` "keeps its committed content",
+  which contradicted that section.
 - mpm-shadow at cutover
   (from `package/mpm-shadow/cli/README.md`):
   the converter writes each tool's `request` as `<origin>@<range>`,
