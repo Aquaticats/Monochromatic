@@ -16,8 +16,9 @@ use monochromatic_file_enforcer::config_decode::ConfigScope;
 /// Imports `CollectingSink`,
 /// `Event` from `monochromatic_file_enforcer::event`.
 use monochromatic_file_enforcer::event::{CollectingSink, Event};
-/// Imports `RuleRegistry` from `monochromatic_file_enforcer::registry`.
+/// Imports `OutputScope` from `monochromatic_file_enforcer::output_scope`.
 use monochromatic_file_enforcer::output_scope::OutputScope;
+/// Imports `RuleRegistry` from `monochromatic_file_enforcer::registry`.
 use monochromatic_file_enforcer::registry::RuleRegistry;
 /// Imports `RunMode`,
 /// `RunRequest`,
