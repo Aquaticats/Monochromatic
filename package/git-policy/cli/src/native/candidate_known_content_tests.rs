@@ -166,7 +166,7 @@ fn content_is_known_by_object_name_and_never_when_corrected() {
         .version(&lifecycle, &mut facts)
         .expect("prepared")
         .expect("candidates");
-    let known: KnownContent = content.known_content(&request, None).expect("known content");
+    let known: KnownContent = content.known_content(&request, &[]).expect("known content");
     assert_eq!(
         known.entry(index_of(&version, "copy.txt")),
         Some(&KnownEntry {
@@ -184,7 +184,7 @@ fn content_is_known_by_object_name_and_never_when_corrected() {
         before: Rc::from(&b"known\nbytes\n"[..]),
         after: Rc::from(&b"known\nbytes\n\n"[..]),
     }]);
-    let corrected: KnownContent = content.known_content(&request, None).expect("known content");
+    let corrected: KnownContent = content.known_content(&request, &[]).expect("known content");
     assert!(corrected.is_empty(), "{corrected:?}");
     // A direct check reads what the files hold now and compares with nothing.
     let mut direct: ContentState = ContentState::new();
@@ -197,7 +197,7 @@ fn content_is_known_by_object_name_and_never_when_corrected() {
         .expect("prepared");
     assert!(
         direct
-            .known_content(&direct_request, None)
+            .known_content(&direct_request, &[])
             .expect("known content")
             .is_empty()
     );
@@ -209,7 +209,7 @@ fn content_is_known_by_object_name_and_never_when_corrected() {
 #[test]
 fn nothing_is_known_before_the_candidates_are_prepared() {
     let mut content: ContentState = ContentState::new();
-    assert!(content.known_content(&whole_worktree(), None).is_err());
+    assert!(content.known_content(&whole_worktree(), &[]).is_err());
 }
 
 /// The parents outside the given commits are listed once each,
@@ -284,7 +284,7 @@ fn no_basis_means_nothing_is_known() {
         &mut subject,
         &version,
         &ContentBasis::Nothing,
-        None,
+        &[],
         &corrected,
     )
     .expect("lookup");

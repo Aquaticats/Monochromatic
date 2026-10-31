@@ -23,8 +23,12 @@
 /// Import the candidate being judged and its change kinds.
 use super::candidate_record::CandidateChange;
 use super::candidate_version::Candidate;
+/// Import the configured rules files.
+use super::config_schema::RulesFileEntry;
 /// Import the rules selection the adapter loads.
 use super::scanner_adapter::RulesSource;
+/// Import the scanner's rules-list entry and the one parser of the variable's list grammar.
+use forbidden_strings::{RulesEntry, RulesListError, parse_rules_list};
 /// `OsStr` is borrowed operating-system text of raw OS bytes (sibling `str` must be UTF-8).
 use std::ffi::OsStr;
 /// What:
@@ -113,32 +117,73 @@ pub const SCANNER_SELF_MATCH_PATHS: &[&[u8]] = &[
 /// function rulesSource(rulesFile: string | undefined, variable: string | undefined, repositoryRoot: string): RulesSource;
 /// ```
 pub fn rules_source(
-    rules_file: Option<&str>,
+    rules_files: Option<&[RulesFileEntry]>,
     configured: Option<&OsStr>,
     repository_root: &Path,
-) -> RulesSource {
-    // `if let Some(name) = rules_file` runs only when the configuration names a file.
-    if let Some(name) = rules_file {
-        return RulesSource {
-            path: repository_root.join(name),
-            explicit: true,
-        };
+) -> Result<RulesSource, RulesListError> {
+    // `if let Some(files) = rules_files` runs only when the configuration names files.
+    if let Some(files) = rules_files {
+        let mut entries: Vec<RulesEntry> = Vec::with_capacity(files.len());
+        for file in files {
+            entries.push(RulesEntry {
+                path: repository_root.join(file.path.as_str()),
+                optional: file.optional,
+            });
+        }
+        return Ok(RulesSource { entries, explicit: true });
     }
     // `match` on the optional value: `Some(value)` is "present", `None` is "absent".
     match configured {
         Some(value) => {
-            return RulesSource {
-                path: repository_root.join(value),
-                explicit: true,
+            // The variable uses the scanner's rules-list grammar (comma-separated, a trailing `?` marks an
+            // optional entry), so one parser serves both tools. A value that is not UTF-8 cannot be split,
+            // so it stays one required path, as it was before lists existed.
+            let Some(text) = value.to_str() else {
+                return Ok(RulesSource {
+                    entries: vec![RulesEntry { path: repository_root.join(value), optional: false }],
+                    explicit: true,
+                });
             };
+            let mut entries: Vec<RulesEntry> = parse_rules_list(text)?;
+            for entry in &mut entries {
+                // `.join(..)` keeps an absolute entry as it is.
+                entry.path = repository_root.join(entry.path.as_path());
+            }
+            return Ok(RulesSource { entries, explicit: true });
         }
         None => {
-            return RulesSource {
-                path: repository_root.join(DEFAULT_RULES_FILE),
+            return Ok(RulesSource {
+                entries: vec![RulesEntry {
+                    path: repository_root.join(DEFAULT_RULES_FILE),
+                    optional: false,
+                }],
                 explicit: false,
-            };
+            });
         }
     }
+}
+
+/// What:
+///  The pathnames the rules files would carry as candidates,
+///  for each listed file that lies inside the repository.
+///       `Vec<Vec<u8>>` is an owned list of owned pathname byte strings.
+/// Why:
+///   Any tracked rules file would match its own patterns,
+///  so every one is left out of the scan,
+///       not only the first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rulesCandidatePaths = (rules: RulesSource, root: string) => rules.entries.flatMap(e => rulesCandidatePath(e.path, root) ?? []);
+/// ```
+pub fn rules_candidate_paths(rules: &RulesSource, repository_root: &Path) -> Vec<Vec<u8>> {
+    let mut paths: Vec<Vec<u8>> = Vec::with_capacity(rules.entries.len());
+    for entry in &rules.entries {
+        if let Some(found) = rules_candidate_path(entry.path.as_path(), repository_root) {
+            paths.push(found);
+        }
+    }
+    return paths;
 }
 
 /// What:
@@ -260,11 +305,12 @@ pub fn rules_candidate_path(rules_path: &Path, repository_root: &Path) -> Option
 /// ```ts
 /// function isScannable(candidate: Candidate, rulesPath?: string): boolean;
 /// ```
-pub fn is_scannable(candidate: &Candidate, rules_path: Option<&[u8]>) -> bool {
+pub fn is_scannable(candidate: &Candidate, rules_paths: &[Vec<u8>]) -> bool {
     if candidate.change == CandidateChange::Deleted {
         return false;
     }
-    if rules_path == Some(candidate.path.as_slice()) {
+    // `.iter().any(..)` asks whether any rules file's pathname equals the candidate's.
+    if rules_paths.iter().any(|rules_path| return rules_path.as_slice() == candidate.path.as_slice()) {
         return false;
     }
     // `.contains(&..)` asks whether the list holds this exact byte string.

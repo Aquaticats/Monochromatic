@@ -106,7 +106,7 @@ fn policy_pass(directory: &Path) {
     std::fs::write(repo.join("worktree-leak.txt"), format!("{token}\n")).expect("worktree edit");
     std::fs::write(repo.join("staged-leak.txt"), "clean\n").expect("worktree edit");
     // The rules file is selected the way the standalone scanner selects it, relative to the root.
-    let rules: RulesSource = rules_source(None, Some(OsStr::new("rules.txt")), repo.as_path());
+    let rules: RulesSource = rules_source(None, Some(OsStr::new("rules.txt")), repo.as_path()).expect("rules source");
     assert!(rules.explicit);
     let scanner: CandidateScanner = match CandidateScanner::load(&rules, false) {
         Ok(loaded) => loaded,
@@ -115,7 +115,7 @@ fn policy_pass(directory: &Path) {
     assert_eq!(scanner.cache_warnings().len(), 1);
     assert_eq!(scanner.cache_warnings()[0].reason(), "missing");
     let rules_path: Vec<u8> =
-        rules_candidate_path(rules.path.as_path(), repo.as_path()).expect("rules file is tracked");
+        rules_candidate_path(rules.entries[0].path.as_path(), repo.as_path()).expect("rules file is tracked");
     let mut store: CandidateStore = CandidateStore::new(
         Path::new(REAL_GIT),
         &[OsString::from("-C"), repo.clone().into_os_string()],
@@ -126,7 +126,7 @@ fn policy_pass(directory: &Path) {
         .expect("staged version");
     assert_eq!(version.candidates().len(), 3);
     let scans: Vec<CandidateScan> =
-        scan_version(&scanner, &mut store, &version, Some(rules_path.as_slice())).expect("pass");
+        scan_version(&scanner, &mut store, &version, std::slice::from_ref(&rules_path)).expect("pass");
     // The rules file is skipped; the staged leak is reported; the worktree-only leak is not.
     assert_eq!(scans.len(), 2);
     assert_eq!(
@@ -155,7 +155,7 @@ fn policy_pass(directory: &Path) {
     // A fix stages the cleaned content; the earlier version must not be read again.
     git(repo.as_path(), &["add", "staged-leak.txt"]);
     store.invalidate();
-    match scan_version(&scanner, &mut store, &version, Some(rules_path.as_slice())) {
+    match scan_version(&scanner, &mut store, &version, std::slice::from_ref(&rules_path)) {
         Ok(_) => panic!("a version from before the fix must be refused"),
         Err(ScanRunError::Candidate(error)) => {
             assert_eq!(error.failure, CandidateFailure::StaleCandidate);
@@ -166,7 +166,7 @@ fn policy_pass(directory: &Path) {
         .version(&CandidateSource::StagedAgainstHead)
         .expect("version after the fix");
     let after: Vec<CandidateScan> =
-        scan_version(&scanner, &mut store, &fixed, Some(rules_path.as_slice()))
+        scan_version(&scanner, &mut store, &fixed, std::slice::from_ref(&rules_path))
             .expect("second pass");
     assert_eq!(after.len(), 2);
     assert!(reported_paths(&fixed, after.as_slice()).is_empty());

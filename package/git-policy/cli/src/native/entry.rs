@@ -468,13 +468,15 @@ fn forward_action(
     let creates_or_moves: bool = creates_or_moves_worktrees(&command);
     // Only a main checkout hands over the configured rules file; `copy_applies` limits it to a creating command.
     let main_checkout_paths: Vec<String> = match (&location.identity, &loaded) {
+        // Every configured file, required or optional: the copier skips a file Git does not ignore or that is absent.
         (WorktreeIdentity::MainWorktree { .. }, Some(found)) => found
             .config
             .policies
             .forbidden_strings
-            .rules_file
+            .rules_files
             .iter()
-            .cloned()
+            .flatten()
+            .map(|file| return file.path.clone())
             .collect(),
         _ => Vec::new(),
     };
