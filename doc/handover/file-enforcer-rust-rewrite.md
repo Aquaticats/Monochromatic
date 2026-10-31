@@ -371,6 +371,14 @@ each finished branch is reviewed and merged into `main`):
   `fec-create-release` was skipped in run `41171845290`
   because its implicit `success()` sees the skipped library publish jobs upstream of `fec-publish-crate`;
   it now uses `!cancelled()` with explicit results.
+- Lesson 2026-10-31 (this session, owner annoyed):
+  the clearnet self-placement came from this session's own brief,
+  which suggested the toolchain re-execute itself into the slice,
+  though the request ("Make our wg auto make update traffics go through clearnet") named wg as the owner;
+  the merge review checked that it worked, not which component owned the decision.
+  Before briefing or merging a design,
+  check which component the request names as the owner,
+  and reject any design that makes another component aware of that concern.
 - Lesson 2026-10-31 (this session):
   run every step this session can run itself instead of handing it to the owner;
   the owner pointed out that `cargo logout` was such a step.
