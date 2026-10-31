@@ -224,11 +224,19 @@ each finished branch is reviewed and merged into `main`):
   `toolchain:update:global` also moved 7 tools,
   and the user chose "Install all 8";
   pre-update copies of the plan and lock are in `${HOME}/temp/agent/vibe-install/`.
-- Asked at cutover time,
-  not before:
-  converting the real global plan under `~/.config/monochromatic-dev`,
-  which agents may not read unasked,
-  and its `asset` hints.
+- Global plan conversion:
+  the user delegated it on 2026-10-31
+  ("Use your own judgement. I trust you'll do this step good enough autonomously."),
+  so this session converts the real plan under `~/.config/monochromatic-dev/toolchain/` at cutover without asking,
+  keeping the decision record's 0600 backup beside the original until the converted global sync is verified.
+  A rehearsal on a copy (`${HOME}/temp/agent/fe-rust/global-rehearsal/input/`) runs first,
+  including the `asset` hints the synthetic rehearsal could not settle
+  (`llamacpp-rocm`,
+  `openinterpreter`).
+- Found 2026-10-31:
+  the `timeout` on PATH is `~/.cargo/bin/timeout`,
+  and `timeout 60 vibe --version` printed `timeout 0.1.0` instead of running `vibe`;
+  not yet investigated.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
