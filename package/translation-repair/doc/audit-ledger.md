@@ -675,7 +675,9 @@ named for that subject and listed here.
   without a model on the bench (B1076),
   with the plain question (B1077),
   the pass logs the census reads that are gone (B1078),
-  and the callers that name no role yet (B1079).
+  the callers that name no role (B1079),
+  two seats of one question re-asked of one model (B1080),
+  and a request that names no seat re-asked on a guess of its role (B1081).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,

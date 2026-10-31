@@ -509,6 +509,8 @@ which lists every file of this record.
 - [B1077, the plain question for another model, and what it does to the prompt digests](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
 - [B1078, the pass logs the cap census reads are gone, so the order cannot be measured again](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
 - [B1079, the callers of the gather name no role yet](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
+- [B1080, two seats of one question that ran away together were re-asked of one model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
+- [B1081, a request that named no seat was re-asked of another model on a guess of its role](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

@@ -9,7 +9,9 @@ in the order of the census's shares of runaways (B1075),
 without a model on the bench (B1076),
 with the plain question (B1077),
 the pass logs the census reads that are gone (B1078),
-and the callers that name no role yet (B1079).
+the callers that name no role (B1079),
+two seats of one question re-asked of one model (B1080),
+and a request that names no seat re-asked on a guess of its role (B1081).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -522,6 +524,10 @@ Status:
 fixed between 01:50 and 02:40 UTC on 2026-10-31 in `35cd20d2a7` (provider) and `640dac1856` (stage),
 and `37e025db0a` (pictures),
 with the cases red first.
+The limit it left open (two seats of one question re-asked of one model) is closed by B1080
+in `888be1b98d` (provider),
+`d50508d05b` (stage)
+and `8f0f8615ac` (pictures).
 The lead's adoption of 2026-10-30,
 following from recorded rules:
 a model already seated on the bench of the question is left out of the alternates,
@@ -548,16 +554,18 @@ What it does:
   so it asks the next one:
   the uniqueness wrapper would replay the first model's claimed reply as a second voice.
 
-A limit this round did not remove.
-Two seats of one question that both ran away are each re-asked of the first model left in the order,
+A limit this round did not remove,
+and the later round did.
+Two seats of one question that both ran away were each re-asked of the first model left in the order,
 and the second's plain question is the first's digest,
-so one claimed reply is recorded as two voices of two seats.
-The provider re-ask of the first round has the same shape.
-A claim shared across the seats of one gather would remove it
-(each seat taking its model before it asks,
-which one process can do without a lock),
-and it was not built.
-Whether to build it is the lead's decision.
+so one claimed reply was recorded as two voices of two seats.
+The provider re-ask of the first round had the same shape.
+The owner's rule of 2026-10-30 (a model may give at most one voice per question)
+decided it:
+B1080 builds the claim shared across the seats of one question
+and closes this limit in the provider re-ask,
+the recovery round,
+the windowed rounds and the picture re-ask.
 
 ## B1077: the plain question for another model, and what it does to the prompt digests
 
@@ -633,8 +641,56 @@ The census output should be saved beside the ledger entry that cites it.
 ## B1079: the callers of the gather name no role yet
 
 Status:
-open,
-for the lead.
+fixed on 2026-10-31 (UTC) by the commits named in this status,
+with the cases red first in every package that has a case.
+The owner's answer of 2026-10-30:
+"Honour holds (Recommended)":
+every caller of the re-ask names the real role of its seat.
+The role is required where a bench is asked
+(`gatherStageVoices`,
+`runWindowedRounds`,
+`decideBestCandidate` with `selectBestCandidate`,
+`judgeTranslateSlate`,
+`runRefineStage` as `judgeRole`,
+`alternateModelsFor`
+and the seat the recovery round reads),
+so a new caller cannot leave it out.
+Commits:
+`888be1b98d` (provider;
+red `b9aff8c16d`),
+`d50508d05b` (stage;
+red `e6e9aab859`),
+`8f0f8615ac` (slice-reading;
+reds `2fb34a1511` and `e94c5e1157`),
+`319ba94337` (translate-stage;
+red `fea9860481`),
+`7e4ff2aaa2` (consolidate;
+red `8b87ed4eb1`),
+`4a72764d4f` (adjudication;
+red `b9120f3d5f`),
+`189bc803c4` (repair;
+red `b0a41913b9`),
+`66b381e2fe` (archive;
+red `f8473f2d8a`),
+`dac8d09675` (lane-contest;
+red `1e90f0c58b`),
+`429e716662` (rendering-audit;
+red `4e85e44df1`),
+`901b42eaad` (reference;
+red `a8ea546c9a`),
+`8a1be6c81e` (artifact;
+red `59ab7c54f3`),
+`069da54937` (corpus-pass;
+red `6945c3a3a6`),
+`f621b81da7` (bench;
+red `e9b01d7517`),
+`3b47e42c25` (translate-floor;
+red `f32dfd196e`)
+and `47c3e8e3e7` (run).
+The reader of a call's role that the caller cases use is `9c18081a7a` (test-fixture).
+
+What the evidence was,
+as written before the fix:
 
 `gatherStageVoices` takes a `role`,
 and no caller passes one,
@@ -678,36 +734,229 @@ for a wide gather:
 
 With `role: 'wide-judge'` on those gathers the list is empty and the fall back to the runaway fires,
 which is what the owner asked for.
-The lead decides whether to wire the callers next round or to accept the interim.
+`stage-quorum-wide-judge.unit.test.ts` builds the wide bench from the cards
+(the chat models no wide-judge hold keeps out of the wide seats)
+and checks two things:
+a runaway wide judge is asked of none of the models the cards drop,
+and it is asked again of its own model,
+nudged,
+on a warning.
+It passed before the stage commit as well,
+since the role was already a parameter,
+so it is a regression case and not a red one.
 
-The callers in the production code,
-and the role the bench constants of `run-config.ts` suggest for each
-(read from the constants and not from each caller):
+The role each caller names now,
+read from the bench each is handed
+(`RUN_BENCHES` in `run-config.ts`,
+the derivation of `run-seats.ts` and the narration of `run-seats-wait.ts`)
+and not only from the bench constants:
 
-- `translate-stage/src/translate-produce.ts`:
-  `translator`.
-- `consolidate/src/consolidate-produce.ts`:
-  `writer`.
-- `translate-stage/src/candidate-select.ts`,
+- `translator`:
+  `translate-stage/src/translate-produce.ts`.
+- `writer`:
+  `consolidate/src/consolidate-produce.ts`.
+- `wide-judge`:
   `adjudication/src/panel-stage.ts`,
-  `adjudication/src/adjudicate-wire.ts`,
-  `adjudication/src/resolution-wire.ts` and the critic stage
-  (whose caller was not located this round):
-  `wide-judge`.
-- The lane contest,
-  the consolidation slate and gate
-  (their callers were not located this round):
-  `late-judge`.
-- The editors,
-  refiners,
-  restoration judge,
-  coverage,
-  pairing and admission rounds:
-  `roster`,
-  which is the default.
-- The checkers:
-  `checker`.
+  the critics of `repair/src/repair-stages.ts`,
+  `repair/src/restoration-judge.ts`
+  (its bench is `RECALL_JUDGE_MODEL_IDS`,
+  which is `RUN_WIDE_SEATS`;
+  the earlier table here said `roster`,
+  which was a mistake),
+  `repair/src/derivability-probe.ts`,
+  the slate of the editors in `repair/src/editor-ensemble.ts`,
+  and the translate lane's slate through `translate-stage/src/translate-stage-repair.ts`.
+- `late-judge`:
+  `lane-contest/src/lane-contest-stage.ts`,
+  `consolidate/src/consolidate-gate-stage.ts`,
+  `consolidate/src/consolidation-polish-gate-stage.ts`,
+  the consolidation slate in `consolidate/src/consolidate-settle-judge.ts`,
+  the polish slate through `consolidate/src/consolidation-polish-round.ts`,
+  and `corpus-pass/src/corpus-run/pass-consistency-gather.ts`.
+- `checker`:
+  `repair/src/repair-edit-stages.ts`,
+  `adjudication/src/introduced-defect-probe.ts`
+  and `rendering-audit/src/rendering-audit.ts`.
+- `roster`:
+  the editors and the refiners (hand-picked benches),
+  `archive/src/coverage-stage.ts`,
+  `archive/src/archive-block-review-stage.ts` (its gather and its slate),
+  `archive/src/absolute-naturalness-review-stage.ts`,
+  `slice-reading/src/pair-blocks-stage.ts`,
+  `stage/src/pair-sections-stage.ts`,
+  `reference/src/reference-attest-stage.ts`,
+  `artifact/src/page-title-lexicon-stage.ts`,
+  and the probes that seat the whole roster (`bench/src/corpus-run/translate-probe-run.ts`,
+  `bench/src/corpus-run/window-trial-slice.ts` and `run/src/judge-fidelity.ts`).
+- `reader`:
+  the picture re-ask,
+  which names it itself.
+- `translator`,
+  with the authors of the slate as the bench:
+  the author asked about its findings in `translate-floor/src/translate-repair.ts`,
+  which named no seat before.
 
-Each package that wires a role needs its own red case and its own gates,
-and this round was not asked to touch them.
-The picture path names its role (`reader`) in `reaskCut` itself.
+Where a stage is handed benches of two roles it takes the role from its caller and has no default:
+the judges of a slate are `wide-judge` in the translate lane and the repair lane
+and `late-judge` in the consolidation,
+so `decideBestCandidate`,
+`judgeTranslateSlate` and `runRefineStage` (as `judgeRole`) take it as a required parameter.
+
+Tests:
+the per-package case files `reask-role.unit.test.ts` read the source text of each caller with
+`rolesNamedAtCalls` (`test-fixture/src/reask-role-call.test-fixture.ts`,
+three cases of its own),
+so they check what each caller names and do not run its gather;
+that is a weaker check than driving the real gather,
+and the real gather is driven only where an existing harness reaches it
+(`stage-quorum-claims`,
+`stage-quorum-runaway`,
+`stage-quorum-wide-judge`
+and `stage-windowed-rounds-seat` in the stage package).
+`translate-floor/src/reask-role.unit.test.ts` is a text check of the seat alone.
+The editors and the refiners stand in `roster`,
+as the list of roles in this entry has it;
+the roles are a reading of the bench derivation and not a decision of their own,
+and stay open to the owner's veto.
+
+## B1080: two seats of one question that ran away together were re-asked of one model
+
+Status:
+fixed on 2026-10-31 (UTC) in `888be1b98d` (provider),
+`d50508d05b` (stage),
+`8f0f8615ac` (pictures)
+and `3b47e42c25` (the authors of a slate),
+with the cases red first
+(`b9aff8c16d`,
+`e6e9aab859`,
+`2fb34a1511`
+and `f32dfd196e`).
+The owner's rule of 2026-10-30,
+following "one judge alone never decides" (2026-10-25) and "Two judges must name a winner":
+a model may give at most one voice per question.
+A second runaway seat of one question takes the next model not already seated and not already asked,
+and when none is left it falls back to its own model with the warning,
+as before.
+
+What the evidence was.
+B1076 left the shape open:
+the plain question to another model is that model's own first ask (B1077),
+so two runaway seats that both took the first model left shared one claimed reply,
+recorded as two voices.
+The seats of a gather run together:
+the quorum rounds ask them at once,
+the recovery round maps its runaway seats concurrently,
+and the readers of a picture are asked concurrently.
+
+What it does now:
+
+- `ReaskSeat` carries `claims`,
+  the record of the models asked for the seats of one question (`provider/src/reask-claims.ts`,
+  `createReaskClaims`).
+  A question's gather (`gatherStageVoices`,
+  `runWindowedRounds`),
+  a picture (`readImagePair`) and the authors of a slate (`repairInvalidCandidates`) each make one,
+  and every ask of that question carries it.
+  A seat alone on its question has none.
+- A seat leaves out the models the record holds
+  (`alternateModelsFor`,
+  parameter `askedForOtherSeats`,
+  reason `already asked for another seat of this question`,
+  named in the log),
+  and takes its model from the record in the same synchronous step as the check,
+  before it asks.
+  One process runs that step to its end before another seat runs,
+  so it needs no lock.
+  A seat that finds the model taken since its list was made goes on to the next and says so in the log.
+- The provider re-ask (`askOtherModels`),
+  the recovery round (`recoverRunaway`)
+  and the picture re-ask (`reaskCut`) all do this.
+  The recovery round also keeps `askedInstead`:
+  the record holds the model a quorum-round re-ask took,
+  so the two agree,
+  and the map is no longer the only thing that keeps it out.
+- A model taken for a seat stays taken when it had no provider with budget:
+  it was asked,
+  and the next seat would meet the same refusal.
+
+Tests
+(case names are the `it` names of the files):
+`reask-claims.unit.test.ts` (four cases),
+`nudged-reask-seats.unit.test.ts` (four),
+`stage-quorum-claims.unit.test.ts` (three),
+`stage-windowed-rounds-seat.unit.test.ts` (two)
+and `image-reading-cut-claims.unit.test.ts` (two).
+The two-seats cases run both seats at once and compare the models asked with the models the list gives;
+the fall-back cases leave one model and check that the second seat asks its own model,
+nudged,
+on the warning that says `(0 tried)`.
+
+Cache versions:
+none moves.
+The slice-cache versions
+(pairing,
+page title,
+consistency,
+translate slice,
+repair slice,
+refine,
+lane contest
+and consolidate)
+key what a question was:
+the sheet,
+the bench and the stage's own wording
+(the pairing,
+page-title and consistency keys hash the `roster` beside the version).
+This change alters none of them,
+nor what a stored record means:
+it alters only which other model a runaway seat is re-asked of,
+and so whose voice the seat contributes to a gather.
+The pass opens every namespace under the digest of the built pipeline
+(`openNamespacedCache` in `slice-cache/src/corpus-run/slice-cache-namespace.ts`:
+a namespace whose generation differs from the running one is discarded before it is read),
+and this change moves the first-party bytes of the pipeline,
+so a cache filled by an earlier build is not served to this one.
+The account of B1072 stands.
+This round did not run `cache-account-audit` (a built runner).
+The stored model replies of the prompt payload store are keyed by model and prompt digest:
+the ask of another model is still that model's own first ask,
+so those keys do not change.
+
+## B1081: a request that named no seat was re-asked of another model on a guess of its role
+
+Status:
+fixed on 2026-10-31 (UTC) in `888be1b98d` (provider),
+with the cases red first (`b9aff8c16d`).
+The owner's answer of 2026-10-30:
+"Honour holds (Recommended)".
+
+`ChatTextRequest.reaskSeat` is optional,
+since every client,
+wrapper and probe builds that type,
+and the provider re-ask read an absent seat as the roster-wide role with an empty bench.
+That was the default B1079 describes:
+it asked the models the cards drop from a seat whose role it did not know.
+A request that names no seat now has no role to read the holds of,
+so no other model is asked:
+the runaway is re-asked of its own model on another provider,
+nudged,
+on a warning that begins `the request names no seat, so no role says which model may take the re-ask`
+and ends by naming the model re-asked and the provider.
+The answer to a request with no seat is the re-ask that existed before B1072.
+
+Who relied on it:
+the callers of `attemptStageCall` and `chatJson` that named no seat.
+After B1079 the stage names one on every ask of a gather and of a windowed round,
+and `translate-floor/src/translate-repair.ts` names `translator`;
+`bench/src/corpus-run/model-health-probe.ts` asks one model with no seat on purpose
+(a health probe of one model has no other model to ask),
+and keeps the same-model re-ask.
+`attemptStageCall` and `runGatherRound` keep `reaskSeat` optional so that a caller with a single seat is not forced to
+invent a bench;
+the recovery round requires it
+(`SharedRoundRequest`),
+since it reads the role.
+
+Open to the owner's veto:
+whether a request with no seat should instead fail loudly,
+which would end a run that reaches it with a seat-less runaway.
