@@ -321,6 +321,96 @@ Why the corrected holders hold what they hold (buffer sizes from `amdgpu_gem_inf
 - Purgeable (reclaimable) across all clients:
   about 55 MiB.
 
+## Verified decomposition of the card total, 2026-10-30
+
+Per-client `drm-total-vram` splits the card counter into four parts that sum to it.
+At the sample,
+`mem_info_vram_used` was 4170 MiB:
+
+- App-private buffers (`total - shared`):
+  1762 MiB (`plasmashell` 470,
+  `ghostty` 363,
+  `coolercontrol` 352,
+  `firefox-bin` 238,
+  `equibop` 196,
+  `music-player` 72,
+  `Xwayland` 43,
+  `xwaylandvideobridge` 24,
+  `gearlever` 4).
+- App-exported window surfaces (`drm-shared-vram` on the app side;
+  each buffer is held by the app and by kwin):
+  956 MiB.
+- kwin internal multi-handle buffers:
+  1275 MiB (its client 68 table,
+  entirely shared,
+  present in more than one of kwin's
+  and logind's drm files):
+  scanout and compositing buffers for the four outputs.
+- kwin-private buffers:
+  175 MiB.
+
+`1762 + 956 + 1275 + 175 = 4168 MiB` against the 4170 MiB card counter.
+
+Direct cross-checks:
+
+- `sudo cat /sys/kernel/debug/dma_buf/bufinfo` lists 920 exported buffers summing
+  2719 MiB (GTT-resident ones included).
+  Named exports match the app-side shared columns:
+  `plasmashell` 341 MiB in 29 buffers,
+  `ghostty` 125 MiB in 4 buffers of 31 MiB (its
+  window surfaces),
+  `firefox` 64 MiB in 2,
+  `music-player` 61 MiB in 2,
+  `coolercontrol` 62 MiB in 2,
+  `xwaylandvideobridge` 17 MiB in 2.
+- Twenty unnamed 64 MiB buffers with four file references each (1280 MiB) sit in
+  kwin's handle tables:
+  per-output compositing buffers,
+  not app imports.
+- Fence identifiers in that dump are fence context values,
+  not PIDs.
+  A first reading treated them as producer PIDs;
+  that reading is invalid and no writer claims rest on it.
+
+### Pressure behavior
+
+`amd-requested-vram` equals `drm-total-vram` for every client and `amd-evicted-vram`
+is 0 everywhere (requested sum 6343 MiB,
+evicted 0 MiB),
+with `drm-purgeable-vram`
+about 55 MiB.
+Nothing is being displaced or reclaimed;
+usage falls only when a process releases buffers.
+
+### Steady-state check
+
+A 30-second sampler over 9 minutes (`/proc` fdinfo plus sysfs counters) shows:
+
+- Idle spread of 2 MiB on the card counter with every app total flat
+  (`ghostty` 488,
+  `firefox-bin` 302,
+  `equibop` 288,
+  `plasmashell` 810).
+- A 442 MiB step down when the `coolercontrol` GUI exited,
+  matching its 445 MiB
+  holding exactly.
+- Activity-driven swings after that (`equibop` breathing 288 to 383 MiB,
+  card
+  3725 to 3989 MiB) with no monotonic growth:
+  no leak,
+  the usage tracks visible application activity.
+
+## Session change recorded 2026-10-30
+
+`coolercontrol` now runs daemon-only by default:
+its autostart entry was moved to
+`~/.config/autostart/org.coolercontrol.CoolerControl.desktop.disabled` and the GUI
+process was stopped,
+while `coolercontrold.service` stays enabled and active (fan
+curves are daemon-side).
+Card usage fell from 4169 MiB to 3725 MiB idle.
+The GUI can still be launched manually.
+
 ## Upstream filing decision
 
 ### Duplicate and fix-in-progress search, 2026-10-30
