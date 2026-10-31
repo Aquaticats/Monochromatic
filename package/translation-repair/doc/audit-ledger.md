@@ -668,7 +668,14 @@ named for that subject and listed here.
   the re-ask of another model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md):
   A reply that ran away reasoning,
   re-asked of the same model on another route and running away again (B1072),
-  and the two re-asks of a length stop with no content that still ask the same model (B1073).
+  the two re-asks of a length stop with no content that still asked the same model (B1073),
+  and the owner's answers of 2026-10-30 that settled both:
+  every re-ask goes to another model and honours the role of its seat (B1074),
+  in the order of the census's shares of runaways (B1075),
+  without a model on the bench (B1076),
+  with the plain question (B1077),
+  the pass logs the census reads that are gone (B1078),
+  and the callers that name no role yet (B1079).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
