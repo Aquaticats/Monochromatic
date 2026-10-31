@@ -33,6 +33,10 @@ and that any `branch` or `tag` invocation gaining a mutating flag in first posit
 
 Builds a valid `cli-git.config.jsonc` document from every input together with the settings it must parse to,
 and compares the schema's result with that expectation.
+For `security/forbidden-strings` the generator also writes `rulesFile` as a string or as an array of strings and
+`{"path", "optional"}` objects,
+with paths that hold a comma or a question mark (a configured path is never parsed as a list),
+and the canonical restatement writes every file as an object with its `optional` flag.
 Inputs that are UTF-8 are also parsed as written.
 An accepted document must satisfy the registry-order and bound invariants
 and survive being restated canonically.

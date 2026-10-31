@@ -144,6 +144,82 @@ fn explicit_missing_file_errors_with_read_rules() {
     assert!(format!("{error}").contains("read rules"), "{error}");
 }
 
+// Builds a list entry for a file in a fixture directory.
+fn entry(dir: &std::path::Path, name: &str, optional: bool) -> crate::rules_list::RulesEntry {
+    return crate::rules_list::RulesEntry { path: dir.join(name), optional }
+}
+
+#[test]
+fn listed_files_keep_list_order_and_the_builtin_follows_the_last_of_them() {
+    let dir = temp_dir("list-order");
+    std::fs::write(dir.join("a.txt"), "AAA_USER_ONE_LONG\n").expect("write a");
+    std::fs::write(dir.join("b.txt"), "BBB_USER_TWO_LONG\n").expect("write b");
+    let bytes = precompiled("BUILTIN_MARKER_LONG_ENOUGH\n");
+    let entries = [entry(&dir, "a.txt", false), entry(&dir, "b.txt", false)];
+    let loaded = super::load_listed(&entries, true, false, &bytes, &unnamed_sidecar(1)).expect("load");
+    let buf = b"BBB_USER_TWO_LONG\nAAA_USER_ONE_LONG\nBUILTIN_MARKER_LONG_ENOUGH\n";
+    let hits = scan_file("t.txt", buf, &loaded);
+    assert_eq!(
+        hits,
+        vec![
+            "t.txt:1 rule=1".to_string(),
+            "t.txt:2 rule=0".to_string(),
+            "t.txt:3 rule=2".to_string(),
+        ],
+    );
+    assert!(loaded.skipped_optional().is_empty());
+}
+
+#[test]
+fn an_absent_optional_entry_is_reported_and_its_rules_are_not_loaded() {
+    let dir = temp_dir("list-optional");
+    std::fs::write(dir.join("a.txt"), "AAA_USER_ONE_LONG\n").expect("write a");
+    let entries = [entry(&dir, "a.txt", false), entry(&dir, "absent.txt", true)];
+    let loaded = super::load_listed(&entries, false, false, b"", "").expect("load");
+    assert_eq!(loaded.skipped_optional(), &[dir.join("absent.txt")]);
+    let hits = scan_file("t.txt", b"AAA_USER_ONE_LONG\n", &loaded);
+    assert_eq!(hits, vec!["t.txt:1 rule=0".to_string()]);
+}
+
+#[test]
+fn a_required_entry_after_a_present_one_still_errors_naming_it() {
+    let dir = temp_dir("list-required");
+    std::fs::write(dir.join("a.txt"), "AAA_USER_ONE_LONG\n").expect("write a");
+    let entries = [entry(&dir, "a.txt", false), entry(&dir, "gone.txt", false)];
+    let error = super::load_listed(&entries, true, false, b"", "").err().expect("must error");
+    let rendered = format!("{error}");
+    assert!(rendered.contains("read rules") && rendered.contains("gone.txt"), "{rendered}");
+}
+
+#[test]
+fn only_absent_optional_entries_scan_with_the_baseline_alone_or_fail_closed() {
+    let dir = temp_dir("list-all-absent");
+    let entries = [entry(&dir, "one.txt", true), entry(&dir, "two.txt", true)];
+    let bytes = precompiled("BUILTIN_MARKER_LONG_ENOUGH\n");
+    let loaded =
+        super::load_listed(&entries, true, false, &bytes, &unnamed_sidecar(1)).expect("baseline alone");
+    assert_eq!(loaded.skipped_optional().len(), 2);
+    let hits = scan_file("t.txt", b"BUILTIN_MARKER_LONG_ENOUGH\n", &loaded);
+    assert_eq!(hits, vec!["t.txt:1 rule=0".to_string()]);
+
+    let error = super::load_listed(&entries, false, false, b"", "").err().expect("must error");
+    let rendered = format!("{error}");
+    assert!(rendered.contains("no rules loaded"), "{rendered}");
+    assert!(rendered.contains("one.txt") && rendered.contains("two.txt"), "{rendered}");
+}
+
+#[test]
+fn a_name_in_a_later_file_colliding_with_a_builtin_name_fails_closed() {
+    let dir = temp_dir("list-collision");
+    std::fs::write(dir.join("a.txt"), "==> qqq-first <==\nAAA_USER_ONE_LONG\n").expect("write a");
+    std::fs::write(dir.join("b.txt"), "==> qqq-shared <==\nBBB_USER_TWO_LONG\n").expect("write b");
+    let bytes = precompiled("BUILTIN_MARKER_LONG_ENOUGH\n");
+    let entries = [entry(&dir, "a.txt", false), entry(&dir, "b.txt", false)];
+    let error = super::load_listed(&entries, true, false, &bytes, "qqq-shared\n").err().expect("must error");
+    let rendered = format!("{error}");
+    assert!(rendered.contains("collides") && rendered.contains("qqq-shared"), "{rendered}");
+}
+
 #[test]
 fn missing_default_without_builtin_errors_with_read_rules() {
     let dir = temp_dir("no-builtin-missing");

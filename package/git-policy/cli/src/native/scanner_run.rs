@@ -137,7 +137,7 @@ impl CandidateBytes for CandidateStore {
 /// What:
 ///  Scan each eligible candidate and return the scanner's result for every one scanned.
 ///       `&mut dyn CandidateBytes` lends any byte reader for changing (it may read objects);
-///       `Option<&[u8]>` is "the rules file's candidate pathname or nothing";
+///       `&[Vec<u8>]` is "the rules files' candidate pathnames, none when no file is tracked";
 ///       `Result<T, E>` is "a value or a failure".
 /// Why:
 ///   Results are returned for clean candidates too,
@@ -155,9 +155,9 @@ pub fn scan_version(
     scanner: &CandidateScanner,
     store: &mut dyn CandidateBytes,
     version: &CandidateVersion,
-    rules_path: Option<&[u8]>,
+    rules_paths: &[Vec<u8>],
 ) -> Result<Vec<CandidateScan>, ScanRunError> {
-    return scan_version_skipping(scanner, store, version, rules_path, &KnownContent::default());
+    return scan_version_skipping(scanner, store, version, rules_paths, &KnownContent::default());
 }
 
 /// What:
@@ -183,13 +183,13 @@ pub fn scan_version_skipping(
     scanner: &CandidateScanner,
     store: &mut dyn CandidateBytes,
     version: &CandidateVersion,
-    rules_path: Option<&[u8]>,
+    rules_paths: &[Vec<u8>],
     known: &KnownContent,
 ) -> Result<Vec<CandidateScan>, ScanRunError> {
     // `Vec::new()` is an empty growable list; `mut` lets the loop append to it.
     let mut scans: Vec<CandidateScan> = Vec::new();
     for candidate in version.candidates() {
-        if !is_scannable(candidate, rules_path) {
+        if !is_scannable(candidate, rules_paths) {
             continue;
         }
         // `.is_some()` is true when the candidate's content is already in a parent's tree.

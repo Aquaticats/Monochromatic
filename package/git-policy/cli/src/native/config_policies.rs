@@ -27,7 +27,7 @@ use super::config_error::ConfigError;
 /// The check of a `rulesFile` value and the words of each refusal.
 use super::config_rules_file::{check_rules_file, rules_file_refusal_reason};
 use super::config_schema::{
-    ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicyConfig,
+    ForbiddenStringsOptions, MarkdownAutofixOptions, MarkdownRule, PolicyConfig, RulesFileEntry,
     markdown_rule_from_name,
 };
 use super::config_values::{boolean, member_keys, member_path, strings, text, wrong_kind};
@@ -116,6 +116,133 @@ fn severity(value: &JsoncValue, path: &str) -> Result<Severity, ConfigError> {
 }
 
 /// What:
+///  Check one rules-file path and return it.
+///  `&str` is the configuration text at `key_path`.
+/// Why:
+///   A path must stay inside the repository by its words alone;
+///  the refusal names the key and the reason,
+///       so the fix is clear for the string form and for each array element.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkedRulesFile(name: string, keyPath: string): string; // throws ConfigError
+/// ```
+fn checked_rules_file(name: String, key_path: &str) -> Result<String, ConfigError> {
+    // `if let Err(refusal) = ...` runs only when the name was refused.
+    if let Err(refusal) = check_rules_file(name.as_str()) {
+        return Err(ConfigError::new(
+            format!(
+                "Configuration key {key_path} must name a file relative to the \
+                 repository's top level that stays inside it, but the value {}.",
+                rules_file_refusal_reason(refusal)
+            )
+            .as_str(),
+        ));
+    }
+    return Ok(name);
+}
+
+/// What:
+///  Read one element of the `rulesFile` array:
+///  a path string (required file) or an object with `path` and optional `optional`.
+/// Why:
+///   Every other key is refused by name,
+///  so a misspelled `optionnal` cannot silently make a file required.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rulesFileEntry(value: JsoncValue, path: string): RulesFileEntry; // throws ConfigError
+/// ```
+fn rules_file_entry(value: &JsoncValue, path: &str) -> Result<RulesFileEntry, ConfigError> {
+    if value.text_units().is_some() {
+        let name: String = text(value, path)?;
+        return Ok(RulesFileEntry { path: checked_rules_file(name, path)?, optional: false });
+    }
+    let Some(entries) = value.entries() else {
+        return Err(wrong_kind(
+            value,
+            path,
+            "a file name or an object with \"path\" and an optional \"optional\"",
+        ));
+    };
+    let keys: Vec<String> = member_keys(entries, path)?;
+    let mut file: Option<String> = None;
+    let mut optional: bool = false;
+    for (index, key) in keys.iter().enumerate() {
+        let key_path: String = member_path(path, key.as_str());
+        let member: &JsoncValue = &entries[index].value;
+        if key == "path" {
+            let name: String = text(member, key_path.as_str())?;
+            file = Some(checked_rules_file(name, key_path.as_str())?);
+        } else if key == "optional" {
+            optional = boolean(member, key_path.as_str())?;
+        } else {
+            return Err(ConfigError::new(
+                format!("Unknown configuration key: {key_path}. Accepted keys: path, optional.").as_str(),
+            ));
+        }
+    }
+    let Some(found) = file else {
+        return Err(ConfigError::new(
+            format!("Configuration key {path} must have a \"path\" key naming the rules file.").as_str(),
+        ));
+    };
+    return Ok(RulesFileEntry { path: found, optional });
+}
+
+/// What:
+///  Read the `rulesFile` option:
+///  one path string (the form before lists existed, one required file)
+///       or a non-empty array of path strings and `{"path", "optional"}` objects.
+/// Why:
+///   Several files let a committed shared file and a gitignored local file feed one rule set,
+///  and `optional` lets the local file be missing on a fresh clone.
+///  A path named twice is refused,
+///       because the second reading would add nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rulesFiles(value: JsoncValue, path: string): RulesFileEntry[]; // throws ConfigError
+/// ```
+fn rules_files(value: &JsoncValue, path: &str) -> Result<Vec<RulesFileEntry>, ConfigError> {
+    if value.text_units().is_some() {
+        return Ok(vec![rules_file_entry(value, path)?]);
+    }
+    let Some(elements) = value.elements() else {
+        return Err(wrong_kind(
+            value,
+            path,
+            "a file name, or an array of file names and objects with \"path\" and an optional \"optional\"",
+        ));
+    };
+    if elements.is_empty() {
+        return Err(ConfigError::new(
+            format!(
+                "Configuration key {path} must name at least one file; remove the key to use \
+                 FORBIDDEN_STRINGS_RULES or the default file."
+            )
+            .as_str(),
+        ));
+    }
+    let mut result: Vec<RulesFileEntry> = Vec::<RulesFileEntry>::with_capacity(elements.len());
+    for (index, element) in elements.iter().enumerate() {
+        let element_path: String = format!("{path}[{index}]");
+        let entry: RulesFileEntry = rules_file_entry(element, element_path.as_str())?;
+        if let Some(first) = result.iter().position(|earlier| return earlier.path == entry.path) {
+            return Err(ConfigError::new(
+                format!(
+                    "Configuration key {element_path} names the same file as {path}[{first}]; \
+                     name each rules file once."
+                )
+                .as_str(),
+            ));
+        }
+        result.push(entry);
+    }
+    return Ok(result);
+}
+
+/// What:
 ///  Validate the options object of `security/forbidden-strings`.
 /// Why:
 ///   The scanner is linked into cli-git;
@@ -151,20 +278,8 @@ fn forbidden_strings_options(
         if key == "builtinRules" {
             options.builtin_rules = boolean(member, key_path.as_str())?;
         } else if key == "rulesFile" {
-            let name: String = text(member, key_path.as_str())?;
-            // `if let Err(refusal) = ...` runs only when the name was refused.
-            if let Err(refusal) = check_rules_file(name.as_str()) {
-                return Err(ConfigError::new(
-                    format!(
-                        "Configuration key {key_path} must name a file relative to the \
-                         repository's top level that stays inside it, but the value {}.",
-                        rules_file_refusal_reason(refusal)
-                    )
-                    .as_str(),
-                ));
-            }
             // `Some(...)` is the "present" variant.
-            options.rules_file = Some(name);
+            options.rules_files = Some(rules_files(member, key_path.as_str())?);
         } else if key == "executable" {
             return Err(ConfigError::new(
                 format!(

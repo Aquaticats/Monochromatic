@@ -23,7 +23,7 @@ use crate::candidate_object::{CandidateMode, parse_object_id};
 use crate::candidate_record::CandidateChange;
 use crate::candidate_version::{Candidate, CandidateIdentity};
 use crate::scanner_test_support::{needle, rules_file, run_isolated};
-use forbidden_strings::{CandidateScan, ScanFinding};
+use forbidden_strings::{CandidateScan, RulesEntry, ScanFinding};
 use std::path::{Path, PathBuf};
 
 /// One added regular-file candidate at a list position.
@@ -44,7 +44,7 @@ fn candidate(index: usize, path: &[u8]) -> Candidate {
 ///  without the built-in baseline.
 fn loaded(directory: &Path) -> CandidateScanner {
     let rules: RulesSource = RulesSource {
-        path: rules_file(directory),
+        entries: vec![RulesEntry { path: rules_file(directory), optional: false }],
         explicit: true,
     };
     match CandidateScanner::load(&rules, false) {
@@ -191,11 +191,11 @@ fn cache_warnings_are_the_scanners_own() {
 fn load_failures_leave_no_scanner_body(directory: &Path) {
     let missing: PathBuf = directory.join("missing.txt");
     let explicit: RulesSource = RulesSource {
-        path: missing.clone(),
+        entries: vec![RulesEntry { path: missing.clone(), optional: false }],
         explicit: true,
     };
     let implicit: RulesSource = RulesSource {
-        path: missing,
+        entries: vec![RulesEntry { path: missing, optional: false }],
         explicit: false,
     };
     for (rules, builtin_rules) in [(&explicit, false), (&explicit, true), (&implicit, false)] {
@@ -228,7 +228,7 @@ fn load_failures_leave_no_scanner_body(directory: &Path) {
     std::fs::write(&invalid, format!("/{pattern}/g\n")).expect("invalid rules file");
     let refused: ScannerError = load_failure(
         &RulesSource {
-            path: invalid,
+            entries: vec![RulesEntry { path: invalid, optional: false }],
             explicit: true,
         },
         false,
@@ -270,5 +270,72 @@ fn unrepresentable_pathname_is_refused() {
         "scanner_adapter::tests::unrepresentable_pathname_is_refused",
         "scanner-pathname",
         unrepresentable_pathname_is_refused_body,
+    );
+}
+
+/// Body:
+///  a list of a required shared file and an optional local file loads one scanner,
+///  reports the absent optional file,
+///  and applies the rules of the files that exist.
+fn listed_rules_files_body(directory: &Path) {
+    let token: String = needle();
+    let shared: PathBuf = directory.join("shared.txt");
+    std::fs::write(&shared, format!("==> qqq-shared <==\n{token}\n")).expect("shared rules");
+    let local: PathBuf = directory.join("local.txt");
+    let rules: RulesSource = RulesSource {
+        entries: vec![
+            RulesEntry { path: shared.clone(), optional: false },
+            RulesEntry { path: local.clone(), optional: true },
+        ],
+        explicit: true,
+    };
+    let scanner: CandidateScanner = match CandidateScanner::load(&rules, false) {
+        Ok(found) => found,
+        Err(error) => panic!("a list with an absent optional file must load: {error}"),
+    };
+    assert_eq!(scanner.skipped_optional_rules(), [local.clone()].as_slice());
+    let leak: Vec<u8> = format!("{token}\n").into_bytes();
+    let scan: CandidateScan = scanner.scan(&candidate(0, b"src/a.txt"), leak.as_slice()).expect("scan");
+    assert_eq!(
+        scan.findings,
+        vec![ScanFinding::Content { line: 1, rule: String::from("qqq-shared") }]
+    );
+    // Once the optional file exists it joins the rule set, in list order after the shared file.
+    std::fs::write(&local, "==> qqq-local <==\nLOCAL_LISTED_RULE_LONG_ENOUGH\n").expect("local rules");
+    let both: CandidateScanner = match CandidateScanner::load(&rules, false) {
+        Ok(found) => found,
+        Err(error) => panic!("both files must load: {error}"),
+    };
+    assert!(both.skipped_optional_rules().is_empty());
+    let local_scan: CandidateScan = both
+        .scan(&candidate(1, b"src/b.txt"), b"LOCAL_LISTED_RULE_LONG_ENOUGH\n")
+        .expect("scan");
+    assert_eq!(
+        local_scan.findings,
+        vec![ScanFinding::Content { line: 1, rule: String::from("qqq-local") }]
+    );
+    // A required file that is absent refuses the whole load and names its path.
+    let missing: PathBuf = directory.join("gone.txt");
+    let refused: ScannerError = load_failure(
+        &RulesSource {
+            entries: vec![
+                RulesEntry { path: shared, optional: false },
+                RulesEntry { path: missing.clone(), optional: false },
+            ],
+            explicit: true,
+        },
+        false,
+    );
+    assert_eq!(refused.failure, ScannerFailure::RulesNotLoaded);
+    assert!(refused.message.contains(missing.to_string_lossy().as_ref()), "{refused}");
+}
+
+/// Several rules files load as one scanner.
+#[test]
+fn listed_rules_files_load_as_one_scanner() {
+    run_isolated(
+        "scanner_adapter::tests::listed_rules_files_load_as_one_scanner",
+        "scanner-listed",
+        listed_rules_files_body,
     );
 }

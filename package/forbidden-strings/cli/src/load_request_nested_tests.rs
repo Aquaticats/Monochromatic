@@ -21,6 +21,7 @@
 use super::{LoadRequest, PENDING, protected_request};
 /// Import the existing compiled-rule fixture and owned native filename.
 use crate::frx_load::LoadedRules;
+use crate::rules_list::RulesEntry;
 use std::path::PathBuf;
 
 /// What:
@@ -35,7 +36,11 @@ use std::path::PathBuf;
 /// ```
 fn request(name: &str) -> LoadRequest {
     // Copy the borrowed name into an owned native path; return the request explicitly.
-    return LoadRequest { path: PathBuf::from(name), builtin: false, explicit: true };
+    return LoadRequest {
+        entries: vec![RulesEntry { path: PathBuf::from(name), optional: false }],
+        builtin: false,
+        implicit: false,
+    };
 }
 
 /// Complete the inner request after proving it retained its own arguments.
@@ -43,7 +48,7 @@ fn inner() -> anyhow::Result<LoadedRules> {
     // expect extracts the present request, failing the test if the boundary lost it.
     let current: LoadRequest = PENDING.take().expect("inner request");
     // Borrow both paths for equality without consuming their ownership.
-    assert_eq!(current.path, PathBuf::from("inner"));
+    assert_eq!(current.entries[0].path, PathBuf::from("inner"));
     // Ok wraps the compiled fixture as success, rather than returning an error.
     return Ok(crate::frx_load::test_rules("NESTED_FIXTURE_LONG\n"));
 }
@@ -52,7 +57,7 @@ fn inner() -> anyhow::Result<LoadedRules> {
 fn outer() -> anyhow::Result<LoadedRules> {
     // Taking the slot moves its value out and leaves it empty, so the inner load can enter.
     let current: LoadRequest = PENDING.take().expect("outer request");
-    assert_eq!(current.path, PathBuf::from("outer"));
+    assert_eq!(current.entries[0].path, PathBuf::from("outer"));
     // Propagate the nested ruleset, not a substitute or partial outer value.
     return protected_request(request("inner"), inner);
 }
@@ -94,11 +99,16 @@ fn constructed_rules_are_discarded_after_a_panic() {
 #[test]
 fn occupied_slot_restores_original_arguments() {
     // Some marks present arguments, rather than the empty None state.
-    PENDING.set(Some(LoadRequest { path: PathBuf::from("original"), builtin: true, explicit: false }));
+    PENDING.set(Some(LoadRequest {
+        entries: vec![RulesEntry { path: PathBuf::from("original"), optional: true }],
+        builtin: true,
+        implicit: true,
+    }));
     assert!(protected_request(request("replacement"), inner).is_err());
     // Unwrap only test fixture state; this test must fail if restoration discarded it.
     let restored: LoadRequest = PENDING.take().expect("restored request");
-    assert_eq!(restored.path, PathBuf::from("original"));
+    assert_eq!(restored.entries[0].path, PathBuf::from("original"));
+    assert!(restored.entries[0].optional);
     assert!(restored.builtin);
-    assert!(!restored.explicit);
+    assert!(restored.implicit);
 }

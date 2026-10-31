@@ -209,10 +209,13 @@ forbidden-strings path/to/file other/file
 forbidden-strings --all
 ```
 
-The rules path is resolved in this order:
-`--rules <PATH>` flag (highest),
+The rules list is resolved in this order:
+`--rules <LIST>` flag (highest),
 then `FORBIDDEN_STRINGS_RULES` environment variable,
 then `./forbidden-strings.local.txt` in the current working directory.
+The flag replaces the variable; the two are never merged.
+A list with one entry and no trailing `?` is a plain path, the only form that existed before lists.
+See "Rules list" below for the grammar.
 
 Every runtime-rules scan uses read-write caching by default with no opt-out.
 `FORBIDDEN_STRINGS_CACHE_DIR` may set an absolute cache root.
@@ -235,9 +238,9 @@ forbidden-strings compile-rules --rules ./other-rules.txt
 forbidden-strings --version    # or -V
 ```
 
-`compile-rules` requires an explicit text path,
+`compile-rules` requires an explicit rules list (the same grammar as `--rules`),
 derives the user-cache destination,
-and prints nothing on success.
+and prints nothing on success except one `info` log line per skipped optional entry.
 It reuses a valid artifact and otherwise compiles,
 rechecks the source snapshot,
 and atomically publishes owner-only cache data.
@@ -257,6 +260,76 @@ When a regular file sits where the cache root directory should be,
 the first warning's reason is `unreadable` on Unix targets and `missing` on Windows,
 because Unix reports a not-a-directory error for a path below a file,
 while Windows reports the same path-not-found error as for an absent directory.
+
+### Rules list
+
+`--rules`, `compile-rules --rules`, and `FORBIDDEN_STRINGS_RULES` carry a rules list:
+one or more rules files, read in order and scanned as one rule set.
+The grammar is the whole definition; there is no escape syntax.
+
+```text
+list  := entry ( "," entry )*
+entry := path [ "?" ]
+path  := one or more characters, none of them ","
+```
+
+- The value is split on every `,`.
+  Nothing is trimmed, so `a.txt, b.txt` names the file ` b.txt` (with its leading space).
+- An entry ending in `?` may be absent.
+  An absent optional entry is skipped and logged once at `info` level
+  (`optional rules file is absent; skipped`, naming the path).
+  Every other entry must exist; a missing or unreadable one exits 2 and names its path.
+- Exactly one trailing `?` is the marker.
+  A path that itself ends in `?` is therefore written with a second one (`name??` is the optional file `name?`);
+  it cannot be named as a required entry.
+  A `?` anywhere else in a path is an ordinary character.
+- A path containing `,` cannot be named.
+  That tradeoff came with choosing a delimited list over repeating the flag.
+  Reach such a file through a symbolic link or a relative path without the comma.
+- An empty value, an empty entry (`a,,b`, a leading or trailing comma, a bare `?`), and a path named twice exit 2
+  with the entry's position, before any file is read.
+- A value with no `,` and no trailing `?` is one required entry equal to the whole value, which is exactly what it
+  meant before lists existed.
+  The only values whose meaning changed are those containing a `,` or ending in `?`.
+- Relative entries resolve against the working directory, like the single path always did.
+  The monorepo anchors each entry with mise's `{{config_root}}`
+  (for example `{{config_root}}/a.txt,{{config_root}}/b.txt?`),
+  so a checkout whose absolute path contains a comma cannot use the list form;
+  rename the directory or give the files as relative entries.
+- A path that is not valid UTF-8 can only be given through a single-entry `FORBIDDEN_STRINGS_RULES` in an embedding
+  host; the command line and `std::env::var` carry UTF-8 only.
+
+How the files combine:
+
+- Every present file is joined in list order into one text that is compiled once.
+  Rule ids and the `--builtin-rules` offset follow that order.
+- All present files must be in one format (tail sections or legacy lines).
+  Joining a legacy file after a tail file would turn its lines into the body of the last section,
+  so a mix exits 2 naming both files.
+  A file with only blank lines and comments joins with either format.
+- A BOM is stripped from each file before the join, and a newline is added after any file that lacks one,
+  so a file's last line never fuses with the next file's first.
+- Section names must stay unique across the files.
+  A failure in the joined text is re-diagnosed file by file, so the error names the file and a line number local
+  to it (`rules <path>: line 5: ...`); a repeated section name names both files.
+- If no file is present because every entry is optional and absent, the scan exits 2
+  (`no rules loaded`), unless `--builtin-rules` makes the baseline the whole rule set.
+  Scanning with no rules would pass every file.
+- `--all` skips every listed file, not only the first.
+
+Cache identity is the SHA-256 of the joined text, with the scanner version and platform.
+The compiled rules are a pure function of that text, so the key is complete:
+an edit to any file, a file added or removed (an optional file appearing or disappearing), and a changed order
+all change the text and miss, while an unchanged list hits.
+Paths are deliberately not in the key, so two checkouts or worktrees with identical rules share one artifact.
+A one-file list joins to the file's exact bytes, so its artifact is the one a plain path always used.
+Before an artifact is published, every listed file is read again; a file that changed, vanished, or appeared
+since the first read blocks publication and emits the `write-failed` warning.
+
+Embedding hosts parse the same value with `forbidden_strings::parse_rules_list` or build `RulesEntry` values
+directly, then call `Scanner::load_entries`; `Scanner::skipped_optional_rules` lists the skipped files for hosts
+that install no log subscriber.
+`Scanner::load` keeps the one-path contract.
 
 ### Built-in baseline (`--builtin-rules`)
 
@@ -296,6 +369,7 @@ With `--builtin-rules`:
   (`--rules <path>` or the env var pointing at a path that does not exist)
   still exits 2:
    silently scanning without your rules would be a false-clean result.
+  Only an entry marked optional with a trailing `?` (see "Rules list") may be absent.
 
 ```sh
 # zero-file quick start: scan the tree with the embedded baseline only

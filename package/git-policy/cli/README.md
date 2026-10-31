@@ -494,12 +494,40 @@ The last four run only where the file lists them.
   Options:
    `builtinRules` (boolean,
    load the scanner's built-in baseline) and `rulesFile` (a rules file path relative
-  to the repository top level).
-  The rules file is `rulesFile`,
+  to the repository top level, or an array of them).
+  The rules files are `rulesFile`,
    else the environment variable `FORBIDDEN_STRINGS_RULES`,
   else `forbidden-strings.local.txt` in the repository top level,
    which may be absent.
-  A file named by `rulesFile` or by the variable must exist.
+  A file named by `rulesFile` or by the variable must exist, unless it is marked optional.
+  Several files are read in order and scanned as one rule set,
+  and every one of them is left out of the scan, as the single rules file always was.
+
+The `rulesFile` option takes either form:
+
+```jsonc
+// One required file, the form that existed before lists.
+{ "rulesFile": ".cache/forbidden-strings.rules.txt" }
+// Several files; a string is a required file, an object may mark one optional.
+{ "rulesFile": [
+  "forbidden-strings.append.txt",
+  { "path": "forbidden-strings.append.local.txt", "optional": true }
+] }
+```
+
+An optional file that is absent is skipped and recorded in the debug log.
+A configured string is one path exactly as written, so a comma or a `?` in it needs no care;
+an array never needs the variable's list syntax.
+An empty array, an element that is neither a string nor an object with `path`, an object key other than `path` and
+`optional`, and a path named twice are configuration failures.
+Every path is checked the same way: relative to the repository top level, no `..`, no backslash.
+`FORBIDDEN_STRINGS_RULES` uses the scanner's comma-separated list (see
+`package/forbidden-strings/cli/README.md`, "Rules list"), where a trailing `?` marks an optional entry;
+a value that is not valid UTF-8 is one required path.
+Because the variable's entries are resolved against the repository top level too,
+the same `{{config_root}}`-anchored value serves the scanner and cli-git.
+An invalid variable fails the policy only when a candidate is scanned, like a missing file.
+The new-worktree copy takes every configured file that Git ignores and the main checkout has.
 
 #### Content already in history is not scanned again
 
