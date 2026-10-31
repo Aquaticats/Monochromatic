@@ -283,6 +283,10 @@ each finished branch is reviewed and merged into `main`):
   which lacks `output_scope` (merged after publication);
   core and cli are bumped to 0.1.1 with the internal pin `=0.1.1`,
   and the push publishes both and creates `monochromatic-file-enforcer-cli-v0.1.1`.
+  Done (owner approved the push after the auto-mode check blocked it as a public surface):
+  `e570fd802d`,
+  run `41172650724` green,
+  the release has both Linux archives and the checksums file.
 - Running:
   the cutover switch branch (repoints,
   `20-env.toml`,
