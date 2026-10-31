@@ -12,11 +12,16 @@
 /// Import the exact protected boundary and test-only cache-free matcher constructor.
 use super::{LoadRequest, PENDING, protected_request};
 use crate::frx_load::LoadedRules;
+use crate::rules_list::RulesEntry;
 use std::path::PathBuf;
 
 /// Owned fixture arguments avoid filesystem/cache side effects.
 fn request() -> LoadRequest {
-    return LoadRequest { path: PathBuf::from("fixture-rules"), builtin: false, explicit: true };
+    return LoadRequest {
+        entries: vec![RulesEntry { path: PathBuf::from("fixture-rules"), optional: false }],
+        builtin: false,
+        implicit: false,
+    };
 }
 
 /// Failure before consuming the request proves cleanup is owned by the boundary.
@@ -27,7 +32,7 @@ fn panic_before_take() -> anyhow::Result<LoadedRules> {
 /// A successful callback consumes its exact request and returns a real compiled fixture.
 fn complete_request() -> anyhow::Result<LoadedRules> {
     let current: LoadRequest = PENDING.take().expect("pending request");
-    assert_eq!(current.path, PathBuf::from("fixture-rules"));
+    assert_eq!(current.entries[0].path, PathBuf::from("fixture-rules"));
     return Ok(crate::frx_load::test_rules("FIXTURE_LITERAL_LONG\n"));
 }
 

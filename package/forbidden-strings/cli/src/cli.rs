@@ -63,8 +63,9 @@ USAGE:\n\
 // ```
 const AFTER_HELP: &str = "\
 ENV:\n\
-    FORBIDDEN_STRINGS_RULES    Default rules path; --rules wins if both are set.\n\
-                               If unset, falls back to ./forbidden-strings.local.txt\n\
+    FORBIDDEN_STRINGS_RULES    Default rules list; --rules replaces it if both are set\n\
+                               (never merged). If unset, falls back to\n\
+                               ./forbidden-strings.local.txt\n\
     FORBIDDEN_STRINGS_CACHE_DIR\n\
                                Absolute per-user cache-root override.\n\
 \n\
@@ -74,12 +75,24 @@ RUNTIME CACHE:\n\
     data emits redacted JSON, compiles authoritative text, and attempts atomic\n\
     repair. A failed repair never invalidates the in-memory scan.\n\
 \n\
+RULES LIST (--rules, FORBIDDEN_STRINGS_RULES):\n\
+    One value names one or more rules files, separated by commas, read in\n\
+    that order and scanned as one rule set. An entry ending in '?' may be\n\
+    absent; it is then skipped and logged. Every other entry must exist\n\
+    (exit 2, naming the path). Nothing is trimmed, and an empty entry, a\n\
+    bare '?', or a path named twice is an error. One '?' is the marker, so\n\
+    a path ending in '?' is named with a second one ('name??'). A path\n\
+    containing ',' cannot be named. All files must use one format (tail\n\
+    sections or legacy lines), and section names must be unique across them.\n\
+    If every entry is optional and absent, the scan fails (exit 2) unless\n\
+    --builtin-rules supplies the baseline.\n\
+\n\
 BUILT-IN BASELINE:\n\
     --builtin-rules appends the embedded betterleaks-ported baseline after\n\
-    the resolved rules file (user rule numbering is unchanged). When the\n\
+    the resolved rules files (user rule numbering is unchanged). When the\n\
     implicit default rules file is absent, the baseline alone is used; an\n\
-    explicitly named missing file (--rules or env) still errors. Without\n\
-    the flag, the baseline is never read.\n\
+    explicitly named missing file (--rules or env) still errors unless its\n\
+    entry ends in '?'. Without the flag, the baseline is never read.\n\
 \n\
 EXIT CODES:\n\
     0    No violations.\n\
@@ -92,6 +105,9 @@ EXAMPLES:\n\
 \n\
     # Scan the whole working tree\n\
     FORBIDDEN_STRINGS_RULES=./rules.txt forbidden-strings --all\n\
+\n\
+    # Scan with a shared file plus an optional local one\n\
+    forbidden-strings --rules ./shared.txt,./local.txt? src/main.ts\n\
 \n\
     # Eagerly compile runtime rules without scanning\n\
     forbidden-strings compile-rules --rules ./rules.txt\n\
@@ -145,7 +161,7 @@ pub enum CliCommand {
             long = "rules",
             value_name = "PATH",
             allow_hyphen_values = true,
-            help = "Path to authoritative runtime rules file"
+            help = "Comma-separated rules files to compile (a trailing '?' marks an optional entry)"
         )]
         rules_path: String,
     },
@@ -210,7 +226,7 @@ pub struct Cli {
         long = "rules",
         value_name = "PATH",
         allow_hyphen_values = true,
-        help = "Path to the rule file (tail-format sections or legacy lines)"
+        help = "Comma-separated rule files (tail-format sections or legacy lines); a trailing '?' marks an optional entry"
     )]
     pub rules_path: Option<String>,
 
