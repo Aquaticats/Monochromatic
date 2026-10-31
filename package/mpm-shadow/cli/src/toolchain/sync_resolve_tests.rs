@@ -18,7 +18,7 @@ use super::lock_cmd::{LockMode, run_lock};
 use super::scope::EnvMap;
 use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_sync, run_sync_with};
 use super::update_named_tests::{VITE_LINE, VITE_URL, WRANGLER_LINE, add_vite, locked_scope, moved_network};
-use super::update_tests::{CRATES_URL, NPM_URL, linux, read_lock};
+use super::update_tests::{CRATES_URL, NPM_URL, linux, read_lock, serve_registries};
 
 //region CI detection
 
@@ -156,6 +156,28 @@ fn a_changed_asset_option_re_resolves_only_that_tool() {
     let error = run_sync_with(&frozen_scope, &frozen_env, &FakeRunner::new(), &FakeHttp::new(), &linux(), LockPolicy::Frozen(FrozenReason::Ci))
         .expect_err("refused");
     assert!(error.message.contains("mpm-shadow update npm:wrangler") && error.message.contains("options.asset"), "{error}");
+}
+
+#[test]
+fn a_re_edited_entry_that_resolves_to_the_same_version_is_still_locked_and_reported() {
+    let (_directory, scope, env) = locked_scope();
+    let before = read_lock(&scope);
+    let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
+    fs::write(
+        &scope.plan_file,
+        plan.replace("\"bins\": [\"fd\"] }", "\"bins\": [\"fd\"], \"options\": { \"asset\": \"fd-*\" } }"),
+    )
+    .expect("change the asset option");
+    let quiet = FakeHttp::new();
+    serve_registries(&quiet, "10.5.0", "4.156.0", "0.9.0", "2026-10-30");
+    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &quiet, &linux(), LockPolicy::Resolve).expect("synced");
+    assert_eq!(report.resolved, vec![("cargo:fd-find".to_string(), "10.5.0".to_string())]);
+    assert_eq!(quiet.requests(), vec![CRATES_URL.to_string()], "only the re-edited tool is looked up");
+    let after = read_lock(&scope);
+    assert_eq!(after.tool("cargo:fd-find").expect("fd").declaration.options.asset.as_deref(), Some("fd-*"));
+    assert_eq!(after.tool("cargo:fd-find").expect("fd").version, "10.5.0");
+    assert_eq!(after.tool("npm:wrangler"), before.tool("npm:wrangler"));
+    run_lock(&scope, LockMode::Check).expect("plan and lock agree");
 }
 
 #[test]

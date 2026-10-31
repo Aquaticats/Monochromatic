@@ -322,6 +322,14 @@ fn resolve_before_installing(
         match &outcome.kind {
             OutcomeKind::Added { version } => resolved.push((outcome.id.clone(), version.clone())),
             OutcomeKind::Updated { new_version, .. } => resolved.push((outcome.id.clone(), new_version.clone())),
+            // Looked up again and found the same version (a re-edited entry whose answer did not change).
+            OutcomeKind::Unchanged | OutcomeKind::Pinned => {
+                if let Some(parsed) = &loaded.lock
+                    && let Some(locked) = parsed.lock.tool(&outcome.id)
+                {
+                    resolved.push((outcome.id.clone(), locked.version.clone()));
+                }
+            }
             _ => {}
         }
     }
