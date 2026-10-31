@@ -663,8 +663,10 @@ each finished branch is reviewed and merged into `main`):
   user:
   "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
   Last estimate given:
-  3 to 6 hours at about 45% confidence (after publication),
-  a judgement from today's agent run times (14 to 47 minutes each),
+  3 to 5 hours from the owner's Playwright answers at about 40% confidence,
+  later than the earlier 2.5 to 5.5 hours because the wg blocker,
+  the mpm-shadow 0.2.1 release and the Playwright image publishing joined the path;
+  a judgement from today's agent run times (14 to 87 minutes each),
   not a measured rate.
 - Fixed 2026-10-31:
   `fec-create-release` was skipped in run `41171845290`
