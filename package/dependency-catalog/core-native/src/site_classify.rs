@@ -155,13 +155,17 @@ pub fn classify_site(manifest_path: &str, table: &[String], name: &str, item: &I
         );
         return None;
     };
-    let keys: Vec<&str> = entries.iter().map(|pair| return pair.0).collect();
+    let mut keys: Vec<&str> = Vec::new();
+    for (key, _) in entries.iter() {
+        keys.push(key);
+    }
     if entries.get("workspace").and_then(Item::as_bool) == Some(true) {
-        let extra: Vec<String> = keys
-            .iter()
-            .filter(|key: &&&str| return !INHERITED_SITE_KEYS.contains(key))
-            .map(|key: &&str| return format!("`{key}`"))
-            .collect();
+        let mut extra: Vec<String> = Vec::new();
+        for key in &keys {
+            if !INHERITED_SITE_KEYS.contains(key) {
+                extra.push(format!("`{key}`"));
+            }
+        }
         if !extra.is_empty() {
             report(
                 issues,
@@ -177,7 +181,12 @@ pub fn classify_site(manifest_path: &str, table: &[String], name: &str, item: &I
             ..base
         });
     }
-    let unsupported: Vec<&str> = keys.iter().copied().filter(|key: &&str| return !LITERAL_SITE_KEYS.contains(key)).collect();
+    let mut unsupported: Vec<&str> = Vec::new();
+    for key in &keys {
+        if !LITERAL_SITE_KEYS.contains(key) {
+            unsupported.push(key);
+        }
+    }
     if !unsupported.is_empty() {
         report(
             issues,
