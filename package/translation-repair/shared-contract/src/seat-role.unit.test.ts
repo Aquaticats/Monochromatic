@@ -15,7 +15,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  holdKeepingOutOf,
+  holdsKeepingOutOf,
   ROSTER_MODEL_IDS,
   SEAT_ROLE_HOLDS,
   SEAT_ROLES,
@@ -24,7 +24,7 @@ import {
 //region Seat role tests
 
 await describe({
-  name: holdKeepingOutOf.name,
+  name: holdsKeepingOutOf.name,
   children: [
     it({
       name: 'NAMES SEVEN ROLES, each with the holds it honours, and the roster-wide role honours the two that empty a '
@@ -49,7 +49,7 @@ await describe({
       name: 'HOLDS THE CULLED MODEL OUT OF EVERY ROLE, since the owner\'s cull empties every bench',
       fn: async () => {
         for (const role of SEAT_ROLES) {
-          expect(holdKeepingOutOf({ modelId: 'hf:openai/gpt-oss-120b', role, },),).toBe('owner-culled',);
+          expect(holdsKeepingOutOf({ modelId: 'hf:openai/gpt-oss-120b', role, },),).toContain('owner-culled',);
         }
       },
     },),
@@ -58,49 +58,66 @@ await describe({
       name: 'READS ONLY THE HOLDS OF THE ROLE ASKED: Qwen3.8-27B is held off the wide judges and the late judges but '
         + 'not off the translator, writer or reader seats it keeps',
       fn: async () => {
-        expect(holdKeepingOutOf({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'wide-judge', },),).toBe('wide-seat-dropped',);
-        expect(holdKeepingOutOf({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'late-judge', },),).toBe('late-judge-dropped',);
+        expect(holdsKeepingOutOf({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'wide-judge', },),).toEqual([
+          'wide-seat-dropped',
+        ],);
+        expect(holdsKeepingOutOf({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'late-judge', },),).toEqual([
+          'late-judge-dropped',
+        ],);
         for (const role of ['translator', 'writer', 'reader', 'checker', 'roster',] as const) {
-          expect(holdKeepingOutOf({ modelId: 'hf:Qwen/Qwen3.8-27B', role, },),).toBeUndefined();
+          expect(holdsKeepingOutOf({ modelId: 'hf:Qwen/Qwen3.8-27B', role, },),).toEqual([],);
         }
       },
     },),
 
     it({
-      name: 'HOLDS THE DROPPED TRANSLATOR OUT OF THE TRANSLATOR SEAT ONLY, and the unmeasured writer out of both writing '
-        + 'seats',
+      name: 'HOLDS THE DROPPED TRANSLATOR OUT OF THE TRANSLATOR SEAT ONLY, and the model no judge probe seated out of '
+        + 'both writing seats',
       fn: async () => {
-        expect(holdKeepingOutOf({ modelId: 'inception/mercury-2.5', role: 'translator', },),).toBe('translator-dropped',);
-        expect(holdKeepingOutOf({ modelId: 'inception/mercury-2.5', role: 'writer', },),).toBeUndefined();
-        expect(holdKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'writer', },),).toBe('judge-unmeasured',);
-        expect(holdKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'translator', },),).toBe('judge-unmeasured',);
+        expect(holdsKeepingOutOf({ modelId: 'inception/mercury-2.5', role: 'translator', },),).toEqual([
+          'translator-dropped',
+        ],);
+        expect(holdsKeepingOutOf({ modelId: 'inception/mercury-2.5', role: 'writer', },),).toEqual([],);
+        expect(holdsKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'writer', },),).toEqual([
+          'judge-unmeasured',
+          'writer-unmeasured',
+        ],);
+        expect(holdsKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'translator', },),).toEqual([
+          'judge-unmeasured',
+          'writer-unmeasured',
+        ],);
       },
     },),
 
     it({
       name: 'LETS THE CHECKER AND THE PICTURE READER KEEP WHAT THE JUDGE PROBE WITHHELD: google.gemma-4-31b reads and '
-        + 'xiaomi/mimo-v2.6-flash checks, though neither is a measured judge; the unmeasured reader is held off the reader role',
+        + 'xiaomi/mimo-v2.6-flash checks, though neither is a measured judge; the unmeasured reader is held off the '
+        + 'reader role',
       fn: async () => {
-        expect(holdKeepingOutOf({ modelId: 'google.gemma-4-31b', role: 'reader', },),).toBeUndefined();
-        expect(holdKeepingOutOf({ modelId: 'google.gemma-4-31b', role: 'checker', },),).toBeUndefined();
-        expect(holdKeepingOutOf({ modelId: 'google.gemma-4-31b', role: 'roster', },),).toBe('judge-unmeasured',);
-        expect(holdKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'checker', },),).toBeUndefined();
-        expect(holdKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'reader', },),).toBe('reader-unmeasured',);
-        expect(holdKeepingOutOf({ modelId: 'deepseek-v4.1-flash', role: 'reader', },),).toBe('reader-unmeasured',);
+        expect(holdsKeepingOutOf({ modelId: 'google.gemma-4-31b', role: 'reader', },),).toEqual([],);
+        expect(holdsKeepingOutOf({ modelId: 'google.gemma-4-31b', role: 'checker', },),).toEqual([],);
+        expect(holdsKeepingOutOf({ modelId: 'google.gemma-4-31b', role: 'roster', },),).toEqual([
+          'judge-unmeasured',
+        ],);
+        expect(holdsKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'checker', },),).toEqual([],);
+        expect(holdsKeepingOutOf({ modelId: 'xiaomi/mimo-v2.6-flash', role: 'reader', },),).toEqual([
+          'reader-unmeasured',
+        ],);
+        expect(holdsKeepingOutOf({ modelId: 'deepseek-v4.1-flash', role: 'reader', },),).toEqual([
+          'reader-unmeasured',
+        ],);
       },
     },),
 
     it({
-      name: 'ANSWERS FOR EVERY ROSTER MODEL AND EVERY ROLE with a hold the role honours or nothing, never a hold the '
-        + 'role does not honour',
+      name: 'ANSWERS FOR EVERY ROSTER MODEL AND EVERY ROLE with holds the role honours, never a hold the role does not '
+        + 'honour',
       fn: async () => {
         for (const modelId of ROSTER_MODEL_IDS) {
           for (const role of SEAT_ROLES) {
-            /**
-             What the card keeps this model out of this role by.
-             */
-            const hold = holdKeepingOutOf({ modelId, role, },);
-            expect(hold === undefined || SEAT_ROLE_HOLDS[role].includes(hold,),).toBe(true,);
+            for (const hold of holdsKeepingOutOf({ modelId, role, },)) {
+              expect(SEAT_ROLE_HOLDS[role].includes(hold,),).toBe(true,);
+            }
           }
         }
       },
