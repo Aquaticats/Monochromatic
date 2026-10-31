@@ -387,6 +387,25 @@ each finished branch is reviewed and merged into `main`):
   so the "regression" reading is not supported by history;
   7a's agent implements the convention for the next wrapper release.
   The owner also confirmed mpm-shadow's separate toolchain command set "is fine".
+- Switch branch `worktree-agent-acfa05abe2fe1d3fa` reported done (tip `a7b0c9f42c`):
+  plan converted,
+  `mise.toml` and `20-env.toml` per the decision,
+  tasks renamed to pnpm verbs,
+  CI with committed-then-local drift steps,
+  the `repo-tools-setup` action,
+  Dockerfile,
+  IDE launcher on `bin --json`,
+  `package/file-enforcer/core` and `file-enforcer.config.ts` deleted,
+  pnpr header reworded (merging redeploys pnpr on Coolify and starts a publish run),
+  committed outputs clean,
+  TypeScript comparison differences all explained,
+  clean-container check passed.
+  Before merge it is fixing two things:
+  this session's note made it pin `github:Aquaticats/Monochromatic@monochromatic-mpm-shadow-v0.2.0`,
+  which AGENTS.md `PIN` forbids (now: float `@latest` with a tag-prefix option in the `github:` resolver,
+  lock still recording the archive SHA-256),
+  and the Dockerfile lacks `cargo` for cargo-binstall tools.
+  Issue #1819 records the pin as a third instance of a session-made requirement.
 - Running:
   the cutover switch branch (repoints,
   `20-env.toml`,
