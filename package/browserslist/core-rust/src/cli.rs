@@ -97,7 +97,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// The lock file name,
-/// relative to the directory the command runs in (the package directory under `mise`).
+/// relative to the directory the command runs in (the repository root; the Mise tasks pass the path from the package directory explicitly).
 pub const DEFAULT_LOCK_PATH: &str = "browserslist-data.lock.json";
 
 /// Build a usage error.

@@ -26,6 +26,44 @@ file-enforcer user check
   `<config dir>/monochromatic-dev/file-enforcer/user.config.jsonc`.
 - Unknown flags are rejected.
 
+## Rule kinds linked here
+
+The engine (`monochromatic-file-enforcer`) does not link the libraries behind three rule kinds;
+this binary does,
+through `production_registry` in `src/kinds.rs`,
+which the server uses.
+
+- `rust-catalog`:
+  `monochromatic-dependency-catalog`.
+  Reads `rust-catalog.toml` and every manifest the globs match through the view,
+  so it sees what the `toml-keys` rules planned,
+  and plans the catalog and every `[workspace.dependencies]` table in one pass.
+  It composes,
+  and belongs after the `toml-keys` rules.
+- `browserslist`:
+  `monochromatic-browserslist`.
+  Reads the query file and the data `lock` (a repository-root `browserslist-data.lock.json`) and owns its output.
+  The pinned data comes from the user cache,
+  and a missing pinned tarball is fetched once from the npm registry and verified against the lock;
+  nothing unpinned is ever fetched.
+  The resolver implements no config sections,
+  so `environment` selects nothing:
+  a query file without sections resolves its default queries,
+  and a `[section]` line is refused as `not implemented`.
+- `jetbrains-harper` (per-user config only):
+  `monochromatic-xml-edit` and `serde_json`.
+  The view root is the home directory;
+  the rule reads `.config/JetBrains/<product>/options` of the newest product matching `productPrefixes`
+  (`XDG_CONFIG_HOME` is not consulted).
+  It edits `option` values attribute by attribute,
+  so comments inside managed entries survive,
+  and it skips with a `jetbrains-harper-skipped` warning when the IDE,
+  its settings files or the base Harper server are absent.
+  The base server match,
+  the options copied to scoped servers,
+  the schema default and the `harper-ls.excludePatterns` key are fixed in the rule,
+  carried over from the retired TypeScript policy.
+
 ## Output
 
 Standard output is JSON lines only,

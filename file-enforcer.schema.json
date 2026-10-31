@@ -321,6 +321,10 @@
               "type": "string",
               "description": "Repo-relative output path."
             },
+            "lock": {
+              "type": "string",
+              "description": "Repo-relative path of the data lock that pins `caniuse-lite`,\n`node-releases` and the Firefox ESR value."
+            },
             "environment": {
               "type": [
                 "string",
@@ -333,7 +337,8 @@
             "kind",
             "id",
             "source",
-            "output"
+            "output",
+            "lock"
           ],
           "description": "Resolve `.browserslistrc` into a JSON array of targets;\nprovided by the in-repo browserslist crate."
         },

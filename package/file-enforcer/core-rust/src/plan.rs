@@ -140,7 +140,7 @@ pub fn plan_run(root: &Path, rules: &[Box<dyn Rule>]) -> PlanReport {
 
 /// What:
 ///  Report a rule that read a path a later rule writes,
-/// unless the reader writes that path itself.
+/// unless the reader writes that path itself or both rules compose.
 /// Why:
 ///  Config order is execution order;
 /// reading an output that is only planned later would see stale content.
@@ -157,6 +157,11 @@ fn check_read_order(report: &mut PlanReport, rules: &[Box<dyn Rule>], writers: &
             continue;
         }
         for writer in path_writers {
+            // Composing rules are stages of one pipeline over a shared file: a later stage transforms what the
+            // earlier stage planned (or left unchanged), so an earlier composing reader sees no stale content.
+            if rules[*reader].composes() && rules[*writer].composes() {
+                continue;
+            }
             if writer > reader {
                 let message = format!(
                     "the rule {} reads {path}, which the later rule {} writes; move {} before {}",

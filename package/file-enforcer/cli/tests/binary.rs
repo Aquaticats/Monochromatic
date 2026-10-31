@@ -227,7 +227,8 @@ fn user_commands_use_their_own_server_and_the_per_user_config() {
     let config_argument = user_config.display().to_string();
     let (user_code, user_lines) = harness.run(&["--user-config", &config_argument, "user", "check"]);
     assert_eq!(user_code, 0, "{user_lines:?}");
-    assert_eq!(count_code(&user_lines, "kind-not-wired"), 1, "the XML crate is not linked yet: {user_lines:?}");
+    assert_eq!(count_code(&user_lines, "kind-not-wired"), 0, "the XML crate is linked: {user_lines:?}");
+    assert_eq!(count_code(&user_lines, "jetbrains-harper-skipped"), 1, "the disposable home has no IDE: {user_lines:?}");
     assert_eq!(harness.server_pids().len(), 1);
     harness.write("file-enforcer.config.jsonc", CONFIG);
     harness.write("AGENTS.md", "body\n");
@@ -237,4 +238,21 @@ fn user_commands_use_their_own_server_and_the_per_user_config() {
     let (missing_code, missing) = harness.run(&["--user-config", "does-not-exist.jsonc", "user", "write"]);
     assert_eq!(missing_code, 2, "{missing:?}");
     assert_eq!(missing[0]["code"], "config-unreadable");
+}
+
+#[test]
+fn the_rust_catalog_kind_is_wired_into_the_binary() {
+    let harness = Harness::new();
+    let config = r#"{"rules": [{"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml",
+        "manifests": ["package/*/*/Cargo.toml"]}]}"#;
+    harness.write("file-enforcer.config.jsonc", config);
+    harness.write("rust-catalog.toml", "[catalog]\n");
+    harness.write("package/cli/a/Cargo.toml", "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nanyhow = \"1\"\n\n[workspace]\n");
+    let (check_code, check) = harness.run(&["check"]);
+    assert_eq!((check_code, count_code(&check, "kind-not-wired"), count_code(&check, "drift-content")), (1, 0, 2), "{check:?}");
+    let (write_code, write) = harness.run(&["write"]);
+    assert_eq!(write_code, 0, "{write:?}");
+    assert!(harness.read("rust-catalog.toml").contains("anyhow = \">=1\""));
+    let (clean_code, clean) = harness.run(&["check"]);
+    assert_eq!(clean_code, 0, "{clean:?}");
 }
