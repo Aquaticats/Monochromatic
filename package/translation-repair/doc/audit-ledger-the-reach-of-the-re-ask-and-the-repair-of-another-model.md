@@ -256,6 +256,20 @@ the bench and the record),
 `stage-quorum-claims.unit.test.ts`
 and the role cases of translate-stage and consolidate (the role and the one record at both steps).
 
+Checked and found to hold:
+
+- The outcome keeps `answeredBy` through the production chain.
+  `promptUniqueClient` and `seatTallyClient` return what `reaskElsewhereNudged` returned,
+  and a case of `prompt-uniqueness-client.unit.test.ts` reads `answeredBy` through the wrapper.
+- The roster check of the translate stage (`assertJudgeableProducerRoster`) reads the bench of translators,
+  not the candidates,
+  so a candidate of a model off the bench does not end the slate.
+- The half weight of a self-ballot reads the producer ids of each candidate (`stakesByIndexOf`),
+  so a candidate of a model off the bench weighs half for that model as a judge.
+- The slice key does not enumerate sheet builders:
+  `translate-document-contract.ts` names the repair wire's resolutions in prose,
+  and this change leaves that enum and the author's follow-up wording as they were.
+
 Cache versions:
 none moves.
 The stored translate and consolidate records hold candidates by wording and producer,
