@@ -8215,15 +8215,18 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
-      '@monochromatic-dev/file-enforcer-core':
-        specifier: workspace:*
-        version: link:../../file-enforcer/core
       '@monochromatic-dev/fs-path-core':
         specifier: workspace:*
         version: link:../../fs-path/core
       '@monochromatic-dev/hyperscript-core':
         specifier: workspace:*
         version: link:../../hyperscript/core
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -8231,6 +8234,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
