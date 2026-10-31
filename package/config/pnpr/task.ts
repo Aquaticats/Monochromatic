@@ -14,7 +14,18 @@ export default {
   'lint:oxlint': { extends: 'lint:oxlint', },
   'format:oxlint': { extends: 'format:oxlint', },
   'lint:types': { extends: 'lint:types', },
-  'test:unit': { extends: 'test:unit', depends: ['build',], },
+  'test:unit': {
+    extends: 'test:unit',
+    depends: ['build',],
+  },
+  'generate:config': {
+    description: 'Write the pnpr config.yaml from the workspace manifests',
+    run: 'node src/generate-config.ts',
+  },
+  'check:config': {
+    description: 'Fail when the pnpr config.yaml differs from the generator',
+    run: 'node src/generate-config.ts --check',
+  },
   'publish': {
     description: 'Publish missing pnpr versions',
     run: 'node src/publish-missing-versions.ts',

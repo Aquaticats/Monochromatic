@@ -20,6 +20,19 @@ started by the `Trigger` entry of `Definitions`.
 Commits without code files are skipped with a one-line log entry,
 so coverage stays visible.
 
+From 2026-10-30 the default review is the Luna decision model
+(`openai/gpt-6-luna-decisions`
+through the Decisions API),
+one cheap call per landing,
+after the owner's cost correction of 2026-10-29
+closed the full-model census
+(65 priced runs cost 9167.9 s of reviewer wall clock,
+median 133.4 s per landing).
+`SHADOW_REVIEW_ALLOW=1` runs the pinned full review instead,
+for deliberate replays.
+A landing gets its log entry either way,
+with the route named in it.
+
 ## Definitions
 
 Every term below is operational;
@@ -67,6 +80,8 @@ Every term below is operational;
   anyone may invoke `mise run shadow-review` by hand
   and nobody needs to:
   the `Trigger` starts it on every landing.
+  `SHADOW_REVIEW_ALLOW=1` on that invocation runs the pinned full review
+  instead of the Luna leg.
   Its findings are required by nothing
   and checked by nothing,
   so a landing completes unchanged either way.
@@ -92,7 +107,21 @@ that some later commit carries.
 
 `mise run shadow-review` performs these steps
 (`SHADOW_REVIEW_LOG` points the log at a disposable fixture,
-`SHADOW_REVIEW_SHA` replays any commit instead of `HEAD`):
+`SHADOW_REVIEW_SHA` replays any commit instead of `HEAD`,
+`SHADOW_REVIEW_ALLOW=1` runs the pinned full review instead of the Luna leg,
+and `SHADOW_REVIEW_LLMGATEWAY_API_KEY`,
+with the stop-hook key as fallback,
+carries the Luna credential):
+
+Two routes share the isolation and the log shape.
+The Luna leg classifies the candidate diff and excerpt
+with one choice question,
+the verdict a standards review would give on superlinear cost
+(`yes`,
+`partial`,
+or `no`),
+and its answer with the probability distribution is the entry.
+The full review runs these steps:
 
 1.
    Isolate the code the reviewer sees:
@@ -135,14 +164,20 @@ and the findings it kept.
 Those fields are the graduation evidence:
 per-diff cost and run-to-run determinism on real diffs.
 
-The runner judges nothing,
-so it writes `Named superlinear cost` as `unjudged`
+The runner judges nothing.
+A Luna entry carries the model's predicted verdict
+with its probability distribution in `Findings kept`;
+a full-review entry writes `Named superlinear cost` as `unjudged`
 and a scorer reads the findings to settle `yes` or `no`.
-The reviewer route is pinned to `openai/gpt-6.1-sol` through `pi`
+The full route is pinned to `openai/gpt-6.1-sol` through `pi`
 because `pi`'s default provider answered a `402` `billing_error` on 2026-10-29
 (`doc/troubleshooting/pi-advisor-provider-billing.md`);
 `--no-tools` keeps the reviewer from running `git`,
 which is the recursion guard.
+The Luna leg's measured sensitivity is 5 of 8 catch
+and 0 of 4 false claims on the corpus
+(heading `Recall measurement results` in `doc/handover/superlinear-cost-dismissal-gate.md`),
+so a `no` from Luna is weaker evidence than a `no` from the full review.
 
 ## Graduation
 
@@ -150,8 +185,20 @@ Blocking use needs three things measured on real diffs:
 per-diff cost,
 determinism across repeats of the same diff,
 and catch rate on real landings.
-Then decide with the owner between an `AGENTS.md` rule
-and a git-policy landing check,
-and only then unshadow.
-Until a decision lands,
-the gate records and never gates.
+Per-diff cost is measured
+(65 priced runs of the full route,
+median 133.4 s,
+p90 240.0 s,
+against the Luna leg's 1.2 s),
+and determinism is measured on one repeated diff
+(`d4988f4c9b57`,
+heading `Shadow runs so far` in `doc/handover/superlinear-cost-dismissal-gate.md`).
+The real-landing question is settled by the truth-check of 2026-10-30
+(`doc/audit/standards-review-gate-truth-check.md`):
+14 of 16 named costs are real defects at the named commits,
+and the 8 largest quiet landings hid nothing.
+Decided by the owner 2026-10-30:
+keep shadowing,
+so the gate records and never gates
+until a later call between an `AGENTS.md` rule
+and a git-policy landing check.

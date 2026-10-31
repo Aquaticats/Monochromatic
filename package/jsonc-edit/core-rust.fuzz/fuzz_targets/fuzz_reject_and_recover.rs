@@ -31,12 +31,14 @@ use jsonc_edit_fuzz::generators::mutated;
 ///      Import the shared invariants and the generated document type.
 /// Why:
 ///       A mutation that still parses must satisfy every property an untouched document does.
-use jsonc_edit_fuzz::{assert_canonical_stability, assert_depth_bound, GeneratedDocument};
+use jsonc_edit_fuzz::{assert_canonical_stability, assert_depth_bound, assert_spans_consistent, GeneratedDocument};
 /// What:
-///      Import the parser entry point.
+///      Import both parser entry points.
 /// Why:
-///       Acceptance versus rejection is the property under test.
-use monochromatic_jsonc_edit::parse_jsonc;
+///       Acceptance versus rejection is the property under test,
+/// and the span-reporting parse
+///           must accept and reject exactly what the plain parse does.
+use monochromatic_jsonc_edit::{parse_jsonc, parse_jsonc_with_spans};
 
 fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
     let (document, noise) = input;
@@ -51,10 +53,14 @@ fuzz_target!(|input: (GeneratedDocument, Vec<u8>)| {
             // A mutation that still parses must satisfy every property an untouched document does.
             assert_depth_bound(&parsed);
             assert_canonical_stability(&candidate);
+            assert_spans_consistent(&candidate);
         }
         Err(error) => {
             // Rejection must carry a message; an empty one would be undiagnosable at the caller.
             assert!(!error.message.is_empty(), "rejection of {candidate:?} had no message");
+            // The span-reporting parse must reject the same text with the same error.
+            let spanned_error = parse_jsonc_with_spans(&candidate).err();
+            assert_eq!(spanned_error, Some(error), "the spanned parse disagreed on {candidate:?}");
         }
     }
 });

@@ -18,9 +18,9 @@
 ///  the mapping and the failure finding of the check.
 use crate::{
     closure_cargo::{
-        DylintRun, cargo_program, dependencies_missing, dylint_available, run_dylint,
-        rustc_dev_missing,
+        DylintRun, cargo_program, dependencies_missing, dylint_probe, run_dylint, rustc_dev_missing,
     },
+    closure_driver::{DriverGaps, DriverSite, driver_gaps, driver_site_from_environment},
     closure_findings::{RULE, Targets, findings_from, targets_of},
     closure_manifest::{Prerequisite, read_prerequisites},
     closure_packages::{ClosurePackage, group_packages},
@@ -269,6 +269,26 @@ pub fn run_closure_step_with(
     fix: bool,
     cargo: &Path,
 ) -> ClosureOutcome {
+    return run_closure_step_at(plans, cwd, fix, cargo, &driver_site_from_environment());
+}
+
+/// What:
+///  Run the closure check with a given `cargo` program and the machine facts of the driver check.
+/// Why:
+///  The driver cache and the program that names the active toolchain come from the environment in production;
+///  tests pass them explicitly so no test changes process-wide variables.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runClosureStepAt(plans: FilePlan[], cwd: Path, fix: boolean, cargo: Path, site: DriverSite): ClosureOutcome;
+/// ```
+pub fn run_closure_step_at(
+    plans: &[FilePlan],
+    cwd: &Path,
+    fix: bool,
+    cargo: &Path,
+    site: &DriverSite,
+) -> ClosureOutcome {
     let mut outcome: ClosureOutcome = ClosureOutcome::default();
     if fix {
         outcome.notes.push(format!("{RULE} is not run under --fix"));
@@ -284,9 +304,10 @@ pub fn run_closure_step_with(
         outcome.findings.extend(library_failures);
         return outcome;
     }
-    let machine_gap: Option<String> = match dylint_available(cargo) {
-        Some(reason) => Some(reason),
-        None => rustc_dev_missing(cargo),
+    let probe: Result<String, String> = dylint_probe(cargo);
+    let machine_gap: Option<String> = match &probe {
+        Err(reason) => Some(reason.clone()),
+        Ok(_) => rustc_dev_missing(cargo),
     };
     if let Some(reason) = machine_gap {
         outcome.messages.push(skip_message(
@@ -295,9 +316,29 @@ pub fn run_closure_step_with(
         ));
         return outcome;
     }
+    let gaps: DriverGaps = driver_gaps(
+        grouping.packages.as_slice(),
+        cargo,
+        site,
+        probe.unwrap_or_default().as_str(),
+        cwd,
+    );
+    outcome.notes.extend(gaps.notes);
+    for gap in &gaps.gaps {
+        outcome
+            .messages
+            .push(skip_message(gap.subject.as_str(), gap.reason.as_str()));
+    }
     let targets: Targets = targets_of(plans);
     let search: OsString = std::env::var_os("PATH").unwrap_or_default();
     for package in &grouping.packages {
+        if gaps
+            .gaps
+            .iter()
+            .any(|gap| return gap.library == package.library)
+        {
+            continue;
+        }
         absorb(
             &mut outcome,
             check_package(package, cargo, &search, &targets, cwd),

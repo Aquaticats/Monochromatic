@@ -1,0 +1,584 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Path or URL of the JSON Schema; editors read it, the tool ignores it."
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RuleConfig"
+      },
+      "description": "Rules in execution order."
+    }
+  },
+  "required": [
+    "rules"
+  ],
+  "description": "The file-enforcer config: an ordered list of rules.",
+  "title": "Config",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "RuleConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "concat"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "output": {
+              "type": "string",
+              "description": "Repo-relative output path."
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ValueExpr"
+              },
+              "description": "Parts in order."
+            },
+            "mode": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Octal mode such as `0600`; absent keeps the existing mode.",
+              "pattern": "^[0-7]{3,4}$"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "output",
+            "parts"
+          ],
+          "description": "Write a file whose content is the parts joined end to end."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "mode-only"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "path": {
+              "type": "string",
+              "description": "Repo-relative path."
+            },
+            "mode": {
+              "type": "string",
+              "description": "Octal mode such as `0600`.",
+              "pattern": "^[0-7]{3,4}$"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "path",
+            "mode"
+          ],
+          "description": "Keep a file's mode when the file exists; never creates it."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "package-licenses"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "manifests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Manifest globs (`package.json` or `Cargo.toml`) whose license field drives the texts."
+            },
+            "directory": {
+              "type": "string",
+              "description": "Directory name beside each manifest."
+            },
+            "texts": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "License id to the repo-relative path of its text; only these ids are ever pruned."
+            },
+            "requires": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LicenseRequirement"
+              },
+              "description": "Which texts a license expression needs."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "manifests",
+            "directory",
+            "texts",
+            "requires"
+          ],
+          "description": "Copy license texts into every matching package's `LICENSES` directory and prune the owned ones."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "mirror"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "from": {
+              "type": "string",
+              "description": "Repo-relative source directory."
+            },
+            "to": {
+              "type": "string",
+              "description": "Repo-relative target directory."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "from",
+            "to"
+          ],
+          "description": "Make a directory an exact copy of another; the target is owned outright."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "toml-keys"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "manifests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Manifest globs."
+            },
+            "onlyDirs": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Crate directories the rule is limited to; absent means every matching manifest."
+            },
+            "edits": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TomlEdit"
+              },
+              "description": "Guarded assignments."
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TomlBlock"
+              },
+              "description": "Blocks appended when absent."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "manifests",
+            "edits",
+            "blocks"
+          ],
+          "description": "Set guarded keys and append absent blocks in matching `Cargo.toml` files."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "mise-path-list"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "output": {
+              "type": "string",
+              "description": "Repo-relative output path."
+            },
+            "directories": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Directory globs, for example `package/*/*/node_modules/.bin`."
+            },
+            "header": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ValueExpr"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Text written before the `[env]` table."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "output",
+            "directories"
+          ],
+          "description": "Write a Mise config listing the existing non-empty directories that match the globs."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "rust-catalog"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "catalog": {
+              "type": "string",
+              "description": "Repo-relative catalog path."
+            },
+            "manifests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Manifest globs."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "catalog",
+            "manifests"
+          ],
+          "description": "Render the Rust dependency catalog into every manifest; provided by the dependency-catalog library."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "browserslist"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "source": {
+              "type": "string",
+              "description": "Repo-relative query file."
+            },
+            "output": {
+              "type": "string",
+              "description": "Repo-relative output path."
+            },
+            "lock": {
+              "type": "string",
+              "description": "Repo-relative path of the data lock that pins `caniuse-lite`, `node-releases` and the Firefox ESR value."
+            },
+            "environment": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Config section to resolve, such as `production`."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "output",
+            "lock"
+          ],
+          "description": "Resolve `.browserslistrc` into a JSON array of targets; provided by the in-repo browserslist crate."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "jetbrains-harper"
+            },
+            "id": {
+              "type": "string",
+              "description": "Unique rule id."
+            },
+            "productPrefixes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "IDE product prefixes, newest installed version wins."
+            },
+            "disabledLinters": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Linters disabled on the base server."
+            },
+            "excludePatterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Patterns added to the base server's exclude list."
+            },
+            "scopedServers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/HarperScopedServer"
+              },
+              "description": "Extra servers scoped to named files."
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "productPrefixes",
+            "disabledLinters",
+            "excludePatterns",
+            "scopedServers"
+          ],
+          "description": "Apply the Harper language-server policy to the IDE's settings; per-user config only."
+        }
+      ],
+      "description": "One rule: a kind tag plus that kind's fields."
+    },
+    "ValueExpr": {
+      "anyOf": [
+        {
+          "type": "string",
+          "description": "Literal text."
+        },
+        {
+          "type": "boolean",
+          "description": "Literal boolean."
+        },
+        {
+          "type": "integer",
+          "format": "int64",
+          "description": "Literal integer."
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ValueExpr"
+          },
+          "description": "List of values, used by array-valued Cargo keys."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/ValueExpr",
+              "description": "Repo-relative path of the file to read."
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "description": "The text of a file, read through the virtual view so earlier rules' planned output is visible."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "var": {
+              "type": "string",
+              "description": "Variable name."
+            }
+          },
+          "required": [
+            "var"
+          ],
+          "description": "A variable a fan-out rule binds, such as `dir` (the crate directory) or `manifest`."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "concat": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ValueExpr"
+              },
+              "description": "Parts in order; each must evaluate to text."
+            }
+          },
+          "required": [
+            "concat"
+          ],
+          "description": "The text of every part joined end to end."
+        }
+      ],
+      "description": "A literal, a list, or a tagged object: file, var or concat."
+    },
+    "LicenseRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contains": {
+          "type": "string",
+          "description": "Substring of the manifest's license expression."
+        },
+        "texts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Text ids (keys of `texts`) the package then needs."
+        }
+      },
+      "required": [
+        "contains",
+        "texts"
+      ],
+      "description": "License texts a manifest license expression needs."
+    },
+    "TomlEdit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "guard": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Key path that must exist before the edit applies; empty means always."
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Key path to set."
+        },
+        "value": {
+          "$ref": "#/$defs/ValueExpr",
+          "description": "New value; text, boolean, integer, or a list of those."
+        }
+      },
+      "required": [
+        "guard",
+        "path",
+        "value"
+      ],
+      "description": "A key assignment applied only where the guard key path exists."
+    },
+    "TomlBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "absentPath": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Key path whose absence triggers the append."
+        },
+        "text": {
+          "$ref": "#/$defs/ValueExpr",
+          "description": "Text appended after a blank line; usually a `{\"file\": ...}` value."
+        }
+      },
+      "required": [
+        "absentPath",
+        "text"
+      ],
+      "description": "A TOML block appended when a key path is absent."
+    },
+    "HarperScopedServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Server id in the IDE settings."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name."
+        },
+        "fileNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File names the server is scoped to."
+        },
+        "languageId": {
+          "type": "string",
+          "description": "Language id the server handles."
+        },
+        "disabledLinters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Linters the server disables."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "fileNames",
+        "languageId",
+        "disabledLinters"
+      ],
+      "description": "A language server scoped to named files."
+    }
+  }
+}

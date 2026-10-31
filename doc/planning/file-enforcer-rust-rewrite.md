@@ -6,7 +6,7 @@ Being grilled with the user, started 2026-10-29.
 Nothing here is accepted yet;
 decisions land in this file as the user answers them.
 
-Next action (2026-10-29):
+Superseded next action (2026-10-29; the current one is the section "Next action (2026-10-29, after confirmation)"):
 before confirming shared understanding,
 the user asked for reviews by `openai/gpt-6.1-sol`,
 `openai/gpt-6-astra`,
@@ -168,7 +168,126 @@ create-if-absent seeds,
 file modes),
 and watch rediscovering new packages and matched paths.
 
-## Next action (2026-10-29, second review round)
+## Accepted (2026-10-29)
+
+The user accepted the record ("Accept");
+it is [`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md),
+and the amendments to `doc/decision/monorepo-manager-all-rust.md` and `doc/decision/mpm-toolchain-adoption.md` are applied.
+Next:
+the gates before implementation,
+then one task per area,
+tracked in issue #1818 (which points at the `prototype/fe-mpm-files` branch).
+The prototype's images and worktrees were removed with the user's approval;
+the branch stays locally and on `origin`.
+
+Gates running (2026-10-29):
+four choosing-technology vets (`toml_edit`,
+`browserslist-rs`,
+`schemars`,
+an XML editor),
+each writing `doc/audit/tech-file-enforcer-*-vet-2026-10-29.md` uncommitted for review,
+and one agent running the three live probes in sequence,
+writing `${HOME}/temp/agent/fe-rust/gate-probes.md`.
+When they return:
+review and commit the vets,
+ask the user any question a vet ends with,
+record the probe verdicts in issue #1818,
+then start the first implementation area.
+
+Update (2026-10-29):
+the user halted the four vets for handoff,
+then approved `toml_edit`,
+`browserslist-rs`,
+and `schemars` without vets
+and chose an in-repo XML edit crate,
+and wrote:
+"Yes mark superseded,
+but don't discard any work.
+Even if work is superseded,
+it should still become knowledge."
+So each halted vet draft is committed whole under `doc/audit/`,
+with only a superseded status line added,
+and the XML draft is linked from the decision record as input to the XML crate.
+The live probes keep running.
+
+Reboot hold (2026-10-29):
+the user plans a reboot and asked to start no new work and discard nothing,
+including subagent state.
+Done and committed:
+the four vet drafts (`b34ed80`),
+the `serde_json` approval (`365bd1ecae`).
+In flight:
+the live-probe agent,
+checkpointing to `${HOME}/temp/agent/fe-rust/gate-probes.md` after each probe,
+with containers under `systemd-run` units named `fe-gate-*`.
+Probes finished 2026-10-29
+([`doc/research/file-enforcer-rust-rewrite-gate-probes.md`](../research/file-enforcer-rust-rewrite-gate-probes.md)):
+
+- forbidden-strings:
+  pass.
+  A changed rules text is a cache miss keyed by its SHA-256,
+  never a stale hit;
+  today a comma-joined `--rules` value is one filename and no optional entry exists,
+  the baseline the `?` list changes.
+- `browserslist-rs` 0.21.2:
+  mechanics pass,
+  data parity fails.
+  It resolves the same queries in the same shape,
+  but its data is older:
+  14 targets against 18,
+  `chrome151` against `chrome156`,
+  `firefox140` (hard-coded ESR) against `firefox153`,
+  and Node up to 26.8.0 against 26.12.0.
+  The repo's `.browserslistrc` has no sections,
+  so "production" means the defaults.
+  This is the data drift the user accepted when choosing the crate,
+  now measured.
+- `mpm outdated` reading:
+  the candidate rule fails as written.
+  mpm 8.2.0 drops a failed or missing manager from its JSON with exit 0,
+  reports an unreachable registry only in an `errors` array,
+  and gives no row both when installed equals latest and when installed is newer than latest;
+  the flag is `--table-format json`,
+  not `--output-format json`.
+  How to read it goes back to the user.
+- Side finding,
+  not investigated:
+  tag `v8.2.0` resolves to `99eb596b`,
+  while `doc/decision/mpm-toolchain-adoption.md` cites `f095931a`.
+
+The user chose "Let it finish":
+reboot is called safe only after all three probes finish,
+their containers and units stop,
+and the report is committed.
+All three finished and the verdicts are in issue #1818.
+After the reboot:
+follow [`doc/handover/file-enforcer-rust-rewrite.md`](../handover/file-enforcer-rust-rewrite.md),
+whose next action the user set on 2026-10-29:
+look at `oxc-browserslist`,
+then start the implementation areas.
+
+Process lessons the user asked to record (2026-10-29),
+because this grilling left its crates as vet gates after acceptance
+and four vets ran to depth before the user could hand them to a cheaper model:
+grilling enumerates and picks every dependency first (`GXD` in `AGENTS.md`),
+and each broad vet checks in with the user before enumerating candidates
+(`.agents/skills/choosing-technology/SKILL.md`, "Check in before broad discovery").
+The user defined broad:
+"naming or finding candidates from none of 1 your memory or general knowledge 2 my picks 3 repo precedent".
+
+## Superseded next action (2026-10-29, after confirmation)
+
+The user confirmed a shared understanding ("Shared understanding"),
+with one addition adopted under the user's open veto:
+mpm-shadow writes a digest of the lock's contents,
+and `lock --check` recomputes it,
+so a hand edit of a resolved version fails the gate.
+The decision record draft is
+[`file-enforcer-rust-rewrite-decision.md`](file-enforcer-rust-rewrite-decision.md);
+it moves to `doc/decision/` only on the user's explicit acceptance (`DRR` in `AGENTS.md`).
+No code before acceptance.
+
+## Superseded next action (2026-10-29, second review round)
 
 Asked how to close the grilling,
 the user chose "Re-review,
@@ -258,12 +377,13 @@ and history.
   `[workspace.dependencies]` through the dependency-catalog Rust library,
   `.browserslistrc.resolved.local.json` through `browserslist-rs`,
   `.config/mise/conf.d/10-bin.local.toml`,
-  `mpm.packages.toml` and `mpm.managers.toml` from the lock,
   and,
   through `user write`,
   the JetBrains Harper policy.
-- Outputs file-enforcer checks but never writes:
-  `toolchain.lock.json` against `toolchain.plan.jsonc`.
+- file-enforcer has no toolchain role.
+- Deleted outright:
+  `mpm.packages.toml` and `mpm.managers.toml`,
+  in both the repository and the global scope.
 - Gone from file-enforcer:
   the generated root `mise.toml` (now hand-written plus committed `conf.d`),
   the rules file and its seed (the scanner reads a comma-separated list),
@@ -283,7 +403,9 @@ and history.
   `lock` (offline),
   `bin-paths`,
   each with `--global`;
-  the only writer of `toolchain.lock.json`;
+  the only writer and checker of `toolchain.lock.json`
+  (`mpm-shadow lock --check` is the toolchain drift gate in CI beside `file-enforcer check`);
+  rustup channels and cargo-binstall tools install directly from the lock;
   first versions of new npm and PyPI tools from the registries,
   later ones from `mpm outdated`;
   native lookups for the rest,
@@ -743,6 +865,25 @@ but make the syntax forbidden-strings.append.txt,forbidden-strings.append.local.
 - file-enforcer stops writing `.cache/forbidden-strings.rules.txt` and the seed.
 - Tradeoff of the delimited form:
   a path containing a comma cannot be named.
+- As built (task 23,
+  2026-10-30):
+  the grammar is `list := entry ("," entry)*`,
+  `entry := path ["?"]`,
+  with no escape syntax and no trimming;
+  exactly one trailing `?` is the optional marker,
+  so `name??` is the optional file `name?`
+  and a required path ending in `?` cannot be named either.
+  A cli-git `rulesFile` string is never split,
+  so commas and `?` there are part of the path.
+  A percent escape was rejected because it would change the meaning of existing paths containing `%25`,
+  and a backslash escape because it clashes with Windows separators.
+  The compiled-rules cache key stays the SHA-256 of the joined text.
+- Cutover dependency:
+  cli-git pins `forbidden-strings = "=0.5.0"` by path plus version and now uses its new public items
+  (`RulesEntry`,
+  `parse_rules_list`,
+  `Scanner::load_entries`),
+  so a forbidden-strings release must precede publishing cli-git.
 
 #### JetBrains policy: keep user write
 
@@ -1094,6 +1235,36 @@ You have podman.
 You can prototype."
 A throwaway prototype in a linked worktree and a podman container runs the real mpm and the candidate flows
 before the question returns.
+
+Prototype:
+[`doc/research/file-enforcer-rust-rewrite-mpm-files-prototype.md`](../research/file-enforcer-rust-rewrite-mpm-files-prototype.md)
+(branch `prototype/fe-mpm-files`,
+head `fb874028f9`).
+Asked again with its evidence,
+the user chose "Drop both;
+mpm-shadow checks".
+
+- `mpm.packages.toml` and `mpm.managers.toml` are deleted in both scopes:
+  mpm 8.2.0 ignored their versions for cargo and pnpm,
+  pinned rustup only because the package name is the channel,
+  and matched the direct `cargo binstall --version` byte for byte;
+  the only code reader was the rustup call that already falls back to `rustup toolchain install`.
+- mpm-shadow installs rustup channels and cargo-binstall tools directly from the lock,
+  and `mpm-shadow lock --check` is the toolchain drift gate in CI beside `file-enforcer check`.
+- file-enforcer has no toolchain role;
+  the earlier "lock's plan fields equal the plan" check moves to `mpm-shadow lock --check`.
+- `doc/decision/mpm-toolchain-adoption.md` (the restore manifest generated from the plan,
+  `:92-112`,
+  `:201-223`) is amended at acceptance.
+- Follow-up recorded,
+  not solved:
+  a consistent hand edit of a resolved lock version passes every gate,
+  so the lock needs its own integrity check (artifact URL against version,
+  or a digest) or a scheduled `update --check`.
+- Note:
+  the prototype branch was auto-pushed to `origin`,
+  as `APG` in `AGENTS.md` says auto-push does;
+  it stays as the primary source.
 
 #### Process lessons: deferred to issue #1817
 

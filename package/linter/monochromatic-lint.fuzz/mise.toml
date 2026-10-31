@@ -16,7 +16,7 @@ run = "cargo nextest run --lib"
 
 [tasks."test:planted"]
 description = "Plant one defect per fuzz target in a copy of the linter and require the generator controls to fail"
-run = "node bin/planted-controls.mjs"
+run = "node bin/planted-controls.ts"
 
 [tasks."lint:types"]
 description = "Check the fuzz helper library with denied Clippy warnings"
@@ -28,8 +28,38 @@ run = "cargo fmt"
 
 [tasks.build]
 description = "Build AddressSanitizer targets in a 2 GiB / 2 CPU container"
-run = "node bin/container.mjs --build-only"
+run = "node bin/container.ts --build-only"
 
 [tasks.smoke]
 description = "Run ASAN targets for 30s each in mount-free bounded containers"
-run = "node bin/container.mjs"
+run = "node bin/container.ts"
+
+[tasks."lint:scripts:types"]
+description = "Type-check the verification scripts in bin (TypeScript)"
+extends = "lint:types"
+
+[tasks."lint:scripts:oxlint"]
+description = "Lint explicitly selected fuzz sidecar TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('lint:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
+"""
+
+[tasks."format:scripts:oxlint"]
+description = "Auto-fix explicitly selected sidecar TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to fix"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('format:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
+"""

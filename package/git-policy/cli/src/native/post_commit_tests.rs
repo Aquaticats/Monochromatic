@@ -7,7 +7,7 @@ use super::*;
 use crate::auto_push_single_flight::PushGit;
 use crate::policy_registry::{PolicyId, Severity};
 use crate::repository_facts::RepositoryFacts;
-use crate::config_schema::ForbiddenStringsOptions;
+use crate::config_schema::{ForbiddenStringsOptions, RulesFileEntry};
 use crate::scanner_test_support::{needle, run_isolated};
 use crate::test_support::{executable, fixture, git, remove};
 use crate::wrapper_controls::no_controls;
@@ -382,7 +382,7 @@ fn configured_rules(_work: &Path) {
         &overlay,
         with_scanner(ForbiddenStringsOptions {
             builtin_rules: false,
-            rules_file: Some(String::from("rules.txt")),
+            rules_files: Some(vec![RulesFileEntry { path: String::from("rules.txt"), optional: false }]),
         }),
         no_controls(),
     ));
@@ -414,7 +414,7 @@ fn variable_rules(_work: &Path) {
         &overlay,
         with_scanner(ForbiddenStringsOptions {
             builtin_rules: false,
-            rules_file: None,
+            rules_files: None,
         }),
         no_controls(),
     );

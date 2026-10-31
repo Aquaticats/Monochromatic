@@ -43,6 +43,12 @@ mod scan_finding;
 pub use scan_finding::ScanFinding;
 /// Thread-isolated named-callback boundary for embedded rule loading.
 mod load_request;
+/// The comma-separated rules-list grammar shared by the flag, the environment variable, and embedding hosts.
+mod rules_list;
+/// Embedding hosts build entries directly or parse the same list value the command line accepts.
+pub use rules_list::{parse_rules_list, RulesEntry, RulesListError};
+/// Reads the files of a rules list once and joins them into the text the scanner compiles.
+mod rules_snapshot;
 /// In-process candidate snapshots reuse the standalone scan core and redaction rules.
 mod scanner;
 /// Embedded consumers identify candidates independently of redacted display labels.
@@ -325,7 +331,7 @@ use crate::walk::list_files;
 //   return set;
 // }
 // ```
-fn build_skip_set(rules_path: &str) -> std::collections::HashSet<std::path::PathBuf> {
+fn build_skip_set(rules_entries: &[RulesEntry]) -> std::collections::HashSet<std::path::PathBuf> {
     // What:     `let mut set: HashSet<PathBuf> = HashSet::new();` -- the
     //           usual mutable-empty-collection pattern.
     // Why:      Accumulate canonical-form paths we want to skip.
@@ -351,8 +357,11 @@ fn build_skip_set(rules_path: &str) -> std::collections::HashSet<std::path::Path
     // ```ts
     // try { set.add(fs.realpathSync(rulesPath)); } catch {}
     // ```
-    if let Ok(p) = std::fs::canonicalize(rules_path) {
-        set.insert(p);
+    // Every listed file is a rules file, so every one that exists is skipped; an absent one cannot be walked.
+    for entry in rules_entries {
+        if let Ok(p) = std::fs::canonicalize(&entry.path) {
+            set.insert(p);
+        }
     }
     // What:     Canonical self-match paths relative to the repo root.
     //           Each is generated source containing literal copies of
@@ -627,7 +636,16 @@ pub fn run_cli_from_env() -> Result<i32> {
     // A subcommand is a disjoint operation, not a scan option. Dispatch before
     // reading scan-mode environment fallback or walking candidate files.
     if let Some(command) = &cli.command {
-        runtime_cache::compile_rules_file_to_cache(command.rules_path())?;
+        let compile_entries: Vec<RulesEntry> = match parse_rules_list(command.rules_path()) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                eprintln!("forbidden-strings: --rules: {}", error);
+                return Ok(2);
+            }
+        };
+        for skipped in runtime_cache::compile_rules_to_cache(&compile_entries)? {
+            tracing::info!(path = %skipped.display(), "optional rules file is absent; skipped");
+        }
         return Ok(0);
     }
 
@@ -659,8 +677,11 @@ pub fn run_cli_from_env() -> Result<i32> {
     // const explicitRulesSource = cli.rulesPath !== undefined
     //   || process.env.FORBIDDEN_STRINGS_RULES !== undefined;
     // ```
-    let explicit_rules_source =
-        cli.rules_path.is_some() || env::var("FORBIDDEN_STRINGS_RULES").is_ok();
+    // The list grammar (`crate::rules_list`): `--rules` and the variable carry the same comma-separated list,
+    // an entry ending in `?` may be absent, and `--rules` replaces the variable instead of adding to it.
+    let rules_value: Option<String> =
+        cli.rules_path.or_else(|| return env::var("FORBIDDEN_STRINGS_RULES").ok());
+    let explicit_rules_source: bool = rules_value.is_some();
 
     // What:     `let builtin_rules = cli.builtin_rules;` copies the parsed
     //           boolean flag, same tiny-copy shape as `all` below.
@@ -677,10 +698,20 @@ pub fn run_cli_from_env() -> Result<i32> {
     // const rulesPath = cli.rulesPath ?? process.env.FORBIDDEN_STRINGS_RULES ??
     //   "forbidden-strings.local.txt";
     // ```
-    let rules_path = cli
-        .rules_path
-        .or_else(|| return env::var("FORBIDDEN_STRINGS_RULES").ok())
-        .unwrap_or_else(|| return "forbidden-strings.local.txt".to_string());
+    let rules_entries: Vec<RulesEntry> = match rules_value {
+        Some(value) => match parse_rules_list(&value) {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                eprintln!("forbidden-strings: invalid rules list in --rules or FORBIDDEN_STRINGS_RULES: {}", error);
+                return Ok(2);
+            }
+        },
+        None => vec![frx_load::single_entry(
+            std::path::Path::new("forbidden-strings.local.txt"),
+            builtin_rules,
+            false,
+        )],
+    };
 
     // What:     `let all = cli.all;` copies the parsed boolean flag. `bool` is a
     //           tiny copy type, unlike owned `String` or `Vec<String>`.
@@ -759,10 +790,10 @@ pub fn run_cli_from_env() -> Result<i32> {
     // ```
     let (rules_result, listed_result): (Result<_>, Option<Result<Vec<String>>>) =
         rayon::join(
-            || return frx_load::load(
-                &rules_path,
+            || return frx_load::load_listed(
+                &rules_entries,
                 builtin_rules,
-                explicit_rules_source,
+                !explicit_rules_source,
                 crate::BUILTIN_PRECOMPILED,
                 crate::BUILTIN_NAMES,
             ),
@@ -868,7 +899,7 @@ pub fn run_cli_from_env() -> Result<i32> {
     // ```ts
     // const skipSet = buildSkipSet(rulesPath);
     // ```
-    let skip_set = if all { build_skip_set(&rules_path) } else { std::collections::HashSet::new() };
+    let skip_set = if all { build_skip_set(&rules_entries) } else { std::collections::HashSet::new() };
 
     // What:     Canonical cwd, resolved once. `is_config_file_at_cwd`
     //           compares each candidate's canonical parent against this to

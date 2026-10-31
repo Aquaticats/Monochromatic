@@ -43,8 +43,9 @@ use git_policy_cli::repository_facts::RepositoryFacts;
 use git_policy_cli::repository_location::RepositoryLocation;
 use git_policy_cli::rule_commit_index::IndexVsHead;
 use git_policy_cli::rule_commit_sequencer::SequencerState;
+use git_policy_cli::rule_worktree_dirty::DirtyScope;
 use git_policy_cli::transaction_git::GitContext;
-use git_policy_cli::worktree_identity::WorktreeIdentity;
+use git_policy_cli::worktree_identity::{WorktreeIdentity, common_directory};
 use git_policy_cli::wrapped_command::{WrappedOutcome, run_wrapped_command};
 use git_policy_cli::wrapper_controls::{
     ControlMeaning, Controls, control_meaning, is_escaped, no_controls,
@@ -64,7 +65,7 @@ use git_policy_cli::wrapper_invocation::{StrippedInvocation, strip_wrapper_contr
 /// ```
 use std::ffi::{OsStr, OsString};
 /// `PathBuf` is an owned filesystem path of raw bytes.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  The spelling of the `git commit` hatch,
@@ -394,7 +395,7 @@ pub fn check_separator(arguments: &[OsString], separator: usize) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; sequencer: SequencerState; remoteGuess: boolean };
+/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct FixedFacts {
@@ -402,6 +403,8 @@ pub struct FixedFacts {
     pub location: RepositoryLocation,
     /// The answer to `index_vs_head`.
     pub index: IndexVsHead,
+    /// The answer to `worktree_dirty`, for either scope.
+    pub dirty: bool,
     /// The answer to `sequencer_state`.
     pub sequencer: SequencerState,
     /// The answer to `remote_guess_creates_branch`.
@@ -427,6 +430,10 @@ impl RepositoryFacts for FixedFacts {
 
     fn index_vs_head(&mut self) -> Result<IndexVsHead, String> {
         return Ok(self.index);
+    }
+
+    fn worktree_dirty(&mut self, _scope: DirtyScope) -> Result<bool, String> {
+        return Ok(self.dirty);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
@@ -472,18 +479,24 @@ impl RepositoryFacts for FixedFacts {
         return Some(Ok(self.location.clone()));
     }
 
-    /// What: A transaction context naming a Git that does not exist.
-    /// Why:  Any Git the lifecycle tried to start would fail instead of touching a repository.
+    /// What: A transaction context naming a Git that does not exist,
+    ///       with the common directory of the fixed location when it has one.
+    /// Why:  Any Git the lifecycle tried to start would fail instead of touching a repository,
+    ///       and a location without a repository has no common directory, as in the real facts.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// transactionContext() { return { gitPath: '/nonexistent/git', overlay: [], globalPrefix: [] }; }
+    /// transactionContext() {
+    ///   return { gitPath: '/nonexistent/git', overlay: [], globalPrefix: [], commonDir: commonDirectory(this.location.identity) };
+    /// }
     /// ```
     fn transaction_context(&self) -> GitContext {
         return GitContext {
             real_git: PathBuf::from("/nonexistent/git"),
             overlay: Vec::new(),
             global_prefix: Vec::new(),
+            // `.map(Path::to_path_buf)` copies the borrowed directory into the owned value the context keeps.
+            common_dir: common_directory(&self.location.identity).map(Path::to_path_buf),
         };
     }
 }
@@ -543,6 +556,7 @@ pub fn fixed_facts(mode: u8) -> FixedFacts {
         } else {
             SequencerState::NotInProgress
         },
+        dirty: mode & 16 == 16,
         remote_guess: mode & 8 == 8,
     };
 }

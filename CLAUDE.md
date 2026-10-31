@@ -360,6 +360,15 @@ Flagged choices (veto-open adoptions,
  ask same turn with options;
  never park them in docs.
 
+GXD:
+ Grilling a design:
+ first enumerate every dependency it needs (crates,
+ libraries,
+ tools)
+ and get each one picked,
+ before other branches;
+ the rest of the design builds on those picks.
+
 QCS:
  Under a quality-over-cost guideline,
  options differing only in price aren't user questions:
@@ -692,8 +701,10 @@ RXI:
  unbounded loops,
  uncapped fan-outs,
  stress/bench/load):
- run in `podman run --memory=2g --cpus=2 --rm` or `mvm`,
- stating bounds.
+ run in `podman run --memory=<size> --cpus=<count> --rm` or `mvm`,
+ stating bounds;
+ 2g and 2 are the defaults,
+ choose other numbers per task when the work needs them.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
@@ -701,7 +712,7 @@ NLG:
  busy loops,
  `--stress-count`,
  or repeated full test runs;
- cap the test's own container (`--cpus=2`) instead.
+ cap the test's own container (`--cpus`, default 2) instead.
 
 NLD:
  Every subagent brief quotes the synthetic-load ban;
@@ -715,6 +726,31 @@ NQH:
 Measure under the load there is,
  alternating arms with a same-binary control for the spread,
  and report counts.
+
+NHR:
+ Normal here,
+ never excuses:
+ high CPU load,
+ memory pressure and swap,
+ slow SSD and I/O,
+ nearly full disk or GPU memory,
+ process and descriptor limits near exhaustion.
+
+NHP:
+ Normal here,
+ never excuses:
+ a process killed at any instruction,
+ a closed terminal or broken pipe,
+ slow fsync,
+ unusual filesystems,
+ DNS or mirror trouble.
+
+RBT:
+ A reboot can make data on this machine's garbage SSD permanently unreadable:
+ commit and push before any reboot,
+ and never count on uncommitted files,
+ scratch,
+ or caches surviving one.
 
 FHU:
  Real jobs may use almost the whole host:

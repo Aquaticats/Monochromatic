@@ -5,6 +5,11 @@
 > paths and names below this note are historical:
 > `package/git/executable` is now `package/git-executable/core`.
 
+Note 2026-10-30: the scanner scripts `container-snapshot`, `verify-evidence`, `test-container` and the other
+`package/forbidden-strings/cli/bin/*.mjs` files, and the linter scripts `test-container` and `clippy-container` under
+`package/linter/monochromatic-lint/bin`, are TypeScript files now; read those `.mjs` names as `.ts`. The line near the
+scanner parity runs that says the scanner `bin/*.mjs` scripts still violate NMJ is out of date.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -3059,9 +3064,13 @@ processes and units and remove the worktrees afterwards):
   command is a real bug and must be reported at once.
 
 Open, not decided by evidence yet:
-- Task 66: the root cause of the two 5-second kills (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`,
-  `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`) is unknown; the commands measure 3 to 40
-  ms; one host-wide fork-failure episode was observed, not reproduced on demand. Next step: refuse bursts of
+- Task 66: the two 5-second kills (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`,
+  `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`) are explained and gone: on 2026-10-30 both
+  stalled in every capped run at `c3dddf91ac` (cloned wrapper, 12 of 12 under a 2 or 5 MB/s read cap, killed at 5000.7
+  ms on the first bounded command) and in none of 96 test executions at `1091639e0b` (hard-linked wrapper, caps down to
+  1 MB/s); see "The two task 66 tests" in the troubleshooting document above. That the 2026-10-29 failures were this
+  cause is consistent, not proven. Separately, one host-wide fork-failure episode was observed, not reproduced on
+  demand. Next step for the commit hangs: refuse bursts of
   `clone3` while several heavy tests overlap (the fork-failure sweep covers one commit at a time) to look for the five
   90-second commit hangs of the first partition run (`commit::fewer_lost_races_than_configured_take_no_reservation`,
   `commit::a_termination_signal_during_a_hook_ends_the_commit_and_leaves_nothing`, three `event_path_commit` replays).
@@ -3842,3 +3851,729 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Open after this: the next release (carries the help text and test fixes, no behavior change); Windows checks (task
   30); cleanup list in the earlier block (add the worktrees `integrate-3`, `integrate-4`, `integrate-5` and the
   `rel040` and `verify-040*` scratch).
+
+## Update at 2026-10-29 (night, wave 3 results)
+
+- Mutation wave 3 (tree `e0fc63d151` in `~/temp/agent/integrate-7`, logs `~/temp/agent/mutpar-w3-<file>.log.N`, images
+  `w30` to `w35`): `merge_options.rs` 25 mutants, 24 caught, 1 unviable. `child_watch.rs` 28 mutants, 21 caught, 7
+  unviable. `lfs_pre_push.rs` 27 of 27 caught. `wait_progress.rs` (wave 2) 30 mutants, 23 caught, 7 unviable.
+  `doctor.rs` 46 mutants, 42 caught, 3 unviable, 1 missed (`is_executable` replaced with `true`).
+  `scratch_location.rs` 28 mutants, 18 caught, 1 unviable, 9 missed (line 46 arithmetic, 170 guard, 202 and 221
+  `assert_private_directory`, 273 `sweep_stale` boundary). `merge_isolation.rs` was still running with 10 missed so far
+  (194, 195, 278, 280, 325, 326, 365, 405, 420).
+- Survivors went to two worktree agents: `a147fe04b77d88e17` (scratch_location and doctor) and `a06fecbc07efeef53`
+  (merge_isolation; it re-reads the log at the end). Each commits in its own worktree; I land them (merge `main` into
+  a fresh detached worktree, then `git merge --ff-only` in the main checkout).
+- Mutation wave 4 started over `push_stacking.rs`, `command_push.rs`, `auto_push_reconcile.rs` and `entry.rs` (task 65;
+  tree `6cd2a6d510` in `~/temp/agent/integrate-8`, units `cli-git-mutpar-w4-*`, images `w40` to `w43`).
+- Still queued after that: mutation over the remaining new modules (`merge_isolation_*` siblings, `hooks_off` is done);
+  the next release (carries the `doctor` help text and the test fixes; fix `wait-publish.ts` to the tag
+  `monochromatic-git-policy-cli-v<version>` first); cleanup list in the earlier block, plus worktrees `integrate-7`
+  and `integrate-8` and images `w3*`, `w4*`.
+
+## Update at 2026-10-29 (night, survivors killed)
+
+- Landed on main: tests killing the `scratch_location.rs` survivors (46, 170, 202, 273; commit `e88e18dc09`) and all 11
+  `merge_isolation.rs` survivors (commits `945dc4d1fb`, `0e38a8ac28`; new sidecar
+  `merge_isolation_repository_tests.rs` and a pseudo-terminal binary test for the editor decision). No production
+  code changed.
+- Unkillable on Linux, to exclude or leave: `scratch_location.rs` 221:5 and 221:8 and `doctor.rs` 100:5 are all in
+  `#[cfg(not(unix))]` variants (task 30 covers Windows).
+- Found by the merge_isolation agent: `unsaved_paths` reads the original-path field of a staged rename in
+  `status -z` as a status entry, so a source path starting with `U`, `AA` or `DD` forwards the merge to native Git
+  (safe fallback, wrong decision). Agent `a06fecbc07efeef53` is fixing it tests first on its branch; I land it.
+- Wave 4 (task 65) is running over `push_stacking`, `command_push`, `auto_push_reconcile` and `entry`.
+
+## Update at 2026-10-29 (night, wave 4 results, runner bug)
+
+- Wave 4 (tree `6cd2a6d510` in `~/temp/agent/integrate-8`, images `w40` to `w43`): `push_stacking.rs` 15 mutants, 15
+  caught. `entry.rs` 49 mutants, 42 caught, 7 unviable. `command_push.rs` 6 mutants, 5 caught, 1 unviable.
+  `auto_push_reconcile.rs` 71 mutants, 64 caught, 5 unviable, 2 missed (`integrate_and_push`: guard `plan.explicit`
+  at 635, `!` at 724). Agent `abbc13f4fc26d7e3d` is killing those two.
+- Full `merge_isolation.rs` campaign (log.1, 4 hours because of the runner bug below): 99 mutants, 76 caught, 8
+  unviable, 15 missed. Four beyond the 11 already killed: 437:55, 499:5, 500:9 (`recover_under_lock`) and 632:27
+  (`global_prefix` in `apply`). Agent `a06fecbc07efeef53` is killing those and hand-checking six more from a partial
+  rerun.
+- Runner bug found and fixed: `mutation-parallel.ts` chained its three attempts with `;` and used `break` outside a
+  loop, so every file ran all three attempts even after a good result (3 times the host time, identical results).
+  It now uses a real `for` loop. The stray units were stopped.
+- New flaky baseline: `native_binary forwarding::exit_codes_and_stderr_match_native_git` hit the 5-second bound (5.6 s)
+  in a `command_push` baseline rerun. The same agent investigates it (measure the slow command, then make the code
+  faster or move the command to the commit bound; no guessing).
+- Wave 5 started over `owner_lock.rs`, `worktree_copy_lock.rs`, `transaction_git.rs`, `markdown_linter.rs` and
+  `management_arguments.rs` (the 1810 and 1811 changes; tree `6cd2a6d510`... see `integrate-12`, images `w50` to
+  `w54`). After the survivor fixes land: rerun `merge_isolation`, `scratch_location` and `auto_push_reconcile` on the
+  new tree to confirm the kills.
+
+## Update at 2026-10-29 (night, two user directives)
+
+- Directive: promote `mutation-parallel.ts` (with `gate-slot.ts`) from `~/temp/agent` to a proper package. Agent
+  `aba63f1400b66332c` builds it in a worktree: named constants and options instead of magic numbers, no hardcoded
+  home or `/tmp`, pure functions for the unit name, shell body and `systemd-run` arguments with adversarial-input
+  tests, README, mise tasks. I land it. Until then the scratch copy (retry loop fixed) keeps running wave 5.
+- Directive: the user believed the repo does not set the container limits to exactly 2 CPUs; it does. `AGENTS.md`
+  (rules RXI and NLG) says `--memory=2g --cpus=2`, and the same literals repeat in five scripts under
+  `package/git-policy/cli/bin` (`test-native-container.ts`, `interop-native-container.ts`, `e2e-native-container.ts`,
+  `build-git-test-image.ts`, `mutate-native-container.ts`, which also writes `cpus: 2` and `--cpu-quota=200000`).
+  Per the user's "if I'm wrong, remove the magic number", agent `a7a7ce613876ad8e8` introduces one named-constants
+  module for the limits, keeping every podman argument list byte-identical (pinned by a test). I land it.
+- Why a launcher exists at all: the repo's `native:mutation:scoped` task runs one cargo-mutants campaign for one file
+  in one container capped at 2 CPUs and 2 GB with no `--jobs`; running several files at once needs one invocation
+  per file, which the launcher does under `gate-slot.ts`.
+
+- Follow-up directive (same night): the container memory and CPU limits must be settable per task, and agents choose
+  the exact numbers (the 2 GB and 2 CPUs become defaults, not rules). Agent `a7a7ce613876ad8e8` adds `--memory` and
+  `--cpus` options to every campaign task in `package/git-policy/cli`; agent `aba63f1400b66332c` makes the launcher
+  package forward them (and keeps its own `--unit-memory-max` and `--unit-cpu-quota` for the systemd caps). After both
+  land: reword the `AGENTS.md` rules that say `--memory=2g --cpus=2` (RXI and NLG) to name 2 GB and 2 CPUs as the
+  default that the agent may raise or lower per task with a stated reason, regenerate `CLAUDE.md` with file-enforcer,
+  and run one campaign with explicit non-default values to prove the options reach `podman`.
+
+- User feedback (answer to "I am a little bit disappointed"): the launcher bug, and that the custom cargo-mutants
+  scripts should have been promoted to a package earlier. New direction: one shared, product-neutral package holds all
+  non-product-specific cargo-mutants tooling (launcher, slot limiter, and whatever generic parts of
+  `package/git-policy/cli/bin/mutate-native-container.ts`, `native-mutation-options.ts`,
+  `native-planted-controls.ts` and other Rust packages' scripts the inventory finds); product-specific scripts stay as
+  thin adapters. Agent `aba63f1400b66332c` builds the package and writes the inventory and migration plan to
+  `doc/planning/shared-cargo-mutants-package.md`. The migration of the `cli/bin` scripts waits for the limits agent
+  `a7a7ce613876ad8e8` to land (same files). Lesson recorded: promote any script that more than one run depends on to
+  a package with tests the first time it is reused, before running campaigns on it.
+
+## Update at 2026-10-29 (night, survivors landed)
+
+- Landed on main: the four further `merge_isolation.rs` survivors (437, 499, 500, 632; commits `43a48dbb9a`,
+  `6b34a591d2`; 195:40 is equivalent, proof in the agent's report: a terminal and a non-terminal never share a device
+  and inode) and the two `auto_push_reconcile.rs` survivors (635 guard, 724 `delete !`; commit `ff7fcc3ea5`, four retry
+  tests over auto-push or explicit crossed with stale or non-stale failure).
+- Flaky `forwarding::exit_codes_and_stderr_match_native_git` (5.6 s at the shared bound, once): no mechanism found
+  after 3600 timed starts (median 3.7 to 5.9 ms, maximum 63 ms, no waiting syscalls in `strace`); the whole container
+  was 20 to 50 times slower at that moment, and unrelated tests hit the same bound in other baselines. The bound is
+  unchanged on purpose; `observe_raw` now names the command and directory when it trips
+  (`6171c37a65`, `a32a87e80c`), and the measurements are in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`. If a later occurrence names a
+  command with no waiting call, measure process start and file reads inside the container during the stall. Task 66
+  stays open for that.
+- Next: confirmation campaign over `merge_isolation`, `scratch_location` and `auto_push_reconcile` on the final tree,
+  after the limits and shared-package branches land (so one build serves them all); wave 5 results.
+
+## Update at 2026-10-29 (night, shared package landed, limits are per task)
+
+- Landed on main: the container limits module (`package/git-policy/cli/bin/container-limits.ts`) with `--memory`,
+  `--cpus` and `--pids-limit` on the campaign tasks (container gate on the landed tree: 2593 tests run, 2593 passed,
+  5 skipped); the `cli.fuzz` compile fixes (four breaks, three from this session's `GitContext` and landing-record
+  fields, one older: `worktree_dirty`, 2026-10-20; `lint:types` clean and 38 of 38 tests passed on the landed tree);
+  and the shared package `package/mutation-test/cli-cargo-mutants` (launcher, slot limiter, 193 unit tests, lint
+  clean) with the inventory and plan in `doc/planning/shared-cargo-mutants-package.md`.
+- User decisions on the plan: migrate forbidden-strings core `test:mutation` to the shared mount-free design and the
+  slot limiter; keep the package name and location; the excluded mutant kinds are one repository-wide constant owned
+  by the shared package (products may add more). Agent `aba63f1400b66332c` executes plan steps 1 to 6 with golden
+  outputs captured from the current scripts first; I then run one scoped campaign per product to prove parity.
+- Rules reworded per the user's "2g and 2 should be settable per task, agents have discretion": `AGENTS.md` RXI and
+  NLG now name 2g and 2 CPUs as defaults; `CLAUDE.md` carries the same two edits (verified identical to `AGENTS.md`
+  after its 49-line preamble; `sync:files` could not run in a throwaway worktree without `node_modules`, so I applied
+  the edit by hand and diffed).
+- Still open: wave 5 results (`owner_lock`, `worktree_copy_lock`, `transaction_git`, `markdown_linter`,
+  `management_arguments`), then the confirmation campaign over `merge_isolation`, `scratch_location` and
+  `auto_push_reconcile` on the final tree; the next release (0.4.1 with the doctor help text, the test fixes and the
+  `unsaved_paths` rename fix; fix `wait-publish.ts` first); cleanup list (worktrees `integrate-7` to `integrate-19`,
+  images `w3*` to `w5*`, `cli-git-gate-limits` unit is finished).
+
+## Update at 2026-10-29 (20:30, waves 5 and 6)
+
+- Wave 5 (tree `6cd2a6d510`, images `w50` to `w54`, logs `~/temp/agent/mutpar-w5-<file>.log.N`):
+  `management_arguments.rs` 35 mutants, 32 caught, 3 unviable. `worktree_copy_lock.rs` (75 mutants) still running at
+  20:23, expected between 20:45 and 21:15 from earlier rates (0.9 to 1.3 mutants a minute). `owner_lock.rs`,
+  `transaction_git.rs` and `markdown_linter.rs` never passed their baseline in three attempts: tests hit the shared
+  5-second bound (`markdown::a_failing_linter_stops_the_command` 11.4 s, `management::namespace_word_elsewhere_is_an_ordinary_argument`
+  5.2 s, two `discard::` tests 7 to 8 s; normally about 0.05 s). Host at that time: memory pressure full stall 2 to 3 %,
+  18 GB swap in use, 42 GB available, 28 cores, 2 campaign containers; no cause established (task 66).
+- Wave 6 started at 20:30 (tree = main at `integrate-20`, images `w60` to `w65`, units `cli-git-mutpar-w6-*`): reruns
+  of `owner_lock`, `transaction_git`, `markdown_linter`, plus the confirmation campaigns for `merge_isolation`,
+  `scratch_location` and `auto_push_reconcile`. If the three reruns fail their baselines again, measure memory
+  pressure (`/proc/pressure/memory`) and swap during the failure and fix the cause in the test harness or the
+  wrapper, not by raising the bound.
+
+- User directive (20:40): memory pressure is normal operating conditions for this machine and for the wrapper, not an
+  anomaly. Rule NQH in `AGENTS.md` and `CLAUDE.md` now says memory pressure and swap use are normal and that code and
+  tests must work under them. Agent `ac6a56aed8916cfec` reproduces the 5-second stalls under reclaim by capping its own
+  container's memory (no synthetic load), measures page faults and executable size of the debug and release builds,
+  and makes the wrapper or the test build faster where the numbers show the cause (the bound stays at 5 seconds). I
+  land its branch. Task 66 stays open until it reports.
+
+- User permission (20:45): if the shared 5-second bound in `observe_raw` (`binary_support.rs`) is too strict, bring the
+  user evidence (per-command time distributions under realistic reclaim, what dominates the time, why speeding up the
+  wrapper does not help); the bound may then be raised to at most 10 seconds. Not before the evidence is presented,
+  and never above 10 s. Agent `ac6a56aed8916cfec` was told to report such evidence and not to edit the bound itself.
+
+- User condition on the bound (20:50): presenting evidence is not enough. The user must explicitly approve the evidence
+  itself (they judge whether it is good enough) before any change; only then may the bound rise, to at most 10 s. Ask
+  through the question tool with the evidence attached, and treat silence or a vague reply as no approval.
+
+- User directive (21:00): slow or garbage SSD and I/O trouble, and GPU memory nearly full (about 500 MB free), are
+  normal operating conditions too. The user chose, from my suggestions, to also name: a nearly full disk, process and
+  descriptor limits near exhaustion, a process killed at any instruction, a closed terminal or broken pipe, unusual
+  filesystems with slow fsync, and DNS or mirror trouble (the user's wording: sometimes we just need a different DNS or
+  a mirror, so the rule says recover or fall back). Not chosen: clock jumps, CPU throttling. Recorded as two tagged
+  rules in `AGENTS.md` and `CLAUDE.md`: NHR (resources) and NHP (processes and environment). The earlier memory
+  sentence in NQH was removed to keep NQH under the rule length limit; NHR carries it now.
+- Consequences to act on: the disk-full and descriptor-limit cases need fault-injection tests in the wrapper (a tiny
+  tmpfs inside a capped container for ENOSPC in the middle of a journal, lock or index write; a low `ulimit -n`),
+  and the closed-terminal case needs binary tests for EPIPE on stdout and stderr, no stdin, and SIGHUP while the
+  wrapper holds a lock or has a half write. Not started; queued here (task 66 and a new task below).
+
+- User correction (21:10): "must work under them" does not belong in the general rule. Only a few packages have the
+  honor of having to work under the normal conditions, and each documents that itself; the git wrapper is one. So
+  rules NHR and NHP in `AGENTS.md` and `CLAUDE.md` now only name the conditions as normal (NHP also lost its
+  "Recover or fall back, never wedge" sentence, same reason; revert it if the user wants it kept). The wrapper's
+  contract lives in a new README section `Operating conditions` in `package/git-policy/cli/README.md`: it lists the
+  conditions the wrapper, its recovery paths and its tests must work under, and points at the troubleshooting note
+  for the 5-second bound. Task 76 (fault-injection tests) is that contract's test work. Other packages that earn the
+  same status add their own section; none are named yet.
+- Working conditions for this contract, as the user stated them: high CPU load, memory pressure and swap, slow SSD and
+  I/O trouble, nearly full disk, process and descriptor limits near exhaustion, a process killed at any instruction,
+  closed terminal or broken pipe, slow fsync and unusual filesystems, DNS or mirror trouble. GPU memory nearly full is
+  normal on this host but irrelevant to the wrapper. Clock jumps and CPU throttling were not chosen.
+
+## Update at 2026-10-29 (21:45, release 0.4.1)
+
+- Released 0.4.1 (commit `46ec903c0b`; publish run 40981372725 succeeded; crates.io 2026-10-30T00:44:04Z; GitHub
+  release `monochromatic-git-policy-cli-v0.4.1` with the x86_64 and aarch64 tarballs). It carries two behavior fixes:
+  the `doctor` help text states the real exit statuses, and a staged rename no longer forwards a merge to native Git
+  (`unsaved_paths` skips the original-path field). The rest since 0.4.0 is tests and docs (container limit options in
+  the task scripts, README `Operating conditions`). The container gate on the same `src` passed: 2593 of 2593, 5
+  skipped. `wait-publish.ts` now uses the tag `monochromatic-git-policy-cli-v<version>`.
+- Adoption into the toolchain pin (production `git`) is blocked: `mise run toolchain:update` aborts and writes nothing
+  because the Node resolver takes `index[0]` of `https://nodejs.org/dist/index.json`, which is now the pre-release
+  `v27.0.0-alpha.0.0.0` (2026-10-29) with no checksum rows. Agent `a8f06b44b46f80eb8` fixes
+  `package/file-enforcer/core/src/toolchain/update.resolvers.node.ts` to skip pre-releases (tests first). After it
+  lands: run `toolchain:update`, expect these moves: `cargo:monochromatic-git-policy-cli` 0.4.0 to 0.4.1,
+  `cargo:cargo-dylint` and `cargo:dylint-link` 6.3.0 to 6.3.1, `npm:wrangler` 4.155.0 to 4.156.0 (the node row stays
+  or moves to 26.13.0); review the lock diff, commit explicit paths, `toolchain:sync`, then verify
+  `git cli-git --help` and a rename-merge probe on the installed binary.
+- Release tooling lesson (same as the mutation launcher): `release.ts` and `wait-publish.ts` in `~/temp/agent` are
+  reused every release and hardcode the repository root; promote them to a package with tests (queued, not started).
+
+## Update at 2026-10-29 (22:10, 0.4.1 adopted)
+
+- Landed `bb4a09eaa1` (merge `29d726164b`): `resolveNode` in `package/file-enforcer/core/src/toolchain/update.resolvers.node.ts`
+  skips pre-release entries of the nodejs.org index (four tests; troubleshooting note
+  `doc/troubleshooting/toolchain-update-aborts-when-node-index-lists-a-prerelease.md`). `toolchain:update` runs the
+  source, so the live run proved the fix: it skipped `v27.0.0-alpha.0.0.0` and wrote the four pin files. Note: the
+  package's `test:unit` task tests the built `dist`; run `mise run //package/file-enforcer/core:build` first or the
+  two new tests fail against stale output (they did on main until I built).
+- Adopted 0.4.1: commit "chore(mise): adopt monochromatic-git-policy-cli 0.4.1 with cargo-dylint 6.3.1, dylint-link
+  6.3.1 and wrangler 4.156.0 via toolchain:update". The lock diff was exactly those four moves (18 lines changed in
+  four files). `toolchain:sync`: 4 installed, 59 unchanged, 0 failed. Verified with `~/temp/agent/verify-041.ts` on the
+  installed wrapper: new doctor help line present; a merge beside a staged rename of `Uold.txt` made a two-parent
+  merge and kept the rename staged. Linked worktrees whose lock still pins 0.4.0 swap the install back on their next
+  sync until they merge main.
+- Found, not ours, not fixed: file-enforcer core `test:unit` still fails one test after the build:
+  `staleness-concurrency-regression` "concurrent manifest writers preserve both entries" times out at 10 s on this
+  loaded host, and the same file carries the only lint warning in that package (`numeric-separators-style` at
+  `WAIT_ATTEMPTS = 3000`, line 42). Peer session `monochromatic-04` asked earlier about the staleness manifest.
+  Needs its owner (or the user's say-so) before I touch it.
+
+## Update at 2026-10-29 (22:50, stall mechanism found, shared package landed)
+
+- The 5-second stalls have a measured mechanism (agent `ac6a56aed8916cfec`, doc
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`): each fixture's copy of the
+  wrapper is a btrfs reflink clone with no pages in the page cache, so the first wrapped command of every fixture reads
+  the executable from disk (debug build 21.9 MB, 16.3 MiB read; release 9.9 MB, 9.45 MiB). With both btrfs devices
+  capped at 5 MB/s the first command took 5.0 to 6.2 s (killed by the bound); with a real copy (`cp --reflink=never`)
+  3 to 4 ms. It is positional, which is why no single command was common to the failures, and why the earlier
+  3600-start measurement (one fixture) missed it. Memory caps from 96m to 2g had no effect. No raise of the 5-second
+  bound is supported by the data (a 10 s bound would hide it at 5 MB/s and not at 1 MB/s); the user's approval gate
+  for a raise stays.
+- Landed: the harness fix and a FIEMAP guard test (`a_fixture_wrapper_copy_shares_no_storage_with_the_built_executable`)
+  and `strip = "symbols"` for the release profile (user chose option B: 9.45 to 8.09 MiB first-start read; fat LTO
+  with one codegen unit, 7.43 MiB, not adopted because it lengthens the release build). Next release carries the
+  strip. Unverified: wall-time gain of the strip on a cold start, fsync sensitivity (write caps did not slow fsync),
+  Git's own executable eviction.
+- User, on seeing "each fixture's copy of the wrapper": that smells. Agent `ac6a56aed8916cfec` was resumed to find why
+  every fixture copies the executable and to replace it with the cleanest design (one real copy per test process,
+  reached through a hard link or symlink, or no copy), measured, with a guard test. I land its branch.
+- Landed: the shared package migration (`package/mutation-test/cli-cargo-mutants`; steps 1 to 6; 359 unit tests; 44 golden
+  pins of the old scripts; the engine is used by git-policy, the linter, forbidden-strings core, with the scanner on
+  the shared exclusion constant only). Intentional changes are listed in `doc/planning/shared-cargo-mutants-package.md`.
+  Parity proof is running: units `cli-git-parity-git-policy` (command_push.rs with `--memory 3g --cpus 3`, check the
+  container's limits with `podman inspect`), `-forbidden-core` (charset.rs with the same limits), `-linter`
+  (`mutation:markdown:parent`), `-scanner` (`test:mutation:startup:container`); logs `~/temp/agent/parity-<name>.log`.
+  The engine's snapshot image build and the new create flow had never run against real Podman before this.
+
+## Update at 2026-10-29 (23:30, fixtures hard-link the wrapper; linter scratch fix; parity runs)
+
+- Landed (merge `e629ae0c0d`): fixtures no longer copy the wrapper. `link_built_wrapper` hard-links the built
+  executable into each fixture (fallback: `--reflink=never` data copy, error printed), `warm_wrapper` reads it once per
+  process after the link. Nothing in the wrapper needs a private file: `current_exe` is only compared by file identity,
+  hook entries are recognised by `argv[0]`. Measured: placing the wrapper 0.03 ms (hard link) against 4.6 ms median,
+  256 ms maximum (data copy); about 5 GB of copies per suite run avoided; at a 2 MB/s read cap the link without the
+  warm read still hit the bound (5.02 s), so the warm read is part of the design, and the design is not more robust
+  than the data copy against a slow disk (both move the read outside the bound). Guards: same-inode test
+  and the byte-copy extents test, each shown failing once. Container gate on the landed tree: unit
+  `cli-git-gate-final`, log `~/temp/agent/gate-final.log` (the agent had run the suite only before the merge).
+- Landed: `70818d6c38`, the linter's `test_scratch.rs` keeps the unit-test scratch root out of any directory holding
+  a Cargo.toml (cause of the container failure of `closure_packages::tests::a_file_without_an_owning_manifest_is_left_out_with_a_note`:
+  the scratch root moved under the build dir by `da7dfae188`, and in the test container the build dir is inside the crate,
+  so the crate's own Cargo.toml owned the fixture; host runs never saw it because `~/.cargo/config.toml` moves the build dir).
+  Not changed, not checked: `monochromatic-lint-closure` and six other packages carry their own copy of
+  `test_scratch.rs` (mpm-shadow, search-shadow, ide, nested-wayland-session, music-player truepeak-core,
+  forbidden-strings cli); a test there that expects "no owning manifest" would fail the same way in a container.
+- Parity runs of the shared mutation engine against real Podman: first attempts failed because the main checkout did
+  not link the new package (`mise run prepare:pnpm:install` fixed that; run it in every checkout after merging main)
+  and because of the linter scratch bug above. Reruns: units `cli-git-parity-git-policy` (command_push.rs,
+  `--memory 3g --cpus 3`), `-forbidden-core` (charset.rs, same), `-scanner`, `-linter`; logs
+  `~/temp/agent/parity-<name>.log`. Check the 3g and 3 CPU limits with `podman inspect` while a campaign container runs.
+- Leftovers from agent `ac6a56aed8916cfec` to clean (not done): its worktree has a staged hand-merged
+  `doc/audit/standards-review-gate-shadow.md`; a stash entry from its autostash (`6f9966c7e5`, the repo guard blocks
+  `git stash drop`, content already incorporated).
+
+## Update at 2026-10-29 (22:20 by the host clock; the timestamps in the last four blocks ran ahead, ignore them)
+
+- Container gate on the landed tree with hard-link fixtures: 2595 tests run, 2595 passed, 5 skipped, 120.7 s
+  (unit `cli-git-gate-final`, log `~/temp/agent/gate-final.log`). It needed `mise run prepare:pnpm:install` in the
+  throwaway worktree first (the new shared package is a workspace link).
+- Mutation results on the current tree (waves 5 and 6; images `w50` to `w54`, `w60` to `w65`):
+  `worktree_copy_lock` 75 mutants, 66 caught, 9 unviable; `markdown_linter` 12, 8 caught, 4 unviable;
+  `auto_push_reconcile` 71, 66 caught, 5 unviable (both earlier survivors dead); `management_arguments` 35, 32 caught,
+  3 unviable; `owner_lock` 47, 36 caught, 10 unviable, 1 missed that is equivalent (`announces_at_start` default body
+  is already `return false;`, checked); `transaction_git` 50, 40 caught, 8 unviable, 2 missed, now killed by two new
+  tests (merge `87a898d65e` successor, 34 lines); `scratch_location` 28, 26 caught, 1 unviable, 1 missed that is the
+  `cfg(not(unix))` variant (unkillable on Linux); `merge_isolation` still running its third baseline attempt, one
+  survivor so far, the known equivalent 195:40. Baselines failed on 2 to 3 attempts for `owner_lock` and
+  `merge_isolation` on the pre-hard-link tree; recheck on the new tree.
+- Parity of the shared mutation engine against real Podman: forbidden-strings core 48 of 48 caught (snapshot image
+  build and campaign worked), linter 4 of 4 caught, git-policy running (its planted controls passed; its container
+  showed 3 GiB and 3 CPUs, so the per-task `--memory 3g --cpus 3` options reach Podman). Scanner: baseline `cargo test
+  -p forbidden-strings --lib` fails in the unmutated tree; agent `aba63f1400b66332c` diagnoses (suspect: the same
+  scratch-root class as the linter bug).
+- Release 0.4.2 (strip symbols in the release profile) cut next; then adopt via `toolchain:update`.
+
+## Update at 2026-10-29 (23:30 host clock, 0.4.2 released and adopted)
+
+- Released 0.4.2 (commit `627fa9c444`; run 40991272842; crates.io 2026-10-30T02:26:00Z; both tarballs). Content: release
+  builds strip symbols (installed binary 8,475,712 bytes, `file` says stripped), fixtures hard-link the wrapper, and
+  new tests. Adopted by `toolchain:update` (crate 0.4.1 to 0.4.2 and rust nightly-2026-10-29 to 2026-10-30; 12-line
+  diff) and `toolchain:sync` (2 installed, 0 failed). Verified on the installed binary: doctor help line present;
+  merge beside a staged rename kept the rename and made a two-parent merge.
+- Mutation: `merge_isolation` on the current tree 102 mutants, 93 caught, 8 unviable, 1 missed (195:40, equivalent,
+  proven). `transaction_git` survivors killed (34 test lines, landed). `owner_lock` 695:9 equivalent (the default body is
+  already `return false;`, read). `scratch_location` 221:5 and `doctor` 100:5 are `cfg(not(unix))` variants,
+  unkillable on Linux.
+- Scanner: two stacked baseline failures that predate the shared package, found by the first real parity run and
+  fixed: (1) `path_scan_prefix_tests.rs` lost a `/./` segment in two expectations in the product-category move commit
+  `113633b259` (restored, `8cb39ed806` cherry-picked; a scan of that commit for the same pattern found nothing else);
+  (2) the campaign snapshot had no `.github/workflows/forbidden-strings.yml`, which six `ci_scan_scope` tests read
+  (`container-snapshot.mjs` and `verify-evidence.mjs` fixed, cherry-picked from `3169b87732`). The scanner's
+  `bin/*.mjs` scripts still violate NMJ (they should be `.ts`). Parity rerun: unit `cli-git-parity-scanner`.
+- Git-policy parity (`cli-git-parity-git-policy`, command_push.rs, `--memory 3g --cpus 3`): in the planted-controls
+  phase (the launcher skips it with `NATIVE_MUTATION_SKIP_PLANTED=1`, my direct run did not): 46 of 78 done at 23:22,
+  about 2.7 minutes each, then about 15 minutes of campaign. Expected end about 01:05.
+- Open: `monochromatic-lint-closure` `ui_tests.rs` stages a fixture package under `scratch_root()`; in the container
+  layout that sits below the crate's Cargo.toml (not run; its owner should check). `search-shadow` and `ide/app` tests
+  create their own `.git` inside fixtures (not run in the in-crate layout either).
+- Cleanup still to do: worktrees `~/temp/agent/integrate-7` to `integrate-28`, the rest of the earlier list, images
+  `w*`, local branches (`cm-scanner-scratch` and the agents' branches), the stash entry from the autostash, and the
+  agent worktrees under `.claude/worktrees/`.
+
+## Update at 2026-10-30 (00:30 host clock, cleanup)
+
+- Done: removed 33 scratch worktrees under `~/temp/agent` (`integrate-3` to `integrate-28`, `integrate-final-wt`,
+  `integrate-merge-wt`, `combined/wt`, `waits/wt`, `mut/wt`, `merge-slices`, `verify-retry`; no process had a working
+  directory in them), the scratch directories `1811`, `combined`, `mut`, `rel040`, `target-merge-clippy`,
+  `target-merge-tests`, `waits`, two `verify-041-*` fixtures; untagged the campaign images `w20` to `w54` and `w60` to
+  `w64` (test and mutation), removed three stopped containers from failed baselines. Kept: image
+  `git-policy-native-test:w65` (used by the running git-policy parity container), the older `m*`, `hints*`, `s1791*`
+  tags, and all `mutpar-*` and `parity-*` logs.
+- Not done, waiting for the user: 24 agent worktrees under `.claude/worktrees/agent-*` and their local branches. The
+  auto-mode classifier denied a script that would remove those whose branch tip is already contained in main
+  (rule that cannot lose commits; skips `agent-a563e0c526d53df51`), because ownership of the older ones cannot be
+  established from names. Branches whose work was cherry-picked rather than merged (`cm-scanner-*`, the
+  `aba63f1400b66332c` branch) are not ancestors of main and would stay anyway. Remote copies of these branches
+  (auto-pushed by the hook) are not touched. Also leftover: a stash entry `6f9966c7e5` from the autostash of agent
+  `ac6a56aed8916cfec` (the repo guard blocks `git stash drop`).
+- Still running: `cli-git-parity-git-policy` (64 of 78 planted controls at 00:17, then the `command_push.rs`
+  campaign; expected end about 01:15).
+
+- Agent worktree cleanup (user chose option A, then granted the command): removed 21 worktrees under
+  `.claude/worktrees/agent-*` whose branch tips were contained in main, plus their local branches with the safe delete.
+  Kept: `agent-a1360b7e02c5cec27` (locked by a live agent process, pid 1904886, not ours to remove),
+  `agent-aba63f1400b66332c` (its scanner and linter fixes were cherry-picked, so its tip is not an ancestor of main),
+  and the local branch `worktree-agent-ac6a56aed8916cfec` (the worktree is gone; git refused the safe delete as "not yet
+  merged"). Also still present: local branches `cm-scanner-fix`, `cm-scanner-workflow`, `cm-scanner-scratch`,
+  `integrate-slices` and the `-combined`, `-mut`, `-waits` branches of agent `a367b2612f424f68c`; remote copies of all
+  of them were auto-pushed and are untouched. The script is `~/temp/agent/cleanup-agent-worktrees.ts`. For a standing
+  permission the exact rule string is `Bash(node /home/user/temp/agent/cleanup-agent-worktrees.ts)` under
+  `permissions.allow` in `.claude/settings.local.json` (from the Claude Code permissions docs; the user must add it, not
+  tested in a live session).
+
+## Update at 2026-10-30 (01:05 host clock, all parity runs done)
+
+- Shared cargo-mutants engine parity against real Podman is complete: forbidden-strings core 48 of 48 caught, linter 4 of 4,
+  scanner 5 of 5 (after two older baseline defects were fixed), git-policy `command_push.rs` 5 caught and 1 unviable
+  (identical to the result before the migration) with all 78 planted controls noticed, run with
+  `--memory 3g --cpus 3` (container showed 3 GiB and 3 CPUs). Image `w65` untagged. Task 65 (1804 mutation campaign) is
+  complete: `push_stacking` 15 of 15, `command_push` 5 and 1 unviable, `entry` 42 and 7 unviable, `auto_push_reconcile`
+  66 and 5 unviable after the two survivors were killed.
+- Open: task 66 (the 5-second stalls: mechanism found and fixed in the harness; keep the task until a full week of
+  loaded runs show no recurrence, and `dependent_version` and `controls` were never explained), task 76 (fault-injection
+  tests for the normal-conditions rules), task 69 (journal syncs), tasks 23 and 30 (Windows), the file-enforcer
+  staleness test that times out at 10 s on this host, the `monochromatic-lint-closure` fixture question, the NMJ debt in
+  the scanner's `bin/*.mjs` scripts, promoting `release.ts` and `wait-publish.ts` to a package, and the remote copies
+  of the scratch branches.
+
+## Update at 2026-10-30 (01:15 host clock, open items dispatched)
+
+- Dispatched to agents (worktrees, I land their branches; briefs in this session): `a8a2fc13ee399243e` fault-injection
+  tests for the normal-conditions contract (task 76: inventory first, then ENOSPC-like write failures via setrlimit,
+  EMFILE, fork failure, closed terminal and broken pipe, SIGHUP and SIGKILL at journal barriers, unreachable remote);
+  `a901ca395a7be5add` release scripts (`release.ts`, `wait-publish.ts`) promoted to a package;
+  `a0f811841a29c76bc` the remaining `.mjs` scripts in `forbidden-strings/cli` and `monochromatic-lint` converted to
+  `.ts` (NMJ), golden pins of the shared mutation package must pass unchanged; `aef2a30bd02e26c5e` the
+  `dependent_version` and `controls` stalls re-measured under slow-disk and memory caps at the pre-fix commit and at main
+  (closes task 66 or finds the mechanism); `a10588f87fc49c23f` the `monochromatic-lint-closure` crate (and the other nine
+  `test_scratch.rs` copies) checked for the container-layout scratch-root bug.
+- The file-enforcer staleness test timeout is already tracked as issues 1812 and 1813 (another session); I added the
+  observation to 1812 instead of opening a duplicate.
+- Agent `ac6a56aed8916cfec` could not be resumed because its worktree was removed in the cleanup; a fresh agent took its
+  follow-up.
+
+- Container-layout scratch-root check (agent `a10588f87fc49c23f` and my follow-up): `monochromatic-lint-closure` is not
+  affected (24 of 24 pass with the build directory inside the crate; its UI test exports `CARGO_MANIFEST_DIR` and
+  `OUT_DIR` itself and nothing searches upward for a manifest). The other nine `test_scratch.rs` copies show no failing
+  case by code reading. One latent risk remains unconfirmed in `package/ide/app`: `a_worktree_that_is_not_above_the_project_does_not_serve_it`
+  (toolchain_tests), `outside_a_work_tree_nothing_is_ignored` (git_ignore_tests) and
+  `outside_a_work_tree_no_row_is_flagged_or_named_ignored` (native::ignored_row_tests) assume no repository root and no
+  `package/file-enforcer/core/src/toolchain/bin-paths.ts` above the scratch directory; they would fail if the build
+  directory sat inside a monorepo checkout. The crate cannot be built on the host (`build.rs:207` panics without the
+  container-prepared runtime), so the three tests run only in the IDE container, whose mount holds only `package/ide/app`.
+  Not shown failing; owner of `package/ide` should decide.
+- Correction to the note above: `package/ide/app/build.rs:207` panics only because the language runtime manifest is
+  absent; its message says to prepare it with `mise run //package/ide/app:runtime`. The crate can be built and its tests run
+  on the host after that task (not run: it fetches and builds Helix grammars). To confirm the latent layout risk, run it
+  once, then the three named tests with `CARGO_BUILD_BUILD_DIR=target` inside a throwaway worktree.
+
+- Landed `package/ide/app` fixes (agent `a1f6ad776dbfa958f`, commits `8f313d2a48` and `a080bc7923`): the latent scratch-root
+  bug is real. With the cargo build directory inside a checkout, `scratch_root` landed inside the repository, and
+  `toolchain::tests::a_worktree_that_is_not_above_the_project_does_not_serve_it` and
+  `git_ignore::tests::outside_a_work_tree_nothing_is_ignored` failed (the `config_tests` cases passed only because this
+  machine has no TypeScript install above the worktree). `scratch_root` now falls back to
+  `$HOME/.cache/monochromatic-ide-test-scratch` when the build directory has a `.git`, the file-enforcer toolchain
+  entry point or `node_modules/typescript/bin/tsc` above it; invariant test in the lib and native test binaries; 33 of 33
+  passed after the fix. Second bug: the `monochromatic-ide` bin test target had not compiled since `5e32ff2d84` (57 E0433
+  errors) because `src/main.rs` lacked `#[cfg(test)] mod test_scratch;`; the `test` task runs only `--lib --tests`, so
+  it never noticed (`test:native` would fail the same way). Not verified: host clippy stops in `build.rs` on two
+  pre-existing "missing `return`" errors, and the container tests were not run; the native test needs
+  `SLINT_EMIT_DEBUG_INFO=1` at build time as the container sets.
+
+- Auto-push observation (2026-10-30, about 02:00 host clock): the post-commit auto-push of a handover commit failed with
+  `error: failed to push some refs to 'https://github.com/Aquaticats/Monochromatic'` and `commit saved locally, but
+  auto-push to origin failed`. `main` was three commits ahead of `origin/main` and zero behind (plain fast-forward), and a
+  manual `git push origin main` succeeded right after (`bef7d67c62..75944a85e3`). The cause is not known: my command had
+  cut the output to its last two lines, so the remote's rejection lines were lost. Rule from the user: auto-push never
+  fails without a conflict (offline and auth exempt). Next time this happens, read the full push output before
+  anything else (do not pipe through `tail`), check whether another session pushed in the same second, and whether the
+  wrapper classified a transient server-side error as a hard failure; if it recurs, file it as an issue against
+  `package/git-policy/cli` with the full output.
+
+## Update at 2026-10-30 (host clock, packages and conversions landed)
+
+- Landed: `package/crate-release/cli` (`@monochromatic-dev/crate-release-cli`; bins `crate-release` and
+  `crate-release-wait`; replaces the scratch `release.ts` and `wait-publish.ts`; the wait command now fails when the
+  run failed, crates.io lacks the version or a tarball is missing; mise tasks `native:release` and `native:release:wait`
+  in `package/git-policy/cli/mise.toml`; not yet used for a real release, use it for 0.4.3 and compare with the
+  scratch scripts' output) and `package/shell-argument/core` (`@monochromatic-dev/shell-argument-core`: `shellQuote`,
+  the character-set helpers, `ShellArgumentError`; both the release package and the mutation package import it, so the
+  release tool no longer depends on a mutation-test package). Verified on main: unit tasks exit 0 with no FAIL lines for
+  shell-argument, cli-cargo-mutants and crate-release.
+- Landed: the eight `.mjs` to `.ts` conversions in `package/forbidden-strings/cli/bin` and
+  `package/linter/monochromatic-lint/bin` (10 commits; the old-versus-new comparisons used stand-in podman and cargo).
+  Real-Podman proof after landing: the scanner startup mutation campaign passed (baseline ok, 5 of 5 caught). Behavior
+  changes: the scanner's `run()` is async; a signal-ended command reports `status` absent and callers write `null`;
+  `ScannerVerificationError` prints its own name. Still `.mjs`: `forbidden-strings/cli.fuzz/bin/smoke-container.mjs`,
+  `linter/monochromatic-lint.fuzz/bin/container.mjs` and `planted-controls.mjs` (agent `a0f811841a29c76bc` has the
+  follow-up).
+- Task 66 closed: the cold first start of the cloned wrapper explained `dependent_version` and `controls`; at the pre-fix
+  commit both tests were killed at the bound in every capped run (6 of 6 at 5 MB/s and at 2 MB/s); at main 0 of 96 test
+  executions hit it across 5, 2 and 1 MB/s caps; the load-28 failures on 2026-10-29 are consistent with this but not
+  proven. Doc: `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`.
+- Open: task 76 (agent `a8a2fc13ee399243e`), the three sidecar conversions, tasks 23, 30 and 69, the standing
+  permission rule for the cleanup script (user), issue 1812 follow-up (another session), `ide/app` host clippy
+  `build.rs` errors (pre-existing).
+
+## Update at 2026-10-30 (commit-path profile, and the client and server question)
+
+- The user asked whether a client and server rewrite would be much better. My first answer was no, argued from the
+  recorded 0.3.0 figures (155 ms commit, 1.5 to 3.1 ms forwarded). The user chose to profile (task 77) before settling.
+- Landed first: the three sidecar `.mjs` conversions (`d669365d05`, `ba6a0c3d7c`, `b07af7afe8`, merged as
+  `f437acf8dc`). Package-wide `lint:scripts:oxlint` stays by-path in the scanner and the linter; the reasons are in
+  their READMEs ("Script linting").
+- Method: the installed 0.4.2 release binary (stripped), a derived image `localhost/commit-profile:dev` (the wrapper
+  test image plus `strace` and `linux-perf`), `--memory=3g --cpus=2`, fixtures on a host-disk bind mount (not tmpfs),
+  20 iterations alternating direct, wrapped and direct again (the second direct arm is the same-binary control).
+  Scratch and raw output: `~/temp/agent/commit-profile`.
+- Container timings of an explicit-path commit: direct 4.1 ms median in both control arms (MAD 0.3 and 0.2), wrapped
+  393.3 ms median (MAD 21.0, p95 866.7). The host run of the same code is 135 ms, so this is not a 0.4.2
+  regression; fsync latency varied widely during the container run (see the sync figures below), and I did not isolate
+  the cause between host load and the mount.
+- Host timings (`native:perf`, 30 samples, same code): forwarded commands add 1.5 to 1.8 ms median; the explicit-path
+  commit is 135.2 ms wrapped against 5.1 ms direct, 130.1 ms added median, 147.4 ms p95. The recorded 155 ms for
+  0.3.0 (5 samples) is consistent, so there is no regression.
+- Census of one wrapped commit (container): about 36 real `git` processes (the other `execve` entries are failed
+  PATH lookups in the wrapper directory), 3 `findmnt` and 3 `stat` spawns that the host path replaces with `statx` and
+  mount-table reads (the container mount made the native lookup report unknown; not traced on the host), and 31
+  `fsync` calls where direct git makes none. User CPU is 66.7 ms against 4.3 ms direct at 0.18 CPUs utilized, so most
+  wall time is waiting.
+- Sync calls: journal and lock files under `.git/cli-git-transactions` and `.git/cli-git-captures`, the shadow
+  `packed-refs`, `index.lock`, the `.git` directory, and three pack temporary files. I did not attribute the
+  last four to the wrapper or to a child `git`. Per-call cost was 1.8 ms in a quiet re-trace (31 calls, about 56 ms)
+  and 15 of 31 calls took over 10 ms in the first traced run (286 ms total). Fsync latency moves five-fold with host
+  state, which is the normal condition per rule NHR.
+- Git calls in the commit: shadow repository `init --bare`, `read-tree`, `pack-objects`, `index-pack`, four
+  `diff-index`, three `ls-files`, two `cat-file --batch`, six `rev-parse`, `write-tree`, `update-ref`, `add`,
+  `reset`, `maintenance run --auto --detach`, `remote get-url`, `config --list`.
+- Bound on a daemon: the sync cost cannot move into a daemon, because the syncs are the crash safety. Up to the
+  67 ms of CPU and spawn share could in principle go, about half of the 130 ms added on a quiet disk and a smaller share
+  on a slow one, but the real `git` calls that do the work (`write-tree`, `update-ref`, `add`) stay, and every probe a
+  daemon could cache can also be replaced in the one-shot wrapper by an in-process read or a batch. A daemon adds
+  a process that is killed, reaped or limited under rules NHR and NHP, stale-socket and namespace failure modes, and a
+  second code path. Decision: not building it. The measured work is task 69 (31 syncs down to barriers only) and a
+  further spawn cut in the shadow repository and the `diff-index`, `ls-files` and `cat-file` groups.
+- Open: attribute the three pack syncs and the `index.lock` sync (wrapper or child `git`), then size the spawn cut.
+
+## Update at 2026-10-30 (fault-injection tests landed, state before a reboot)
+
+- The user asked for no new work before a reboot: only docs, nothing discarded, everything running allowed to finish.
+  Nothing of mine is running (checked `systemctl --user` for `cli-git`, `commit-profile` and `mut` units: none).
+- Landed on main as `1269236d84` (fast-forward of a merge made in `~/temp/agent/land-faults`): the task 76 branch
+  `worktree-agent-a8a2fc13ee399243e` (agent report, tip `f97e30f5d3`). The host suite was run by the agent only:
+  lib 2324 tests with 1 failure (the known `markdown_linter` one), binary 324 tests with 1 failure (the known markdown
+  one), Clippy with warnings denied clean. I have NOT run the container gate (`native:test:container`) on the merged tree.
+- New tests: `src/native/binary_fault_*_tests.rs` and `binary_fault_support.rs`, covering ENOSPC and EIO sweeps,
+  `RLIMIT_FSIZE` half writes, SIGKILL before every write, fsync, rename and unlink, `RLIMIT_NOFILE` 4 to 48, EMFILE and
+  `clone3` EAGAIN, SIGHUP, SIGINT and SIGQUIT, closed and `/dev/full` streams, 30 ms fsync delays, link, rename and
+  mkdir refusals, and refused, hung-up, silent and `.invalid` remotes with a descriptor tripwire.
+- Defects found and fixed (red commits `da03b11dfb`, `1162fab840` first, fixes `9b55541a3e`, `e9ff81c5bb`, `f49f0c7dbe`,
+  `b0aa630948`): torn journal records after a failed write or a kill (every later guarded command exited 2), a bare
+  `index.lock` after a kill, a lock owner-record write failure leaving `landing.lock.<id>.pending`, a failed
+  directory sync on filesystems answering EINVAL, ENOTSUP or ENOSYS, a hook dispatcher panic on a stderr with no
+  reader (exit 101 instead of 1), and a stopped push leaving `git remote-http` and `git-lfs` running (new
+  `src/native/process_tree.rs`, Linux only). The write-up is `doc/troubleshooting/git-wrapper-fault-injection-findings.md`
+  and the README section "Operating conditions", subsection "What pins each condition".
+- The agent's judgment calls, standing unless the user vetoes: the invariant is "nothing left after the next commit",
+  not after the next status; `*.pending` and `*.stale` registry entries are ignored because recovery keeps them by
+  design. Observed and not fixed: a rename ENOSPC at the lock release exits 0 with a landed commit and a stale
+  `landing.lock` that the next commit retires. Not covered: `bounded_child` and `child_watch` still kill without the
+  processes below them; worktree-copy and merge flows are killed at phase markers only; memory pressure, real slow
+  storage, real exotic filesystems and `RLIMIT_NPROC` were not injected. The claim that `git remote-http` outlives
+  SIGTERM to `git push` is a measurement on Git 2.56.0, not read from Git's source.
+- Authority-gate gap: the strace sweeps skip inside the test container because the image has no `strace` (the same
+  skip applies to `binary_fork_failure`), so the container gate runs fewer of the new controls than the host. A
+  skipped sweep proves nothing there. The non-strace controls (rlimit sweeps at width 6 under the 128-process cap, the
+  `.invalid` DNS remote with no network, the `/dev/full` streams) are untested in the container.
+- Next actions after the reboot, in order: (1) `mise run prepare:pnpm:install` in the checkout, then
+  `mise run //package/git-policy/cli:native:test:container` on main, and record the counts; (2) decide with the user
+  whether the test image should gain `strace` so the sweeps run in the authority gate (task 76 stays open until
+  then); (3) task 78 (attribute the pack and `index.lock` syncs, size the spawn cut) feeding task 69; (4) release
+  0.4.3 with `crate-release` once the gate passes, since the torn-record and stopped-push fixes are user-visible, and
+  compare its output with the scratch release scripts; (5) mutation campaign over `private_storage`, `owner_lock`,
+  `process_tree` and the changed index-lock path.
+- Kept on purpose, nothing discarded: worktrees `agent-a8a2fc13ee399243e` and `agent-a0f811841a29c76bc` under
+  `.claude/worktrees` (both branches merged into main; removal needs the user's cleanup grant), `agent-a1360b7e02c5cec27`
+  (locked by a live process before the reboot) and `agent-aba63f1400b66332c` (cherry-picked, not an ancestor),
+  `~/temp/agent/land-faults`, `~/temp/agent/commit-profile` (profile scripts, raw traces, `result/`, `host-perf.json`),
+  the image `localhost/commit-profile:dev`, local scratch branches, the stash entry `6f9966c7e5`.
+- Rule `RBT` was added to `AGENTS.md` and `CLAUDE.md` (`9a2e376bd9`) on the user's word that reboots can make data on
+  this machine's SSD permanently unreadable: commit and push before any reboot, and never count on uncommitted files,
+  scratch or caches surviving one. Everything above is committed; the scratch under `~/temp/agent` is the only
+  uncommitted state and is expendable except the commit-path profile notes already summarised here. The sync also
+  produced `package/forbidden-strings/cli.fuzz/LICENSES/` (`47f28c5256`). `mise.toml` is left modified and uncommitted:
+  the sync only added `node_modules/.bin` path entries for packages installed in this checkout.
+- Not ours and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `.projenrc.ts`,
+  `doc/audit/standards-review-gate-truth-check.md`, `doc/handover/superlinear-cost-dismissal-gate.md` (another
+  session's changes in the main checkout).
+
+## Update at 2026-10-30 (after the reboot)
+
+- Repository integrity: local `main` equals `origin/main` (`36c263b600`); the `RBT`, handover, fault-injection and
+  license commits are ancestors of it. `git fsck --no-dangling` found no missing reachable object. It did report four
+  commits (`20e5135a60`, `439fb9a6ca`, `6c1284ab51`, `dcef62f3a4`) that the split commit-graph listed but the object
+  database could not read. No ref or reflog reaches them, so they were unreachable scratch commits whose objects were
+  gone; the reboot or an earlier prune lost nothing that is referenced.
+- Repair: `git commit-graph write --reachable --split=replace` rebuilt the derived cache; `git commit-graph verify` and
+  a second `git fsck --no-dangling` were then clean. A first attempt with `--no-split --changed-paths` only printed
+  usage and changed nothing.
+- `mise run prepare:pnpm:install` found everything up to date. The container gate was started as the unit
+  `cli-git-gate-postboot` (`MemoryMax=12G`, `CPUQuota=800%`, log `~/temp/agent/gate/postboot.log`); its counts are
+  recorded in the next update.
+- Container gate on main after the reboot (`3aac899f8c`, tree includes the fault-injection merge `1269236d84`):
+  `mise run //package/git-policy/cli:native:test:container` passed, 2649 tests run, 2649 passed, 7 skipped, in
+  116.9 s of test time; the unit `cli-git-gate-postboot` ended with `Result=success`. The earlier gate (before the
+  fault-injection merge) was 2595 of 2595 with 5 skipped. The log does not list skipped test names, so the two extra
+  skips are not attributed; the `strace` sweeps skip inside this image (it has no `strace`), which is the likely source
+  but is not confirmed. Next: the user's decision on adding `strace` to the test image (task 76).
+
+## Update at 2026-10-30 (strace in the gate image, stale locks, state at this write)
+
+- Correction to the entry above: its line "the unit ended with `Result=success`" is not evidence. The unit was started
+  with `--collect`, so `systemctl show` after it ended reports defaults (`Result=success`, status 0) even for a failed
+  run (the second gate run below failed and showed the same). The evidence for 2649 of 2649 passed is the nextest
+  `Summary` line in `~/temp/agent/gate/postboot.log`.
+- User decision (AskUserQuestion, option A): the gate image gains `strace`, so the fault sweeps and the budget tests
+  run in the authority gate. Done as a static build from the pinned upstream source archive `strace-6.13.tar.xz`
+  (SHA-256 `e209daf0...3508a17a`, computed from the download because GitHub lists no digest for the asset), because the
+  image has no network and Debian's `strace` links `libunwind` and `liblzma`, which the image lacks.
+  Files: `package/git-policy/cli/bin/native-strace-snapshot.ts` (new), `native-test-containerfile.ts` (new, the
+  Containerfile text moved out of `test-native-container.ts`, which passed the 300-line limit by one line).
+  Commits `8173130329`, `bece7a8570`. `mutate-native-container.ts` reuses the same image, so one change covers both.
+- Finding: with `strace` present the first gate run failed two tests,
+  `budget::a_commit_with_no_hooks_stays_within_its_budget` and the one-config-hook variant, with
+  `strace starts: NotFound`. Cause: the traced command is built with `env_clear()` plus the fixture's restricted
+  `PATH`, so the bare name `strace` was not found there. The sweeps and budget tests had never run in the container, so
+  this was invisible. Fix `9dba5f1452`: `strace_program()` in `binary_fork_failure_tests.rs` resolves the absolute path
+  from the test process's own `PATH`; the three start sites use it. The remaining sweeps in the container are
+  unproven until a gate run gets past the budget tests (nextest stops at the first failure).
+- Finding: the other session's commit `2246208ec2` raised the `[workspace.dependencies]` floors in 24 `Cargo.toml`
+  files but not their `Cargo.lock` files, so `cargo vendor --locked` failed and the gate stopped before building.
+  Six locks the gate or my packages need were refreshed with a plain online `cargo metadata` (no `cargo update`):
+  `git-policy/cli`, `git-policy/cli.fuzz`, `linter/monochromatic-lint`, `linter/monochromatic-lint.fuzz`,
+  `forbidden-strings/cli`, `forbidden-strings/core`. Commit `0acc0eb452`, fast-forwarded onto main. The other 18
+  packages' locks were not touched and are probably stale in the same way (not checked; they are not mine).
+- State at this write: main is `0acc0eb452`. Gate run four (unit `cli-git-gate-strace4`, log
+  `~/temp/agent/gate/strace4.log`) is running from the clean detached worktree `~/temp/agent/gate-wt`, whose HEAD
+  is `0acc0eb452`; the main checkout is not used for gates while the other session's changes sit in it. The result is
+  not known yet. Read the nextest `Summary` line and any `FAIL` lines; do not infer from the unit state.
+- Next actions, in order:
+  1. Read gate four. If a fault sweep or budget test fails, that is a real defect the container could not show before:
+     fix it, commit, rerun. Record the final counts here.
+  2. Remove `~/temp/agent/gate-wt` with `git worktree remove` once the gate is green (the unit and the worktree stay
+     until then so the log paths remain valid).
+  3. Tasks 78 and 69 as listed in the earlier updates.
+  4. Release 0.4.3 with `crate-release` once the gate passes; the torn-record and stopped-push fixes are user-visible.
+  5. Mutation campaign over `private_storage`, `owner_lock`, `process_tree` and the changed index-lock path, now
+     that the sweeps can run in the container image the campaigns use.
+- Not mine and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `pnpm-lock.yaml` (modified in
+  the main checkout and, by `prepare:pnpm:install`, in the gate worktree; neither is committed by me), the
+  `standards-review-shadow-*` units the commit hook starts.
+
+## Update at 2026-10-30 (late: host stall, two sweep findings)
+
+- Host stall at about 22:20: load 149 on 28 CPUs, I/O full stall 22 to 25 percent. After the user had `xinyanchen-mux`
+  and `xinyanchen-polypane-branch@4211` to `@4213` stopped and disabled, load fell to 25 and full stall to 7 percent.
+  Hardware is healthy: NVMe SMART passed, 0 media errors, 3 percent used, 75 unsafe shutdowns; `sda` SMART passed,
+  0 reallocated, 2 CRC errors (cable or connector); no disk errors in `dmesg`. The user allowed passwordless sudo
+  for this session; used read-only (`dmesg`, `smartctl`).
+- Gate six (`strace6.log`) ended 1790 passed, 2 failed of 1792 run, after 524 s. Both failures are unit tests that hung
+  for over 420 s until the test harness's own watchdog aborted them ("the unit-test run exceeded 120s: a test is
+  stuck"): `replay_reverse_apply::tests::strict_reverse_agrees_with_git_apply_on_seeded_cases` and
+  `replay_shared_paths::tests::shared_paths_list_the_paths_both_sides_changed`. Both passed in gates four and five, so
+  this is the stall, not a regression. Open: they spawn real Git once per seeded case, so their cost grows with the
+  spawn count; a batched `git apply` would make them immune to a slow host (rule NHR: a slow disk never excuses a
+  failure). Not started.
+- Open product gap (found by the sweep `fault_limits::a_process_limit_that_stays_exhausted_from_any_start_leaves_a_
+  recoverable_repository`, deterministic in the Git 2.56.0 image at case 49, passes on the host's older Git): after a
+  commit whose later process starts are all refused, the wrapper exits 1 leaving `.git/index.lock` and
+  `.git/index~pid.lock` (`pid <wrapper pid>`; the wrapper's own real index lock). Evidence kept in
+  `~/temp/agent/gate/keep/tmp/native-binary-35-nproc-clone3/` (trace `trace-nproc-clone3-49.txt`, case dir `case-49`).
+  `landing_attempt.rs` releases the lock on every exit except "target advanced, install failed"
+  (`held.for_recovery`), which leaves it for recovery by design. Direct `git add` then refuses (Git's own stale
+  message). The sweep's follow-up add now goes through the wrapper (commit after `9dba5f1452`), and the wrapper's
+  `add` also refuses: `still waiting for .git/index.lock, whose owner PID 905 no longer runs ... (indexLock.unprov...`,
+  exit 2, from `index_writer_coordination.rs` `wait_for_lock` classifying the lock as an unproven owner. So between that
+  failed commit and the next landing, `git add` is stuck, which breaks the never-stuck rule. Next: read
+  `recovery_scan.rs`, `commit_recovery.rs` and `index_writer_coordination.rs` `acquire_landing` to see why recovery did
+  not retire a lock whose journal record exists, then fix and add a permanent test (the sweep is the red test).
+- Units of mine: none running. The kept-fixture container `cli-git-keep` and the images are expendable.
+
+## Update at 2026-10-30 (night: gate green with strace, the stuck-add cause fixed)
+
+- Root cause of the stuck `git add` (found with `MONOCHROMATIC_VERBOSE=true`, now passed through the hermetic test
+  environment): releasing the wrapper's real `index.lock` re-resolves the filesystem identity, and on a filesystem
+  without a UUID (the container's overlay) that started `stat --file-system`. With every process start refused the
+  start failed after 4.6 s of retries, the release gave up ("unable to resolve the filesystem identity"), the transaction
+  directory was removed, and the lock stayed with nothing to prove it ours. Host runs never saw it because the host
+  filesystem has a UUID, so no `stat` started. Fix `ebbf0e7ab5`: `filesystem_identity_fsid.rs` reads `f_fsid` with
+  `statfs` in-process, spelled as GNU `stat` spells it (differential control against `stat` on four paths). Side gain:
+  a commit on such a filesystem starts no `stat` (the budget constant went from 3 to 0).
+- Residual risk, not fixed: when the in-process mount table answers `Unknown`, the UUID still comes from `findmnt`
+  (a start). If starts are refused at release time, the re-resolved identity could differ from the recorded one
+  (`f-fsid_` against `fs-uuid_`) and the release would refuse. A release by the same process that took the lock could
+  skip the filesystem part of the proof (device and inode already match). Not started.
+- Gate eight (`strace8.log`, main at `ebbf0e7ab5` plus another session's commits): 2653 run, 2653 passed, 7 skipped.
+  The fault sweeps and budget tests now run in the gate. The same 7 tests skipped before and after `strace` joined the
+  image, so the earlier guess that the skips were the `strace` sweeps was wrong; the 7 are unattributed.
+- Other findings fixed on the way: bare `strace` name not found under a restricted `PATH` (`9dba5f1452`);
+  `Cargo.lock` files behind the raised dependency floors (`0acc0eb452`).
+- Open: the two replay unit tests that hung during the host stall (see the entry above) still spawn Git per seeded case;
+  batching would make them immune to a slow host.
+- Next: release 0.4.3 with `native:release`, then the mutation campaign over `private_storage`, `owner_lock`,
+  `process_tree`, `real_index_lock`, `filesystem_identity_fsid` and the changed fault-test support.
+
+## Update at 2026-10-31 (0.4.3 published, scanner release plan)
+
+- Wrapper 0.4.3 is published: release commit `79ad3a71ca`, crates.io `2026-10-31T02:58:17Z`, GitHub release
+  `monochromatic-git-policy-cli-v0.4.3` with the aarch64 and x86_64 Linux assets (`native:release:wait` printed
+  PUBLISHED). Its release note stayed under the tool's 200 character limit (a 312 character note was refused first).
+- The user changed the scanner's `--rules` support (a comma-separated list with optional entries, commits `4882f19100`
+  to `2ebe1dd93a`) and its Git policy, and said more releases may be needed. Plan, in order:
+  1. Gates on the current tree: the scanner's `test:release:container` (unit `fs-release-gate1`, log
+     `~/temp/agent/gate/fs-release-gate1.log`) and the wrapper's container gate (unit `cli-git-gate-strace9`, log
+     `strace9.log`), started in parallel.
+  2. Release `forbidden-strings` 0.5.0 to 0.6.0 (a path containing a comma no longer reads as one path, so not a
+     patch release) with `crate-release/cli/bin/release.ts --crate-name forbidden-strings --crate-dir
+     package/forbidden-strings/cli --scope forbidden-strings/cli` and a `--pin-file` for each exact pin of
+     `=0.5.0`: `package/git-policy/cli/Cargo.toml`, `package/forbidden-strings/core.bench/Cargo.toml`,
+     `package/forbidden-strings/cli.fuzz/Cargo.toml`; wait for crates.io with `wait-publish.ts`.
+  3. Then release the wrapper 0.4.3 to 0.4.4 with `native:release`, because the wrapper's published manifest must name
+     the published scanner; wait for crates.io again.
+
+## Update at 2026-10-31 (handover from the file-enforcer session)
+
+- The user handed the forbidden-strings and git-policy work to this session (the session `monochromatic-6e`, the Rust
+  file-enforcer rewrite, relayed it; it will not touch either package further). Items it passed on:
+  1. The merge `2ebe1dd93a` (commits `4882f19100` to `e7718fc963`) makes `git-policy/cli` use new public scanner items:
+     `RulesEntry`, `parse_rules_list`, `Scanner::load_entries`, `Scanner::skipped_optional_rules`. The wrapper pins
+     `forbidden-strings = "=0.5.0"`, so it builds from the path but cannot be published against crates.io 0.5.0. A scanner
+     release with them must be published before the next wrapper publish. Verified: the published wrapper 0.4.3 predates
+     the merge (`2ebe1dd93a` is not an ancestor of `79ad3a71ca`; no use of the new items in its `scanner_adapter.rs`).
+  2. The feature: `--rules` and `FORBIDDEN_STRINGS_RULES` take `entry ("," entry)*` with `entry := path ["?"]` (no escapes,
+     no trimming, one trailing `?` marks an optional entry, `name??` is the optional file `name?`; an empty value or entry,
+     a bare `?` or a repeated path exits 2 naming the position). The cache key stays the SHA-256 of the joined text.
+     `rulesFile` in `cli-git.config.jsonc` takes a string (one required file, never split) or a non-empty array of strings
+     and `{"path", "optional"}` objects, resolved against the repository top level; every listed file is excluded from the
+     scan and copied into new worktrees. Record: `doc/planning/file-enforcer-rust-rewrite.md` ("As built (task 23,
+     2026-10-30)", "Cutover dependency") and `doc/decision/file-enforcer-rust-rewrite.md`.
+  3. The config switch is this session's, timing included: replace the generated `.cache/forbidden-strings.rules.txt` with
+     `FORBIDDEN_STRINGS_RULES=forbidden-strings.append.txt,forbidden-strings.append.local.txt?` (root env, today generated
+     into `mise.toml`) and `rulesFile` as an array with `{"path": "forbidden-strings.append.local.txt", "optional": true}`.
+     The file-enforcer session drops its generator in its cutover commit unless told earlier; tell it when the switch is
+     done. Constraint found here: an old wrapper cannot parse a `rulesFile` array, so the switch must wait until a wrapper
+     that reads it (0.4.4 after scanner 0.6.0) is published, the toolchain lock names it, and it is installed as the
+     production `git`. The peer's `toolchain:sync` installed the locked 0.4.2 over 0.4.0; the lock does not yet name 0.4.3.
+     Root config is outside the two packages, so the switch goes to the user first.
+
+## Releases for the rules-list feature (2026-10-31)
+
+- Scanner `forbidden-strings` 0.6.0: release commit `5ec9a377e2`, PUBLISHED, crates.io `2026-10-31T03:17:38Z`,
+  GitHub release `forbidden-strings-v0.6.0`. The package gained `release` and `release:wait` tasks (`4d1d25d7b6`), and
+  `cli.fuzz/Cargo.toml` now holds the scanner dependency as one inline line (`9162c5fd56`) so the shared release tool
+  can move its exact pin.
+- Wrapper `monochromatic-git-policy-cli` 0.4.4: release commit `7ce408f679`, PUBLISHED, crates.io
+  `2026-10-31T03:23:15Z`, GitHub release `monochromatic-git-policy-cli-v0.4.4` with aarch64 and x86_64 Linux assets.
+  It reads a `rulesFile` array with optional entries, resolves the in-process filesystem identity (`ebbf0e7ab5`), and
+  pins scanner 0.6.0.
+- Next action: the root config switch described under the peer handover (item 3) goes to the user through
+  AskUserQuestion. Steps after approval: `toolchain:update` so the lock names 0.4.4 and 0.6.0, `toolchain:sync` so
+  0.4.4 is the production `git`, then the `FORBIDDEN_STRINGS_RULES` and `rulesFile` array edit, then tell the peer
+  session `monochromatic-6e` so it drops its rules-file generator.
+
+## Config switch done (2026-10-31)
+
+- Lock: `toolchain:update` (unavoidably moving rust nightly-2026-10-31, cargo-dylint and dylint-link 6.3.2, superhtml
+  0.7.1 and socket 1.12.2 along, the tool has no per-tool filter; the user chose the full update) committed in
+  `013f724a57`. `toolchain:sync` then installed wrapper 0.4.4 as the production `git` (checked in `~/.cargo/.crates.toml`).
+- Switch: `ad9fe75d05` set `FORBIDDEN_STRINGS_RULES` (source `file-enforcer.config.ts`, generated into `mise.toml`) to the
+  two appendixes with the local one optional, and `cli-git.config.jsonc` `rulesFile` to the array form. That commit went
+  through the new wrapper and passed, which shows the array form parses and scans.
+- Told the peer `monochromatic-6e`; it drops the `.cache/forbidden-strings.rules.txt` generator in its cutover commit.
+- Not yet verified: a clean clone or CI without `forbidden-strings.append.local.txt` (the optional entry's skipped path
+  is covered by the scanner's tests only).

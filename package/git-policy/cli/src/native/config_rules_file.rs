@@ -1,9 +1,11 @@
 //! What:
 //!  The `rulesFile` option of `security/forbidden-strings`:
-//!  which file in the
-//!       repository holds the scanner's private rules,
-//!  written relative to the
+//!  which files in the
+//!       repository hold the scanner's private rules,
+//!  each written relative to the
 //!       repository's top level.
+//!  This module checks one path;
+//!  `config_policies.rs` reads the string and array forms and calls it for each path.
 //! Why:
 //!  The user decided on 2026-10-05 that configuration names the rules file first,
 //!  then

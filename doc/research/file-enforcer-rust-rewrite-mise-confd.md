@@ -4,6 +4,10 @@ Research for [`doc/planning/file-enforcer-rust-rewrite.md`](../planning/file-enf
 gathered 2026-10-29 against mise 2026.10.20 source (tag `v2026.10.20`) and disposable fixtures with positive controls,
 under `${HOME}/temp/agent/fe-rust/confd/`; F marks a fact, I an inference.
 
+Note 2026-10-30: `package/forbidden-strings/cli/bin/container-snapshot.mjs` and `verify-evidence.mjs`, whose line
+numbers this document cites, are TypeScript files now (`container-snapshot.ts` and `verify-evidence.ts`, with their
+helpers split into sibling modules); the cited lines no longer exist at those numbers.
+
 
 Date 2026-10-29. Installed mise: `/home/user/.local/bin/mise` 2026.10.20 (linux-x64, 2026-10-26).
 Source: tag `v2026.10.20` (commit 8aceb19, "chore: release 2026.10.20") checked out as a worktree at

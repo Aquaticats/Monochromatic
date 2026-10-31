@@ -244,6 +244,7 @@ export {
   renderToolchainLockJson,
   replacementWarning,
   resolveAll,
+  resolveAws,
   resolveGoModule,
   resolveGoRuntime,
   resolveNpm,

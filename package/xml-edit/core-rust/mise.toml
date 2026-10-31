@@ -1,0 +1,35 @@
+[tasks.build]
+description = "Build the monochromatic-xml-edit library in release mode"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Build the monochromatic-xml-edit library in debug mode"
+run = "cargo build"
+
+[tasks.lint]
+description = "cargo check (no codegen)"
+run = "cargo check"
+
+[tasks."lint:types"]
+description = "Type-level gate for this crate: cargo check plus clippy with warnings denied"
+run = ["cargo check", "cargo clippy --release --all-targets -- -D warnings"]
+
+[tasks."lint:clippy"]
+description = "Run clippy with warnings denied"
+run = "cargo clippy --release --all-targets -- -D warnings"
+
+[tasks."format:clippy"]
+description = "Apply clippy's machine-applicable suggestions in place"
+run = "cargo clippy --fix --allow-dirty --allow-staged"
+
+[tasks.package]
+description = "Build the crates.io package tarball"
+run = "cargo package"
+
+[tasks.test]
+description = "cargo nextest run in release mode"
+run = "cargo nextest run --release"
+
+[tasks."test:debug"]
+description = "cargo nextest run in debug mode for fast iteration"
+run = "cargo nextest run"

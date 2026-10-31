@@ -120,6 +120,54 @@ fn protection_sets_the_requested_mode() {
     remove(root.as_path());
 }
 
+/// Child of the controls below: write a record larger than the process's file-size limit with each writer.
+///  Both writers must fail, because only part of the record fits.
+#[cfg(unix)]
+#[test]
+#[ignore = "started as a child process, under a file-size limit, by the controls of the writers"]
+fn child_writes_a_record_past_the_size_limit() {
+    let directory: PathBuf = PathBuf::from(std::env::var_os(crate::test_support::LIMITED_DIRECTORY_VARIABLE).expect("directory"));
+    let record: Vec<u8> = vec![b'x'; 1000];
+    assert!(write_private_file(directory.join("private.json").as_path(), record.as_slice()).is_err());
+    assert!(write_exclusive_synced(directory.join("synced.json").as_path(), record.as_slice()).is_err());
+}
+
+/// A record whose write is cut half way by a full disk or a size limit leaves nothing at its name, not the part
+///  that fitted: a record that recovery finds must be whole, and a half-written one stops every later command.
+#[cfg(unix)]
+#[test]
+fn a_write_cut_half_way_leaves_nothing_behind() {
+    let root: PathBuf = fixture("private-cut-write");
+    let status = crate::test_support::run_child_under_file_size_limit(
+        "private_storage::tests::child_writes_a_record_past_the_size_limit",
+        100,
+        root.as_path(),
+    );
+    assert!(status.success(), "the child's writers must both fail: {status:?}");
+    let left: Vec<String> = std::fs::read_dir(&root)
+        .expect("directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .collect();
+    assert_eq!(left, Vec::<String>::new(), "no record and no half-written staging file stays");
+    remove(root.as_path());
+}
+
+/// A filesystem that cannot sync a directory (procfs answers `EINVAL`) is not a failure of the write: the entry cannot
+///  be made durable there, and every other filesystem call of the commit works.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_directory_that_cannot_be_synced_is_not_an_error() {
+    let procfs: &Path = Path::new("/proc/self");
+    if !procfs.is_dir() {
+        eprintln!("skipped: no procfs on this system");
+        return;
+    }
+    let direct: std::io::Result<()> = std::fs::File::open(procfs).and_then(|handle| { return handle.sync_all(); });
+    assert!(direct.is_err(), "the control: procfs refuses to sync a directory");
+    sync_directory(procfs).expect("an unsupported directory sync is skipped");
+}
+
 /// Syncing works on a directory and fails on a missing one.
 #[test]
 fn directory_sync_needs_the_directory() {

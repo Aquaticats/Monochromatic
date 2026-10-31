@@ -21,7 +21,10 @@ export default {
   },
   'lint:types': {
     description: 'Check Rust types and deny Clippy findings',
-    run: ['cargo check', 'cargo clippy --all-targets -- -D warnings',],
+    run: [
+      'cargo check',
+      'cargo clippy --all-targets -- -D warnings',
+    ],
   },
   'format:rust': {
     description: 'Format the native unified-linter source',
@@ -50,28 +53,28 @@ export default {
   'lint:container': {
     description: 'Clippy inside the bounded offline snapshot',
     depends: ['test:container',],
-    run: 'node bin/clippy-container.mjs',
+    run: 'node bin/clippy-container.ts',
   },
   'lint:rust-style': {
     description: 'Clippy the Rust-style fixture inside the bounded snapshot',
     depends: ['test:rust-style',],
-    run: 'node bin/clippy-container.mjs',
+    run: 'node bin/clippy-container.ts',
   },
   'mutation': {
     description: 'Mutation-test the unified linter in the bounded snapshot',
     depends: ['test:container',],
-    run: 'node bin/mutate-container.mjs',
+    run: 'node bin/mutate-container.ts',
   },
   'test:container': {
     description: 'Run the unified-linter tests in the bounded offline snapshot',
-    run: 'node bin/test-container.mjs',
+    run: 'node bin/test-container.ts',
   },
   'test:rust-style': {
     description: 'Run the Rust-style fixture tests in the bounded snapshot',
-    run: 'node bin/test-container.mjs --rust-style',
+    run: 'node bin/test-container.ts --rust-style',
   },
   'test:markdown': {
     description: 'Run the Markdown fixture tests in the bounded snapshot',
-    run: 'node bin/test-container.mjs --markdown',
+    run: 'node bin/test-container.ts --markdown',
   },
 } satisfies PackageTaskFile;

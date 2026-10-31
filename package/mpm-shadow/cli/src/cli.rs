@@ -1,7 +1,13 @@
-//! What:     The `mpm-shadow` command itself (the non-shadow mode): `--help`, `--version` and the `prune` subcommand,
+//! What:
+//! The `mpm-shadow` command itself (the non-shadow mode):
+//! `--help`,
+//! `--version` and the `prune` subcommand,
 //!           with the grammar owned by `clap`.
-//! Why:      A person can run the prune by hand, for example to clear copies that were left before the shadow was
-//!           installed. The builder API is used instead of derive macros so every line is an ordinary method call.
+//! Why:
+//! A person can run the prune by hand,
+//! for example to clear copies that were left before the shadow was
+//!           installed.
+//! The builder API is used instead of derive macros so every line is an ordinary method call.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,9 +15,13 @@
 //! program.name('mpm-shadow').command('prune');
 //! ```
 
-/// What:     `use clap::Command;` imports the type that describes a command line, from the `clap` crate (a third-party
-///           library, like an npm package).
-/// Why:      We describe the grammar with it below.
+/// What:
+/// `use clap::Command;` imports the type that describes a command line,
+/// from the `clap` crate (a third-party
+///           library,
+/// like an npm package).
+/// Why:
+/// We describe the grammar with it below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,15 +29,23 @@
 /// ```
 use clap::Command;
 
-/// Imports the process-environment module (CARGO_HOME, HOME).
+/// Imports the process-environment module (CARGO_HOME,
+/// HOME).
 use std::env;
 
+/// Imports `cargo_home` from `crate::cargo_home`.
 use crate::cargo_home::cargo_home;
+/// Imports `USAGE_EXIT_CODE` from `crate::constants`.
 use crate::constants::USAGE_EXIT_CODE;
+/// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
+/// Imports the toolchain verbs' grammar and dispatch.
+use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
 
-/// What:     `pub fn build_command() -> Command` declares a public function returning the grammar description.
-/// Why:      Both the real run and the tests need the grammar.
+/// What:
+/// `pub fn build_command() -> Command` declares a public function returning the grammar description.
+/// Why:
+/// Both the real run and the tests need the grammar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,16 +72,19 @@ pub fn build_command() -> Command {
     // return new Command('mpm-shadow').version(pkg.version).addCommand(prune);
     // ```
     return Command::new("mpm-shadow")
-        .about("Runs the real mpm, then deletes the superseded cached versions of this repository's own crates. Invoked as mpm it acts as mpm's shadow.")
+        .about("Owns the toolchain plan and lock (lock, sync, status, update, bin-paths) and shadows mpm: invoked as mpm it runs the real mpm, then deletes the superseded cached versions of this repository's own crates.")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(prune_command);
+        .subcommand(prune_command)
+        .subcommands(toolchain_subcommands());
 }
 
-/// What:     `pub fn run_cli(arguments: Vec<String>) -> i32` declares a public function taking the command-line texts
+/// What:
+/// `pub fn run_cli(arguments: Vec<String>) -> i32` declares a public function taking the command-line texts
 ///           and returning the exit code.
-/// Why:      `main.rs` calls it for every start that is not under the name `mpm`.
+/// Why:
+/// `main.rs` calls it for every start that is not under the name `mpm`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,11 +106,20 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
     if let Some(("prune", _)) = matches.subcommand() {
         return prune_now();
     }
+    // Every other verb is a toolchain verb; `dispatch` answers `None` for a name it does not own.
+    if let Some((name, verb_matches)) = matches.subcommand()
+        && let Some(exit_code) = dispatch(name, verb_matches)
+    {
+        return exit_code;
+    }
     return USAGE_EXIT_CODE;
 }
 
-/// What:     `fn prune_now() -> i32` declares a private function returning the exit code.
-/// Why:      It holds the `prune` subcommand's work, so `run_cli` stays flat.
+/// What:
+/// `fn prune_now() -> i32` declares a private function returning the exit code.
+/// Why:
+/// It holds the `prune` subcommand's work,
+/// so `run_cli` stays flat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

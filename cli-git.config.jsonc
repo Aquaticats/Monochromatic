@@ -13,9 +13,16 @@
     "mono/dependent-version-bump": "error",
     "mono/forbidden-root-context": "error",
     // The scanner is linked into the native wrapper, so the incumbent's `executable` option has no counterpart.
-    // The betterleaks baseline ships inside the scanner and `builtinRules` loads it; `rulesFile` names the file
-    // that file-enforcer generates from the repository appendixes (doc/decision/gitignore-negations.md). It is
-    // the path the root `mise.toml` gives `FORBIDDEN_STRINGS_RULES` today, relative to the repository top level.
-    "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ".cache/forbidden-strings.rules.txt" }]
+    // The betterleaks baseline ships inside the scanner and `builtinRules` loads it; `rulesFile`
+    // lists the repository appendixes directly (doc/decision/gitignore-negations.md), the same files the root
+    // `mise.toml` gives `FORBIDDEN_STRINGS_RULES`, relative to the repository top level; the gitignored sensitive
+    // appendix is optional so a clean clone scans with the shared one alone.
+    "security/forbidden-strings": [
+      "error",
+      {
+        "builtinRules": true,
+        "rulesFile": ["forbidden-strings.append.txt", { "path": "forbidden-strings.append.local.txt", "optional": true }]
+      }
+    ]
   }
 }

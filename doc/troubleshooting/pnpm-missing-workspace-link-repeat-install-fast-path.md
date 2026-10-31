@@ -515,6 +515,58 @@ directory `patches/`) instead of attaching them.
 The issue type `Bug` that the form sets could not be set through the API by a non-maintainer,
 so the type is empty;
 the triage automation added the label `area: monorepo`.
+The form's checkbox "I am working on a fix" (field `working-on-fix`,
+which says ticking it assigns the issue to the poster)
+was left unticked.
+No reason was recorded for that.
+It should have been ticked,
+because this doc already held a prototyped and verified fix for both stacks,
+and the owner's rule is that a prototyped fix ticks the box without asking (stated 2026-10-29).
+The issue had no assignee when `snmsoodan` opened a pull request for it.
+A search of `pnpm/pnpm` code for `working-on-fix` found only the two issue templates,
+no workflow,
+so whether ticking would have assigned the issue,
+or kept others off it,
+was not established.
+The skill now ticks such a checkbox whenever a verified prototype exists.
+
+Outcome,
+read on 2026-10-29 from the issue timeline and the pull request:
+the report was fixed upstream by someone else,
+and no pull request from this account was needed.
+About 40 minutes after the filing,
+`snmsoodan` opened
+[pnpm/pnpm#17487](https://github.com/pnpm/pnpm/pull/17487) with `Closes pnpm/pnpm#17485`,
+and `zkochan` merged it at 21:19 UTC (merge commit `39bb7b93c5`,
+review decision `APPROVED`),
+which closed the issue.
+Nobody commented on the issue and no maintainer asked for a pull request.
+The merged change covers both stacks,
+14 files:
+the Rust v12 path (`pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs` and a new `modules_dirs/direct_links.rs`)
+and the TypeScript v11 path (`pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts`,
+a jest test,
+and a CLI test in `pnpm11/pnpm/test/install/misc.ts`),
+plus a changeset.
+It treats a missing entry as dangling only when the manifest declares a `workspace:` or `link:` spec,
+no root entry stands in for it,
+the lockfile links it,
+the linker symlinks direct dependencies,
+and the project is held by the install.
+The pull request lists two known gaps where a deleted link is still not detected:
+a pinned `lockfileDir` or custom virtual-store directory for the current-lockfile fallback,
+and an override that retargets a workspace dependency while the root keeps a link to the declared target.
+The patches in the reproduction repository and the two `.patch` files beside this doc are superseded and were never posted as pull requests.
+No release contains the merge yet:
+`gh release list --repo pnpm/pnpm` on 2026-10-29 shows the newest as 12.16.1 and 11.28.9,
+both published 2026-10-27,
+two days before the merge,
+so the matrix above still describes every released version.
+The pnpm 11 sources live under `pnpm11/` on `main`,
+and the merged diff changes them directly,
+so the v11 fix is in `main` as well.
+Rerunning the reproduction against a fixed release has to wait until one ships.
+
 `.out-of-scope/` was listed on 2026-10-29:
 its entries (bun install,
 cargo workspace,
@@ -641,6 +693,17 @@ Before anyone posts it:
   The issue ranks first because #15569 states the exemption on purpose,
   so the maintainers should decide whether to narrow it before reviewing code,
   and a pull request that overturns a stated decision is the likelier to be closed.
+  Correction,
+  2026-10-29:
+  this ranking was a judgment of the session and no written rule.
+  `CONTRIBUTING.md` in `pnpm/pnpm` has no issue-first rule;
+  it welcomes pull requests,
+  including agent-written ones with a disclosure footer,
+  and asks contributors to check the issue's linked pull requests for a competing fix.
+  The merged pull request #17487 narrowed the same exemption and was approved without an issue discussion.
+  The owner said the same day,
+  "I don't know why we didn't auto open a pr";
+  the skill now opens the pull request together with the issue whenever a verified prototype exists.
   The pull request ranks second because both patches already have tests and a clean baseline,
   so it is ready if the maintainers ask for it,
   and it must then follow `.github/pull_request_template.md` (Summary,

@@ -10,6 +10,13 @@
 //! compiled rules plus redacted warnings;
 //!  compile-command callers receive only
 //! success or a redacted fatal error.
+//!
+//! The cache key is the SHA-256 of the joined rules text, which a [`RulesSnapshot`] builds from the files of one
+//! rules list.
+//! The compiled rules are a pure function of that text, so the key is complete:
+//!  a changed byte in any file, a file added or removed, and a changed file order all change the text and miss.
+//! Revalidation before publication re-reads every listed file, so an optional file that appears while the rules
+//! compile also blocks publication.
 
 /// Registers scanner-owned envelope codec.
 mod envelope;
@@ -23,6 +30,10 @@ mod warning;
 /// Imports application-level redacted error construction.
 use anyhow::{anyhow, Result};
 
+/// Imports the list entry type `compile_rules_to_cache` takes.
+use crate::rules_list::RulesEntry;
+/// Imports the joined, revalidatable snapshot of the files of one rules list.
+use crate::rules_snapshot::RulesSnapshot;
 /// Imports hybrid runtime matcher compiled from authoritative source.
 use crate::runtime_matcher::RuntimeRules;
 
@@ -48,20 +59,18 @@ pub(crate) struct CacheLoad {
     pub(crate) warnings: Vec<CacheWarning>,
 }
 
-/// Loads compatible artifact or compiles and best-effort repairs from one text snapshot.
-pub(crate) fn load_or_compile(
-    rules_path: &std::path::Path,
-    text: &str,
-) -> Result<CacheLoad> {
-    let digest = source_digest(text.as_bytes()).map_err(|error| return anyhow!(error))?;
+/// Loads compatible artifact or compiles and best-effort repairs from one snapshot of the rules files.
+pub(crate) fn load_or_compile(snapshot: &RulesSnapshot) -> Result<CacheLoad> {
+    let digest = source_digest(snapshot.text().as_bytes())
+        .map_err(|error| return anyhow!("rules {}: {}", snapshot.label(), error))?;
     let environment = current_environment();
     let root = match resolve_cache_root(&environment, current_platform()) {
         Ok(root) => root,
         Err(CacheRootError::InvalidOverride) => {
-            return Err(anyhow!(CacheRootError::InvalidOverride));
+            return Err(anyhow!("rules {}: {}", snapshot.label(), CacheRootError::InvalidOverride));
         }
         Err(CacheRootError::Unavailable) => {
-            let compiled = RuntimeRules::compile(text).map_err(|error| return anyhow!(error))?;
+            let compiled = snapshot.compile()?;
             return Ok(CacheLoad {
                 compiled,
                 warnings: vec![CacheWarning::compile_from_text(
@@ -75,49 +84,28 @@ pub(crate) fn load_or_compile(
         Ok(bytes) => match decode(&bytes, digest) {
             Ok(compiled) => return Ok(CacheLoad { compiled, warnings: Vec::new() }),
             Err(error) => {
-                return compile_and_repair(
-                    rules_path,
-                    text,
-                    digest,
-                    &location,
-                    error.warning_reason(),
-                );
+                return compile_and_repair(snapshot, digest, &location, error.warning_reason());
             }
         },
         Err(ArtifactReadError::Missing) => {
-            return compile_and_repair(
-                rules_path,
-                text,
-                digest,
-                &location,
-                CacheWarningReason::Missing,
-            );
+            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Missing);
         }
         Err(ArtifactReadError::Unreadable) => {
-            return compile_and_repair(
-                rules_path,
-                text,
-                digest,
-                &location,
-                CacheWarningReason::Unreadable,
-            );
+            return compile_and_repair(snapshot, digest, &location, CacheWarningReason::Unreadable);
         }
     }
 }
 
 /// Compiles source snapshot and appends write warning when repair cannot publish safely.
 fn compile_and_repair(
-    rules_path: &std::path::Path,
-    text: &str,
+    snapshot: &RulesSnapshot,
     digest: SourceDigest,
     location: &path::CacheLocation,
     reason: CacheWarningReason,
 ) -> Result<CacheLoad> {
-    let compiled = RuntimeRules::compile(text).map_err(|error| return anyhow!(error))?;
+    let compiled = snapshot.compile()?;
     let mut warnings = vec![CacheWarning::compile_from_text(reason)];
-    if !source_path_still_matches(rules_path, digest)
-        || !publish_compiled_snapshot(&compiled, digest, location)
-    {
+    if !snapshot.still_current() || !publish_compiled_snapshot(&compiled, digest, location) {
         warnings.push(CacheWarning::write_failed());
     }
     return Ok(CacheLoad { compiled, warnings })
@@ -135,22 +123,16 @@ fn publish_compiled_snapshot(
     return publish_artifact(location, &bytes).is_ok()
 }
 
-/// Reports whether authoritative path still contains compiled snapshot bytes.
-fn source_path_still_matches(rules_path: &std::path::Path, expected: SourceDigest) -> bool {
-    let Ok(current) = std::fs::read(rules_path) else {
-        return false;
-    };
-    return source_digest(&current).is_ok_and(|digest| return digest == expected)
-}
-
-/// Eagerly compiles one explicit rules file into derived per-user cache artifact.
-pub(crate) fn compile_rules_file_to_cache(rules_path: &str) -> Result<()> {
-    let native_path: &std::path::Path = std::path::Path::new(rules_path);
-    let source_bytes = std::fs::read(rules_path)
-        .map_err(|error| return anyhow!("read rules {}: {}", rules_path, error))?;
-    let text = std::str::from_utf8(&source_bytes)
-        .map_err(|_| return anyhow!("read rules {}: source is not valid UTF-8", rules_path))?;
-    let digest = source_digest(&source_bytes).map_err(|error| return anyhow!(error))?;
+/// Eagerly compiles the files of one rules list into the derived per-user cache artifact.
+///
+/// Returns the optional entries that were absent, so the caller can log them.
+/// A list whose files are all absent compiles nothing and fails.
+pub(crate) fn compile_rules_to_cache(entries: &[RulesEntry]) -> Result<Vec<std::path::PathBuf>> {
+    let snapshot = RulesSnapshot::read(entries)?;
+    snapshot.require_present()?;
+    let label = snapshot.label();
+    let digest = source_digest(snapshot.text().as_bytes())
+        .map_err(|error| return anyhow!("rules {}: {}", label, error))?;
     let root = resolve_cache_root(&current_environment(), current_platform())
         .map_err(|error| return anyhow!(error))?;
     let location = cache_location(&root, digest);
@@ -158,22 +140,21 @@ pub(crate) fn compile_rules_file_to_cache(rules_path: &str) -> Result<()> {
     if read_artifact(&location.artifact_path, MAX_ARTIFACT_BYTES)
         .is_ok_and(|bytes| return decode(&bytes, digest).is_ok())
     {
-        if source_path_still_matches(native_path, digest) {
-            return Ok(());
+        if snapshot.still_current() {
+            return Ok(snapshot.skipped());
         }
-        return Err(anyhow!("rules {} changed while validating cache", rules_path));
+        return Err(anyhow!("rules {} changed while validating cache", label));
     }
 
-    let compiled = RuntimeRules::compile(text)
-        .map_err(|error| return anyhow!("rules {}: {}", rules_path, error))?;
-    if !source_path_still_matches(native_path, digest) {
-        return Err(anyhow!("rules {} changed during compilation", rules_path));
+    let compiled = snapshot.compile()?;
+    if !snapshot.still_current() {
+        return Err(anyhow!("rules {} changed during compilation", label));
     }
     let artifact = encode(&compiled, digest)
         .map_err(|_| return anyhow!("runtime rules cache artifact could not be encoded"))?;
     publish_artifact(&location, &artifact)
         .map_err(|_| return anyhow!("runtime rules cache artifact could not be published"))?;
-    return Ok(())
+    return Ok(snapshot.skipped());
 }
 
 /// Source-snapshot publication checks and optional fuzz exports need executed positive/negative controls.

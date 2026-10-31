@@ -12,7 +12,7 @@ name: pnpr-publish
 #   (package/config/pnpr/config.yaml, workflow_ref claim), so renaming the file
 #   or running it from another ref makes every publish fail.
 # - A package that fails to build fails the run and blocks its dependents; fix it
-#   or add it to PNPR_EXCLUDED_PACKAGES in file-enforcer.config.ts.
+#   or add it to PNPR_EXCLUDED_PACKAGES in package/config/pnpr/src/generated-config-settings.ts.
 # - workflow_dispatch retries; the optional input limits the run to named packages.
 
 on:

@@ -154,15 +154,20 @@ so the numbered items are the checks,
      a policy without options takes none.
     `markdown/autofix` accepts `rules` (only `lfs-image-url`;
      a repeated rule is refused) and `exclude`;
-    `security/forbidden-strings` accepts `builtinRules` and `rulesFile`.
+    `security/forbidden-strings` accepts `builtinRules` and `rulesFile`;
+     `rulesFile` is one path string (a required file) or a non-empty array of path strings and
+     `{"path": ..., "optional": true}` objects, with no path named twice and every path checked as before.
 6.  Validate the concurrency keys (see "Concurrency configuration").
-7.  Resolve the rules file of `security/forbidden-strings`:
+7.  Resolve the rules files of `security/forbidden-strings`:
      `rulesFile`,
      else the environment variable
     `FORBIDDEN_STRINGS_RULES`,
      else `forbidden-strings.local.txt` at the repository top level,
      which may be absent.
-    A file named by `rulesFile` or by the variable must exist.
+    The variable is the scanner's comma-separated rules list, where a trailing `?` marks an optional entry.
+    A file named by `rulesFile` or by the variable must exist unless it is optional;
+     an optional file that is absent is skipped and logged.
+    Every listed file is excluded from the scan.
 8.  Emit configuration warnings for explicit unsafe `warn` settings.
 
 Unknown top-level keys,
@@ -348,8 +353,8 @@ settlement locking,
 and synchronization,
 even when real Git creates a linked worktree,
 with one exception:
-a command that creates or moves a worktree copies the configured `rulesFile` of the `security/forbidden-strings`
-policy from the main checkout into the new worktree, under the settlement lock and the journal.
+a command that creates or moves a worktree copies the configured `rulesFile` files of the `security/forbidden-strings`
+policy (each entry of an array) from the main checkout into the new worktree, under the settlement lock and the journal.
 After real Git and its hooks return for an applicable source,
 cli-git compares the administrative set again.
 Every new identity is a synchronization destination,
@@ -371,7 +376,7 @@ Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
 A bare repository has no source root and synchronizes an empty set.
-The only repository configuration that touches this behavior is that `rulesFile` path.
+The only repository configuration that touches this behavior is the `rulesFile` path or paths.
 The wrapper-only flag `--no-worktree-copy` skips synchronization for one invocation.
 It is recognized in flag position after the subcommand and before Git's `--` pathspec separator,
 and, like the other wrapper controls, among Git's global options before the subcommand,

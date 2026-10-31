@@ -11,6 +11,11 @@ import {
 import { join } from 'node:path';
 
 import {
+  buildLimitArguments,
+  defaultContainerLimits,
+  parallelJobs,
+} from '../../cli/bin/container-limits.ts';
+import {
   copyNextest,
   nextestCopyLines
 } from '../../cli/bin/native-nextest-snapshot.ts';
@@ -92,7 +97,7 @@ async function buildImageFrom(context: string): Promise<void> {
       'RUN ["cargo-fuzz", "--version"]',
       ...nextestCopyLines(),
       'WORKDIR /work/package/git-policy/cli.fuzz',
-      'ENV CARGO_BUILD_JOBS=2 CARGO_NET_OFFLINE=true CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0',
+      `ENV CARGO_BUILD_JOBS=${String(parallelJobs(defaultContainerLimits))} CARGO_NET_OFFLINE=true CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`,
       'ENV PATH="/toolchain/bin:/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"',
       'ENV RUSTC="/toolchain/bin/rustc" RUSTDOC="/toolchain/bin/rustdoc"',
       '',
@@ -105,9 +110,7 @@ async function buildImageFrom(context: string): Promise<void> {
       '--network=none',
       '--http-proxy=false',
       '--pull=never',
-      '--memory=2g',
-      '--cpu-period=100000',
-      '--cpu-quota=200000',
+      ...buildLimitArguments(defaultContainerLimits),
       '--tag',
       buildImage,
       context,

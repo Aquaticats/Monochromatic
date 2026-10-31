@@ -17,6 +17,8 @@
 use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
+/// The helpers and hooks a stopped push leaves running.
+use super::process_tree::{TreeMember, descendants_of, kill_members, still_running, terminate_members};
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output file of the push, made in the per-user scratch directory.
 use super::scratch_location::scratch_file;
@@ -258,17 +260,30 @@ fn is_flood(size: u64) -> bool {
 /// child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL');
 /// ```
 pub fn stop_push(child: &mut Child, grace: Duration) {
+    // Read before the push is signalled: once it has exited, its helpers and hooks no longer point to it.
+    let below: Vec<TreeMember> = i32::try_from(child.id()).map(descendants_of).unwrap_or_default();
     ask_to_stop(child);
+    terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
-    while grace_remains(asked.elapsed(), grace) {
+    let mut ended: bool = false;
+    while !ended && grace_remains(asked.elapsed(), grace) {
         match child.try_wait() {
-            Ok(Some(_)) | Err(_) => return,
+            Ok(Some(_)) | Err(_) => ended = true,
             Ok(None) => std::thread::sleep(POLL_PAUSE),
         }
     }
-    // The child is being abandoned; its exit is not reported, only the cause.
-    let _killed = child.kill();
-    let _collected = child.wait();
+    if !ended {
+        // The child is being abandoned; its exit is not reported, only the cause.
+        let _killed = child.kill();
+        let _collected = child.wait();
+    }
+    // What the push started outlives it: its transport helper holds the connection and its hook may never exit
+    // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
+    // the push, so they get what is left of the grace and are then killed.
+    while grace_remains(asked.elapsed(), grace) && below.iter().any(still_running) {
+        std::thread::sleep(POLL_PAUSE);
+    }
+    kill_members(below.as_slice());
 }
 
 /// Read the shared output file back from its start,
