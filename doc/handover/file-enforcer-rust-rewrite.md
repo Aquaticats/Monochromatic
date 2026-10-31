@@ -92,14 +92,29 @@ each finished branch is reviewed and merged into `main`):
   `package-licenses` moved after `rust-catalog` in `file-enforcer.config.jsonc`;
   the jetbrains-harper policy constants are hardcoded from the TypeScript tool;
   the browserslist `environment` field selects nothing because sections are refused.
+- Finished,
+  same merge block:
+  branch `worktree-agent-ad604356a8bd46267` hardens the core and already contains the wiring branch,
+  so merging it alone lands both.
+  It adds `parse_jsonc_with_spans` to `monochromatic-jsonc-edit` without a version bump (0.1.1 is published),
+  so jsonc-edit needs a bump and a Trusted Publishing release before file-enforcer publishes.
+  Every config decode error now reads `file:line:col: /pointer: message`.
+  No `user watch` command exists (the decision lists only `user write` and `user check`).
 - Running (worktree agents):
-  loose ends of the wiring branch
+  loose ends
   (browserslist `bin/*.ts` oxlint errors with a real rerun of the scripts,
   `XDG_CONFIG_HOME` in JetBrains discovery,
-  the closure lint the offline `cargo metadata` skipped for the cli crate);
-  hardening the core (jsonc-edit value spans for `file:line:col` decode errors,
-  the untested branches,
-  single-line schema descriptions).
+  closure lints in the cli crate and the pre-existing ones in jsonc-edit and browserslist `fetch.rs`,
+  clap-derived closures in `args.rs`,
+  and the watch test that timed out once under load);
+  first-publication prep for the five new crates
+  (`cargo-publish.yml` jobs,
+  package contents,
+  dry runs and container builds of the unpacked crates,
+  runbook sections;
+  the owner token step is asked only once the dry runs pass);
+  the cutover inventory `doc/planning/file-enforcer-rust-cutover.md`
+  with a rehearsed toolchain plan conversion in scratch.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
