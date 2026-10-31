@@ -54,7 +54,7 @@ impl Harness {
     pub fn new() -> Harness {
         let target_scratch = Path::new(env!("CARGO_MANIFEST_DIR")).join("target").join("test-scratch");
         let home_base = std::env::var("HOME").expect("HOME is set");
-        let runtime_base = Path::new(&home_base).join("temp/agent/fe-rust/impl20/rt");
+        let runtime_base = Path::new(&home_base).join("temp/agent/file-enforcer-test");
         let harness = Harness {
             repo: scratch_in(&target_scratch),
             runtime: scratch_in(&runtime_base),

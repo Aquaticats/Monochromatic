@@ -50,7 +50,7 @@ use tempfile::TempDir;
 /// ```
 fn short_runtime_dir() -> TempDir {
     let home = std::env::var("HOME").expect("HOME is set");
-    let base = Path::new(&home).join("temp/agent/fe-rust/impl20/rt");
+    let base = Path::new(&home).join("temp/agent/file-enforcer-test");
     std::fs::create_dir_all(&base).expect("the runtime base is creatable");
     return TempDir::new_in(&base).expect("a runtime directory is creatable");
 }
