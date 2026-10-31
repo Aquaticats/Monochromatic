@@ -51,23 +51,23 @@ args = ["binstall", "--no-confirm", "--version", "0.1.0", "{package_id}"]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-cargo-dylint]
-name = "cargo-binstall cargo-dylint 6.3.1"
+name = "cargo-binstall cargo-dylint 6.3.2"
 platforms = ["all_platforms"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-cargo-dylint.operations.install]
-args = ["binstall", "--no-confirm", "--version", "6.3.1", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "6.3.2", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-cargo-dylint.operations.remove]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-dylint-link]
-name = "cargo-binstall dylint-link 6.3.1"
+name = "cargo-binstall dylint-link 6.3.2"
 platforms = ["all_platforms"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-dylint-link.operations.install]
-args = ["binstall", "--no-confirm", "--version", "6.3.1", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "6.3.2", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-dylint-link.operations.remove]
 args = ["uninstall", "{package_id}"]
@@ -106,12 +106,12 @@ args = ["binstall", "--no-confirm", "--version", "0.4.0", "{package_id}"]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli]
-name = "cargo-binstall monochromatic-git-policy-cli 0.4.2"
+name = "cargo-binstall monochromatic-git-policy-cli 0.4.4"
 platforms = ["linux"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.4.2", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.4.4", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.remove]
 args = ["uninstall", "{package_id}"]
