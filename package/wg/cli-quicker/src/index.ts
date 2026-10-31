@@ -22,6 +22,11 @@ import { loadConfig, } from './config.ts';
 import { CliUsageError, } from './errors.ts';
 import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
 import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
+import { UPDATE_HOSTS, } from './update-hosts.data.ts';
+import {
+  policiesNotInForceWithoutMark,
+  updatePolicyNotice,
+} from './update-policy-notice.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
 import {
@@ -134,9 +139,10 @@ async function main(): Promise<void> {
   if (subcommand === 'up') {
     if (config.exemptMark === undefined) {
       l.warn(
-        `Config for ${target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. So will toolchain sync and update runs. Add \`ExemptMark = ${String(RECOMMENDED_EXEMPT_MARK,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
+        `Config for ${target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. So will toolchain sync and update runs. ${policiesNotInForceWithoutMark()} Add \`ExemptMark = ${String(RECOMMENDED_EXEMPT_MARK,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
       );
     } else {
+      l.warn(updatePolicyNotice({ hosts: UPDATE_HOSTS, },),);
       /**
        Exact companion path resolved before first network mutation.
        */

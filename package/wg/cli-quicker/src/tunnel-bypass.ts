@@ -28,6 +28,9 @@ import {
   startBypassWatcher,
   stopBypassWatcher,
 } from './tunnel-bypass-watch-service.ts';
+import { refreshOrReport, } from './bypass-host-refresh.ts';
+import { IP_HOST_RULE_TOOLS, } from './tunnel-bypass-hosts.ts';
+import { removeUpdateHostRules, } from './tunnel-bypass-hosts-sync.ts';
 
 export { processArgumentsMatch, } from './linux-process-identity.ts';
 export {
@@ -153,6 +156,10 @@ async function cleanupBypassState(
    Network cleanup attempted even when sidecar validation blocks watcher signaling.
    */
   const networkResults = await Promise.allSettled([
+    removeUpdateHostRules({
+      state,
+      tools: IP_HOST_RULE_TOOLS,
+    },),
     removeBypassRules({ state, },),
     removeOwnedBypassRoutes({ state, },),
   ],);
@@ -265,6 +272,12 @@ export async function addExemptRule(
       );
     }
     await addBypassRules({ state, },);
+    // The first reconciliation runs now so the rules exist before traffic flows;
+    // a failure is reported loudly by the refresh and the watcher keeps retrying.
+    await refreshOrReport({
+      state,
+      absentCounts: new Map(),
+    },);
     if (watchRouteChanges)
       await startBypassWatcher({ state, },);
     fl.debug(

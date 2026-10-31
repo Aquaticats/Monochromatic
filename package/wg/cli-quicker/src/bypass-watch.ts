@@ -17,6 +17,7 @@ import { text, } from 'node:stream/consumers';
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { runHostRefreshLoop, } from './bypass-host-refresh.ts';
 import { BypassRouteError, } from './errors.ts';
 import { readBypassStatePath, } from './tunnel-bypass-state.ts';
 import { registerBypassWatcher, } from './tunnel-bypass-watch-service.ts';
@@ -258,6 +259,21 @@ export async function watchBypassRoutes(
     statePath,
     ownerId: state.ownerId,
   },);
+  /**
+   Reports whether shutdown was requested.
+
+   @returns Whether the host refresh loop should end.
+   */
+  function isStopped(): boolean {
+    return lifecycle.requested;
+  }
+  /**
+   Update-host rule refresh running beside the route monitor.
+   */
+  const hostRefresh = runHostRefreshLoop({
+    state,
+    isStopped,
+  },);
   while (!lifecycle.requested) {
     try {
       // oxlint-disable-next-line eslint/no-await-in-loop -- Each monitor session must finish before supervised replacement.
@@ -274,6 +290,7 @@ export async function watchBypassRoutes(
       await wait(MONITOR_RESTART_DELAY_MS,);
     }
   }
+  await hostRefresh;
   fl.debug('route watcher stopped',);
 }
 
