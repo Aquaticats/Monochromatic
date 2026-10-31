@@ -26,7 +26,7 @@
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
 use super::commit::COMMIT_BOUND_SECONDS;
-use super::fork_failure::strace_available;
+use super::fork_failure::{strace_available, strace_program};
 use super::support::{Fixture, Observed, bounded_for, fixture, git, repository, wrapper_first_path};
 use std::ffi::OsStr;
 use std::os::unix::process::ExitStatusExt;
@@ -137,7 +137,7 @@ fn traced(
 ) -> Command {
     let mut command: Command = bounded_for(
         fixture,
-        Path::new("strace"),
+        strace_program().expect("strace is installed").as_path(),
         wrapper_first_path(fixture).as_os_str(),
         COMMIT_BOUND_SECONDS,
     );

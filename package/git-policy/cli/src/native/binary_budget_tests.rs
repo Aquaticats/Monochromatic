@@ -9,7 +9,7 @@
 
 use super::budget_trace::{Counts, TRACED_CALLS, count};
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::fork_failure::strace_available;
+use super::fork_failure::{strace_available, strace_program};
 use super::support::{Fixture, REAL_GIT, fixture, git, repository};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
@@ -186,7 +186,7 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
 /// The same command run under `strace` with the traced calls written to `trace`, in the environment and directory of
 ///  `inner`.
 fn traced(inner: &Command, trace: &Path) -> Command {
-    let mut outer: Command = Command::new("strace");
+    let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
     outer
         .arg("--follow-forks")
         .arg("--quiet")
