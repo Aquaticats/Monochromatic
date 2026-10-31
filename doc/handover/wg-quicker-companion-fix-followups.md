@@ -52,9 +52,12 @@ unrelated to the resolver change).
    and the sweep should prune around foreign-owned entries.
    Owning package:
    `package/logger/core`.
-1. AGENTS.md rename tightening,
-   pending the user's accept or veto in this session's question.
-   Proposed new rule next to `SGD`:
+1. AGENTS.md rename tightening was declined by the maintainer on 2026-10-31,
+   who chose to leave `AGENTS.md` unchanged.
+   The rejected `RNL` code is recorded in `forbidden-strings.append.local.txt`
+   (`local-045`) per the rejected-code convention,
+   so do not re-propose it under that label.
+   The declined proposal was a rule next to `SGD`:
 
    ```text
    RNL: Rename moves runtime path literals and layout constants with the
@@ -68,12 +71,9 @@ unrelated to the resolver change).
    and its promised follow-up verification never ran
    `//package/wg/cli-quicker:buildAndTest`,
    so the suite sat red from 2026-10-29 to `34df734099`.
-   Tag `RNL` is unique across `AGENTS.md`,
-   skills,
-   and package docs,
-   and absent from `forbidden-strings.append.txt` and
-   `forbidden-strings.append.local.txt`.
-   Applying it needs the `writing-for-agents` skill loaded.
+   The incident record in
+   `doc/troubleshooting/wg-quicker-exempt-companion-pre-move-paths.md`
+   is the durable home of that lesson.
 1. Re-running `wg-quicker up fr-par-fr1` against the real config,
    pending the user's choice in this session's question.
    Nothing on the host was mutated by the fix work;
@@ -81,10 +81,8 @@ unrelated to the resolver change).
 
 ## How to respond
 
-If the user accepts `RNL`,
-edit `AGENTS.md`,
-run the forbidden-strings check,
-and commit as `docs(AGENTS.md): ...`.
-If the user asks for the tunnel,
-run `wg-quicker up fr-par-fr1` from the repository root and report its output,
+The `RNL` proposal is closed (declined);
+do not edit `AGENTS.md` for it.
+The tunnel run decision sits in
+[Follow-ups left open](#follow-ups-left-open),
 with `wg-quicker down fr-par-fr1` as the recovery if activation fails midway.
