@@ -21,15 +21,15 @@ use super::update::{OutcomeKind, format_update_report, run_update, run_update_fo
 use super::update_select::{matches_pattern, select_tools};
 use super::update_tests::{CRATES_URL, NPM_URL, REGISTRY_PLAN, linux, outcome_of, read_lock, registry_scope, serve_registries};
 
-const VITE_URL: &str = "https://registry.npmjs.org/vite";
+pub(super) const VITE_URL: &str = "https://registry.npmjs.org/vite";
 
-const WRANGLER_LINE: &str =
+pub(super) const WRANGLER_LINE: &str =
     "    \"npm:wrangler\": { \"request\": \"npm:wrangler@latest\", \"route\": \"mpm-pnpm\", \"manager\": \"pnpm\", \"packageId\": \"wrangler\", \"bins\": [\"wrangler\"] },\n";
 
-const VITE_LINE: &str =
+pub(super) const VITE_LINE: &str =
     "    \"npm:vite\": { \"request\": \"npm:vite@latest\", \"route\": \"mpm-pnpm\", \"manager\": \"pnpm\", \"packageId\": \"vite\", \"bins\": [\"vite\"] },\n";
 
-fn names(given: &[&str]) -> Vec<String> {
+pub(super) fn names(given: &[&str]) -> Vec<String> {
     return given.iter().map(|name| return (*name).to_string()).collect();
 }
 
@@ -39,7 +39,7 @@ fn registry_plan() -> Plan {
 
 /// The state every named-update test starts from:
 /// one full update against the first registry answers.
-fn locked_scope() -> (tempfile::TempDir, Scope, EnvMap) {
+pub(super) fn locked_scope() -> (tempfile::TempDir, Scope, EnvMap) {
     let (directory, scope, env) = registry_scope();
     let first = FakeHttp::new();
     serve_registries(&first, "10.5.0", "4.156.0", "0.9.0", "2026-10-30");
@@ -48,14 +48,14 @@ fn locked_scope() -> (tempfile::TempDir, Scope, EnvMap) {
 }
 
 /// Every registry has moved on.
-fn moved_network() -> FakeHttp {
+pub(super) fn moved_network() -> FakeHttp {
     let http = FakeHttp::new();
     serve_registries(&http, "10.6.0", "4.157.0", "0.9.1", "2026-11-03");
     http.serve(VITE_URL, b"{\"dist-tags\": {\"latest\": \"7.1.0\"}}");
     return http;
 }
 
-fn add_vite(scope: &Scope) {
+pub(super) fn add_vite(scope: &Scope) {
     let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
     assert!(plan.contains(WRANGLER_LINE), "the fixture plan changed shape");
     fs::write(&scope.plan_file, plan.replace(WRANGLER_LINE, &format!("{WRANGLER_LINE}{VITE_LINE}"))).expect("add vite");

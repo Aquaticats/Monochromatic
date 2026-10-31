@@ -237,6 +237,36 @@ pub fn run_update_for(
     names: &[String],
 ) -> Result<UpdateReport, ToolchainError> {
     let loaded: Loaded = load(scope)?;
+    let mut only: Option<BTreeSet<String>> = None;
+    if !names.is_empty() {
+        only = Some(select_tools(&loaded.plan, names)?);
+    }
+    return update_loaded(&loaded, scope, env, runner, http, host, check, only.as_ref());
+}
+
+/// What:
+/// Runs `update` over files `load` already read,
+/// for the exact tool ids in `only` (every tool when `only` is `None`).
+/// Why:
+/// `sync` resolves the new or re-edited plan entries it finds in the files it just read,
+/// with the revision check of the publish covering the gap between that read and the write,
+/// and `run_update_for` selects by pattern first.
+/// A plan entry the lock cannot hold that `only` leaves out is refused before any lookup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function updateLoaded(loaded, scope, env, runner, http, host, check, only?: Set<string>): UpdateReport
+/// ```
+pub fn update_loaded(
+    loaded: &Loaded,
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    check: bool,
+    only: Option<&BTreeSet<String>>,
+) -> Result<UpdateReport, ToolchainError> {
     let mut old_tools: Vec<LockedTool> = Vec::new();
     if let Some(parsed) = &loaded.lock {
         let verdict = compare(&loaded.plan, parsed);
@@ -245,13 +275,12 @@ pub fn run_update_for(
         }
         old_tools = parsed.lock.tools.clone();
     }
-    let selected: BTreeSet<String> = select_tools(&loaded.plan, names)?;
-    if !names.is_empty() {
+    if let Some(selected) = only {
         let mut disagreement: Option<Disagreement> = None;
         if let Some(parsed) = &loaded.lock {
             disagreement = Some(compare(&loaded.plan, parsed));
         }
-        let left_out: Vec<String> = unnamed_needing_resolution(&loaded.plan, disagreement.as_ref(), &selected);
+        let left_out: Vec<String> = unnamed_needing_resolution(&loaded.plan, disagreement.as_ref(), selected);
         if !left_out.is_empty() {
             return Err(left_out_refusal(&left_out));
         }
@@ -261,7 +290,7 @@ pub fn run_update_for(
     for declaration in &loaded.plan.tools {
         let current: Option<&LockedTool> = find_tool(&old_tools, &declaration.id);
         match current {
-            Some(locked) if !selected.contains(&declaration.id) => {
+            Some(locked) if only.is_some_and(|selected| return !selected.contains(&declaration.id)) => {
                 results.push(Resolved { outcome: Outcome { id: declaration.id.clone(), kind: OutcomeKind::Kept }, resolution: Some(keep(locked)) });
             }
             _ => results.push(resolve_one(&context, declaration, current)),

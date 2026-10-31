@@ -22,6 +22,9 @@
 //! ```
 
 /// Imports what this module uses from `super::cargo_installs`.
+use std::collections::BTreeSet;
+
+use super::agree::{Disagreement, compare, refusal};
 use super::cargo_installs::{is_repository_published, older_lock_warnings, point_current_at_newest};
 /// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
@@ -36,7 +39,7 @@ use super::install::install_tool;
 /// Imports `applies_to_family` from `super::layout`.
 use super::layout::applies_to_family;
 /// Imports `load_agreeing` from `super::load`.
-use super::load::load_agreeing;
+use super::load::{Loaded, load, load_agreeing};
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
 /// Imports what this module uses from `super::model`.
@@ -52,6 +55,7 @@ use super::runner::Runner;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 /// Imports the shared named helpers.
+use super::update::{OutcomeKind, update_loaded};
 use super::util::find_tool;
 
 /// The tools installed first,
@@ -118,6 +122,10 @@ pub struct SyncReport {
     pub missing_bins: Vec<String>,
     /// Warnings printed before the install that caused them.
     pub warnings: Vec<String>,
+    /// The tools `sync` resolved and locked itself before installing,
+    /// as tool id and locked version:
+    /// the plan entries that were new or whose resolution-affecting fields changed.
+    pub resolved: Vec<(String, String)>,
 }
 
 /// What:
@@ -213,16 +221,148 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
 }
 
 /// What:
-/// The `sync` command:
-/// load the plan and lock (refusing when they disagree),
-/// then sync every tool.
+/// The reason a frozen `sync` did not resolve a plan that is ahead of the lock.
 /// Why:
-/// Acting on a lock that does not describe the plan would install the wrong tools.
+/// The refusal tells the person which switch or environment stopped `sync` from locking the entries itself.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FrozenReason {
+    /// `--frozen-lock` was given.
+    Flag,
+    /// A CI environment was detected (the `ci-info` rules pnpm uses).
+    Ci,
+}
+
+/// What:
+/// Whether `sync` may resolve plan entries the lock lacks.
+/// Why:
+/// It mirrors `pnpm install`:
+/// resolve and write the lockfile entries a changed manifest needs when not frozen,
+/// refuse when frozen (the default in CI).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function runSync(scope, env, runner, http, host): SyncReport
+/// type LockPolicy = { kind: 'resolve' } | { kind: 'frozen'; reason: 'flag' | 'ci' };
 /// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LockPolicy {
+    /// Resolve new and re-edited entries alone, write only their rows, then install.
+    Resolve,
+    /// Refuse a plan that is ahead of the lock and name `mpm-shadow update <ids>`.
+    Frozen(FrozenReason),
+}
+
+/// The refusal for a frozen `sync` whose plan is ahead of the lock:
+/// the usual disagreement message plus why `sync` did not resolve.
+fn frozen_refusal(verdict: &Disagreement, reason: FrozenReason) -> ToolchainError {
+    let base: ToolchainError = refusal(verdict);
+    let why: &str = match reason {
+        FrozenReason::Flag => "`--frozen-lock` was given",
+        FrozenReason::Ci => {
+            "a CI environment was detected (the CI variable or another marker; the rules of pnpm and ci-info), \
+             where the lock is frozen; `CI=false` or `--no-frozen-lock` turns that off"
+        }
+    };
+    return ToolchainError::drift(format!(
+        "{}\nmpm-shadow sync did not resolve them itself because {why}; resolve and commit the lock, then sync again",
+        base.message
+    ));
+}
+
+/// What:
+/// Resolves the plan entries the lock lacks or holds for an older request,
+/// and only those,
+/// and writes only their rows.
+/// Why:
+/// This is `mpm-shadow update <those ids>` done by `sync`:
+/// no other row moves,
+/// even when the registries have moved on.
+/// A lookup that fails stops the sync before anything is installed,
+/// because a lock that does not describe the plan would install the wrong tools.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveBeforeInstalling(loaded, ids, scope, env, runner, http, host): [string, string][]
+/// ```
+fn resolve_before_installing(
+    loaded: &Loaded,
+    ids: &[String],
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+) -> Result<Vec<(String, String)>, ToolchainError> {
+    let only: BTreeSet<String> = ids.iter().cloned().collect();
+    let report = update_loaded(loaded, scope, env, runner, http, host, false, Some(&only))?;
+    if report.has_failures() {
+        let mut message: String = String::from(
+            "mpm-shadow sync could not resolve the plan entries the lock lacks, so it wrote nothing and installed nothing:\n",
+        );
+        for outcome in &report.outcomes {
+            if let OutcomeKind::Failed { reason } = &outcome.kind {
+                message.push_str(&format!("  {}: {reason}\n", outcome.id));
+            }
+        }
+        message.push_str("fix the lookup and run `mpm-shadow sync` again, or run `mpm-shadow update <id>` to see it on its own");
+        return Err(ToolchainError::failure(message));
+    }
+    let mut resolved: Vec<(String, String)> = Vec::new();
+    for outcome in &report.outcomes {
+        match &outcome.kind {
+            OutcomeKind::Added { version } => resolved.push((outcome.id.clone(), version.clone())),
+            OutcomeKind::Updated { new_version, .. } => resolved.push((outcome.id.clone(), new_version.clone())),
+            _ => {}
+        }
+    }
+    return Ok(resolved);
+}
+
+/// What:
+/// Runs `sync` under a lock policy.
+/// Why:
+/// A plan that disagrees with the lock only in what `lock` fixes offline,
+/// or in the digest,
+/// is refused as before.
+/// A plan that is ahead of the lock (a new entry,
+/// or a resolution-affecting edit) is refused naming `mpm-shadow update <ids>` when frozen,
+/// and otherwise those entries are resolved alone and written to the lock,
+/// as `pnpm install` does after a dependency was added,
+/// before the install starts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runSyncWith(scope, env, runner, http, host, policy: LockPolicy): SyncReport
+/// ```
+pub fn run_sync_with(
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    policy: LockPolicy,
+) -> Result<SyncReport, ToolchainError> {
+    let loaded: Loaded = load(scope)?;
+    let mut resolved: Vec<(String, String)> = Vec::new();
+    if let Some(parsed) = &loaded.lock {
+        let verdict: Disagreement = compare(&loaded.plan, parsed);
+        if verdict.digest_problem.is_none() && verdict.needs_update() {
+            match policy {
+                LockPolicy::Frozen(reason) => return Err(frozen_refusal(&verdict, reason)),
+                LockPolicy::Resolve => {
+                    resolved = resolve_before_installing(&loaded, &verdict.ids_needing_update(), scope, env, runner, http, host)?;
+                }
+            }
+        }
+    }
+    let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
+    let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
+    let mut report: SyncReport = sync_tools(&context, None);
+    report.resolved = resolved;
+    return Ok(report);
+}
+
+/// Runs `sync` frozen:
+/// it never resolves and never uses the network to read versions.
 pub fn run_sync(
     scope: &Scope,
     env: &EnvMap,
@@ -230,15 +370,16 @@ pub fn run_sync(
     http: &dyn HttpGet,
     host: &Host,
 ) -> Result<SyncReport, ToolchainError> {
-    let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
-    let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
-    return Ok(sync_tools(&context, None));
+    return run_sync_with(scope, env, runner, http, host, LockPolicy::Frozen(FrozenReason::Flag));
 }
 
-/// The text `sync` prints for a report (warnings first,
-/// then the counts and each failure).
 pub fn format_sync_report(report: &SyncReport) -> String {
     let mut text: String = String::new();
+    for (id, version) in &report.resolved {
+        text.push_str(&format!(
+            "toolchain sync: locked {id} {version} (the plan was ahead of the lock; resolved alone, no other lock row moved)\n"
+        ));
+    }
     for warning in &report.warnings {
         text.push_str(&format!("toolchain sync: warning: {warning}\n"));
     }

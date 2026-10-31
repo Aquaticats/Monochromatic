@@ -47,7 +47,9 @@ use super::scope::{EnvMap, Scope, resolve_scope};
 /// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
 /// Imports what this module uses from `super::sync`.
-use super::sync::{format_sync_report, run_sync};
+use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_sync_with};
+/// Imports `is_ci` from `super::ci_detect`.
+use super::ci_detect::is_ci;
 /// Imports what this module uses from `super::verify_archive`.
 use super::verify_archive::run_verify_archive;
 
@@ -87,7 +89,20 @@ pub fn subcommands() -> Vec<Command> {
         .about("Print the toolchain's program directories and exposed binaries as JSON (read-only, offline)")
         .arg(global_flag());
     let sync: Command = Command::new("sync")
-        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory")
+        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory; a plan entry the lock lacks is resolved and locked alone first, unless frozen")
+        .arg(
+            Arg::new("frozen-lock")
+                .long("frozen-lock")
+                .action(ArgAction::SetTrue)
+                .conflicts_with("no-frozen-lock")
+                .help("Never resolve: refuse a plan that is ahead of the lock and name `mpm-shadow update <ids>` (the default in CI, like pnpm's --frozen-lockfile)"),
+        )
+        .arg(
+            Arg::new("no-frozen-lock")
+                .long("no-frozen-lock")
+                .action(ArgAction::SetTrue)
+                .help("Resolve a plan that is ahead of the lock even in CI (like pnpm's --no-frozen-lockfile)"),
+        )
         .arg(global_flag());
     let update: Command = Command::new("update")
         .about("Resolve the plan's tools (all, or only the named ones) and write toolchain.lock.json (looks versions up on the network)")
@@ -212,7 +227,14 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
         }
         "sync" => {
             let http = connect_or_explain();
-            return Some(match run_sync(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current()) {
+            let policy: LockPolicy = if matches.get_flag("frozen-lock") {
+                LockPolicy::Frozen(FrozenReason::Flag)
+            } else if matches.get_flag("no-frozen-lock") || !is_ci(&env) {
+                LockPolicy::Resolve
+            } else {
+                LockPolicy::Frozen(FrozenReason::Ci)
+            };
+            return Some(match run_sync_with(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), policy) {
                 Ok(sync_report) => {
                     println!(
                         "toolchain sync: platform {}, root {}, exposure {}",

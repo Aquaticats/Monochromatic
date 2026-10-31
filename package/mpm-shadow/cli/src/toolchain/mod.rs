@@ -144,6 +144,9 @@ pub mod status_cmd;
 /// The `sync` command.
 pub mod sync;
 
+/// CI detection by the rules of `ci-info`, which pnpm uses.
+pub mod ci_detect;
+
 /// The `update` command.
 pub mod update;
 
@@ -249,6 +252,10 @@ mod update_resolve_tests;
 /// The unit tests of `update`.
 #[cfg(test)]
 mod update_tests;
+
+/// The unit tests of the CI detection and of `sync` resolving or refusing a plan that is ahead of the lock.
+#[cfg(test)]
+mod sync_resolve_tests;
 
 /// The unit tests of `update <tool>...`.
 #[cfg(test)]
