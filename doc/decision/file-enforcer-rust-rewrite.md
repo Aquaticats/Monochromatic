@@ -245,6 +245,15 @@ and accepted with this record:
   and other toolchain command that resolves such a tool for that tree names the tool,
   the locked and the used version,
   and that the newer one runs because older repository tools are never kept.
+  The warning also prints on every run of the tool in that tree
+  (the user chose "Also on every tool run",
+  noting "give the recourse: upgrade" and "noisy is fine"):
+  it goes to stderr,
+  never into a tool's stdout,
+  and ends with the remedy,
+  upgrading the tree's lock through `mise run toolchain:update` or by merging `main`.
+  A tree's exposed link for such a tool goes through an `mpm-shadow` launcher that compares the tree's lock with the version it runs,
+  since a bare link to the binary has no place to check.
   This relies on each release reading its predecessors' configuration,
   as wrapper 0.4.4 reads the string `rulesFile` of 0.4.0
   (`rules_file_takes_a_path_or_an_array_of_entries` in

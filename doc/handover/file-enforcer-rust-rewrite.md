@@ -128,6 +128,12 @@ each finished branch is reviewed and merged into `main`):
   that agent was told,
   and a separate agent adds the same guard to the TypeScript sync in `package/file-enforcer/core/src/toolchain/`,
   which every tree uses until cutover.
+  The user also wants a warning,
+  with the upgrade remedy,
+  on every run of such a tool in such a tree ("noisy is fine"):
+  the mpm-shadow agent builds it as a launcher behind the exposed links,
+  so it lands at cutover;
+  until then the TypeScript sync warns only from `toolchain:sync` and `toolchain:status`.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
