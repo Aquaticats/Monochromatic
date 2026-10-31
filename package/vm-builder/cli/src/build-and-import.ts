@@ -17,7 +17,6 @@
  
  Run: mise run //package/vm-builder/cli:run
  */
-import { exec, } from '@monochromatic-dev/file-enforcer-core/ts';
 import {
   findRootCached,
   MISE_MONOREPO,
@@ -32,6 +31,7 @@ import {
 import { join, } from 'node:path';
 
 import { generateDomainXml, } from './domain-xml.ts';
+import { exec, } from './exec.ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 /**
