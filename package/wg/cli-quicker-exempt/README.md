@@ -216,6 +216,21 @@ A process of the watched user that the watcher may not inspect is reported once,
 and is not mistaken for one that exited.
 A process in another pid namespace (a container or a sandbox) is reported and left alone.
 
+The new scope carries the limits of the cgroup the process left,
+so moving a process for routing never loosens a cap such as the CPU quota of `claude-code-bash`.
+The limits are `cpu.max` as `CPUQuotaPerSecUSec`,
+`memory.max` as `MemoryMax`,
+`memory.high` as `MemoryHigh`,
+`memory.swap.max` as `MemorySwapMax` and `pids.max` as `TasksMax`.
+The smallest finite value on the cgroups between the old place and the nearest ancestor it shares with the new place is used;
+limits of the shared ancestors keep applying by themselves.
+A limit file that cannot be read stops the move with a report,
+and a move that fails is never tried again without the limits.
+The cap becomes the moved processes' own cap,
+no longer shared with the processes that stayed in the old cgroup.
+CPU weight,
+I/O limits and cpusets are not copied.
+
 The manager can only move processes inside its own subtree,
 `user@<uid>.service`.
 A process in a login session scope (`session-N.scope` under `user-<uid>.slice`),
