@@ -239,7 +239,8 @@ Branch `worktree-agent-a23c3740c67ba36d9`.
 The `file-enforcer` binary now implements `rust-catalog`,
 `browserslist` and `jetbrains-harper`
 (`package/file-enforcer/cli/src/kinds.rs`;
-details in the CLI README, section "Rule kinds linked here").
+details in the CLI README,
+section "Rule kinds linked here").
 The browserslist data lock moved to `browserslist-data.lock.json` at the repository root,
 and the rule names it in its required `lock` field.
 Against a throwaway copy of this repository the Rust tool reports no drift for `rust-catalog.toml`
@@ -259,7 +260,10 @@ the cache was seeded with `curl` and verified against the lock.
 Open:
 the `bin/*.ts` scripts of the browserslist package now belong to a workspace package
 and still have oxlint findings
-(sync Node APIs, arrow functions, try/finally, missing TSDoc).
+(sync Node APIs,
+arrow functions,
+try/finally,
+missing TSDoc).
 
 ## How to respond
 
