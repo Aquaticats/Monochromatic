@@ -4507,3 +4507,21 @@ This block supersedes "State at 2026-10-29 (night, later)".
   batching would make them immune to a slow host.
 - Next: release 0.4.3 with `native:release`, then the mutation campaign over `private_storage`, `owner_lock`,
   `process_tree`, `real_index_lock`, `filesystem_identity_fsid` and the changed fault-test support.
+
+## Update at 2026-10-31 (0.4.3 published, scanner release plan)
+
+- Wrapper 0.4.3 is published: release commit `79ad3a71ca`, crates.io `2026-10-31T02:58:17Z`, GitHub release
+  `monochromatic-git-policy-cli-v0.4.3` with the aarch64 and x86_64 Linux assets (`native:release:wait` printed
+  PUBLISHED). Its release note stayed under the tool's 200 character limit (a 312 character note was refused first).
+- The user changed the scanner's `--rules` support (a comma-separated list with optional entries, commits `4882f19100`
+  to `2ebe1dd93a`) and its Git policy, and said more releases may be needed. Plan, in order:
+  1. Gates on the current tree: the scanner's `test:release:container` (unit `fs-release-gate1`, log
+     `~/temp/agent/gate/fs-release-gate1.log`) and the wrapper's container gate (unit `cli-git-gate-strace9`, log
+     `strace9.log`), started in parallel.
+  2. Release `forbidden-strings` 0.5.0 to 0.6.0 (a path containing a comma no longer reads as one path, so not a
+     patch release) with `crate-release/cli/bin/release.ts --crate-name forbidden-strings --crate-dir
+     package/forbidden-strings/cli --scope forbidden-strings/cli` and a `--pin-file` for each exact pin of
+     `=0.5.0`: `package/git-policy/cli/Cargo.toml`, `package/forbidden-strings/core.bench/Cargo.toml`,
+     `package/forbidden-strings/cli.fuzz/Cargo.toml`; wait for crates.io with `wait-publish.ts`.
+  3. Then release the wrapper 0.4.3 to 0.4.4 with `native:release`, because the wrapper's published manifest must name
+     the published scanner; wait for crates.io again.
