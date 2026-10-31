@@ -168,6 +168,26 @@ export function applicationWatchStopArgs(
 }
 
 /**
+ Picks the loud reports out of the watcher's startup output,
+ so a policy that failed to start reaches the output of `up`.
+
+ @param stderr - Standard error of the watcher start command.
+
+ @returns The lines that name a policy not in force.
+
+ @example
+ ```ts
+ startupFailureLines({ stderr: 'POLICY NOT IN FORCE: process watch: x\nother' });
+ ```
+ */
+export function startupFailureLines({ stderr, }: { readonly stderr: string; },): readonly string[] {
+  return stderr.split('\n',)
+    .filter(function isLoud(line,): boolean {
+      return line.includes(POLICY_NOT_IN_FORCE_MARKER,);
+    },);
+}
+
+/**
  Starts detached Rust watcher after bypass routing exists.
  
  @param interfaceName - Stable watcher key and tunnel owner.
@@ -231,11 +251,8 @@ export async function startApplicationExemptions(
       uid,
     },),
   },);
-  for (const line of started.stderr
-    .split('\n',)) {
-    if (line.includes(POLICY_NOT_IN_FORCE_MARKER,))
-      fl.error(line,);
-  }
+  for (const line of startupFailureLines({ stderr: started.stderr, },))
+    fl.error(line,);
 }
 
 /**

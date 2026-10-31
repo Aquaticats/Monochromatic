@@ -8,6 +8,7 @@ import {
   applicationWatchStartArgs,
   applicationWatchStopArgs,
   resolveApplicationUid,
+  startupFailureLines,
 } from '../dist/final/node/application-exemption.mjs';
 
 await describe({
@@ -96,6 +97,30 @@ await describe({
           environment: { SUDO_UID: '4294967296', },
           currentUid: 0,
         },),).toThrow('outside unsigned 32-bit range',);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: startupFailureLines.name,
+  children: [
+    it({
+      name: 'relays only the loud reports of the watcher start, so a failed policy reaches the output of up',
+      fn: async () => {
+        /**
+         Standard error of a start that printed its notice and one failure.
+         */
+        const stderr = [
+          'wg-quicker-exempt: POLICY NOTICE. By the repository\'s policy, and without any switch, this traffic leaves outside the tunnel',
+          'wg-quicker-exempt: POLICY NOT IN FORCE: process watch: update entry points: the updates slice cannot be created: boom',
+          '',
+        ].join('\n',);
+        expect(startupFailureLines({ stderr, },),).toEqual([
+          'wg-quicker-exempt: POLICY NOT IN FORCE: process watch: update entry points: the updates slice cannot be created: boom',
+        ],);
+        expect(startupFailureLines({ stderr: '', },),).toEqual([],);
+        expect(startupFailureLines({ stderr: 'moved pid 5\n', },),).toEqual([],);
       },
     },),
   ],
