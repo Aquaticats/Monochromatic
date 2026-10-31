@@ -102,13 +102,32 @@ pub enum StartOutcome {
 /// spawn(program, args, { detached: true, stdio: 'ignore' }).unref();
 /// ```
 fn detach_session(command: &mut Command) {
-    // SAFETY: the closure runs in the forked child before `exec` and calls only `setsid`, which is async-signal-safe.
+    // SAFETY: the function runs in the forked child before `exec` and calls only `setsid`, which is async-signal-safe.
     unsafe {
-        command.pre_exec(|| {
-            libc::setsid();
-            return Ok(());
-        });
+        command.pre_exec(start_new_session);
     }
+}
+
+/// What:
+///  Start a new session for the calling process,
+/// so the server survives its parent's terminal closing.
+///  `std::io::Result<()>` is "success with no value or an I/O error" (TS:
+/// a function that returns nothing or throws).
+/// Why:
+///  `pre_exec` runs this in the forked child before the server program starts.
+/// The session id that `setsid` returns is not needed,
+/// and a failure to detach is harmless to the command that asked for the server.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startNewSession(): void { process.setsid(); }
+/// ```
+fn start_new_session() -> std::io::Result<()> {
+    // SAFETY: `setsid` takes no arguments and touches no memory of this process.
+    unsafe {
+        libc::setsid();
+    }
+    return Ok(());
 }
 
 /// What:

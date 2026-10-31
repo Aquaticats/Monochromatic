@@ -34,11 +34,22 @@ use std::io::Write;
 /// ```
 #[derive(Debug, Default)]
 pub struct LinePrinter {
-    /// The `sequence` field.
+    /// Number of the next line,
+    /// counted per process from 0.
     sequence: u64,
 }
 
-/// The `impl EventSink for LinePrinter` block.
+/// What:
+///   How the printer receives an event:
+/// it prints one JSON line to standard output with the next sequence number.
+/// Why:
+///   Standard output is JSON lines only,
+/// so every event goes through this one function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// emit(event: Event): void { console.log(JSON.stringify(event.toJson(this.sequence++))); }
+/// ```
 impl EventSink for LinePrinter {
     /// What:
     ///  Number the event,

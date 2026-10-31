@@ -57,11 +57,20 @@ use std::sync::atomic::Ordering;
 /// class RpcSink implements EventSink { socket: Socket }
 /// ```
 pub struct RpcSink {
-    /// The `stream` field.
+    /// The client's socket;
+    /// events are written to a clone of it.
     stream: UnixStream,
 }
 
-/// The `impl RpcSink` block.
+/// What:
+///   Constructing the sink and sending a keep-alive.
+/// Why:
+///   `watch` pings so a vanished client is noticed within one tick.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RpcSink { constructor(stream); ping(): boolean }
+/// ```
 impl RpcSink {
     /// What:
     ///  Wrap a stream.
@@ -92,7 +101,17 @@ impl RpcSink {
     }
 }
 
-/// The `impl EventSink for RpcSink` block.
+/// What:
+///   How events leave the server:
+/// each becomes one `event` notification line on the socket.
+/// Why:
+///   A write failure is ignored because the client may have gone;
+/// the run still completes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// emit(event: Event): void { socket.write(notification('event', event)); }
+/// ```
 impl EventSink for RpcSink {
     /// Send the event;
     /// a closed client is ignored so the run still finishes.

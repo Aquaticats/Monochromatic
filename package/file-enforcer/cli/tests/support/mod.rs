@@ -173,3 +173,22 @@ pub const CONFIG: &str = r#"{"rules": [{"kind": "concat", "id": "claude", "outpu
 pub fn config_path(harness: &Harness) -> PathBuf {
     return harness.repo.path().join("file-enforcer.config.jsonc");
 }
+
+/// What:
+///  Whether a process is alive and not just waiting to be reaped.
+///  `i32` is a signed 32-bit integer (the type `libc::kill` takes for a process id).
+/// Why:
+///  A server killed after its parent exited can sit as a zombie for a moment;
+/// a zombie holds no socket and serves nothing,
+/// so it counts as stopped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function processIsRunning(pid: number): boolean
+/// ```
+pub fn process_is_running(pid: i32) -> bool {
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { return false };
+    // The state letter follows the parenthesised command name, which may itself contain spaces and parentheses.
+    let after_name = stat.rsplit_once(')').map(|pair| return pair.1).unwrap_or_default();
+    return after_name.trim_start().chars().next().is_some_and(|state| return state != 'Z');
+}

@@ -80,9 +80,11 @@ pub struct ClientOptions {
 /// type Connection = { reader: LineReader; writer: Socket };
 /// ```
 pub struct Connection {
-    /// The `reader` field.
+    /// Buffered reading half of the socket;
+    /// responses and event notifications arrive line by line.
     reader: BufReader<UnixStream>,
-    /// The `writer` field.
+    /// Writing half of the socket;
+    /// requests are sent on it.
     writer: UnixStream,
 }
 
@@ -97,9 +99,12 @@ pub struct Connection {
 /// type HandshakeFailure = { kind: 'mismatch'; pid: number } | { kind: 'other' };
 /// ```
 enum HandshakeFailure {
-    /// The `Mismatch` variant.
+    /// The server reported a different protocol,
+    /// build or worktree and is draining;
+    /// the client waits for it to go and starts a new one.
     Mismatch,
-    /// The `Other` variant.
+    /// Any other handshake failure;
+    /// the client retries after a short wait.
     Other,
 }
 
@@ -187,7 +192,15 @@ pub fn connect(options: &ClientOptions) -> Result<Connection, Diagnostic> {
     return Err(Diagnostic::new("server-unavailable", &message));
 }
 
-/// The `impl Connection` block.
+/// What:
+///   Sending a request on an established connection and asking the server to stop.
+/// Why:
+///   `request` streams the server's events into a sink and returns the exit code.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Connection { request(method, params, sink): number; shutdown(): number | undefined }
+/// ```
 impl Connection {
     /// What:
     ///  Send one request and print its events until the response arrives;
