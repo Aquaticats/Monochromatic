@@ -49,6 +49,7 @@ const contextFileName = 'strace.tar.xz';
  them and the image has no such library.
 
  @param base - content-addressed base image ID shared with the test image
+
  @param jobs - parallel compile jobs the build container's CPUs allow
 
  @returns Containerfile lines ending with the built executable at a fixed stage path
@@ -58,7 +59,10 @@ const contextFileName = 'strace.tar.xz';
  const lines = straceStageLines({ base, jobs: 2 });
  ```
  */
-export function straceStageLines({ base, jobs, }: {
+export function straceStageLines({
+  base,
+  jobs,
+}: {
   readonly base: string;
   readonly jobs: number;
 },): string[] {
