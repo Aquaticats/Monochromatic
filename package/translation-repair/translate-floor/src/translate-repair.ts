@@ -25,7 +25,10 @@ import {
   CONTRIBUTOR_AUTHORITY_FINDING,
   type DeclaredNamePair,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
-import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage/ts';
+import {
+  type HeardVoice,
+  seatOfVoice,
+} from '@monochromatic-dev/translation-repair-stage/ts';
 import { askAboutFindings, } from './translate-repair-ask.ts';
 import { requireComparedVerdict, } from './translate-floor-ground.ts';
 import { validateTranslatedSlice, } from './translate-validate.ts';
@@ -404,8 +407,10 @@ async function repairOneCandidate(
   }
   rl.info(`translate-repair: ${voice.modelId} revised its candidate`,);
   return {
+    // THE VOICE KEEPS ITS SEAT (ledger B1161): a voice that answered for a runaway seat is ordered by that seat after the
+    // revision as before it.
     voice: {
-      modelId: voice.modelId,
+      ...voice,
       value: { translation: revision.translation, },
     },
     findings: [
@@ -524,11 +529,14 @@ export async function repairInvalidCandidates(
   readonly findings: readonly string[];
 }> {
   /**
-   The models that wrote the candidates, each seated on this slice.
+   The models that were heard on this slice or ran away on it: the model of every voice and, where another model
+   answered for a runaway seat, that seat too (ledger B1161), each once.
    */
-  const authors = voices.map(function authorOf(voice,): RosterModelId {
-    return voice.modelId;
-  },);
+  const authors = [
+    ...new Set(voices.flatMap(function modelsOf(voice,): readonly RosterModelId[] {
+      return [voice.modelId, seatOfVoice({ voice, },),];
+    },),),
+  ];
 
   /**
    One outcome per heard voice.
@@ -546,10 +554,11 @@ export async function repairInvalidCandidates(
         declared,
         disputedWordings,
         priorMessages,
-        // AN AUTHOR IS ASKED ABOUT ITS FINDINGS IN THE ROLE THE CALLER GIVES, with the authors of the slate as the bench
-        // and the record the gather that produced them used, so a runaway author is re-asked of a model its role may
-        // take that wrote none of the candidates and took no seat of the question (ledger B1079, B1100). Without a seat
-        // the re-ask asks no other model at all.
+        // AN AUTHOR IS ASKED ABOUT ITS FINDINGS IN THE ROLE THE CALLER GIVES, with the bench of the question (the model
+        // of every voice and the seat it answered for, which includes a seat that ran away in the gather) and the record
+        // the gather that produced them used, so a runaway author is re-asked of a model its role may take that wrote none
+        // of the candidates, took no seat of the question and did not itself run away on it (ledger B1079, B1100, B1161).
+        // Without a seat the re-ask asks no other model at all.
         reaskSeat: {
           role,
           bench: authors,
