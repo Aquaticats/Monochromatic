@@ -46,9 +46,9 @@ const GENERATION = 'sha256-tree-v1:cat';
 const KEY = 'purr';
 
 /**
- The key a one-message question to one seat gets at version nine, which moves when the version or the digest does.
+ The key a one-message question to one seat gets at version ten, which moves when the version or the digest does.
  */
-const KEY_AT_VERSION_NINE = '575900f987873429f3b53a1e646b162dacb13763a8139906dadc33ac70077c66';
+const KEY_AT_VERSION_TEN = '1f3c05fe880649bdfd015e1c91084a73ed125175014015f9888cc7b39b5eaaba';
 
 /**
  A sheet of one message.
@@ -223,17 +223,18 @@ await describe({
           },
         },),
         it({
-          name: 'IS AT VERSION 9: the reader of a model\'s reply takes a label that differs from a listed label only '
+          name: 'IS AT VERSION 10: a stored voice names the model that answered for its seat (`answeredBy`, ledger B1142), and '
+            + 'the reader of a model\'s reply takes a label that differs from a listed label only '
             + 'in its capital as the listed label (version 8), and a count decides only on two or more usable ballots '
             + '(the lead\'s ruling of 2026-10-25), and the key digests the version, the sheet and the roster, not the '
             + 'reader or the rule, so only this number retires a ballot stored under the reader or the rule before',
           fn: async () => {
-            expect(CONSISTENCY_CACHE_VERSION,).toBe(9,);
+            expect(CONSISTENCY_CACHE_VERSION,).toBe(10,);
           },
         },),
         it({
           name: 'MOVES THE KEY WITH THE CACHE VERSION: the version is part of what the key digests, and version '
-            + 'nine names a run whose sheets list the labels a reply may use, whose replies may write a label in '
+            + 'ten names a run whose stored voices may name the model that answered for their seat (ledger B1142), whose sheets list the labels a reply may use, whose replies may write a label in '
             + 'another form of it, whose choice among candidates is run off when it splits, whose house rule '
             + 'protects readers only from the account of how a death or an attempt happened, whose rounds close '
             + 'under the last-seat grace of 2026-10-22 (ledger B816), and whose reader takes a label that differs '
@@ -248,8 +249,8 @@ await describe({
                 modelIds: ['glm-5.3',],
               },),
             },).toEqual({
-              version: 9,
-              key: KEY_AT_VERSION_NINE,
+              version: 10,
+              key: KEY_AT_VERSION_TEN,
             },);
           },
         },),
