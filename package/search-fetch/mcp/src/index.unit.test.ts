@@ -5,6 +5,14 @@
  */
 
 import {
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import { join, } from 'node:path';
+
+import {
   describe,
   expect,
   it,
@@ -21,6 +29,7 @@ import {
 import {
   createSearchFetchServer,
   createResponseStore,
+  ResourceReadError,
   type LinkupConfig,
   type SearchFetchClient,
 } from '../dist/final/node/index.mjs';
@@ -347,6 +356,61 @@ await describe({
             const response = await server
               .handleMessage(serverRequest(1, 'resources/read',),) as JsonRpcErrorResponse;
             expect(response.error.code,).toBe(JSON_RPC_INVALID_PARAMS,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: createResponseStore.name,
+      children: [
+        it({
+          name: 'keeps advertising a pruned response and fails its read with ResourceReadError',
+          fn: async () => {
+            /**
+             Disposable fixture directory holding one full response file.
+             */
+            const fixtureDir = await mkdtemp(join(
+              scratchRoot(),
+              'search-fetch-mcp-pruned-',
+            ),);
+            /**
+             Full response file that retention pruning later removes.
+             */
+            const filePath = join(fixtureDir, 'response.json',);
+            await writeFile(
+              filePath,
+              '{"markdown":"# pruned"}',
+              'utf8',
+            );
+            /**
+             Store recording the full response before pruning removes its file.
+             */
+            const store = createResponseStore({ capacity: 4, },);
+            const recorded = store.record({
+              filePath,
+              name: 'full response',
+              description: 'truncated fetch output',
+            },);
+            await rm(
+              filePath,
+              { force: true, },
+            );
+
+            expect(store.list(),).toHaveLength(1,);
+
+            /**
+             Local value for caught.
+             */
+            let caught: unknown;
+            try {
+              await store.read(recorded.uri,);
+            }
+            catch (error: unknown) {
+              caught = error;
+            }
+
+            expect(caught,).toBeInstanceOf(ResourceReadError,);
+            expect((caught as Error).message,).toContain(recorded.uri,);
           },
         },),
       ],

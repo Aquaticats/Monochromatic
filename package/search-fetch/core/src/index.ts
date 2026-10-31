@@ -32,6 +32,11 @@ export {
 export {
   createSearchFetchClient,
 } from './search-fetch-client.ts';
+export {
+  WholeCallDeadlineError,
+  WHOLE_CALL_DEADLINE_MILLISECONDS,
+  withWholeCallDeadline,
+} from './whole-call-deadline.ts';
 
 //endregion Client and config
 
@@ -53,6 +58,7 @@ export {
 } from './gh-client.ts';
 export {
   createGhCommandRunner,
+  GH_DEADLINE_MILLISECONDS,
   runGhCommand,
 } from './gh-process.ts';
 export { planGitHubFetch, } from './github-url-plan.ts';
@@ -73,6 +79,12 @@ export {
 //region Tool contracts and execution
 
 export { withFileMutationQueue, } from './file-mutation-queue.ts';
+export {
+  pruneResponseTempDirs,
+  RESPONSE_MAX_AGE_MILLISECONDS,
+  RESPONSE_MAX_DIR_COUNT,
+  RESPONSE_TEMP_DIR_PREFIX,
+} from './response-retention.ts';
 export {
   createJsonContent,
   createLinkupToolOutput,

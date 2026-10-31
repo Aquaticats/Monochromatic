@@ -30,6 +30,10 @@ import type {
   SearchFetchClientOptions,
   SearchFetchClientRuntime,
 } from './search-fetch-types.ts';
+import {
+  withWholeCallDeadline,
+  WHOLE_CALL_DEADLINE_MILLISECONDS,
+} from './whole-call-deadline.ts';
 
 /**
  Logger root for pi-search-fetch after removing the package log shim.
@@ -46,6 +50,9 @@ const l = tagged({
 
 /**
  Create provider-routing Search Fetch client.
+ 
+ Every search or fetch runs under the whole-call deadline, which bounds one
+ complete call including every fallback hop and combines with any caller signal.
  
  @param clientOptions - client options
  
@@ -72,6 +79,7 @@ function createSearchFetchClient(
     exaBaseUrl: clientOptions.exaBaseUrl ?? DEFAULT_EXA_BASE_URL,
     linkupBaseUrl: clientOptions.linkupBaseUrl ?? DEFAULT_LINKUP_BASE_URL,
     fetchImpl: clientOptions.fetchImpl ?? fetch,
+    wholeCallDeadlineMs: clientOptions.wholeCallDeadlineMs ?? WHOLE_CALL_DEADLINE_MILLISECONDS,
   };
   /**
    DeepSeek client shared by routed operations.
@@ -109,22 +117,42 @@ function createSearchFetchClient(
 
   return Object.freeze({
     search(searchOptions: ForeignBorrowed<SearchOptions>,): Promise<ProviderResponse> {
-      return searchWithFallback({
-        runtime,
-        deepseekClient,
-        exaClient,
-        linkupClient,
-        options: searchOptions,
+      return withWholeCallDeadline({
+        operation: 'search',
+        deadlineMs: runtime.wholeCallDeadlineMs,
+        ...(searchOptions.signal === undefined ? {} : { signal: searchOptions.signal, }),
+        call: function searchWithinWholeCallDeadline({ signal, },) {
+          return searchWithFallback({
+            runtime,
+            deepseekClient,
+            exaClient,
+            linkupClient,
+            options: {
+              ...searchOptions,
+              signal,
+            },
+          },);
+        },
       },);
     },
     fetch(fetchOptions: ForeignBorrowed<FetchOptions>,): Promise<ProviderResponse> {
-      return fetchWithFallback({
-        runtime,
-        ghClient,
-        deepseekClient,
-        exaClient,
-        linkupClient,
-        options: fetchOptions,
+      return withWholeCallDeadline({
+        operation: 'fetch',
+        deadlineMs: runtime.wholeCallDeadlineMs,
+        ...(fetchOptions.signal === undefined ? {} : { signal: fetchOptions.signal, }),
+        call: function fetchWithinWholeCallDeadline({ signal, },) {
+          return fetchWithFallback({
+            runtime,
+            ghClient,
+            deepseekClient,
+            exaClient,
+            linkupClient,
+            options: {
+              ...fetchOptions,
+              signal,
+            },
+          },);
+        },
       },);
     },
   },);

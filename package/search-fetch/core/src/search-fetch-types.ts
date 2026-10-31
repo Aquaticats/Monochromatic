@@ -94,6 +94,10 @@ type SearchFetchClientOptions = {
    */
   readonly ghClient?: GhClient;
   /**
+   Optional whole-call deadline override in milliseconds, primarily for tests.
+   */
+  readonly wholeCallDeadlineMs?: number;
+  /**
    Optional value-free credential-store diagnostic appended to missing-key errors.
    */
   readonly credentialHint?: string;
@@ -135,6 +139,10 @@ type SearchFetchClientRuntime = {
    Fetch implementation.
    */
   readonly fetchImpl: FetchLike;
+  /**
+   Whole-call deadline bounding one complete search or fetch call.
+   */
+  readonly wholeCallDeadlineMs: number;
   /**
    Optional value-free credential-store diagnostic appended to missing-key errors.
    */

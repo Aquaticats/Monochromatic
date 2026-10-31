@@ -23,6 +23,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   createGhCommandRunner,
+  GH_DEADLINE_MILLISECONDS,
   type GhCommandOutcome,
 } from '../dist/final/node/index.mjs';
 
@@ -426,6 +427,17 @@ await describe({
         },),
 
         //endregion Caller contract
+      ],
+    },),
+    describe({
+      name: 'GH_DEADLINE_MILLISECONDS',
+      children: [
+        it({
+          name: 'pins the default gh child deadline to 30 s',
+          fn: async () => {
+            expect(GH_DEADLINE_MILLISECONDS,).toBe(30_000,);
+          },
+        },),
       ],
     },),
   ],

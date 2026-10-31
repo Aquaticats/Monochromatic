@@ -20,6 +20,10 @@ import {
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { withFileMutationQueue, } from './file-mutation-queue.ts';
+import {
+  pruneResponseTempDirs,
+  RESPONSE_TEMP_DIR_PREFIX,
+} from './response-retention.ts';
 import type {
   ProviderFallback,
   SearchFetchProvider,
@@ -38,11 +42,6 @@ import { scratchParent, } from './scratch-parent.ts';
 const linkupLogger = tagged({ tag: 'pi-search-fetch', },);
 
 //region Constants
-
-/**
- Prefix used for temp directories that hold full response output.
- */
-const TEMP_RESPONSE_DIR_PREFIX = 'pi-search-fetch-response-';
 
 /**
  Number of random bytes added to temp directory prefix.
@@ -413,7 +412,7 @@ function createWarningContent(options: WarningContentOptions,): TextContentItem 
 //region Helpers
 
 /**
- Write full response text to a temp file.
+ Write full response text to a temp file, then prune older response temp dirs.
  
  @param responseText - response text to write
  
@@ -436,11 +435,15 @@ async function writeFullResponseToTemp(
   const randomSuffix = randomBytes(TEMP_RANDOM_BYTES,)
     .toString('hex',);
   /**
+   Scratch parent holding this write's temp directory and the retention set.
+   */
+  const scratchDir = await scratchParent();
+  /**
    Temp directory dedicated to this response.
    */
   const tempDir = await mkdtemp(join(
-    await scratchParent(),
-    `${TEMP_RESPONSE_DIR_PREFIX}${randomSuffix}-`,
+    scratchDir,
+    `${RESPONSE_TEMP_DIR_PREFIX}${randomSuffix}-`,
   ),);
   /**
    Temp file path storing full response text.
@@ -458,6 +461,10 @@ async function writeFullResponseToTemp(
         'utf8',
       );
     },
+  },);
+  await pruneResponseTempDirs({
+    parentDir: scratchDir,
+    keepDir: tempDir,
   },);
   return tempFile;
 }
