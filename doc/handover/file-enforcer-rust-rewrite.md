@@ -242,6 +242,31 @@ each finished branch is reviewed and merged into `main`):
   CI and container delivery of the two binaries,
   the `20-env.toml` move,
   and the repository plan conversion in the switch commit.
+- Published 2026-10-31:
+  `monochromatic-xml-edit`,
+  `-dependency-catalog`,
+  `-browserslist`,
+  `-file-enforcer` and `-file-enforcer-cli` 0.1.0
+  (dependency-catalog first needed `44a00d1f99`:
+  crates.io rejects keywords of 20 or more characters,
+  which the dry run does not check),
+  Trusted Publishing configs 29956 to 29960,
+  the owner revoked the token,
+  and this session ran `cargo logout`.
+  CLI release run `41171845290` dispatched.
+- Merged 2026-10-31:
+  the vm-builder runner (`472bb6f502`),
+  the global rehearsal with the GPU-build asset fix (`fc3da5e25d`),
+  and `file-enforcer check|write --outputs committed|local|all` derived from `.gitignore` files.
+  `yt-dlp` moves to `pipx:yt-dlp` in the global conversion (decided under the owner's delegation).
+- Running:
+  mpm-shadow pnpm-style `sync` (resolves new or changed entries, frozen in CI) on its update-by-tool branch,
+  which also adds the README rule "pnpm answers first"
+  (the owner wants that rule in package docs, not AGENTS.md);
+  the wg agent.
+- Lesson 2026-10-31 (this session):
+  run every step this session can run itself instead of handing it to the owner;
+  the owner pointed out that `cargo logout` was such a step.
 - Found 2026-10-31:
   the `timeout` on PATH is `~/.cargo/bin/timeout`,
   and `timeout 60 vibe --version` printed `timeout 0.1.0` instead of running `vibe`;

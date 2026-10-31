@@ -35,7 +35,7 @@ how CI and containers obtain the two binaries,
 the plan entries that install the binaries,
 and the IDE launcher's explicit path.
 The `asset` hints of the machine-global plan, the fifth, are settled from the real data in "Global plan conversion",
-except `yt-dlp`, which needs an owner veto or choice (Open decisions, item 5).
+except `yt-dlp`, rerouted to PyPI (Open decisions, item 5, settled 2026-10-31).
 
 ## Preconditions
 
@@ -834,7 +834,9 @@ and nothing yet installs the `file-enforcer` binary (open decision).
     (see "Global plan conversion"), with one flagged adoption: `yt-dlp`.
     Today's lock records the standalone binary `yt-dlp_linux` from GitHub,
     which the `github:` resolver cannot select on linux-x64 (it names no CPU and the resolver prefers its `.zip` twin).
-    The converter currently emits the reroute (option A); the owner can veto it for option B.
+    Settled 2026-10-31 as option A by the coordinator under the owner's delegation of the global conversion
+    ("Use your own judgement. I trust you'll do this step good enough autonomously."):
+    the same program and version with no resolver code for one tool.
     Option A, reroute to `pipx:yt-dlp@latest` on the `mpm-uvx` route (adopted in the rehearsal):
     works with no code change, same program and version from PyPI;
     but it needs Python and `uv tool install`, and the program runs from uv's tool environment instead of a standalone file.
@@ -1189,7 +1191,7 @@ and against what `update --global` picked on the four Linux platforms.
   `options.asset` `tree-sitter-linux-*.gz` keeps the recorded file on all four platforms
   (`-arm.gz`,
   `-x86.gz` and `-powerpc64.gz` name no supported CPU token).
-- `yt-dlp` (flagged, not settled; Open decisions, item 5):
+- `yt-dlp` (settled 2026-10-31 as the PyPI reroute; Open decisions, item 5):
   cannot be expressed with `github:` on linux-x64.
   Today's lock records the bare PyInstaller file `yt-dlp_linux` for `linux-x64`;
   its name names no CPU,
