@@ -187,4 +187,36 @@ await describe({
   ],
 },);
 
+await describe({
+  name: `${attemptStageCall.name} (an answer of another model)`,
+  children: [
+    it({
+      name: 'CARRIES THE MODEL THAT ANSWERED on a heard voice when the re-ask of a runaway went to another model, and '
+        + 'none when the seat\'s own model answered',
+      fn: async () => {
+        const other = await askRunawaySeat({
+          client: answeringWith({
+            seen: [],
+            outcome: {
+              kind: 'ok',
+              value: { meow: true, },
+              rawText: '{"meow":true}',
+              answeredBy: SEAT_HYPER_TEXT_BEDROCK,
+            },
+          },),
+        },);
+        expect(other,).toEqual({ heard: true, value: { meow: true, }, answeredBy: SEAT_HYPER_TEXT_BEDROCK, },);
+
+        const own = await askRunawaySeat({
+          client: answeringWith({
+            seen: [],
+            outcome: { kind: 'ok', value: { meow: true, }, rawText: '{"meow":true}', },
+          },),
+        },);
+        expect(own,).toEqual({ heard: true, value: { meow: true, }, },);
+      },
+    },),
+  ],
+},);
+
 //endregion Stage call runaway tests
