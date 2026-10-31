@@ -25,7 +25,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where the editors are asked for a translation',
       fn: async () => {
-        const source = await readFile(new URL('./translate-probe-run.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('translate-probe-run.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster',],);
       },
     },),

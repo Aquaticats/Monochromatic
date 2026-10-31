@@ -252,6 +252,8 @@ export async function probeTranslate(
         responseFormat: TRANSLATE_RESPONSE_FORMAT,
         validate: isTranslateReportWire,
         stage: 'translate-probe',
+        // THE PROBE ASKS THE EDITORS, a hand-picked bench of the roster role.
+        role: 'roster',
         l: log,
         graceMs: stageSettings
           .grace

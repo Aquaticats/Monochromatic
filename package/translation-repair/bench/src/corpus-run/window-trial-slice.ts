@@ -261,6 +261,8 @@ export async function runSliceArms(
       client,
       produced,
       judgeModelIds: models.judgeModelIds,
+      // THE TRIAL SEATS THE WHOLE ROSTER (`RUN_ROSTER`), so it asks in the roster role.
+      role: 'roster',
       sourceText: slice.source
         .text,
       incumbentText: slice.target
