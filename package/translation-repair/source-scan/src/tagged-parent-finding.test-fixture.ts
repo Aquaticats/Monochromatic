@@ -46,7 +46,11 @@ function isSpread({ property, }: { readonly property: { readonly type: string; }
  ```
  */
 export function taggedWithoutParentIn({ file, }: { readonly file: SourceText; },): readonly number[] {
-  if (!file.text.includes(TAGGED,))
+  /**
+   Text of the file, which a file that never names `tagged` cannot call it by, or by an alias of it.
+   */
+  const { text, } = file;
+  if (!text.includes(TAGGED,))
     return [];
 
   /**
@@ -87,12 +91,15 @@ export function taggedWithoutParentIn({ file, }: { readonly file: SourceText; },
       },);
     },)
     .map(function lineOf(call,): number {
-      return file.text
-        .slice(
-          0,
-          call.start,
-        )
-        .split('\n',).length;
+      /**
+       Text before the call, whose lines are the lines above it.
+       */
+      const before = text.slice(
+        0,
+        call.start,
+      );
+      return before.split('\n',)
+        .length;
     },)
     .toSorted(function ascending(
       left,

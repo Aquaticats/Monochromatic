@@ -64,6 +64,7 @@ export {
   persistSettledEntry,
   printSettledLines,
 } from './corpus-run/pass-entry-persist.ts';
+export { entryLoggerOf, } from './corpus-run/pass-entry-logger.ts';
 export { settleEntry, } from './corpus-run/pass-entry-settle.ts';
 export {
   relabelArchiveFootnotes,

@@ -1,7 +1,4 @@
-import {
-  type Logger,
-  tagged,
-} from '@monochromatic-dev/logger-core/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type {
   InsertionAdmission,
@@ -9,10 +6,7 @@ import type {
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { BenchSeating, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
-import {
-  runLogger,
-  sliceTagged,
-} from '@monochromatic-dev/translation-repair-typography/ts';
+import { entryLoggerOf, } from './pass-entry-logger.ts';
 import { decidePassInsertionAdmission, } from './pass-insertion-admission.ts';
 import {
   type Reseated,
@@ -170,7 +164,7 @@ export async function admitPassInsertions(
   /**
    Entry logger the admission and its hook write to, which names the attempt inside one (ledger B963).
    */
-  const l = sliceTagged({ l: tagged({ tag: entryId, l: runLogger, },), },);
+  const l = entryLoggerOf({ entryId, },);
   return await decidePassInsertionAdmission({
     client,
     prepared,

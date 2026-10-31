@@ -100,7 +100,7 @@ await describe({
           ],
           [
             'import { tagged as makeLogger, } from \'@monochromatic-dev/logger-core/ts\';\n'
-            + 'const l = makeLogger({ tag: \'cat\', },);\n',
+              + 'const l = makeLogger({ tag: \'cat\', },);\n',
             1,
           ],
           [
@@ -144,7 +144,7 @@ await describe({
         const harmless = [
           'const l = tagged({ tag: \'cat\', l: runLogger, },);\n',
           'const rl = tagged({ l, tag: fn.name, },);\n',
-          'const rl = tagged({ l: parent, tag: `${entryId}`, },);\n',
+          `const rl = tagged({ l: parent, tag: \`\${entryId}\`, },);\n`,
           'const rl = tagged({ ...options, },);\n',
           'const rl = sliceTagged({ l: tagged({ tag: entryId, l: runLogger, },), },);\n',
           'const rl = taggedTemplate({ tag: \'cat\', },);\n',

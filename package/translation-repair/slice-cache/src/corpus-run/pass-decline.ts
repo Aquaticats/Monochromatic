@@ -205,7 +205,12 @@ export async function recordEntryDecline(
   /**
    Entry logger, which names the attempt the decline is recorded in (ledger B963).
    */
-  const el = sliceTagged({ l: tagged({ tag: entry.id, l: runLogger, },), },);
+  const el = sliceTagged({
+    l: tagged({
+      tag: entry.id,
+      l: runLogger,
+    },),
+  },);
   if (await removeLeftoverPage({
     publishDir,
     entryId: entry.id,
@@ -293,7 +298,12 @@ export async function removeDeclinedPages(
       return entryId;
     },), },);
   for (const entryId of removed) {
-    sliceTagged({ l: tagged({ tag: entryId, l: runLogger, },), },)
+    sliceTagged({
+      l: tagged({
+        tag: entryId,
+        l: runLogger,
+      },),
+    },)
       .warn(`entry ${entryId}: removed a page standing for a declined entry, since the archive's note says the archive ships`,);
   }
   return removed;

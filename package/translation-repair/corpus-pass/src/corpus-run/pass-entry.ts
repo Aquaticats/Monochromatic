@@ -1,15 +1,10 @@
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
-
 import { armCallDeadline, } from '@monochromatic-dev/translation-repair-provider/ts';
 import {
   monotonicMs,
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { repairClaimEvidenceOf, } from '@monochromatic-dev/translation-repair-archive/ts';
-import {
-  runLogger,
-  sliceTagged,
-} from '@monochromatic-dev/translation-repair-typography/ts';
+import { entryLoggerOf, } from './pass-entry-logger.ts';
 import {
   type CorpusPair,
   entryArchiveOriginalOf,
@@ -188,7 +183,7 @@ export async function runEntryPipeline(
    Entry logger every stage of the entry writes through, which reads the log context at each line, so a line written
    inside the entry's attempt names the attempt (ledger B963).
    */
-  const el = sliceTagged({ l: tagged({ tag: entry.id, l: runLogger, },), },);
+  const el = entryLoggerOf({ entryId: entry.id, },);
 
   /**
    What the stages have finished so far, which the entry's `catch` reads when every provider goes dry in the middle of the
