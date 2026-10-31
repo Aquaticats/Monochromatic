@@ -4,9 +4,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update \
- && apt-get install -y --no-install-recommends podman git unzip curl bash build-essential jq tar
+ && apt-get install -y --no-install-recommends podman git unzip curl bash build-essential jq tar zstd python3
 RUN curl https://mise.run/bash | sh
 ENV PATH="/root/.local/bin:$PATH"
+# The plan's tools need two more programs from the image: `tar --zstd` unpacks the `.conda` package of bubblewrap
+# (zstd), and `uv tool install` builds the Python tools (slopo) with the image's own Python (python3), because the
+# newest Python uv would download is one that some of their dependencies (fastuuid, through PyO3) do not support yet.
+ENV UV_PYTHON_PREFERENCE=only-system
 # vfs driver: avoids overlay mount issues inside Docker volumes.
 # Performance is acceptable: the canary pulls one small image infrequently.
 RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' \
