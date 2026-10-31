@@ -22,7 +22,7 @@
 /// ```ts
 /// import { replaceAt, setKeyComment } from './editSpine';
 /// ```
-use crate::edit_spine::{replace_at, set_key_comment};
+use crate::edit_spine::{set_comment_at, set_key_comment};
 /// What:
 ///      Import the edit failure enum and its underlying causes.
 /// Why:
@@ -80,11 +80,11 @@ use crate::value::{JsoncComment, JsoncKind, JsoncValue};
 /// # Errors
 /// Returns a shape failure when the address is empty or ends in an array index.
 fn split_key_path(path: &[JsoncPathSegment]) -> Result<(&[JsoncPathSegment], &str), JsoncEditError> {
-    let (last, parent) = path.split_last().ok_or_else(|| {
-        return JsoncEditError::Type {
+    let Some((last, parent)) = path.split_last() else {
+        return Err(JsoncEditError::Type {
             error: JsoncTypeError { message: String::from("jsonc key comment: empty path has no key") },
-        };
-    })?;
+        });
+    };
     let JsoncPathSegment::Key { key } = last else {
         return Err(JsoncEditError::Type {
             error: JsoncTypeError {
@@ -136,9 +136,7 @@ pub fn jsonc_set_comment(
     path: &[JsoncPathSegment],
     comment: Option<JsoncComment>,
 ) -> Result<JsoncValue, JsoncEditError> {
-    return replace_at(root, path, path, |target| {
-        return JsoncValue { kind: target.kind.clone(), comment: comment.clone() };
-    });
+    return set_comment_at(root, path, comment);
 }
 
 /// What:
@@ -168,16 +166,16 @@ pub fn jsonc_key_comment<'a>(
             error: JsoncPathNotFoundError { path: Vec::from(path) },
         });
     };
-    let index = find_entry_index(entries, key).ok_or_else(|| {
-        return JsoncEditError::PathNotFound {
+    let Some(index) = find_entry_index(entries, key) else {
+        return Err(JsoncEditError::PathNotFound {
             error: JsoncPathNotFoundError { path: Vec::from(path) },
-        };
-    })?;
-    let entry = entries.get(index).ok_or_else(|| {
-        return JsoncEditError::PathNotFound {
+        });
+    };
+    let Some(entry) = entries.get(index) else {
+        return Err(JsoncEditError::PathNotFound {
             error: JsoncPathNotFoundError { path: Vec::from(path) },
-        };
-    })?;
+        });
+    };
     return Ok(entry.key.comment.as_ref());
 }
 

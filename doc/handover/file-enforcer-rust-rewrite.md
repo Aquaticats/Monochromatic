@@ -112,7 +112,176 @@ each finished branch is reviewed and merged into `main`):
   runbook sections;
   the owner token step is asked only once the dry runs pass);
   the cutover inventory `doc/planning/file-enforcer-rust-cutover.md`
-  with a rehearsed toolchain plan conversion in scratch.
+  with a rehearsed toolchain plan conversion in scratch;
+  version-keyed cargo-binstall installs in mpm-shadow
+  (decided 2026-10-31,
+  "Fix in mpm-shadow before cutover",
+  after a sync in `/var/home/user/worktrees/tr-g245` with an older lock replaced the git wrapper in the shared `~/.cargo/bin`
+  and broke git in every checkout;
+  repaired the same night by an owner-approved `toolchain:sync` in the main checkout;
+  see `doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`).
+  The cutover waits for this agent too.
+  The user then ruled "No older repo-maintained tools should ever exist when newer is present.":
+  repository-published tools are never downgraded and keep one newest copy
+  (decision record,
+  "Toolchain (mpm-shadow)");
+  that agent was told,
+  and a separate agent adds the same guard to the TypeScript sync in `package/file-enforcer/core/src/toolchain/`,
+  which every tree uses until cutover.
+  The user also wants a warning,
+  with the upgrade remedy,
+  on every run of such a tool in such a tree ("noisy is fine"):
+  the mpm-shadow agent builds it as a launcher behind the exposed links,
+  so it lands at cutover;
+  until then the TypeScript sync warns only from `toolchain:sync` and `toolchain:status`
+  (the user chose "Wait for the cutover" over releasing the launcher early).
+- Merged 2026-10-31:
+  loose ends (`9a0012f498`:
+  browserslist scripts lint-clean with a real conformance rerun byte-identical,
+  `XDG_CONFIG_HOME` in JetBrains discovery,
+  closure lints cleared in the cli,
+  browserslist and jsonc-edit,
+  the watch race fixed by rearming instead of a longer wait);
+  the TypeScript sync guard (`aa74110914`:
+  a `monochromatic-` cargo-binstall tool installed newer than the lock is kept with a warning and the upgrade remedy);
+  the cutover inventory (`5229c9fc69`,
+  `doc/planning/file-enforcer-rust-cutover.md`);
+  publish prep (jsonc-edit 0.1.2 and the five crates' metadata,
+  publish tasks,
+  `cargo-publish.yml` jobs,
+  runbook "The five file-enforcer crates 0.1.0").
+- Incident 2026-10-31:
+  two agent runs of `mise run file-enforcer` (23:52:20 and 00:09:55) applied the TypeScript tool's user-level rule and rewrote
+  `~/.config/JetBrains/IntelliJIdea2026.3/options/LanguageServersSettings.xml`.
+  The user chose "Leave it as written",
+  and for the cause (AGENTS.md `WC2` says to run the tool,
+  which has no project-only mode) chose "Wait for the cutover";
+  the shared agent brief now forbids agents to run it.
+- Publishing,
+  as the user chose ("Merge now, then token"):
+  the publish-prep merge lets CI release jsonc-edit 0.1.2,
+  with one expected red run for the five new crates;
+  then the owner creates one token (publish-new,
+  publish-update,
+  trusted-publishing) and runs `cargo login` in their own terminal;
+  then this session publishes xml-edit,
+  dependency-catalog,
+  browserslist,
+  file-enforcer,
+  and file-enforcer-cli in that order,
+  creates the five Trusted Publishing configs,
+  and the owner revokes the token.
+  mpm-shadow needs its own bump past 0.1.1 after the version-keyed install agent merges.
+- Adopted from the decision record and recorded unasked (veto open):
+  the CLI binaries reach CI and containers the way the decision's bootstrap says
+  (a prebuilt `mpm-shadow` archive with its SHA-256 in the lock,
+  then `cargo:monochromatic-file-enforcer-cli` through cargo-binstall from its release archives,
+  not a tag-pinned `github:` request,
+  which AGENTS.md `PIN` forbids for tools this repository publishes);
+  the IDE launcher's explicit path is `<worktree>/.cache/toolchain-bin/mpm-shadow`.
+- Merged 2026-10-31 as `75d2316005`:
+  version-keyed cargo-binstall roots (`--root <toolchain root>/cargo/<crate>/<version>`),
+  newest-only `current` links for `monochromatic-` crates,
+  older-lock warnings on `sync`,
+  `status`,
+  `lock`,
+  `update`,
+  `bin-paths`,
+  and on every run through per-tree launchers (`.cache/toolchain-launchers/`,
+  about +0.57 ms per call),
+  and `mpm-shadow prune --toolchain`;
+  289 tests on `main`.
+  Its open questions:
+  trees git does not list are protected from `prune --toolchain` only by `--lock`
+  (a per-sync consumer registry was not asked for);
+  archive and `cargo-git` version directories also accumulate;
+  no OS lock around the `current` swap.
+- OpenSnitch,
+  2026-10-31:
+  the user's OpenSnitch auto-rejects unanswered prompts and saves `reject-always-simple-<path>` rules,
+  which is how agent worktree builds and old toolchain paths got blocked.
+  At the user's request the rustup rule is now `allow-always-simple-var-home-user-cargo-bin-rustup.json`
+  (its action was already `allow`; only the name said reject).
+- Running:
+  a `package/wg` agent adds OpenSnitch allow rules for toolchain update paths and routes update traffic outside the tunnel
+  ("We control the package/wg/* category. Make our wg auto make update traffics go through clearnet.");
+  it stops before any live change and hands the apply commands to this session.
+- Running:
+  an mpm-shadow agent for the next item and for the registry prune that still reads `$CARGO_HOME/.crates.toml`.
+- Formerly queued,
+  now running:
+  `mpm-shadow update <tool>...` and resolving a lock-less plan entry alone,
+  without moving other rows
+  (decision record,
+  "Toolchain (mpm-shadow)",
+  adopted 2026-10-31 under "follow everything pnpm offers").
+- Global toolchain change 2026-10-31,
+  at the user's request "Install Mistral Vibe globally for me managed by our mpm setup.":
+  `pipx:mistral-vibe` 3.0.4 (`mpm-uvx`,
+  bins `vibe`,
+  `vibe-acp`,
+  `vibe-app-server`) added to `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts`;
+  `toolchain:update:global` also moved 7 tools,
+  and the user chose "Install all 8";
+  pre-update copies of the plan and lock are in `${HOME}/temp/agent/vibe-install/`.
+- Global plan conversion:
+  the user delegated it on 2026-10-31
+  ("Use your own judgement. I trust you'll do this step good enough autonomously."),
+  so this session converts the real plan under `~/.config/monochromatic-dev/toolchain/` at cutover without asking,
+  keeping the decision record's 0600 backup beside the original until the converted global sync is verified.
+  A rehearsal on a copy (`${HOME}/temp/agent/fe-rust/global-rehearsal/input/`) runs first,
+  including the `asset` hints the synthetic rehearsal could not settle
+  (`llamacpp-rocm`,
+  `openinterpreter`).
+- Running 2026-10-31 (cutover pieces the inventory found unbuilt):
+  a real-global-plan conversion rehearsal on the copy;
+  `package/vm-builder/cli` gets its own process runner (inventory precondition 7);
+  `file-enforcer check` gains a committed-versus-local outputs selector,
+  replacing the inventory's `jq` stopgap for the four gitignored rules.
+  Still unbuilt after these:
+  CI and container delivery of the two binaries,
+  the `20-env.toml` move,
+  and the repository plan conversion in the switch commit.
+- Published 2026-10-31:
+  `monochromatic-xml-edit`,
+  `-dependency-catalog`,
+  `-browserslist`,
+  `-file-enforcer` and `-file-enforcer-cli` 0.1.0
+  (dependency-catalog first needed `44a00d1f99`:
+  crates.io rejects keywords of 20 or more characters,
+  which the dry run does not check),
+  Trusted Publishing configs 29956 to 29960,
+  the owner revoked the token,
+  and this session ran `cargo logout`.
+  CLI release run `41171845290` dispatched.
+- Merged 2026-10-31:
+  the vm-builder runner (`472bb6f502`),
+  the global rehearsal with the GPU-build asset fix (`fc3da5e25d`),
+  and `file-enforcer check|write --outputs committed|local|all` derived from `.gitignore` files.
+  `yt-dlp` moves to `pipx:yt-dlp` in the global conversion (decided under the owner's delegation).
+- Running:
+  mpm-shadow pnpm-style `sync` (resolves new or changed entries, frozen in CI) on its update-by-tool branch,
+  which also adds the README rule "pnpm answers first"
+  (the owner wants that rule in package docs, not AGENTS.md);
+  the wg agent.
+- Session preference 2026-10-31,
+  user:
+  "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
+  Last estimate given:
+  3 to 6 hours at about 45% confidence (after publication),
+  a judgement from today's agent run times (14 to 47 minutes each),
+  not a measured rate.
+- Fixed 2026-10-31:
+  `fec-create-release` was skipped in run `41171845290`
+  because its implicit `success()` sees the skipped library publish jobs upstream of `fec-publish-crate`;
+  it now uses `!cancelled()` with explicit results.
+- Lesson 2026-10-31 (this session):
+  run every step this session can run itself instead of handing it to the owner;
+  the owner pointed out that `cargo logout` was such a step.
+- Found 2026-10-31:
+  the `timeout` on PATH is `~/.cargo/bin/timeout`,
+  and `timeout 60 vibe --version` printed `timeout 0.1.0` instead of running `vibe`;
+  not yet investigated.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
@@ -164,7 +333,13 @@ Cutover reminders from finished agents:
   (decision record,
   "Consequences":
   "the root `mise.toml` is no longer generated"),
-  so it simply keeps the `ad9fe75d05` value as a committed file.
+  so the value from `ad9fe75d05` must survive the move the decision record specifies
+  ("Outputs that stop being generated":
+  `mise.no-env.toml` becomes the hand-written `mise.toml`,
+  and the static environment moves to the committed `.config/mise/conf.d/20-env.toml`).
+  Corrected 2026-10-31:
+  an earlier version of this note said `mise.toml` "keeps its committed content",
+  which contradicted that section.
 - mpm-shadow at cutover
   (from `package/mpm-shadow/cli/README.md`):
   the converter writes each tool's `request` as `<origin>@<range>`,

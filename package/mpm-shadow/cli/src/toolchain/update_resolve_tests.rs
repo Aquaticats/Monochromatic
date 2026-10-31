@@ -455,6 +455,28 @@ fn two_equally_good_assets_fail_naming_both_and_a_hint_settles_it() {
 }
 
 #[test]
+fn a_gpu_build_is_skipped_unless_the_hint_names_it() {
+    let names = [
+        "llama-b1359-ubuntu-rocm-gfx110X-x64.zip",
+        "llama-b1359-ubuntu-rocm-gfx1151-x64.zip",
+        "llama-b1359-windows-rocm-gfx110X-x64.zip",
+        "checksums.txt",
+        "qualification-llama-b1359-ubuntu-rocm-gfx110X-x64.json",
+    ];
+    // No hint: every candidate is a GPU build, so there is no asset.
+    assert_eq!(chosen(&names, None), vec!["-", "-", "-", "-"]);
+    // The hint names one build; the other platform CPU has none.
+    assert_eq!(
+        chosen(&names, Some("llama-*-ubuntu-rocm-gfx110X-x64.zip")),
+        vec!["-", "-", "llama-b1359-ubuntu-rocm-gfx110X-x64.zip", "llama-b1359-ubuntu-rocm-gfx110X-x64.zip"]
+    );
+    // A glob that names two builds is still a tie.
+    let assets = assets_of(&names);
+    let error = pick_asset(&assets, "linux-x64", Some("llama-*-ubuntu-rocm-*"), "o/r", "v1").expect_err("a tie");
+    assert!(error.message().contains("llama-b1359-ubuntu-rocm-gfx110X-x64.zip, llama-b1359-ubuntu-rocm-gfx1151-x64.zip"), "{error:?}");
+}
+
+#[test]
 fn a_github_tool_resolves_from_its_repository_alone() {
     let mut rig = Rig::new();
     let declaration = github_declaration(&mut rig, None);

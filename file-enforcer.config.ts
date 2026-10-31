@@ -1565,6 +1565,7 @@ const CARGO_WORKSPACE_BLOCK = `# Standalone crate: its own workspace root, so no
  ```
  */
 const CARGO_DYLINT_DIRS: ReadonlySet<string> = new Set([
+  'package/file-enforcer/cli',
   'package/ide/app',
   'package/linter/monochromatic-lint',
 ]);

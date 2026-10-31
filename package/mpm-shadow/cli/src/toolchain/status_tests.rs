@@ -5,9 +5,11 @@
 
 use std::fs;
 
+use super::cargo_installs::version_directory;
 use super::context::Host;
 use super::error::ErrorKind;
 use super::fakes::FakeRunner;
+use super::fakes_cargo::finish_install;
 use super::fixtures::{SAMPLE_PLAN, sample_lock, sample_scope_on_disk};
 use super::lock::render_lock;
 use super::model::OsFamily;
@@ -52,13 +54,13 @@ fn status_without_a_lock_names_update() {
 fn status_reports_drift_for_tools_a_fake_machine_lacks() {
     let (_directory, scope, env) = sample_scope_on_disk();
     let runner = FakeRunner::new();
-    runner.answer("cargo binstall --list", "Package  Cargo  Binstall  Source\nfd-find  v1.2.3  v1.2.3  prebuilt\n", 0);
+    finish_install(&version_directory(&scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     let report = run_status(&scope, &env, &runner, &linux()).expect("a report");
     assert!(report.drifted);
     assert!(report.text.contains("ok      cargo:fd-find  1.2.3\n"), "{}", report.text);
     assert!(report.text.contains("drift   node  locked=1.2.3  observed=(absent)\n"), "{}", report.text);
     assert!(
-        runner.lines().iter().all(|line| return line.starts_with("cargo binstall --list") || line.starts_with("rustup toolchain list")),
+        runner.lines().iter().all(|line| return line.starts_with("rustup toolchain list")),
         "only read-only queries run: {:?}",
         runner.lines()
     );
@@ -73,7 +75,7 @@ fn status_reports_in_sync_when_everything_matches() {
     fs::write(&scope.plan_file, plan_text).expect("write the plan");
     fs::write(&scope.lock_file, render_lock(&lock)).expect("write the lock");
     let runner = FakeRunner::new();
-    runner.answer("cargo binstall --list", "fd-find  v1.2.3  -  compiled\n", 0);
+    finish_install(&version_directory(&scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     let report = run_status(&scope, &env, &runner, &linux()).expect("a report");
     assert!(!report.drifted, "{}", report.text);
     assert!(report.text.ends_with("toolchain status: 1 tools in sync with toolchain.lock.json\n"), "{}", report.text);

@@ -50,7 +50,7 @@ path = "src/native/candidate_consumer_tests.rs"
 
 [dependencies]
 # Both native tools use the already adopted comment-preserving JSONC foundation.
-monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.1" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
 # The repository's own scanner, linked in-process instead of spawned: `src/native/scanner_adapter.rs`
 # loads its rules once per invocation and scans candidate bytes through `Scanner::scan`.
 # Its catch boundaries need this crate's effective profile to unwind; `scanner_adapter.rs` refuses to build otherwise.

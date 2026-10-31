@@ -186,7 +186,10 @@ impl Rule for RustCatalogRule {
         let catalog_source = self.read_catalog(view)?;
         let manifests = self.read_manifests(view)?;
         let input = SyncInput { catalog_path: &self.catalog, catalog_source: &catalog_source, manifests: &manifests };
-        let output = sync(&input).map_err(|error| return diagnose(&error, &self.catalog, &self.id))?;
+        let output = match sync(&input) {
+            Ok(output) => output,
+            Err(error) => return Err(diagnose(&error, &self.catalog, &self.id)),
+        };
         let mut plan = RulePlan::default();
         for file in output.drift() {
             plan.changes.push(Change::Write { path: file.path.clone(), content: file.expected.clone().into_bytes(), mode: None });

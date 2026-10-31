@@ -7,33 +7,45 @@
 use std::fs;
 
 use super::context::Host;
+use super::cargo_installs::version_directory;
 use super::fakes::{Rig, write_executable};
+use super::fakes_cargo::finish_install;
 use super::layout::tool_install_dir;
 use super::model::OsFamily;
 use super::observe::{format_status, observe_all, observe_tool};
 
 
 #[test]
-fn a_cargo_binstall_tool_is_read_from_the_binstall_list() {
+fn a_cargo_binstall_tool_is_read_from_its_version_directory_without_starting_a_program() {
     let rig = Rig::new();
-    rig.runner.answer("cargo binstall --list", "Package  Cargo  Binstall  Source\nfd-find  v1.2.3  v1.2.3  prebuilt\n", 0);
     let tool = rig.lock.tool("cargo:fd-find").expect("tool").clone();
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     assert_eq!(observe_tool(&rig.context(), &tool), Some("1.2.3".to_string()));
-    assert_eq!(rig.runner.lines(), vec!["cargo binstall --list".to_string()]);
+    assert!(rig.runner.calls().is_empty(), "neither `cargo binstall --list` nor the shared cargo home is read");
 }
 
 #[test]
-fn a_cargo_binstall_tool_missing_from_the_list_is_absent() {
+fn a_cargo_binstall_tool_without_a_finished_install_in_its_directory_is_absent() {
     let rig = Rig::new();
-    rig.runner.answer("cargo binstall --list", "Package  Cargo  Binstall  Source\n", 0);
     let tool = rig.lock.tool("cargo:fd-find").expect("tool").clone();
     assert_eq!(observe_tool(&rig.context(), &tool), None);
+    fs::create_dir_all(version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3").join("bin")).expect("make");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "no cargo record, so the install did not finish");
+}
+
+#[test]
+fn the_shared_cargo_home_record_is_not_read_for_the_binstall_route() {
+    let rig = Rig::new();
+    let tool = rig.lock.tool("cargo:fd-find").expect("tool").clone();
+    fs::create_dir_all(rig.scope.home.join(".cargo")).expect("make");
+    fs::write(rig.scope.home.join(".cargo").join(".crates.toml"), "[v1]\n\"fd-find 1.2.3 (registry+x)\" = [\"fd\"]\n").expect("write");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "the legacy install belongs to the trees still on the TypeScript toolchain");
 }
 
 #[test]
 fn the_toolchain_environment_leads_path_with_the_exposure_directory_and_sets_home() {
     let rig = Rig::new();
-    let tool = rig.lock.tool("cargo:fd-find").expect("tool").clone();
+    let tool = rig.lock.tool("rust").expect("tool").clone();
     observe_tool(&rig.context(), &tool);
     let call = &rig.runner.calls()[0];
     let env = call.env.as_ref().expect("an explicit environment");
@@ -139,7 +151,7 @@ fn the_android_sdk_is_present_when_its_command_line_tools_directory_exists() {
 #[test]
 fn the_status_report_marks_matches_and_drift_and_skips_tools_for_other_operating_systems() {
     let mut rig = Rig::new();
-    rig.runner.answer("cargo binstall --list", "Package  Cargo  Binstall  Source\nfd-find  v1.2.3  v1.2.3  prebuilt\nmonochromatic-mpm-shadow  v0.0.1  v0.0.1  prebuilt\n", 0);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     rig.host = Host { platform: "macos-arm64".to_string(), family: Some(OsFamily::Macos) };
     let observations = observe_all(&rig.context(), &rig.lock.tools);
     assert!(observations.iter().all(|observation| return observation.id != "cargo:monochromatic-mpm-shadow"), "linux-only tool is skipped on macOS");

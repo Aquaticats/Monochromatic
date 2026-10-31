@@ -125,7 +125,10 @@ fn network_error(url: &str, message: &str) -> BrowserslistError {
 /// Accept `https` URLs,
 /// and `http` URLs only for loopback hosts.
 fn check_url(url: &str) -> Outcome<Uri> {
-    let uri: Uri = url.parse().map_err(|error| return network_error(url, &format!("not a valid URL: {error}")))?;
+    let uri: Uri = match url.parse() {
+        Ok(uri) => uri,
+        Err(error) => return Err(network_error(url, &format!("not a valid URL: {error}"))),
+    };
     let host = uri.host().unwrap_or("");
     match uri.scheme_str() {
         Some("https") => return Ok(uri),
@@ -164,36 +167,43 @@ fn describe_chain(error: &(dyn std::error::Error + 'static)) -> String {
 /// a status of exactly 200,
 /// and a body of at most `max_bytes`.
 async fn get_once(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
-    let connector = HttpsConnectorBuilder::new()
-        .with_native_roots()
-        .map_err(|error| format!("cannot load the system root certificates: {error}"))?
-        .https_or_http()
-        .enable_http1()
-        .build();
+    let rooted = match HttpsConnectorBuilder::new().with_native_roots() {
+        Ok(rooted) => rooted,
+        Err(error) => return Err(format!("cannot load the system root certificates: {error}")),
+    };
+    let connector = rooted.https_or_http().enable_http1().build();
     let client: Client<_, Empty<Bytes>> = Client::builder(TokioExecutor::new()).build(connector);
-    let request = Request::get(uri)
+    let built = Request::get(uri)
         .header("user-agent", "monochromatic-browserslist")
         .header("accept-encoding", "identity")
-        .body(Empty::<Bytes>::new())
-        .map_err(|error| format!("cannot build the request: {error}"))?;
-    let response = client.request(request).await.map_err(|error| return describe_chain(&error))?;
+        .body(Empty::<Bytes>::new());
+    let request = match built {
+        Ok(request) => request,
+        Err(error) => return Err(format!("cannot build the request: {error}")),
+    };
+    let response = match client.request(request).await {
+        Ok(response) => response,
+        Err(error) => return Err(describe_chain(&error)),
+    };
     if response.status().as_u16() != 200 {
         return Err(format!("the server answered HTTP {}, not 200", response.status().as_u16()));
     }
-    let body = Limited::new(response.into_body(), max_bytes)
-        .collect()
-        .await
-        .map_err(|error| format!("cannot read the body within {max_bytes} bytes: {error}"))?;
+    let collected = Limited::new(response.into_body(), max_bytes).collect().await;
+    let body = match collected {
+        Ok(body) => body,
+        Err(error) => return Err(format!("cannot read the body within {max_bytes} bytes: {error}")),
+    };
     return Ok(body.to_bytes().to_vec());
 }
 
 /// Run the request on a fresh single-threaded runtime inside its own thread,
 /// so the caller works whether or not it is already inside an async runtime.
 fn run_blocking(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| format!("cannot start the async runtime: {error}"))?;
+    let built = tokio::runtime::Builder::new_current_thread().enable_all().build();
+    let runtime = match built {
+        Ok(runtime) => runtime,
+        Err(error) => return Err(format!("cannot start the async runtime: {error}")),
+    };
     return runtime.block_on(async {
         return match tokio::time::timeout(REQUEST_TIMEOUT, get_once(uri, max_bytes)).await {
             Ok(result) => result,
@@ -219,9 +229,7 @@ fn run_blocking(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
 pub fn get_bytes(url: &str, max_bytes: usize) -> Outcome<Vec<u8>> {
     let uri = check_url(url)?;
     tracing::debug!(url, max_bytes, "GET");
-    let outcome = std::thread::scope(|scope| {
-        return scope.spawn(|| return run_blocking(uri, max_bytes)).join();
-    });
+    let outcome = std::thread::spawn(move || return run_blocking(uri, max_bytes)).join();
     return match outcome {
         Ok(Ok(bytes)) => Ok(bytes),
         Ok(Err(message)) => Err(network_error(url, &message)),

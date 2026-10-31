@@ -3,10 +3,12 @@ name = "monochromatic-file-enforcer"
 version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["development-tools", "filesystem"]
+documentation = "https://docs.rs/monochromatic-file-enforcer"
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/file-enforcer/core-rust"
 include = [
   "src/**/*.rs",
+  "fixtures/*.jsonc",
   "Cargo.toml",
   "Cargo.lock",
   "README.md",
@@ -33,9 +35,11 @@ path = "src/lib.rs"
 
 [dependencies]
 # Reads `file-enforcer.config.jsonc` (and the per-user config) with comments intact; the decoder is hand-written over its value model.
-monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.1" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
 # Expands one glob segment at a time (`package/*/*/Cargo.toml`) without walking the whole tree.
 globset = { workspace = true }
+# Evaluates the repository's `.gitignore` files with git's own pattern rules, which splits committed outputs from local ones.
+ignore = { workspace = true }
 # Derives `file-enforcer.schema.json` from the config types; the types do not derive serde.
 schemars = { workspace = true }
 # Strict JSON for events, JSON-RPC lines and the schema; `preserve_order` keeps event fields in the order they are written.
@@ -65,6 +69,7 @@ jsonschema = { workspace = true }
 [workspace.dependencies]
 directories = ">=6"
 globset = ">=0.4.20"
+ignore = ">=0.4.33"
 jsonschema = ">=0.60.2"
 libc = ">=0.2.191"
 notify = ">=8.2.0"

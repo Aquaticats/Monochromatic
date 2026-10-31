@@ -32,6 +32,8 @@ use monochromatic_file_enforcer::run::RunMode;
 use monochromatic_file_enforcer::rule::RuleBuilder;
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `OsString` from `std::ffi`.
+use std::ffi::OsString;
 /// Imports `Path` from `std::path`.
 use std::path::Path;
 
@@ -40,8 +42,14 @@ const NEWEST: &str = ".config/JetBrains/IntelliJIdea2026.2/options";
 
 /// The registry under test.
 fn registry() -> RuleRegistry {
+    return registry_with(None);
+}
+
+/// The registry under test with a chosen `XDG_CONFIG_HOME`,
+/// so no test depends on the environment of the process running it.
+fn registry_with(xdg_config_home: Option<&str>) -> RuleRegistry {
     let mut registry = RuleRegistry::with_defaults();
-    registry.register("jetbrains-harper", Box::new(JetbrainsHarperBuilder));
+    registry.register("jetbrains-harper", Box::new(JetbrainsHarperBuilder { xdg_config_home: xdg_config_home.map(OsString::from) }));
     return registry;
 }
 
@@ -197,6 +205,46 @@ fn the_repository_scope_refuses_the_kind() {
 #[test]
 fn the_builder_refuses_another_kind() {
     let other = RuleConfig::Mirror { id: "m".to_string(), from: "a".to_string(), to: "b".to_string() };
-    let error = JetbrainsHarperBuilder.build(&other).err().expect("a mirror entry is refused");
+    let error = JetbrainsHarperBuilder { xdg_config_home: None }.build(&other).err().expect("a mirror entry is refused");
     assert_eq!(error.code, "kind-unknown");
+}
+
+/// Allowed fixture:
+/// an absolute `XDG_CONFIG_HOME` below the home directory moves discovery and the writes there,
+/// and the default `.config/JetBrains` is left alone.
+#[test]
+fn xdg_config_home_below_the_home_moves_the_policy_target() {
+    let home = scratch_dir();
+    seed_home(home.path());
+    let xdg = home.path().join("alt-config");
+    let alt = "alt-config/JetBrains/IntelliJIdea2027.1/options";
+    write_files(home.path(), &[(&format!("{alt}/LanguageServersSettings.xml"), LANGUAGE_XML), (&format!("{alt}/UserDefinedLanguageServerSettings.xml"), USER_XML)]);
+    let xdg_text = xdg.to_str().expect("UTF-8 scratch path");
+    let (code, events) = run_config(home.path(), POLICY_CONFIG, ConfigScope::User, RunMode::Write, &registry_with(Some(xdg_text)));
+    assert_eq!((code, count_code(&events, "file-written")), (0, 2), "{events:?}");
+    assert_ne!(read_text(home.path(), &format!("{alt}/LanguageServersSettings.xml")), LANGUAGE_XML, "the XDG product was written");
+    assert_eq!(read_text(home.path(), &format!("{NEWEST}/LanguageServersSettings.xml")), LANGUAGE_XML, "the default location is untouched");
+}
+
+/// Rejected fixtures:
+/// a relative or empty value falls back to the default location;
+/// an absolute value outside the home directory warns and writes nothing.
+#[test]
+fn unusable_xdg_config_home_values_fall_back_or_warn() {
+    for ignored in ["", "relative/config"] {
+        let home = scratch_dir();
+        seed_home(home.path());
+        let (code, events) = run_config(home.path(), POLICY_CONFIG, ConfigScope::User, RunMode::Write, &registry_with(Some(ignored)));
+        assert_eq!((code, count_code(&events, "file-written")), (0, 2), "{ignored:?}: {events:?}");
+        assert_ne!(read_text(home.path(), &format!("{NEWEST}/LanguageServersSettings.xml")), LANGUAGE_XML, "{ignored:?}");
+    }
+    let sandbox = scratch_dir();
+    let home = sandbox.path().join("home");
+    std::fs::create_dir_all(&home).expect("home");
+    seed_home(&home);
+    let outside = sandbox.path().join("elsewhere");
+    let outside_text = outside.to_str().expect("UTF-8 scratch path");
+    let (code, events) = run_config(&home, POLICY_CONFIG, ConfigScope::User, RunMode::Write, &registry_with(Some(outside_text)));
+    assert_eq!((code, count_code(&events, "jetbrains-harper-skipped"), count_code(&events, "file-written")), (0, 1, 0), "{events:?}");
+    assert_eq!(read_text(&home, &format!("{NEWEST}/LanguageServersSettings.xml")), LANGUAGE_XML, "nothing was written");
 }

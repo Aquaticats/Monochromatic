@@ -320,6 +320,13 @@ GXD:
  before other branches;
  the rest of the design builds on those picks.
 
+RRG:
+ Grilling workflows:
+ before asking the user to confirm shared understanding,
+ have a separate reviewer re-review the current design
+ (never the same session),
+ and fold its findings in first.
+
 QCS:
  Under a quality-over-cost guideline,
  options differing only in price aren't user questions:

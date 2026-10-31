@@ -18,9 +18,58 @@ use crate::harper_xml::{LANGUAGE_CONTAINER, USER_CONTAINER, edit_failure, entry_
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
 /// Imports `XmlDocument`,
+/// `XmlEditError`,
 /// `XmlElementId`,
 /// `XmlElementSpec` from `monochromatic_xml_edit`.
-use monochromatic_xml_edit::{XmlDocument, XmlElementId, XmlElementSpec};
+use monochromatic_xml_edit::{XmlDocument, XmlEditError, XmlElementId, XmlElementSpec};
+
+/// What:
+///  The source text of an edit result,
+/// or the refusal as a diagnostic that names the file.
+/// Why:
+///  Every edit in this module ends the same way,
+/// and a named function carries the file's path where a closure would have captured it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function editedSource(path: string, result: XmlDocument | XmlEditError): string // throws
+/// ```
+fn edited_source(path: &str, result: Result<XmlDocument, XmlEditError>) -> Result<String, Diagnostic> {
+    match result {
+        Ok(edited) => return Ok(edited.source().to_string()),
+        Err(error) => return Err(edit_failure(path, &error)),
+    }
+}
+
+/// What:
+///  The `option` container of an entry,
+/// or the diagnostic that says which entry lacks it.
+/// Why:
+///  Two edits need the same container and the same refusal,
+/// so the lookup is one function that takes the context as parameters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function containerOf(path: string, document: XmlDocument, key: string, container: string): ElementId // throws
+/// ```
+fn container_of(path: &str, document: &XmlDocument, key: &str, container: &str) -> Result<XmlElementId, Diagnostic> {
+    if let Some(entry) = find_entry(document, key)
+        && let Some(holder) = document.descendants_named(entry, container).first().copied()
+    {
+        return Ok(holder);
+    }
+    return Err(edit_failure(path, &format!("the entry {key} has no {container} element")));
+}
+
+/// The option elements a scoped entry starts with,
+/// one per name and value.
+fn option_specs(options: &[(String, String)]) -> Vec<XmlElementSpec> {
+    let mut specs: Vec<XmlElementSpec> = Vec::new();
+    for (name, value) in options {
+        specs.push(option_spec(name, value));
+    }
+    return specs;
+}
 
 /// Append an entry to the last `map` element,
 /// where the IDE keeps its server entries.
@@ -30,14 +79,12 @@ fn append_entry(path: &str, document: &XmlDocument, spec: &XmlElementSpec) -> Re
         let message = format!("{path}: the settings file has no map element to hold a server entry");
         return Err(Diagnostic::new("harper-xml-invalid", &message).with_path(path));
     };
-    let edited = document.append_child(*last, spec).map_err(|error| return edit_failure(path, &error))?;
-    return Ok(edited.source().to_string());
+    return edited_source(path, document.append_child(*last, spec));
 }
 
 /// Replace a whole entry with its description.
 fn replace_entry(path: &str, document: &XmlDocument, entry: XmlElementId, spec: &XmlElementSpec) -> Result<String, Diagnostic> {
-    let edited = document.replace_element(entry, spec).map_err(|error| return edit_failure(path, &error))?;
-    return Ok(edited.source().to_string());
+    return edited_source(path, document.replace_element(entry, spec));
 }
 
 /// What:
@@ -55,20 +102,16 @@ fn replace_entry(path: &str, document: &XmlDocument, entry: XmlElementId, spec: 
 /// ```
 fn ensure_option(path: &str, text: &str, key: &str, container: &str, name: &str, value: &str, overwrite: bool) -> Result<String, Diagnostic> {
     let document = parse(path, text)?;
-    let missing = || return edit_failure(path, &format!("the entry {key} has no {container} element"));
-    let entry = find_entry(&document, key).ok_or_else(missing)?;
-    let holder = *document.descendants_named(entry, container).first().ok_or_else(missing)?;
+    let holder = container_of(path, &document, key, container)?;
     match document.find_child(holder, "option", "name", name) {
         Some(option) => {
             if !overwrite || document.attribute(option, "value") == Some(value) {
                 return Ok(text.to_string());
             }
-            let edited = document.set_attribute(option, "value", value).map_err(|error| return edit_failure(path, &error))?;
-            return Ok(edited.source().to_string());
+            return edited_source(path, document.set_attribute(option, "value", value));
         }
         None => {
-            let edited = document.append_child(holder, &option_spec(name, value)).map_err(|error| return edit_failure(path, &error))?;
-            return Ok(edited.source().to_string());
+            return edited_source(path, document.append_child(holder, &option_spec(name, value)));
         }
     }
 }
@@ -122,7 +165,14 @@ fn current_mapping(document: &XmlDocument, mappings: XmlElementId) -> Option<(St
         return None;
     }
     let language_id = document.attribute(settings[0], "languageId")?.to_string();
-    let patterns = document.descendants_named(settings[0], "option").into_iter().find(|option| return document.attribute(*option, "name") == Some("patterns"))?;
+    let mut found: Option<XmlElementId> = None;
+    for option in document.descendants_named(settings[0], "option") {
+        if document.attribute(option, "name") == Some("patterns") {
+            found = Some(option);
+            break;
+        }
+    }
+    let patterns = found?;
     let mut names: Vec<String> = Vec::new();
     for child in document.children_named(patterns, "option") {
         names.push(document.attribute(child, "value")?.to_string());
@@ -142,19 +192,18 @@ fn current_mapping(document: &XmlDocument, mappings: XmlElementId) -> Option<(St
 /// ```
 fn ensure_mappings(path: &str, text: &str, key: &str, language_id: &str, file_names: &[String]) -> Result<String, Diagnostic> {
     let document = parse(path, text)?;
-    let missing = || return edit_failure(path, &format!("the entry {key} has no {USER_CONTAINER} element"));
-    let entry = find_entry(&document, key).ok_or_else(missing)?;
-    let holder = *document.descendants_named(entry, USER_CONTAINER).first().ok_or_else(missing)?;
+    let holder = container_of(path, &document, key, USER_CONTAINER)?;
     let wanted = mappings_spec(language_id, file_names);
     let Some(existing) = document.find_child(holder, "option", "name", "mappings") else {
-        let edited = document.append_child(holder, &wanted).map_err(|error| return edit_failure(path, &error))?;
-        return Ok(edited.source().to_string());
+        return edited_source(path, document.append_child(holder, &wanted));
     };
-    if current_mapping(&document, existing).is_some_and(|(id, names)| return id == language_id && names == file_names) {
+    if let Some((id, names)) = current_mapping(&document, existing)
+        && id == language_id
+        && names == file_names
+    {
         return Ok(text.to_string());
     }
-    let edited = document.replace_element(existing, &wanted).map_err(|error| return edit_failure(path, &error))?;
-    return Ok(edited.source().to_string());
+    return edited_source(path, document.replace_element(existing, &wanted));
 }
 
 /// What:
@@ -196,12 +245,12 @@ pub fn upsert_user_entry(path: &str, text: &str, entry: &ScopedUserEntry) -> Res
     options.push(("serverId".to_string(), entry.key.to_string()));
     options.push(("serverName".to_string(), entry.name.to_string()));
     let Some(existing) = find_entry(&document, entry.key) else {
-        let mut specs: Vec<XmlElementSpec> = options.iter().map(|(name, value)| return option_spec(name, value)).collect();
+        let mut specs = option_specs(&options);
         specs.push(mappings_spec(entry.language_id, entry.file_names));
         return append_entry(path, &document, &entry_spec(entry.key, USER_CONTAINER, specs));
     };
     if document.descendants_named(existing, USER_CONTAINER).is_empty() {
-        let mut specs: Vec<XmlElementSpec> = options.iter().map(|(name, value)| return option_spec(name, value)).collect();
+        let mut specs = option_specs(&options);
         specs.push(mappings_spec(entry.language_id, entry.file_names));
         return replace_entry(path, &document, existing, &entry_spec(entry.key, USER_CONTAINER, specs));
     }

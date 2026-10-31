@@ -86,5 +86,13 @@ See the TODO comments in that file for ZFS encryption status.
    bootc-image-builder disk layout
 - `src/build-and-import.ts`:
    orchestration script
+- `src/exec.ts`:
+   private process runner for the probes and `virsh`/`flatpak` calls
+   (direct spawn through `nano-spawn`,
+   stdout returned,
+   `SubprocessError` on non-zero exit,
+   signal kill,
+   or spawn failure;
+   optional `timeoutMs`)
 - `output/`:
    build artifacts (gitignored)

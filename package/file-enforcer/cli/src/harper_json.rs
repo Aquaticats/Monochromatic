@@ -178,7 +178,8 @@ pub fn with_schema_defaults(mut schema: Map<String, Value>) -> Map<String, Value
 pub fn format_object(object: Map<String, Value>) -> String {
     let value = Value::Object(object);
     // A `Value` always serializes; the compact text is only a defensive fallback.
-    return serde_json::to_string_pretty(&value).unwrap_or_else(|_| return value.to_string());
+    let Ok(pretty) = serde_json::to_string_pretty(&value) else { return value.to_string() };
+    return pretty;
 }
 
 /// Tests for the JSON helpers.

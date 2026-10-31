@@ -212,7 +212,14 @@ and accepted with this record:
   and auto-sync on such failures and retry.",
   user);
   `update --check` never installs.
-- `sync` and `status` refuse when plan and lock disagree;
+- `sync` resolves plan entries that are new or whose resolution-affecting fields changed,
+  writes only their lock rows,
+  then installs,
+  as a non-frozen `pnpm install` does;
+  in CI (the `CI` variable set) or with `--frozen-lock` it refuses instead and names `mpm-shadow update <ids>`
+  (amended 2026-10-31:
+  the user chose "pnpm-style: resolve, frozen in CI" over keeping the refusal);
+  `status` still refuses when plan and lock disagree;
   offline `lock` rejects resolution-affecting edits;
   rustup channels and cargo-binstall tools install directly from the lock;
   postinstall links and commands run in sync.
@@ -220,6 +227,53 @@ and accepted with this record:
 - Bootstrap:
   a prebuilt `mpm-shadow` archive with its SHA-256 in the lock,
   or `cargo install monochromatic-mpm-shadow` after a verified rustup install.
+- cargo-binstall tools install under a version-keyed directory in the toolchain root
+  (for example `<toolchain root>/cargo/<crate>/<version>`),
+  never the shared `$CARGO_HOME/bin`,
+  and each tree links its own lock's version,
+  so trees with different locks cannot overwrite each other's tools.
+  Decided 2026-10-31 after a sync in a worktree with an older lock replaced the git wrapper for every checkout
+  ([`doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`](../troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md));
+  the user chose "Fix in mpm-shadow before cutover"
+  over fixing it after cutover or keeping the shared install.
+  Versions no lock names need a cleanup step.
+- Tools this repository publishes are the exception,
+  in the user's words:
+  "No older repo-maintained tools should ever exist when newer is present."
+  So a sync never installs a repository-published tool older than one already installed,
+  and installing a newer one removes the older;
+  a tree whose lock pins an older version runs the newer one,
+  and `status` counts installed-newer-than-locked as satisfied for these tools,
+  with a warning every time it happens
+  ("and this should have a warning whenever it happens",
+  user):
+  each sync,
+  status,
+  and other toolchain command that resolves such a tool for that tree names the tool,
+  the locked and the used version,
+  and that the newer one runs because older repository tools are never kept.
+  The warning also prints on every run of the tool in that tree
+  (the user chose "Also on every tool run",
+  noting "give the recourse: upgrade" and "noisy is fine"):
+  it goes to stderr,
+  never into a tool's stdout,
+  and ends with the remedy,
+  upgrading the tree's lock through `mise run toolchain:update` or by merging `main`.
+  A tree's exposed link for such a tool goes through an `mpm-shadow` launcher that compares the tree's lock with the version it runs,
+  since a bare link to the binary has no place to check.
+  This relies on each release reading its predecessors' configuration,
+  as wrapper 0.4.4 reads the string `rulesFile` of 0.4.0
+  (`rules_file_takes_a_path_or_an_array_of_entries` in
+  `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs`).
+  Version-keyed coexistence applies only to third-party tools.
+- `update` takes optional tool ids (`update <tool>...`) and moves only those,
+  and a plan entry with no lock row is resolved on its own without moving any other row,
+  as `pnpm update <pkg>` and `pnpm install` after adding a dependency do.
+  Adopted 2026-10-31 under the user's standing instruction to follow everything pnpm offers,
+  after adding Mistral Vibe to the global plan could only be locked by `toolchain:update:global`,
+  which also moved 7 unrelated global tools
+  (the TypeScript `update.ts` reads only `--check` and `--global`,
+  and `mpm-shadow update` in `package/mpm-shadow/cli/src/toolchain/commands.rs:86-94` likewise resolves every tool).
 - file-enforcer has no toolchain role.
 
 ### Elsewhere

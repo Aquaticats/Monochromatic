@@ -17,9 +17,13 @@
 //! async function handleConnection(shared: Shared, socket: Socket): Promise<void>
 //! ```
 
+/// Imports `ConfigScope` from `crate::config_decode`.
+use crate::config_decode::ConfigScope;
 /// Imports `Event`,
 /// `EventSink` from `crate::event`.
 use crate::event::{Event, EventSink};
+/// Imports `OutputScope` from `crate::output_scope`.
+use crate::output_scope::OutputScope;
 /// Imports  from `crate::rpc_protocol`.
 use crate::rpc_protocol::{
     ERROR_FAILED, ERROR_METHOD, ERROR_MISMATCH, ERROR_PARSE, PROTOCOL_VERSION, error_line, notification_line, result_line,
@@ -174,11 +178,22 @@ fn run_request_of(shared: &Shared, params: &Value) -> Result<RunRequest, String>
         Some("explain") => RunMode::Explain { path: params["path"].as_str().unwrap_or_default().to_string() },
         _ => return Err("the run request has an unknown mode".to_string()),
     };
+    let outputs = match params["outputs"].as_str() {
+        None => OutputScope::All,
+        Some(word) => match OutputScope::parse(word) {
+            Some(parsed) => parsed,
+            None => return Err(format!("the run request names an unknown outputs scope {word:?}; use all, committed or local")),
+        },
+    };
+    if outputs != OutputScope::All && shared.options.scope == ConfigScope::User {
+        return Err("the per-user config has no committed and local outputs, so it takes no outputs scope".to_string());
+    }
     return Ok(RunRequest {
         root: shared.options.root.clone(),
         config_path: PathBuf::from(config),
         scope: shared.options.scope,
         mode,
+        outputs,
     });
 }
 

@@ -17,13 +17,19 @@
 //! export function observeAll(ctx: Context, tools: LockedTool[]): Observation[]
 //! ```
 
+/// Imports `compare_versions` from `crate::version`.
+use crate::version::compare_versions;
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `Ordering` from `std::cmp`.
+use std::cmp::Ordering;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports what this module uses from `super::cargo_installs`.
+use super::cargo_installs::{is_repository_published, observed_cargo_version};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports what this module uses from `super::layout`.
@@ -32,7 +38,7 @@ use super::layout::{applies_to_family, tool_install_dir};
 use super::model::{LockedTool, Origin, Route};
 /// Imports what this module uses from `super::parse_output`.
 use super::parse_output::{
-    global_pnpm_versions, parse_bin_list, parse_cargo_binstall_list, parse_uv_tool_list, version_matches,
+    global_pnpm_versions, parse_bin_list, parse_uv_tool_list, version_matches,
 };
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
@@ -96,11 +102,11 @@ fn observe_bin_sourced(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return None;
 }
 
-/// `cargo binstall --list`,
-/// for the cargo-binstall route.
+/// The cargo install root of the crate's version directory,
+/// for the cargo-binstall route (never `cargo binstall --list` or `$CARGO_HOME`,
+/// which describe the shared install).
 fn observe_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let outcome: RunOutcome = ctx.run(&ctx.request("cargo", &["binstall", "--list"]));
-    return parse_cargo_binstall_list(&outcome.stdout).get(&package_name(tool)).cloned();
+    return observed_cargo_version(ctx.scope, tool);
 }
 
 /// `pnpm list --global --depth=0 --json`,
@@ -198,6 +204,25 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
     }
 }
 
+/// What:
+/// Whether an installed version satisfies the lock:
+/// equal for most tools,
+/// equal or newer for a repository-published tool.
+/// Why:
+/// Older repository-published tools are never kept,
+/// so a tree whose lock pins an older one runs the newer install and that is not drift.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function satisfiesLock(tool: LockedTool, observed: string): boolean
+/// ```
+pub fn satisfies_lock(tool: &LockedTool, observed: &str) -> bool {
+    if is_repository_published(tool) {
+        return compare_versions(observed, &tool.version) != Ordering::Less;
+    }
+    return version_matches(observed, &tool.version);
+}
+
 /// One line of the status report:
 /// the tool,
 /// the locked version,
@@ -233,7 +258,7 @@ pub fn observe_all(ctx: &Context, tools: &[LockedTool]) -> Vec<Observation> {
         }
         let observed: Option<String> = observe_tool(ctx, tool);
         let in_sync: bool = match observed.as_deref() {
-            Some(version) => version_matches(version, &tool.version),
+            Some(version) => satisfies_lock(tool, version),
             None => false,
         };
         observations.push(Observation { id: tool.declaration.id.clone(), locked: tool.version.clone(), observed, in_sync });

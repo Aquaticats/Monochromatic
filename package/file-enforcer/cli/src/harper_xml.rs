@@ -107,6 +107,16 @@ pub fn find_entry(document: &XmlDocument, key: &str) -> Option<XmlElementId> {
     return None;
 }
 
+/// Whether a list of server keys holds the key.
+fn lists_key(keys: &[String], key: &str) -> bool {
+    for candidate in keys {
+        if candidate == key {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What:
 ///  The key of the first server entry that matches the base-server facts and is not excluded.
 /// Why:
@@ -119,7 +129,7 @@ pub fn find_entry(document: &XmlDocument, key: &str) -> Option<XmlElementId> {
 pub fn find_base_entry(document: &XmlDocument, excluded: &[String]) -> Option<(XmlElementId, String)> {
     for entry in document.descendants_named(document.root(), "entry") {
         let Some(key) = document.attribute(entry, "key") else { continue };
-        if excluded.iter().any(|id| return id == key) {
+        if lists_key(excluded, key) {
             continue;
         }
         let template = option_value(document, entry, "templateId");
@@ -127,7 +137,10 @@ pub fn find_base_entry(document: &XmlDocument, excluded: &[String]) -> Option<(X
         let command = option_value(document, entry, "commandLine");
         let by_template = template.as_deref() == Some(HARPER_MATCH.template_id);
         let by_name = name.as_deref() == Some(HARPER_MATCH.server_name);
-        let by_command = command.is_some_and(|text| return text.contains(HARPER_MATCH.command_line_includes));
+        let by_command = match &command {
+            Some(text) => text.contains(HARPER_MATCH.command_line_includes),
+            None => false,
+        };
         if by_template || by_name || by_command {
             return Some((entry, key.to_string()));
         }

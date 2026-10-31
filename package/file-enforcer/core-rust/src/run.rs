@@ -29,6 +29,9 @@ use crate::event::EventSink;
 /// Imports `explain`,
 /// `normalize_target` from `crate::explain`.
 use crate::explain::{explain, normalize_target};
+/// Imports `OutputScope`,
+/// `select_drifts` from `crate::output_scope`.
+use crate::output_scope::{OutputScope, select_drifts};
 /// Imports `PlanReport`,
 /// `plan_run` from `crate::plan`.
 use crate::plan::{PlanReport, plan_run};
@@ -112,14 +115,15 @@ pub enum RunMode {
 ///  Everything a run needs:
 /// the worktree root,
 /// the config file,
-/// its scope and the mode.
+/// its scope,
+/// the mode and which outputs the mode covers.
 /// Why:
 ///  Each server request carries its canonical config path and options;
 /// the config is re-read every run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RunRequest = { root: string; configPath: string; scope: ConfigScope; mode: RunMode };
+/// type RunRequest = { root: string; configPath: string; scope: ConfigScope; mode: RunMode; outputs: OutputScope };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunRequest {
@@ -131,6 +135,9 @@ pub struct RunRequest {
     pub scope: ConfigScope,
     /// The command.
     pub mode: RunMode,
+    /// Which outputs `write` and `check` cover;
+    /// `explain` ignores it.
+    pub outputs: OutputScope,
 }
 
 /// What:
@@ -214,9 +221,9 @@ fn emit_warnings(sink: &mut dyn EventSink, report: &PlanReport) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planAndDiff(root: string, rules: Rule[], revalidate: boolean): [PlanReport, Drift[]]
+/// function planAndDiff(root: string, rules: Rule[], revalidate: boolean, outputs: OutputScope): [PlanReport, Drift[]]
 /// ```
-fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool) -> Result<(PlanReport, Vec<Drift>), Diagnostic> {
+fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool, outputs: OutputScope) -> Result<(PlanReport, Vec<Drift>), Diagnostic> {
     let mut attempts = 0;
     loop {
         let mut report = plan_run(root, rules);
@@ -224,7 +231,9 @@ fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool) -> Resu
         if !report.errors.is_empty() {
             return Ok((report, Vec::new()));
         }
-        let drifts = compute_drift(&mut report)?;
+        let all_drifts = compute_drift(&mut report)?;
+        // The scope filter reads `.gitignore` files through the view, before the revalidation below, so those reads are checked too.
+        let drifts = select_drifts(&mut report.view, all_drifts, outputs)?;
         if !revalidate {
             return Ok((report, drifts));
         }
@@ -290,7 +299,8 @@ pub fn run_detailed(request: &RunRequest, registry: &RuleRegistry, sink: &mut dy
         Err(code) => return code,
     };
     let is_write = request.mode == RunMode::Write;
-    let (report, drifts) = match plan_and_diff(&request.root, &rules, is_write) {
+    let outputs = if matches!(request.mode, RunMode::Explain { .. }) { OutputScope::All } else { request.outputs };
+    let (report, drifts) = match plan_and_diff(&request.root, &rules, is_write, outputs) {
         Ok(pair) => pair,
         Err(error) => {
             emit_errors(sink, &[error]);

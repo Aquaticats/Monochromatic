@@ -32,7 +32,9 @@ The accepted design is [`doc/decision/file-enforcer-rust-rewrite.md`](../../../d
    collected,
    and a failing run writes nothing.
 4. `compute_drift` compares the plan with the real files.
-   `check` reports it,
+   `select_drifts` (`output_scope.rs`) then keeps the part the request's `OutputScope` names
+   (`All` by default, `Committed`, or `Local`; see "Committed and local outputs").
+   `check` reports what is left,
    `write` publishes it,
    `check --expected-dir` renders it as paired trees for `diff -ru`.
 5. For `write`,
@@ -54,7 +56,7 @@ The accepted design is [`doc/decision/file-enforcer-rust-rewrite.md`](../../../d
 
 Exit codes:
 0 clean,
-1 drift or rule failure,
+1 drift (within the selected output scope) or rule failure,
 2 bad config or command line.
 Every line written is one JSON object:
 `schemaVersion`,
@@ -65,6 +67,36 @@ Every line written is one JSON object:
 optional `hint`,
 then
 extra members such as `path` and `rule`.
+
+## Committed and local outputs
+
+`RunRequest::outputs` (an `OutputScope`) limits a `write` or `check` to the outputs that the repository's `.gitignore`
+files do not match (`Committed`) or do match (`Local`).
+The server takes it as the optional `outputs` member of a `run` request (`all`, `committed`, `local`;
+absent means `all`, an unknown word is an error response, and the per-user server refuses anything but `all`,
+because a home directory has no ignore policy).
+
+- Derived, not declared.
+  `output_scope.rs` evaluates git's rules with the `ignore` crate's single-file matcher
+  (`ignore::gitignore::Gitignore`, a dependency already in `rust-catalog.toml`):
+  for each drifted path it walks the path components from the root,
+  asks the `.gitignore` files of the enclosing directories deepest first,
+  and stops at the first ignored component, since a negation cannot reopen a path below an ignored directory.
+  A per-rule config field was rejected: it would repeat the ignore file, could not split a rule with outputs on both
+  sides, and would change the config schema the retired TypeScript tool still reads.
+- No `git` process, no `.git` directory and no index.
+  `.git/info/exclude` and the global excludes file are not consulted,
+  so every clone and CI classify alike.
+  A tracked file that a pattern matches counts as local.
+- The ignore files are read through the `View`, after the drift is computed and before `write` revalidates,
+  so a changed ignore file replans the run and `watch` watches it.
+  `explain` ignores the scope.
+- The filter acts on drift only.
+  Planning, rule failures and warnings are unaffected;
+  the drift events, the `--expected-dir` trees, what `write` publishes and the exit code use only the selected drift.
+  A `.gitignore` line the matcher cannot compile fails a scoped run with `gitignore-invalid`.
+- The final `result` event of a scoped run carries `outputs` and names the side in its message;
+  the default scope prints exactly the documented lines.
 
 ## The rule-kind interface
 

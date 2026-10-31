@@ -3,6 +3,7 @@ name = "monochromatic-dependency-catalog"
 version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["development-tools", "parser-implementations"]
+documentation = "https://docs.rs/monochromatic-dependency-catalog"
 include = [
   "src/**/*.rs",
   "Cargo.toml",
@@ -10,7 +11,7 @@ include = [
   "README.md",
   "LICENSES/*.txt",
 ]
-keywords = ["cargo", "catalog", "workspace-dependencies", "toml"]
+keywords = ["cargo", "catalog", "workspace", "toml"]
 description = "Pure-function library that renders a pnpm-style rust-catalog.toml into each Cargo workspace root's [workspace.dependencies]: parses and validates the catalog, adopts literal versions, prunes unused entries, writes internal path versions, and reports drift, all as format-preserving toml_edit edits over file contents."
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/dependency-catalog/core-native"

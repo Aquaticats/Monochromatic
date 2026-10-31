@@ -1,6 +1,6 @@
 //! What:
 //! The two cargo routes:
-//! `cargo-binstall` (`cargo binstall --no-confirm --version <locked> <crate>`) and
+//! `cargo-binstall` (`cargo binstall --no-confirm --root <version directory> --version <locked> <crate>`) and
 //!           `cargo-git` (`cargo install --git <url> --rev <rev> --root <install dir> <package>`).
 //! Why:
 //! The version always comes from the lock,
@@ -20,6 +20,8 @@ use std::fs;
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports what this module uses from `super::cargo_installs`.
+use super::cargo_installs::{is_repository_published, point_current_at_newest, remove_older_than_newest, version_directory};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `ToolchainError` from `super::error`.
@@ -35,20 +37,55 @@ use super::observe::package_name;
 /// Imports `RunRequest` from `super::runner`.
 use super::runner::RunRequest;
 
-/// Installs one crate with `cargo binstall`,
+/// What:
+/// Installs one crate with `cargo binstall --root <version directory>` into the crate's own version-keyed cargo
+/// root,
 /// passing the GitHub token when one is available.
+/// For a repository-published crate it then points `current` at the newest installed version and deletes every
+/// older one.
+/// Why:
+/// `--root` (unlike `--install-path`) also covers the build-from-source fallback:
+/// cargo-binstall 1.26.1 passes `--root` on to `cargo install`,
+/// and with `--install-path` it refuses to build instead
+/// (`crates/binstalk/src/ops/resolve/resolution.rs`,
+/// `CargoInstallDoesNotSupportInstallPath`).
+/// Tracking stays on,
+/// so the root's `.crates.toml` is the record `status` reads and cargo-binstall's own lock covers two trees
+/// installing the same version at once.
+/// Nothing is written to `$CARGO_HOME/bin` or `$CARGO_HOME/.crates.toml`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function installCargoBinstall(ctx: Context, tool: LockedTool): void
+/// ```
 pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
-    let mut args: Vec<String> = vec!["binstall".to_string(), "--no-confirm".to_string(), "--version".to_string(), tool.version.clone()];
+    let crate_name: String = package_name(tool);
+    let root: PathBuf = version_directory(&ctx.scope.toolchain_root, &crate_name, &tool.version);
+    if let Err(error) = fs::create_dir_all(&root) {
+        return Err(ToolchainError::failure(format!("cannot create {}: {error}", root.display())));
+    }
+    let mut args: Vec<String> = vec![
+        "binstall".to_string(),
+        "--no-confirm".to_string(),
+        "--root".to_string(),
+        root.to_string_lossy().to_string(),
+        "--version".to_string(),
+        tool.version.clone(),
+    ];
     for feature in tool.declaration.options.cargo_features.clone().unwrap_or_default() {
         args.push(format!("--features={feature}"));
     }
-    args.push(package_name(tool));
+    args.push(crate_name.clone());
     let mut env = ctx.path_env();
     if let Some(token) = ctx.github_token() {
         env.insert("GITHUB_TOKEN".to_string(), token);
     }
     let request: RunRequest = RunRequest { command: "cargo".to_string(), args, env: Some(env), cwd: None };
     run_checked(ctx, &request, "cargo binstall", &tool.declaration.id)?;
+    if is_repository_published(tool) {
+        point_current_at_newest(&ctx.scope.toolchain_root, &crate_name)?;
+        remove_older_than_newest(&ctx.scope.toolchain_root, &crate_name)?;
+    }
     return Ok(());
 }
 

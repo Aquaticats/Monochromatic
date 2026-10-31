@@ -17,6 +17,7 @@ use crate::config_decode::ConfigScope;
 use crate::config_types::RuleConfig;
 use crate::diagnostic::Diagnostic;
 use crate::event::CollectingSink;
+use crate::output_scope::OutputScope;
 use crate::registry::RuleRegistry;
 use crate::rule::{Change, Rule, RuleBuilder, RulePlan};
 use crate::run::{RunMode, RunRequest, run};
@@ -118,7 +119,7 @@ fn a_file_that_keeps_changing_ends_in_snapshot_changed_after_three_plans() {
     let plans = Arc::new(AtomicUsize::new(0));
     let mut registry = RuleRegistry::with_defaults();
     registry.register("concat", Box::new(ChurningBuilder { plans: Arc::clone(&plans) }));
-    let request = RunRequest { root: dir.path().to_path_buf(), config_path, scope: ConfigScope::Repository, mode: RunMode::Write };
+    let request = RunRequest { root: dir.path().to_path_buf(), config_path, scope: ConfigScope::Repository, mode: RunMode::Write, outputs: OutputScope::All };
     let mut sink = CollectingSink::default();
     let code = run(&request, &registry, &mut sink);
     assert_eq!(code, 1, "{:?}", sink.events);
@@ -141,7 +142,7 @@ fn check_does_not_replan_a_changing_file() {
     let mut registry = RuleRegistry::with_defaults();
     registry.register("concat", Box::new(ChurningBuilder { plans: Arc::clone(&plans) }));
     let mode = RunMode::Check { expected_dir: None };
-    let request = RunRequest { root: dir.path().to_path_buf(), config_path, scope: ConfigScope::Repository, mode };
+    let request = RunRequest { root: dir.path().to_path_buf(), config_path, scope: ConfigScope::Repository, mode, outputs: OutputScope::All };
     let mut sink = CollectingSink::default();
     let code = run(&request, &registry, &mut sink);
     assert_eq!(code, 1, "{:?}", sink.events);

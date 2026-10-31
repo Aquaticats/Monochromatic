@@ -136,11 +136,11 @@ pub(crate) fn child_at<'a>(
                 // ```ts
                 // return entries[found]?.value;
                 // ```
-                let entry = entries.get(index).ok_or_else(|| {
-                    return JsoncTypeError {
+                let Some(entry) = entries.get(index) else {
+                    return Err(JsoncTypeError {
                         message: String::from("resolved JSONC member index is out of range"),
-                    };
-                })?;
+                    });
+                };
                 return Ok(Some(&entry.value));
             }
             JsoncKind::Array { .. } => Err(JsoncTypeError {
@@ -184,13 +184,15 @@ pub(crate) fn resolve<'a>(
 ) -> Result<&'a JsoncValue, JsoncEditError> {
     let mut current = root;
     for segment in path {
-        let next = child_at(current, segment)
-            .map_err(|error| return JsoncEditError::Type { error })?
-            .ok_or_else(|| {
-                return JsoncEditError::PathNotFound {
-                    error: JsoncPathNotFoundError { path: Vec::from(path) },
-                };
-            })?;
+        let found = match child_at(current, segment) {
+            Ok(found) => found,
+            Err(error) => return Err(JsoncEditError::Type { error }),
+        };
+        let Some(next) = found else {
+            return Err(JsoncEditError::PathNotFound {
+                error: JsoncPathNotFoundError { path: Vec::from(path) },
+            });
+        };
         current = next;
     }
     return Ok(current);
@@ -258,12 +260,16 @@ pub fn jsonc_keys<'a>(
             error: JsoncTypeError { message: String::from("jsonc keys: target is not an object") },
         });
     };
-    // What:     `map` and `collect` build an owned vector of borrowed key references.
+    // What:     A loop pushes a borrowed reference to each member key into an owned vector.
     // Why:      The caller receives keys in document order without cloning their text.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // return entries.map((entry) => entry.key);
     // ```
-    return Ok(entries.iter().map(|entry| return &entry.key).collect());
+    let mut keys: Vec<&JsoncKey> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        keys.push(&entry.key);
+    }
+    return Ok(keys);
 }
