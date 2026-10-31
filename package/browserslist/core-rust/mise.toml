@@ -39,8 +39,8 @@ description = "Opt-in live test: fetch the pinned tarballs from registry.npmjs.o
 run = "cargo nextest run --run-ignored only --test live"
 
 [tasks.update]
-description = "Pick the newest published caniuse-lite and node-releases and the current Firefox ESR, verify them, and rewrite browserslist-data.lock.json; then run conformance:regenerate"
-run = "cargo run --release -- update --lock browserslist-data.lock.json"
+description = "Pick the newest published caniuse-lite and node-releases and the current Firefox ESR, verify them, rewrite browserslist-data.lock.json, then regenerate the fixtures and conformance expectations (needs podman and network)"
+run = ["cargo run --release -- update --lock browserslist-data.lock.json", "node bin/regenerate-conformance.ts"]
 
 [tasks."conformance:regenerate"]
 description = "Regenerate fixtures/data and conformance/expected.json from the locked data with npm browserslist 4.29.5 in a bounded container (needs podman and network)"

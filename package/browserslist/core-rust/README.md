@@ -63,15 +63,23 @@ versions descending).
 
 The file-enforcer engine calls these (all re-exported at the crate root):
 
-```text
-// package/browserslist/core-rust/src/lib.rs
-pub fn resolve_browserslistrc(config_text: &str, lock: &DataLock, source: &DataSource)
-    -> Result<Vec<String>, BrowserslistError>;
-pub fn render_browserslistrc(config_text: &str, lock: &DataLock, source: &DataSource)
-    -> Result<String, BrowserslistError>;
-pub fn render_resolved_json(targets: &[String]) -> String;
-impl DataLock { pub fn from_json(text: &str) -> Result<DataLock, BrowserslistError>; }
-impl DataSource { pub fn user_default() -> Result<DataSource, BrowserslistError>; }
+- `resolve_browserslistrc(config_text: &str, lock: &DataLock, source: &DataSource)`
+  returns `Result<Vec<String>, BrowserslistError>`.
+- `render_browserslistrc(config_text: &str, lock: &DataLock, source: &DataSource)`
+  returns `Result<String, BrowserslistError>`.
+- `render_resolved_json(targets: &[String])` returns `String`.
+- `DataLock::from_json(text: &str)` returns `Result<DataLock, BrowserslistError>`.
+- `DataSource::user_default()` returns `Result<DataSource, BrowserslistError>`.
+
+Typical use,
+with the lock text read from `package/browserslist/core-rust/browserslist-data.lock.json`:
+
+```rust
+//! The engine's call,
+//! inside a function that returns `Result`.
+let lock = monochromatic_browserslist::DataLock::from_json(&lock_text)?;
+let source = monochromatic_browserslist::DataSource::user_default()?;
+let resolved_json = monochromatic_browserslist::render_browserslistrc(&config_text, &lock, &source)?;
 ```
 
 `render_browserslistrc` returns the exact content of `.browserslistrc.resolved.local.json`:
@@ -116,7 +124,9 @@ reads `FIREFOX_ESR` from `https://product-details.mozilla.org/1.0/firefox_versio
 downloads and verifies the tarballs,
 proves they decode,
 and rewrites the lock.
-Then run `mise run //package/browserslist/core-rust:conformance:regenerate` and review the lock and fixture diff.
+The task then runs `conformance:regenerate`,
+so review the lock,
+fixture and expectation diff afterwards.
 
 The binary `monochromatic-browserslist` has three commands:
 
