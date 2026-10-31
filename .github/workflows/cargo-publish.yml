@@ -1190,9 +1190,10 @@ jobs:
         set -euo pipefail
         bin='search-shadow'
         got=$("package/search-shadow/cli/target/${TARGET}/release/${bin}" --version)
-        want="${bin} ${VERSION}"
-        printf 'got:  %s\nwant: %s\n' "$got" "$want"
-        [ "$got" = "$want" ]
+        # Since 0.2.1 the line goes on to name the shadowed tools: `search-shadow 0.2.1, a shadow of rg, ...`.
+        want="${bin} ${VERSION}, a shadow of "
+        printf 'got:  %s\nwant: %s...\n' "$got" "$want"
+        [ "${got#"$want"}" != "$got" ]
 
     # Layout is {name}-{version}-{target}/{bin}, the bin-dir of [package.metadata.binstall];
     # the archive name is its pkg-url file name. The licenses sit beside the binary because
