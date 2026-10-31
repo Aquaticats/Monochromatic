@@ -151,3 +151,16 @@ fn missing_browser_is_reported() {
     let error = resolve_config_text("last 1 Android versions", &data).expect_err("missing");
     assert_eq!(error.to_string(), "Unknown browser android");
 }
+
+/// The real data has no dead browser among the selected ones,
+/// so the resolve path is proven to run the `not dead`
+/// subtraction by a revision that lacks a browser the dead expansion names:
+/// the expansion fails like browserslist's.
+#[test]
+fn not_dead_runs_the_subtraction_in_the_resolve_path() {
+    let chrome = Agent { name: "chrome".to_string(), slots: vec![Some("9".to_string()), None, None, None] };
+    let data = BrowserData { agents: AgentTable::new(vec![chrome]), node_versions: Vec::new(), firefox_esr_major: 1 };
+    assert_eq!(resolve_config_text("last 1 Chrome versions\n", &data).expect("resolves"), owned(&["chrome 9"]));
+    let error = resolve_config_text("last 1 Chrome versions\nnot dead\n", &data).expect_err("dead needs baidu");
+    assert_eq!(error.to_string(), "Unknown browser Baidu");
+}
