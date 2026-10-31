@@ -27,7 +27,7 @@
 /// ```ts
 /// import { Command } from 'commander';
 /// ```
-use clap::Command;
+use clap::{Arg, ArgAction, Command};
 
 /// Imports the process-environment module (CARGO_HOME,
 /// HOME).
@@ -41,6 +41,8 @@ use crate::constants::USAGE_EXIT_CODE;
 use crate::prune::prune_stale_own_crates;
 /// Imports the toolchain verbs' grammar and dispatch.
 use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
+/// Imports the toolchain prune command.
+use crate::toolchain::prune_cargo::run_prune_command;
 
 /// What:
 /// `pub fn build_command() -> Command` declares a public function returning the grammar description.
@@ -61,7 +63,34 @@ pub fn build_command() -> Command {
     // const prune = new Command('prune').description('...');
     // ```
     let prune_command: Command = Command::new("prune")
-        .about("Delete the superseded cached versions of this repository's own crates from cargo's registry");
+        .about("Delete the superseded cached versions of this repository's own crates from cargo's registry")
+        .arg(
+            Arg::new("toolchain")
+                .long("toolchain")
+                .action(ArgAction::SetTrue)
+                .help("Instead, delete the cargo tool versions under the toolchain root that no known lock names"),
+        )
+        .arg(
+            Arg::new("global")
+                .long("global")
+                .action(ArgAction::SetTrue)
+                .requires("toolchain")
+                .help("With --toolchain: prune the machine-global toolchain root"),
+        )
+        .arg(
+            Arg::new("dry-run")
+                .long("dry-run")
+                .action(ArgAction::SetTrue)
+                .requires("toolchain")
+                .help("With --toolchain: list what would be deleted and delete nothing"),
+        )
+        .arg(
+            Arg::new("lock")
+                .long("lock")
+                .action(ArgAction::Append)
+                .requires("toolchain")
+                .help("With --toolchain: another toolchain.lock.json whose versions must be kept (repeatable), for example a clone git does not list"),
+        );
 
     // What:     `env!("CARGO_PKG_VERSION")` is a compile-time macro (the `!`) that pastes in the version from
     //           `Cargo.toml`. `subcommand_required(true)` makes a bare `mpm-shadow` print the help instead.
@@ -103,7 +132,10 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
     // ```ts
     // if (matches.subcommand?.name === 'prune') { ... }
     // ```
-    if let Some(("prune", _)) = matches.subcommand() {
+    if let Some(("prune", prune_matches)) = matches.subcommand() {
+        if prune_matches.get_flag("toolchain") {
+            return run_prune_command(prune_matches);
+        }
         return prune_now();
     }
     // Every other verb is a toolchain verb; `dispatch` answers `None` for a name it does not own.

@@ -17,6 +17,8 @@
 
 /// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
+/// Imports `older_lock_warnings` from `super::cargo_installs`.
+use super::cargo_installs::older_lock_warnings;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `NoNetwork` from `super::http`.
@@ -65,5 +67,9 @@ pub fn run_status(scope: &Scope, env: &EnvMap, runner: &dyn Runner, host: &Host)
             drifted = true;
         }
     }
-    return Ok(StatusReport { text: format_status(&observations), drifted });
+    let mut text: String = format_status(&observations);
+    for warning in older_lock_warnings(scope, &lock.tools, host.family) {
+        text.push_str(&format!("toolchain status: warning: {warning}\n"));
+    }
+    return Ok(StatusReport { text, drifted });
 }

@@ -27,12 +27,16 @@ use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `is_repository_published` from `super::cargo_installs`.
+use super::cargo_installs::is_repository_published;
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
+/// Imports `ensure_launcher` from `super::launcher`.
+use super::launcher::ensure_launcher;
 /// Imports `find_tool_bin` from `super::layout`.
 use super::layout::find_tool_bin;
 /// Imports what this module uses from `super::model`.
@@ -56,6 +60,24 @@ pub struct ExposureReport {
 /// the scope's bin directory.
 fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
     return vec![ctx.scope.toolchain_bin_dir.clone()];
+}
+
+/// What:
+/// What an exposed link points at:
+/// the real program,
+/// or (for a repository-published tool) this tree's launcher for it.
+/// Why:
+/// The launcher is what warns on every run when the tree's lock pins an older version than the one that runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function exposedTarget(scope: Scope, tool: LockedTool, name: string, found: string): string
+/// ```
+fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) -> Result<PathBuf, ToolchainError> {
+    if is_repository_published(tool) {
+        return ensure_launcher(scope, &tool.declaration.id, name, found);
+    }
+    return Ok(found.to_path_buf());
 }
 
 /// What:
@@ -90,7 +112,8 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
                 }
             }
             match find_tool_bin(tool, &primary, ctx.scope, ctx.env, &extra_dirs(ctx)) {
-                Some(target) => {
+                Some(found) => {
+                    let target: PathBuf = exposed_target(ctx.scope, tool, name, &found)?;
                     atomic_symlink(&ctx.scope.exposure_dir.join(name), &target)?;
                     report.linked.push(name.clone());
                 }
@@ -132,9 +155,10 @@ pub fn run_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<Vec
         let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall else {
             continue;
         };
-        let Some(target) = find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
+        let Some(found) = find_tool_bin(tool, &link.source_bin, ctx.scope, ctx.env, &extra_dirs(ctx)) else {
             continue;
         };
+        let target: PathBuf = exposed_target(ctx.scope, tool, &link.source_bin, &found)?;
         let directory: PathBuf = link_directory(ctx.scope, &link.link_dir);
         atomic_symlink(&directory.join(&link.link_name), &target)?;
         created.push(link.link_name.clone());

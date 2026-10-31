@@ -21,6 +21,8 @@
 //! export function runSync(scope, env, runner, http, host): SyncReport  // throws when plan and lock disagree
 //! ```
 
+/// Imports what this module uses from `super::cargo_installs`.
+use super::cargo_installs::{is_repository_published, older_lock_warnings, point_current_at_newest};
 /// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
 /// Imports `ToolchainError` from `super::error`.
@@ -37,10 +39,10 @@ use super::layout::applies_to_family;
 use super::load::load_agreeing;
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
-/// Imports `LockedTool` from `super::model`.
-use super::model::LockedTool;
-/// Imports `observe_tool` from `super::observe`.
-use super::observe::observe_tool;
+/// Imports what this module uses from `super::model`.
+use super::model::{LockedTool, Route};
+/// Imports what this module uses from `super::observe`.
+use super::observe::{observe_tool, package_name, satisfies_lock};
 /// Imports `version_matches` from `super::parse_output`.
 use super::parse_output::version_matches;
 /// Imports `Plan` from `super::plan`.
@@ -173,14 +175,22 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     }
     for tool in &entries {
         let observed: Option<String> = observe_tool(ctx, tool);
-        if let Some(warning) = replacement_warning(&tool.declaration.id, &observed, &tool.version) {
+        // A cargo-binstall install lives in a version directory of its own, so nothing shared is replaced.
+        if tool.declaration.route != Route::CargoBinstall
+            && let Some(warning) = replacement_warning(&tool.declaration.id, &observed, &tool.version)
+        {
             report.warnings.push(warning);
         }
         let current: bool = match observed.as_deref() {
-            Some(found) => version_matches(found, &tool.version),
+            Some(found) => satisfies_lock(tool, found),
             None => false,
         };
         if current {
+            if is_repository_published(tool)
+                && let Err(error) = point_current_at_newest(&ctx.scope.toolchain_root, &package_name(tool))
+            {
+                report.failed.push((tool.declaration.id.clone(), error.message));
+            }
             report.unchanged.push(tool.declaration.id.clone());
             continue;
         }
@@ -198,6 +208,7 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     let commands = run_postinstall_commands(ctx, &entries);
     report.failed.extend(commands.failed);
     report.missing_bins = unresolvable_bins(ctx.scope, &entries);
+    report.warnings.extend(older_lock_warnings(ctx.scope, ctx.tools, ctx.host.family));
     return report;
 }
 

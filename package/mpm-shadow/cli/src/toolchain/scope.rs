@@ -139,6 +139,9 @@ pub struct Scope {
     pub exposure_dir_relative: String,
     /// The directory postinstall links go to when the link names none.
     pub link_dir: PathBuf,
+    /// The directory of per-tree launchers: copies of `mpm-shadow` that warn when this tree's lock pins an older
+    /// repository-published tool than the one that runs, then run the real binary.
+    pub launcher_dir: PathBuf,
     /// The directory the `bin` CLI downloads into.
     pub toolchain_bin_dir: PathBuf,
     /// The `bin` CLI's configuration file.
@@ -206,6 +209,7 @@ pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
         exposure_dir: root.join(".cache").join("toolchain-bin"),
         exposure_dir_relative: EXPOSURE_DIR_RELATIVE.to_string(),
         link_dir: root.join(".cache").join("cli-git-bin"),
+        launcher_dir: root.join(".cache").join("toolchain-launchers"),
         toolchain_bin_dir: toolchain_root.join("bin"),
         bin_config_file: toolchain_root.join("bin.config.json"),
         toolchain_root,
@@ -238,6 +242,7 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
         exposure_dir: toolchain_root.join("exposure"),
         exposure_dir_relative: "exposure".to_string(),
         link_dir: home.join(".local").join("bin"),
+        launcher_dir: toolchain_root.join("launchers"),
         toolchain_bin_dir: toolchain_root.join("bin"),
         bin_config_file: toolchain_root.join("bin.config.json"),
         toolchain_root,
