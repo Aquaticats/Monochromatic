@@ -1,0 +1,300 @@
+{
+  "description": "Inputs of the conformance test. Each case is config text for npm browserslist 4.29.5 (parseConfig, then browserslist(defaults, { path: false, stats: {} })). supported=false marks a case the Rust crate must refuse with a not-implemented error even though npm answers it; nodeVersions replaces browserslist.nodeVersions for that case.",
+  "cases": [
+    {
+      "name": "repository file",
+      "supported": true,
+      "config": "# .browserslistrc\nlast 1 Chrome versions\nlast 1 ChromeAndroid versions\nlast 1 Android versions\nFirefox ESR\nlast 1 FirefoxAndroid versions\nlast 1 node major versions\nnot dead\n"
+    },
+    {
+      "name": "repository file without comment",
+      "supported": true,
+      "config": "last 1 Chrome versions\nlast 1 ChromeAndroid versions\nlast 1 Android versions\nFirefox ESR\nlast 1 FirefoxAndroid versions\nlast 1 node major versions\nnot dead\n"
+    },
+    {
+      "name": "line alone: Chrome",
+      "supported": true,
+      "config": "last 1 Chrome versions\n"
+    },
+    {
+      "name": "line alone: ChromeAndroid",
+      "supported": true,
+      "config": "last 1 ChromeAndroid versions\n"
+    },
+    {
+      "name": "line alone: Android",
+      "supported": true,
+      "config": "last 1 Android versions\n"
+    },
+    {
+      "name": "line alone: Firefox ESR",
+      "supported": true,
+      "config": "Firefox ESR\n"
+    },
+    {
+      "name": "line alone: FirefoxAndroid",
+      "supported": true,
+      "config": "last 1 FirefoxAndroid versions\n"
+    },
+    {
+      "name": "line alone: node major",
+      "supported": true,
+      "config": "last 1 node major versions\n"
+    },
+    {
+      "name": "line alone: not dead",
+      "supported": true,
+      "config": "not dead\n"
+    },
+    {
+      "name": "reverse order",
+      "supported": true,
+      "config": "last 1 node major versions\nlast 1 FirefoxAndroid versions\nFirefox ESR\nlast 1 Android versions\nlast 1 ChromeAndroid versions\nlast 1 Chrome versions\nnot dead\n"
+    },
+    {
+      "name": "not dead first with the other lines after it",
+      "supported": true,
+      "config": "not dead\nlast 1 node major versions\nlast 1 FirefoxAndroid versions\nFirefox ESR\nlast 1 Android versions\nlast 1 ChromeAndroid versions\nlast 1 Chrome versions\n"
+    },
+    {
+      "name": "not dead moved to the middle",
+      "supported": true,
+      "config": "last 1 Chrome versions\nnot dead\nlast 1 Android versions\n"
+    },
+    {
+      "name": "not dead before any query then queries",
+      "supported": true,
+      "config": "not dead\nlast 1 Chrome versions\n"
+    },
+    {
+      "name": "duplicated lines",
+      "supported": true,
+      "config": "last 1 Chrome versions\nlast 1 Chrome versions\nlast 1 node major versions\nlast 1 node major versions\nFirefox ESR\nFirefox ESR\n"
+    },
+    {
+      "name": "comments blanks and trailing spaces",
+      "supported": true,
+      "config": "# top\n\n  last 1 Chrome versions   # trailing comment\n\t\n\tFirefox ESR\t\n#last 1 Android versions\n"
+    },
+    {
+      "name": "empty config",
+      "supported": true,
+      "config": ""
+    },
+    {
+      "name": "comment-only config",
+      "supported": true,
+      "config": "# nothing here\n"
+    },
+    {
+      "name": "no trailing newline",
+      "supported": true,
+      "config": "last 1 Chrome versions\nFirefox ESR"
+    },
+    {
+      "name": "node major with the major 0 only",
+      "supported": true,
+      "config": "last 1 node major versions\n",
+      "nodeVersions": ["0.2.0", "0.3.0", "0.3.1"]
+    },
+    {
+      "name": "node major with an empty release list",
+      "supported": true,
+      "config": "last 1 node major versions\n",
+      "nodeVersions": []
+    },
+    {
+      "name": "node major with several majors",
+      "supported": true,
+      "config": "last 1 node major versions\n",
+      "nodeVersions": ["0.2.0", "4.0.0", "24.9.0", "25.0.0", "26.0.0", "26.1.0", "26.13.0"]
+    },
+    {
+      "name": "node major with a pre-release newest major",
+      "supported": true,
+      "config": "last 1 node major versions\n",
+      "nodeVersions": ["26.12.0", "26.13.0", "27.0.0-alpha.0.0.0"]
+    },
+    {
+      "name": "node major with a two-digit and a ten-versions major",
+      "supported": true,
+      "config": "last 1 node major versions\nlast 1 Chrome versions\n",
+      "nodeVersions": ["9.11.2", "10.0.0", "10.1.0", "10.2.0", "10.3.0", "10.4.0", "10.5.0", "10.6.0", "10.7.0", "10.8.0", "10.9.0", "10.10.0", "10.11.0"]
+    },
+    {
+      "name": "refused: another count",
+      "supported": false,
+      "config": "last 2 Chrome versions\n"
+    },
+    {
+      "name": "refused: count 0",
+      "supported": false,
+      "config": "last 0 Chrome versions\n"
+    },
+    {
+      "name": "refused: leading zero in the count",
+      "supported": false,
+      "config": "last 01 Chrome versions\n"
+    },
+    {
+      "name": "refused: count 2 for Android",
+      "supported": false,
+      "config": "last 2 Android versions\n"
+    },
+    {
+      "name": "refused: count 2 for node major",
+      "supported": false,
+      "config": "last 2 node major versions\n"
+    },
+    {
+      "name": "refused: lowercase browser",
+      "supported": false,
+      "config": "last 1 chrome versions\n"
+    },
+    {
+      "name": "refused: upper case query",
+      "supported": false,
+      "config": "LAST 1 CHROME VERSIONS\n"
+    },
+    {
+      "name": "refused: singular version",
+      "supported": false,
+      "config": "last 1 Chrome version\n"
+    },
+    {
+      "name": "refused: extra spaces",
+      "supported": false,
+      "config": "last  1 Chrome versions\n"
+    },
+    {
+      "name": "refused: no-break space",
+      "supported": false,
+      "config": "last 1 Chrome versions\n"
+    },
+    {
+      "name": "refused: Firefox ESR alias",
+      "supported": false,
+      "config": "FX ESR\n"
+    },
+    {
+      "name": "refused: lowercase firefox esr",
+      "supported": false,
+      "config": "firefox esr\n"
+    },
+    {
+      "name": "refused: Not Dead",
+      "supported": false,
+      "config": "last 1 Chrome versions\nNot Dead\n"
+    },
+    {
+      "name": "refused: dead without not",
+      "supported": false,
+      "config": "dead\n"
+    },
+    {
+      "name": "refused: another browser",
+      "supported": false,
+      "config": "last 1 Safari versions\n"
+    },
+    {
+      "name": "refused: unknown browser",
+      "supported": false,
+      "config": "last 1 Foo versions\n"
+    },
+    {
+      "name": "refused: last N versions",
+      "supported": false,
+      "config": "last 1 versions\n"
+    },
+    {
+      "name": "refused: node versions",
+      "supported": false,
+      "config": "last 1 node versions\n"
+    },
+    {
+      "name": "refused: single version",
+      "supported": false,
+      "config": "chrome 100\n"
+    },
+    {
+      "name": "refused: node single version",
+      "supported": false,
+      "config": "node 18\n"
+    },
+    {
+      "name": "refused: popularity",
+      "supported": false,
+      "config": "> 0.5%\n"
+    },
+    {
+      "name": "refused: defaults",
+      "supported": false,
+      "config": "defaults\n"
+    },
+    {
+      "name": "refused: supports",
+      "supported": false,
+      "config": "supports es6-module\n"
+    },
+    {
+      "name": "refused: unreleased",
+      "supported": false,
+      "config": "unreleased versions\n"
+    },
+    {
+      "name": "refused: maintained node versions",
+      "supported": false,
+      "config": "maintained node versions\n"
+    },
+    {
+      "name": "refused: or inside a line",
+      "supported": false,
+      "config": "last 1 Chrome versions or last 1 Android versions\n"
+    },
+    {
+      "name": "refused: and inside a line",
+      "supported": false,
+      "config": "last 1 Chrome versions and last 1 Android versions\n"
+    },
+    {
+      "name": "refused: line ending in or",
+      "supported": false,
+      "config": "last 1 Chrome versions or\nlast 1 Android versions\n"
+    },
+    {
+      "name": "refused: comma separator",
+      "supported": false,
+      "config": "last 1 Chrome versions, Firefox ESR\n"
+    },
+    {
+      "name": "refused: CRLF line endings",
+      "supported": false,
+      "config": "last 1 Chrome versions\r\nFirefox ESR\r\n"
+    },
+    {
+      "name": "refused: lone CR",
+      "supported": false,
+      "config": "last 1 Chrome versions\rFirefox ESR\n"
+    },
+    {
+      "name": "refused: section header",
+      "supported": false,
+      "config": "last 1 Chrome versions\n[production]\nFirefox ESR\n"
+    },
+    {
+      "name": "refused: defaults section header",
+      "supported": false,
+      "config": "[defaults]\nlast 1 Chrome versions\n"
+    },
+    {
+      "name": "refused: extends",
+      "supported": false,
+      "config": "extends browserslist-config-example\n"
+    },
+    {
+      "name": "refused: byte order mark",
+      "supported": false,
+      "config": "﻿last 1 Chrome versions\n"
+    }
+  ]
+}
