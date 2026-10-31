@@ -91,6 +91,11 @@ Cutover reminders from finished agents:
 - `file-enforcer.config.ts` renders pnpr's config through pnpr's `renderPnprConfigForWorkspace` but writes through its own `overwrite`,
   so `--check` reports drift instead of writing;
   the Rust engine needs the same split.
+- Delegated 2026-10-30: the user wrote "I'm handing the forbidden-strings and git-policy work to another session. If you have more delegate them to it too."
+  The forbidden-strings release, the cli-git publish, and their cutover config switch belong to that session;
+  monochromatic-7a (the cli-git Rust wrapper session) confirmed it holds them and received the items on 2026-10-31
+  (release order, the merged rules-list feature, the config switch);
+  this session only drops the rules-file generator, in the cutover unless 7a switches the configs first.
 - forbidden-strings must be released before cli-git is published:
   cli-git now uses the rules-list API (task 23; see the planning doc, "Cutover dependency").
 
