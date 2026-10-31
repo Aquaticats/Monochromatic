@@ -89,7 +89,7 @@ conventions, test-convention health, TSDoc quality, CSS quality, security sweep.
   lines at last check, all `[PASS]` so far).
 - Dedupe index: 1787 tracker issues in `issues-all.jsonl`. Refresh after every filing batch.
 - systemd v259 shallow clone at `${HOME}/temp/agent/systemd-v259-2026-10-31` for the
-  troubleshooting doc source trace (`sysd-source-trace` child still working).
+  troubleshooting doc source trace (source trace complete at commit 9ca433482f; permalink verification running).
 
 ## Filing pipeline
 
@@ -107,67 +107,73 @@ Scripts in `${HOME}/temp/agent/repo-review-2026-10-31/`:
   blocker hard, warning medium, nit easy) or `adjudicate` (verdict problems or dedupe
   candidates). Body format: `## What happens`, `## Evidence (2026-10-31)` with verbatim quotes,
   "No preferred resolution has been picked" line, sweep provenance footer.
-- Remaining: run all three over the current 22 findings files, adjudicate the shortlist
-  (comment versus new; closed issues with the same root cause also get comments), then file in
-  batches via `gh issue create` / `gh issue comment`, refreshing the index after each batch.
-  476 findings collected so far, none filed yet.
-
+- Pipeline state (2026-10-31, wave 6): 33 findings files, 904 verified findings. Verify and
+  dedupe run per wave; plans drafted per file, refreshed as findings grow.
+  `classify-adjudications.ts` sorts adjudications by title-token Jaccard against dedupe
+  candidates: 445 auto-new, 9 auto-comment (Jaccard at least 0.45), 238 manual (168 ambiguous
+  0.2 to 0.45; 70 with verifier problems: quote mismatches or missing path:line refs, repair
+  before filing). `file-issues.ts` executes decisions: creates issues with labels (creating
+  missing labels first), comments on existing issues with a sweep header, appends to
+  `filed-log.jsonl`, idempotent by filed id. None filed yet; first batch next. Stale plans
+  pending re-draft: docs-core, w2-throw-async-a, w2-th-diag-expect, w2-dom-a, docs-decisions,
+  root-configs, w2-logger-src, w2-logger-tests, docs-ops, w2-th-core.
 ## Children
 
-All 32 admitted children are working. Current assignments (name -> area):
+All 32 admitted children re-tasked as a worker pool. Current assignments (name -> area,
+prior findings count):
 
-- `root-configs` -> root remainder files (28 .idea XMLs, file-enforcer.schema.json,
-  slopo.ignore.txt, .out-of-scope/*.md, toolchain.lock.json, code-workspace,
-  playwright/test-harness.html). Prior pass: 28 findings (docker-compose runs nonexistent
-  ai-proxy:start task; .dockerignore bakes the local secrets appendix into images; Dockerfile
-  exports a nonexistent .env.local).
-- `ci-depot` -> package/kv-store/memoize. Prior: 32 findings (blocker: env-local-json.yml red on
-  main, mise ENOENT in ubuntu:latest; ownership-marker workflow filter misspelled;
-  cargo-publish floats nightly).
-- `docs-core` -> package/caught-value/core. Prior: 15 (blocker: .claude-plugin/marketplace.json
-  `./packages/` paths break every install).
-- `docs-decisions` -> package/const/core. Prior: 23 findings.
-- `docs-ops` -> package/numeric-format/core. Prior: 19 (doc/troubleshooting README anchors all
-  stale).
-- `docs-planning-audit` -> package/fs-id/core. Prior: 75 machine-scan findings over
-  doc/planning + doc/audit.
-- `w2-logger-tests` -> package/zip-writer/core. Prior: 12 (mise.toml and task.ts hand-mirror 15
-  tasks with drift).
-- `w2-throw-async-a` -> package/test-harness/core-expect. Prior: 19 (or-throw README claims
-  source-only; WeakSet sized as 0; iterable helpers check symbol presence not callability).
-- `w2-async-b2` -> package/test-harness/core-sandbox. Prior: 9 (pipe overflow guard inspects
-  only fn10; fn11 silently dropped).
-- `w2-async-b1` -> doc/agent/. Prior: 16 (test:unit fails on fresh checkout: unit test imports
-  gitignored dist; observable setValue concurrency undocumented).
-- `w2-i18n` -> doc/runbook/. Prior: 18 (blocker: Catalan gerund renders non-words; yes/no
-  questions skip capitalization; adverbials miss mandatory contraction).
-- `w2-logger-src` -> doc/troubleshooting code and fixture files. Prior: 26 (sessionStorage store
-  never adopts restored entries; OPFS verify leaves probe record; retention sweep aborts on
-  concurrently removed directory).
-- `w2-fs-b` -> doc/planning a-d deep slice. Prior: 20 (blocker: hasCycle reports acyclic shared
-  references as cyclic).
-- `w2-th-diag-expect` -> doc/planning e-h deep slice. Prior: 20 (walkMap loses duplicate
-  deep-equal keys; renderValue unimplemented fallback; unbounded recursion vs ITR).
-- `pkg-async-iter` -> doc/planning i-m deep slice. Prior: 8 (blocker: mapIterableAsync abandons
-  started mappers; later rejection crashes process).
-- `w2-th-matrix-sandbox` -> doc/planning n-s deep slice. Prior: 24 (blocker: matrix concurrency
-  cap broken; startsWith path mapping; failed combos never surface stderr).
-- `w2-dom-a` -> doc/planning t-z deep slice. Prior: 21 (blocker: hCss accepts banned property
-  names via untyped arm; DisallowedAtRules dead; void elements silently drop text).
-- `w2-logger-fuzz` -> doc/audit a-c deep slice. Prior: 14 (fuzz driver diverges from its twin on
-  log-directory override; TSDoc contradicts runtime; fuzz tasks hand-written twice).
-- `w2-fs-a` -> doc/audit d-h deep slice. Prior: 16 (blocker: posix normalize drops trailing
-  slash, browser and node disagree on identical input).
-- `w2-th-core` -> doc/audit i-p deep slice. Prior: 18 (README mispaired fences swallow 220
-  lines into one code block; realm-key literal duplicated; fails-marked caught value silently
-  discarded).
-- `w2-typeface-figma` -> doc/audit q-z deep slice. Prior: 37 (unescaped paths into python3 -c;
-  WOFF2 failure swallowed; zero-advance glyph emitted silently).
-- Still on first assignments: `sysd-source-trace` (systemd citations), `w2-logger-fuzz`
-  (covered above), `pkg-array-at`, `pkg-async-time`, `pkg-observable`, `pkg-throws`,
-  `pkg-shell-argument`, `pkg-dom` (package/dom/core), `pkg-figma-kiwi` (covers the kiwi
-  remainders w2-typeface-figma listed), `pkg-figma-to-penpot`, `docs-philosophy`,
-  `docs-skills`.
+- `root-configs` -> file-enforcer/core slice 1 (files 1-80 of about 242). Prior: 47.
+- `ci-depot` -> cross-cutting: security and syntax-boundary safety (SYB, STB, PRV). Prior:
+  40 (kv-store/memoize: undefined-recomputes claim false; cache-key colon collisions; async
+  clear races).
+- `docs-core` -> doc/audit/resharp-fuzz-2026-06-11 continuation (13 zero-coverage files).
+  Prior: 29.
+- `docs-decisions` -> redo ST3 import-side verification with both scan bugs fixed. Prior: 30
+  (208 package.json stale org; zod literal dep; peerDependencies "*" vs catalog: split).
+- `docs-ops` -> error-signaling remainders (fixed @throws detector, builtin-vs-custom,
+  upstream-fork). Prior: 31.
+- `docs-planning-audit` -> cross-cutting: CSS quality (CXD, HDM, css skill). Prior: 89
+  (fs-id: parseDiskutilVolumeUuid binds a later key).
+- `docs-skills` -> env-local-json/core, the red workflow root cause. Prior: 23
+  (marketplace.json ./packages/ blocker; poll-issue ][ merge corruption).
+- `docs-philosophy` -> cross-cutting: TSDoc quality (TD1 through TD7). Prior: 17
+  (tool-choices stale claims; mid-token hard wraps).
+- `pkg-dom` -> cross-cutting: logging discipline (TLG, LG1, LG2). Prior: 23 (dom/core: e2e
+  reads unbuilt dist; root export maps dist).
+- `pkg-async-iter` -> doc/planning i-m continuation from issue-659. Prior: 12.
+- `pkg-async-time` -> monochromatic-lint slice 1 (files 1-80 of 243). Prior: 14.
+- `pkg-figma-kiwi` -> cross-cutting TWS continuation (Rust twins, encode/decode pairs,
+  export mirrors, task.ts-only packages). Prior: 29 (7 mise/task.ts twin drift; kiwi ZIP
+  constants re-derived).
+- `pkg-figma-to-penpot` -> cross-cutting: test-suite health (TCV, TRV, GFP, CXL). Prior: 34
+  (multi-page root-frame loss; phantom parent; output overwrites input).
+- `pkg-observable` -> doc/audit regex-necessity remainder plus tech-monorepo-manager-vet.
+  Prior: 22 (build-mirror literal `${AUDIT}` directory, blocker).
+- `pkg-shell-argument` -> doc/audit resharp-fuzz-06-19 plus bad-glm plus tech-meow
+  (working).
+- `pkg-throws` -> cross-cutting: manifest and mise conventions (PKG, AP2, AP4, SGD, SBS,
+  CM2). Prior: 5.
+- `sysd-source-trace` -> systemd permalink verification for the troubleshooting doc. Source
+  trace complete at commit 9ca433482f (tag v259).
+- `w2-async-b1` -> cross-cutting: async and unbounded input (PP1, PP2, RG2). Prior: 24
+  (doc/agent: doc/adr denial contradicts the tree; regression case cites a removed path).
+- `w2-async-b2` -> linter closure package. Prior: 13 (stale sinon shim premise).
+- `w2-dom-a` -> doc/planning t-z continuation. Prior: 30.
+- `w2-fs-a` -> doc/audit d-h slice (working, no report yet).
+- `w2-fs-b` -> doc/planning a-d continuation. Prior: 29.
+- `w2-i18n` -> kotlin linter package. Prior: 28 (doc/runbook: roster-fixture.ts deleted,
+  blocker).
+- `w2-logger-fuzz` -> doc/audit a-c slice (working, no report yet).
+- `w2-logger-src` -> doc/troubleshooting prose slice (first 25 sorted). Prior: 36.
+- `w2-logger-tests` -> first oxlint-plugin package. Prior: 34 (zip-writer CRC by reference
+  blocker; dos-time year wrap).
+- `w2-th-core` -> doc/audit i-p continuation (4 files left in window). Prior: 35.
+- `w2-th-diag-expect` -> first forbidden-strings package. Prior: 47 (planning e-h slice
+  complete: stale Status blocks throughout).
+- `w2-th-matrix-sandbox` -> doc/planning n-s continuation. Prior: 34.
+- `w2-throw-async-a` -> first monorepo-task package. Prior: 31 (core-expect:
+  toHaveProperty undefined false pass; calledWith loose arity).
+- `w2-typeface-figma` -> doc/audit q-z slice (working, no report yet).
 
 Brief template v4 is in the transcript (reviewer-only, main-worktree protection, cgroup wrapper,
 JSONL schema, 250-word final message; deep-doc variant adds per-file accounting and the
@@ -223,15 +229,21 @@ edits in flight".
 
 ## Next actions
 
-1. Commit this handover update.
-2. Run the filing pipeline over all 22 findings files (verify, dedupe v2, draft), adjudicate
-   the shortlist, file the first batch, refresh the index.
-3. Triage `lint-full.log` into a per-package digest; distribute diagnostics to owning children.
-4. When `sysd-source-trace` returns: verify citations, write `doc/troubleshooting/<topic>.md`
-   (6-constraint upstream audit; check `.out-of-scope/` first), and commit.
-5. When `test:unit` completes: capture failures, distribute to owning children.
-6. Keep re-tasking idle children from the queue; update and commit this handover at every wave
-   transition.
+1. Commit this handover update (v6).
+2. Write the systemd troubleshooting doc: harness verified (both failure variants plus the
+   loud-failure contrast), permalink verification running in `sysd-source-trace`;
+   `.out-of-scope/` checked with no systemd exemption; run the tracker duplicate search,
+   the 6-constraint audit, then write
+   `doc/troubleshooting/systemctl-show-scope-stub-properties.md` and commit.
+3. Re-draft the stale plans (10 files listed under Filing pipeline), re-run the classifier,
+   spot-check the auto decisions (all 9 auto-comments plus a sample of auto-new), file batch 1
+   via `file-issues.ts`, refresh `issues-all.jsonl`.
+4. Work the 238-entry manual queue in batches (ambiguous Jaccard 0.2 to 0.45 need judgment;
+   problem entries need evidence repair first).
+5. Triage `lint-full.log` into a per-package digest; distribute to owning children. Check
+   `rr-central-tests` completion; capture failures.
+6. Keep re-tasking idle children from the queue; update and commit this handover at every
+   wave transition.
 
 ## Stop conditions
 
