@@ -165,11 +165,29 @@ function namedUnderKey(
     },);
 
   /**
-   Whether a spread follows the first property under the key, which can replace the value it names.
+   Whether a property is a spread that can replace the value: one of an expression that is no inline object (a variable
+   or a call, which can carry anything), or of an inline object that names the key itself. A spread of an inline object
+   that names other keys, as the conditional spreads of optional arguments do, cannot.
+
+   @param property - tokens of one property
+
+   @returns True when it is such a spread
+   */
+  function mayReplaceValue(property: readonly Token[],): boolean {
+    return isSpread(property,) && (property.every(function isNotBrace(token,): boolean {
+      return token.text !== '{';
+    },)
+      || property.some(function namesKey(token,): boolean {
+        return token.text === key;
+      },));
+  }
+
+  /**
+   Whether a spread that can replace the value follows the first property under the key.
    */
   const spreadAfter = properties
     .slice(properties.findIndex(isKey,) + 1,)
-    .some(isSpread,)
+    .some(mayReplaceValue,)
     && (values.length > 0);
   if (values.length === 0)
     return 'none';
