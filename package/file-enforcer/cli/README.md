@@ -70,7 +70,7 @@ To cover both sides, omit the option.
 Order for CI on a fresh checkout:
 
 ```sh
-# ci.sh (sketch, not yet run in a workflow)
+# the order .github/workflows/advisory-core.yml runs
 file-enforcer check --outputs committed   # exit 0: every committed output matches the checked-in files
 task-run prepare:pnpm                     # writes the local outputs
 file-enforcer check --outputs local       # exit 0
