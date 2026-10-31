@@ -10,8 +10,12 @@ use monochromatic_browserslist::source::NPM_REGISTRY;
 use monochromatic_browserslist::update::{MOZILLA_PRODUCT_DETAILS, latest_firefox_esr, latest_package};
 use monochromatic_browserslist::{DataLock, DataSource, resolve_browserslistrc};
 
-// The committed lock.
-const LOCK: &str = include_str!("../browserslist-data.lock.json");
+// The repository-root lock, read at run time: it sits outside this package, so a packaged copy of the tests
+// cannot embed it, and the tests fail with the path named when it is missing.
+fn lock_text() -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../browserslist-data.lock.json");
+    return std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read the lock {}: {error}", path.display()));
+}
 // The generated oracle answers.
 const EXPECTED: &str = include_str!("../conformance/expected.json");
 
@@ -20,7 +24,7 @@ const EXPECTED: &str = include_str!("../conformance/expected.json");
 #[test]
 #[ignore = "live network: registry.npmjs.org and product-details.mozilla.org"]
 fn live_registry_and_mozilla() {
-    let lock = DataLock::from_json(LOCK).expect("lock parses");
+    let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let scratch = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("scratch directory");
     let source = DataSource { cache_dir: scratch.path().join("cache"), registry_url: NPM_REGISTRY.to_string() };
     let expected: serde_json::Value = serde_json::from_str(EXPECTED).expect("expected.json parses");

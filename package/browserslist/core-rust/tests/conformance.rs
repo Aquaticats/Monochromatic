@@ -12,8 +12,12 @@ use serde_json::Value;
 
 // The generated oracle answers.
 const EXPECTED: &str = include_str!("../conformance/expected.json");
-// The committed lock the revision must agree with.
-const LOCK: &str = include_str!("../browserslist-data.lock.json");
+// The repository-root lock, read at run time: it sits outside this package, so a packaged copy of the tests
+// cannot embed it, and the tests fail with the path named when it is missing.
+fn lock_text() -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../browserslist-data.lock.json");
+    return std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read the lock {}: {error}", path.display()));
+}
 // The fixture data files regenerated together with `expected.json`.
 const AGENTS_JS: &str = include_str!("../fixtures/data/agents.js.txt");
 const BROWSERS_JS: &str = include_str!("../fixtures/data/browsers.js.txt");
@@ -89,7 +93,7 @@ fn check_case(case: &Value, locked_esr: &str, npm_esr: &str) -> Result<(), Strin
 #[test]
 fn expected_json_matches_the_lock() {
     let document = expected();
-    let lock = DataLock::from_json(LOCK).expect("lock parses");
+    let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     assert_eq!(document["browserslist"], "4.29.5");
     assert_eq!(document["caniuseLite"].as_str(), Some(lock.caniuse_lite.version.as_str()));
     assert_eq!(document["nodeReleases"].as_str(), Some(lock.node_releases.version.as_str()));
@@ -99,7 +103,7 @@ fn expected_json_matches_the_lock() {
 #[test]
 fn every_case_conforms() {
     let document = expected();
-    let lock = DataLock::from_json(LOCK).expect("lock parses");
+    let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let npm_esr = document["npmFirefoxEsr"].as_str().expect("npm ESR entry");
     let cases = document["cases"].as_array().expect("cases");
     assert!(cases.len() >= 50, "only {} cases", cases.len());
@@ -127,7 +131,7 @@ fn cases_cover_results_errors_and_refusals() {
 #[test]
 fn control_a_wrong_expectation_fails() {
     let document = expected();
-    let lock = DataLock::from_json(LOCK).expect("lock parses");
+    let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let npm_esr = document["npmFirefoxEsr"].as_str().expect("npm ESR entry");
     let mut case = document["cases"][0].clone();
     assert!(check_case(&case, &lock.firefox_esr, npm_esr).is_ok());

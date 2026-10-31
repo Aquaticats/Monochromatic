@@ -24,6 +24,8 @@ const DATA_FILES = [
 ] as const;
 
 const packageDirectory = process.cwd();
+/** The lock lives at the repository root; this script runs from the package directory. */
+const LOCK_PATH = join(packageDirectory, '..', '..', '..', 'browserslist-data.lock.json',);
 const scratchRoot = join(homedir(), 'temp', 'agent', 'browserslist-conformance',);
 mkdirSync(scratchRoot, { recursive: true, mode: 0o700, },);
 const work = mkdtempSync(join(scratchRoot, 'run-',),);
@@ -39,7 +41,7 @@ try {
       '--',
       'export',
       '--lock',
-      'browserslist-data.lock.json',
+      LOCK_PATH,
       '--cache-dir',
       join(work, 'cache',),
       '--out',

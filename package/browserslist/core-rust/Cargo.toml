@@ -10,7 +10,6 @@ include = [
   "tests/*.rs",
   "fixtures/**",
   "conformance/*.json",
-  "browserslist-data.lock.json",
   "Cargo.toml",
   "Cargo.lock",
   "README.md",
