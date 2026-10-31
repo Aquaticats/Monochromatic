@@ -179,6 +179,23 @@ each finished branch is reviewed and merged into `main`):
   not a tag-pinned `github:` request,
   which AGENTS.md `PIN` forbids for tools this repository publishes);
   the IDE launcher's explicit path is `<worktree>/.cache/toolchain-bin/mpm-shadow`.
+- Queued for an agent after the version-keyed install agent merges
+  (same crate,
+  so not in parallel):
+  `mpm-shadow update <tool>...` and resolving a lock-less plan entry alone,
+  without moving other rows
+  (decision record,
+  "Toolchain (mpm-shadow)",
+  adopted 2026-10-31 under "follow everything pnpm offers").
+- Global toolchain change 2026-10-31,
+  at the user's request "Install Mistral Vibe globally for me managed by our mpm setup.":
+  `pipx:mistral-vibe` 3.0.4 (`mpm-uvx`,
+  bins `vibe`,
+  `vibe-acp`,
+  `vibe-app-server`) added to `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts`;
+  `toolchain:update:global` also moved 7 tools,
+  and the user chose "Install all 8";
+  pre-update copies of the plan and lock are in `${HOME}/temp/agent/vibe-install/`.
 - Asked at cutover time,
   not before:
   converting the real global plan under `~/.config/monochromatic-dev`,

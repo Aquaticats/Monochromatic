@@ -259,6 +259,14 @@ and accepted with this record:
   (`rules_file_takes_a_path_or_an_array_of_entries` in
   `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs`).
   Version-keyed coexistence applies only to third-party tools.
+- `update` takes optional tool ids (`update <tool>...`) and moves only those,
+  and a plan entry with no lock row is resolved on its own without moving any other row,
+  as `pnpm update <pkg>` and `pnpm install` after adding a dependency do.
+  Adopted 2026-10-31 under the user's standing instruction to follow everything pnpm offers,
+  after adding Mistral Vibe to the global plan could only be locked by `toolchain:update:global`,
+  which also moved 7 unrelated global tools
+  (the TypeScript `update.ts` reads only `--check` and `--global`,
+  and `mpm-shadow update` in `package/mpm-shadow/cli/src/toolchain/commands.rs:86-94` likewise resolves every tool).
 - file-enforcer has no toolchain role.
 
 ### Elsewhere
