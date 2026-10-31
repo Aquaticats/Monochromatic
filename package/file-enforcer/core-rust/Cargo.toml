@@ -3,10 +3,12 @@ name = "monochromatic-file-enforcer"
 version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["development-tools", "filesystem"]
+documentation = "https://docs.rs/monochromatic-file-enforcer"
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/file-enforcer/core-rust"
 include = [
   "src/**/*.rs",
+  "fixtures/*.jsonc",
   "Cargo.toml",
   "Cargo.lock",
   "README.md",

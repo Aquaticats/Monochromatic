@@ -26,6 +26,14 @@ run = "cargo clippy --fix --allow-dirty --allow-staged"
 description = "Build the crates.io package tarball"
 run = "cargo package"
 
+[tasks."publish:dry-run"]
+description = "Package and verify, then abort before uploading to crates.io"
+run = "cargo publish --dry-run"
+
+[tasks.publish]
+description = "Fallback local publish. Canonical path is .github/workflows/cargo-publish.yml (OIDC Trusted Publishing); the very first version of a crate must be published once with a personal API token (doc/runbook/publish-crate-first-time.md)."
+run = "cargo publish"
+
 [tasks.test]
 description = "cargo nextest run in release mode (offline: the network tests use a fake registry on loopback)"
 run = "cargo nextest run --release"

@@ -3,6 +3,7 @@ name = "monochromatic-file-enforcer-cli"
 version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
+documentation = "https://docs.rs/monochromatic-file-enforcer-cli"
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/file-enforcer/cli"
 include = [
