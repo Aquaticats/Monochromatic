@@ -17,6 +17,13 @@
 > paths and names below this note are historical:
 > `package/cli/unused-export` is now `package/mutation-test/cli-unused-export`.
 
+> Moved 2026-10-31 by the search-fetch product move into `package/search-fetch`
+> (`doc/planning/search-fetch-cli.md`);
+> paths and names below this note are historical:
+> `package/agent-harness-shared/search-fetch` is now `package/search-fetch/core`;
+> `package/pi-plugin/search-fetch` is now `package/search-fetch/pi-plugin`;
+> `package/dsh-plugin/search-fetch` is now `package/search-fetch/dsh-plugin`.
+
 Purpose: record the design interview that gives `package/pi-plugin/advisor` a DSH variant
 on a shared package,
 and the decisions settled so far.

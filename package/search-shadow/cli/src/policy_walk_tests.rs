@@ -1,6 +1,11 @@
-//! What:     Unit tests of the `grep` and `find` refusal rules, and of the dispatcher that picks a rule by tool name.
-//! Why:      Both rules read another tool's argument grammar and decide on real directories, so each boundary needs a case:
-//!           what recurses, what names a path, what bounds a `find`, and which places count as wide.
+//! What:
+//! Unit tests of the `grep` and `find` refusal rules and of the dispatcher that picks a rule by tool name.
+//! Why:
+//! Both rules read another tool's argument grammar and decide on real directories,
+//! so each boundary needs a case:
+//! what recurses,
+//! what names a path,
+//! what bounds a `find` and which places count as wide.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,9 +13,13 @@
 //! describe('grepRefusal', () => { ... }); describe('findRefusal', () => { ... });
 //! ```
 
-/// Imports the functions and record types under test.
+/// Imports the dispatcher and the record it reads.
 use crate::policy::{Invocation, refusal_for};
+
+/// Imports the `find` and `bfs` rule and its two parsers.
 use crate::policy_find::{find_max_depth, find_refusal, find_start_points};
+
+/// Imports the `grep` rule and its parser and the record the parser returns.
 use crate::policy_grep::{GrepDescription, describe_grep, grep_refusal};
 
 /// Imports the file-system module (make fixture directories).
@@ -19,9 +28,11 @@ use std::fs;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// What:     `fn texts(items: &[&str]) -> Vec<String>` declares a helper turning a borrowed list of text slices into an owned
-///           list of `String`s.
-/// Why:      Test cases read better as short literals.
+/// What:
+/// `fn texts(items: &[&str]) -> Vec<String>` declares a helper turning a borrowed list of text slices into an owned
+/// list of `String`s.
+/// Why:
+/// Test cases read better as short literals.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,8 +47,10 @@ fn texts(items: &[&str]) -> Vec<String> {
     return owned;
 }
 
-/// What:     `fn repository() -> tempfile::TempDir` declares a helper that makes a disposable directory with a `.git` inside.
-/// Why:      Most cases run "at a repository root".
+/// What:
+/// `fn repository() -> tempfile::TempDir` declares a helper that makes a disposable directory with a `.git` inside.
+/// Why:
+/// Most cases run "at a repository root".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,8 +63,10 @@ fn repository() -> tempfile::TempDir {
     return directory;
 }
 
-/// What:     `#[test]` marks the next function as a test case.
-/// Why:      The runner finds the tests by it.
+/// What:
+/// `#[test]` marks the next function as a test case.
+/// Why:
+/// The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,7 +119,8 @@ fn grep_refuses_recursion_from_a_repository_root() {
     assert!(dot.is_some());
 }
 
-/// The home directory and `/` are wide too, from anywhere.
+/// The home directory and `/` are wide too,
+/// from anywhere.
 #[test]
 fn grep_refuses_recursion_over_home_and_the_filesystem_root() {
     let work = crate::test_scratch::scratch();
@@ -140,7 +156,8 @@ fn find_start_points_are_read_before_the_first_expression() {
     assert_eq!(find_start_points(&texts(&[])), texts(&["."]));
 }
 
-/// The smallest `-maxdepth` wins; a missing or non-numeric one is none.
+/// The smallest `-maxdepth` wins,
+/// and a missing or non-numeric one is none.
 #[test]
 fn find_max_depth_takes_the_smallest_numeric_value() {
     assert_eq!(find_max_depth(&texts(&[".", "-maxdepth", "2"])), Some(2));
@@ -149,7 +166,8 @@ fn find_max_depth_takes_the_smallest_numeric_value() {
     assert_eq!(find_max_depth(&texts(&["."])), None);
 }
 
-/// A find from a repository root, home or `/` with no small depth limit is refused.
+/// A find from a repository root,
+/// home or `/` with no small depth limit is refused.
 #[test]
 fn find_refuses_unbounded_walks_from_wide_places() {
     let root = repository();
@@ -169,7 +187,9 @@ fn find_refuses_unbounded_walks_from_wide_places() {
     assert!(find_refusal("find", &texts(&[".", "-maxdepth", "9"]), false, root.path(), home.path()).is_some());
 }
 
-/// Bounded depth, a narrower start, a non-root directory and the escape hatch all pass.
+/// A bounded depth,
+/// a narrower start,
+/// a non-root directory and the escape hatch all pass.
 #[test]
 fn find_lets_bounded_walks_through() {
     let root = repository();
@@ -181,7 +201,8 @@ fn find_lets_bounded_walks_through() {
     assert_eq!(find_refusal("find", &texts(&["."]), true, root.path(), home.path()), None);
 }
 
-/// `--version` and `--help` never walk, so they pass even where the implied start point is a repository root.
+/// `--version` and `--help` never walk,
+/// so they pass even where the implied start point is a repository root.
 #[test]
 fn find_lets_the_information_flags_through() {
     let root = repository();
@@ -192,8 +213,10 @@ fn find_lets_the_information_flags_through() {
     assert_eq!(find_refusal("find", &texts(&["-version"]), false, root.path(), home.path()), None);
 }
 
-/// What:     `fn invocation(...) -> Invocation` declares a helper that builds the record the dispatcher reads.
-/// Why:      The dispatcher tests need one for each tool name.
+/// What:
+/// `fn invocation(...) -> Invocation` declares a helper that builds the record the dispatcher reads.
+/// Why:
+/// The dispatcher tests need one for each tool name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -210,7 +233,7 @@ fn invocation(name: &str, arguments: &[&str], working_directory: &Path, home: &P
     };
 }
 
-/// The dispatcher picks the rule by tool name, and leaves the other shadowed tools alone.
+/// The dispatcher picks the rule by tool name and leaves the other shadowed tools alone.
 #[test]
 fn the_dispatcher_picks_the_rule_by_tool_name() {
     let root = repository();

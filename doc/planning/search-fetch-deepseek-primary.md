@@ -14,7 +14,7 @@ No key values appear in this document.
 ## Problem
 
 The shared search and fetch core
-(`package/agent-harness-shared/search-fetch`) routes search through Exa fast
+(`package/search-fetch/core`) routes search through Exa fast
 first and Linkup standard fallback,
 and fetch through the `gh` CLI,
 Linkup
@@ -280,7 +280,7 @@ Billing and limits from the official guide:
 
 ## Change surface
 
-- `package/agent-harness-shared/search-fetch/src/deepseek-client.ts` and
+- `package/search-fetch/core/src/deepseek-client.ts` and
   `deepseek-http.ts`:
   request bodies,
   bearer authentication,
@@ -307,8 +307,8 @@ Billing and limits from the official guide:
   and both fallback chains.
 - `tool-spec.ts`:
   model-facing search and fetch text for the new chains.
-- `package/mcp/search-fetch/src/index.ts` and
-  `package/pi-plugin/search-fetch/src/index.ts`:
+- `package/search-fetch/mcp/src/index.ts` and
+  `package/search-fetch/pi-plugin/src/index.ts`:
   pass `deepseekApiKey`.
 - Unit tests for the new client,
   routing,
@@ -325,8 +325,8 @@ Billing and limits from the official guide:
 
 ## Verification plan
 
-- `mise run //package/agent-harness-shared/search-fetch:lint:types`
-- `mise run //package/agent-harness-shared/search-fetch:test:unit`
+- `mise run //package/search-fetch/core:lint:types`
+- `mise run //package/search-fetch/core:test:unit`
 - Build the shared package and the MCP server.
 - Live check against the store keys:
   search with a query that exercises

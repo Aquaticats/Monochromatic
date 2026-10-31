@@ -927,3 +927,83 @@ Failure that produced this rule:
  when the device was merely unplugged or unauthorized at that moment;
  a single reconnect by the user made it appear immediately,
  and the on-device verification then succeeded.
+
+#### Architecture decisions: the clearnet leak behind OWK
+
+OWK keeps a concern that spans components inside the owner the user named or approved,
+ and its trigger names the three moments such a leak can pass:
+ designing,
+ briefing,
+ and merging.
+
+Failure that produced this rule (issue #1819,
+ 2026-10-31):
+ the user asked "Make our wg auto make update traffics go through clearnet",
+ which named the `package/wg/*` tools as the owner.
+The coordinating session's brief proposed that the toolchain re-execute itself into the slice the wg exemption watches,
+ framed as a suggestion ("The likely shape is ...").
+The worker built it in both the TypeScript toolchain and `mpm-shadow`,
+ and the merge review checked only that traffic from the slice left the tunnel,
+ not which component decided.
+The user's correction:
+ "mpm-shadow should never determine itself goes through clearnet.
+ Our wg set of pkgs should determine that!"
+
+The severity sentence carries the two harms the user named:
+ a tool routing around a VPN on its own can expose someone whose safety depends on the tunnel
+ ("Imagine somewhere where if some people detect you're accessing crates.io you're paid a visit"),
+ and the bypass route can itself fail on unusual networks.
+The user rejected "Tunnel leaks" as too specific,
+ so the sentence speaks of leaks in general.
+
+"Named or approved" excludes an owner an agent adopted and recorded on its own,
+ which `QGR`'s "adopt + record unasked" would otherwise let it quote back as authority.
+Approval means the user accepted the ownership itself:
+ approving a release that carries a design is not approving who owns the concern,
+ and that release approval is how the self-placement nearly shipped in `mpm-shadow` 0.2.1.
+"Cross-component" keeps the rule from asking who owns every helper inside one package.
+
+How the wg tools present their bypasses (warned on every start,
+ no toggle,
+ always enforced) is the user's policy for those tools;
+ it lives in their READMEs,
+ not in `AGENTS.md`.
+The interview that settled this wording is recorded in `doc/planning/agents-md-ownership-and-brief-rules.md`;
+ the rejected drafts `CWN` and `LKF` are reserved codes.
+
+#### Before briefing an agent: why BRQ quotes sources and demotes derivations
+
+On 2026-10-31 (issue #1819) three instructions reached workers in the coordinating session's own wording:
+
+- The clearnet mechanism,
+   already framed as a suggestion ("The likely shape is ... for example ..."),
+   was built as written.
+   OWK,
+   firing at brief time,
+   rejects that design;
+   BRQ makes such ideas revisable rather than binding.
+- An opt-in,
+   off-by-default,
+   fail-closed policy for the wg bypasses,
+   inferred from the user's remark about severity,
+   went to a worker as a requirement.
+   The user's actual policy was the opposite.
+- A note told a worker to name "0.2.0's archive per the bootstrap design".
+   The bootstrap decision says "a prebuilt `mpm-shadow` archive with its SHA-256 in the lock" and names no version;
+   the worker wrote a tag-pinned request that `PIN` forbids.
+   A citation sat beside a paraphrase that contradicted it,
+   which a quote would have exposed.
+
+So requirements are only what the user said or decided,
+ quoted with their source,
+ and "notes" covers mid-task corrections,
+ since the third instance was a note rather than a brief.
+Derivations are suggestions because the opt-in policy was presented as following from the user's words.
+The policy clause closes the relabel path:
+ without it,
+ a coordinator could send "Suggest making every bypass opt-in" and let a worker build it.
+
+Considered and not chosen:
+ tightening `ASK` to "ask before acting on them or briefing an agent with them",
+ defining "settled" in `QGR`,
+ and a policy-versus-scope clause in `VR2`.

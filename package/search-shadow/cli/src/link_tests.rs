@@ -1,6 +1,9 @@
-//! What:     Unit tests of the link creation in `link.rs`.
-//! Why:      The links are what switch the binary into shadow mode, so each present tool must get a link that points at the
-//!           executable, and an absent tool must get none (and lose a stale one).
+//! What:
+//! Unit tests of the link creation in `link.rs`.
+//! Why:
+//! The links are what switch the binary into shadow mode,
+//! so each present tool must get a link that points at the executable,
+//! and an absent tool must get none (and lose a stale one).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +14,7 @@
 /// Imports the function under test.
 use crate::link::link_shadows;
 
-/// Imports the file-system module (read links, write files).
+/// Imports the file-system module (read links / write files).
 use std::fs;
 
 /// Imports the trait that adds `from_mode` to permissions (marks a fixture tool executable).
@@ -20,8 +23,10 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// What:     `fn write_tool(directory: &Path, name: &str)` declares a helper that writes an executable one-line script.
-/// Why:      The links are made only for names that have a real, runnable tool on PATH.
+/// What:
+/// `fn write_tool(directory: &Path, name: &str)` declares a helper that writes an executable one-line script.
+/// Why:
+/// The links are made only for names that have a real runnable tool on PATH.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,8 +38,10 @@ fn write_tool(directory: &Path, name: &str) {
     fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).expect("make the fixture tool executable");
 }
 
-/// What:     `#[test]` marks the next function as a test case.
-/// Why:      The runner finds the tests by it.
+/// What:
+/// `#[test]` marks the next function as a test case.
+/// Why:
+/// The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,7 +75,8 @@ fn links_only_the_names_that_have_a_real_tool() {
     assert!(links_directory.join("ag").symlink_metadata().is_err());
 }
 
-/// A link whose real tool has gone must be removed, so `command -v` stops reporting it.
+/// A link whose real tool has gone must be removed,
+/// so `command -v` stops reporting it.
 #[test]
 fn removes_a_stale_link_when_the_real_tool_is_gone() {
     let world = crate::test_scratch::scratch();
@@ -89,7 +97,8 @@ fn removes_a_stale_link_when_the_real_tool_is_gone() {
     assert!(links_directory.join("rg").symlink_metadata().is_err());
 }
 
-/// Linking again is idempotent, replaces what is in the way, and never takes a shadow link for the real tool.
+/// Linking again is idempotent and replaces what is in the way
+/// and never takes a shadow link for the real tool.
 #[test]
 fn linking_again_replaces_what_is_there_and_skips_its_own_links() {
     let world = crate::test_scratch::scratch();

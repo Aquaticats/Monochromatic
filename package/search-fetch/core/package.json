@@ -1,0 +1,49 @@
+{
+  "name": "@monochromatic-dev/search-fetch-core",
+  "description": "Host-neutral search and fetch core: provider fallback, global host blocklist, gh URL routing, and shared tool specs.",
+  "type": "module",
+  "private": true,
+  "version": "0.0.1",
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./migrate": {
+      "types": "./dist/final/node/migrate.d.mts",
+      "default": "./dist/final/node/migrate.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-truncate": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/env-local-json-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "nano-spawn": "catalog:",
+    "type-fest": "catalog:",
+    "typebox": "catalog:",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/search-fetch/core"
+  }
+}

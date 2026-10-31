@@ -55,7 +55,7 @@ with current-user paths derived from the runtime home directory.
 
 The registered command is the user's `.local/bin/mise`,
 with arguments selecting this repository through `--cd`,
-then `exec -- node package/mcp/search-fetch/dist/final/node/index.mjs`,
+then `exec -- node package/search-fetch/mcp/dist/final/node/index.mjs`,
 using an absolute artifact path.
 This selects the repository's Node runtime independently of the caller's working directory.
 The server environment includes:

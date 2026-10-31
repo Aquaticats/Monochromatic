@@ -1179,8 +1179,8 @@ description = "Move search-fetch provider credentials from the Pi config into .e
 # keys through sops, decrypts and compares in memory, then removes the fields,
 # the legacy file, and the shell exports. Backups stay under ~/temp/agent.
 run = [
-  "mise run //package/agent-harness-shared/search-fetch:build",
-  "node package/agent-harness-shared/search-fetch/dist/final/node/migrate.mjs",
+  "mise run //package/search-fetch/core:build",
+  "node package/search-fetch/core/dist/final/node/migrate.mjs",
 ]
 
 #endregion Secrets
@@ -1353,7 +1353,6 @@ _.path = [
   "node_modules/.bin",
   "package/agent-harness-shared/advisor/node_modules/.bin",
   "package/agent-harness-shared/model-selection/node_modules/.bin",
-  "package/agent-harness-shared/search-fetch/node_modules/.bin",
   "package/agent-harness-shared/truncate/node_modules/.bin",
   "package/claude-code-plugin/bash-output-filter/node_modules/.bin",
   "package/claude-code-plugin/claude-spawn/node_modules/.bin",
@@ -1398,13 +1397,14 @@ _.path = [
   "package/pi-plugin/guardrail/node_modules/.bin",
   "package/pi-plugin/model-retirement/node_modules/.bin",
   "package/pi-plugin/openai-fast/node_modules/.bin",
-  "package/pi-plugin/search-fetch/node_modules/.bin",
   "package/pi-plugin/spawn/node_modules/.bin",
   "package/pi-plugin/statusline/node_modules/.bin",
   "package/pi-plugin/terminal-title/node_modules/.bin",
   "package/pi-plugin/thinking-default/node_modules/.bin",
   "package/pi-shared/model-review/node_modules/.bin",
   "package/pnpm-override/stub-throwing/node_modules/.bin",
+  "package/search-fetch/core/node_modules/.bin",
+  "package/search-fetch/pi-plugin/node_modules/.bin",
   "package/ssg/aquati.cat/node_modules/.bin",
   "package/test-fixture/file-enforcer-perf/node_modules/.bin",
   "package/translation-repair/document-structure/node_modules/.bin",

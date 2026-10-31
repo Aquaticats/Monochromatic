@@ -336,11 +336,12 @@ package/
   oxlint-plugin/            Custom Oxlint plugins (tsdoc, no-restricted-syntax,
                               stylistic, prefer-readonly-parameter-type, test-import)
   pi-plugin/                Pi coding-agent plugins (advisor, guardrail, statusline,
-                              spawn, search-fetch)
+                              spawn)
   pi-shared/                Shared Pi plugin logic (model selection, model review)
   rolldown-plugin/          Rolldown/tsdown plugins (import-attributes)
   runtime-error/            Runtime error reproductions (bun)
   rust-module/              Rust libraries (forbidden-regex, jsonc-edit)
+  search-fetch/             Web search and page fetch (core, mcp, pi-plugin, dsh-plugin)
   shim/                     API-compatible dependency shims
   ssg/                      Static site generator for aquati.cat
   stub/                     Dependency blocklist stubs

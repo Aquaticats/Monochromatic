@@ -1,5 +1,8 @@
-//! What:     Unit tests of the walk-target classifier in `walk_target.rs`.
-//! Why:      Every `grep` and `find` refusal rests on this one question, so each answer needs a case on a real directory.
+//! What:
+//! Unit tests of the walk-target classifier in `walk_target.rs`.
+//! Why:
+//! Every `grep` and `find` refusal rests on this one question,
+//! so each answer needs a case on a real directory.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,8 +16,10 @@ use crate::walk_target::{WalkTarget, classify, phrase};
 /// Imports the file-system module (make fixture directories).
 use std::fs;
 
-/// What:     `#[test]` marks the next function as a test case.
-/// Why:      The runner finds the tests by it.
+/// What:
+/// `#[test]` marks the next function as a test case.
+/// Why:
+/// The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,7 +41,8 @@ fn a_directory_that_contains_dot_git_is_a_repository_root() {
     assert_eq!(classify(&absolute, elsewhere.path(), home.path()), WalkTarget::RepositoryRoot);
 }
 
-/// A plain subdirectory of a repository is bounded: its walk stays inside it.
+/// A plain subdirectory of a repository is bounded:
+/// its walk stays inside it.
 #[test]
 fn a_subdirectory_of_a_repository_is_bounded() {
     let repository = crate::test_scratch::scratch();
@@ -58,7 +64,8 @@ fn the_home_directory_and_the_filesystem_root_are_wide() {
     assert_eq!(classify("/", work.path(), home.path()), WalkTarget::FilesystemRoot);
 }
 
-/// A path that does not exist walks nothing, so it is bounded.
+/// A path that does not exist walks nothing,
+/// so it is bounded.
 #[test]
 fn a_missing_path_is_bounded() {
     let work = crate::test_scratch::scratch();

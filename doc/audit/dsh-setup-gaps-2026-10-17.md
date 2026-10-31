@@ -5,6 +5,15 @@
 > paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
 
+> Moved 2026-10-31 by the search-fetch product move into `package/search-fetch`
+> (`doc/planning/search-fetch-cli.md`);
+> paths and names below this note are historical:
+> `package/agent-harness-shared/search-fetch` is now `package/search-fetch/core`;
+> `@monochromatic-dev/agent-harness-shared-search-fetch` is now
+> `@monochromatic-dev/search-fetch-core`;
+> `package/mcp/search-fetch` is now `package/search-fetch/mcp`;
+> `package/dsh-plugin/search-fetch` is now `package/search-fetch/dsh-plugin`.
+
 Date:
 2026-10-17.
 Runtime:

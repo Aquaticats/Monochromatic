@@ -1,0 +1,32 @@
+# Connects the repo's shared search and fetch MCP server to this profile.
+#
+# The server is `@monochromatic-dev/search-fetch-mcp`, built to
+# `package/search-fetch/mcp/dist/final/node/index.mjs`. It exposes `web_search`
+# and `web_fetch` that delegate to
+# `@monochromatic-dev/search-fetch-core`, the same core the pi
+# extension uses, so the behavior has exactly one implementation. The tools
+# mount as `mcp__search-fetch__web_search` and `mcp__search-fetch__web_fetch`.
+#
+# Credentials come from the repo's sops/age-encrypted `.env.local.json`, read by
+# `@monochromatic-dev/env-local-json-core` through the shared search-fetch
+# core; `$HOME/.pi/agent/extensions/pi-search-fetch.json` now holds only the
+# blocklist. The harness subprocess scrub drops names matching
+# `KEY|PASSWORD|SECRET|TOKEN` plus `DSH_*`, so `SOPS_AGE_KEY_FILE` does not
+# reach the child while `HOME`, `PATH`, and `ENV_LOCAL_JSON_PATH` do. The store
+# path export lives in the host's `.bashrc`; no env value is pinned in this
+# bundle. Without that variable the reader falls back to repository-root
+# discovery, and an unavailable store degrades to blocklist plus GitHub-routed
+# `web_fetch` rather than failing startup.
+#
+# The server path resolves through this bundle's own `package.json` instead of a
+# hardcoded workspace location, so the wiring follows the checkout.
+- insert:
+    - id: search-fetch-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: search-fetch
+        transport: stdio
+        command: !!js process.execPath
+        args:
+          - !!js process.getBuiltinModule('node:path').resolve(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@monochromatic-dev/search-fetch-dsh-plugin/package.json')), '../mcp/dist/final/node/index.mjs')
+        failOnStartupError: true

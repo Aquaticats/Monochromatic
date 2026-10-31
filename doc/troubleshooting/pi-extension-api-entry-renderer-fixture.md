@@ -2,14 +2,14 @@
 
 ## Symptom
 
-`mise run //package/pi-plugin/search-fetch:lint:types` failed while checking the built-extension verifier:
+`mise run //package/search-fetch/pi-plugin:lint:types` failed while checking the built-extension verifier:
 
 ```text
 src/mise.verify-extension.ts(154,9): error TS2741: Property 'registerEntryRenderer' is missing in type '{ ... }'
 but required in type 'ExtensionAPI'.
 ```
 
-The same omission made `mise run //package/pi-plugin/search-fetch:lint:oxlint` fail with
+The same omission made `mise run //package/search-fetch/pi-plugin:lint:oxlint` fail with
 `typescript(TS2741)`.
 
 The trigger is an object literal explicitly typed as `ExtensionAPI` that implements prior API members but omits
@@ -40,10 +40,10 @@ registerEntryRenderer<T>(customType: string, renderer: EntryRenderer<T>): void {
 },
 ```
 
-`package/pi-plugin/search-fetch/src/mise.verify-extension.ts:154` assigns the fake API object to
+`package/search-fetch/pi-plugin/src/mise.verify-extension.ts:154` assigns the fake API object to
 `ExtensionAPI`.
  That structural assignment exposed the stale fixture.
- The consumer-side repair in `package/pi-plugin/search-fetch/src/mise.verify-extension.ts`
+ The consumer-side repair in `package/search-fetch/pi-plugin/src/mise.verify-extension.ts`
 now supplies the required no-op registration method:
 
 ```ts
@@ -73,9 +73,9 @@ extension itself registers only its two tools:
 
 ```sh
 # /var/home/user/Monochromatic
-mise run //package/pi-plugin/search-fetch:lint:types
-mise run //package/pi-plugin/search-fetch:lint:oxlint
-mise run //package/pi-plugin/search-fetch:verify:extension
+mise run //package/search-fetch/pi-plugin:lint:types
+mise run //package/search-fetch/pi-plugin:lint:oxlint
+mise run //package/search-fetch/pi-plugin:verify:extension
 ```
 
 Observed output ends with:

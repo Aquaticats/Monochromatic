@@ -1178,8 +1178,8 @@ description = "Move search-fetch provider credentials from the Pi config into .e
 # keys through sops, decrypts and compares in memory, then removes the fields,
 # the legacy file, and the shell exports. Backups stay under ~/temp/agent.
 run = [
-  "mise run //package/agent-harness-shared/search-fetch:build",
-  "node package/agent-harness-shared/search-fetch/dist/final/node/migrate.mjs",
+  "mise run //package/search-fetch/core:build",
+  "node package/search-fetch/core/dist/final/node/migrate.mjs",
 ]
 
 #endregion Secrets
