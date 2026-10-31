@@ -114,6 +114,11 @@ Cutover reminders from finished agents:
   Gate from 7a (2026-10-31): `cli-git.config.jsonc` cannot change until a wrapper that reads a `rulesFile` array
   (0.4.4, after forbidden-strings 0.6.0) is published, the toolchain lock names it, and it is installed as the production git;
   an older wrapper cannot parse the array. So the cutover keeps the generator until 7a says the switch landed.
+  Progress seen on `main` 2026-10-31:
+  forbidden-strings 0.6.0 (`5ec9a377e2`) and git-policy/cli 0.4.4 (`7ce408f679`) are released;
+  the lock entry,
+  install,
+  and config switch are still 7a's to report.
 - forbidden-strings must be released before cli-git is published:
   cli-git now uses the rules-list API (task 23; see the planning doc, "Cutover dependency").
 
