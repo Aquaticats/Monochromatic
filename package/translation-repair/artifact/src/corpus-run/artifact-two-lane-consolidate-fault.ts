@@ -9,8 +9,8 @@
 
  A NAMED CLASS, NOT `nonNullishOrThrow`, because the error rule asks for a class a caller can match on (a plain
  `Error` is matched only by its text) and because the fault is a record the stage could not have written, which is the
- family the classes above belong to. `nonNullishOrThrow` would say only that a value was absent; this says which
- slice, which mark, and what the artifact needs the reason for.
+ family `UnknownArtifactGenerationError` and its siblings belong to. `nonNullishOrThrow` would say only that a value
+ was absent; this says which slice, which mark, and what the artifact needs the reason for.
 
  @example
  ```ts
