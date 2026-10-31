@@ -113,11 +113,11 @@ which lists every file of this record.
 
     Then read the destination lines off the pass's records
     (`${RUNDIR}/log/<day>/*.log.jsonl`,
-    each line the `message` of a record),
+    printed one line for each record by `run-records`),
     which spends nothing either:
 
     ```sh
-    jq --raw-output 'select(.message | startswith("DESTINATIONS ")) | .message' "${RUNDIR}"/log/*/*.log.jsonl
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" | rg --fixed-strings 'Z] DESTINATIONS '
     ```
 
     Expected:
@@ -142,7 +142,7 @@ which lists every file of this record.
     Then read the defect lines the same way:
 
     ```sh
-    jq --raw-output 'select(.message | startswith("DEFECTS ")) | .message' "${RUNDIR}"/log/*/*.log.jsonl
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" | rg --fixed-strings 'Z] DEFECTS '
     ```
 
     Expected:
@@ -322,10 +322,10 @@ and a run made from that checkout recorded none of what they read either.
     A model that keeps coming back empty or slow on that provider is attributed by two greps:
 
     ```sh
-    jq --raw-output '.message' "${RUNDIR}"/log/*/*.log.jsonl \
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" \
       | rg 'SPEND provider=openrouter model=minimax/minimax-m3' \
       | rg --only-matching 'endpoint=\S+' | sort | uniq --count
-    jq --raw-output '.message' "${RUNDIR}"/log/*/*.log.jsonl \
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" \
       | rg ': cut, .*served by' | rg --only-matching 'stream \S+:.*served by "[^"]+"'
     ```
 

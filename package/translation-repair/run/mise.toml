@@ -68,7 +68,7 @@ env.TRANSLATION_REPAIR_STARTED_BY = "ledger-report"
 run = "node dist/final/node/ledger-report.mjs"
 
 [tasks."budget-sample"]
-description = "Take one reading of every provider's meter and leave it in the log, so an outage's END is observed during the quiet stretches when no pass is running; SPENDS NO GENERATION (capture both streams: `> log 2>&1`)"
+description = "Take one reading of every provider's meter and leave it in the log, so an outage's END is observed during the quiet stretches when no pass is running; the reading is a record in the run log of TRANSLATION_REPAIR_RUNS_DIR (else the worktree default), where meter-report reads it; SPENDS NO GENERATION"
 depends = ["build"]
 env.TRANSLATION_REPAIR_STARTED_BY = "budget-sample"
 run = "node dist/final/node/budget-sample.mjs"

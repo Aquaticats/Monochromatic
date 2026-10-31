@@ -300,35 +300,19 @@ TODO | DONE
     meaning one carrying `--only`,
     wants a throwaway.
 
-2.  Launch it detached.
+2.  Launch it detached,
+    as its own systemd user unit,
+    out of the cgroup every session's shell commands share,
+    which `systemd-oomd` may kill whole
+    (the repository's `CLAUDE.md` asks for it).
     The pass writes its own records:
     everything it logs and every line it prints is a record in
     `${RUNDIR}/log/<day>/<timestamp>.<uuid>.log.jsonl`,
     one file for each process,
     through the shared logger's file sink,
     which no retention sweep ever touches.
-    Nothing captures the console,
-    and nothing reads it:
-    the console shows a person watching what the records hold.
-
-    ```sh
-    cd -- /var/home/user/worktrees/translation-repair
-    TRANSLATION_REPAIR_RUNS_DIR="${RUNDIR}" nohup setsid \
-      mise run //package/translation-repair/corpus-pass:corpus-pass \
-      > /dev/null 2>&1 < /dev/null &
-    ```
-
-    Expected:
-    the shell prints a job number and a pid,
-    and returns immediately.
-    A pass that cannot write `${RUNDIR}/log` refuses to start
-    and says so,
-    since a run that leaves no record of itself is not worth its quota.
-
-    The repository's `CLAUDE.md` asks that long runs start as their own systemd user unit,
-    out of the cgroup every session's shell commands share,
-    which `systemd-oomd` may kill whole.
-    The same launch as a unit:
+    The file appears with the first record,
+    so it is not there at the instant the unit starts.
 
     ```sh
     systemd-run --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --collect \
@@ -338,17 +322,56 @@ TODO | DONE
       "$(command -v mise)" run //package/translation-repair/corpus-pass:corpus-pass
     ```
 
-    Give the unit no `StandardOutput` or `StandardError` property:
-    the console goes to the journal for a person watching
-    (`journalctl --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --follow`),
-    and the evidence is the records in the run folder.
+    Expected:
+    `Running as unit: corpus-pass-<name>.service`,
+    and the shell returns at once.
+
+    Give the unit no `StandardOutput` or `StandardError` property,
+    and never redirect the launch to `/dev/null`:
+    the console of the pass goes to the unit's journal,
+    and the journal is where to read what the records cannot hold
+    (`journalctl --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --output=cat`,
+    which keeps the unit's output after `--collect` has removed the unit).
+    The records are the evidence of a run;
+    the journal is for a refusal before the run log opened,
+    which leaves no record because the run log is what had not opened yet:
+    the task runner's guard,
+    a command line or an environment override that cannot be read,
+    a runs directory another pass holds,
+    a `MONOCHROMATIC_LOG_DIRECTORY` that names the run folder or a place in it,
+    and a run folder the pass cannot write (`${RUNDIR}/log`)
+    or that does not answer within 30 seconds.
+    Each is stated once on the console,
+    the pass exits with a nonzero code (6 for a refusal it states in its own words),
+    and the run folder holds nothing of it.
+    The journal also holds the build lines of the task (`rolldown v...`).
+    Read the records with `run-records`:
+
+    ```sh
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}"
+    ```
+
+    It prints one line for each record as the console showed it,
+    with control characters written out as `\uXXXX`,
+    and `--verbose` adds the debug and trace records the console leaves out.
+    Do not read the files with `jq --raw-output '.message'`:
+    that prints a message raw,
+    so an escape sequence in it reaches the terminal,
+    and it fails on a record holding a lone surrogate.
     Before 2026-10-31 this step captured the console into `${RUNDIR}.log`,
     and every report parsed that capture;
     the owner's ruling of 2026-10-31 is that the logger's own `*.log.jsonl` files are the record,
     and a capture beside them means the logger was not used as designed (ledger B1090).
-    Under a unit,
-    stop the pass with `systemctl --user stop corpus-pass-<name>`,
-    where the steps that follow say to kill it by pid.
+    Stop the pass with `systemctl --user stop corpus-pass-<name>`:
+    it records which signal stopped it,
+    flushes its records,
+    releases the lock of the runs directory and exits
+    (a SIGKILL,
+    a crash or a power loss flushes nothing,
+    and leaves the lock for the next pass to judge stale;
+    ledger B1113).
+    Where the steps that follow say to kill it by pid,
+    the unit's main pid is `systemctl --user show --property=MainPID --value corpus-pass-<name>`.
 
     A `--setenv=PATH=` on the unit decides which build tools the task's build runs.
     A session's shell started in the main checkout carries that checkout's `node_modules/.bin` first,
@@ -374,7 +397,7 @@ TODO | DONE
     ```sh
     journalctl --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --output=cat \
       | grep --only-matching --max-count 1 'rolldown v[0-9.]*'
-    jq --raw-output 'select(.message | startswith("START ")) | .message' "${RUNDIR}"/log/*/*.log.jsonl
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" | rg --fixed-strings 'Z] START '
     ```
 
     Expected:
@@ -560,7 +583,7 @@ TODO | DONE
 Watch these while it runs.
 Each is the exact string the run's records carry,
 as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
-(`jq --raw-output '.message' "${RUNDIR}"/log/*/*.log.jsonl` prints them as lines).
+(`mise run //package/translation-repair/run:run-records -- "${RUNDIR}"` prints them as lines).
 
 -   `[error]` at any point.
     A healthy long run carries none.
@@ -568,7 +591,7 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     by the level each record carries:
 
     ```sh
-    jq --slurp '[.[] | select(.level == "error")] | length' "${RUNDIR}"/log/*/*.log.jsonl
+    mise run //package/translation-repair/run:run-records -- "${RUNDIR}" | rg --count '^\[error\] '
     ```
 
     Expected:

@@ -152,18 +152,19 @@ that command,
 and each task sets it to its own name.
 
 - `budget-sample`:
-  takes one reading of every provider's meter and leaves it in the log,
-  so an outage's end is observed while no pass is running.
-  Capture both streams with `> log 2>&1`.
+  takes one reading of every provider's meter and leaves it as a record in the run log of the runs directory,
+  which is `TRANSLATION_REPAIR_RUNS_DIR` or else the worktree default,
+  so an outage's end is observed while no pass is running and `meter-report` reads it back with the pass's own.
   Spends no generation.
 - `meter-report`:
   reads provider availability back out of run logs and reports each provider's duty cycle and longest outage as
   bounded ranges.
-  Name one or more log paths after `--`.
+  Name one or more run folders or record files after `--`.
   Spends no quota.
 - `run-records`:
   prints the records a pass kept in its run folder as the console showed them,
-  one line for each record, with the console's escaping of control characters,
+  one line for each record,
+  with the console's escaping of control characters,
   so a terminal never receives a control sequence a message carried.
   The debug and trace records are left out unless `--verbose` is given.
   Name one or more run folders or record files after `--`.

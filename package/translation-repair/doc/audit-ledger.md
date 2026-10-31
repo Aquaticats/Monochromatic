@@ -828,10 +828,23 @@ named for that subject and listed here.
   the five readers moved with the same reports (B1093),
   four commands that read no pass records (B1094),
   the budget sample (B1095),
-  what stays console only and what the launcher changes (B1096),
+  what stays console only and what the launcher changed (B1096),
   the census of every `.log` the package named (B1097),
   the cache versions that did not move (B1098),
-  and the editor fidelity bench and the other runners left as open scope (B1099).
+  the editor fidelity bench and the other runners left as open scope (B1099),
+  and what an independent re-check of that round found:
+  the loggers of a pass that bypassed its run log (B1110),
+  the console-only lines it reached (B1111),
+  the bounded wait for the run folder (B1112),
+  the stop signals (B1113),
+  the refusals before the run log opens (B1114),
+  the default logger kept out of a run folder (B1115),
+  the first record that makes the record file (B1116),
+  the debug and trace records (B1117),
+  the control characters and the `run-records` task (B1118),
+  a folder named twice by two paths (B1119),
+  the line-by-line read (B1120),
+  and the corrections to the record (B1121).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
