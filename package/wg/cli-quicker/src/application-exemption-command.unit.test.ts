@@ -46,22 +46,20 @@ type ResolverModule = {
 };
 
 /**
- Snapshots resolver discovery variables and clears the explicit command so
- workspace and path discovery run,
+ Snapshots resolver discovery variables
+ so workspace and path discovery run in isolation,
  restoring the exact prior values on dispose.
  */
 function isolateResolverEnvironment(): AsyncDisposable {
   const {
     PATH: path,
     WG_QUICKER_CALLER_PATH: callerPath,
-    WG_QUICKER_EXEMPT_COMMAND: command,
   } = process.env;
-  delete process.env.WG_QUICKER_EXEMPT_COMMAND;
   process.env.PATH = '/usr/bin:/bin';
   process.env.WG_QUICKER_CALLER_PATH = '';
   return {
     /**
-     Restores the three discovery variables captured before mutation.
+     Restores the discovery variables captured before mutation.
      */
     async [Symbol.asyncDispose](): Promise<void> {
       if (path === undefined)
@@ -72,10 +70,6 @@ function isolateResolverEnvironment(): AsyncDisposable {
         delete process.env.WG_QUICKER_CALLER_PATH;
       else
         process.env.WG_QUICKER_CALLER_PATH = callerPath;
-      if (command === undefined)
-        delete process.env.WG_QUICKER_EXEMPT_COMMAND;
-      else
-        process.env.WG_QUICKER_EXEMPT_COMMAND = command;
     },
   };
 }
@@ -143,10 +137,10 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'uses exact configured executable',
+      name: 'ignores an executable named in the environment, so the variable is not a switch for the process watch',
       fn: async () => {
         /**
-         Original explicit companion setting restored after test.
+         Original setting restored after test.
          */
         const original = process.env.WG_QUICKER_EXEMPT_COMMAND;
         /**
@@ -175,34 +169,26 @@ await describe({
           },
         };
         /**
-         Explicit executable fixture.
+         Executable the environment points at.
          */
-        const command = join(
+        const command = await writeCompanionExecutable({ path: join(
           directory,
           'custom-exempt',
-        );
-        await writeFile(
-          command,
-          '#!/usr/bin/env node\n',
-        );
-        await chmod(
-          command,
-          0o700,
-        );
+        ), },);
         process.env.WG_QUICKER_EXEMPT_COMMAND = command;
-        expect(await resolveApplicationExemptionCommand(),).toBe(command,);
+        expect(await resolveApplicationExemptionCommand(),).not.toBe(command,);
       },
     },),
     it({
-      name: 'rejects unavailable configured executable',
+      name: 'does not fail on an unavailable executable named in the environment',
       fn: async () => {
         /**
-         Original explicit companion setting restored after test.
+         Original setting restored after test.
          */
         const original = process.env.WG_QUICKER_EXEMPT_COMMAND;
         await using cleanup = {
           /**
-           Restores explicit companion setting.
+           Restores the setting.
            */
           async [Symbol.asyncDispose](): Promise<void> {
             if (original === undefined)
@@ -212,76 +198,7 @@ await describe({
           },
         };
         process.env.WG_QUICKER_EXEMPT_COMMAND = '/does-not-exist/wg-quicker-exempt';
-        /**
-         Domain error captured from exact-path validation.
-         */
-        let caught: unknown = COMMAND_DID_NOT_FAIL;
-        try {
-          await resolveApplicationExemptionCommand();
-        }
-        catch (error) {
-          caught = error;
-        }
-        expect(String(caught,),).toContain('Configured wg-quicker-exempt executable is unavailable',);
-      },
-    },),
-    it({
-      name: 'resolves configured bare name through captured caller path',
-      fn: async () => {
-        /**
-         Original command and caller path restored after test.
-         */
-        const {
-          WG_QUICKER_CALLER_PATH: originalCallerPath,
-          WG_QUICKER_EXEMPT_COMMAND: originalCommand,
-        } = process.env;
-        /**
-         Disposable caller path directory.
-         */
-        const directory = await mkdtemp(join(
-          scratchRoot(),
-          'wg-quicker-caller-path-',
-        ),);
-        await using cleanup = {
-          /**
-           Restores environment and removes executable.
-           */
-          async [Symbol.asyncDispose](): Promise<void> {
-            if (originalCallerPath === undefined)
-              delete process.env.WG_QUICKER_CALLER_PATH;
-            else
-              process.env.WG_QUICKER_CALLER_PATH = originalCallerPath;
-            if (originalCommand === undefined)
-              delete process.env.WG_QUICKER_EXEMPT_COMMAND;
-            else
-              process.env.WG_QUICKER_EXEMPT_COMMAND = originalCommand;
-            await rm(
-              directory,
-              {
-                force: true,
-                recursive: true,
-              },
-            );
-          },
-        };
-        /**
-         Bare-name executable fixture.
-         */
-        const command = join(
-          directory,
-          'caller-exempt',
-        );
-        await writeFile(
-          command,
-          '#!/usr/bin/env node\n',
-        );
-        await chmod(
-          command,
-          0o700,
-        );
-        process.env.WG_QUICKER_CALLER_PATH = directory;
-        process.env.WG_QUICKER_EXEMPT_COMMAND = 'caller-exempt';
-        expect(await resolveApplicationExemptionCommand(),).toBe(command,);
+        expect(await resolveApplicationExemptionCommand(),).not.toContain('/does-not-exist/',);
       },
     },),
     it({
@@ -293,7 +210,6 @@ await describe({
         const {
           PATH: originalPath,
           WG_QUICKER_CALLER_PATH: originalCallerPath,
-          WG_QUICKER_EXEMPT_COMMAND: originalCommand,
         } = process.env;
         await using cleanup = {
           /**
@@ -308,13 +224,8 @@ await describe({
               delete process.env.WG_QUICKER_CALLER_PATH;
             else
               process.env.WG_QUICKER_CALLER_PATH = originalCallerPath;
-            if (originalCommand === undefined)
-              delete process.env.WG_QUICKER_EXEMPT_COMMAND;
-            else
-              process.env.WG_QUICKER_EXEMPT_COMMAND = originalCommand;
           },
         };
-        delete process.env.WG_QUICKER_EXEMPT_COMMAND;
         process.env.PATH = '/usr/bin:/bin';
         process.env.WG_QUICKER_CALLER_PATH = '';
         /**

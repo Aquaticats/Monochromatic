@@ -15,8 +15,6 @@ const VALID_CONTEXT = {
     IPINFO_TOKEN: 'token',
     WG_ALLOWEDIPS_CACHE_DIRECTORY: '/home/caller/.cache/allowedips',
     WG_QUICKER_CALLER_PATH: '/home/caller/bin:/usr/bin',
-    WG_QUICKER_EXEMPT_COMMAND: '/repo/target/release/wg-quicker-exempt',
-    WG_QUICKER_EXEMPT_UID: '1000',
     WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: '/etc/opensnitchd/default-config.json',
     WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: '/etc/opensnitchd/system-fw.json',
     WG_QUICKER_RUNTIME_DIRECTORY: '/run/wg-quicker',
@@ -62,6 +60,28 @@ const INVALID_CONTEXTS = [
       environment: {
         ...VALID_CONTEXT.environment,
         PATH: '/untrusted/bin',
+      },
+    },),
+    diagnostic: 'environment is invalid',
+  },
+  {
+    name: 'a command override for the exemption watcher, which would act as a switch for the process policy',
+    text: JSON.stringify({
+      ...VALID_CONTEXT,
+      environment: {
+        ...VALID_CONTEXT.environment,
+        WG_QUICKER_EXEMPT_COMMAND: '/usr/bin/true',
+      },
+    },),
+    diagnostic: 'environment is invalid',
+  },
+  {
+    name: 'a user override for the exemption watcher, which would retarget the process policy',
+    text: JSON.stringify({
+      ...VALID_CONTEXT,
+      environment: {
+        ...VALID_CONTEXT.environment,
+        WG_QUICKER_EXEMPT_UID: '2000',
       },
     },),
     diagnostic: 'environment is invalid',

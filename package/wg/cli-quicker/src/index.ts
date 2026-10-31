@@ -23,10 +23,7 @@ import { CliUsageError, } from './errors.ts';
 import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
 import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
 import { UPDATE_HOSTS, } from './update-hosts.data.ts';
-import {
-  policiesNotInForceWithoutMark,
-  updatePolicyNotice,
-} from './update-policy-notice.ts';
+import { startNotices, } from './update-policy-notice.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
 import {
@@ -137,21 +134,21 @@ async function main(): Promise<void> {
     expandAllowedIps: subcommand === 'up',
   },);
   if (subcommand === 'up') {
-    if (config.exemptMark === undefined) {
-      l.warn(
-        `Config for ${target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. So will toolchain sync and update runs. ${policiesNotInForceWithoutMark()} Add \`ExemptMark = ${String(RECOMMENDED_EXEMPT_MARK,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
-      );
-    } else {
-      l.warn(updatePolicyNotice({ hosts: UPDATE_HOSTS, },),);
-      /**
-       Exact companion path resolved before first network mutation.
+    for (const notice of startNotices({
+      target,
+      ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
+      tableOff: config.table === 'off',
+      dnsServers: config.dns,
+      hosts: UPDATE_HOSTS,
+      recommendedMark: RECOMMENDED_EXEMPT_MARK,
+    },))
+      l.warn(notice,);
+    if (config.exemptMark !== undefined) {
+      /*
+       The companion must exist before the first network mutation,
+       so a missing watcher stops `up` instead of leaving the process policy unenforced.
        */
-      const command = await resolveApplicationExemptionCommand();
-      /**
-       Process environment updated with exact preflighted path for later watcher calls.
-       */
-      const environment = process.env;
-      environment.WG_QUICKER_EXEMPT_COMMAND = command;
+      await resolveApplicationExemptionCommand();
     }
   }
   await (subcommand === 'up' ? up({ config, },) : down({ config, },));

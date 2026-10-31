@@ -135,8 +135,6 @@ await describe({
             IPINFO_TOKEN: 'secret-token',
             WG_ALLOWEDIPS_CACHE_DIRECTORY: '/caller/cache/allowedips',
             WG_QUICKER_CALLER_PATH: `${directory}:${process.env.PATH ?? ''}`,
-            WG_QUICKER_EXEMPT_COMMAND: '/caller/bin/wg-quicker-exempt',
-            WG_QUICKER_EXEMPT_UID: '2000',
             WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: '/caller/opensnitch/default-config.json',
             WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: '/caller/opensnitch/system-fw.json',
             WG_QUICKER_RUNTIME_DIRECTORY: '/caller/run/wg-quicker',

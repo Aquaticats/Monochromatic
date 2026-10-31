@@ -5,6 +5,7 @@ import { BypassRouteError, } from './errors.ts';
 import {
   run,
 } from './runner.ts';
+import { POLICY_NOT_IN_FORCE_MARKER, } from './update-policy-notice.ts';
 import {
   BYPASS_STATE_ABSENT,
   readBypassState,
@@ -21,19 +22,9 @@ const l = tagged({ tag: 'application-exemption', },);
 const MAX_UID = 4_294_967_295;
 
 /**
- Explicit target UID environment variable for non-sudo service execution.
- */
-const TARGET_UID_ENV = 'WG_QUICKER_EXEMPT_UID';
-
-/**
  Environment values needed to select application user.
  */
 export type ApplicationUidEnvironment = {
-  /**
-   Explicit override for service or capability-based execution.
-   */
-  readonly WG_QUICKER_EXEMPT_UID?: string;
-
   /**
    Original caller identity exported by sudo.
    */
@@ -93,16 +84,17 @@ export function resolveApplicationUid(
   },
 ): number {
   /**
-   Explicit service override or original sudo user.
+   Original sudo user,
+   the only environment value that selects the watched user.
    */
-  const configured = environment.WG_QUICKER_EXEMPT_UID ?? environment.SUDO_UID;
+  const configured = environment.SUDO_UID;
   /**
    Candidate text, using non-root effective UID only when no environment value exists.
    */
   const candidate = configured ?? ((currentUid > 0) ? String(currentUid,) : undefined);
   if (candidate === undefined) {
     throw new BypassRouteError(
-      `Application exemptions require SUDO_UID or ${TARGET_UID_ENV} when wg-quicker runs as root.`,
+      'Application exemptions require SUDO_UID when wg-quicker runs as root.',
     );
   }
   if (!isDecimalUid(candidate,))
@@ -208,12 +200,6 @@ export async function startApplicationExemptions(
    */
   const currentUid = process.geteuid?.() ?? 0;
   /**
-   Explicit service execution target when configured.
-   */
-  const explicitUid = process
-    .env
-    .WG_QUICKER_EXEMPT_UID;
-  /**
    Original caller exported by sudo when present.
    */
   const sudoUid = process
@@ -223,14 +209,9 @@ export async function startApplicationExemptions(
    Target desktop-session UID.
    */
   const uid = resolveApplicationUid({
-    environment: {
-      ...(explicitUid === undefined
-        ? {}
-        : { WG_QUICKER_EXEMPT_UID: explicitUid, }),
-      ...(sudoUid === undefined
-        ? {}
-        : { SUDO_UID: sudoUid, }),
-    },
+    environment: (sudoUid === undefined
+      ? {}
+      : { SUDO_UID: sudoUid, }),
     currentUid,
   },);
   fl.debug(`starting application watcher for ${interfaceName}, uid=${String(uid,)}`,);
@@ -238,7 +219,11 @@ export async function startApplicationExemptions(
    Exact companion path validated before command execution.
    */
   const command = await resolveApplicationExemptionCommand();
-  await run({
+  /**
+   Output of the start command,
+   whose standard error carries the watcher's startup reports.
+   */
+  const started = await run({
     command,
     args: applicationWatchStartArgs({
       interfaceName,
@@ -246,6 +231,11 @@ export async function startApplicationExemptions(
       uid,
     },),
   },);
+  for (const line of started.stderr
+    .split('\n',)) {
+    if (line.includes(POLICY_NOT_IN_FORCE_MARKER,))
+      fl.error(line,);
+  }
 }
 
 /**

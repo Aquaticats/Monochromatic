@@ -255,8 +255,7 @@ async function findWorkspaceCompanion(): Promise<string | typeof COMMAND_NOT_FOU
 }
 
 /**
- Resolves configured,
- workspace,
+ Resolves the workspace
  or installed Rust companion to exact executable path.
  
  @returns Executable path immune to sudo secure-path reset.
@@ -270,12 +269,13 @@ async function findWorkspaceCompanion(): Promise<string | typeof COMMAND_NOT_FOU
  */
 export async function resolveApplicationExemptionCommand(): Promise<string> {
   /**
-   Explicit command from restored caller context.
+   Secure path and captured caller path.
+   No environment variable names the executable,
+   because a name that could be set before `sudo` would be a switch for the process watch.
    */
   const {
     PATH: securePathValue,
     WG_QUICKER_CALLER_PATH: callerPathValue,
-    WG_QUICKER_EXEMPT_COMMAND: configured,
   } = process.env;
   /**
    Current root secure path searched for root-owned installation.
@@ -286,28 +286,6 @@ export async function resolveApplicationExemptionCommand(): Promise<string> {
    never assigned to privileged PATH.
    */
   const callerPath = callerPathValue ?? '';
-  if (configured !== undefined) {
-    if (configured.includes('/',)) {
-      /**
-       Configured path made absolute before validation.
-       */
-      const explicitPath = resolve(configured,);
-      if (await isExecutableFile({ path: explicitPath, },))
-        return explicitPath;
-    }
-    else {
-      /**
-       Configured bare name searched only in captured caller path.
-       */
-      const explicitCommand = await findInPath({
-        command: configured,
-        pathText: callerPath,
-      },);
-      if ((typeof explicitCommand) === 'string')
-        return explicitCommand;
-    }
-    throw new BypassRouteError(`Configured wg-quicker-exempt executable is unavailable: ${configured}`,);
-  }
   /**
    Repository sibling paired with current TypeScript package.
    */
@@ -333,6 +311,6 @@ export async function resolveApplicationExemptionCommand(): Promise<string> {
   if ((typeof callerInstalled) === 'string')
     return callerInstalled;
   throw new BypassRouteError(
-    'wg-quicker-exempt is unavailable. Build it with `mise run //package/wg/cli-quicker-exempt:build` or set WG_QUICKER_EXEMPT_COMMAND.',
+    'wg-quicker-exempt is unavailable. Build it with `mise run //package/wg/cli-quicker-exempt:build`.',
   );
 }

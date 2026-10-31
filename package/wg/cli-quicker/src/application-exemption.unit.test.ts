@@ -38,15 +38,19 @@ await describe({
       },
     },),
     it({
-      name: 'prefers explicit override over sudo identity',
+      name: 'ignores an explicit user override in the environment and follows the sudo identity',
       fn: async () => {
         expect(resolveApplicationUid({
           environment: {
             WG_QUICKER_EXEMPT_UID: '2000',
             SUDO_UID: '1000',
-          },
+          } as { readonly SUDO_UID: string; },
           currentUid: 0,
-        },),).toBe(2_000,);
+        },),).toBe(1_000,);
+        expect(() => resolveApplicationUid({
+          environment: { WG_QUICKER_EXEMPT_UID: '2000', } as Record<string, string>,
+          currentUid: 0,
+        },),).toThrow('Application exemptions require SUDO_UID',);
       },
     },),
     it({

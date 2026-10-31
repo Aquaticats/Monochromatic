@@ -1,7 +1,4 @@
-import {
-  readdir,
-  readFile,
-} from 'node:fs/promises';
+import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
@@ -12,67 +9,80 @@ import {
 
 import { UPDATE_HOSTS, } from '../dist/final/node/update-hosts.data.mjs';
 import {
+  POLICY_NOT_IN_FORCE_MARKER,
   POLICY_PROCESS_WATCH,
   POLICY_UPDATE_HOSTS,
   policiesNotInForceWithoutMark,
   policyNotInForce,
+  startNotices,
   updatePolicyNotice,
 } from '../dist/final/node/update-policy-notice.mjs';
 
 /**
- Directory of this package's sources.
- */
-const SOURCE_DIRECTORY = import.meta.dirname;
-
-/**
  Directory of the Rust companion's sources.
  */
-const COMPANION_SOURCE_DIRECTORY = join(SOURCE_DIRECTORY, '..', '..', 'cli-quicker-exempt', 'src',);
+const COMPANION_SOURCE_DIRECTORY = join(import.meta.dirname, '..', '..', 'cli-quicker-exempt', 'src',);
 
 /**
- Words that name a switch for the update policies.
+ Config facts the start notices depend on.
  */
-const SWITCH_WORDS: readonly string[] = [
-  'MONOCHROMATIC_TOOLCHAIN_CLEARNET',
-  'MONOCHROMATIC_TOOLCHAIN_IN_UPDATES_SLICE',
-  'WG_QUICKER_NO_UPDATE',
-  'WG_QUICKER_DISABLE',
-  'opt-out',
-  'optOut',
-];
+type Facts = Parameters<typeof startNotices>[0];
 
 /**
- Reads the production source files of a directory.
+ Builds the facts of a start.
 
- @param directory - Directory to read.
+ @param exemptMark - `ExemptMark` of the config,
+ absent when none is set.
 
- @param extension - File extension including the dot.
+ @param tableOff - Whether the config says `Table = off`.
 
- @returns File name and text pairs.
+ @param dnsServers - `DNS =` servers of the config.
+
+ @returns Facts for `startNotices`.
 
  @example
  ```ts
- await productionSources({ directory, extension: '.ts' });
+ facts({ exemptMark: 100, tableOff: false, dnsServers: ['1.1.1.1'] });
  ```
  */
-async function productionSources(
+function facts(
   {
-    directory,
-    extension,
+    exemptMark,
+    tableOff,
+    dnsServers,
   }: {
-    readonly directory: string;
-    readonly extension: string;
+    readonly exemptMark?: number;
+    readonly tableOff: boolean;
+    readonly dnsServers: readonly string[];
   },
-): Promise<readonly (readonly [string, string])[]> {
-  return Promise.all(
-    (await readdir(directory,))
-      .filter(function isProduction(name,): boolean {
-        return name.endsWith(extension,) && (!name.includes('test',)) && (!name.includes('fixture',));
-      },)
-      .map(async function read(name,): Promise<readonly [string, string]> {
-        return [name, await readFile(join(directory, name,), 'utf8',),];
-      },),
-  );
+): Facts {
+  return {
+    target: 'wg0',
+    ...(exemptMark === undefined ? {} : { exemptMark, }),
+    tableOff,
+    dnsServers,
+    hosts: UPDATE_HOSTS,
+    recommendedMark: 100,
+  };
+}
+
+/**
+ Config facts of a normal start with a mark and one DNS server.
+ */
+const NORMAL_START: Facts = facts({ exemptMark: 100, tableOff: false, dnsServers: ['1.1.1.1',], },);
+
+/**
+ Reads the Rust source text that defines the words of the process policy.
+
+ @returns Text of the Rust report module.
+
+ @example
+ ```ts
+ await readCompanionReport();
+ ```
+ */
+async function readCompanionReport(): Promise<string> {
+  return await readFile(join(COMPANION_SOURCE_DIRECTORY, 'update_report.rs',), 'utf8',);
 }
 
 await describe({
@@ -92,7 +102,6 @@ await describe({
             'OUTSIDE the WireGuard tunnel',
             'Update entry points',
             'mpm-shadow install, update and outdated',
-            'Toolchain install roots',
             'Update hosts, for every program including browsers',
             'Why:',
             'must not use this tool',
@@ -101,6 +110,165 @@ await describe({
           expect(notice,).toContain(phrase,);
         for (const host of UPDATE_HOSTS)
           expect(notice,).toContain(host,);
+      },
+    },),
+    it({
+      name: 'says that the toolchain root rule covers every installed program and not only updates',
+      fn: async () => {
+        /**
+         Notice printed on every start.
+         */
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        for (
+          const phrase of [
+            'Everything the toolchain installed, not only its updates',
+            'every script and dev server run by the toolchain\'s node',
+            'node, bun, pnpm, uv, zig, cmake, rust, caddy, sops and age',
+          ]
+        )
+          expect(notice,).toContain(phrase,);
+      },
+    },),
+    it({
+      name: 'says that a rule carries a whole shared address, with measured examples',
+      fn: async () => {
+        /**
+         Notice printed on every start.
+         */
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        for (
+          const phrase of [
+            'whole addresses',
+            'a shared CDN address sends every other site on it outside the tunnel too',
+            'docs.python.org shares all its addresses with pypi.org',
+            'avatars.githubusercontent.com share half of theirs with the GitHub release-asset hosts',
+          ]
+        )
+          expect(notice,).toContain(phrase,);
+      },
+    },),
+    it({
+      name: 'names every match that can be imitated and what is not covered',
+      fn: async () => {
+        /**
+         Notice printed on every start.
+         */
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        for (
+          const phrase of [
+            'what can imitate it',
+            'the executable\'s file name (mise, mpm-shadow, mpm, node)',
+            'the tail of a toolchain script path',
+            'any executable named mpm',
+            'inside a home directory the user can write',
+            'Any program the user can run from such a path, or under such a name, leaves outside the tunnel too',
+            'another pid namespace',
+          ]
+        )
+          expect(notice,).toContain(phrase,);
+      },
+    },),
+    it({
+      name: 'states the same imitation and coverage facts as the watcher notice',
+      fn: async () => {
+        /**
+         Rust source holding the watcher notice.
+         */
+        const companion = await readCompanionReport();
+        /**
+         Notice printed by `up`.
+         */
+        const notice = updatePolicyNotice({ hosts: UPDATE_HOSTS, },);
+        for (
+          const phrase of [
+            'the executable\'s file name (mise, mpm-shadow, mpm, node)',
+            'any executable named mpm',
+            'another pid namespace',
+            'shared CDN address',
+            'without any switch',
+          ]
+        ) {
+          expect(notice,).toContain(phrase,);
+          expect(companion,).toContain(phrase,);
+        }
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: startNotices.name,
+  children: [
+    it({
+      name: 'prints the notice of what leaves the tunnel for a start with a mark and a DNS server, and nothing else',
+      fn: async () => {
+        /**
+         Lines the start prints.
+         */
+        const notices = startNotices(NORMAL_START,);
+        expect(notices,).toEqual([updatePolicyNotice({ hosts: UPDATE_HOSTS, },),],);
+      },
+    },),
+    it({
+      name: 'adds the loud report that no host rule will exist when the config sets no DNS server',
+      fn: async () => {
+        /**
+         Lines a start without DNS prints.
+         */
+        const notices = startNotices(facts({ exemptMark: 100, tableOff: false, dnsServers: [], },),);
+        expect(notices,).toHaveLength(2,);
+        expect(notices[0],).toBe(updatePolicyNotice({ hosts: UPDATE_HOSTS, },),);
+        expect(notices[1],).toContain(POLICY_NOT_IN_FORCE_MARKER,);
+        expect(notices[1],).toContain(POLICY_UPDATE_HOSTS,);
+        expect(notices[1],).toContain('sets no DNS = server',);
+        expect(notices[1],).toContain('no update-host rule will be installed',);
+        expect(notices[1],).toContain('The process watch and the toolchain paths still run',);
+      },
+    },),
+    it({
+      name: 'reports both policies as not in force, and says traffic uses the tunnel, for a config without a mark',
+      fn: async () => {
+        /**
+         Lines a start without a mark prints.
+         */
+        const notices = startNotices(facts({ tableOff: false, dnsServers: ['1.1.1.1',], },),);
+        expect(notices,).toHaveLength(1,);
+        expect(notices[0],).toContain('will use the tunnel.',);
+        expect(notices[0],).toContain(policiesNotInForceWithoutMark(),);
+        expect(notices[0],).toContain('ExemptMark = 100',);
+        expect(notices[0],).not.toContain('leaves OUTSIDE',);
+      },
+    },),
+    it({
+      name: 'does not claim that traffic leaves the tunnel when the config says Table = off',
+      fn: async () => {
+        /**
+         Lines a start with Table = off prints.
+         */
+        const notices = startNotices(facts({ exemptMark: 100, tableOff: true, dnsServers: ['1.1.1.1',], },),);
+        expect(notices,).toHaveLength(1,);
+        expect(notices[0],).toContain(POLICY_NOT_IN_FORCE_MARKER,);
+        expect(notices[0],).toContain(POLICY_PROCESS_WATCH,);
+        expect(notices[0],).toContain(POLICY_UPDATE_HOSTS,);
+        expect(notices[0],).toContain('Table = off',);
+        expect(notices[0],).toContain('installs no routing rule and no bypass table',);
+        expect(notices[0],).not.toContain('leaves OUTSIDE',);
+      },
+    },),
+    it({
+      name: 'prints something on every combination of config facts, so no start is silent',
+      fn: async () => {
+        for (const marked of [false, true,]) {
+          for (const tableOff of [false, true,]) {
+            for (const dnsServers of [[], ['1.1.1.1',],]) {
+              expect(startNotices(facts({
+                ...(marked ? { exemptMark: 100, } : {}),
+                tableOff,
+                dnsServers,
+              },),).length,).toBeGreaterThan(0,);
+            }
+          }
+        }
       },
     },),
   ],
@@ -129,47 +297,17 @@ await describe({
 },);
 
 await describe({
-  name: 'start path',
+  name: 'policy words shared with wg-quicker-exempt',
   children: [
     it({
-      name: 'prints the notice on every up with a mark and the unenforced report without one',
+      name: 'uses the same policy name and the same loud marker in the TypeScript and Rust packages',
       fn: async () => {
         /**
-         Command entry point source.
+         Rust source holding the policy words.
          */
-        const entry = await readFile(join(SOURCE_DIRECTORY, 'index.ts',), 'utf8',);
-        expect(entry,).toContain('updatePolicyNotice({ hosts: UPDATE_HOSTS, },)',);
-        expect(entry,).toContain('policiesNotInForceWithoutMark()',);
-        expect(entry,).toContain('will use the tunnel.',);
-      },
-    },),
-  ],
-},);
-
-await describe({
-  name: 'always-on policy',
-  children: [
-    it({
-      name: 'has no switch, flag or environment variable that turns a bypass off in either wg package',
-      fn: async () => {
-        /**
-         Production sources of both wg packages.
-         */
-        const sources = [
-          ...await productionSources({ directory: SOURCE_DIRECTORY, extension: '.ts', },),
-          ...await productionSources({ directory: COMPANION_SOURCE_DIRECTORY, extension: '.rs', },),
-        ];
-        /**
-         Sources that mention a switch word.
-         */
-        const offenders = sources.flatMap(function mentionsSwitch([name, text,],): readonly string[] {
-          return SWITCH_WORDS.filter(function appears(word,): boolean {
-            return text.includes(word,);
-          },).map(function describeHit(word,): string {
-            return `${name}: ${word}`;
-          },);
-        },);
-        expect(offenders,).toEqual([],);
+        const companion = await readCompanionReport();
+        expect(companion,).toContain(`pub const POLICY_PROCESS_WATCH: &str = "${POLICY_PROCESS_WATCH}";`,);
+        expect(companion,).toContain(`pub const POLICY_NOT_IN_FORCE_MARKER: &str = "${POLICY_NOT_IN_FORCE_MARKER}";`,);
       },
     },),
   ],

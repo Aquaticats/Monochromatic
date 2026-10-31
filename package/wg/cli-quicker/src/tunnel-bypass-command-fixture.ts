@@ -6,7 +6,16 @@
 
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
 import { text, } from 'node:stream/consumers';
+import { fileURLToPath, } from 'node:url';
 
 /**
  Result from allowed-failure integration command.
@@ -40,12 +49,127 @@ export type BypassFixture = {
 };
 
 /**
- Built CLI bundle exercised by end-user lifecycle checks.
+ Package directory, whose `.cache` holds staged copies of the built CLI.
+ Staging inside the package keeps the bundle's bare imports resolvable through the package's `node_modules`.
  */
-const CLI_BUNDLE_PATH = new URL(
-  '../dist/final/node/index.mjs',
+const PACKAGE_DIRECTORY = fileURLToPath(new URL(
+  '..',
   import.meta.url,
-).pathname;
+),);
+
+/**
+ Staged copy of the built CLI paired with a harmless watcher.
+ */
+export type StagedCli = {
+  /**
+   Bundle entry point to run.
+   */
+  readonly cliPath: string;
+
+  /**
+   Removes the staged copy.
+   */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Copies the built CLI into a disposable tree whose paired Rust watcher is `/usr/bin/true`.
+
+ The CLI finds its watcher only next to its own package, so the integration test cannot name a watcher
+ through the environment, which would be a switch for the process policy in production too.
+ A staged tree puts the stand-in where the CLI looks, and leaves the real watcher untouched.
+
+ @returns Entry point and a disposer that removes the tree.
+
+ @example
+ ```ts
+ await using staged = await stageWgQuickerCli();
+ ```
+ */
+export async function stageWgQuickerCli(): Promise<StagedCli> {
+  /**
+   Parent directory of the staged tree.
+   */
+  const cacheDirectory = join(
+    PACKAGE_DIRECTORY,
+    '.cache',
+    'integration-stage',
+  );
+  await mkdir(
+    cacheDirectory,
+    { recursive: true, },
+  );
+  /**
+   Root of this staged tree, laid out as `package/wg/<package>`.
+   */
+  const root = await mkdtemp(join(
+    cacheDirectory,
+    'cli-',
+  ),);
+  /**
+   Staged copy of the TypeScript package's built output.
+   */
+  const bundleDirectory = join(
+    root,
+    'package',
+    'wg',
+    'cli-quicker',
+    'dist',
+    'final',
+    'node',
+  );
+  await mkdir(
+    bundleDirectory,
+    { recursive: true, },
+  );
+  await cp(
+    join(
+      PACKAGE_DIRECTORY,
+      'dist',
+      'final',
+      'node',
+    ),
+    bundleDirectory,
+    { recursive: true, },
+  );
+  /**
+   Where the CLI looks for the paired release watcher.
+   */
+  const watcherDirectory = join(
+    root,
+    'package',
+    'wg',
+    'cli-quicker-exempt',
+    'target',
+    'release',
+  );
+  await mkdir(
+    watcherDirectory,
+    { recursive: true, },
+  );
+  await symlink(
+    '/usr/bin/true',
+    join(
+      watcherDirectory,
+      'wg-quicker-exempt',
+    ),
+  );
+  return {
+    cliPath: join(
+      bundleDirectory,
+      'index.mjs',
+    ),
+    [Symbol.asyncDispose]: async function removeStage(): Promise<void> {
+      await rm(
+        root,
+        {
+          force: true,
+          recursive: true,
+        },
+      );
+    },
+  };
+}
 
 /**
  Built bypass bundle exercised by namespace child.
@@ -260,7 +384,12 @@ export async function runWgQuickerCli(
   },
 ): Promise<FixtureCommandResult> {
   /**
+   Staged copy of the built CLI whose paired watcher is a harmless stand-in.
+   */
+  await using staged = await stageWgQuickerCli();
+  /**
    Captured built CLI result checked before return.
+   The watched user is the one `sudo` reports through `SUDO_UID`.
    */
   const result = await runSudoAllowingFailure({
     args: [
@@ -270,10 +399,8 @@ export async function runWgQuickerCli(
       fixture.namespace,
       'env',
       `WG_QUICKER_RUNTIME_DIRECTORY=${fixture.stateDirectory}`,
-      'WG_QUICKER_EXEMPT_COMMAND=/usr/bin/true',
-      'WG_QUICKER_EXEMPT_UID=1000',
       process.execPath,
-      CLI_BUNDLE_PATH,
+      staged.cliPath,
       operation,
       configPath,
     ],
