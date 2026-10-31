@@ -82,11 +82,13 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
     for tool in tools {
         let aliases: Vec<(String, String)> = tool.declaration.options.bin_aliases.clone().unwrap_or_default();
         for name in &tool.declaration.bins {
-            let primary: String = aliases
-                .iter()
-                .find(|(alias, _)| return alias == name)
-                .map(|(_, primary_name)| return primary_name.clone())
-                .unwrap_or_else(|| return name.clone());
+            let mut primary: String = name.clone();
+            for (alias, primary_name) in &aliases {
+                if alias == name {
+                    primary = primary_name.clone();
+                    break;
+                }
+            }
             match find_tool_bin(tool, &primary, ctx.scope, ctx.env, &extra_dirs(ctx)) {
                 Some(target) => {
                     atomic_symlink(&ctx.scope.exposure_dir.join(name), &target)?;

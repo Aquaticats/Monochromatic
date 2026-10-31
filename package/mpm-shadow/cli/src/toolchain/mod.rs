@@ -115,6 +115,9 @@ pub mod parse_output;
 /// The plan file reader.
 pub mod plan;
 
+/// The request text of a plan entry.
+pub mod request;
+
 /// Revisions,
 /// the scope's OS lock and the atomic publish of the lock.
 pub mod publish;
@@ -134,8 +137,21 @@ pub mod sync;
 /// The `update` command.
 pub mod update;
 
+/// The Android command-line tools and conda package resolvers.
+pub mod update_android_conda;
+
 /// The GitHub release resolver.
 pub mod update_github;
+
+/// Choosing the release asset of one platform.
+pub mod update_github_assets;
+
+/// The Go runtime,
+/// Go module and Zig resolvers.
+pub mod update_go_zig;
+
+/// The Temurin JDK and AWS CLI resolvers.
+pub mod update_java_aws;
 
 /// The npm,
 /// PyPI and crates.io resolvers.
@@ -147,6 +163,9 @@ pub mod update_resolve;
 
 /// The Rust channel and Node.js resolvers.
 pub mod update_rust_node;
+
+/// Small named helpers shared by the toolchain modules.
+pub mod util;
 
 /// The `verify-archive` command.
 pub mod verify_archive;
@@ -210,10 +229,22 @@ mod install_tests;
 #[cfg(test)]
 mod sync_tests;
 
-/// The unit tests of every resolver and of `update`.
+/// The unit tests of every resolver.
+#[cfg(test)]
+mod update_resolve_tests;
+
+/// The unit tests of `update`.
 #[cfg(test)]
 mod update_tests;
+
+/// The unit tests of the request text.
+#[cfg(test)]
+mod request_tests;
 
 /// The unit tests of `verify-archive`.
 #[cfg(test)]
 mod verify_archive_tests;
+
+/// The unit tests of the shared helpers.
+#[cfg(test)]
+mod util_tests;

@@ -29,7 +29,7 @@ use super::install_support::run_checked;
 /// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Request};
+use super::model::{LockedTool, Origin};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
 /// Imports `RunRequest` from `super::runner`.
@@ -64,21 +64,20 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
 /// export function installCargoGit(ctx: Context, tool: LockedTool): void
 /// ```
 pub fn install_cargo_git(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
-    let Some(url) = &tool.declaration.options.cargo_git_url else {
-        return Err(ToolchainError::failure(format!("toolchain plan entry {} carries no cargoGit source url", tool.declaration.id)));
+    let Origin::Git(url) = tool.declaration.request.origin() else {
+        return Err(ToolchainError::failure(format!(
+            "toolchain plan entry {} installs from git but its request is not git:<url>@<revision>",
+            tool.declaration.id
+        )));
     };
-    let pinned: String = match &tool.declaration.request {
-        Request::Pinned(version) => version.clone(),
-        _ => tool.version.clone(),
-    };
-    let revision: String = pinned.strip_prefix("ref:").unwrap_or(&pinned).to_string();
+    let revision: String = tool.declaration.request.range.strip_prefix("ref:").unwrap_or(&tool.declaration.request.range).to_string();
     let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
     if let Err(error) = fs::create_dir_all(&install_dir) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", install_dir.display())));
     }
     let install_text: String = install_dir.to_string_lossy().to_string();
     let package: String = package_name(tool);
-    let request: RunRequest = ctx.request("cargo", &["install", "--git", url, "--rev", &revision, "--root", &install_text, &package]);
+    let request: RunRequest = ctx.request("cargo", &["install", "--git", &url, "--rev", &revision, "--root", &install_text, &package]);
     run_checked(ctx, &request, "cargo install --git", &tool.declaration.id)?;
     return Ok(());
 }

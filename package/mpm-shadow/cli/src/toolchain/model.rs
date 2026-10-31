@@ -20,40 +20,9 @@
 
 //region Request, route and OS family
 
-/// What:
-/// How a person asks for a tool's version:
-/// the newest (`Latest`),
-/// one exact version (`Pinned`),
-/// or a named
-///           channel (`Channel`:
-/// an npm dist-tag,
-/// a rustup channel,
-/// a Java line).
-/// Why:
-/// `Pinned` is never moved by `update`;
-/// the other two are.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Request = { track: 'latest' } | { pinned: string } | { channel: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Request {
-    /// `{"track": "latest"}`.
-    Latest,
-    /// `{"pinned": "<version>"}`.
-    Pinned(
-        /// The exact version asked for.
-        String,
-    ),
-    /// `{"channel": "<name>"}`.
-    Channel(
-        /// The channel name (an npm dist-tag,
-        /// a rustup channel,
-        /// a Java line).
-        String,
-    ),
-}
+/// Re-exports the request types,
+/// so callers keep importing them from `model`.
+pub use super::request::{Origin, Request};
 
 /// What:
 /// The install route of one tool:
@@ -239,10 +208,8 @@ pub struct Options {
     pub rust_targets: Option<Vec<String>>,
     /// `cargo binstall --features` values.
     pub cargo_features: Option<Vec<String>>,
-    /// Git source URL of a `cargo-git` tool.
-    pub cargo_git_url: Option<String>,
-    /// Release-asset glob the GitHub resolver matches.
-    pub asset_pattern: Option<String>,
+    /// Release-asset glob that picks one asset when a repository's asset names are ambiguous.
+    pub asset: Option<String>,
     /// Packages whose install scripts `pnpm add --global` may run.
     pub allow_builds: Option<Vec<String>>,
     /// `sdkmanager` packages (part of the lock's frozen surface).
@@ -254,6 +221,17 @@ pub struct Options {
     pub bin_aliases: Option<Vec<(String, String)>>,
     /// Bootstrap metadata.
     pub bootstrap: Option<Bootstrap>,
+}
+
+/// The methods of `Options`.
+impl Options {
+    /// Whether the tool is a wheel bootstrap (installed from a verified wheel rather than by name).
+    pub fn is_wheel(&self) -> bool {
+        return match &self.bootstrap {
+            Some(bootstrap) => bootstrap.distribution == "wheel",
+            None => false,
+        };
+    }
 }
 
 //endregion Options
@@ -381,12 +359,14 @@ pub const VERSION_PLACEHOLDER: &str = "{version}";
 /// ```
 pub fn expand_version(declaration: &Declaration, version: &str) -> Declaration {
     let mut expanded: Declaration = declaration.clone();
-    expanded.package_id = declaration.package_id.as_ref().map(|text| return text.replace(VERSION_PLACEHOLDER, version));
-    expanded.env = declaration
-        .env
-        .iter()
-        .map(|(name, text)| return (name.clone(), text.replace(VERSION_PLACEHOLDER, version)))
-        .collect();
+    if let Some(text) = &declaration.package_id {
+        expanded.package_id = Some(text.replace(VERSION_PLACEHOLDER, version));
+    }
+    let mut env: Vec<(String, String)> = Vec::new();
+    for (name, text) in &declaration.env {
+        env.push((name.clone(), text.replace(VERSION_PLACEHOLDER, version)));
+    }
+    expanded.env = env;
     return expanded;
 }
 

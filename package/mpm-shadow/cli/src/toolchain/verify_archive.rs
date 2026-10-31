@@ -26,7 +26,7 @@ use super::hash::sha256_file;
 /// Imports what this module uses from `super::load`.
 use super::load::{Loaded, load};
 /// Imports what this module uses from `super::model`.
-use super::model::LockedTool;
+use super::model::{Artifact, LockedTool};
 /// Imports what this module uses from `super::scope`.
 use super::scope::Scope;
 
@@ -58,8 +58,18 @@ pub fn run_verify_archive(scope: &Scope, platform: &str, tool_id: &str, file: &P
     let Some(tool): Option<&LockedTool> = parsed.lock.tool(tool_id) else {
         return Err(ToolchainError::config(format!("the lock has no tool {tool_id:?}")));
     };
-    let Some((_, artifact)) = tool.artifacts.iter().find(|(row_platform, _)| return row_platform == platform) else {
-        let known: Vec<&str> = tool.artifacts.iter().map(|(row_platform, _)| return row_platform.as_str()).collect();
+    let mut found: Option<&Artifact> = None;
+    for (row_platform, row) in &tool.artifacts {
+        if row_platform == platform {
+            found = Some(row);
+            break;
+        }
+    }
+    let Some(artifact) = found else {
+        let mut known: Vec<&str> = Vec::new();
+        for (row_platform, _) in &tool.artifacts {
+            known.push(row_platform.as_str());
+        }
         return Err(ToolchainError::config(format!(
             "the lock has no artifact for {tool_id} on {platform}; it records: {}",
             if known.is_empty() { "none".to_string() } else { known.join(", ") }

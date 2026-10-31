@@ -17,7 +17,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // lock-cmd.ts
-//! export type LockMode = 'check' | 'write' | 'adopt';
+//! export type LockMode = 'check' | 'write';
 //! export function runLock(scope: Scope, mode: LockMode): string  // throws ToolchainError
 //! ```
 
@@ -37,20 +37,15 @@ use super::scope::Scope;
 /// What:
 /// What `lock` does with the files:
 /// only `Check`,
-/// rewrite (`Write`),
-/// or rewrite a lock that has no digest yet
-///           (`Adopt`).
+/// or rewrite (`Write`).
 /// Why:
-/// `Adopt` is the one-time conversion of a lock the TypeScript tool wrote:
-/// its versions and artifacts are
-///           taken as they are and the digest is added.
-/// It is a separate,
-/// explicit mode because accepting a
-///           digest-less lock silently would let a hand edit launder itself by deleting the digest.
+/// A lock is derived,
+/// so there is no mode that accepts a lock someone else wrote:
+/// `update` rebuilds it from the plan.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LockMode = 'check' | 'write' | 'adopt';
+/// type LockMode = 'check' | 'write';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LockMode {
@@ -61,10 +56,6 @@ pub enum LockMode {
     /// `lock`:
     /// project the plan onto the lock and write it.
     Write,
-    /// `lock --adopt`:
-    /// like `Write`,
-    /// for a lock without a digest.
-    Adopt,
 }
 
 /// What:
@@ -85,7 +76,7 @@ pub fn run_lock(scope: &Scope, mode: LockMode) -> Result<String, ToolchainError>
             scope.lock_file.display()
         )));
     };
-    let mut verdict = compare(&loaded.plan, parsed);
+    let verdict = compare(&loaded.plan, parsed);
     if mode == LockMode::Check {
         if !verdict.is_empty() {
             return Err(refusal(&verdict));
@@ -95,15 +86,6 @@ pub fn run_lock(scope: &Scope, mode: LockMode) -> Result<String, ToolchainError>
             parsed.lock.tools.len(),
             scope.lock_file.display()
         ));
-    }
-    if mode == LockMode::Adopt {
-        if parsed.recorded_digest.is_some() {
-            return Err(ToolchainError::config(format!(
-                "{} already has a digest; use `mpm-shadow lock` instead of --adopt",
-                scope.lock_file.display()
-            )));
-        }
-        verdict.digest_problem = None;
     }
     if verdict.digest_problem.is_some() || verdict.needs_update() {
         return Err(refusal(&verdict));

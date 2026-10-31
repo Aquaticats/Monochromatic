@@ -1,20 +1,24 @@
 //! What:
 //! Finding a tool's version and artifacts:
 //! the shared types and fetch helpers,
-//! and the one switch from a tool's
-//!           request and route to the resolver that answers it.
+//! and the one switch from a tool's id,
+//! request and route to the resolver that answers it.
 //! Why:
 //! Every npm and PyPI version,
 //! first or later,
-//! comes from `registry.npmjs.org` and `pypi.org` directly;
-//! crates
-//!           come from `crates.io`,
-//! Rust channels from `static.rust-lang.org`,
+//! comes from `registry.npmjs.org` and `pypi.org` directly.
+//! Crates come from `crates.io`,
+//! Rust channels and rustup from `static.rust-lang.org`,
 //! Node from `nodejs.org`,
-//! GitHub-hosted
-//!           tools from the GitHub API.
-//! A resolver that is not written yet says so by tool and route instead of
-//!           guessing.
+//! Go from `go.dev` and `proxy.golang.org`,
+//! Zig from `ziglang.org`,
+//! Java from `api.adoptium.net`,
+//! the Android command-line tools from `dl.google.com`,
+//! conda packages from `api.anaconda.org`,
+//! and GitHub-hosted tools from the GitHub API.
+//! Every resolver takes an optional wanted version:
+//! `None` asks for the newest,
+//! `Some` resolves exactly that version (a newly pinned one).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,13 +28,20 @@
 //! export function resolveTool(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
 //! ```
 
+/// Imports `fs` from `std`.
+use std::fs;
+/// Imports `PathBuf` from `std::path`.
+use std::path::PathBuf;
+
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
-/// Imports what this module uses from `super::model`.
-use super::model::{Artifact, Declaration, LockedTool, Request, Route};
+/// Imports the download size bound from `super::http`.
+use super::http::{DEFAULT_MAX_DOWNLOAD_BYTES, DEFAULT_MAX_GET_BYTES};
+/// Imports the model types the resolvers build.
+use super::model::{Artifact, Declaration, LockedTool, Origin};
 
 /// What a resolver found:
 /// the version to lock and the artifact rows (empty for tools installed by name and version).
@@ -45,26 +56,17 @@ pub struct Resolution {
 
 /// What:
 /// Why a resolver gave no answer:
-/// `NotImplemented` (no resolver exists for this tool yet) or `Failed` (the
-///           lookup was made and went wrong).
+/// the lookup was made and went wrong.
 /// Why:
-/// `update` keeps the old lock entry for a not-implemented tool that already has one and reports it,
-/// but a
-///           failed lookup stops the whole update before anything is written.
+/// A failed lookup stops the whole update before anything is written,
+/// and its text names the URL or the field.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ResolveError = { kind: 'notImplemented'; message: string } | { kind: 'failed'; message: string };
+/// type ResolveError = { message: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ResolveError {
-    /// No resolver exists for this tool;
-    /// the text names the tool and route.
-    NotImplemented(
-        /// The tool,
-        /// its route and what is missing.
-        String,
-    ),
     /// The lookup failed;
     /// the text names the URL or the field.
     Failed(
@@ -79,7 +81,7 @@ impl ResolveError {
     /// The message to show.
     pub fn message(&self) -> &str {
         match self {
-            ResolveError::NotImplemented(text) | ResolveError::Failed(text) => return text,
+            ResolveError::Failed(text) => return text,
         }
     }
 }
@@ -87,7 +89,7 @@ impl ResolveError {
 /// GETs `url` and returns the body text,
 /// or a `Failed` error naming the URL (and the status for a non-2xx answer).
 pub fn get_text(ctx: &Context, url: &str, headers: &[(String, String)]) -> Result<String, ResolveError> {
-    let response = match ctx.http.get(url, headers, super::http::DEFAULT_MAX_GET_BYTES) {
+    let response = match ctx.http.get(url, headers, DEFAULT_MAX_GET_BYTES) {
         Ok(answered) => answered,
         Err(error) => return Err(ResolveError::Failed(error.to_string())),
     };
@@ -114,93 +116,103 @@ pub fn text_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
     for key in path {
         cursor = cursor.get(*key)?;
     }
-    return cursor.as_str().filter(|text| return !text.is_empty());
-}
-
-/// The "no resolver yet" error for a tool,
-/// naming its id and route.
-pub fn not_implemented(declaration: &Declaration, what: &str) -> ResolveError {
-    return ResolveError::NotImplemented(format!(
-        "{} (route {}): {what} is not implemented in mpm-shadow update yet",
-        declaration.id,
-        declaration.route.as_str()
-    ));
+    return match cursor.as_str() {
+        Some(text) if !text.is_empty() => Some(text),
+        _ => None,
+    };
 }
 
 /// What:
-/// Resolves one tool.
+/// The SHA-256 of the file behind `url`,
+/// by downloading it to a scratch file and deleting the file afterwards.
 /// Why:
-/// The request decides the shape:
-/// a pinned request resolves exactly that version (and needs no lookup when the
-///           lock already holds it),
-/// anything else asks the tool's source for the newest version or channel head.
+/// Some sources (the Android archive,
+/// the AWS CLI installer) publish no checksum the update can read,
+/// so the lock records the hash of what the update itself downloaded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function hashDownload(ctx: Context, url: string): string
+/// ```
+pub fn hash_download(ctx: &Context, url: &str) -> Result<String, ResolveError> {
+    let scratch: PathBuf = ctx.scope.toolchain_root.join("downloads").join(format!(".update-hash-{}", std::process::id()));
+    let result = ctx.http.download(url, &scratch, DEFAULT_MAX_DOWNLOAD_BYTES);
+    // Best effort: the file only existed to be hashed.
+    let _ = fs::remove_file(&scratch);
+    return match result {
+        Ok(hash) => Ok(hash),
+        Err(error) => Err(ResolveError::Failed(format!("cannot download {url} to hash it: {error}"))),
+    };
+}
+
+/// The platforms every downloaded tool is recorded for:
+/// Linux on x64 and arm64,
+/// glibc and musl (the repository's Linux-only stopgap).
+pub const LINUX_PLATFORMS: [&str; 4] = ["linux-arm64", "linux-arm64-musl", "linux-x64", "linux-x64-musl"];
+
+/// Whether a platform id names an ARM 64-bit machine.
+pub fn is_arm64(platform: &str) -> bool {
+    return platform.contains("arm64");
+}
+
+/// Whether a platform id names a musl libc machine.
+pub fn is_musl(platform: &str) -> bool {
+    return platform.ends_with("-musl");
+}
+
+/// A resolution that keeps what the lock already holds.
+pub fn keep(locked: &LockedTool) -> Resolution {
+    return Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() };
+}
+
+/// A resolution for a tool installed by name and version,
+/// with no artifact rows.
+pub fn by_name(version: &str) -> Resolution {
+    return Resolution { version: version.to_string(), artifacts: Vec::new() };
+}
+
+/// What:
+/// Resolves one tool from its request alone.
+/// Why:
+/// The lock is derived from the plan,
+/// so nothing here reads a previous lock row to learn a repository,
+/// a tag shape,
+/// an asset or a platform list.
+/// The one exception is the shortcut for an exact version:
+/// when the lock already holds that very request,
+/// its entry is kept without a lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function resolveTool(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
 /// ```
 pub fn resolve_tool(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
-    if let Request::Pinned(pinned) = &declaration.request {
-        return resolve_pinned(ctx, declaration, current, pinned);
-    }
-    if declaration.id == "node" {
-        return super::update_rust_node::resolve_node(ctx, declaration, current);
-    }
-    match declaration.route {
-        Route::MpmPnpm => return super::update_registry::resolve_npm(ctx, declaration),
-        Route::MpmUvx => return super::update_registry::resolve_pypi(ctx, declaration, current),
-        Route::CargoBinstall => return super::update_registry::resolve_crate(ctx, declaration),
-        Route::RustupToolchain => return super::update_rust_node::resolve_rust(ctx, declaration),
-        Route::CargoGit => {
-            return match current {
-                Some(locked) => Ok(Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() }),
-                None => Err(not_implemented(declaration, "resolving a cargo-git tool that is not in the lock")),
-            };
-        }
-        Route::BinSourced | Route::Archive => {
-            if declaration.id.starts_with("conda:") {
-                return Err(not_implemented(declaration, "the conda channel lookup"));
-            }
-            return super::update_github::resolve_github(ctx, declaration, current);
-        }
-        Route::GoInstall => return Err(not_implemented(declaration, "the Go module proxy lookup")),
-        Route::AndroidSdk => return Err(not_implemented(declaration, "the Android repository lookup")),
-        Route::RustupComponents => return Err(not_implemented(declaration, "a rustup-components entry")),
-    }
-}
-
-/// What:
-/// Resolves a pinned request:
-/// the lock's own entry when it already holds that pin,
-/// otherwise the pinned
-///           version with the artifacts its source gives.
-/// Why:
-/// A pin never moves by itself;
-/// only a changed pin in the plan needs resolving,
-/// and only for routes that
-///           install by name and version (npm,
-/// PyPI,
-/// crates,
-/// Rust channels) or from a wheel.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function resolvePinned(ctx, declaration, current, pinned): Resolution
-/// ```
-fn resolve_pinned(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>, pinned: &str) -> Result<Resolution, ResolveError> {
-    if let Some(locked) = current
+    if declaration.request.is_exact()
+        && let Some(locked) = current
         && locked.declaration.request == declaration.request
     {
-        return Ok(Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() });
+        return Ok(keep(locked));
     }
-    match declaration.route {
-        Route::MpmPnpm | Route::CargoBinstall | Route::RustupToolchain => {
-            return Ok(Resolution { version: pinned.to_string(), artifacts: Vec::new() });
-        }
-        Route::MpmUvx => return super::update_registry::resolve_pypi_version(ctx, declaration, current, pinned),
-        Route::CargoGit => return Ok(Resolution { version: pinned.to_string(), artifacts: Vec::new() }),
-        Route::BinSourced | Route::Archive | Route::GoInstall | Route::AndroidSdk | Route::RustupComponents => {
-            return Err(not_implemented(declaration, "resolving the artifacts of a newly pinned version"));
-        }
+    let range: &str = &declaration.request.range;
+    let wanted: Option<&str> = if range == "latest" { None } else { Some(range) };
+    match declaration.request.origin() {
+        Origin::Github(repo) => return super::update_github::resolve_github(ctx, declaration, &repo, wanted),
+        Origin::Npm(name) => return super::update_registry::resolve_npm(ctx, &name, wanted),
+        Origin::Cargo(name) => return super::update_registry::resolve_crate(ctx, &name, wanted),
+        Origin::Pipx(name) => return super::update_registry::resolve_pypi(ctx, declaration, &name, wanted),
+        Origin::Conda(name) => return super::update_android_conda::resolve_conda(ctx, &name, wanted),
+        Origin::GoModule(module) => return super::update_go_zig::resolve_go_module(ctx, &module, wanted),
+        Origin::Git(_) => return Ok(by_name(range)),
+        Origin::Named(name) => match name.as_str() {
+            "node" => return super::update_rust_node::resolve_node(ctx, wanted),
+            "rustup" => return super::update_rust_node::resolve_rustup(ctx, wanted),
+            "rust" => return super::update_rust_node::resolve_rust(ctx, range),
+            "go" => return super::update_go_zig::resolve_go_runtime(ctx, wanted),
+            "zig" => return super::update_go_zig::resolve_zig(ctx, wanted),
+            "java:temurin" => return super::update_java_aws::resolve_java(ctx, range),
+            "aws" => return super::update_java_aws::resolve_aws(ctx, wanted),
+            "android-sdk" => return super::update_android_conda::resolve_android(ctx, wanted),
+            other => return Err(ResolveError::Failed(format!("{other:?} is not an origin with a resolver"))),
+        },
     }
 }

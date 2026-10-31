@@ -157,11 +157,8 @@ fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec
     if plan.os != locked.os {
         resolution.push("os".to_string());
     }
-    if plan.options.asset_pattern != locked.options.asset_pattern {
-        resolution.push("options.assetPattern".to_string());
-    }
-    if plan.options.cargo_git_url != locked.options.cargo_git_url {
-        resolution.push("options.cargoGit".to_string());
+    if plan.options.asset != locked.options.asset {
+        resolution.push("options.asset".to_string());
     }
     if plan.options.bootstrap != locked.options.bootstrap {
         resolution.push("options.bootstrap".to_string());
@@ -194,6 +191,16 @@ fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec
         projection.push("options.binAliases".to_string());
     }
     return (resolution, projection);
+}
+
+/// Whether the plan declares a tool with this id.
+fn plan_has(plan: &Plan, id: &str) -> bool {
+    for declaration in &plan.tools {
+        if declaration.id == id {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -244,22 +251,22 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
         }
     }
     for locked in &lock.tools {
-        if !plan.tools.iter().any(|declaration| return declaration.id == locked.declaration.id) {
+        if !plan_has(plan, &locked.declaration.id) {
             result.removed.push(locked.declaration.id.clone());
         }
     }
-    let plan_order: Vec<&str> = plan
-        .tools
-        .iter()
-        .filter(|declaration| return lock.tool(&declaration.id).is_some())
-        .map(|declaration| return declaration.id.as_str())
-        .collect();
-    let lock_order: Vec<&str> = lock
-        .tools
-        .iter()
-        .filter(|locked| return plan.tools.iter().any(|declaration| return declaration.id == locked.declaration.id))
-        .map(|locked| return locked.declaration.id.as_str())
-        .collect();
+    let mut plan_order: Vec<&str> = Vec::new();
+    for declaration in &plan.tools {
+        if lock.tool(&declaration.id).is_some() {
+            plan_order.push(declaration.id.as_str());
+        }
+    }
+    let mut lock_order: Vec<&str> = Vec::new();
+    for locked in &lock.tools {
+        if plan_has(plan, &locked.declaration.id) {
+            lock_order.push(locked.declaration.id.as_str());
+        }
+    }
     result.order_differs = plan_order != lock_order;
     return result;
 }

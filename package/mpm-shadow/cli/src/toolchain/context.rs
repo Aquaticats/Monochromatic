@@ -27,6 +27,8 @@ use std::path::PathBuf;
 use super::error::ToolchainError;
 /// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
+/// Imports the tool lookup.
+use super::util::find_tool;
 /// Imports what this module uses from `super::layout`.
 use super::layout::{current_family, current_platform_id, find_tool_bin};
 /// Imports what this module uses from `super::model`.
@@ -90,7 +92,7 @@ impl Context<'_> {
     /// The locked tool with this id,
     /// or an error naming the id.
     pub fn tool(&self, id: &str) -> Result<&LockedTool, ToolchainError> {
-        return match self.tools.iter().find(|tool| return tool.declaration.id == id) {
+        return match find_tool(self.tools, id) {
             Some(found) => Ok(found),
             None => Err(ToolchainError::failure(format!("the toolchain plan has no tool {id:?}"))),
         };

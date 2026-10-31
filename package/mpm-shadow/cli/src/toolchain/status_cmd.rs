@@ -59,6 +59,11 @@ pub fn run_status(scope: &Scope, env: &EnvMap, runner: &dyn Runner, host: &Host)
     let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
     let context: Context = Context { scope, env, runner, http: &NoNetwork, host, tools: &lock.tools };
     let observations = observe_all(&context, &lock.tools);
-    let drifted: bool = observations.iter().any(|observation| return !observation.in_sync);
+    let mut drifted: bool = false;
+    for observation in &observations {
+        if !observation.in_sync {
+            drifted = true;
+        }
+    }
     return Ok(StatusReport { text: format_status(&observations), drifted });
 }

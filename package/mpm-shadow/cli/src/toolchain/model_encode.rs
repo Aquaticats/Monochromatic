@@ -21,7 +21,11 @@ use super::model::{Declaration, LockedTool, Options, Postinstall, Request};
 
 /// A JSON array of texts.
 fn text_array(items: &[String]) -> Value {
-    return Value::Array(items.iter().map(|item| return Value::String(item.clone())).collect());
+    let mut values: Vec<Value> = Vec::new();
+    for item in items {
+        values.push(Value::String(item.clone()));
+    }
+    return Value::Array(values);
 }
 
 /// The options as a JSON object with the fields in the fixed order the lock documents.
@@ -36,13 +40,8 @@ fn options_value(options: &Options) -> Value {
     if let Some(list) = &options.cargo_features {
         map.insert("cargoFeatures".to_string(), text_array(list));
     }
-    if let Some(url) = &options.cargo_git_url {
-        let mut git: Map<String, Value> = Map::new();
-        git.insert("url".to_string(), Value::String(url.clone()));
-        map.insert("cargoGit".to_string(), Value::Object(git));
-    }
-    if let Some(pattern) = &options.asset_pattern {
-        map.insert("assetPattern".to_string(), Value::String(pattern.clone()));
+    if let Some(pattern) = &options.asset {
+        map.insert("asset".to_string(), Value::String(pattern.clone()));
     }
     if let Some(list) = &options.allow_builds {
         map.insert("allowBuilds".to_string(), text_array(list));
@@ -95,24 +94,11 @@ fn postinstall_value(step: &Postinstall) -> Value {
     return Value::Object(map);
 }
 
-/// The request as the JSON object the plan and lock store.
+/// The request as the text the plan and lock store.
 pub fn request_value(request: &Request) -> Value {
-    let mut map: Map<String, Value> = Map::new();
-    match request {
-        Request::Latest => {
-            map.insert("track".to_string(), Value::String("latest".to_string()));
-        }
-        Request::Pinned(version) => {
-            map.insert("pinned".to_string(), Value::String(version.clone()));
-        }
-        Request::Channel(channel) => {
-            map.insert("channel".to_string(), Value::String(channel.clone()));
-        }
-    }
-    return Value::Object(map);
+    return Value::String(request.text());
 }
 
-/// What:
 /// One lock entry as a JSON object with the keys in the fixed order `request, version, route, manager,
 ///           packageId, bins, os, env, options, artifacts`;
 /// absent optional fields are omitted,
@@ -139,7 +125,10 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
     }
     map.insert("bins".to_string(), text_array(&declaration.bins));
     if let Some(families) = &declaration.os {
-        let names: Vec<String> = families.iter().map(|family| return family.as_str().to_string()).collect();
+        let mut names: Vec<String> = Vec::new();
+        for family in families {
+            names.push(family.as_str().to_string());
+        }
         map.insert("os".to_string(), text_array(&names));
     }
     let mut env: Map<String, Value> = Map::new();
