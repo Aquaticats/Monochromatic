@@ -284,7 +284,7 @@ The approved scope covers only the two upper-bound tests.
 ### Item 4: gh-process cancellation diagnostic instead of a bound
 
 File:
-`package/agent-harness-shared/search-fetch/src/gh-process.unit.test.ts:359`,
+`package/search-fetch/core/src/gh-process.unit.test.ts:359`,
 test `throws and stops the child when cancellation arrives mid-run`.
 
 Change:
@@ -299,7 +299,7 @@ which already fails the existing `expect(caught,).toBeInstanceOf(Error,)`.
 So the shape assertion discriminates without any clock:
 
 ```ts
-// package/agent-harness-shared/search-fetch/src/gh-process.unit.test.ts (sketch)
+// package/search-fetch/core/src/gh-process.unit.test.ts (sketch)
 expect(caught,).toBeInstanceOf(Error,);
 expect((caught as NodeJS.ErrnoException).code,).toBe('ABORT_ERR',);
 ```

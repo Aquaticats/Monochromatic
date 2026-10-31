@@ -22,6 +22,11 @@
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
 
+> Moved 2026-10-31 by the search-fetch product move into `package/search-fetch`
+> (`doc/planning/search-fetch-cli.md`);
+> paths and names below this note are historical:
+> `package/agent-harness-shared/search-fetch` is now `package/search-fetch/core`.
+
 ## Purpose and status
 
 This handover records an investigation of

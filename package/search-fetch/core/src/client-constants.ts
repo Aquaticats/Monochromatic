@@ -72,7 +72,7 @@ const USER_AGENT_HEADER = 'User-Agent' as const;
 /**
  User-Agent value sent by this package.
  */
-const USER_AGENT_VALUE = '@monochromatic-dev/pi-plugin-search-fetch' as const;
+const USER_AGENT_VALUE = '@monochromatic-dev/search-fetch-pi-plugin' as const;
 
 /**
  AbortError name used by fetch implementations.

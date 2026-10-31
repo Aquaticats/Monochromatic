@@ -227,7 +227,7 @@ Commit `c8d9af87d5` adds the seven members to the advisor,
 guardrail,
 and thinking-default
 fakes as registration-recording stubs and empty returns,
-mirroring `package/pi-plugin/search-fetch/src/mise.verify-extension.ts`.
+mirroring `package/search-fetch/pi-plugin/src/mise.verify-extension.ts`.
 Tradeoff:
 the fakes are hand-maintained mirrors of `ExtensionAPI`,
 so every additive release re-drifts them;
@@ -239,7 +239,7 @@ After any `@earendil-works/pi-coding-agent` bump run
 `mise run //package/pi-plugin/advisor:lint:types`,
 `mise run //package/pi-plugin/guardrail:lint:types`,
 `mise run //package/pi-plugin/thinking-default:lint:types`,
-and `mise run //package/pi-plugin/search-fetch:lint:types`.
+and `mise run //package/search-fetch/pi-plugin:lint:types`.
 `TS2740` naming `ExtensionAPI` means the fakes need the new members;
 mirror the search-fetch fake again.
 

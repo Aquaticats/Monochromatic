@@ -26,18 +26,18 @@ nothing in that path reads the store.
 
 search-fetch resolves its two provider keys,
 `EXA_API_KEY` and `LINKUP_API_KEY`
-(`package/agent-harness-shared/search-fetch/src/config-constants.ts:12,17`),
+(`package/search-fetch/core/src/config-constants.ts:12,17`),
 from `process.env` and,
 before this change,
 from plaintext `exaApiKey`/`linkupApiKey` fields in
 `~/.pi/agent/extensions/pi-search-fetch.json`
-(filename constant `package/agent-harness-shared/search-fetch/src/config-constants.ts:31`).
+(filename constant `package/search-fetch/core/src/config-constants.ts:31`).
 Those fields are now rejected (D15).
 
 The dsh launch path shows why env injection cannot be the only channel:
 the harness scrub drops env names matching `KEY|PASSWORD|SECRET|TOKEN` plus
 `DSH_*` from the spawned MCP server
-(`package/dsh-plugin/search-fetch/cordis.patch.yml:10-19`),
+(`package/search-fetch/dsh-plugin/cordis.patch.yml:10-19`),
 so provider keys cannot arrive as environment variables there.
 The scrub keeps `HOME`,
 `PATH`,
@@ -78,21 +78,21 @@ plus loading that works with no mise in the loop.
 - sops and age are mise-provisioned tools:
   `mise.no-env.toml:79-80`.
 - Env beats the store in key resolution:
-  `package/agent-harness-shared/search-fetch/src/config-schema.ts:131-166` (`resolveApiKey`).
+  `package/search-fetch/core/src/config-schema.ts:131-166` (`resolveApiKey`).
 - Key resolution call sites,
   per-key origin,
   and the store diagnostic:
-  `package/agent-harness-shared/search-fetch/src/config.ts:145-225`.
+  `package/search-fetch/core/src/config.ts:145-225`.
 - The remaining plaintext config store and its paths:
-  `package/agent-harness-shared/search-fetch/src/config-file.ts` (`readOptionalConfigJson`),
-  paths in `package/agent-harness-shared/search-fetch/src/config-paths.ts`.
+  `package/search-fetch/core/src/config-file.ts` (`readOptionalConfigJson`),
+  paths in `package/search-fetch/core/src/config-paths.ts`.
 - The accepted config keys and the rejected credential fields:
-  `package/agent-harness-shared/search-fetch/src/config-constants.ts:51-61`,
-  `package/agent-harness-shared/search-fetch/src/config-schema.ts:251-272`.
+  `package/search-fetch/core/src/config-constants.ts:51-61`,
+  `package/search-fetch/core/src/config-schema.ts:251-272`.
 - The migration and its backup directory:
-  `package/agent-harness-shared/search-fetch/src/migrate.ts`.
+  `package/search-fetch/core/src/migrate.ts`.
 - The dsh env scrub and credential comment:
-  `package/dsh-plugin/search-fetch/cordis.patch.yml:10-19`.
+  `package/search-fetch/dsh-plugin/cordis.patch.yml:10-19`.
 - The reader,
   discovery,
   identity chain,
@@ -104,7 +104,7 @@ plus loading that works with no mise in the loop.
   `src/store-shape.ts`.
 - Tests:
   `package/env-local-json/core/src/env-local-json.unit.matrix.test.ts`,
-  `package/agent-harness-shared/search-fetch/src/config-store.unit.test.ts`,
+  `package/search-fetch/core/src/config-store.unit.test.ts`,
   `src/migrate.unit.test.ts`.
 - CI:
   `.github/workflows/env-local-json.yml`.
@@ -313,13 +313,13 @@ Created:
   unit and container tests,
   `README.md`,
   and `mise.toml` mirroring sibling modules.
-- `package/agent-harness-shared/search-fetch/src/migrate.ts`.
+- `package/search-fetch/core/src/migrate.ts`.
 - `.github/workflows/env-local-json.yml`.
 - `doc/decision/env-local-json-store-loading.md`.
 
 Touched:
 
-- `package/agent-harness-shared/search-fetch/src/config.ts`,
+- `package/search-fetch/core/src/config.ts`,
   `config-types.ts`,
   `config-schema.ts`,
   `config-constants.ts`,
@@ -328,9 +328,9 @@ Touched:
   `search-fetch-client.ts`,
   the build config,
   and the unit tests.
-- `package/mcp/search-fetch/src/index.ts` and
-  `package/pi-plugin/search-fetch/src/index.ts` for the degraded-startup diagnostic,
-  and `package/pi-plugin/search-fetch/src/mise.verify-extension.ts`.
+- `package/search-fetch/mcp/src/index.ts` and
+  `package/search-fetch/pi-plugin/src/index.ts` for the degraded-startup diagnostic,
+  and `package/search-fetch/pi-plugin/src/mise.verify-extension.ts`.
 - `package/test-harness/core-matrix/` for the `node` runtime that runs the container matrix.
 - `mise.no-env.toml` for the `secrets:edit` and `secrets:migrate` tasks.
 - User credential files outside the repo:
@@ -352,7 +352,7 @@ Touched:
   the READMEs of the pi,
   mcp,
   and dsh-plugin search-fetch packages,
-  and the comment in `package/dsh-plugin/search-fetch/cordis.patch.yml`.
+  and the comment in `package/search-fetch/dsh-plugin/cordis.patch.yml`.
 
 ## Verification plan
 
@@ -362,10 +362,10 @@ Touched:
   `:lint:oxlint`,
   `:test:unit`,
   `:test:container`,
-  and the same core checks for `package/agent-harness-shared/search-fetch`,
-  `package/mcp/search-fetch`,
-  and `package/pi-plugin/search-fetch`,
-  plus `//package/pi-plugin/search-fetch:verify:extension`
+  and the same core checks for `package/search-fetch/core`,
+  `package/search-fetch/mcp`,
+  and `package/search-fetch/pi-plugin`,
+  plus `//package/search-fetch/pi-plugin:verify:extension`
   and mcp's `buildAndTest`.
 - User boundary:
   launch the built MCP server the way dsh does

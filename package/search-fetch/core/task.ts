@@ -1,7 +1,7 @@
 /**
- Package tasks for `@monochromatic-dev/pi-plugin-search-fetch`, replacing the
- `mise.toml` tasks CI ran through `mise run` with node-native definitions for
- `@monochromatic-dev/monorepo-task-cli`.
+ Package tasks for `@monochromatic-dev/search-fetch-core`,
+ replacing the `mise.toml` tasks CI ran through `mise run` with node-native
+ definitions for `@monochromatic-dev/monorepo-task-cli`.
  */
 
 import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
@@ -18,9 +18,4 @@ export default {
   'lint:oxlint': { extends: 'lint:oxlint', },
   'format:oxlint': { extends: 'format:oxlint', },
   'test:unit': { extends: 'test:unit', },
-  'verify:extension': {
-    description: 'Verify the built Pi extension loads and binds its tool surface',
-    depends: ['build',],
-    run: 'node src/mise.verify-extension.ts',
-  },
 } satisfies PackageTaskFile;

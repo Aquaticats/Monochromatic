@@ -1,5 +1,5 @@
 /**
- Public API for \@monochromatic-dev/agent-harness-shared-search-fetch.
+ Public API for \@monochromatic-dev/search-fetch-core.
 
  Host-neutral search and fetch core: provider fallback, global host blocklist,
  gh URL routing, shared tool specs, and guarded valibot to TypeBox conversion.

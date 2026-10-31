@@ -1,7 +1,7 @@
 /**
  Pi tool adapters for the shared search and fetch core.
 
- The shared specs in \@monochromatic-dev/agent-harness-shared-search-fetch own names,
+ The shared specs in \@monochromatic-dev/search-fetch-core own names,
  descriptions, and valibot parameter schemas; this module converts those schemas to the
  TypeBox form pi compiles and forwards execution to the shared executors.
 
@@ -25,7 +25,7 @@ import {
   type LinkupConfig,
   type LinkupToolDetails,
   type SearchFetchToolClient,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { TSchema, } from 'typebox';
 

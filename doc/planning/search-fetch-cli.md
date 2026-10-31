@@ -43,7 +43,7 @@ three phrasings this document supersedes. They are listed so nobody reconciles t
 
 ### Product shape
 
-- A third surface over `@monochromatic-dev/agent-harness-shared-search-fetch`, alongside the pi
+- A third surface over `@monochromatic-dev/search-fetch-core`, alongside the pi
   adapter and the MCP adapter, so behavior has exactly one implementation (rounds 1 and 2).
 - Command `search-fetch` with exactly two verbs, `search` and `fetch`, plus `--help` and
   `--version` (rounds 2 and 7). No diagnostics verb, no batch or stdin input, no timeout
@@ -223,7 +223,7 @@ time out, and old temp dirs get pruned.
 
 ## Rejections considered in the interview
 
-- CLI as a second bin inside `@monochromatic-dev/mcp-search-fetch`, or a bin inside the shared
+- CLI as a second bin inside `@monochromatic-dev/search-fetch-mcp`, or a bin inside the shared
   core (round 2).
 - Third-party argument parsers and Optique (round 4).
 - Warn-and-strip unknown flags; human pretty output; timeout override flag; diagnostics verb;

@@ -1,7 +1,7 @@
-# @monochromatic-dev/dsh-plugin-search-fetch
+# @monochromatic-dev/search-fetch-dsh-plugin
 
 A configuration-only DeepSeek Harness bundle that connects
-`@monochromatic-dev/mcp-search-fetch` to a dsh profile over stdio.
+`@monochromatic-dev/search-fetch-mcp` to a dsh profile over stdio.
 
 ## Why
 
@@ -17,10 +17,10 @@ anonymous public HTTP.
 
 This bundle supplies search from the repo's own provider stack instead.
 It does not add a second implementation of search behavior.
-`@monochromatic-dev/mcp-search-fetch` already exists to serve
+`@monochromatic-dev/search-fetch-mcp` already exists to serve
 "every other MCP host with the identical behavior" as the pi extension,
 and both surfaces delegate to
-`@monochromatic-dev/agent-harness-shared-search-fetch`,
+`@monochromatic-dev/search-fetch-core`,
 so DeepSeek-first search (maximum results with page content) with Exa and
 Linkup fallback,
 DeepSeek fetch before Linkup and Exa,
@@ -126,7 +126,7 @@ because the row points at `dist/final/node/index.mjs`:
 
 ```sh
 # from the repository root
-mise run //package/mcp/search-fetch:build
+mise run //package/search-fetch/mcp:build
 ```
 
 ## Install

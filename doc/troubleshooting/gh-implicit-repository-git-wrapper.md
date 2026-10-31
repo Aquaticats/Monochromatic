@@ -305,8 +305,8 @@ The working form names the repository explicitly and passes only the tag:
 gh release view v2.101.0 --repo cli/cli
 ```
 
-`package/pi-plugin/search-fetch` maps `https://github.com/OWNER/REPO/releases/tag/TAG` onto that form in
-`package/pi-plugin/search-fetch/src/github-record-plan.ts`,
+`package/search-fetch/pi-plugin` maps `https://github.com/OWNER/REPO/releases/tag/TAG` onto that form in
+`package/search-fetch/pi-plugin/src/github-record-plan.ts`,
 and runs every gh child in a temporary directory so no ambient work tree can supply a repository.
 
 ## Verification

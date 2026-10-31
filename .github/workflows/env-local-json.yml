@@ -10,9 +10,9 @@ on:
     paths:
     - 'package/env-local-json/core/**'
     - 'package/test-harness/core-matrix/**'
-    - 'package/agent-harness-shared/search-fetch/**'
-    - 'package/mcp/search-fetch/**'
-    - 'package/pi-plugin/search-fetch/**'
+    - 'package/search-fetch/core/**'
+    - 'package/search-fetch/mcp/**'
+    - 'package/search-fetch/pi-plugin/**'
     - '.github/workflows/env-local-json.yml'
     - 'task.ts'
     - 'pnpm-lock.yaml'
@@ -24,9 +24,9 @@ on:
     paths:
     - 'package/env-local-json/core/**'
     - 'package/test-harness/core-matrix/**'
-    - 'package/agent-harness-shared/search-fetch/**'
-    - 'package/mcp/search-fetch/**'
-    - 'package/pi-plugin/search-fetch/**'
+    - 'package/search-fetch/core/**'
+    - 'package/search-fetch/mcp/**'
+    - 'package/search-fetch/pi-plugin/**'
     - '.github/workflows/env-local-json.yml'
     - 'task.ts'
     - 'pnpm-lock.yaml'
@@ -65,13 +65,13 @@ jobs:
     - name: Reader unit tests with real sops and age
       run: task-run //package/env-local-json/core:test:unit
     - name: Build search-fetch shared
-      run: task-run //package/agent-harness-shared/search-fetch:build
+      run: task-run //package/search-fetch/core:build
     - name: Search-fetch shared unit tests
-      run: task-run //package/agent-harness-shared/search-fetch:test:unit
+      run: task-run //package/search-fetch/core:test:unit
     - name: MCP server build and tests
-      run: task-run //package/mcp/search-fetch:buildAndTest
+      run: task-run //package/search-fetch/mcp:buildAndTest
     - name: Pi extension verification
-      run: task-run //package/pi-plugin/search-fetch:verify:extension
+      run: task-run //package/search-fetch/pi-plugin:verify:extension
 
   container:
     runs-on: ubuntu-latest

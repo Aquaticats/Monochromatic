@@ -3,7 +3,7 @@
 ## Symptom
 
 The repository's search/fetch MCP server
-(`package/mcp/search-fetch`,
+(`package/search-fetch/mcp`,
 bin `search-fetch-mcp`)
 registered as a stdio server under the name `search-fetch`,
 every Mistral Vibe session opens with:
@@ -93,7 +93,7 @@ Versions under test:
   `/var/home/user/.local/share/uv/tools/mistral-vibe`
   vendors `mcp` 2.3.0 and `mcp_types` 2.3.0.
 - The server artifact was rebuilt with
-  `mise run //package/mcp/search-fetch:build`
+  `mise run //package/search-fetch/mcp:build`
   before registration,
   because commits through 2026-10-29 postdated the previous build.
 
@@ -104,7 +104,7 @@ the server exits when stdin closes):
 
 ```sh
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0.0.0"}}}' \
-  | node package/mcp/search-fetch/dist/final/node/index.mjs
+  | node package/search-fetch/mcp/dist/final/node/index.mjs
 ```
 
 Output,
@@ -121,7 +121,7 @@ registration through Vibe's own CLI
 ```sh
 vibe mcp add search-fetch --transport stdio \
   --command node \
-  --arg /var/home/user/Monochromatic/package/mcp/search-fetch/dist/final/node/index.mjs
+  --arg /var/home/user/Monochromatic/package/search-fetch/mcp/dist/final/node/index.mjs
 ```
 
 A fresh one-shot session then shows the warning verbatim:
