@@ -13,10 +13,11 @@
 //! test('a cold cache skips', () => expect(runClosureStepWith(plans, cwd, false, stub.cargo).messages).toEqual([...]));
 //! ```
 
-use super::{ClosureOutcome, run_closure_step_with, with_messages};
+use super::{ClosureOutcome, run_closure_step_at, run_closure_step_with, with_messages};
 use crate::{
+    closure_driver::DriverSite,
     closure_manifest::PREREQUISITES_FILE,
-    closure_stub_support::{Scenario, scenario},
+    closure_stub_support::{Scenario, scenario, stub_cargo},
     diagnostic::Severity,
     run_plan::FilePlan,
     run_test_support::{CONFIG, plan, write},
@@ -358,3 +359,164 @@ fn messages_are_prefixed_and_come_first() {
     );
     assert_eq!(with_messages("", &[], "p"), "");
 }
+
+//region Dylint driver check
+
+/// A `cargo-dylint` that prints its version, so the driver check has a version to compare.
+const VERSIONED: (&str, &str) = ("dylint-version.stdout", "cargo-dylint 6.3.0\n");
+
+/// The answers that make the offline resolution of the throwaway driver crate fail.
+const COLD_DRIVER: [(&str, &str); 2] = [
+    ("metadata.dylint-driver-probe.status", "101"),
+    (
+        "metadata.dylint-driver-probe.stderr",
+        "error: failed to select a version for the requirement `dylint_driver = \"=6.3.0\"`\n",
+    ),
+];
+
+/// The facts of the machine for a stub `cargo`:
+/// a `rustup` that names one toolchain,
+/// and a driver directory and a scratch directory below the stub's scenario directory.
+fn driver_site(stub: &Scenario, rustup: &Scenario) -> DriverSite {
+    return DriverSite {
+        rustup: rustup.cargo.clone(),
+        drivers: Some(stub.directory.join("drivers")),
+        scratch: Some(stub.directory.join("scratch")),
+    };
+}
+
+/// A `rustup` stub that names the toolchain `nightly-fixture`.
+fn toolchain_stub() -> Scenario {
+    return scenario(&[("show.stdout", "nightly-fixture (default)\n")]);
+}
+
+/// Install a driver for the toolchain that reports the given version line.
+fn install_driver(stub: &Scenario, version_line: &str) {
+    let directory = stub.directory.join("drivers").join("nightly-fixture");
+    std::fs::create_dir_all(&directory).expect("driver directory");
+    std::fs::hard_link(stub_cargo(), directory.join("dylint-driver")).expect("driver link");
+    std::fs::write(directory.join("-V.stdout"), version_line).expect("driver version");
+}
+
+/// Run the step with explicit machine facts.
+fn run_at(fixture: &Fixture, stub: &Scenario, site: &DriverSite) -> ClosureOutcome {
+    return run_closure_step_at(
+        plans(fixture).as_slice(),
+        &fixture.path,
+        false,
+        &stub.cargo,
+        site,
+    );
+}
+
+/// An outdated or absent driver with a cold cache skips the package with the warm command,
+/// and neither the package's dependency probe nor the run starts.
+#[test]
+fn a_missing_driver_skips_with_the_warm_command() {
+    let fixture: Fixture = fixture();
+    let mut answers: Vec<(&str, &str)> = COLD_DRIVER.to_vec();
+    answers.push(VERSIONED);
+    let stub = scenario(answers.as_slice());
+    let rustup = toolchain_stub();
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
+    assert!(outcome.findings.is_empty());
+    assert_eq!(outcome.messages.len(), 1, "{:?}", outcome.messages);
+    let message: &String = &outcome.messages[0];
+    assert!(
+        message.starts_with("rust/avoidable-closure skipped all 1 package(s):"),
+        "{message}"
+    );
+    assert!(
+        message.contains(
+            "`env --unset=CARGO_NET_OFFLINE cargo dylint --path lib --manifest-path my pkg/Cargo.toml -- --locked`"
+        ),
+        "{message}"
+    );
+    assert!(message.contains("is absent"), "{message}");
+    assert!(message.ends_with('.'), "{message}");
+    assert_eq!(kinds(&stub), vec!["dylint-version", "metadata"]);
+    assert!(
+        stub.calls()[1].contains("driver-probe-"),
+        "{:?}",
+        stub.calls()
+    );
+}
+
+/// A current driver is the control:
+/// no resolution of the driver crate happens and the run goes ahead.
+#[test]
+fn a_current_driver_lets_the_package_run() {
+    let fixture: Fixture = fixture();
+    let mut answers: Vec<(&str, &str)> = COLD_DRIVER.to_vec();
+    answers.push(VERSIONED);
+    let stub = scenario(answers.as_slice());
+    install_driver(&stub, "dylint-driver 6.3.0\n");
+    let rustup = toolchain_stub();
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
+    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
+    assert!(
+        !stub.calls()[1].contains("driver-probe-"),
+        "{:?}",
+        stub.calls()
+    );
+}
+
+/// A stale driver is acceptable when the cargo cache resolves the pinned crate,
+/// because `cargo dylint` then rebuilds it offline.
+#[test]
+fn a_stale_driver_with_a_warm_cache_lets_the_package_run() {
+    let fixture: Fixture = fixture();
+    let stub = scenario(&[VERSIONED]);
+    install_driver(&stub, "dylint-driver 6.2.0\n");
+    let rustup = toolchain_stub();
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
+    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert_eq!(
+        kinds(&stub),
+        vec!["dylint-version", "metadata", "metadata", "dylint"]
+    );
+    assert!(
+        stub.calls()[1].contains("driver-probe-"),
+        "{:?}",
+        stub.calls()
+    );
+}
+
+/// A version that cannot be read, or facts that cannot be found, do not skip anything:
+/// the check is noted for `--debug` and the run decides.
+#[test]
+fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {
+    let fixture: Fixture = fixture();
+    let stub = scenario(&[]);
+    let rustup = toolchain_stub();
+    let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
+    assert!(outcome.messages.is_empty());
+    assert!(
+        outcome
+            .notes
+            .iter()
+            .any(|note| return note.contains("printed no readable version")),
+        "{:?}",
+        outcome.notes
+    );
+    assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
+    let located = scenario(&[VERSIONED]);
+    let unlocated: DriverSite = DriverSite {
+        drivers: None,
+        ..driver_site(&located, &rustup)
+    };
+    let second = run_at(&fixture, &located, &unlocated);
+    assert!(second.messages.is_empty());
+    assert!(
+        second
+            .notes
+            .iter()
+            .any(|note| return note.contains("did not run: no driver directory")),
+        "{:?}",
+        second.notes
+    );
+    assert!(kinds(&located).contains(&String::from("dylint")));
+}
+
+//endregion

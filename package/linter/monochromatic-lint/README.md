@@ -380,6 +380,30 @@ The linter never fetches.
 Dylint resolves the dependencies of every platform in a lockfile,
 so a package whose cargo cache is cold is skipped with the command that fills it:
 `cargo fetch --locked` in the package directory.
+The same holds for the Dylint driver,
+which `cargo dylint` keeps once per toolchain
+(in `DYLINT_DRIVER_PATH`,
+or `.dylint_drivers` in the home directory)
+and rebuilds from the crate `dylint_driver` at exactly its own version whenever the driver is older.
+That crate belongs to no package lockfile,
+so before the first package of a library the linter reads the toolchain active in the library directory
+(`rustup show active-toolchain`),
+runs the driver's `-V`,
+and,
+when the driver is absent or older than `cargo-dylint`,
+resolves a throwaway crate that pins `dylint_driver` offline in a scratch directory under the per-user cache directory
+(`XDG_CACHE_HOME`,
+or `.cache` in the home directory).
+If that fails,
+every package of the library is skipped with the exact command that fills the caches,
+`env --unset=CARGO_NET_OFFLINE cargo dylint --path <library> --manifest-path <manifest> -- --locked`,
+which the owner runs once with network access,
+and again after each `cargo-dylint` upgrade.
+A check that cannot be made (an unreadable version,
+no `rustup`,
+no known driver directory) skips nothing
+and shows only under `--debug`;
+the run then decides as before.
 A skip is not a finding:
 the exit status is unaffected,
 `--silent` keeps the message,
