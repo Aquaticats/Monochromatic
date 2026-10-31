@@ -158,6 +158,11 @@ export {
   type SeatRole,
 } from './seat-role.ts';
 export {
+  ROLE_STANDINGS,
+  type RoleStanding,
+  standingOrderOf,
+} from './seat-role-standing.ts';
+export {
   APPARATUS_KINDS,
   NARRATIVE_DETAIL_IS_NOT_APPARATUS,
   PAGE_APPARATUS_IS_KEPT,

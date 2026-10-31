@@ -6,6 +6,7 @@ import {
   ROSTER_MODEL_IDS,
   type RosterModelId,
   type SeatRole,
+  standingOrderOf,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   RUNAWAY_READINGS,
@@ -22,7 +23,10 @@ import {
 // order.
 //
 // ORDER: THE LOWEST SHARE OF RUNAWAYS FIRST ("Lowest runaway share (Recommended)"). `reask-runaway-readings.ts`
-// holds the census the order rests on, the way a model with too few calls is placed, and why.
+// holds the census the order rests on, the way a model with too few calls is placed, and why. FOR AN EDITOR OR A REFINER
+// THE ORDER IS THE STANDING IN THAT ROLE FIRST ("Order by role standing (Recommended)", 2026-10-31, ledger B1144),
+// from the table of `seat-role-standing.ts`, and the models never measured in the role follow by the share of runaways.
+// `alternateOrderOf` is the one place the order is decided.
 //
 // ROLE: A MODEL OUTSIDE THE POOL OF THE SEAT'S ROLE IS NOT ASKED ("Honour holds (Recommended)"). A hold names the
 // roles it empties, and the seat that ran away says which role it stands in (`ChatTextRequest.reaskSeat`). The pool of
@@ -235,6 +239,56 @@ function orderedByRunawayShare(
 }
 
 /**
+ The order the models a re-ask may ask are tried in: the ONE PLACE it is decided (ledger B1144).
+
+ The stand-ins of an editor or a refiner are tried by their standing in that role, best first, the owner's "Order by role
+ standing (Recommended)" of 2026-10-31; every model never measured in the role, and every model of a role that has no
+ standing recorded, follows by the share of its calls that ran away, lowest first ("Lowest runaway share
+ (Recommended)", 2026-10-30).
+
+ @param role - role of the seat that ran away
+
+ @param modelIds - models that may be asked, in roster order
+
+ @param readings - census table the share of runaways is read from
+
+ @returns The same models in the order to try them
+
+ @example
+ ```ts
+ const ordered = alternateOrderOf({ role: 'editor', modelIds, readings: RUNAWAY_READINGS, },);
+ ```
+ */
+function alternateOrderOf(
+  {
+    role,
+    modelIds,
+    readings,
+  }: {
+    readonly role: SeatRole;
+    readonly modelIds: readonly RosterModelId[];
+    readonly readings: readonly RunawayReading[];
+  },
+): readonly RosterModelId[] {
+  /**
+   Models the role has a standing for, best first.
+   */
+  const measured = standingOrderOf({
+    role,
+    modelIds,
+  },);
+  return [
+    ...measured,
+    ...orderedByRunawayShare({
+      modelIds: modelIds.filter(function unmeasured(modelId,): boolean {
+        return !measured.includes(modelId,);
+      },),
+      readings,
+    },),
+  ];
+}
+
+/**
  Roster models a reasoning runaway may be re-asked of, in the order to try them, and the ones left out with why.
 
  @param modelId - model that ran away, left out
@@ -314,7 +368,8 @@ export function alternateModelsFor(
     };
   },);
   return {
-    alternates: orderedByRunawayShare({
+    alternates: alternateOrderOf({
+      role,
       modelIds: judged
         .filter(function mayBeAsked(row,): boolean {
           return row.reasons
