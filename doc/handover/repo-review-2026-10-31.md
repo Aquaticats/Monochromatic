@@ -23,7 +23,7 @@ Calibration answers, in the user's words:
   the same time." One concern each, exempt from the one-package rule.
 - Handover: "this is a huge task so write a handover NOW and update it as you go aggressively."
 - Yield challenge (2026-10-31): "1053 files and only 75 findings is extremely sus." Confirmed by
-  the orchestrator spot audit below; machine scans do not close prose areas.
+  the orchestrator spot audit; machine scans do not close prose areas.
 - Wording correction (2026-10-31): "No code changes in the main worktree", not "anywhere";
   throwaway-worktree experiments are expected where needed.
 
@@ -44,9 +44,11 @@ otherwise a new issue; every body states that no preferred resolution has been p
 orchestrator's own spot-audit findings are in
 `findings/orchestrator-spot-audit.jsonl` and flow through the same pipeline.
 
-Cross-cutting concerns planned, one subagent each: `GRW`, `TWS`, workspace deps + `ST3` imports,
+Cross-cutting concerns, one subagent each: `GRW`, `TWS`, workspace deps + `ST3` imports,
 logging adherence, error-handling patterns, async + unbounded input, manifest and mise
-conventions, test-convention health, TSDoc quality, CSS quality, security sweep.
+conventions, test-convention health, TSDoc quality, CSS quality, security sweep. Status:
+logging, error-handling, async, TSDoc, CSS, security, test-convention health, GRW, TWS, deps +
+ST3 are complete or in final remainders; manifest and mise completed.
 
 ## Harness limits measured this session
 
@@ -54,7 +56,7 @@ conventions, test-convention health, TSDoc quality, CSS quality, security sweep.
   permanent. The sweep runs as a worker pool: idle children are re-tasked via
   `tools.agents.send_message` with a fresh standalone brief. Proven repeatedly.
 - `run_typescript` 60-second budget; a spawn costs 5 to 8 seconds (at most 2 to 3 per program);
-  `send_message` is cheap (7 per program fine).
+  `send_message` is cheap (7 to 10 per program fine).
 - `gh issue list` here has no `--paginate`; use `--limit 3000`.
 
 ## Facts measured (re-verify before trusting)
@@ -70,26 +72,23 @@ conventions, test-convention health, TSDoc quality, CSS quality, security sweep.
   256; repo-wide aggregates 800% / 12G / 1024.
 - `systemctl --user show` bare-name footgun: bare unit name mangles to `.service`, stub
   defaults, exit 0; always query with the `.scope` suffix. `show -p CPUQuota` prints nothing;
-  the property is `CPUQuotaPerSecUSec`.
+  the property is `CPUQuotaPerSecUSec`. Fully documented with source trace, reproduction, and
+  the do-not-file upstream decision in
+  `doc/troubleshooting/systemctl-show-scope-stub-properties.md` (committed `aa4bebd3af`).
 - Orchestrator spot audit (5 planning files fully read, 2026-10-31): the machine scan's yield is
-  roughly an order of magnitude low. Solid findings the scan missed: which-lane-ships.md ALL-CAPS
-  emphasis (WR3, six spans at lines 37, 58, 98, 118, 140, 258); tsdown-removal.md two stale
-  "Open items" that actually landed (rolldown catalog floor now `>=1.2.15` at
-  pnpm-workspace.yaml:185; the "still owed" package-externals and shebang-executable unit tests
-  both exist under package/config/rolldown/src/); wall-clock-bound-test-remedies.md:491
-  instructs saving probe scripts as `.mjs` against NMJ. wg-allowedips.md and unified-linter.md
-  were clean at the in-file level. Deep-read yield: about 0.8 solid findings per file versus the
-  scan's 0.07.
+  roughly an order of magnitude low; deep-read yield about 0.8 solid findings per file versus
+  the scan's 0.07.
 
 ## Central runs
 
 - `mise run lint` completed (exit 1); log `lint-full.log`. Triage into a per-package digest is
   still pending; distribute diagnostics to owning children.
-- `mise run test:unit` running capped as `rr-central-tests`; log `test-unit-full.log` (23.7k
-  lines at last check, all `[PASS]` so far).
-- Dedupe index: 1787 tracker issues in `issues-all.jsonl`. Refresh after every filing batch.
-- systemd v259 shallow clone at `${HOME}/temp/agent/systemd-v259-2026-10-31` for the
-  troubleshooting doc source trace (source trace complete at commit 9ca433482f; permalink verification running).
+- `mise run test:unit` running capped as `rr-central-tests`; log `test-unit-full.log` (all
+  `[PASS]` at last check). Completion check still pending.
+- Dedupe index: 1846 tracker issues in `issues-all.jsonl` (refreshed after batch 1). Refresh
+  again after batch 2 completes.
+- systemd v259 clone at `${HOME}/temp/agent/systemd-v259-2026-10-31`; the troubleshooting doc it
+  served is committed. Clone can be deleted when scratch is reclaimed.
 
 ## Filing pipeline
 
@@ -98,125 +97,134 @@ Scripts in `${HOME}/temp/agent/repo-review-2026-10-31/`:
 - `verify-findings.ts <repoRoot> <findings...>`: schema, tracked path:line bounds, evidence
   quote match; writes `<findings>.verdicts.jsonl`. Pass explicit paths, never a glob (outputs
   match `*.jsonl` too).
-- `dedupe-findings.ts <issues.jsonl> <findings...>`: rare-token scoring (tokens in at most 40
-  issue titles; 5 per title match, 1 per body match; candidates at score 10). The first version
-  scored generically and matched everything; this version is the reset. Writes
+- `dedupe-findings.ts <issues.jsonl> <findings...>`: rare-token scoring; writes
   `<findings>.candidates.jsonl`.
-- `draft-issues.ts <outDir> <findings...>`: builds plan files `<name>.plan.jsonl`; entries
-  `action: new` (auto draft, labels needs-triage + category + difficulty by severity:
-  blocker hard, warning medium, nit easy) or `adjudicate` (verdict problems or dedupe
-  candidates). Body format: `## What happens`, `## Evidence (2026-10-31)` with verbatim quotes,
-  "No preferred resolution has been picked" line, sweep provenance footer.
-- Pipeline state (2026-10-31, wave 6): 33 findings files, 904 verified findings. Verify and
-  dedupe run per wave; plans drafted per file, refreshed as findings grow.
-  `classify-adjudications.ts` sorts adjudications by title-token Jaccard against dedupe
-  candidates: 445 auto-new, 9 auto-comment (Jaccard at least 0.45), 238 manual (168 ambiguous
-  0.2 to 0.45; 70 with verifier problems: quote mismatches or missing path:line refs, repair
-  before filing). `file-issues.ts` executes decisions: creates issues with labels (creating
-  missing labels first), comments on existing issues with a sweep header, appends to
-  `filed-log.jsonl`, idempotent by filed id. None filed yet; first batch next. Stale plans
-  pending re-draft: docs-core, w2-throw-async-a, w2-th-diag-expect, w2-dom-a, docs-decisions,
-  root-configs, w2-logger-src, w2-logger-tests, docs-ops, w2-th-core.
+- `draft-issues.ts <outDir> <findings...>`: builds plan files `<name>.plan.jsonl`; `new`
+  entries auto-label (needs-triage + category + difficulty by severity), `adjudicate` entries
+  carry verdict problems or dedupe candidates. NEVER pass a glob that includes derived files
+  (`*.candidates.jsonl`, `*.verdicts.jsonl`): a glob once polluted the plans with 149 files and
+  the manual queue with 3677 junk entries; the recovery wiped `plans/` and re-drafted with an
+  explicit real-findings list.
+- `classify-adjudications.ts <plansDir> <decisionsOut> <manualOut>`: title-token Jaccard against
+  dedupe candidates; at least 0.45 comment, under 0.2 new, else manual.
+- `intra-dupes.ts <decisions.jsonl> <findingsDir>`: within-batch duplicate scan (the classifier
+  only dedupes against filed issues, so two children finding the same bug would file twice).
+  Threshold 0.55 found 137 pairs: most are same-defect-class-different-file families (file
+  separately) or part-file id copies (filing is idempotent by id); only same-package
+  near-verbatim pairs are true duplicates.
+- `file-issues.ts <repoRoot> <plansDir> <decisions.jsonl> <filedLog> [no-plan-new]`: creates
+  issues (creates missing labels first), comments with the sweep header, appends to
+  `filed-log.jsonl`, idempotent by filed id; errors do NOT mark filed. Pass `no-plan-new` when
+  the decisions file already covers every plan-new id (it does for batch 2).
+- Batch 1 (filed): 58 new issues `#1824`-`#1881`, 9 comments (`#1701` twice, `#1751`, `#1687`,
+  `#1684`, `#1552`, `#1643`, `#1412` twice), plus preflight `#1823`. All 68 in `filed-log.jsonl`.
+  Spot-check passed: all auto-comments same-root-cause, auto-news distinct.
+- Batch 2 (running): `decisions-batch2-final.jsonl` = 763 decisions (703 auto-new + 69
+  auto-comment from the classifier, minus 8 excluded + 1 deduped). Excluded from auto:
+  the figma-kiwi binary-reader family (`pkg-figma-kiwi-001/004/016/021`,
+  `w2-typeface-figma-22/24/25/29`) because an existing issue covers the family (manual review
+  pending), and `w2-async-b1-006` (duplicate of `docs-ops-27`, same package and finding).
+  Filing runs as background process `rr-file-batch2`, log `file-batch2.log`.
+- Manual queue: 518 entries (238 ambiguous Jaccard 0.2 to 0.45; 280 with verifier problems:
+  quote mismatches, missing path:line refs, out-of-bounds lines; repair evidence before
+  filing). Not started. Plan: review in batches via `peek.ts`; consider delegating first-pass
+  adjudication to a freed child, orchestrator spot-checks then files.
+- Pipeline state: 51 real findings files, about 1290 findings, all verified through wave 12
+  except the newest slices; plans and decisions current as of batch 2 launch.
+
 ## Children
 
-All 32 admitted children re-tasked as a worker pool. Current assignments (name -> area,
-prior findings count):
+All 32 admitted children re-tasked as a worker pool. Current assignments (name -> area; counts
+are findings so far in that child's file):
 
-- `root-configs` -> file-enforcer/core slice 1 (files 1-80 of about 242). Prior: 47.
-- `ci-depot` -> cross-cutting: security and syntax-boundary safety (SYB, STB, PRV). Prior:
-  40 (kv-store/memoize: undefined-recomputes claim false; cache-key colon collisions; async
-  clear races).
-- `docs-core` -> doc/audit/resharp-fuzz-2026-06-11 continuation (13 zero-coverage files).
-  Prior: 29.
-- `docs-decisions` -> redo ST3 import-side verification with both scan bugs fixed. Prior: 30
-  (208 package.json stale org; zod literal dep; peerDependencies "*" vs catalog: split).
-- `docs-ops` -> error-signaling remainders (fixed @throws detector, builtin-vs-custom,
-  upstream-fork). Prior: 31.
-- `docs-planning-audit` -> cross-cutting: CSS quality (CXD, HDM, css skill). Prior: 89
-  (fs-id: parseDiskutilVolumeUuid binds a later key).
-- `docs-skills` -> env-local-json/core, the red workflow root cause. Prior: 23
-  (marketplace.json ./packages/ blocker; poll-issue ][ merge corruption).
-- `docs-philosophy` -> cross-cutting: TSDoc quality (TD1 through TD7). Prior: 17
-  (tool-choices stale claims; mid-token hard wraps).
-- `pkg-dom` -> cross-cutting: logging discipline (TLG, LG1, LG2). Prior: 23 (dom/core: e2e
-  reads unbuilt dist; root export maps dist).
-- `pkg-async-iter` -> doc/planning i-m continuation from issue-659. Prior: 12.
-- `pkg-async-time` -> monochromatic-lint slice 1 (files 1-80 of 243). Prior: 14.
-- `pkg-figma-kiwi` -> cross-cutting TWS continuation (Rust twins, encode/decode pairs,
-  export mirrors, task.ts-only packages). Prior: 29 (7 mise/task.ts twin drift; kiwi ZIP
-  constants re-derived).
-- `pkg-figma-to-penpot` -> cross-cutting: test-suite health (TCV, TRV, GFP, CXL). Prior: 34
-  (multi-page root-frame loss; phantom parent; output overwrites input).
-- `pkg-observable` -> doc/audit regex-necessity remainder plus tech-monorepo-manager-vet.
-  Prior: 22 (build-mirror literal `${AUDIT}` directory, blocker).
-- `pkg-shell-argument` -> doc/audit resharp-fuzz-06-19 plus bad-glm plus tech-meow
-  (working).
-- `pkg-throws` -> cross-cutting: manifest and mise conventions (PKG, AP2, AP4, SGD, SBS,
-  CM2). Prior: 5.
-- `sysd-source-trace` -> systemd permalink verification for the troubleshooting doc. Source
-  trace complete at commit 9ca433482f (tag v259).
-- `w2-async-b1` -> cross-cutting: async and unbounded input (PP1, PP2, RG2). Prior: 24
-  (doc/agent: doc/adr denial contradicts the tree; regression case cites a removed path).
-- `w2-async-b2` -> linter closure package. Prior: 13 (stale sinon shim premise).
-- `w2-dom-a` -> doc/planning t-z continuation. Prior: 30.
-- `w2-fs-a` -> doc/audit d-h slice (working, no report yet).
-- `w2-fs-b` -> doc/planning a-d continuation. Prior: 29.
-- `w2-i18n` -> kotlin linter package. Prior: 28 (doc/runbook: roster-fixture.ts deleted,
-  blocker).
-- `w2-logger-fuzz` -> doc/audit a-c slice (working, no report yet).
-- `w2-logger-src` -> doc/troubleshooting prose slice (first 25 sorted). Prior: 36.
-- `w2-logger-tests` -> first oxlint-plugin package. Prior: 34 (zip-writer CRC by reference
-  blocker; dos-time year wrap).
-- `w2-th-core` -> doc/audit i-p continuation (4 files left in window). Prior: 35.
-- `w2-th-diag-expect` -> first forbidden-strings package. Prior: 47 (planning e-h slice
-  complete: stale Status blocks throughout).
-- `w2-th-matrix-sandbox` -> doc/planning n-s continuation. Prior: 34.
-- `w2-throw-async-a` -> first monorepo-task package. Prior: 31 (core-expect:
-  toHaveProperty undefined false pass; calledWith loose arity).
-- `w2-typeface-figma` -> doc/audit q-z slice (working, no report yet).
+- `root-configs` -> file-enforcer/core slice 1 finish (positions 36-80); slice 2 starts at
+  position 81, `src/io/staleness-types.ts`. Prior: 57.
+- `ci-depot` -> ssg/aquati.cat. Prior: 48 (wc/app done: README Lines claim contradicts code).
+- `docs-core` -> mpm-shadow/cli. Prior: 42 (resharp 06-04 + 06-11 docs fully read).
+- `docs-decisions` -> rss/app. Prior: 34.
+- `docs-ops` -> claude-code-plugin family, first package. Prior: 35 (error-handling concern
+  done: 509 throw sites without @throws; mixed-signaling and no-class clusters).
+- `docs-planning-audit` -> done/app remainders (client/component, remaining client modules,
+  unit-test body, four long docs). Prior: 111 (FTS5 index blocker on the tracked seed DB).
+- `docs-skills` -> electron-infra family, first package. Prior: 36 (env-local-json/core done:
+  container job ENOENT on mise; buildAndTest repo-root-relative paths, both blockers).
+- `docs-philosophy` -> claude-cpu-cap family, first package. Prior: 24 (TSDoc concern done:
+  629 delegation wrappers, 966 @param restatements).
+- `pkg-dom` -> agent-harness-shared family, first package. Prior: 34 (logging concern done;
+  translation-repair data-id tags finding).
+- `pkg-async-iter` -> doc/planning module-logger-log-accumulation onward (5 files). Prior: 25.
+- `pkg-async-time` -> monochromatic-lint slice 2 (positions 81-140). Prior: 18 (slice 1 done;
+  disposable-Fixture scaffolding duplication warning).
+- `pkg-figma-kiwi` -> pi-plugin family, first package. Prior: 37 (overlap classification done;
+  #1334/#1253 verdict: same category, distinct clusters).
+- `pkg-figma-to-penpot` -> CXL spawn-test remainders (advisor, openai-fast, remaining spawn
+  files). Prior: 42 (mvm-mcp stderr discard; testing-practices buildless omission).
+- `pkg-observable` -> tech-monorepo-manager-vet final 4 files. Prior: 27.
+- `pkg-shell-argument` -> done/variant-postcss remainders (component, docs, styles). Prior: 53
+  (timer overwrite, prompt injection, blockedBy self-cycle).
+- `pkg-throws` -> cloudflare-worker/rand. Prior: 23 (open-code-review-issue/cli complete).
+- `sysd-source-trace` -> terminal/app. Prior: 0 for this file (systemd work done and committed).
+- `w2-async-b1` -> hall-monitor family, first package. Prior: 33 (async concern done: css
+  parser and toml-edit walkers unbounded recursion; scanner v3 covered all blind spots).
+- `w2-async-b2` -> mutation-test/cli src/host plus runtime files (9 unit tests next). Prior:
+  25 (spawn failures classify as failed; regex mutator class-literal mislabel).
+- `w2-dom-a` -> doc/planning t-z continuation from the-third-rendering-runs-6-and-7-read.md.
+  Prior: 44.
+- `w2-fs-a` -> doc/planning em-dash.md (6965 lines, alone). Prior: 27.
+- `w2-fs-b` -> doc/planning a-d files 20-25. Prior: 40.
+- `w2-i18n` -> doodle-widget/app. Prior: 41 (kotlin package done: publish coordinates 404).
+- `w2-logger-fuzz` -> doc/troubleshooting 2026-05-14-repo-assessment.md plus README.md, then
+  its slice is complete. Prior: 27.
+- `w2-logger-src` -> doc/troubleshooting next 8 from android-trash-request-outcome-boundary.md.
+  Prior: 40 (676 remain in worklist).
+- `w2-logger-tests` -> oxlint-plugin package 1 remainders (5 test files then rule modules);
+  prefer-readonly-parameter-type package 2 after. Prior: 42 (all 24 no-disable guards bypassable
+  via eslint-disable-next-line, runtime-proven).
+- `w2-th-core` -> syllable-break-demo/app. Prior: 43 (doc/audit i-p done).
+- `w2-th-diag-expect` -> forbidden-strings/cli finish, then cli.fuzz, core, core.bench,
+  core.fuzz. Prior: 57.
+- `w2-th-matrix-sandbox` -> doc/planning pi-auto-mode next 4 files. Prior: 48.
+- `w2-throw-async-a` -> monorepo-task/core-exec. Prior: 47 (cli done: dead typed helpers
+  mirrored by untyped prelude twins; fanout unbounded).
+- `w2-typeface-figma` -> doc/audit q-z positions 14+ (deferred
+  standards-review-gate-shadow.md, concurrent edits). Prior: 65.
 
-Brief template v4 is in the transcript (reviewer-only, main-worktree protection, cgroup wrapper,
-JSONL schema, 250-word final message; deep-doc variant adds per-file accounting and the
-25-file target).
+Brief template (reviewer-only, main-worktree protection, cgroup wrapper with the suffixed-name
+footgun note, JSONL schema, 250-word final message) is stable; reuse verbatim from the
+transcript.
 
 ## Assignment queue (re-task idle children in this order)
 
-1. doc/audit deep slices: top-level a-c, d-h, i-p, q-z are running; next: doc/audit subdirs
-   (resharp-fuzz-2026-06-04 29 files, -06-11 24, regex-necessity 22, tech-monorepo-manager-vet
-   17, resharp-fuzz-2026-06-19 13, bad-glm 10, tech-meow 2; code and fixture review) and any
-   top-level remainders the slices report.
-2. Cross-cutting concerns, one each: `GRW`, `TWS`, workspace deps + `ST3` imports, logging
-   adherence, error-handling patterns, async + unbounded input, manifest and mise conventions,
-   test-convention health, TSDoc quality, CSS quality, security sweep.
-3. Linter tooling: `monochromatic-lint` (243 files, split), its closure, `kotlin`,
-   `oxlint-plugin/*` (split), `monorepo-task/*`, `file-enforcer/core` (242, split) plus `cli`,
-   `forbidden-strings/*` (split), `mutation-test/*`, `open-code-review-issue/cli`,
-   `env-local-json/core` (owns the ci-depot blocker root cause).
-4. Apps: `done/app`, `done/variant-postcss`, `rss/app`, `wc/app`, `doodle-widget/app`,
-   `syllable-break-demo/app`, `terminal/app`, `ssg/aquati.cat` (split), `ide/app` (1134, split
-   ~3), `file-manager/*` (4), music-player `design` (1269, split ~3), `desktop-app` (361, split
-   2), `android-app` (354, split 2), `asset`, `truepeak-core` plus bench, `desktop-e2e`.
-5. Plugins: `agent-harness-shared/*` (9), `claude-code-plugin/*` (~14), `pi-plugin/*` (~18),
+1. Finish in-flight slices as children return (see Children).
+2. Apps: `ide/app` (1134, split ~3), `file-manager/*` (4), music-player `design` (1269, split
+   ~3), `desktop-app` (361, split 2), `android-app` (354, split 2), `asset`, `truepeak-core`
+   plus bench, `desktop-e2e`.
+3. Plugins: remaining `agent-harness-shared/*`, `claude-code-plugin/*`, `pi-plugin/*`,
    `dsh-plugin/*`, `codex-plugin/bash-limit`, `search-fetch/*` (core has concurrent edits),
-   `electron-infra/*`, `cloudflare-worker/rand`, `claude-cpu-cap/daemon`, `hall-monitor/daemon`,
-   `mcp/*`.
-6. Rust: `git-policy/cli` (1030, split 3-4) plus fuzz, `file-enforcer/core-rust`,
+   remaining `electron-infra/*`, `claude-cpu-cap` remainder, remaining `hall-monitor`,
+   remaining `mcp/stdio` slices if the budget cuts it.
+4. Linter tooling: `monochromatic-lint` slices 3-4, `oxlint-plugin` package 2,
+   `forbidden-strings` (4 remaining packages), `monorepo-task` remainder, `file-enforcer/core`
+   slices 2-3 plus `cli`, `mutation-test` (3 remaining packages).
+5. Rust: `git-policy/cli` (1030, split 3-4) plus fuzz, `file-enforcer/core-rust`,
    `browserslist/core-rust`, `jsonc-edit/core-rust` plus fuzz, `xml-edit/core-rust` plus fuzz,
    `dependency-catalog/*`, `wg/core-allowedips`, `linter/rust`, `learning/rust`,
-   `ownership-marker/foreign-borrowed`, `mpm-shadow/cli`, `search-shadow/cli`,
-   `crate-release/cli`, `mvm/cli`, `nested-wayland-session/cli`, `vm-builder/cli`, `vmsync/cli`.
-7. `translation-repair/*` (~35, one per assignment); `upstream-fork/*` (~12 plus fuzz sidecars);
+   `ownership-marker/foreign-borrowed`, `search-shadow/cli`, `crate-release/cli`, `mvm/cli`,
+   `nested-wayland-session/cli`, `vm-builder/cli`, `vmsync/cli`.
+6. `translation-repair/*` (~35, one per assignment); `upstream-fork/*` (~12 plus fuzz sidecars);
    `config/*` (9; pnpr has concurrent edits); misc: `backup-path/cli`,
    `android-exempt-unused/cli`, `deps-update/cli`, `fy/cli`, `git-clone-size/cli`,
    `git-executable/core`, `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`,
    `watch-restart/cli`, `kwin/key-helper`, `intellij-plugin/islands-black`,
    `rolldown-plugin/import-attributes`, `pnpm-override/*` (7), `runtime-error/bun`,
    hyperscript-class remainders, `test-fixture/*` source code only.
+7. Doc remainders: doc/audit subdirs beyond the finished campaigns; doc/planning t-z tail
+   (~212 files) and n-s and a-d tails; doc/troubleshooting (~676); doc/agent and doc/decision
+   spot coverage.
 
-Calibration: single-package deep reviews fit one turn each at 8 to 26 findings per package
-(async-iter 12 files/8, matrix 21/24, hyperscript 19/21, logger-src 40/26, typeface 20/37,
-th-core 52/18). Doc deep slices target 25 to 40 files per turn; planning has 485 top-level
-files across six running slices, audit about 430 across four.
+Calibration: single-package deep reviews fit one turn each at 8 to 26 findings per package.
+Doc deep slices: planning files ~5 per turn, audit files 2 to 5 per turn, troubleshooting 8 to
+9 per turn.
 
 ## Concurrent work (do not touch)
 
@@ -224,25 +232,21 @@ Another session has uncommitted edits in flight: `package/config/pnpr/config.yam
 `package/search-fetch/core/src/migrate.ts`,
 `package/search-fetch/core/src/scratch-parent.ts`,
 `doc/audit/standards-review-gate-shadow.md`,
-`doc/handover/file-enforcer-rust-rewrite.md`. Findings on these files are marked "concurrent
-edits in flight".
+`doc/handover/file-enforcer-rust-rewrite.md`. A concurrent session also modifies
+`package/**/Cargo.lock` files. Findings on these files are marked "concurrent edits in
+flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-z slice.
 
 ## Next actions
 
-1. Commit this handover update (v6).
-2. Write the systemd troubleshooting doc: harness verified (both failure variants plus the
-   loud-failure contrast), permalink verification running in `sysd-source-trace`;
-   `.out-of-scope/` checked with no systemd exemption; run the tracker duplicate search,
-   the 6-constraint audit, then write
-   `doc/troubleshooting/systemctl-show-scope-stub-properties.md` and commit.
-3. Re-draft the stale plans (10 files listed under Filing pipeline), re-run the classifier,
-   spot-check the auto decisions (all 9 auto-comments plus a sample of auto-new), file batch 1
-   via `file-issues.ts`, refresh `issues-all.jsonl`.
-4. Work the 238-entry manual queue in batches (ambiguous Jaccard 0.2 to 0.45 need judgment;
-   problem entries need evidence repair first).
-5. Triage `lint-full.log` into a per-package digest; distribute to owning children. Check
-   `rr-central-tests` completion; capture failures.
-6. Keep re-tasking idle children from the queue; update and commit this handover at every
+1. Watch `rr-file-batch2` (background filing of 763 decisions; log `file-batch2.log`). On
+   completion: read the tail counts, refresh `issues-all.jsonl` (expect ~2500), spot-check a
+   sample of new issue numbers, commit this handover (v7).
+2. Re-run the pipeline for findings grown during batch 2 (verify, dedupe, draft, classify,
+   intra-dupes), then file batch 3 the same way.
+3. Work the 518-entry manual queue (evidence repair first, then ambiguous adjudication).
+4. Triage `lint-full.log` into a per-package digest; distribute to owning children.
+5. Check `rr-central-tests` completion; capture failures.
+6. Keep re-tasking returning children from the queue; update and commit this handover at every
    wave transition.
 
 ## Stop conditions
