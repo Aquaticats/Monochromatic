@@ -21,6 +21,14 @@ use crate::application_watch_state::{
     write_watch_state,
     WatchProcess,
 };
+/// The user's toolchain roots.
+use crate::update_entry_points::install_roots;
+/// Moves matched processes into the updates slice.
+use crate::scope_adoption::BusctlAdopter;
+/// The watched user's account.
+use crate::user_account::lookup_user;
+/// The policy engine and its start notice.
+use crate::update_routing::{policy_notice, UpdateRouting};
 /// Handshake and file errors.
 use std::io::{self, BufRead, BufReader, Write};
 /// Unix log creation mode.
@@ -28,7 +36,7 @@ use std::os::unix::fs::OpenOptionsExt;
 /// Child process session setup hook.
 use std::os::unix::process::CommandExt;
 /// Watcher application slice path.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 /// Child process launch pipes.
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -197,6 +205,7 @@ pub fn start_application_watch(
     uid: u32,
 ) -> io::Result<()> {
     stop_application_watch(key)?;
+    eprintln!("{}", policy_notice());
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
         drop(candidate.input);
@@ -228,7 +237,17 @@ pub fn run_application_watch_child(
         proc_root: Path::new("/proc"),
         cgroup_root: Path::new("/sys/fs/cgroup"),
     };
-    let mut watch = prepare_application_watch(roots, mark)?;
+    let account = lookup_user(uid)?;
+    let canonical_home = std::fs::canonicalize(&account.home).ok();
+    let routing = UpdateRouting::new(
+        uid,
+        account.gid,
+        install_roots(&account.home, canonical_home.as_deref()),
+        PathBuf::from("/proc"),
+        Box::new(BusctlAdopter::new()),
+    );
+    eprintln!("{}", policy_notice());
+    let mut watch = prepare_application_watch(roots, mark, routing)?;
     println!("{READY}");
     io::stdout().flush()?;
     let mut commit = String::new();

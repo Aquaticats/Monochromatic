@@ -2,6 +2,10 @@
 
 /// Target discovery across named app-slice services and executable-owned processes.
 use crate::application_targets::{scan_application_targets, ScanRoots};
+/// Process events and the update traffic policy.
+use crate::process_events::{drain_exec_events, subscribe};
+/// Policy engine and its loud reports.
+use crate::update_routing::{describe_outcome, policy_failure, Outcome, UpdateRouting};
 /// Unpinned marker links owned by watcher lifetime.
 use crate::bpf::{attach_marker_unpinned, MarkerLinks};
 /// Polling and syscall failures.
@@ -38,7 +42,18 @@ pub struct ApplicationWatch<'a> {
     signals: OwnedFd,
     /// Current cgroups and retained links.
     active: Vec<ActiveAttachment>,
+    /// Update traffic policy for the watched user.
+    routing: UpdateRouting,
+    /// Process-event connector,
+    /// absent when the subscription failed and was reported.
+    events: Option<OwnedFd>,
+    /// Loop iterations since the last full process scan.
+    ticks_since_scan: u32,
 }
+
+/// Loop iterations between full process scans,
+/// the backstop for events the kernel dropped.
+const FULL_SCAN_TICKS: u32 = 8;
 
 /// Creates owned descriptor from successful nonnegative syscall return.
 fn owned_descriptor(raw: libc::c_int) -> io::Result<OwnedFd> {
@@ -195,26 +210,90 @@ fn consume_signal(signals: &OwnedFd) -> io::Result<()> {
 pub fn prepare_application_watch(
     roots: ScanRoots<'_>,
     mark: u32,
+    routing: UpdateRouting,
 ) -> io::Result<ApplicationWatch<'_>> {
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
+    if let Err(error) = routing.ensure_slice(roots.app_slice) {
+        eprintln!("{}", policy_failure(&format!("the updates slice cannot be created: {error}")));
+    }
+    let events = match subscribe() {
+        Ok(socket) => Some(socket),
+        Err(error) => {
+            eprintln!(
+                "{}",
+                policy_failure(&format!(
+                    "the kernel process-event subscription failed: {error}; update entry points are found only by the periodic scan"
+                ))
+            );
+            None
+        }
+    };
     let mut watch = ApplicationWatch {
         roots,
         mark,
         inotify,
         signals,
         active: Vec::new(),
+        routing,
+        events,
+        ticks_since_scan: 0,
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
     reconcile(&mut watch)?;
+    report_outcomes(&watch.routing.rescan());
     return Ok(watch);
+}
+
+/// Prints each outcome that needs saying.
+fn report_outcomes(outcomes: &[Outcome]) {
+    for outcome in outcomes {
+        if let Some(line) = describe_outcome(outcome) {
+            eprintln!("{line}");
+        }
+    }
+}
+
+/// Applies the exec events the kernel queued,
+/// and falls back to a full scan after an overrun or on the periodic tick.
+fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
+    let mut full_scan = false;
+    if let Some(socket) = &watch.events {
+        match drain_exec_events(socket) {
+            Ok(drained) => {
+                if drained.overrun {
+                    eprintln!(
+                        "{}",
+                        policy_failure("the kernel dropped process events; every process is rescanned now")
+                    );
+                    full_scan = true;
+                }
+                for pid in drained.pids {
+                    let outcome = watch.routing.consider(pid);
+                    report_outcomes(&[outcome]);
+                }
+            }
+            Err(error) => {
+                eprintln!(
+                    "{}",
+                    policy_failure(&format!("reading process events failed: {error}; the periodic scan continues"))
+                );
+            }
+        }
+    }
+    watch.ticks_since_scan += 1;
+    if full_scan || watch.ticks_since_scan >= FULL_SCAN_TICKS {
+        watch.ticks_since_scan = 0;
+        report_outcomes(&watch.routing.rescan());
+    }
 }
 
 /// Polls cgroup events plus signals and periodically rescans executable-owned processes.
 pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
+    let mut last_reconcile = std::time::Instant::now();
     loop {
-        let mut descriptors = [
+        let mut descriptors = vec![
             libc::pollfd {
                 fd: watch.inotify.as_raw_fd(),
                 events: libc::POLLIN,
@@ -226,6 +305,13 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
                 revents: 0,
             },
         ];
+        if let Some(socket) = &watch.events {
+            descriptors.push(libc::pollfd {
+                fd: socket.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            });
+        }
         // SAFETY: descriptor array is valid for synchronous poll duration.
         let result = unsafe {
             libc::poll(
@@ -248,8 +334,14 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
         if descriptors[0].revents & libc::POLLIN != 0 {
             drain_inotify(&watch.inotify)?;
         }
-        if let Err(error) = reconcile(watch) {
-            eprintln!("application exemption rescan failed: {error}");
+        // Bursts of process events must not trigger a full target scan each time.
+        let cgroup_event = descriptors[0].revents & libc::POLLIN != 0;
+        if cgroup_event || last_reconcile.elapsed().as_millis() >= RESCAN_INTERVAL_MS as u128 {
+            last_reconcile = std::time::Instant::now();
+            if let Err(error) = reconcile(watch) {
+                eprintln!("application exemption rescan failed: {error}");
+            }
         }
+        handle_process_events(watch);
     }
 }

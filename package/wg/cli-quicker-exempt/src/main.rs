@@ -13,6 +13,18 @@
 ///  Interpreter,
 ///  and Qure cgroup targets.
 mod application_targets;
+/// Reads facts about one process from a procfs tree.
+mod process_info;
+/// Subscribes to the kernel process-event connector.
+mod process_events;
+/// Moves processes into the updates slice through the user's service manager.
+mod scope_adoption;
+/// Recognizes update entry points and toolchain install roots.
+mod update_entry_points;
+/// The always-on update traffic policy.
+mod update_routing;
+/// Looks up the watched user's account.
+mod user_account;
 /// Retains links while watching application cgroup lifecycle.
 mod application_watch;
 /// Starts and stops detached application watcher.
@@ -36,6 +48,21 @@ mod keeper_state;
 /// Unit tests for application target discovery.
 #[cfg(test)]
 mod application_targets_tests;
+/// Unit tests for the update entry-point list.
+#[cfg(test)]
+mod update_entry_points_tests;
+/// Unit tests for the process-event connector.
+#[cfg(test)]
+mod process_events_tests;
+/// Unit tests for the update traffic policy.
+#[cfg(test)]
+mod update_routing_tests;
+/// Unit tests for scope adoption.
+#[cfg(test)]
+mod scope_adoption_tests;
+/// Unit tests for process facts and the account lookup.
+#[cfg(test)]
+mod process_info_tests;
 /// Unit tests for raw BPF instruction encoding.
 #[cfg(test)]
 mod bpf_tests;
