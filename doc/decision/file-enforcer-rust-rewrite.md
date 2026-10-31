@@ -230,6 +230,18 @@ and accepted with this record:
   the user chose "Fix in mpm-shadow before cutover"
   over fixing it after cutover or keeping the shared install.
   Versions no lock names need a cleanup step.
+- Tools this repository publishes are the exception,
+  in the user's words:
+  "No older repo-maintained tools should ever exist when newer is present."
+  So a sync never installs a repository-published tool older than one already installed,
+  and installing a newer one removes the older;
+  a tree whose lock pins an older version runs the newer one,
+  and `status` counts installed-newer-than-locked as satisfied for these tools.
+  This relies on each release reading its predecessors' configuration,
+  as wrapper 0.4.4 reads the string `rulesFile` of 0.4.0
+  (`rules_file_takes_a_path_or_an_array_of_entries` in
+  `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs`).
+  Version-keyed coexistence applies only to third-party tools.
 - file-enforcer has no toolchain role.
 
 ### Elsewhere

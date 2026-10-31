@@ -155,6 +155,11 @@ as the other routes under `/home/user/.local/share/monochromatic-dev/toolchain` 
 so the change belongs in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs`;
 the owner chose to make it before the cutover,
 and the decision record `doc/decision/file-enforcer-rust-rewrite.md` ("Toolchain (mpm-shadow)") carries it.
+Tools this repository publishes,
+the git wrapper among them,
+get no per-version copies:
+the owner ruled "No older repo-maintained tools should ever exist when newer is present.",
+so a tree with an older lock runs the newest installed release instead of downgrading it.
 
 ## Upstream filing decision
 
