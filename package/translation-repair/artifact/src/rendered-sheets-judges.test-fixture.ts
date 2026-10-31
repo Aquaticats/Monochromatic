@@ -8,6 +8,7 @@
  */
 
 import {
+  buildAnotherTranslatorRepairMessages,
   buildTranslateMessages,
   buildTranslateRepairMessages,
 } from '@monochromatic-dev/translation-repair-translate-floor';
@@ -275,6 +276,21 @@ export function judgeSheets(): readonly RenderedSheet[] {
       name: 'translate repair',
       text: joined({
         messages: buildTranslateRepairMessages({
+          priorMessages: buildTranslateMessages({
+            sourceText: SOURCE,
+            existingText: ARCHIVE,
+            identityContext: IDENTITY,
+          },)
+            .messages,
+          priorTranslation: REPAIR,
+          findings: ['The translation drops what the kitten promised.',],
+        },),
+      },),
+    },
+    {
+      name: 'translate repair for another translator',
+      text: joined({
+        messages: buildAnotherTranslatorRepairMessages({
           priorMessages: buildTranslateMessages({
             sourceText: SOURCE,
             existingText: ARCHIVE,
