@@ -17,6 +17,7 @@ use monochromatic_file_enforcer::config_decode::ConfigScope;
 /// `Event` from `monochromatic_file_enforcer::event`.
 use monochromatic_file_enforcer::event::{CollectingSink, Event};
 /// Imports `RuleRegistry` from `monochromatic_file_enforcer::registry`.
+use monochromatic_file_enforcer::output_scope::OutputScope;
 use monochromatic_file_enforcer::registry::RuleRegistry;
 /// Imports `RunMode`,
 /// `RunRequest`,
@@ -91,7 +92,7 @@ pub fn read_text(root: &Path, path: &str) -> String {
 pub fn run_config(root: &Path, config: &str, scope: ConfigScope, mode: RunMode, registry: &RuleRegistry) -> (i32, Vec<Event>) {
     let config_path: PathBuf = root.join("file-enforcer.config.jsonc");
     fs::write(&config_path, config).expect("the config is writable");
-    let request = RunRequest { root: root.to_path_buf(), config_path, scope, mode };
+    let request = RunRequest { root: root.to_path_buf(), config_path, scope, mode, outputs: OutputScope::All };
     let mut sink = CollectingSink::default();
     let code = run(&request, registry, &mut sink);
     return (code, sink.events);
