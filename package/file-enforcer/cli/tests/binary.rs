@@ -139,6 +139,20 @@ fn a_config_syntax_error_is_exit_two_with_path_line_and_column() {
 }
 
 #[test]
+fn a_config_field_error_is_exit_two_with_path_line_column_and_pointer() {
+    let harness = Harness::new();
+    harness.write(
+        "file-enforcer.config.jsonc",
+        "{\n  \"rules\": [\n    {\"kind\": \"mirror\", \"id\": \"m\", \"from\": \"a\", \"to\": \"/abs\"}\n  ]\n}",
+    );
+    let (code, lines) = harness.run(&["check"]);
+    assert_eq!(code, 2, "{lines:?}");
+    assert_eq!(lines[0]["code"], "config-invalid");
+    let message = lines[0]["message"].as_str().unwrap_or_default();
+    assert!(message.contains("file-enforcer.config.jsonc:3:54: /rules/0/to: "), "{message}");
+}
+
+#[test]
 fn check_with_an_expected_dir_writes_paired_trees_for_diff_tools() {
     let harness = Harness::new();
     harness.write("file-enforcer.config.jsonc", CONFIG);

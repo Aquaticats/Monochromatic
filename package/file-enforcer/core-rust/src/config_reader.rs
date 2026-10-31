@@ -3,7 +3,9 @@
 //! collecting every problem with its JSON pointer.
 //! Why:
 //!  The decoder reports all the mistakes in a config at once,
-//! each naming the file and the pointer (`/rules/3/output`),
+//! each naming the file,
+//! the line and column,
+//! and the pointer (`c.jsonc:12:9: /rules/3/output`),
 //!  instead of stopping at the first.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,6 +13,26 @@
 //! class Reader { errors: Diagnostic[]; text(object, key, pointer): string; }
 //! ```
 
+/// What:
+///  Imports the message format shared with the converter.
+/// Why:
+///  Conversion problems and decode problems print identically.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { locatedMessage } from './configConvert';
+/// ```
+use crate::config_convert::located_message;
+/// What:
+///  Imports the location table, a location, and the pointer escape.
+/// Why:
+///  The reader turns a pointer into the line and column printed before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ConfigLocations, Location, pointerSegment } from './configLocations';
+/// ```
+use crate::config_locations::{ConfigLocations, Location, pointer_segment};
 /// Imports `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::ValueExpr;
 /// Imports `Diagnostic` from `crate::diagnostic`.
@@ -32,41 +54,75 @@ use serde_json::{Map, Value};
 /// ```ts
 /// class Reader { errors: Diagnostic[] = []; constructor(readonly displayPath: string) {} }
 /// ```
-pub struct Reader {
+pub struct Reader<'a> {
     /// Every problem found so far,
     /// in discovery order.
     pub errors: Vec<Diagnostic>,
     /// The config path shown in messages.
     pub display_path: String,
+    /// Where each node of the config sits,
+    /// borrowed from the document being decoded
+    /// (`'a` is how long that borrow lasts).
+    pub locations: &'a ConfigLocations,
 }
 
 /// The `impl Reader` block.
-impl Reader {
+impl<'a> Reader<'a> {
     /// What:
-    ///  Start a reader for one config file.
+    ///  Start a reader for one config file and the table of where its nodes sit.
     /// Why:
-    ///  Each message names the file it came from.
+    ///  Each message names the file and the line and column it came from.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// new Reader(displayPath)
+    /// new Reader(displayPath, locations)
     /// ```
-    pub fn new(display_path: &str) -> Reader {
-        return Reader { errors: Vec::new(), display_path: display_path.to_string() };
+    pub fn new(display_path: &str, locations: &'a ConfigLocations) -> Reader<'a> {
+        return Reader { errors: Vec::new(), display_path: display_path.to_string(), locations };
     }
 
     /// What:
-    ///  Record one problem at a JSON pointer.
+    ///  Record one problem at a JSON pointer,
+    ///  positioned where the value at that pointer starts
+    ///  (or where its nearest existing ancestor starts when the pointer names an absent key).
     /// Why:
-    ///  A single place formats every decode message the same way.
+    ///  A single place formats every decode message the same way:
+    ///  `file:line:col: /pointer: message`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// error(pointer: string, message: string): void
     /// ```
     pub fn error(&mut self, pointer: &str, message: &str) {
-        let shown = if pointer.is_empty() { "/" } else { pointer };
-        let full = format!("{}: {shown}: {message}", self.display_path);
+        let at = self.locations.value_at(pointer);
+        self.record(at, pointer, message);
+    }
+
+    /// What:
+    ///  Record one problem at the key of the member at a JSON pointer.
+    /// Why:
+    ///  An unknown key is wrong where it is typed, so the position is the key's and not its value's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// errorAtKey(pointer: string, message: string): void
+    /// ```
+    pub fn error_at_key(&mut self, pointer: &str, message: &str) {
+        let at = self.locations.key_at(pointer);
+        self.record(at, pointer, message);
+    }
+
+    /// What:
+    ///  Push a positioned diagnostic.
+    /// Why:
+    ///  `error` and `error_at_key` differ only in which position they pick.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// record(at: Location, pointer: string, message: string): void
+    /// ```
+    fn record(&mut self, at: Location, pointer: &str, message: &str) {
+        let full = located_message(&self.display_path, at, pointer, message);
         let diagnostic = Diagnostic::new("config-invalid", &full).with_path(&self.display_path);
         self.errors.push(diagnostic);
     }
@@ -82,7 +138,7 @@ impl Reader {
     /// ```ts
     /// object(value: unknown, pointer: string): Record<string, unknown> | undefined
     /// ```
-    pub fn object<'a>(&mut self, value: &'a Value, pointer: &str) -> Option<&'a Map<String, Value>> {
+    pub fn object<'v>(&mut self, value: &'v Value, pointer: &str) -> Option<&'v Map<String, Value>> {
         if let Some(object) = value.as_object() {
             return Some(object);
         }
@@ -104,7 +160,7 @@ impl Reader {
         for key in object.keys() {
             if !allowed.contains(&key.as_str()) {
                 let message = format!("unknown key {key:?}; accepted keys are {}", allowed.join(", "));
-                self.error(pointer, &message);
+                self.error_at_key(&format!("{pointer}/{}", pointer_segment(key)), &message);
             }
         }
     }
@@ -157,7 +213,7 @@ impl Reader {
     /// ```ts
     /// array(object, key, pointer): unknown[]
     /// ```
-    pub fn array<'a>(&mut self, object: &'a Map<String, Value>, key: &str, pointer: &str) -> &'a [Value] {
+    pub fn array<'v>(&mut self, object: &'v Map<String, Value>, key: &str, pointer: &str) -> &'v [Value] {
         match object.get(key) {
             Some(Value::Array(items)) => return items.as_slice(),
             Some(_) => self.error(&format!("{pointer}/{key}"), "must be an array"),

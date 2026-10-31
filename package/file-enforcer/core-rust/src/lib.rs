@@ -43,6 +43,12 @@ pub mod config_decode;
 /// JSONC file loading with positioned errors.
 pub mod config_load;
 
+/// Where each value and key of a parsed config sits, looked up by JSON pointer.
+pub mod config_locations;
+
+/// Conversion of the parsed JSONC tree into plain JSON plus the location table.
+pub mod config_convert;
+
 /// The derived JSON Schema.
 pub mod schema;
 
@@ -147,6 +153,11 @@ mod test_support;
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod config_tests;
+
+/// Tests that every config problem names `file:line:col` and the JSON pointer.
+#[cfg(test)]
+#[path = "config_position_tests.rs"]
+mod config_position_tests;
 
 /// The `module` module.
 #[cfg(test)]

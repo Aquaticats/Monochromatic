@@ -14,7 +14,8 @@
 //! ```
 
 use crate::config_decode::{ConfigScope, decode_config};
-use crate::config_load::parse_config_text;
+use crate::config_load::{ConfigDocument, parse_config_text};
+use crate::config_locations::{ConfigLocations, Location, LocationNode};
 use crate::schema::{config_schema, config_schema_text};
 use serde_json::Value;
 use std::path::Path;
@@ -72,7 +73,29 @@ fn schema_accepts(validator: &jsonschema::Validator, sample: &Value) -> bool {
 /// function decoderAccepts(sample: unknown): boolean
 /// ```
 fn decoder_accepts(sample: &Value) -> bool {
-    return decode_config(sample, ConfigScope::Repository, "corpus").is_ok();
+    return decode_config(&document_of(sample), ConfigScope::Repository, "corpus").is_ok();
+}
+
+/// What:
+///  Build the decoder's input for one corpus sample:
+/// the sample re-read as config text,
+/// so its locations are real.
+/// A scalar root (`"x"`) is not valid config text,
+/// so it gets a one-node table.
+/// Why:
+///  The corpus includes a scalar root to prove the decoder refuses it,
+/// and the loader would stop that one earlier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function documentOf(sample: unknown): ConfigDocument
+/// ```
+fn document_of(sample: &Value) -> ConfigDocument {
+    if let Ok(document) = parse_config_text(&sample.to_string(), "corpus") {
+        return document;
+    }
+    let only = LocationNode { value: Location { line: 1, column: 1 }, key: None, items: Vec::new(), by_key: None };
+    return ConfigDocument { value: sample.clone(), locations: ConfigLocations { root: only } };
 }
 
 /// What:
@@ -94,7 +117,8 @@ fn section<'a>(corpus: &'a Value, name: &str) -> Vec<(&'a String, &'a Value)> {
 #[test]
 fn the_decoder_and_the_schema_agree_over_the_corpus() {
     let corpus = parse_config_text(&read_package_file("fixtures/config-corpus.jsonc"), "config-corpus.jsonc")
-        .expect("the corpus is valid JSONC");
+        .expect("the corpus is valid JSONC")
+        .value;
     let schema = config_schema();
     let validator = jsonschema::validator_for(&schema).expect("the derived schema compiles");
     let mut mismatches: Vec<String> = Vec::new();
@@ -136,9 +160,9 @@ fn the_per_user_kind_is_accepted_by_both_in_the_user_scope() {
         "excludePatterns": ["**/AGENTS.md"],
         "scopedServers": [{"id": "s", "name": "S", "fileNames": ["AGENTS.md"], "languageId": "markdown", "disabledLinters": []}]
     }]}"#;
-    let sample: Value = serde_json::from_str(text).expect("the sample is valid JSON");
+    let document = parse_config_text(text, "corpus").expect("the sample is valid JSONC");
     let validator = jsonschema::validator_for(&config_schema()).expect("the derived schema compiles");
-    assert!(schema_accepts(&validator, &sample));
-    assert!(decode_config(&sample, ConfigScope::User, "corpus").is_ok());
-    assert!(decode_config(&sample, ConfigScope::Repository, "corpus").is_err());
+    assert!(schema_accepts(&validator, &document.value));
+    assert!(decode_config(&document, ConfigScope::User, "corpus").is_ok());
+    assert!(decode_config(&document, ConfigScope::Repository, "corpus").is_err());
 }

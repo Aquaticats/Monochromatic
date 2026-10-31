@@ -132,15 +132,15 @@ pub fn emit_errors(sink: &mut dyn EventSink, errors: &[Diagnostic]) {
 /// function loadRules(request: RunRequest, registry: RuleRegistry, sink: EventSink): Rule[] | number
 /// ```
 pub fn load_rules(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink) -> Result<Vec<Box<dyn Rule>>, i32> {
-    let value = match load_config_file(&request.config_path) {
-        Ok(value) => value,
+    let document = match load_config_file(&request.config_path) {
+        Ok(document) => document,
         Err(error) => {
             emit_errors(sink, &[error]);
             return Err(EXIT_USAGE);
         }
     };
     let display = request.config_path.display().to_string();
-    let config = match decode_config(&value, request.scope, &display) {
+    let config = match decode_config(&document, request.scope, &display) {
         Ok(config) => config,
         Err(errors) => {
             emit_errors(sink, &errors);

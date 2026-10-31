@@ -22,8 +22,8 @@ use crate::config_reader::Reader;
 use crate::config_types::{Config, RuleConfig};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
-/// Imports `Value` from `serde_json`.
-use serde_json::Value;
+/// Imports `ConfigDocument` from `crate::config_load`.
+use crate::config_load::ConfigDocument;
 /// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 
@@ -96,14 +96,14 @@ pub fn is_octal_mode(mode: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function decodeConfig(value: unknown, scope: ConfigScope, displayPath: string): Config
+/// function decodeConfig(document: ConfigDocument, scope: ConfigScope, displayPath: string): Config
 /// ```
-pub fn decode_config(value: &Value, scope: ConfigScope, display_path: &str) -> Result<Config, Vec<Diagnostic>> {
-    let mut reader = Reader::new(display_path);
+pub fn decode_config(document: &ConfigDocument, scope: ConfigScope, display_path: &str) -> Result<Config, Vec<Diagnostic>> {
+    let mut reader = Reader::new(display_path, &document.locations);
     let mut rules: Vec<RuleConfig> = Vec::new();
     let mut schema: Option<String> = None;
     let mut seen_ids: BTreeSet<String> = BTreeSet::new();
-    if let Some(object) = reader.object(value, "") {
+    if let Some(object) = reader.object(&document.value, "") {
         reader.reject_unknown(object, "", &["$schema", "rules"]);
         schema = reader.optional_text(object, "$schema", "");
         let items = reader.array(object, "rules", "");
