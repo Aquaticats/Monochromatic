@@ -4,8 +4,6 @@
 use crate::application_targets::{scan_application_targets, ScanRoots};
 /// Process events and the update traffic policy.
 use crate::process_events::{drain_exec_events, subscribe};
-/// Delivery of failures after startup.
-use crate::runtime_report::RuntimeReporter;
 /// Policy engine.
 use crate::update_routing::UpdateRouting;
 /// The words of the policy.
@@ -55,8 +53,6 @@ pub struct ApplicationWatch<'a> {
     events: Option<OwnedFd>,
     /// When the last full process scan finished.
     last_full_scan: Instant,
-    /// Delivers failures after startup to a person.
-    reporter: RuntimeReporter,
 }
 
 /// Time between full process scans,
@@ -221,7 +217,6 @@ pub fn prepare_application_watch(
     roots: ScanRoots<'_>,
     mark: u32,
     routing: UpdateRouting,
-    reporter: RuntimeReporter,
 ) -> io::Result<ApplicationWatch<'_>> {
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
@@ -249,27 +244,18 @@ pub fn prepare_application_watch(
         routing,
         events,
         last_full_scan: Instant::now(),
-        reporter,
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
     reconcile(&mut watch)?;
-    let outcomes = watch.routing.rescan();
-    report_outcomes(&mut watch.reporter, &outcomes);
+    report_outcomes(&watch.routing.rescan());
     return Ok(watch);
 }
 
-/// Delivers each outcome that needs saying:
-/// a failure through the reporter so a person sees it,
-/// and a successful move to the log.
-fn report_outcomes(reporter: &mut RuntimeReporter, outcomes: &[Outcome]) {
+/// Prints each outcome that needs saying to the watcher log.
+fn report_outcomes(outcomes: &[Outcome]) {
     for outcome in outcomes {
-        let Some(line) = describe_outcome(outcome) else {
-            continue;
-        };
-        if outcome.is_failure() {
-            reporter.report_failure(&line);
-        } else {
+        if let Some(line) = describe_outcome(outcome) {
             eprintln!("{line}");
         }
     }
@@ -284,24 +270,24 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
         match drain_exec_events(socket) {
             Ok(drained) => {
                 if drained.overrun {
-                    watch.reporter.report_failure(&policy_failure("the kernel dropped process events; every process is rescanned now"));
+                    eprintln!("{}", policy_failure("the kernel dropped process events; every process is rescanned now"));
                     full_scan = true;
                 }
                 for pid in drained.pids {
                     let outcome = watch.routing.consider(pid);
-                    report_outcomes(&mut watch.reporter, &[outcome]);
+                    report_outcomes(&[outcome]);
                 }
             }
             Err(error) => {
-                watch.reporter.report_failure(&policy_failure(&format!(
-                    "reading process events failed: {error}; the periodic scan continues"
-                )));
+                eprintln!(
+                    "{}",
+                    policy_failure(&format!("reading process events failed: {error}; the periodic scan continues"))
+                );
             }
         }
     }
     if full_scan || watch.last_full_scan.elapsed() >= FULL_SCAN_INTERVAL {
-        let outcomes = watch.routing.rescan();
-        report_outcomes(&mut watch.reporter, &outcomes);
+        report_outcomes(&watch.routing.rescan());
         watch.last_full_scan = Instant::now();
     }
 }
@@ -312,10 +298,10 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
 pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
     let result = poll_until_stopped(watch);
     if let Err(error) = &result {
-        watch.reporter.report_failure(&format!(
+        eprintln!(
             "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups, and {POLICY_PROCESS_WATCH}: \
 the watcher stopped because {error}, and neither is enforced any more; run wg-quicker up again after fixing the cause"
-        ));
+        );
     }
     return result;
 }
@@ -370,9 +356,9 @@ fn poll_until_stopped(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
         if cgroup_event || last_reconcile.elapsed().as_millis() >= RESCAN_INTERVAL_MS as u128 {
             last_reconcile = Instant::now();
             if let Err(error) = reconcile(watch) {
-                watch.reporter.report_failure(&format!(
+                eprintln!(
                     "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups: the rescan failed: {error}"
-                ));
+                );
             }
         }
         handle_process_events(watch);

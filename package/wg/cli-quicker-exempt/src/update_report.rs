@@ -44,7 +44,6 @@ pub fn policy_notice(install_roots: &[PathBuf]) -> String {
         "    Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.".to_string(),
         "  - Not covered: processes in another pid namespace (containers and sandboxes), and processes the user's service manager".to_string(),
         "    cannot move (login sessions and the main process of a service); each is reported when it matches.".to_string(),
-        "  - Moved processes keep the CPU, memory and task limits of the cgroup they left, as their own limits.".to_string(),
         "  The update-host list is routed around the tunnel for every program by wg-quicker itself,".to_string(),
         "  and each of its rules carries a whole address, so a shared CDN address serves other sites outside the tunnel too.".to_string(),
     ]
@@ -112,14 +111,6 @@ pub enum Outcome {
     },
 }
 
-/// Classification and wording of outcomes.
-impl Outcome {
-    /// Reports whether the outcome means the policy is not in force for some process.
-    pub fn is_failure(&self) -> bool {
-        return matches!(self, Outcome::Skipped { .. } | Outcome::Failed { .. } | Outcome::Unreadable { .. } | Outcome::ScanFailed { .. });
-    }
-}
-
 /// Formats an outcome for the watcher log,
 /// or `None` when nothing needs saying.
 pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
@@ -138,7 +129,7 @@ pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
         }
         Outcome::Skipped { pid, why } => Some(policy_failure(&format!("pid {pid} matched but was not moved: {why}"))),
         Outcome::Failed { pid, error, attempt, retry_in } => Some(policy_failure(&format!(
-            "pid {pid} matched but the move failed (attempt {attempt}, next attempt in {retry_in:?}; the limits of its old cgroup are never dropped to make it succeed): {error}"
+            "pid {pid} matched but the move failed (attempt {attempt}, next attempt in {retry_in:?}): {error}"
         ))),
         Outcome::Unreadable { pid, error } => Some(policy_failure(&format!(
             "pid {pid} could not be inspected, so if it is an update entry point it was not moved: {error}"

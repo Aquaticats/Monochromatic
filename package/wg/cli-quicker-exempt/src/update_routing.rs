@@ -12,8 +12,6 @@
 
 /// Slice and cgroup names.
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
-/// The limits the scope carries.
-use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
 use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_start_time, ProcessInfo};
 /// The seam to the service manager.
@@ -90,9 +88,6 @@ pub struct RoutingSetup {
     pub install_roots: Vec<PathBuf>,
     /// Procfs root.
     pub proc_root: PathBuf,
-    /// Cgroup filesystem root,
-    /// where the limits of the old cgroup are read.
-    pub cgroup_root: PathBuf,
     /// Seam to the service manager.
     pub adopter: Box<dyn Adopter>,
 }
@@ -295,23 +290,11 @@ impl UpdateRouting {
         if pids.first() != Some(&pid) {
             return Outcome::Ignored;
         }
-        let destination = format!(
-            "/user.slice/user-{0}.slice/user@{0}.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}/wg-quicker-update.scope",
-            self.setup.uid
-        );
-        let limits = match read_inherited_limits(&self.setup.cgroup_root, &info.cgroup, &destination) {
-            Ok(limits) => limits,
-            Err(error) => {
-                let text = format!("the limits of {} could not be read, and a process is never moved without them: {error}", info.cgroup);
-                return self.register_failure(key, now, text);
-            }
-        };
         let request = AdoptRequest {
             pids: &pids,
             uid: self.setup.uid,
             gid: self.setup.gid,
             slice: TOOLCHAIN_UPDATES_SLICE,
-            limits: &limits,
         };
         return match self.setup.adopter.adopt(&request) {
             Ok(()) => {
