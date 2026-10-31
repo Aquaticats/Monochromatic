@@ -35,7 +35,8 @@ use jsonc_edit_fuzz::{assert_canonical_stability, assert_depth_bound, assert_spa
 /// What:
 ///      Import both parser entry points.
 /// Why:
-///       Acceptance versus rejection is the property under test, and the span-reporting parse
+///       Acceptance versus rejection is the property under test,
+/// and the span-reporting parse
 ///           must accept and reject exactly what the plain parse does.
 use monochromatic_jsonc_edit::{parse_jsonc, parse_jsonc_with_spans};
 

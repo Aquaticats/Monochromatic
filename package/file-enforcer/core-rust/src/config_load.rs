@@ -15,7 +15,9 @@
 /// What:
 ///  Imports the converter and the location table.
 /// Why:
-///  Loading a config means parsing it, converting it, and keeping where every node sits.
+///  Loading a config means parsing it,
+/// converting it,
+/// and keeping where every node sits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,7 +70,8 @@ pub fn line_and_column(source: &str, offset: usize) -> (usize, usize) {
 }
 
 /// What:
-///  A parsed config: the plain JSON value and where every node of it sits in the file.
+///  A parsed config:
+/// the plain JSON value and where every node of it sits in the file.
 /// Why:
 ///  The decoder reads `value` and asks `locations` for the `file:line:col` of every problem it reports,
 ///  so the two can never be paired with different files.
@@ -79,7 +82,8 @@ pub fn line_and_column(source: &str, offset: usize) -> (usize, usize) {
 /// ```
 #[derive(Clone, Debug)]
 pub struct ConfigDocument {
-    /// The config as plain JSON (comments dropped, trailing commas accepted).
+    /// The config as plain JSON (comments dropped,
+    /// trailing commas accepted).
     pub value: Value,
     /// Where each node of `value` sits in the file.
     pub locations: ConfigLocations,

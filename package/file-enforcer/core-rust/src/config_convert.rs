@@ -1,8 +1,10 @@
 //! What:
 //!  Convert a parsed JSONC config into a plain `serde_json::Value` and a table of where each node sits.
 //! Why:
-//!  Duplicate keys, unpaired surrogates and unrepresentable numbers cannot live in a `serde_json::Value`,
-//!  so they are rejected here, each with `file:line:col` and the JSON pointer of the node.
+//!  Duplicate keys,
+//! unpaired surrogates and unrepresentable numbers cannot live in a `serde_json::Value`,
+//!  so they are rejected here,
+//! each with `file:line:col` and the JSON pointer of the node.
 //!  The table lets the decoder give every later problem the same position information.
 //!
 //! In TS you'd write (pseudocode):
@@ -31,7 +33,8 @@ use crate::config_locations::{ConfigLocations, Location, LocationNode, pointer_s
 /// ```
 use crate::diagnostic::Diagnostic;
 /// What:
-///  Imports the JSONC tree, span list and span type from `monochromatic_jsonc_edit`.
+///  Imports the JSONC tree,
+/// span list and span type from `monochromatic_jsonc_edit`.
 /// Why:
 ///  The converter walks the tree and the span lists together.
 ///
@@ -51,7 +54,9 @@ use monochromatic_jsonc_edit::{JsoncKind, JsoncSpan, JsoncSpans, JsoncValue};
 /// ```
 use std::collections::HashMap;
 /// What:
-///  Imports `Map`, `Number`, `Value` from `serde_json`.
+///  Imports `Map`,
+/// `Number`,
+/// `Value` from `serde_json`.
 /// Why:
 ///  They are the plain JSON value the decoder reads.
 ///
@@ -63,7 +68,8 @@ use serde_json::{Map, Number, Value};
 
 /// What:
 ///  The location of the start of a span.
-///  `JsoncSpan` is `Copy`, so it is passed by value.
+///  `JsoncSpan` is `Copy`,
+/// so it is passed by value.
 /// Why:
 ///  Messages and the table point at where a token starts.
 ///
@@ -91,10 +97,15 @@ pub fn located_message(display_path: &str, at: Location, pointer: &str, message:
 }
 
 /// What:
-///  The walk state: the spans still to be consumed, in document order, and the file name for messages.
+///  The walk state:
+/// the spans still to be consumed,
+/// in document order,
+/// and the file name for messages.
 ///  `&'a JsoncSpans` is a borrow that must outlive the walk.
 /// Why:
-///  The two counters are the consumer contract of `JsoncSpans`: one per list, advanced in pre-order.
+///  The two counters are the consumer contract of `JsoncSpans`:
+/// one per list,
+/// advanced in pre-order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,7 +125,8 @@ struct Converter<'a> {
 /// What:
 ///  The conversion steps.
 /// Why:
-///  A recursive walk is fine here: the parser already refuses more than 512 nested containers.
+///  A recursive walk is fine here:
+/// the parser already refuses more than 512 nested containers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -154,7 +166,8 @@ impl Converter<'_> {
     /// What:
     ///  A `config-syntax` diagnostic at a location.
     /// Why:
-    ///  All conversion failures share the code, the path and the message format.
+    ///  All conversion failures share the code,
+    /// the path and the message format.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -168,7 +181,9 @@ impl Converter<'_> {
     /// What:
     ///  Convert one node and its children into a value and a location node.
     /// Why:
-    ///  Duplicate keys, lone surrogates and unrepresentable numbers fail here, at the token that caused them.
+    ///  Duplicate keys,
+    /// lone surrogates and unrepresentable numbers fail here,
+    /// at the token that caused them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -206,7 +221,8 @@ impl Converter<'_> {
     }
 
     /// What:
-    ///  Convert an object's members, rejecting a key that appears twice or holds a lone surrogate.
+    ///  Convert an object's members,
+    /// rejecting a key that appears twice or holds a lone surrogate.
     /// Why:
     ///  `serde_json::Map` would silently keep only the last of two equal keys.
     ///
@@ -257,9 +273,11 @@ fn scalar_node(at: Location) -> LocationNode {
 }
 
 /// What:
-///  Read a number token as an integer when it is one, else as a finite float.
+///  Read a number token as an integer when it is one,
+/// else as a finite float.
 /// Why:
-///  Integers keep exactness; `serde_json::Number` cannot hold NaN or infinity.
+///  Integers keep exactness;
+/// `serde_json::Number` cannot hold NaN or infinity.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -276,7 +294,8 @@ fn number_of(raw: &str) -> Option<Number> {
 }
 
 /// What:
-///  Convert a whole parsed document, pairing the value with its location table.
+///  Convert a whole parsed document,
+/// pairing the value with its location table.
 /// Why:
 ///  This is the only entry point the loader needs.
 ///

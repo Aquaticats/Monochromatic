@@ -87,10 +87,13 @@ fn several_clients_at_once_share_one_server_and_all_succeed() {
 }
 
 /// What:
-///  Start a server, end it with `signal`, check it left its socket file behind,
+///  Start a server,
+/// end it with `signal`,
+/// check it left its socket file behind,
 /// and check the next command replaces the socket and gets a new server.
 /// Why:
-///  The server installs no signal handler, so any terminating signal skips its cleanup;
+///  The server installs no signal handler,
+/// so any terminating signal skips its cleanup;
 /// recovery has to come from the next client's verified stale-socket removal.
 ///
 /// In TS you'd write (pseudocode):

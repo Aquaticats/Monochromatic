@@ -43,7 +43,8 @@ pub mod config_decode;
 /// JSONC file loading with positioned errors.
 pub mod config_load;
 
-/// Where each value and key of a parsed config sits, looked up by JSON pointer.
+/// Where each value and key of a parsed config sits,
+/// looked up by JSON pointer.
 pub mod config_locations;
 
 /// Conversion of the parsed JSONC tree into plain JSON plus the location table.

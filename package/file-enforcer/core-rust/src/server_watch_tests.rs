@@ -1,8 +1,10 @@
 //! What:
-//!  Tests for `watch` (an absent directory that gets created, and the per-user server)
+//!  Tests for `watch` (an absent directory that gets created,
+//! and the per-user server)
 //!  and for a client whose server vanishes in the middle of a request.
 //! Why:
-//!  Both paths depend on timing and on a peer that misbehaves, so they need a client that can watch in the
+//!  Both paths depend on timing and on a peer that misbehaves,
+//! so they need a client that can watch in the
 //!  background and a fake server that answers the handshake and then hangs up.
 //!
 //! In TS you'd write (pseudocode):
@@ -28,9 +30,11 @@ use std::time::{Duration, Instant};
 
 /// What:
 ///  An event sink that forwards every event into a channel.
-///  `Sender<Event>` is the sending half of a thread-safe queue (TS: an `EventTarget` another thread can dispatch on).
+///  `Sender<Event>` is the sending half of a thread-safe queue (TS:
+/// an `EventTarget` another thread can dispatch on).
 /// Why:
-///  The watch request blocks its thread until the server stops, so the test reads events from another thread.
+///  The watch request blocks its thread until the server stops,
+/// so the test reads events from another thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,21 +48,24 @@ struct ChannelSink {
 /// What:
 ///  The sink's behavior.
 /// Why:
-///  A closed receiver means the test is over; dropped events are fine then.
+///  A closed receiver means the test is over;
+/// dropped events are fine then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class ChannelSink { emit(event: Event): void }
 /// ```
 impl EventSink for ChannelSink {
-    /// Send the event; ignore a closed channel.
+    /// Send the event;
+    /// ignore a closed channel.
     fn emit(&mut self, event: Event) {
         let _ = self.sender.send(event);
     }
 }
 
 /// What:
-///  A `watch` request running on its own thread, and the events it has produced.
+///  A `watch` request running on its own thread,
+/// and the events it has produced.
 /// Why:
 ///  The test reads events as they arrive and finally waits for the request to end after the server shuts down.
 ///
@@ -71,12 +78,14 @@ struct WatchClient {
     events: Receiver<Event>,
     /// Yields the exit code once the request returns.
     done: Receiver<i32>,
-    /// The request thread, joined at the end.
+    /// The request thread,
+    /// joined at the end.
     thread: Option<JoinHandle<()>>,
 }
 
 /// What:
-///  Start and stop a watch, and wait for events by code.
+///  Start and stop a watch,
+/// and wait for events by code.
 /// Why:
 ///  Every test below needs the same three moves.
 ///
@@ -98,7 +107,9 @@ impl WatchClient {
         return WatchClient { events, done, thread: Some(thread) };
     }
 
-    /// Wait up to `seconds` for an event with `code`, returning it; earlier events are skipped.
+    /// Wait up to `seconds` for an event with `code`,
+    /// returning it;
+    /// earlier events are skipped.
     fn wait_for(&self, code: &str, seconds: u64) -> Event {
         return match self.try_wait_for(code, Duration::from_secs(seconds)) {
             Ok(event) => event,
@@ -121,7 +132,8 @@ impl WatchClient {
         return Err(skipped);
     }
 
-    /// Wait for the request to return after the server was asked to stop, and join its thread.
+    /// Wait for the request to return after the server was asked to stop,
+    /// and join its thread.
     fn finish(mut self) -> i32 {
         let code = self.done.recv_timeout(Duration::from_secs(15)).expect("the watch request returns after shutdown");
         if let Some(thread) = self.thread.take() {
@@ -134,10 +146,13 @@ impl WatchClient {
 /// What:
 ///  Run `action` again and again until an event with `code` arrives or twenty seconds pass.
 ///  `impl FnMut(usize)` is any closure that takes the attempt number and may change what it captured
-///  (TS: a callback `(attempt: number) => void`).
+///  (TS:
+/// a callback `(attempt: number) => void`).
 /// Why:
-///  A file-system change made before the watcher has registered the path is lost, and nothing on the event stream
-///  says when registration finished, so the test repeats the change instead of sleeping a fixed time.
+///  A file-system change made before the watcher has registered the path is lost,
+/// and nothing on the event stream
+///  says when registration finished,
+/// so the test repeats the change instead of sleeping a fixed time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -226,8 +241,11 @@ fn watch_on_the_per_user_server_follows_the_user_config() {
 }
 
 /// What:
-///  A fake server on `socket`: it answers the handshake, then reads one request and hangs up after `events` events.
-///  `UnixListener` is a socket that accepts connections on a file path (TS: `net.createServer().listen(path)`).
+///  A fake server on `socket`:
+/// it answers the handshake,
+/// then reads one request and hangs up after `events` events.
+///  `UnixListener` is a socket that accepts connections on a file path (TS:
+/// `net.createServer().listen(path)`).
 /// Why:
 ///  A server that dies in the middle of a request cannot be produced by the real one on demand.
 ///

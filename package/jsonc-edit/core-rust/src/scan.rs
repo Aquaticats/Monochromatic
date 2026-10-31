@@ -31,7 +31,8 @@ use crate::number::JsoncNumberIdentity;
 /// What:
 ///  Import the recorder that collects value and key positions as the parser advances.
 /// Why:
-///  The scanner is the one value every parser step already receives, so it carries the recorder
+///  The scanner is the one value every parser step already receives,
+/// so it carries the recorder
 ///  and the parser's function signatures stay unchanged.
 ///
 /// In TS you'd write (pseudocode):

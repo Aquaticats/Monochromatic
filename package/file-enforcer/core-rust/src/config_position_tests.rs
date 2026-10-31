@@ -3,7 +3,8 @@
 //! Why:
 //!  A person fixing a config jumps to the line from the message,
 //!  so a wrong column or a message with no position is a defect the golden decode tests would not catch.
-//!  Expected positions are found by searching the config text, not by calling the code under test.
+//!  Expected positions are found by searching the config text,
+//! not by calling the code under test.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +17,8 @@ use crate::config_locations::pointer_segment;
 
 /// What:
 ///  The one-based line and column where `needle` first appears on one-based line `line` of `text`.
-///  Columns count characters, as the rule under test does.
+///  Columns count characters,
+/// as the rule under test does.
 /// Why:
 ///  The tests state their expectations from the text itself.
 ///
@@ -46,7 +48,9 @@ fn messages_of(text: &str) -> Vec<String> {
     return errors.into_iter().map(|error| return error.message).collect();
 }
 
-/// The config every positional test reads: one problem per line, so each line number names one expectation.
+/// The config every positional test reads:
+/// one problem per line,
+/// so each line number names one expectation.
 const INVALID: &str = r#"{
   "rules": [
     {"kind": "concat", "id": "a", "output": "/abs", "parts": [], "extra": 1},

@@ -1,8 +1,10 @@
 //! What:
-//!  The property check for source spans, shared by the fuzz targets that parse documents.
+//!  The property check for source spans,
+//! shared by the fuzz targets that parse documents.
 //! Why:
 //!  `parse_jsonc_with_spans` promises that each value and key span slices back to its own token,
-//!  that spans come in document order, and that the tree equals the plain parse;
+//!  that spans come in document order,
+//! and that the tree equals the plain parse;
 //!  a campaign finds inputs that break that promise where fixed tests cannot.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,7 +13,8 @@
 //! ```
 
 /// What:
-///  Import the crate's span-reporting parse, its result type and the plain parse.
+///  Import the crate's span-reporting parse,
+/// its result type and the plain parse.
 /// Why:
 ///  The check is stated over the public API a consumer uses.
 ///
@@ -24,10 +27,13 @@ use monochromatic_jsonc_edit::{
 };
 
 /// What:
-///  One pending step of the depth-first walk: a value to check or a key to check.
-///  An `enum` is a type that is exactly one of several named shapes (TS: a discriminated union).
+///  One pending step of the depth-first walk:
+/// a value to check or a key to check.
+///  An `enum` is a type that is exactly one of several named shapes (TS:
+/// a discriminated union).
 /// Why:
-///  Pre-order puts a member's key before its value, and the walk keeps its own stack so a 512-deep
+///  Pre-order puts a member's key before its value,
+/// and the walk keeps its own stack so a 512-deep
 ///  document cannot exhaust the call stack.
 ///
 /// In TS you'd write (pseudocode):
@@ -45,13 +51,17 @@ enum Step<'a> {
 ///  Check a span-reporting parse result against the text it came from.
 /// Why:
 ///  Taking the result as a parameter lets a unit test tamper with it and prove each rule can fail.
-///  Rules: every span slices to its own token (containers to matching brackets), the lists are fully used,
-///  spans nest inside their parent, and positions agree with the standalone position lookup.
+///  Rules:
+/// every span slices to its own token (containers to matching brackets),
+/// the lists are fully used,
+///  spans nest inside their parent,
+/// and positions agree with the standalone position lookup.
 ///
 /// # Arguments
 ///
 /// * `source` - The text that was parsed.
-/// * `spanned` - The result of `parse_jsonc_with_spans(source)`, possibly tampered with by a test.
+/// * `spanned` - The result of `parse_jsonc_with_spans(source)`,
+///   possibly tampered with by a test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,7 +115,8 @@ pub fn assert_spans_match(source: &str, spanned: &JsoncSpanned) {
 }
 
 /// What:
-///  Parse a document that must parse, then check its spans and that the spanned parse equals the plain parse.
+///  Parse a document that must parse,
+/// then check its spans and that the spanned parse equals the plain parse.
 /// Why:
 ///  A fuzz target calls this on every accepted input.
 ///

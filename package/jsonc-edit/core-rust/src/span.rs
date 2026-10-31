@@ -1,9 +1,12 @@
 //! What:
 //!  Source positions for parsed JSONC values and object keys.
 //! Why:
-//!  A caller that decodes a document into its own types (a config file, say) must be able to tell the user
-//!  `file:line:col` for a value that is wrong, and the parsed tree itself carries no positions because its
-//!  structs are compared, hashed and built by hand elsewhere.
+//!  A caller that decodes a document into its own types (a config file,
+//! say) must be able to tell the user
+//!  `file:line:col` for a value that is wrong,
+//! and the parsed tree itself carries no positions because its
+//!  structs are compared,
+//! hashed and built by hand elsewhere.
 //!  Positions therefore travel beside the tree in a parallel list.
 //!
 //! In TS you'd write (pseudocode):
@@ -16,7 +19,8 @@
 /// What:
 ///  Import the parse failure type.
 /// Why:
-///  A malformed document is an ordinary result of `parse_jsonc_with_spans`, as for `parse_jsonc`.
+///  A malformed document is an ordinary result of `parse_jsonc_with_spans`,
+/// as for `parse_jsonc`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,15 +59,21 @@ use crate::scan::Scanner;
 use crate::value::JsoncValue;
 
 /// What:
-///  One place in the source text: a byte offset plus the line and column of that offset.
-///  `usize` is the unsigned integer wide enough to index any byte of a string (siblings: `u32`, `u64`).
+///  One place in the source text:
+/// a byte offset plus the line and column of that offset.
+///  `usize` is the unsigned integer wide enough to index any byte of a string (siblings:
+/// `u32`,
+/// `u64`).
 /// Why:
-///  Offsets slice the source; line and column are what a person types into an editor.
+///  Offsets slice the source;
+/// line and column are what a person types into an editor.
 ///  `usize` and not `u32` or `u64` because every standard string-slicing API takes `usize`.
 /// Gotcha:
 ///  `line` and `column` both start at 1.
-///  The column counts Unicode scalar values (what a TypeScript spread `[...line]` counts), not bytes and not UTF-16 units.
-///  Only LF ends a line (CRLF is one LF preceded by a column); a bare CR is one column,
+///  The column counts Unicode scalar values (what a TypeScript spread `[...line]` counts),
+/// not bytes and not UTF-16 units.
+///  Only LF ends a line (CRLF is one LF preceded by a column);
+/// a bare CR is one column,
 ///  the same line rule `README.md` states for comment ownership.
 ///
 /// In TS you'd write (pseudocode):
@@ -72,20 +82,25 @@ use crate::value::JsoncValue;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct JsoncPosition {
-    /// Byte offset into the source, counting from 0.
+    /// Byte offset into the source,
+    /// counting from 0.
     pub offset: usize,
-    /// Line number, counting from 1.
+    /// Line number,
+    /// counting from 1.
     pub line: usize,
-    /// Column number in Unicode scalar values, counting from 1.
+    /// Column number in Unicode scalar values,
+    /// counting from 1.
     pub column: usize,
 }
 
 /// What:
-///  The source range of one value or one object key: where it starts and where it ends.
+///  The source range of one value or one object key:
+/// where it starts and where it ends.
 /// Why:
 ///  Error messages point at the start;
 ///  slicing the source between the two offsets gives back the exact token text.
-///  `end` is exclusive: it names the position just after the last byte.
+///  `end` is exclusive:
+/// it names the position just after the last byte.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,7 +108,9 @@ pub struct JsoncPosition {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct JsoncSpan {
-    /// Position of the first byte (the opening quote, bracket, brace or first literal character).
+    /// Position of the first byte (the opening quote,
+    /// bracket,
+    /// brace or first literal character).
     pub start: JsoncPosition,
     /// Position just after the last byte.
     pub end: JsoncPosition,
@@ -102,12 +119,15 @@ pub struct JsoncSpan {
 /// What:
 ///  The positions of every value and every object key of one parsed document,
 ///  each list in document (pre-)order.
-///  `Vec<JsoncSpan>` is a growable list (TS: `JsoncSpan[]`; sibling `[JsoncSpan; N]` is a fixed-size array).
+///  `Vec<JsoncSpan>` is a growable list (TS:
+/// `JsoncSpan[]`;
+/// sibling `[JsoncSpan; N]` is a fixed-size array).
 /// Why:
 ///  Pre-order means a container comes before its children and members come in source order,
 ///  so a caller walking the tree depth-first with one counter per list reads each node's span without any lookup,
 ///  and the parser records them in a single forward pass.
-///  The root is `values[0]`; the key of the first member of the first object is `keys[0]`.
+///  The root is `values[0]`;
+/// the key of the first member of the first object is `keys[0]`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -116,9 +136,12 @@ pub struct JsoncSpan {
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct JsoncSpans {
-    /// One span per value (scalars, arrays and objects), the root first.
+    /// One span per value (scalars,
+    /// arrays and objects),
+    /// the root first.
     pub values: Vec<JsoncSpan>,
-    /// One span per object member key, in source order.
+    /// One span per object member key,
+    /// in source order.
     pub keys: Vec<JsoncSpan>,
 }
 
@@ -134,7 +157,8 @@ pub struct JsoncSpans {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct JsoncSpanned {
-    /// The document tree, identical to what [`crate::parse_jsonc`] returns for the same text.
+    /// The document tree,
+    /// identical to what [`crate::parse_jsonc`] returns for the same text.
     pub value: JsoncValue,
     /// The positions of the tree's nodes.
     pub spans: JsoncSpans,
@@ -142,7 +166,9 @@ pub struct JsoncSpanned {
 
 /// What:
 ///  A forward-only reader of positions over a source string.
-///  `&'a str` is a borrowed view of text the cursor does not own (sibling: `String`, an owned copy);
+///  `&'a str` is a borrowed view of text the cursor does not own (sibling:
+/// `String`,
+/// an owned copy);
 ///  `'a` names how long that borrow lasts.
 /// Why:
 ///  Asking for the position of each offset in increasing order costs one pass over the text in total,
@@ -176,7 +202,8 @@ struct Cursor<'a> {
 /// ```
 impl<'a> Cursor<'a> {
     /// What:
-    ///  Start a cursor at the beginning of the text, line 1 column 1.
+    ///  Start a cursor at the beginning of the text,
+    /// line 1 column 1.
     /// Why:
     ///  Every document is measured from its first byte.
     ///
@@ -192,8 +219,11 @@ impl<'a> Cursor<'a> {
     ///  Move forward to `target` (clamped to the end of the text) and report the position there.
     /// Why:
     ///  The parser records span ends and starts in the order it meets them,
-    ///  and that order never goes backwards, so each byte is visited once.
-    ///  An offset before the cursor is a parser bug, not bad input, so it stops the program loudly.
+    ///  and that order never goes backwards,
+    /// so each byte is visited once.
+    ///  An offset before the cursor is a parser bug,
+    /// not bad input,
+    /// so it stops the program loudly.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -233,11 +263,13 @@ impl<'a> Cursor<'a> {
 }
 
 /// What:
-///  Collects value and key spans while the parser runs, or does nothing when switched off.
+///  Collects value and key spans while the parser runs,
+/// or does nothing when switched off.
 /// Why:
 ///  `parse_jsonc` and `parse_jsonc_with_spans` share one parser,
 ///  and the plain entry point must not pay for positions it throws away.
-///  `open` remembers which container slots are still waiting for their end, innermost last.
+///  `open` remembers which container slots are still waiting for their end,
+/// innermost last.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -257,7 +289,10 @@ pub struct SpanRecorder<'a> {
 /// What:
 ///  The recorder's operations.
 /// Why:
-///  The parser calls one method per event (scalar, container start, container end, key),
+///  The parser calls one method per event (scalar,
+/// container start,
+/// container end,
+/// key),
 ///  so span bookkeeping stays out of the parser's grammar logic.
 ///
 /// In TS you'd write (pseudocode):
@@ -266,7 +301,8 @@ pub struct SpanRecorder<'a> {
 /// ```
 impl<'a> SpanRecorder<'a> {
     /// What:
-    ///  Build a recorder; with `enabled` false it records nothing.
+    ///  Build a recorder;
+    /// with `enabled` false it records nothing.
     /// Why:
     ///  The same parse loop serves both entry points.
     ///
@@ -281,7 +317,8 @@ impl<'a> SpanRecorder<'a> {
     /// What:
     ///  Record a complete scalar value that spans `start..end` bytes.
     /// Why:
-    ///  Scalars finish in the same step they start, so one call adds the whole span.
+    ///  Scalars finish in the same step they start,
+    /// so one call adds the whole span.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -297,10 +334,12 @@ impl<'a> SpanRecorder<'a> {
     }
 
     /// What:
-    ///  Record that a container's opening byte sits at `start`, reserving its slot before its children.
+    ///  Record that a container's opening byte sits at `start`,
+    /// reserving its slot before its children.
     /// Why:
     ///  Pre-order requires the container's entry to come before its children's,
-    ///  but its end is unknown until the closing byte, so the end is a placeholder until `container_end`.
+    ///  but its end is unknown until the closing byte,
+    /// so the end is a placeholder until `container_end`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -318,7 +357,8 @@ impl<'a> SpanRecorder<'a> {
     /// What:
     ///  Record that the innermost open container ended at byte `end` (just after its closing byte).
     /// Why:
-    ///  Containers close in last-opened-first order, so the top of `open` is the one that ended.
+    ///  Containers close in last-opened-first order,
+    /// so the top of `open` is the one that ended.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -338,7 +378,8 @@ impl<'a> SpanRecorder<'a> {
     /// What:
     ///  Record an object member key that spans `start..end` bytes.
     /// Why:
-    ///  Messages about an unknown or misplaced key should point at the key, not at its value.
+    ///  Messages about an unknown or misplaced key should point at the key,
+    /// not at its value.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -356,7 +397,8 @@ impl<'a> SpanRecorder<'a> {
     /// What:
     ///  Hand over the collected spans.
     /// Why:
-    ///  The parser is finished with the recorder, so ownership moves to the caller instead of copying.
+    ///  The parser is finished with the recorder,
+    /// so ownership moves to the caller instead of copying.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -371,7 +413,8 @@ impl<'a> SpanRecorder<'a> {
 ///  Parse one JSONC document and also report where every value and object key sits in the text.
 /// Why:
 ///  The tree is exactly what [`crate::parse_jsonc`] returns;
-///  the spans come from the same single pass, so the cost is linear in the text and the nesting limit is unchanged.
+///  the spans come from the same single pass,
+/// so the cost is linear in the text and the nesting limit is unchanged.
 ///  A caller walks the tree depth-first with one counter per span list (see [`JsoncSpans`]).
 ///
 /// In TS you'd write (pseudocode):
@@ -380,7 +423,8 @@ impl<'a> SpanRecorder<'a> {
 /// ```
 ///
 /// # Errors
-/// Malformed syntax or a 513th open container returns a byte-positioned parse error, as for `parse_jsonc`.
+/// Malformed syntax or a 513th open container returns a byte-positioned parse error,
+/// as for `parse_jsonc`.
 pub fn parse_jsonc_with_spans(source: &str) -> Result<JsoncSpanned, JsoncParseError> {
     // What: `?` returns the parse error early; on success the tuple is unpacked into the tree and the recorder.
     // Why: Spans are only meaningful beside the tree they were recorded for.
@@ -395,12 +439,17 @@ pub fn parse_jsonc_with_spans(source: &str) -> Result<JsoncSpanned, JsoncParseEr
 }
 
 /// What:
-///  The line, column and offset of one byte offset in a source text.
+///  The line,
+/// column and offset of one byte offset in a source text.
 ///  Offsets past the end report the end of the text.
 /// Why:
-///  A caller that holds only a byte offset (a parse error's `offset`, for example)
-///  gets the same line and column rule the spans use, so every position in a message agrees.
-///  This is one pass over the text before the offset; call it for a handful of offsets, not for every node.
+///  A caller that holds only a byte offset (a parse error's `offset`,
+/// for example)
+///  gets the same line and column rule the spans use,
+/// so every position in a message agrees.
+///  This is one pass over the text before the offset;
+/// call it for a handful of offsets,
+/// not for every node.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

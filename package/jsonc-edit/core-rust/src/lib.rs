@@ -252,7 +252,9 @@ pub use parse::parse_jsonc;
 pub use text_units::{decode_quoted, encode_quoted, units_to_string};
 
 /// What:
-///  Source positions (byte offset, line, column) for parsed values and object keys.
+///  Source positions (byte offset,
+/// line,
+/// column) for parsed values and object keys.
 /// Why:
 ///  Callers that decode a document into their own types need `file:line:col` for a value they reject,
 ///  and the document tree itself stays position-free so existing constructors and comparisons keep working.
@@ -265,7 +267,8 @@ mod span;
 /// What:
 ///  Re-export the span types and the span-reporting parser entry point.
 /// Why:
-///  Positions are a parsing feature, so callers reach them from the crate root beside `parse_jsonc`.
+///  Positions are a parsing feature,
+/// so callers reach them from the crate root beside `parse_jsonc`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

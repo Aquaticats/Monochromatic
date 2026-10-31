@@ -1,5 +1,6 @@
 //! What:
-//!  Unit tests for the span checks, each rule shown to pass on an honest result and fail on a tampered one.
+//!  Unit tests for the span checks,
+//! each rule shown to pass on an honest result and fail on a tampered one.
 //! Why:
 //!  A check that never fails turns a clean fuzz campaign into silence rather than evidence.
 //!
@@ -11,7 +12,8 @@
 /// What:
 ///  Import the panic-capture helpers.
 /// Why:
-///  The negative controls intentionally trip assertions, and the default hook would print each backtrace.
+///  The negative controls intentionally trip assertions,
+/// and the default hook would print each backtrace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,7 +44,8 @@ use crate::span_invariants::{assert_spans_consistent, assert_spans_match};
 use monochromatic_jsonc_edit::{parse_jsonc_with_spans, JsoncSpanned};
 
 /// What:
-///  Report whether a closure panics, without printing the panic.
+///  Report whether a closure panics,
+/// without printing the panic.
 /// Why:
 ///  Negative controls intentionally trip assertions.
 fn panics<F>(body: F) -> bool
@@ -56,7 +59,10 @@ where
     return outcome.is_err();
 }
 
-/// The document every case tampers with: nested containers, comments, CRLF and a multi-byte key.
+/// The document every case tampers with:
+/// nested containers,
+/// comments,
+/// CRLF and a multi-byte key.
 const DOCUMENT: &str = "// lead\n{\r\n  \"a\": [1, {\"b\": null}], /* c */\n  \"\u{00e9}\": true\n}";
 
 /// What:
@@ -67,7 +73,8 @@ fn honest() -> JsoncSpanned {
     return parse_jsonc_with_spans(DOCUMENT).unwrap_or_else(|error| panic!("test document must parse: {error}"));
 }
 
-/// Honest results pass, for the shared document and a few shapes around it.
+/// Honest results pass,
+/// for the shared document and a few shapes around it.
 #[test]
 fn honest_results_satisfy_every_rule() {
     assert_spans_consistent(DOCUMENT);

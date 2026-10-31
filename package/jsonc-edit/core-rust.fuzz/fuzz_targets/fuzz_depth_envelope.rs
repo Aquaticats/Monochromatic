@@ -35,7 +35,8 @@ use jsonc_edit_fuzz::assert_spans_consistent;
 /// What:
 ///      Import both parser entry points.
 /// Why:
-///       The nesting limit is enforced while parsing, in the plain and the span-reporting parse alike.
+///       The nesting limit is enforced while parsing,
+/// in the plain and the span-reporting parse alike.
 use monochromatic_jsonc_edit::{parse_jsonc, parse_jsonc_with_spans};
 
 /// The contract's accepted container count,

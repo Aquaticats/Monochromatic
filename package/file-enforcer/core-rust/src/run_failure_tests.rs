@@ -1,9 +1,12 @@
 //! What:
 //!  Tests for the failure and edge branches of a run:
-//!  a snapshot that keeps changing, an unbound variable, `explain` on a directory,
+//!  a snapshot that keeps changing,
+//! an unbound variable,
+//! `explain` on a directory,
 //!  and `--expected-dir` on a directory that is not empty.
 //! Why:
-//!  Each branch has its own diagnostic code and exit code, and the happy-path suites never reach them.
+//!  Each branch has its own diagnostic code and exit code,
+//! and the happy-path suites never reach them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,11 +27,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// What:
-///  A rule that reads `input.txt` and then rewrites it, differently on every plan.
-///  `Arc<AtomicUsize>` is a counter shared between threads and owners (TS: a `{ n: number }` object both sides hold).
+///  A rule that reads `input.txt` and then rewrites it,
+/// differently on every plan.
+///  `Arc<AtomicUsize>` is a counter shared between threads and owners (TS:
+/// a `{ n: number }` object both sides hold).
 /// Why:
 ///  A plan whose input changes under it is thrown away and redone;
-///  a writer that never stops makes every plan stale, which must end in a named failure and not a loop.
+///  a writer that never stops makes every plan stale,
+/// which must end in a named failure and not a loop.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,7 +48,9 @@ struct ChurningRule {
 /// What:
 ///  The rule's behavior.
 /// Why:
-///  The engine needs an id, a kind and a plan; the plan is the part under test.
+///  The engine needs an id,
+/// a kind and a plan;
+/// the plan is the part under test.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -59,7 +67,8 @@ impl Rule for ChurningRule {
         return "concat";
     }
 
-    /// Read the input, then change it so the engine's revalidation sees a different file.
+    /// Read the input,
+    /// then change it so the engine's revalidation sees a different file.
     fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
         let text = view.read_text("input.txt")?.unwrap_or_default();
         let number = self.plans.fetch_add(1, Ordering::SeqCst);

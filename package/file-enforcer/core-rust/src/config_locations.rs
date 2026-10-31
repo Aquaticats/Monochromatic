@@ -1,9 +1,12 @@
 //! What:
-//!  Where each value and key of a config file sits, looked up by JSON pointer.
+//!  Where each value and key of a config file sits,
+//! looked up by JSON pointer.
 //! Why:
-//!  The decoder reads a plain `serde_json::Value`, which has forgotten line and column;
+//!  The decoder reads a plain `serde_json::Value`,
+//! which has forgotten line and column;
 //!  this table remembers them so every decode message can say `file:line:col` beside its pointer.
-//!  Lookups cost the pointer's length, so reporting many problems stays linear in the config.
+//!  Lookups cost the pointer's length,
+//! so reporting many problems stays linear in the config.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,9 +15,12 @@
 
 /// What:
 ///  Imports `HashMap` from `std::collections`.
-///  `HashMap<K, V>` is a key-to-value table (TS: `Map<K, V>`; sibling `BTreeMap` keeps keys sorted).
+///  `HashMap<K, V>` is a key-to-value table (TS:
+/// `Map<K, V>`;
+/// sibling `BTreeMap` keeps keys sorted).
 /// Why:
-///  Finding an object member by key must not scan every sibling, or a config with many keys would cost quadratic time.
+///  Finding an object member by key must not scan every sibling,
+/// or a config with many keys would cost quadratic time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,7 +31,8 @@ use std::collections::HashMap;
 /// What:
 ///  A one-based line and column in the config file.
 /// Why:
-///  People read `file:line:col`; offsets are not what an editor jumps to.
+///  People read `file:line:col`;
+/// offsets are not what an editor jumps to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,19 +40,26 @@ use std::collections::HashMap;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Location {
-    /// Line, counting from 1.
+    /// Line,
+    /// counting from 1.
     pub line: usize,
-    /// Column in Unicode scalar values, counting from 1.
+    /// Column in Unicode scalar values,
+    /// counting from 1.
     pub column: usize,
 }
 
 /// What:
-///  Where one node of the config sits, and where its children sit.
-///  `Vec<LocationNode>` is a growable list of owned nodes (TS: `LocationNode[]`);
+///  Where one node of the config sits,
+/// and where its children sit.
+///  `Vec<LocationNode>` is a growable list of owned nodes (TS:
+/// `LocationNode[]`);
 ///  `Option<HashMap<..>>` is `Some` only for objects.
 /// Why:
-///  The tree has the same shape as the JSON value, so a pointer's segments walk it directly.
-///  Arrays are reached by index; objects through `by_key`, which holds each key's index in `items`.
+///  The tree has the same shape as the JSON value,
+/// so a pointer's segments walk it directly.
+///  Arrays are reached by index;
+/// objects through `by_key`,
+/// which holds each key's index in `items`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,11 +69,15 @@ pub struct Location {
 pub struct LocationNode {
     /// Where this value starts.
     pub value: Location,
-    /// Where this value's own key starts, when the value is an object member.
+    /// Where this value's own key starts,
+    /// when the value is an object member.
     pub key: Option<Location>,
-    /// Array elements or object member values, in source order.
+    /// Array elements or object member values,
+    /// in source order.
     pub items: Vec<LocationNode>,
-    /// For an object, each key's index into `items`; `None` for arrays and scalars.
+    /// For an object,
+    /// each key's index into `items`;
+    /// `None` for arrays and scalars.
     pub by_key: Option<HashMap<String, usize>>,
 }
 
@@ -117,10 +135,12 @@ fn unescape_segment(segment: &str) -> String {
 /// ```
 impl ConfigLocations {
     /// What:
-    ///  Walk a pointer from the root and return the node it reaches, or the deepest node it did reach.
+    ///  Walk a pointer from the root and return the node it reaches,
+    /// or the deepest node it did reach.
     ///  The pair's boolean says whether the whole pointer resolved.
     /// Why:
-    ///  Both lookups below share the walk; the boolean keeps "this exact node" apart from "the nearest ancestor".
+    ///  Both lookups below share the walk;
+    /// the boolean keeps "this exact node" apart from "the nearest ancestor".
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -159,7 +179,8 @@ impl ConfigLocations {
 
     /// What:
     ///  The position of the key of the member at `pointer`;
-    ///  falls back to [`ConfigLocations::value_at`] when the member is absent or has no key (the root, an array element).
+    ///  falls back to [`ConfigLocations::value_at`] when the member is absent or has no key (the root,
+    /// an array element).
     /// Why:
     ///  An "unknown key" message should point at the key the person typed.
     ///

@@ -179,7 +179,8 @@ pub fn config_path(harness: &Harness) -> PathBuf {
 ///  `i32` is a signed 32-bit integer (the type `libc::kill` takes for a process id).
 /// Why:
 ///  A server killed after its parent exited can sit as a zombie for a moment;
-/// a zombie holds no socket and serves nothing, so it counts as stopped.
+/// a zombie holds no socket and serves nothing,
+/// so it counts as stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

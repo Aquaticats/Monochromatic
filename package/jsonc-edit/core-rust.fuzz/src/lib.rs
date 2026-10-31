@@ -36,7 +36,10 @@ pub mod invariants;
 /// What:
 ///  The source-span property checks shared by the fuzz targets that parse documents.
 /// Why:
-///  `parse_jsonc_with_spans` makes its own promises (tokens, order, positions), asserted here once.
+///  `parse_jsonc_with_spans` makes its own promises (tokens,
+/// order,
+/// positions),
+/// asserted here once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,7 +87,8 @@ pub use invariants::{
 /// What:
 ///  Re-export the span checks.
 /// Why:
-///  Targets import the checks by name, like the other invariants.
+///  Targets import the checks by name,
+/// like the other invariants.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +133,8 @@ mod generators_tests;
 mod invariants_tests;
 
 /// What:
-///  Span-invariant unit tests, including the negative controls that prove each rule can fail.
+///  Span-invariant unit tests,
+/// including the negative controls that prove each rule can fail.
 /// Why:
 ///  A span check that cannot fail turns a clean campaign into silence rather than evidence.
 ///

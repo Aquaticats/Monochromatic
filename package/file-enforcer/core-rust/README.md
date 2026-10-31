@@ -20,7 +20,8 @@ The accepted design is [`doc/decision/file-enforcer-rust-rewrite.md`](../../../d
    and decoded by hand into `Config`.
    Every problem is reported as `file:line:col: /json/pointer: message`,
    with the position of the offending value
-   (or of the key, for an unknown key);
+   (or of the key,
+   for an unknown key);
    a syntax error has no pointer and reads `file:line:col: message`.
 2. `RuleRegistry::build` turns each entry into a `Rule`.
 3. `plan_run` runs the rules in config order against a `View`:

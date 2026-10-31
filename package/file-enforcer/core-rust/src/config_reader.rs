@@ -24,7 +24,9 @@
 /// ```
 use crate::config_convert::located_message;
 /// What:
-///  Imports the location table, a location, and the pointer escape.
+///  Imports the location table,
+/// a location,
+/// and the pointer escape.
 /// Why:
 ///  The reader turns a pointer into the line and column printed before it.
 ///
@@ -101,7 +103,8 @@ impl<'a> Reader<'a> {
     /// What:
     ///  Record one problem at the key of the member at a JSON pointer.
     /// Why:
-    ///  An unknown key is wrong where it is typed, so the position is the key's and not its value's.
+    ///  An unknown key is wrong where it is typed,
+    /// so the position is the key's and not its value's.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

@@ -508,7 +508,8 @@ pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
 
 /// What:
 ///  Parse one document with a caller-built scanner and hand back the scanner's span recorder.
-///  The scanner moves in by value (TS: passing an object the callee may consume).
+///  The scanner moves in by value (TS:
+/// passing an object the callee may consume).
 /// Why:
 ///  One parse loop serves `parse_jsonc` (recorder off) and `parse_jsonc_with_spans` (recorder on),
 ///  so the two can never disagree about what a document means.
