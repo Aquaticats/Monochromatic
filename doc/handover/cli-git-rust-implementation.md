@@ -4483,3 +4483,27 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `recovery_scan.rs`, `commit_recovery.rs` and `index_writer_coordination.rs` `acquire_landing` to see why recovery did
   not retire a lock whose journal record exists, then fix and add a permanent test (the sweep is the red test).
 - Units of mine: none running. The kept-fixture container `cli-git-keep` and the images are expendable.
+
+## Update at 2026-10-30 (night: gate green with strace, the stuck-add cause fixed)
+
+- Root cause of the stuck `git add` (found with `MONOCHROMATIC_VERBOSE=true`, now passed through the hermetic test
+  environment): releasing the wrapper's real `index.lock` re-resolves the filesystem identity, and on a filesystem
+  without a UUID (the container's overlay) that started `stat --file-system`. With every process start refused the
+  start failed after 4.6 s of retries, the release gave up ("unable to resolve the filesystem identity"), the transaction
+  directory was removed, and the lock stayed with nothing to prove it ours. Host runs never saw it because the host
+  filesystem has a UUID, so no `stat` started. Fix `ebbf0e7ab5`: `filesystem_identity_fsid.rs` reads `f_fsid` with
+  `statfs` in-process, spelled as GNU `stat` spells it (differential control against `stat` on four paths). Side gain:
+  a commit on such a filesystem starts no `stat` (the budget constant went from 3 to 0).
+- Residual risk, not fixed: when the in-process mount table answers `Unknown`, the UUID still comes from `findmnt`
+  (a start). If starts are refused at release time, the re-resolved identity could differ from the recorded one
+  (`f-fsid_` against `fs-uuid_`) and the release would refuse. A release by the same process that took the lock could
+  skip the filesystem part of the proof (device and inode already match). Not started.
+- Gate eight (`strace8.log`, main at `ebbf0e7ab5` plus another session's commits): 2653 run, 2653 passed, 7 skipped.
+  The fault sweeps and budget tests now run in the gate. The same 7 tests skipped before and after `strace` joined the
+  image, so the earlier guess that the skips were the `strace` sweeps was wrong; the 7 are unattributed.
+- Other findings fixed on the way: bare `strace` name not found under a restricted `PATH` (`9dba5f1452`);
+  `Cargo.lock` files behind the raised dependency floors (`0acc0eb452`).
+- Open: the two replay unit tests that hung during the host stall (see the entry above) still spawn Git per seeded case;
+  batching would make them immune to a slow host.
+- Next: release 0.4.3 with `native:release`, then the mutation campaign over `private_storage`, `owner_lock`,
+  `process_tree`, `real_index_lock`, `filesystem_identity_fsid` and the changed fault-test support.
