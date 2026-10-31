@@ -41,6 +41,9 @@ pub mod registry;
 /// The shadow mode: lookup, launch, wait, prune.
 pub mod shim;
 
+/// The toolchain plan and lock, and the commands that act on them.
+pub mod toolchain;
+
 /// Crate-name and version splitting, and version order.
 pub mod version;
 
