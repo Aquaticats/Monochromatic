@@ -261,8 +261,6 @@ export async function runSliceArms(
       client,
       produced,
       judgeModelIds: models.judgeModelIds,
-      // THE TRIAL SEATS THE WHOLE ROSTER (`RUN_ROSTER`), so it asks in the roster role.
-      role: 'roster',
       sourceText: slice.source
         .text,
       incumbentText: slice.target
@@ -283,6 +281,9 @@ export async function runSliceArms(
       perCallTimeoutMs,
       l,
       stageSettings,
+      // LAST, so no spread above can replace it: THE TRIAL SEATS THE WHOLE ROSTER (`RUN_ROSTER`), so it asks in the roster
+      // role.
+      role: 'roster',
     },);
     /* oxlint-enable no-await-in-loop */
 
