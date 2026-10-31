@@ -739,7 +739,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-file-enforcer"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "directories",
  "globset",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-file-enforcer-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "libc",

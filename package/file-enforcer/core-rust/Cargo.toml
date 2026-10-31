@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-file-enforcer"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Aquaticat"]
 categories = ["development-tools", "filesystem"]
 documentation = "https://docs.rs/monochromatic-file-enforcer"
