@@ -323,14 +323,17 @@ except where a musl platform now gets the musl build the release offers):
   `os`,
   `asset`,
   `bootstrap`)
-  and names `mpm-shadow update`.
+  and names `mpm-shadow update <id>` for just those tools.
 - `mpm-shadow lock --check`:
   the toolchain drift gate for CI,
   beside `file-enforcer check`.
   Writes nothing.
   Exits 1 when the plan and lock disagree or the digest does not match.
-- `mpm-shadow update [--check]`:
-  resolves every tool and writes the whole lock.
+- `mpm-shadow update [--check] [<tool>...]`:
+  resolves every tool and writes the whole lock,
+  or,
+  given tool ids,
+  only those (see "Updating named tools").
   `--check` reports what would move,
   writes nothing,
   installs nothing,
@@ -359,6 +362,66 @@ except where a musl platform now gets the musl build the release offers):
 
 `sync` and `status` refuse when the plan and lock disagree,
 and name `mpm-shadow lock` or `mpm-shadow update`.
+
+### Updating named tools
+
+`mpm-shadow update <tool>...` mirrors `pnpm update <pkg>...`:
+it looks up and moves only the tools it selects,
+and every other lock row keeps its version and artifacts
+(and takes the plan's current `bins`,
+`env`
+and `options`,
+as offline `lock` would give it).
+Adding a tool to the plan and running `mpm-shadow update <new id>` locks that tool alone,
+the way `pnpm install` after adding one dependency resolves only that dependency.
+
+- A name is a tool id,
+  or a pattern in which `*` stands for any run of characters
+  (`mpm-shadow update 'npm:*'`);
+  a leading `!` excludes
+  (`mpm-shadow update 'npm:*' '!npm:wrangler'`),
+  and only exclusions select everything else.
+  This is the pattern grammar of `pnpm update "@babel/*" "!@babel/core"`.
+- A name that matches no tool of the plan is refused with exit code 2,
+  before any lookup,
+  naming it and listing every valid id.
+  pnpm 12.16.1 accepts such a name silently and reports "Already up to date";
+  that hides a typo here,
+  where a name selects what to resolve.
+- A plan entry the lock cannot hold as it is
+  (no lock row,
+  or an edit of `request`,
+  `route`,
+  `manager`,
+  `packageId`,
+  `os`,
+  `options.asset`
+  or `options.bootstrap`)
+  that the names left out is refused,
+  before any lookup,
+  with the ids to add to the command.
+  Writing a lock with such a row kept would fail `lock --check`,
+  and resolving it unasked would move what the command line did not name.
+  With no lock file every entry is such a row,
+  so a named update cannot create the lock;
+  plain `update` does.
+- `--check` takes the same names:
+  it reports only the selected tools and exits 1 when one of them would move.
+- Not mirrored:
+  `--latest` (a request's range already says what is wanted),
+  `<tool>@<range>` (people edit the plan,
+  so a range changes there),
+  `--interactive`,
+  `--depth`,
+  and the workspace flags have no counterpart.
+  `update` never installs anything with `--check`,
+  and otherwise installs only to retry a failed npm or PyPI lookup,
+  so it already behaves as `--lockfile-only` does.
+- `lock` stays offline and `sync` stays an installer that refuses when the plan and lock disagree.
+  They do not resolve a new entry on their own,
+  because a lookup needs the network and `sync` is what CI runs against a committed lock
+  (pnpm's `install` is frozen in CI for the same reason);
+  their refusals name `mpm-shadow update <id>` for exactly the tools that need it.
 
 ## How it installs
 
@@ -573,9 +636,18 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   A run that could not start prunes nothing.
 - Touches only crates whose name starts with `monochromatic-`.
   For each,
-  it keeps the version cargo's install record (`<cargo home>/.crates.toml`) names as installed,
-  or the newest cached version when the record does not name the crate,
+  it keeps the newest version an install record names as installed,
+  or the newest cached version when no record names the crate,
   and deletes every other cached archive and extracted source.
+  The records are the version-keyed ones `sync` writes under `<toolchain root>/cargo/<crate>/<version>/.crates.toml`,
+  read in both the repository root and the machine-global root
+  (`<data home>/monochromatic-dev/toolchain` and `toolchain-global`,
+  `XDG_DATA_HOME` or `~/.local/share`),
+  and cargo's own `<cargo home>/.crates.toml`,
+  which trees still on the TypeScript toolchain keep writing;
+  the newest across them wins,
+  so a stale legacy file cannot keep an old version or delete a newer cached archive.
+  A version directory without a record is an unfinished install and names nothing.
 - Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`.
 - Skips every candidate that resolves to its own executable when it looks for the real `mpm`.
 
