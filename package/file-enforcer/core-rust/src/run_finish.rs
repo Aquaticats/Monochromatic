@@ -72,7 +72,10 @@ pub fn result_event(command: &str, clean: bool, counts: &[(&str, usize)]) -> Eve
 pub fn finish_check(request: &RunRequest, sink: &mut dyn EventSink, drifts: &[Drift], expected_dir: &Option<PathBuf>) -> i32 {
     let mut written: Vec<String> = Vec::new();
     if let Some(dir) = expected_dir {
-        let checked = validate_expected_dir(dir, &request.root).and_then(|canonical| return write_expected_trees(&canonical, drifts));
+        let checked = match validate_expected_dir(dir, &request.root) {
+            Ok(canonical) => write_expected_trees(&canonical, drifts),
+            Err(error) => Err(error),
+        };
         match checked {
             Ok(paths) => written = paths,
             Err(error) => {

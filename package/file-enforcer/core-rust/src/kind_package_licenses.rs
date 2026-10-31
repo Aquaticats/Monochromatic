@@ -17,6 +17,8 @@
 use crate::config_parts::LicenseRequirement;
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `parent_directory` from `crate::path_text`.
+use crate::path_text::parent_directory;
 /// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
 /// Imports `Change`,
@@ -85,11 +87,24 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
             return Err(Diagnostic::new("manifest-invalid", &message).with_path(manifest));
         }
     };
-    let license = document.get("package").and_then(|package| return package.get("license")).and_then(|item| return item.as_str());
-    return Ok(license.map(str::to_string));
+    let Some(package) = document.get("package") else { return Ok(None) };
+    let Some(item) = package.get("license") else { return Ok(None) };
+    return Ok(item.as_str().map(str::to_string));
 }
 
-/// The `impl Rule for PackageLicensesRule` block.
+/// What:
+///   How the `package-licenses` kind plugs into the engine:
+/// its id,
+/// its kind name and its plan.
+/// Why:
+///   The plan reads each manifest's license expression,
+/// copies the required texts,
+/// and removes only the texts this rule owns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PackageLicensesRule implements Rule { id(); kind(); plan(view) }
+/// ```
 impl Rule for PackageLicensesRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -116,7 +131,7 @@ impl Rule for PackageLicensesRule {
         let mut required: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for pattern in &self.manifests {
             for manifest in expand_glob(view, pattern, EntryKind::File)? {
-                let package_dir = manifest.rsplit_once('/').map(|pair| return pair.0.to_string()).unwrap_or_default();
+                let package_dir = parent_directory(&manifest).to_string();
                 let text = view.read_text(&manifest)?.unwrap_or_default();
                 // A manifest without a license expression is not managed: its texts are neither added nor pruned.
                 if let Some(expression) = license_of(&manifest, &text)? {

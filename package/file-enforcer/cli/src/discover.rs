@@ -13,6 +13,10 @@
 
 /// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
+/// Imports `canonical_or_same` from `monochromatic_file_enforcer::identity`.
+use monochromatic_file_enforcer::identity::canonical_or_same;
+/// Imports `OsStr` from `std::ffi`.
+use std::ffi::OsStr;
 /// Imports `Path`,
 /// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
@@ -55,8 +59,8 @@ pub fn resolve_repository(explicit: &Option<PathBuf>) -> Result<(PathBuf, PathBu
         let message = format!("{} has no parent directory", config.display());
         return Err(Diagnostic::new("usage-error", &message));
     };
-    let root = std::fs::canonicalize(parent).unwrap_or_else(|_| return parent.to_path_buf());
-    let file_name = config.file_name().map(|name| return name.to_os_string()).unwrap_or_default();
+    let root = canonical_or_same(parent);
+    let file_name = config.file_name().map(OsStr::to_os_string).unwrap_or_default();
     return Ok((root.clone(), root.join(file_name)));
 }
 

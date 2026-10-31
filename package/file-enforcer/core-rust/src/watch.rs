@@ -170,7 +170,12 @@ fn cycle(shared: &Shared, sink: &mut RpcSink, base: &RunRequest, changed: &BTree
     if !seen.files.is_empty() || !seen.directories.is_empty() {
         *paths = seen;
     }
-    let drifts: Vec<&Event> = collected.events.iter().filter(|event| return event.event_type == "drift").collect();
+    let mut drifts: Vec<&Event> = Vec::new();
+    for event in &collected.events {
+        if event.event_type == "drift" {
+            drifts.push(event);
+        }
+    }
     if code == EXIT_CLEAN && drifts.is_empty() {
         return;
     }
@@ -274,7 +279,10 @@ fn collect_changed(root: &Path, received: Result<notify::Event, notify::Error>, 
         return;
     }
     for path in event.paths {
-        let name = path.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
+        let mut name = String::new();
+        if let Some(file_name) = path.file_name() {
+            name = file_name.to_string_lossy().to_string();
+        }
         if name.contains(STAGING_MARKER) {
             continue;
         }

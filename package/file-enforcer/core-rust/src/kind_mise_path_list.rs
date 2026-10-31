@@ -73,7 +73,19 @@ fn toml_string(text: &str) -> String {
     return quoted;
 }
 
-/// The `impl Rule for MisePathListRule` block.
+/// What:
+///   How the `mise-path-list` kind plugs into the engine:
+/// its id,
+/// its kind name and its plan.
+/// Why:
+///   The plan lists the directories that match the configured globs,
+/// keeps the non-empty ones,
+///   and writes the Mise config that names them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class MisePathListRule implements Rule { id(); kind(); plan(view) }
+/// ```
 impl Rule for MisePathListRule {
     /// The rule id.
     fn id(&self) -> &str {

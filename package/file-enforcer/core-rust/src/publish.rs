@@ -24,6 +24,8 @@ use crate::diagnostic::Diagnostic;
 /// Imports `Drift`,
 /// `DriftReason` from `crate::drift`.
 use crate::drift::{Drift, DriftReason};
+/// Imports `parent_directory` from `crate::path_text`.
+use crate::path_text::parent_directory;
 /// Imports `PlanReport` from `crate::plan`.
 use crate::plan::PlanReport;
 /// Imports `EntryKind`,
@@ -33,6 +35,8 @@ use crate::plan::PlanReport;
 use crate::real_fs::{EntryKind, absolute, ancestors_are_real_directories, kind_of};
 /// Imports `Planned` from `crate::view_types`.
 use crate::view_types::Planned;
+/// Imports `Ordering` from `std::cmp`.
+use std::cmp::Ordering;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `Write` from `std::io`.
@@ -43,8 +47,18 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 /// Imports `Path` from `std::path`.
 use std::path::Path;
 
-/// The marker every staging file's name contains;
-/// names also start with `.` so Mise and Git tooling skip them.
+/// What:
+///   The text every staging file's name contains,
+/// `.fe-staging-`.
+///   Names also start with `.` so Mise and Git tooling skip them.
+/// Why:
+///   A run killed between writing and renaming leaves such a file,
+/// and the next run finds and removes it by this marker.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const STAGING_MARKER = '.fe-staging-';
+/// ```
 pub const STAGING_MARKER: &str = ".fe-staging-";
 
 /// What:
@@ -133,15 +147,24 @@ fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32
         _ => None,
     };
     let final_mode = planned_mode.or(existing_mode).unwrap_or(0o644);
-    let name = target.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
+    let mut name = String::new();
+    if let Some(file_name) = target.file_name() {
+        name = file_name.to_string_lossy().to_string();
+    }
     let staging = target.with_file_name(format!(".{name}{STAGING_MARKER}{}", std::process::id()));
     let _ = fs::remove_file(&staging);
     let mut file = match fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&staging) {
         Ok(file) => file,
         Err(error) => return Err(io_failure("create the staging file for", rel, &error)),
     };
-    let written = file.write_all(content).and_then(|()| return file.set_permissions(fs::Permissions::from_mode(final_mode)));
-    let synced = written.and_then(|()| return file.sync_all());
+    // Each step runs only if the one before it succeeded, so the first failure is the one reported.
+    let mut synced = file.write_all(content);
+    if synced.is_ok() {
+        synced = file.set_permissions(fs::Permissions::from_mode(final_mode));
+    }
+    if synced.is_ok() {
+        synced = file.sync_all();
+    }
     if let Err(error) = synced {
         let _ = fs::remove_file(&staging);
         return Err(io_failure("write the staging file for", rel, &error));
@@ -151,6 +174,26 @@ fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32
         return Err(io_failure("replace", rel, &error));
     }
     return Ok(());
+}
+
+/// What:
+///  Order two drifts by path length,
+/// longest first.
+///  `Ordering` is the three-way result of a comparison (TS:
+/// a negative,
+/// zero or positive `number`).
+///  `&&Drift` is a borrow of a borrowed drift,
+/// the item type of the list being sorted.
+/// Why:
+///  A directory can only be removed after everything inside it,
+/// so the deepest paths go first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function longestPathFirst(left: Drift, right: Drift): number { return right.path.length - left.path.length; }
+/// ```
+fn longest_path_first(left: &&Drift, right: &&Drift) -> Ordering {
+    return right.path.len().cmp(&left.path.len());
 }
 
 /// What:
@@ -166,7 +209,7 @@ fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32
 fn clean_staging(root: &Path, drifts: &[Drift]) {
     let mut directories: Vec<String> = Vec::new();
     for drift in drifts {
-        let parent = drift.path.rsplit_once('/').map(|pair| return pair.0.to_string()).unwrap_or_default();
+        let parent = parent_directory(&drift.path).to_string();
         if !directories.contains(&parent) {
             directories.push(parent);
         }
@@ -230,8 +273,13 @@ pub fn publish(root: &Path, report: &PlanReport, drifts: &[Drift]) -> Result<Pub
             outcome.removed.push(drift.path.clone());
         }
     }
-    let mut directories: Vec<&Drift> = drifts.iter().filter(|drift| return drift.reason == DriftReason::ExtraDirectory).collect();
-    directories.sort_by(|left, right| return right.path.len().cmp(&left.path.len()));
+    let mut directories: Vec<&Drift> = Vec::new();
+    for drift in drifts {
+        if drift.reason == DriftReason::ExtraDirectory {
+            directories.push(drift);
+        }
+    }
+    directories.sort_by(longest_path_first);
     for drift in directories {
         ancestors_are_real_directories(root, &drift.path)?;
         if let Err(error) = fs::remove_dir(absolute(root, &drift.path)) {

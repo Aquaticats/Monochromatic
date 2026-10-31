@@ -23,8 +23,8 @@ use crate::config_types::RuleConfig;
 /// function decode(text: string) { return decodeConfig(parseConfigText(text, 'c.jsonc'), 'repository', 'c.jsonc'); }
 /// ```
 fn decode_text(text: &str) -> Result<crate::config_types::Config, Vec<crate::diagnostic::Diagnostic>> {
-    let value = parse_config_text(text, "c.jsonc").map_err(|diagnostic| return vec![diagnostic])?;
-    return decode_config(&value, ConfigScope::Repository, "c.jsonc");
+    let document = parse_config_text(text, "c.jsonc").map_err(|diagnostic| return vec![diagnostic])?;
+    return decode_config(&document, ConfigScope::Repository, "c.jsonc");
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn every_problem_is_reported_with_its_pointer() {
     ]}"#;
     let errors = decode_text(text).expect_err("invalid");
     let joined: String = errors.iter().map(|error| return error.message.clone()).collect::<Vec<String>>().join("\n");
-    assert!(joined.contains("/rules/0: unknown key \"extra\""), "{joined}");
+    assert!(joined.contains("/rules/0/extra: unknown key \"extra\""), "{joined}");
     assert!(joined.contains("/rules/0/output"), "{joined}");
     assert!(joined.contains("/rules/1/kind: unknown kind \"nope\""), "{joined}");
     assert!(joined.contains("/rules/2/id: the id \"a\" is used by an earlier rule"), "{joined}");
