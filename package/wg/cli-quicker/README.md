@@ -565,11 +565,16 @@ and the stub would choose the upstream by its own routing domains and not by the
 The varlink call names the link,
 so the choice is not left to routing domains.
 
-The link keeps its own DNS-over-TLS setting.
-The reply of every measured lookup carried the confidential flag of `systemd-resolved`,
-which means the query and the answer travelled over an encrypted channel.
-That was measured on 2026-10-31 for all 21 hosts through `fr-par-fr1`,
-whose servers are `2606:4700:4700::1111`,
+The link keeps its own DNS-over-TLS setting,
+so the query path keeps DNS-over-TLS.
+On 2026-10-31 `resolvectl status fr-par-fr1` showed `+DNSOverTLS` and `resolvectl dnsovertls fr-par-fr1` printed `yes`,
+the strict mode without a cleartext fallback.
+The reply of every measured lookup for all 21 hosts also carried the confidential flag of `systemd-resolved`,
+which its source documents as "only sent via encrypted channels,
+or never left this system";
+the flag alone therefore does not prove a TLS hop,
+and the strict link setting is what does.
+The servers of `fr-par-fr1` are `2606:4700:4700::1111`,
 `1.1.1.1`,
 `9.9.9.9`,
 `149.112.112.112`,
