@@ -299,6 +299,27 @@ each finished branch is reviewed and merged into `main`):
   and the `mpm --version`/`--help` shadow notice.
   Every release the cutover needs now exists;
   the switch branch regenerates the repository lock with it.
+- Live 2026-10-31 (wg branch merged):
+  `wg-quicker opensnitch-rules apply` created `000-allow-monochromatic-toolchain-install-roots`,
+  `-exposure-links` and `-rust-tools` (precedence allows,
+  daemon reloaded each at 05:57:12 with no compile warning);
+  the exemption watcher was restarted on the new build (`watch-stop`/`watch-start fr-par-fr1 100 1000`),
+  it lists `app-monochromatic\x2dupdates.slice`,
+  and a request from that slice left via the direct address (`2607:f2c0:...`) while a normal one left via the tunnel (`2a02:6ea0:...`).
+  The TypeScript sync and update now re-exec into that slice;
+  mpm-shadow's slice re-exec (for `install`,
+  `update`,
+  `outdated`) is on `main` but not in the released 0.2.0.
+  Not done:
+  the two auto-saved rejects for the removed worktree `agent-a23c3740c67ba36d9`'s `target/debug` binaries stay
+  (harmless now that worktree is gone);
+  the agent's broader proposals (system updates,
+  general pnpm installs,
+  checkout build outputs) were not asked for.
+- Released 2026-10-31:
+  `monochromatic-search-shadow` 0.2.1 (run `41174514524`)
+  after two CI fixes to its exact `--version` checks (`6a2d944949`,
+  `44bf57cc84`).
 - Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
   invoked under the shadowed name,
   a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
