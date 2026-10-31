@@ -233,6 +233,113 @@ each finished branch is reviewed and merged into `main`):
   including the `asset` hints the synthetic rehearsal could not settle
   (`llamacpp-rocm`,
   `openinterpreter`).
+- Running 2026-10-31 (cutover pieces the inventory found unbuilt):
+  a real-global-plan conversion rehearsal on the copy;
+  `package/vm-builder/cli` gets its own process runner (inventory precondition 7);
+  `file-enforcer check` gains a committed-versus-local outputs selector,
+  replacing the inventory's `jq` stopgap for the four gitignored rules.
+  Still unbuilt after these:
+  CI and container delivery of the two binaries,
+  the `20-env.toml` move,
+  and the repository plan conversion in the switch commit.
+- Published 2026-10-31:
+  `monochromatic-xml-edit`,
+  `-dependency-catalog`,
+  `-browserslist`,
+  `-file-enforcer` and `-file-enforcer-cli` 0.1.0
+  (dependency-catalog first needed `44a00d1f99`:
+  crates.io rejects keywords of 20 or more characters,
+  which the dry run does not check),
+  Trusted Publishing configs 29956 to 29960,
+  the owner revoked the token,
+  and this session ran `cargo logout`.
+  CLI release run `41171845290` dispatched.
+- Merged 2026-10-31:
+  the vm-builder runner (`472bb6f502`),
+  the global rehearsal with the GPU-build asset fix (`fc3da5e25d`),
+  and `file-enforcer check|write --outputs committed|local|all` derived from `.gitignore` files.
+  `yt-dlp` moves to `pipx:yt-dlp` in the global conversion (decided under the owner's delegation).
+- Running:
+  mpm-shadow pnpm-style `sync` (resolves new or changed entries, frozen in CI) on its update-by-tool branch,
+  which also adds the README rule "pnpm answers first"
+  (the owner wants that rule in package docs, not AGENTS.md);
+  the wg agent.
+- mpm-shadow pnpm-style `sync` built on branch `worktree-agent-a32535bbf12b77b95` (328 tests):
+  resolves new or re-edited entries alone,
+  frozen under `--frozen-lock` or a CI environment detected the way pnpm does (a port of ci-info's `isCI`, `CI=false` turns it off),
+  `--no-frozen-lock` kept (pnpm's `--no-frozen-lockfile`).
+  Settled by "pnpm answers first" without asking:
+  `sync` with no lock creates it, frozen refuses;
+  the same agent fixes the two line-break lint errors from `7c7ca78478`.
+  Merge,
+  then bump and release mpm-shadow,
+  before the switch branch regenerates the repository lock.
+- Renaming to pnpm verbs (decision record,
+  "Toolchain (mpm-shadow)"):
+  the mpm-shadow agent renames the crate's commands,
+  the switch-branch agent renames the mise tasks and AGENTS.md `CM7`'s `toolchain:sync`.
+- Release fix 2026-10-31:
+  run `41172212354` failed packaging the cli against published core 0.1.0,
+  which lacks `output_scope` (merged after publication);
+  core and cli are bumped to 0.1.1 with the internal pin `=0.1.1`,
+  and the push publishes both and creates `monochromatic-file-enforcer-cli-v0.1.1`.
+  Done (owner approved the push after the auto-mode check blocked it as a public surface):
+  `e570fd802d`,
+  run `41172650724` green,
+  the release has both Linux archives and the checksums file.
+- Released 2026-10-31 (owner approved the push):
+  `monochromatic-mpm-shadow` 0.2.0 (`8846e03d5c`,
+  run `41173602862`,
+  release `monochromatic-mpm-shadow-v0.2.0` with both Linux archives),
+  carrying the pnpm names,
+  pnpm-style install with offline-fixable edits applied,
+  named update,
+  version-keyed installs,
+  launchers,
+  and the `mpm --version`/`--help` shadow notice.
+  Every release the cutover needs now exists;
+  the switch branch regenerates the repository lock with it.
+- Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
+  invoked under the shadowed name,
+  a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
+  (the `hub` precedent),
+  and a top-level `--help` appends a short shadow section;
+  subcommand help passes through.
+  The owner noticed `mpm --version`/`--help` never mention the shadow,
+  and reports the git wrapper's silence as a regression introduced some time ago.
+  mpm-shadow: the update-by-tool agent's branch;
+  search-shadow: its own agent;
+  git wrapper: reported to monochromatic-7a with the convention.
+  7a's finding:
+  no earlier banner existed to restore
+  (the Rust wrapper has printed byte-identical Git output for `--version` since its first commit `414ab5ff76`,
+  2026-10-05,
+  pinned by `version_is_identical_to_native_git`;
+  the retired TypeScript wrapper handled only `git cli-git --help`),
+  so the "regression" reading is not supported by history;
+  7a's agent implements the convention for the next wrapper release.
+  The owner also confirmed mpm-shadow's separate toolchain command set "is fine".
+- Running:
+  the cutover switch branch (repoints,
+  `20-env.toml`,
+  repository plan conversion,
+  deletion of `package/file-enforcer/core`,
+  the TypeScript comparison,
+  a clean-container check of the published cli).
+- Session preference 2026-10-31,
+  user:
+  "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
+  Last estimate given:
+  3 to 6 hours at about 45% confidence (after publication),
+  a judgement from today's agent run times (14 to 47 minutes each),
+  not a measured rate.
+- Fixed 2026-10-31:
+  `fec-create-release` was skipped in run `41171845290`
+  because its implicit `success()` sees the skipped library publish jobs upstream of `fec-publish-crate`;
+  it now uses `!cancelled()` with explicit results.
+- Lesson 2026-10-31 (this session):
+  run every step this session can run itself instead of handing it to the owner;
+  the owner pointed out that `cargo logout` was such a step.
 - Found 2026-10-31:
   the `timeout` on PATH is `~/.cargo/bin/timeout`,
   and `timeout 60 vibe --version` printed `timeout 0.1.0` instead of running `vibe`;

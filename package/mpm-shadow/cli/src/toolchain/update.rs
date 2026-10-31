@@ -1,5 +1,5 @@
 //! What:
-//! `update` and `update --check`:
+//! `update` and `outdated`:
 //! resolve every tool of the plan to a version and artifacts,
 //! then write the
 //!           whole lock (or,
@@ -23,7 +23,7 @@
 //! ```
 
 /// Imports what this module uses from `super::agree`.
-use super::agree::{compare, refusal};
+use super::agree::{Disagreement, compare, refusal};
 /// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
 /// Imports `ToolchainError` from `super::error`.
@@ -49,7 +49,12 @@ use super::sync::sync_tools;
 /// Imports the tool lookup.
 use super::util::find_tool;
 /// Imports what this module uses from `super::update_resolve`.
-use super::update_resolve::{Resolution, ResolveError, resolve_tool};
+use super::update_resolve::{Resolution, ResolveError, keep, resolve_tool};
+/// Imports what this module uses from `super::update_select`.
+use super::update_select::{left_out_refusal, select_tools, unnamed_needing_resolution};
+/// Imports `BTreeSet`,
+/// a sorted set.
+use std::collections::BTreeSet;
 
 /// What happened to one tool.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,6 +76,9 @@ pub enum OutcomeKind {
     },
     /// The tool is pinned and the lock already holds that pin.
     Pinned,
+    /// A named `update` did not select this tool:
+    /// no lookup was made and its row keeps its version and artifacts.
+    Kept,
     /// The lookup failed;
     /// nothing is written.
     Failed {
@@ -114,7 +122,7 @@ impl UpdateReport {
         return false;
     }
 
-    /// Whether any tool moved or was added (the condition `update --check` exits 1 for).
+    /// Whether any tool moved or was added (the condition `outdated` exits 1 for).
     pub fn has_movement(&self) -> bool {
         for outcome in &self.outcomes {
             if matches!(outcome.kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }) {
@@ -167,6 +175,15 @@ fn resolve_one(ctx: &Context, declaration: &Declaration, current: Option<&Locked
     }
 }
 
+/// Whether a named update leaves this tool out:
+/// names were given and the id is not among the selected ones.
+fn is_left_out(only: Option<&BTreeSet<String>>, id: &str) -> bool {
+    return match only {
+        Some(selected) => !selected.contains(id),
+        None => false,
+    };
+}
+
 /// The tools an npm or PyPI tool needs installed first,
 /// by route.
 fn prerequisites(route: Route) -> &'static [&'static str] {
@@ -178,14 +195,9 @@ fn prerequisites(route: Route) -> &'static [&'static str] {
 }
 
 /// What:
-/// Runs `update` (or `update --check`) in a scope.
+/// Runs `update` (or `outdated`) over every tool of the plan in a scope.
 /// Why:
-/// With `check` set nothing is installed and nothing is written.
-/// Otherwise a failed npm or PyPI lookup for a
-///           tool that is locked but not installed triggers one sync of just those tools (and what they need),
-/// then one
-///           retry of each such lookup;
-/// a second failure stays a failure naming the tool.
+/// It is `run_update_for` with no names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,7 +211,71 @@ pub fn run_update(
     host: &Host,
     check: bool,
 ) -> Result<UpdateReport, ToolchainError> {
+    return run_update_for(scope, env, runner, http, host, check, &[]);
+}
+
+/// What:
+/// Runs `update` (or `outdated`) in a scope for the tools the `names` patterns select
+/// (every tool when `names` is empty).
+/// Why:
+/// With `check` set nothing is installed and nothing is written.
+/// Otherwise a failed npm or PyPI lookup for a
+///           tool that is locked but not installed triggers one sync of just those tools (and what they need),
+/// then one
+///           retry of each such lookup;
+/// a second failure stays a failure naming the tool.
+/// With names,
+/// only the selected tools are looked up;
+/// every other row keeps its version and artifacts and takes the plan's current bins,
+/// env and options,
+/// as offline `install --lockfile-only` would give it.
+/// A new tool is therefore resolved alone by naming it,
+/// and a plan entry the lock cannot hold that the names left out is refused before any lookup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runUpdateFor(scope, env, runner, http, host, check, names: string[]): UpdateReport
+/// ```
+pub fn run_update_for(
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    check: bool,
+    names: &[String],
+) -> Result<UpdateReport, ToolchainError> {
     let loaded: Loaded = load(scope)?;
+    let mut only: Option<BTreeSet<String>> = None;
+    if !names.is_empty() {
+        only = Some(select_tools(&loaded.plan, names)?);
+    }
+    return update_loaded(&loaded, scope, env, runner, http, host, check, only.as_ref());
+}
+
+/// What:
+/// Runs `update` over files `load` already read,
+/// for the exact tool ids in `only` (every tool when `only` is `None`).
+/// Why:
+/// `install` resolves the new or re-edited plan entries it finds in the files it just read,
+/// with the revision check of the publish covering the gap between that read and the write,
+/// and `run_update_for` selects by pattern first.
+/// A plan entry the lock cannot hold that `only` leaves out is refused before any lookup.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function updateLoaded(loaded, scope, env, runner, http, host, check, only?: Set<string>): UpdateReport
+/// ```
+pub fn update_loaded(
+    loaded: &Loaded,
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    check: bool,
+    only: Option<&BTreeSet<String>>,
+) -> Result<UpdateReport, ToolchainError> {
     let mut old_tools: Vec<LockedTool> = Vec::new();
     if let Some(parsed) = &loaded.lock {
         let verdict = compare(&loaded.plan, parsed);
@@ -208,11 +284,26 @@ pub fn run_update(
         }
         old_tools = parsed.lock.tools.clone();
     }
+    if let Some(selected) = only {
+        let mut disagreement: Option<Disagreement> = None;
+        if let Some(parsed) = &loaded.lock {
+            disagreement = Some(compare(&loaded.plan, parsed));
+        }
+        let left_out: Vec<String> = unnamed_needing_resolution(&loaded.plan, disagreement.as_ref(), selected);
+        if !left_out.is_empty() {
+            return Err(left_out_refusal(&left_out));
+        }
+    }
     let context: Context = Context { scope, env, runner, http, host, tools: &old_tools };
     let mut results: Vec<Resolved> = Vec::new();
     for declaration in &loaded.plan.tools {
         let current: Option<&LockedTool> = find_tool(&old_tools, &declaration.id);
-        results.push(resolve_one(&context, declaration, current));
+        match current {
+            Some(locked) if is_left_out(only, &declaration.id) => {
+                results.push(Resolved { outcome: Outcome { id: declaration.id.clone(), kind: OutcomeKind::Kept }, resolution: Some(keep(locked)) });
+            }
+            _ => results.push(resolve_one(&context, declaration, current)),
+        }
     }
     let mut synced: Vec<String> = Vec::new();
     if !check {
@@ -317,6 +408,7 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
         let line: String = match &outcome.kind {
             OutcomeKind::Unchanged => format!("unchanged {}", outcome.id),
             OutcomeKind::Pinned => format!("pinned    {}", outcome.id),
+            OutcomeKind::Kept => format!("kept      {}", outcome.id),
             OutcomeKind::Updated { old_version, new_version } => format!("updated   {}  {old_version} -> {new_version}", outcome.id),
             OutcomeKind::Added { version } => format!("added     {}  {version}", outcome.id),
             OutcomeKind::Failed { reason } => format!("failed    {}  {reason}", outcome.id),
@@ -336,7 +428,7 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
     if failed > 0 {
         text.push_str(&format!("toolchain update: {failed} lookups failed; toolchain.lock.json was not written\n"));
     } else if check {
-        text.push_str(&format!("toolchain update --check: {moved} tools would move; nothing was written or installed\n"));
+        text.push_str(&format!("toolchain outdated: {moved} tools would move; nothing was written or installed\n"));
     } else if report.wrote {
         text.push_str(&format!("toolchain update: wrote toolchain.lock.json ({moved} tools moved)\n"));
     } else {

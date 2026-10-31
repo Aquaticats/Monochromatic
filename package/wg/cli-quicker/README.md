@@ -398,7 +398,7 @@ curl) take the physical route instead of the tunnel.
 `mise run toolchain:sync`,
 `toolchain:update`,
 `toolchain:sync:global`,
-`toolchain:update:global` and `mpm-shadow sync` and `update` re-execute themselves through
+`toolchain:update:global` and `mpm-shadow install`, `update` and `outdated` re-execute themselves through
 `systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
 after a silent probe proves a user manager accepts the scope.
 They stay in place,

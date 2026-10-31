@@ -3,20 +3,117 @@
 Owns this repository's toolchain plan and lock,
 and shadows `mpm` ([Meta Package Manager](https://mpm.run)).
 
-- As `mpm-shadow` it runs the toolchain commands:
-  `lock`,
-  `lock --check`,
+- As `mpm-shadow` it runs the toolchain commands,
+  named after pnpm's
+  (see "Command names follow pnpm"):
+  `install` (alias `i`),
   `update`,
-  `sync`,
-  `status`,
-  `verify-archive`,
-  `bin-paths`,
-  and `prune`.
+  `outdated`,
+  `list` (alias `ls`),
+  `bin`,
+  `prune`,
+  and `verify-archive`.
 - As `mpm` (a link the toolchain plan creates) it finds the real `mpm` on `PATH`,
   runs it with the arguments untouched and the standard streams inherited,
   waits for it,
   deletes the superseded cached versions of this repository's own crates from cargo's registry,
   and exits with mpm's own status.
+
+## Design rule: pnpm answers first
+
+Where pnpm's behaviour answers a toolchain question
+(the plan,
+the lock,
+`update`,
+`install`,
+`install`,
+or what happens in CI and when frozen),
+mpm-shadow follows it,
+and the change is recorded,
+even when it overrides an earlier decision line.
+Only what pnpm leaves open goes to the owner.
+The user's words:
+"Please go with pnpm style instead of blocking questions that can be resolved by it on me."
+The decisions themselves are in `doc/decision/file-enforcer-rust-rewrite.md`,
+section "Toolchain (mpm-shadow)".
+
+## Command names follow pnpm
+
+The commands are pnpm's,
+with the meaning pnpm gives them,
+checked against the pages on <https://pnpm.io> on 2026-10-31
+and against pnpm 12.16.1 in disposable directories.
+The old names (`sync`,
+`lock`,
+`lock --check`,
+`update --check`,
+`status`,
+`bin-paths`,
+`--frozen-lock`
+and `--no-frozen-lock`)
+no longer exist and have no aliases,
+because pnpm has none.
+
+- `install`:
+  <https://pnpm.io/cli/install>,
+  "Aliases:
+  `i`",
+  `--frozen-lockfile`,
+  `--no-frozen-lockfile`,
+  `--lockfile-only` ("only updates `pnpm-lock.yaml`...
+  Nothing gets written to the `node_modules` directory")
+  and `--offline`.
+  It replaces `sync`.
+- `install --lockfile-only --offline`:
+  replaces `lock`.
+  pnpm's `--offline` resolves from its metadata cache;
+  mpm-shadow has no such cache,
+  so an offline run rewrites only the declaration fields of rows the lock already holds
+  and refuses an entry that needs resolving.
+- `install --lockfile-only --frozen-lockfile`:
+  replaces `lock --check`.
+  The pnpm page says nothing about this combination;
+  measured with pnpm 12.16.1,
+  it exits 0 when the lockfile matches the manifest and 1 (`ERR_PNPM_OUTDATED_LOCKFILE`) when it does not,
+  and writes nothing,
+  which is the check this command did.
+- `outdated`:
+  <https://pnpm.io/cli/outdated>,
+  "exits with code 1 when any dependency is outdated",
+  and takes patterns the way `update` does.
+  It replaces `update --check` and exits 1 when any selected tool would move or a lookup fails.
+  pnpm's `--json`,
+  `--format`
+  and `--long` are not offered:
+  the report is the same text `update` prints.
+- `list`:
+  <https://pnpm.io/cli/list>,
+  "Aliases:
+  `ls`".
+  It replaces `status`.
+  The pnpm page leaves exit codes open,
+  so `list` keeps exiting 1 on drift.
+  pnpm's `--json`,
+  `--parseable`
+  and `--depth` are not offered.
+- `bin`:
+  <https://pnpm.io/cli/bin>,
+  "Prints the directory into which the executables of dependencies are linked",
+  with `--global`.
+  Plain `bin` prints the exposure directory.
+  The page has no `--json`;
+  `bin --json` prints the document the IDE launcher reads (`exposureDir`,
+  `pathDirs`
+  and `bins`),
+  following the `--json` that pnpm's `list` and `outdated` pages document.
+  It replaces `bin-paths`.
+- `--global` also has pnpm's short form `-g`.
+- Unchanged:
+  `update` (<https://pnpm.io/cli/update>),
+  `prune`,
+  which keeps its name,
+  and `verify-archive`,
+  which has no pnpm counterpart.
 
 ## Toolchain plan and lock
 
@@ -147,7 +244,9 @@ or a Java major line such as `21`).
   and GPU (`vulkan`,
   `rocm`,
   `cuda`)
-  builds.
+  builds;
+  an `options.asset` glob that matches a GPU build's name lets that build through,
+  and is the only way to ask for one.
 - It prefers the platform's libc (a `musl` name for a musl platform,
   otherwise one without),
   then `.tar.gz`,
@@ -159,7 +258,7 @@ or a Java major line such as `21`).
   `options.asset` (a glob with `*`) settles it,
   for example `"asset": "harper-cli-*"` for a release that ships two programs.
 - A platform with no matching asset is left out of the lock
-  and fails at `sync` with a message naming it.
+  and fails at `install` with a message naming it.
 - The version is the tag without its `v` or `name-v` prefix.
 
 #### Lock rows
@@ -189,7 +288,7 @@ or a Java major line such as `21`).
   or a platform list.
 - Tool entries keep the key order `request, version, route, manager, packageId, bins, os, env, options, artifacts`.
 - A top-level `digest` (`sha256:` and the hash of the compact JSON of everything else) covers the whole content.
-  `lock --check` recomputes it,
+  `install --lockfile-only --frozen-lockfile` recomputes it,
   so a hand edit of a resolved version,
   a URL or a hash fails the gate.
   A reformatted file keeps its digest.
@@ -273,7 +372,7 @@ except where a musl platform now gets the musl build the release offers):
 - `conda:bubblewrap`:
   `conda:bubblewrap@latest` (keep `os: ["linux"]`;
   the package is a `.conda` file,
-  which `sync` unpacks with `unzip` and `tar --zstd`).
+  which `install` unpacks with `unzip` and `tar --zstd`).
 - `taplo`:
   `github:tamasfe/taplo@latest` (keep `binAliases`).
 - `tombi`:
@@ -312,7 +411,7 @@ except where a musl platform now gets the musl build the release offers):
 
 ## Commands
 
-- `mpm-shadow lock`:
+- `mpm-shadow install --lockfile-only --offline`:
   rewrites the lock's declaration fields from the plan without the network,
   keeping every resolved version and artifact.
   It refuses a new tool or a resolution-affecting edit
@@ -323,26 +422,38 @@ except where a musl platform now gets the musl build the release offers):
   `os`,
   `asset`,
   `bootstrap`)
-  and names `mpm-shadow update`.
-- `mpm-shadow lock --check`:
+  and names `mpm-shadow update <id>` for just those tools.
+- `mpm-shadow install --lockfile-only --frozen-lockfile`:
   the toolchain drift gate for CI,
   beside `file-enforcer check`.
   Writes nothing.
   Exits 1 when the plan and lock disagree or the digest does not match.
-- `mpm-shadow update [--check]`:
-  resolves every tool and writes the whole lock.
-  `--check` reports what would move,
-  writes nothing,
-  installs nothing,
-  and exits 1 when something would move.
+  In CI the frozen default applies when a lock exists,
+  so `install --lockfile-only` alone is the same check there.
+- `mpm-shadow install --lockfile-only`:
+  resolves the entries the lock lacks or holds for an older request,
+  writes only their rows,
+  and installs nothing.
+- `mpm-shadow update [<tool>...]`:
+  resolves every tool and writes the whole lock,
+  or,
+  given tool ids,
+  only those (see "Updating named tools").
   A brand-new downloaded tool is just a new plan entry:
   every origin has a resolver,
   and none reads the previous lock.
-- `mpm-shadow sync`:
-  installs every locked tool that is not at its locked version,
-  then makes the postinstall links,
+- `mpm-shadow outdated [<tool>...]`:
+  reports what `update` would move,
+  writes nothing,
+  installs nothing,
+  and exits 1 when something would move.
+- `mpm-shadow install [--frozen-lockfile | --no-frozen-lockfile]`:
+  first resolves the plan entries the lock lacks or holds for an older request
+  (see "Installing a plan that is ahead of the lock"),
+  then installs every locked tool that is not at its locked version,
+  makes the postinstall links,
   rebuilds the exposure directory and runs the postinstall commands.
-- `mpm-shadow status`:
+- `mpm-shadow list`:
   compares the installed tools with the lock.
   Exits 1 on drift.
 - `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
@@ -351,14 +462,159 @@ except where a musl platform now gets the musl build the release offers):
   it cleans cargo's registry.
 - `mpm-shadow verify-archive <tool> <file> [--platform <id>]`:
   hashes a downloaded file and compares it with the lock's SHA-256 for that tool and platform.
-- `mpm-shadow bin-paths`:
-  prints `exposureDir`,
+- `mpm-shadow bin [--json]`:
+  prints the directory the executables are linked into;
+  with `--json`,
+  `exposureDir`,
   `pathDirs`
   and `bins` as JSON for the IDE launcher.
   It reads only the plan and the file system.
 
-`sync` and `status` refuse when the plan and lock disagree,
-and name `mpm-shadow lock` or `mpm-shadow update`.
+`list` refuses when the plan and lock disagree,
+and names `mpm-shadow install --lockfile-only --offline` or `mpm-shadow update <ids>`;
+`install` does the same when frozen,
+and otherwise updates the lock itself:
+it resolves the new entries and writes the plan's other declaration changes.
+
+### Updating named tools
+
+`mpm-shadow update <tool>...` mirrors `pnpm update <pkg>...`:
+it looks up and moves only the tools it selects,
+and every other lock row keeps its version and artifacts
+(and takes the plan's current `bins`,
+`env`
+and `options`,
+as offline `install --lockfile-only` would give it).
+Adding a tool to the plan and running `mpm-shadow update <new id>` locks that tool alone,
+the way `pnpm install` after adding one dependency resolves only that dependency.
+
+- A name is a tool id,
+  or a pattern in which `*` stands for any run of characters
+  (`mpm-shadow update 'npm:*'`);
+  a leading `!` excludes
+  (`mpm-shadow update 'npm:*' '!npm:wrangler'`),
+  and only exclusions select everything else.
+  This is the pattern grammar of `pnpm update "@babel/*" "!@babel/core"`.
+- A name that matches no tool of the plan is refused with exit code 2,
+  before any lookup,
+  naming it and listing every valid id.
+  pnpm 12.16.1 accepts such a name silently and reports "Already up to date";
+  that hides a typo here,
+  where a name selects what to resolve.
+- A plan entry the lock cannot hold as it is
+  (no lock row,
+  or an edit of `request`,
+  `route`,
+  `manager`,
+  `packageId`,
+  `os`,
+  `options.asset`
+  or `options.bootstrap`)
+  that the names left out is refused,
+  before any lookup,
+  with the ids to add to the command.
+  Writing a lock with such a row kept would fail `install --lockfile-only --frozen-lockfile`,
+  and resolving it unasked would move what the command line did not name.
+  With no lock file every entry is such a row,
+  so a named update cannot create the lock;
+  plain `update` does.
+- `outdated` takes the same names:
+  it reports only the selected tools and exits 1 when one of them would move.
+- Not mirrored:
+  `--latest` (a request's range already says what is wanted),
+  `<tool>@<range>` (people edit the plan,
+  so a range changes there),
+  `--interactive`,
+  `--depth`,
+  and the workspace flags have no counterpart.
+  `update` installs only to retry a failed npm or PyPI lookup,
+  so it already behaves as `--lockfile-only` does.
+- `install --lockfile-only --offline` stays offline.
+  `install` resolves a plan that is ahead of the lock,
+  as the next section says.
+
+### Installing a plan that is ahead of the lock
+
+`mpm-shadow install` mirrors `pnpm install` after a dependency was added to `package.json`:
+the entries the lock cannot hold as they are
+(the same set the named `update` refuses to leave out:
+no lock row,
+or an edit of `request`,
+`route`,
+`manager`,
+`packageId`,
+`os`,
+`options.asset`
+or `options.bootstrap`)
+are resolved,
+only their rows are written to the lock,
+and then the install runs.
+No other row moves,
+exactly as with `mpm-shadow update <those ids>`,
+and the report prints `toolchain install: locked <id> <version> ...` for each.
+
+- **Frozen:**
+  with `--frozen-lockfile`,
+  or when a CI environment is detected,
+  `install` resolves nothing into an existing lock:
+  it refuses as before,
+  names `mpm-shadow update <ids>` for exactly those entries,
+  and says why it did not resolve.
+  pnpm's `--frozen-lockfile` is "true by default in CI environments"
+  and "pnpm detects a CI environment with the same rules as the ci-info package.
+  Set `CI=false` to turn detection off"
+  (<https://pnpm.io/cli/install>).
+  mpm-shadow ports those rules (`src/toolchain/ci_detect.rs`):
+  `CI=false` means not CI,
+  otherwise `CI`,
+  `BUILD_ID`,
+  `BUILD_NUMBER`,
+  `CI_APP_ID`,
+  `CI_BUILD_ID`,
+  `CI_BUILD_NUMBER`,
+  `CI_NAME`,
+  `CONTINUOUS_INTEGRATION`,
+  `RUN_ID`,
+  or a CI vendor's own variable (for example `GITHUB_ACTIONS`) means CI.
+- **`--no-frozen-lockfile`:**
+  resolves even in CI,
+  like pnpm's `--no-frozen-lockfile`.
+  The two switches cannot be combined.
+- **A lock that does not exist** is resolved in full and written by `install`,
+  frozen by CI or not,
+  and then the install runs.
+  pnpm's `--frozen-lockfile` defaults to "true,
+  if a lockfile is present" in CI,
+  so `CI=true pnpm install` with no `pnpm-lock.yaml` resolves and writes one
+  (checked with pnpm 12.16.1 in a disposable directory).
+  `--frozen-lockfile` given explicitly refuses instead,
+  as `pnpm install --frozen-lockfile` does with no lockfile
+  (it fails with `ERR_PNPM_NO_LOCKFILE`),
+  and names `mpm-shadow update`.
+- **A failed lookup** stops `install` before anything is written or installed,
+  naming the entry and the URL.
+- **Offline-fixable edits:**
+  a plan that differs from the lock only in what `install --lockfile-only --offline` fixes
+  (`bins`,
+  `env`,
+  the install options,
+  a removed entry,
+  the order)
+  is written into the lock by a non-frozen `install`,
+  without a lookup and without moving any version,
+  and the report prints `toolchain install: lock updated from the plan: ...` for each change.
+  This is pnpm's non-frozen install,
+  which updates the lockfile for any manifest change.
+  The same write also carries these edits when a new entry is resolved in the same run.
+  Frozen (`--frozen-lockfile`,
+  or CI with a lock present)
+  refuses instead,
+  writes nothing,
+  and names `mpm-shadow install --lockfile-only --offline`.
+- **A lock whose digest does not match**
+  is refused naming the restore,
+  under either policy.
+  `list` never resolves and never writes.
 
 ## How it installs
 
@@ -385,7 +641,7 @@ Each `cargo-binstall` tool installs into a cargo root of its own,
 `<toolchain root>/cargo/<crate>/<version>`:
 
 ```text
-# shape of the command sync starts (the paths are examples)
+# shape of the command install starts (the paths are examples)
 cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --version 10.4.2 fd-find
 ```
 
@@ -399,7 +655,7 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
   `--root` is passed on to the fallback's `cargo install --root`,
   so one flag isolates both ways of installing.
 - Tracking stays on (no `--no-track`):
-  the root's `.crates.toml` is the record `status` and `sync` read,
+  the root's `.crates.toml` is the record `list` and `install` read,
   and cargo-binstall's own lock then covers two trees installing one version at once.
 - A directory without a record for the crate is an unfinished install and counts as absent.
   The legacy `$CARGO_HOME/.crates.toml` and `cargo binstall --list` are never read for this route.
@@ -415,13 +671,13 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
 
 Older repository-published tools are never kept once a newer one is installed.
 
-- `sync` never installs a version older than the newest finished one in the toolchain root,
+- `install` never installs a version older than the newest finished one in the toolchain root,
   and after installing a version it deletes every older one.
 - `<toolchain root>/cargo/<crate>/current` is a link to the newest finished version.
   Every tree's exposed link goes through it,
   so deleting an older version never leaves a dangling link,
   and two trees syncing at once converge on the newest.
-- `status` counts an installed version that is newer than the locked one as satisfied,
+- `list` counts an installed version that is newer than the locked one as satisfied,
   not drift.
 - A tree whose lock pins an older version than the one that runs is warned,
   in the same words everywhere:
@@ -430,10 +686,11 @@ Older repository-published tools are never kept once a newer one is installed.
   <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main
   ```
 
-  `sync` and `status` print it as `toolchain <verb>: warning: ...` in their report on standard output;
-  `lock`,
-  `update` and `bin-paths` print the same line on standard error
-  (`bin-paths` writes JSON on standard output);
+  `install` and `list` print it as `toolchain <verb>: warning: ...` in their report on standard output;
+  `install --lockfile-only`,
+  `update`,
+  `outdated` and `bin` print the same line on standard error
+  (`bin` writes JSON on standard output);
   the shim path (`mpm`) resolves no tool versions and prints none.
 
 ### The launcher
@@ -442,7 +699,7 @@ A bare symlink to the binary has nowhere to check the tree's lock,
 so the exposed link of a repository-published tool (`.cache/toolchain-bin/<bin>`)
 and its postinstall links (`.cache/cli-git-bin/git`) point at a launcher in `.cache/toolchain-launchers/<bin>`.
 
-- The launcher is a hard link of the `mpm-shadow` that ran `sync` (a copy across file systems),
+- The launcher is a hard link of the `mpm-shadow` that ran `install` (a copy across file systems),
   with a `<bin>.launch` record beside it naming the tool id,
   the tree's lock file and the real binary.
   The kernel resolves a symlink chain to its final file,
@@ -476,7 +733,7 @@ and its postinstall links (`.cache/cli-git-bin/git`) point at a launcher in `.ca
 
 `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...` deletes what no known lock names.
 It runs only when asked;
-`sync` never deletes another tree's version.
+`install` never deletes another tree's version.
 
 - Known locks are this scope's lock,
   the `toolchain.lock.json` of every worktree `git worktree list --porcelain` reports,
@@ -495,12 +752,12 @@ It runs only when asked;
 
 ### Migration from the shared `$CARGO_HOME/bin`
 
-The first `sync` with this layout finds no version directory,
+The first `install` with this layout finds no version directory,
 installs every `cargo-binstall` tool into its own,
 links the tree's exposure and postinstall links to it,
 and leaves `$CARGO_HOME/bin` and `$CARGO_HOME/.crates.toml` exactly as they were:
 trees still on the TypeScript toolchain keep linking the files there.
-`status` reports such a tool as absent until that first `sync`.
+`list` reports such a tool as absent until that first `install`.
 Nothing copies,
 moves or deletes the legacy files;
 removing them is the cutover's decision.
@@ -532,14 +789,18 @@ plain `update` installs just the missing tools (and `node`,
 or `uv` when they need them),
 then looks each one up again once.
 A second failure is final and says the lookup was made twice.
-`update --check` never installs.
+`outdated` never installs.
 
 ### Clearnet updates slice
 
-`sync` and `update` fetch from the network,
+`install`, `update` and `outdated` fetch from the network,
 so each re-executes itself through
 `systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
 before it does any work.
+The offline forms stay outside the slice:
+`install --lockfile-only --offline`,
+the frozen lock check that `install --lockfile-only` runs against an existing lock,
+and `list` and `bin`.
 `wg-quicker-exempt` marks that slice while a WireGuard tunnel with `ExemptMark` is up,
 so the run and every child it starts take the physical route.
 A silent `systemd-run` probe comes first;
@@ -556,7 +817,7 @@ The TypeScript `toolchain:sync` and `toolchain:update` entry points use the same
 
 ## Concurrency
 
-`lock` and `update` read the plan and lock,
+`install --lockfile-only` and `update` read the plan and lock,
 remember their content hashes,
 take an exclusive OS lock for the scope,
 read the hashes again,
@@ -593,11 +854,57 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   A run that could not start prunes nothing.
 - Touches only crates whose name starts with `monochromatic-`.
   For each,
-  it keeps the version cargo's install record (`<cargo home>/.crates.toml`) names as installed,
-  or the newest cached version when the record does not name the crate,
+  it keeps the newest version an install record names as installed,
+  or the newest cached version when no record names the crate,
   and deletes every other cached archive and extracted source.
+  The records are the version-keyed ones `install` writes under `<toolchain root>/cargo/<crate>/<version>/.crates.toml`,
+  read in both the repository root and the machine-global root
+  (`<data home>/monochromatic-dev/toolchain` and `toolchain-global`,
+  `XDG_DATA_HOME` or `~/.local/share`),
+  and cargo's own `<cargo home>/.crates.toml`,
+  which trees still on the TypeScript toolchain keep writing;
+  the newest across them wins,
+  so a stale legacy file cannot keep an old version or delete a newer cached archive.
+  A version directory without a record is an unfinished install and names nothing.
 - Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`.
 - Skips every candidate that resolves to its own executable when it looks for the real `mpm`.
+- Shows that it is a shadow in the two places a person looks,
+  after mpm's own output and only after a successful run:
+  a top-level `mpm --version` prints mpm's version text,
+  then one line on standard output,
+  `mpm-shadow <version>, shadowing mpm at <path of the real mpm>`;
+  a top-level `mpm --help` (or `-h`) prints mpm's help,
+  then a blank line and a short section naming the shadow,
+  its version,
+  the real mpm's path,
+  and the prune it runs after every run.
+  This is how `hub` does it:
+  `hub --version` runs `git version` and then prints `hub version <X>`
+  (<https://github.com/mislav/hub/blob/master/commands/version.go>),
+  and `hub help` appends the commands hub adds to git's help.
+- Detects only top-level options,
+  the way mpm's parser reads them:
+  the words before the subcommand,
+  in order,
+  skipping the values of the options that take one
+  (`--verbosity`,
+  `--config`,
+  `-t`,
+  `-j`
+  and the others read from `mpm --help` of mpm 8.2.0;
+  a bare `--color` takes none).
+  The first eager option wins,
+  as in mpm.
+  `mpm install --help`,
+  `mpm help install`,
+  `mpm --help-format json`,
+  `--man`,
+  `--tree`,
+  `--params`,
+  and a failing run print exactly what mpm printed,
+  with mpm's exit status.
+  mpm has no `-V`.
+  A new top-level mpm option that takes a value must be added to `VALUE_OPTIONS` in `src/shadow_notice.rs`.
 
 A cached version that a project's `Cargo.lock` still pins is deleted too when it is not the kept one;
 cargo downloads it again on the next online build,
@@ -617,7 +924,7 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
   an install,
   download
   or lookup failed,
-  or `status` found drift.
+  or `list` found drift.
 - `2`:
   a bad command line,
   or a plan or lock file that cannot be read.

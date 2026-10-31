@@ -1,5 +1,5 @@
-//! Unit tests of `lock`,
-//! `lock --check` and the publish rules (revisions and the scope's OS lock),
+//! Unit tests of `install --lockfile-only`,
+//! `install --lockfile-only --frozen-lockfile` and the publish rules (revisions and the scope's OS lock),
 //! all in disposable
 //! scopes.
 
@@ -41,7 +41,7 @@ fn check_fails_after_a_plan_edit_that_the_lock_has_not_seen_and_names_lock() {
     let error = run_lock(&scope, LockMode::Check).expect_err("the lock is stale");
     assert_eq!(error.kind, ErrorKind::Drift);
     assert!(error.message.contains("node differs between the plan and the lock in: bins"), "{error}");
-    assert!(error.message.contains("mpm-shadow lock"), "{error}");
+    assert!(error.message.contains("mpm-shadow install --lockfile-only --offline"), "{error}");
 }
 
 #[test]

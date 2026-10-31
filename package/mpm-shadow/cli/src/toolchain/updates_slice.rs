@@ -1,5 +1,5 @@
 //! What:
-//! Moves `sync` and `update` into the clearnet updates slice.
+//! Moves the network verbs `install`, `update` and `outdated` into the clearnet updates slice.
 //! Why:
 //! `wg-quicker-exempt` attaches its socket-marking cgroup programs to that slice,
 //! while a WireGuard tunnel with `ExemptMark` is up,
@@ -222,9 +222,33 @@ pub fn run_through_systemd(program: &str, executable: &str, arguments: &[String]
 }
 
 /// What:
+/// Whether a verb with these flags reaches the network.
+/// Why:
+/// `update` and `outdated` always resolve versions upstream.
+/// `install` fetches too,
+/// except for its offline forms:
+/// `--lockfile-only` with `--offline`,
+/// and the frozen lock check that `--lockfile-only` runs against an existing lock.
+/// Every other verb reads or writes local files only,
+/// so it stays outside the slice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function verbReachesNetwork(name: string, lockfileOnly: boolean, offline: boolean, frozenCheck: boolean): boolean
+/// ```
+pub fn verb_reaches_network(name: &str, lockfile_only: bool, offline: bool, frozen_check: bool) -> bool {
+    return match name {
+        "update" | "outdated" => true,
+        "install" => !(lockfile_only && (offline || frozen_check)),
+        _ => false,
+    };
+}
+
+/// What:
 /// Re-executes this process through `systemd-run` when that can work.
 /// Why:
-/// `dispatch` calls it before `sync` and `update`.
+/// `dispatch` calls it before the network forms of `install`,
+/// and before `update` and `outdated`.
 /// `Some(code)` means the run already happened in the slice,
 /// and `None` means the caller does the work itself.
 ///

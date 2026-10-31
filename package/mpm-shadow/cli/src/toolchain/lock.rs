@@ -4,7 +4,7 @@
 //! rendering it as strict JSON,
 //! reading it
 //!           back,
-//! and the digest of its contents that `lock --check` recomputes.
+//! and the digest of its contents that `install --lockfile-only --frozen-lockfile` recomputes.
 //! Why:
 //! mpm-shadow is the only writer of the file and the only checker.
 //! The file stays strict JSON because

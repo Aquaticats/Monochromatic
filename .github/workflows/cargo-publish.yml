@@ -3015,7 +3015,9 @@ jobs:
   # on crates.io: cargo-binstall reads the metadata from the registry copy of the manifest.
   fec-create-release:
     needs: [fec-detect, fec-release-state, fec-publish-crate, fec-build-binary]
-    if: ${{ needs.fec-detect.outputs.should_publish == 'true' && !inputs.dry-run && needs.fec-release-state.outputs.tag_exists != 'true' }}
+    # `!cancelled()` plus explicit results: fec-publish-crate needs the library publish jobs,
+    # which a run that publishes nothing new skips, and the implicit success() would then skip this job too.
+    if: ${{ !cancelled() && needs.fec-detect.result == 'success' && needs.fec-release-state.result == 'success' && needs.fec-publish-crate.result == 'success' && needs.fec-build-binary.result == 'success' && needs.fec-detect.outputs.should_publish == 'true' && !inputs.dry-run && needs.fec-release-state.outputs.tag_exists != 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

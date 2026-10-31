@@ -17,6 +17,7 @@
 use crate::config_decode::ConfigScope;
 use crate::config_types::RuleConfig;
 use crate::diagnostic::Diagnostic;
+use crate::output_scope::OutputScope;
 use crate::event::CollectingSink;
 use crate::publish::STAGING_MARKER;
 use crate::registry::RuleRegistry;
@@ -219,7 +220,7 @@ fn a_file_that_changes_between_read_and_publish_makes_the_run_replan() {
     let plans = Arc::new(AtomicUsize::new(0));
     let mut registry = RuleRegistry::with_defaults();
     registry.register("concat", Box::new(RacingBuilder { plans: Arc::clone(&plans) }));
-    let request = RunRequest { root: dir.path().to_path_buf(), config_path, scope: ConfigScope::Repository, mode: RunMode::Write };
+    let request = RunRequest { root: dir.path().to_path_buf(), config_path, scope: ConfigScope::Repository, mode: RunMode::Write, outputs: OutputScope::All };
     let mut sink = CollectingSink::default();
     let code = run(&request, &registry, &mut sink);
     assert_eq!(code, 0, "{:?}", sink.events);

@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-file-enforcer-cli"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Aquaticat"]
 categories = ["command-line-utilities", "development-tools"]
 documentation = "https://docs.rs/monochromatic-file-enforcer-cli"
@@ -45,7 +45,7 @@ path = "src/main.rs"
 
 [dependencies]
 # The rule engine, the server and the client; this crate only parses the command line and prints.
-monochromatic-file-enforcer = { path = "../core-rust", version = "=0.1.0" }
+monochromatic-file-enforcer = { path = "../core-rust", version = "=0.1.1" }
 # Owns the command grammar; its help, version and parse errors are re-emitted as JSON lines.
 clap = { workspace = true, features = ["derive"] }
 # Event lines are built as JSON objects; the JetBrains rule edits the JSON embedded in the settings files, where

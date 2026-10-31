@@ -12,10 +12,15 @@ import {
  `node:child_process`/`node:fs` and shells out to sudo/podman/virsh, so
  the bundle is node-only. The auxiliary `import.ts`/`sign-and-push.ts`
  dev scripts are not bins and stay source-run via their mise tasks.
+
+ `src/exec.ts` is a second entry only so that `dist/final/node/exec.mjs`
+ exists for the unit tests, which import built output; the bin bundle
+ runs sudo/podman at import time and cannot be imported by a test.
  */
 const config: NodeFlavorConfig = nodeConfig({
   input: [
     './src/build-and-import.ts',
+    './src/exec.ts',
   ],
 },);
 

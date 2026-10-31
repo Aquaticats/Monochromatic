@@ -4,10 +4,10 @@
 //! one observer for each way a tool gets installed,
 //! each returning
 //!           the installed version or `None`,
-//! and `status`'s report built from them.
+//! and `list`'s report built from them.
 //! Why:
-//! `status` compares the observation with the lock;
-//! `sync` uses the same observation to skip tools that
+//! `list` compares the observation with the lock;
+//! `install` uses the same observation to skip tools that
 //!           already match and `update` uses it to find npm and PyPI tools that are not installed.
 //!
 //! In TS you'd write (pseudocode):
@@ -267,7 +267,7 @@ pub fn observe_all(ctx: &Context, tools: &[LockedTool]) -> Vec<Observation> {
 }
 
 /// What:
-/// The text `status` prints:
+/// The text `list` prints:
 /// one line per tool (`ok` or `drift`) and a summary line.
 /// Why:
 /// Same wording as the TypeScript command,
@@ -298,9 +298,9 @@ pub fn format_status(observations: &[Observation]) -> String {
         }
     }
     if drifted == 0 {
-        text.push_str(&format!("toolchain status: {} tools in sync with toolchain.lock.json\n", observations.len()));
+        text.push_str(&format!("toolchain list: {} tools in sync with toolchain.lock.json\n", observations.len()));
     } else {
-        text.push_str(&format!("toolchain status: {drifted} of {} tools drifted from toolchain.lock.json\n", observations.len()));
+        text.push_str(&format!("toolchain list: {drifted} of {} tools drifted from toolchain.lock.json\n", observations.len()));
     }
     return text;
 }

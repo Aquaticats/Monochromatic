@@ -20,6 +20,9 @@
 /// ```
 pub mod cli;
 
+/// The line and section a shadowed tool adds after its own `--version` and `--help` output.
+pub mod announce;
+
 /// The fixed values (disk-priority launcher, escape-hatch variable, exit codes, shadowed names).
 pub mod constants;
 
@@ -61,6 +64,10 @@ pub mod shim;
 /// ```
 #[cfg(test)]
 mod real_binary_tests;
+
+/// The unit tests of the version and help announcements.
+#[cfg(test)]
+mod announce_tests;
 
 /// The unit tests of the policy module.
 #[cfg(test)]

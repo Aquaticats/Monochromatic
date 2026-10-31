@@ -212,7 +212,14 @@ and accepted with this record:
   and auto-sync on such failures and retry.",
   user);
   `update --check` never installs.
-- `sync` and `status` refuse when plan and lock disagree;
+- `sync` resolves plan entries that are new or whose resolution-affecting fields changed,
+  writes only their lock rows,
+  then installs,
+  as a non-frozen `pnpm install` does;
+  in CI (the `CI` variable set) or with `--frozen-lock` it refuses instead and names `mpm-shadow update <ids>`
+  (amended 2026-10-31:
+  the user chose "pnpm-style: resolve, frozen in CI" over keeping the refusal);
+  `status` still refuses when plan and lock disagree;
   offline `lock` rejects resolution-affecting edits;
   rustup channels and cargo-binstall tools install directly from the lock;
   postinstall links and commands run in sync.
@@ -259,6 +266,24 @@ and accepted with this record:
   (`rules_file_takes_a_path_or_an_array_of_entries` in
   `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs`).
   Version-keyed coexistence applies only to third-party tools.
+- Command names follow pnpm's verbs
+  (amended 2026-10-31 after the user noted "Wait, pnpm doesn't have a "sync" keyword."):
+  `sync` becomes `install` (`--frozen-lockfile`,
+  `--no-frozen-lockfile`),
+  offline `lock` becomes `install --lockfile-only --offline`,
+  `lock --check` becomes `install --lockfile-only --frozen-lockfile`,
+  `update --check` becomes `outdated`,
+  `bin-paths` becomes `bin`,
+  `status` becomes `list` (alias `ls`; pnpm leaves its drift exit code open, so it stays nonzero on drift),
+  `bin --json` prints the IDE launcher document,
+  `install` also takes the alias `i`,
+  and with no lock `install` resolves and writes it unless `--frozen-lockfile` is given
+  (pnpm 12.16.1 measured: `CI=true pnpm install` writes a missing lockfile,
+  `--frozen-lockfile` fails with `ERR_PNPM_NO_LOCKFILE`),
+  and the mise tasks follow (`toolchain:install`,
+  `toolchain:list`,
+  and their `:global` forms).
+  Older wording in this record keeps the old names as history.
 - `update` takes optional tool ids (`update <tool>...`) and moves only those,
   and a plan entry with no lock row is resolved on its own without moving any other row,
   as `pnpm update <pkg>` and `pnpm install` after adding a dependency do.

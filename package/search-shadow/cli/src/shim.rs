@@ -1,6 +1,7 @@
 //! What:     The shadow mode: when the binary is started as `rg`, `grep` or `find`, it checks the policy, finds the real
 //!           tool on PATH, lowers its own disk priority to the lowest best-effort level, and replaces itself with the
-//!           real tool (which inherits that priority).
+//!           real tool (which inherits that priority). A lone version or help flag instead runs the real tool as a child
+//!           and then adds the shadow's own line or section (`announce.rs`).
 //! Why:      Every search an agent or a script starts goes through here, so a broad search yields the disk to the
 //!           desktop instead of stalling it.
 //!
@@ -39,6 +40,7 @@ use std::os::unix::fs::FileTypeExt;
 /// Imports the owned path type.
 use std::path::PathBuf;
 
+use crate::announce::{announcement_for, run_announced};
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, REFUSED_EXIT_CODE};
 use crate::launch::replace_process;
 use crate::policy::{Invocation, refusal_for};
@@ -186,6 +188,20 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     // lowerDiskPriority(); // best effort, result ignored
     // ```
     lower_disk_priority();
+
+    // What:     `announcement_for(name, &arguments)` answers with `Some(kind)` only when the whole argument list is one
+    //           version or help flag of this tool.
+    // Why:      Such a run starts the real tool as a child and then adds the shadow's own line or section (see
+    //           `announce.rs`); every other run falls through to the process replacement below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kind = announcementFor(name, args);
+    // if (kind !== undefined) return runAnnounced(name, real, args, kind);
+    // ```
+    if let Some(announcement) = announcement_for(name, &arguments) {
+        return run_announced(name, &real, &arguments, announcement);
+    }
 
     // A returned value here means the launch failed; success replaced the process. `&real` and `&arguments` lend the
     // path and the argument list without giving them away.

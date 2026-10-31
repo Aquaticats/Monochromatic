@@ -175,5 +175,5 @@ fn a_fully_matching_report_says_so() {
         observed: Some("1".to_string()),
         in_sync: true,
     }];
-    assert!(format_status(&observations).ends_with("toolchain status: 1 tools in sync with toolchain.lock.json\n"));
+    assert!(format_status(&observations).ends_with("toolchain list: 1 tools in sync with toolchain.lock.json\n"));
 }

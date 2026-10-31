@@ -1,8 +1,12 @@
 //! What:
 //! The command-line surface of the toolchain half:
-//! the `clap` description of `lock`,
-//! `bin-paths` (and the
-//!           verbs added with them),
+//! the `clap` description of `install` (alias `i`),
+//! `update`,
+//! `outdated`,
+//! `list` (alias `ls`),
+//! `bin`
+//!           and the other verbs,
+//! named after the pnpm commands they mirror,
 //! and the function that runs one of them and turns its result into an exit code.
 //! Why:
 //! `cli.rs` keeps the older `prune` command and delegates every toolchain verb here,
@@ -47,20 +51,23 @@ use super::scope::{EnvMap, Scope, resolve_scope};
 /// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
 /// Imports what this module uses from `super::sync`.
-use super::sync::{format_sync_report, run_sync};
-/// Imports `relaunch_into_updates_slice` from `super::updates_slice`.
-use super::updates_slice::relaunch_into_updates_slice;
+use super::sync::{FrozenReason, LockPolicy, format_sync_report, locked_line, rewritten_line, run_lockfile_only, run_sync_with};
+/// Imports `is_ci` from `super::ci_detect`.
+use super::ci_detect::is_ci;
+/// Imports what this module uses from `super::updates_slice`.
+use super::updates_slice::{relaunch_into_updates_slice, verb_reaches_network};
 /// Imports what this module uses from `super::verify_archive`.
 use super::verify_archive::run_verify_archive;
 
 /// Imports what this module uses from `super::update`.
-use super::update::{format_update_report, run_update};
+use super::update::{format_update_report, run_update_for};
 
 /// The `--global` flag every toolchain verb accepts:
 /// act on the machine-global plan and lock.
 fn global_flag() -> Arg {
     return Arg::new("global")
         .long("global")
+        .short('g')
         .action(ArgAction::SetTrue)
         .help("Act on the machine-global toolchain (the plan and lock under the per-user config directory)");
 }
@@ -76,29 +83,52 @@ fn global_flag() -> Arg {
 /// export function subcommands(): Command[]
 /// ```
 pub fn subcommands() -> Vec<Command> {
-    let lock: Command = Command::new("lock")
-        .about("Rewrite toolchain.lock.json from toolchain.plan.jsonc without the network, keeping every resolved version")
+    let install: Command = Command::new("install")
+        .visible_alias("i")
+        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory; a plan entry the lock lacks is resolved and locked alone first, unless frozen")
         .arg(
-            Arg::new("check")
-                .long("check")
+            Arg::new("frozen-lockfile")
+                .long("frozen-lockfile")
                 .action(ArgAction::SetTrue)
-                .help("Write nothing; exit 1 when the plan and the lock disagree or the lock's digest does not match"),
+                .conflicts_with("no-frozen-lockfile")
+                .help("Never resolve: refuse a plan that is ahead of the lock and name `mpm-shadow update <ids>`; with --lockfile-only, only check (the default in CI when a lock exists, like pnpm)"),
+        )
+        .arg(
+            Arg::new("no-frozen-lockfile")
+                .long("no-frozen-lockfile")
+                .action(ArgAction::SetTrue)
+                .help("Resolve a plan that is ahead of the lock even in CI"),
+        )
+        .arg(
+            Arg::new("lockfile-only")
+                .long("lockfile-only")
+                .action(ArgAction::SetTrue)
+                .help("Only bring toolchain.lock.json up to date; install nothing"),
+        )
+        .arg(
+            Arg::new("offline")
+                .long("offline")
+                .action(ArgAction::SetTrue)
+                .requires("lockfile-only")
+                .help("Use no network: rewrite the lock's declaration fields from the plan, keeping every resolved version; refuse an entry that needs resolving"),
         )
         .arg(global_flag());
-    let bin_paths: Command = Command::new("bin-paths")
-        .about("Print the toolchain's program directories and exposed binaries as JSON (read-only, offline)")
-        .arg(global_flag());
-    let sync: Command = Command::new("sync")
-        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory")
+    let bin: Command = Command::new("bin")
+        .about("Print the directory the toolchain's executables are linked into (read-only, offline)")
+        .arg(
+            Arg::new("json")
+                .long("json")
+                .action(ArgAction::SetTrue)
+                .help("Print the program directories and exposed binaries as JSON instead (for the IDE launcher)"),
+        )
         .arg(global_flag());
     let update: Command = Command::new("update")
-        .about("Resolve every tool of the plan and write toolchain.lock.json (looks versions up on the network)")
-        .arg(
-            Arg::new("check")
-                .long("check")
-                .action(ArgAction::SetTrue)
-                .help("Report what would move without writing the lock or installing anything; exit 1 when something would move"),
-        )
+        .about("Resolve the plan's tools (all, or only the named ones) and write toolchain.lock.json (looks versions up on the network)")
+        .arg(tool_names_arg())
+        .arg(global_flag());
+    let outdated: Command = Command::new("outdated")
+        .about("Report which tools `update` would move, writing and installing nothing; exits 1 when any tool is outdated, like pnpm outdated")
+        .arg(tool_names_arg())
         .arg(global_flag());
     let verify_archive: Command = Command::new("verify-archive")
         .about("Check a downloaded archive's SHA-256 against the lock's row for a tool on a platform (the bootstrap check)")
@@ -110,15 +140,36 @@ pub fn subcommands() -> Vec<Command> {
                 .help("The lock's platform id (default: this machine's, for example linux-x64)"),
         )
         .arg(global_flag());
-    let status: Command = Command::new("status")
+    let list: Command = Command::new("list")
+        .visible_alias("ls")
         .about("Compare the installed tools with the lock (read-only; exits 1 on drift or when the plan and lock disagree)")
         .arg(global_flag());
-    return vec![lock, update, sync, status, verify_archive, bin_paths];
+    return vec![install, update, outdated, list, verify_archive, bin];
+}
+
+/// The tool-id patterns `update` and `outdated` take.
+fn tool_names_arg() -> Arg {
+    return Arg::new("tool")
+        .num_args(0..)
+        .value_name("TOOL")
+        .help("Tool ids of the plan, `*` matches any run of characters and a leading `!` excludes (default: every tool); the other rows keep their versions");
 }
 
 /// Prints a success line to standard output.
 fn print_line(line: &str) {
     println!("{line}");
+}
+
+/// Prints the result of a `run_lock` call the way every lock-only mode does and returns the exit code.
+fn print_lock_outcome(verb: &str, scope: &Scope, outcome: Result<String, ToolchainError>) -> i32 {
+    return match outcome {
+        Ok(line) => {
+            print_line(&line);
+            warn_older_locks(verb, scope);
+            0
+        }
+        Err(error) => report(&error),
+    };
 }
 
 /// Prints an error to standard error and returns its exit code.
@@ -131,11 +182,11 @@ fn report(error: &ToolchainError) -> i32 {
 /// The warning lines a command prints on standard error when this tree's lock pins an older repository-published tool
 /// than the one installed:
 /// `toolchain <verb>: warning: <text>`,
-/// the format `sync` already uses.
+/// the format `install` already uses.
 /// Why:
-/// `lock`,
-/// `update` and `bin-paths` have no report of their own to carry them,
-/// and `bin-paths` prints JSON on standard output.
+/// `install --lockfile-only`,
+/// `update` and `bin` have no report of their own to carry them,
+/// and `bin` prints JSON on standard output.
 /// A missing or unreadable lock gives none:
 /// those commands report that themselves.
 ///
@@ -185,37 +236,65 @@ fn start_directory() -> PathBuf {
 /// ```
 pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
     let env: EnvMap = EnvMap::from_process();
-    // `sync` and `update` fetch from the network, so they run inside the clearnet updates slice when one can be used.
-    if matches!(name, "sync" | "update") && let Some(exit_code) = relaunch_into_updates_slice(&env) {
-        return Some(exit_code);
-    }
     let global: bool = matches.get_flag("global");
     let scope: Scope = match resolve_scope(global, &start_directory(), &env) {
         Ok(found) => found,
         Err(error) => return Some(report(&error)),
     };
     match name {
-        "lock" => {
-            let mode: LockMode = if matches.get_flag("check") {
-                LockMode::Check
+        "install" => {
+            let frozen_flag: bool = matches.get_flag("frozen-lockfile");
+            let lockfile_only: bool = matches.get_flag("lockfile-only");
+            let offline: bool = matches.get_flag("offline");
+            // pnpm: frozen when asked, or by default in CI; `--no-frozen-lockfile` turns it off.
+            let policy: LockPolicy = if frozen_flag {
+                LockPolicy::Frozen(FrozenReason::Flag)
+            } else if matches.get_flag("no-frozen-lockfile") || !is_ci(&env) {
+                LockPolicy::Resolve
             } else {
-                LockMode::Write
+                LockPolicy::Frozen(FrozenReason::Ci)
             };
-            return Some(match run_lock(&scope, mode) {
-                Ok(line) => {
-                    print_line(&line);
-                    warn_older_locks("lock", &scope);
-                    0
+            // A frozen lock check and an offline lock write never fetch; every other `install` does,
+            // so those run inside the clearnet updates slice when one can be used.
+            let frozen_check: bool = matches!(policy, LockPolicy::Frozen(_)) && scope.lock_file.exists();
+            if verb_reaches_network("install", lockfile_only, offline, frozen_check)
+                && let Some(exit_code) = relaunch_into_updates_slice(&env)
+            {
+                return Some(exit_code);
+            }
+            if lockfile_only {
+                // A frozen lock check writes nothing and needs no network.
+                if matches!(policy, LockPolicy::Frozen(_)) && scope.lock_file.exists() {
+                    return Some(print_lock_outcome("install", &scope, run_lock(&scope, LockMode::Check)));
                 }
-                Err(error) => report(&error),
-            });
-        }
-        "sync" => {
+                if offline {
+                    return Some(print_lock_outcome("install", &scope, run_lock(&scope, LockMode::Write)));
+                }
+                let http = connect_or_explain();
+                return Some(match run_lockfile_only(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), policy) {
+                    Ok(prepared) => {
+                        for (id, version) in &prepared.resolved {
+                            print!("{}", locked_line(id, version));
+                        }
+                        for description in &prepared.rewritten {
+                            print!("{}", rewritten_line(description));
+                        }
+                        if prepared.resolved.is_empty() && prepared.rewritten.is_empty() {
+                            println!("toolchain lock already current: {}", scope.lock_file.display());
+                        } else {
+                            println!("toolchain install: wrote {}; nothing was installed", scope.lock_file.display());
+                        }
+                        warn_older_locks("install", &scope);
+                        0
+                    }
+                    Err(error) => report(&error),
+                });
+            }
             let http = connect_or_explain();
-            return Some(match run_sync(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current()) {
+            return Some(match run_sync_with(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), policy) {
                 Ok(sync_report) => {
                     println!(
-                        "toolchain sync: platform {}, root {}, exposure {}",
+                        "toolchain install: platform {}, root {}, exposure {}",
                         Host::current().platform,
                         scope.toolchain_root.display(),
                         scope.exposure_dir.display()
@@ -226,13 +305,22 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 Err(error) => report(&error),
             });
         }
-        "update" => {
-            let check: bool = matches.get_flag("check");
+        "update" | "outdated" => {
+            // Both resolve versions over the network, so they run inside the clearnet updates slice when one can be used.
+            if let Some(exit_code) = relaunch_into_updates_slice(&env) {
+                return Some(exit_code);
+            }
+            // pnpm outdated reports and exits 1 when anything is outdated; pnpm update writes.
+            let check: bool = name == "outdated";
+            let names: Vec<String> = match matches.get_many::<String>("tool") {
+                Some(given) => given.cloned().collect(),
+                None => Vec::new(),
+            };
             let http = connect_or_explain();
-            return Some(match run_update(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check) {
+            return Some(match run_update_for(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check, &names) {
                 Ok(update_report) => {
                     print!("{}", format_update_report(&update_report, check));
-                    warn_older_locks("update", &scope);
+                    warn_older_locks(name, &scope);
                     i32::from(update_report.has_failures() || (check && update_report.has_movement()))
                 }
                 Err(error) => report(&error),
@@ -253,7 +341,7 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 Err(error) => report(&error),
             });
         }
-        "status" => {
+        "list" => {
             return Some(match run_status(&scope, &env, &ProcessRunner, &Host::current()) {
                 Ok(status_report) => {
                     print!("{}", status_report.text);
@@ -262,7 +350,13 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 Err(error) => report(&error),
             });
         }
-        "bin-paths" => {
+        "bin" => {
+            // Plain output is what `pnpm bin` prints: the directory the executables are linked into.
+            if !matches.get_flag("json") {
+                println!("{}", scope.exposure_dir.display());
+                warn_older_locks("bin", &scope);
+                return Some(0);
+            }
             // Only the plan is read: the IDE sandbox may run this before any lock exists.
             let outcome = match read_plan(&scope.plan_file) {
                 Ok(plan) => bin_paths_output(&plan, &scope, &env),
@@ -271,7 +365,7 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             return Some(match outcome {
                 Ok(document) => {
                     print!("{}", render_bin_paths(&document));
-                    warn_older_locks("bin-paths", &scope);
+                    warn_older_locks("bin", &scope);
                     0
                 }
                 Err(error) => report(&error),

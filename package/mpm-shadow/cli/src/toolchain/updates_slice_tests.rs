@@ -8,7 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use super::scope::EnvMap;
 use super::updates_slice::{
     Facts, GUARD_ENVIRONMENT, OPT_OUT_ENVIRONMENT, TOOLCHAIN_UPDATES_SLICE, inside_updates_slice, run_through_systemd,
-    stay_in_place_reason, systemd_run_arguments,
+    stay_in_place_reason, systemd_run_arguments, verb_reaches_network,
 };
 use crate::test_scratch::scratch;
 
@@ -53,7 +53,7 @@ fn a_run_moves_only_on_linux_with_a_user_manager_outside_the_slice() {
 
 #[test]
 fn the_command_runs_in_a_fresh_user_scope_below_the_slice() {
-    let arguments = systemd_run_arguments(&["mpm-shadow".to_string(), "sync".to_string()]);
+    let arguments = systemd_run_arguments(&["mpm-shadow".to_string(), "install".to_string()]);
     assert_eq!(
         arguments,
         vec![
@@ -64,7 +64,7 @@ fn the_command_runs_in_a_fresh_user_scope_below_the_slice() {
             "--slice=app-monochromatic\\x2dupdates.slice".to_string(),
             "--".to_string(),
             "mpm-shadow".to_string(),
-            "sync".to_string(),
+            "install".to_string(),
         ]
     );
 }
@@ -87,12 +87,12 @@ fn a_good_probe_is_followed_by_the_real_run_under_the_guard() {
     let program = fake_systemd_run(directory.path());
     let log = directory.path().join("log");
     let env = EnvMap::from_pairs(&[("FAKE_LOG", &log.to_string_lossy()), ("FAKE_PROBE_EXIT", "0")]);
-    let outcome = run_through_systemd(&program, "/usr/bin/mpm-shadow", &["sync".to_string(), "--global".to_string()], &env);
+    let outcome = run_through_systemd(&program, "/usr/bin/mpm-shadow", &["install".to_string(), "--global".to_string()], &env);
     assert_eq!(outcome, Some(3));
     let recorded = std::fs::read_to_string(&log).expect("read the log");
     assert!(recorded.contains("--slice=app-monochromatic\\x2dupdates.slice"));
     assert!(recorded.contains("--version"));
-    assert!(recorded.contains("/usr/bin/mpm-shadow\nsync\n--global\n"));
+    assert!(recorded.contains("/usr/bin/mpm-shadow\ninstall\n--global\n"));
     assert!(recorded.ends_with("guard=1\n"));
 }
 
@@ -102,7 +102,7 @@ fn a_failed_probe_leaves_the_run_in_place_without_running_the_work() {
     let program = fake_systemd_run(directory.path());
     let log = directory.path().join("log");
     let env = EnvMap::from_pairs(&[("FAKE_LOG", &log.to_string_lossy()), ("FAKE_PROBE_EXIT", "1")]);
-    assert_eq!(run_through_systemd(&program, "/usr/bin/mpm-shadow", &["sync".to_string()], &env), None);
+    assert_eq!(run_through_systemd(&program, "/usr/bin/mpm-shadow", &["install".to_string()], &env), None);
     let recorded = std::fs::read_to_string(&log).expect("read the log");
     assert!(!recorded.contains("guard="));
 }
@@ -110,5 +110,19 @@ fn a_failed_probe_leaves_the_run_in_place_without_running_the_work() {
 #[test]
 fn a_missing_systemd_run_leaves_the_run_in_place() {
     let env = EnvMap::from_pairs(&[]);
-    assert_eq!(run_through_systemd("/nonexistent/systemd-run", "/usr/bin/mpm-shadow", &["sync".to_string()], &env), None);
+    assert_eq!(run_through_systemd("/nonexistent/systemd-run", "/usr/bin/mpm-shadow", &["install".to_string()], &env), None);
+}
+
+#[test]
+fn only_the_network_forms_of_the_verbs_move_into_the_slice() {
+    assert!(verb_reaches_network("update", false, false, false));
+    assert!(verb_reaches_network("outdated", false, false, false));
+    assert!(verb_reaches_network("install", false, false, false));
+    assert!(verb_reaches_network("install", false, true, false));
+    assert!(verb_reaches_network("install", true, false, false));
+    assert!(!verb_reaches_network("install", true, true, false));
+    assert!(!verb_reaches_network("install", true, false, true));
+    assert!(!verb_reaches_network("list", false, false, false));
+    assert!(!verb_reaches_network("bin", false, false, false));
+    assert!(!verb_reaches_network("verify-archive", false, false, false));
 }

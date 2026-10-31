@@ -22,6 +22,8 @@
 /// `Event`,
 /// `EventSink` from `crate::event`.
 use crate::event::{CollectingSink, Event, EventSink};
+/// Imports `OutputScope` from `crate::output_scope`.
+use crate::output_scope::OutputScope;
 /// Imports `STAGING_MARKER` from `crate::publish`.
 use crate::publish::STAGING_MARKER;
 /// Imports `EXIT_CLEAN`,
@@ -223,6 +225,7 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
         config_path: config_path.to_path_buf(),
         scope: shared.options.scope,
         mode: RunMode::Write,
+        outputs: OutputScope::All,
     };
     let (sender, receiver) = channel();
     let Ok(mut watcher) = notify::recommended_watcher(sender) else {

@@ -22,7 +22,7 @@ use serde_json::Value;
 use super::context::Context;
 /// Imports the model types the resolver builds.
 use super::model::{Artifact, Declaration};
-/// Imports the version normalizer shared with `status`.
+/// Imports the version normalizer shared with `list`.
 use super::parse_output::normalize_version;
 /// Imports the asset chooser.
 use super::update_github_assets::pick_asset;
@@ -140,7 +140,7 @@ fn release_of_range(ctx: &Context, repo: &str, range: &str) -> Result<Value, Res
 /// Why:
 /// The version is the release tag without its `v` or `name-v` prefix;
 /// each Linux platform's asset is chosen by name;
-/// a platform with no matching asset is left out (and fails at `sync` with a message naming it),
+/// a platform with no matching asset is left out (and fails at `install` with a message naming it),
 /// but a release that matches no platform at all is an error.
 ///
 /// In TS you'd write (pseudocode):

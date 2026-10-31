@@ -6,9 +6,9 @@
 //!           route puts its binaries in,
 //! and the bounded search for an executable inside them.
 //! Why:
-//! `status`,
-//! `sync`,
-//! the exposure farm and `bin-paths` must agree on where a tool lives;
+//! `list`,
+//! `install`,
+//! the exposure farm and `bin` must agree on where a tool lives;
 //! they all ask here.
 //!
 //! In TS you'd write (pseudocode):
@@ -170,7 +170,7 @@ fn pnpm_home(env: &EnvMap, home: &Path) -> PathBuf {
 ///           and toolchain bin directories:
 /// the directories a child process needs on `PATH`.
 /// Why:
-/// `bin-paths` reports the ones that exist;
+/// `bin` reports the ones that exist;
 /// install commands put all of them on `PATH`.
 ///
 /// In TS you'd write (pseudocode):

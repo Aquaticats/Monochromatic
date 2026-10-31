@@ -40,12 +40,13 @@ const EXCLUDED_ENDINGS: [&str; 26] = [
 /// debug symbols,
 /// baseline CPU builds,
 /// sources and documentation,
-/// bundles with extras,
-/// and GPU-accelerated builds.
-const EXCLUDED_FRAGMENTS: [&str; 20] = [
-    "baseline", "debug", "symbols", "-src", "_src", "source", "docs", "completion", "provenance", "checksums", "profile", "sbom", ".full.", "vulkan", "rocm", "cuda",
-    "openvino", "sycl", "opencl", "-hip",
-];
+/// and bundles with extras.
+const EXCLUDED_FRAGMENTS: [&str; 13] = ["baseline", "debug", "symbols", "-src", "_src", "source", "docs", "completion", "provenance", "checksums", "profile", "sbom", ".full."];
+
+/// Name fragments of GPU-accelerated builds.
+/// They are skipped by default,
+/// but a plan entry whose `asset` glob matches the name asked for that build by name.
+const GPU_FRAGMENTS: [&str; 7] = ["vulkan", "rocm", "cuda", "openvino", "sycl", "opencl", "-hip"];
 
 /// Name fragments of operating systems and CPUs other than the platforms looked for.
 const FOREIGN_FRAGMENTS: [&str; 22] = [
@@ -88,12 +89,17 @@ fn format_score(lower: &str) -> u32 {
 
 /// The score of an asset for a platform,
 /// or `None` when the name rules it out.
-fn score(name: &str, platform: &str) -> Option<u32> {
+/// `hinted` says the plan's `asset` glob already matched the name,
+/// which lets a GPU build through.
+fn score(name: &str, platform: &str, hinted: bool) -> Option<u32> {
     let lower: String = name.to_ascii_lowercase();
     if ends_with_any(&lower, &EXCLUDED_ENDINGS) {
         return None;
     }
     if contains_any(&lower, &EXCLUDED_FRAGMENTS) {
+        return None;
+    }
+    if !hinted && contains_any(&lower, &GPU_FRAGMENTS) {
         return None;
     }
     if contains_any(&lower, &FOREIGN_FRAGMENTS) {
@@ -112,7 +118,12 @@ fn score(name: &str, platform: &str) -> Option<u32> {
 /// and an error naming the candidates when several fit equally well.
 /// Why:
 /// A `hint` glob restricts the candidates first,
-/// so a repository that ships several programs in one release can say which one it means.
+/// so a repository that ships several programs in one release can say which one it means,
+/// and naming a GPU build
+/// (`rocm`,
+/// `cuda`,
+/// `vulkan`)
+/// in the glob is the only way to ask for one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,7 +141,7 @@ pub fn pick_asset<'a>(assets: &'a [Value], platform: &str, hint: Option<&str>, r
         {
             continue;
         }
-        let Some(points) = score(name, platform) else {
+        let Some(points) = score(name, platform, hint.is_some()) else {
             continue;
         };
         if points > best_score {
