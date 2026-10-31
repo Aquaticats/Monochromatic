@@ -35,6 +35,23 @@ await describe({
       },
     },),
     it({
+      name: 'reads the servers resolvectl wrapped onto an indented line, as its real output does for six servers',
+      fn: async () => {
+        expect(parseResolvectlDns({
+          text: 'Link 11 (fr-par-fr1): 2606:4700:4700::1111 1.1.1.1 9.9.9.9 149.112.112.112\n        2620:fe::fe 2620:fe::9\n',
+        },),).toEqual([
+          '2606:4700:4700::1111',
+          '1.1.1.1',
+          '9.9.9.9',
+          '149.112.112.112',
+          '2620:fe::fe',
+          '2620:fe::9',
+        ],);
+        expect(parseResolvectlDns({ text: '        2620:fe::fe\n', },),).toEqual([],);
+        expect(parseResolvectlDns({ text: 'Link 11 (wg0): \n        1.1.1.1\n', },),).toEqual(['1.1.1.1',],);
+      },
+    },),
+    it({
       name: 'reports no server for a link without DNS, empty output and text that is not a link line',
       fn: async () => {
         expect(parseResolvectlDns({ text: 'Link 11 (wg0): \n', },),).toEqual([],);

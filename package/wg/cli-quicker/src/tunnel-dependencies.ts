@@ -77,10 +77,98 @@ function bareAddress({ token, }: { readonly token: string; },): string {
 }
 
 /**
+ Reports whether a line starts with white space,
+ as the lines `resolvectl` wraps onto do.
+
+ @param line - One output line.
+
+ @returns Whether the line is indented.
+
+ @example
+ ```ts
+ isIndented({ line: '        2620:fe::fe' }); // true
+ ```
+ */
+function isIndented({ line, }: { readonly line: string; },): boolean {
+  return line.startsWith(' ',) || line.startsWith('\t',);
+}
+
+/**
+ Reports whether a line is the label line of a link,
+ such as `Link 11 (wg0): 1.1.1.1`.
+
+ @param line - One output line.
+
+ @returns Whether the line carries a label.
+
+ @example
+ ```ts
+ isLabelLine({ line: 'Link 11 (wg0): 1.1.1.1' }); // true
+ ```
+ */
+function isLabelLine({ line, }: { readonly line: string; },): boolean {
+  return (!isIndented({ line, },)) && (line.includes(': ',)
+    || line.trimEnd()
+      .endsWith(':',));
+}
+
+/**
+ Picks the text of one line that holds servers.
+
+ `resolvectl` wraps a long server list onto indented lines,
+ which belong to the label line before them.
+
+ @param line - The line.
+
+ @param lines - All lines of the output.
+
+ @param index - Position of the line.
+
+ @returns The server text,
+ empty when the line holds none.
+
+ @example
+ ```ts
+ serversText({ line: 'Link 11 (wg0): 1.1.1.1', lines: ['Link 11 (wg0): 1.1.1.1'], index: 0 }); // '1.1.1.1'
+ ```
+ */
+function serversText(
+  {
+    line,
+    lines,
+    index,
+  }: {
+    readonly line: string;
+    readonly lines: readonly string[];
+    readonly index: number;
+  },
+): string {
+  if (isLabelLine({ line, },)) {
+    /**
+     Position of the colon that ends the label.
+     */
+    const colon = line.indexOf(': ',);
+    return colon === (-1) ? '' : line.slice(colon + 2,);
+  }
+  if (!isIndented({ line, },))
+    return '';
+  for (let before = index - 1; before >= 0; before -= 1) {
+    /**
+     Earlier line that decides what this indented line belongs to.
+     */
+    const candidate = lines[before] ?? '';
+    if (!isIndented({ line: candidate, },))
+      return isLabelLine({ line: candidate, },) ? line : '';
+  }
+  return '';
+}
+
+/**
  Reads the DNS servers out of `resolvectl dns <interface>` output.
 
  @param text - Command output,
- such as `Link 11 (wg0): 1.1.1.1 9.9.9.9`.
+ such as `Link 11 (wg0): 1.1.1.1 9.9.9.9`,
+ possibly wrapped onto indented lines.
 
  @returns Server addresses,
  none when the link has no DNS server.
@@ -91,27 +179,32 @@ function bareAddress({ token, }: { readonly token: string; },): string {
  ```
  */
 export function parseResolvectlDns({ text, }: { readonly text: string; },): readonly string[] {
-  return text.split('\n',)
-    .flatMap(function serversOfLine(line,): readonly string[] {
-      /**
-       Position of the colon that ends the link label.
-       */
-      const colon = line.indexOf(': ',);
-      if ((colon === (-1)) && (!line.trimEnd()
-        .endsWith(':',)))
-        return [];
-      /**
-       Servers after the label.
-       */
-      const servers = (colon === (-1) ? '' : line.slice(colon + 2,));
-      return servers.split(' ',)
-        .map(function bare(token,): string {
-          return bareAddress({ token, },);
-        },)
-        .filter(function isAddress(address,): boolean {
-          return isIPv4(address,) || isIPv6(address,);
-        },);
+  /**
+   Lines of the output.
+   */
+  const lines = text.split('\n',);
+  return lines.flatMap(function serversOfLine(
+    line,
+    index,
+  ): readonly string[] {
+    /**
+     Text that holds servers:
+     the part after the label,
+     or a wrapped continuation of a label line.
+     */
+    const servers = serversText({
+      line,
+      lines,
+      index,
     },);
+    return servers.split(' ',)
+      .map(function bare(token,): string {
+        return bareAddress({ token, },);
+      },)
+      .filter(function isAddress(address,): boolean {
+        return isIPv4(address,) || isIPv6(address,);
+      },);
+  },);
 }
 
 /**

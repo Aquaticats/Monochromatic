@@ -37,7 +37,7 @@ const REVIEWED_ENVIRONMENT: Readonly<Record<string, string>> = {
   XDG_RUNTIME_DIR: 'Set by the watcher for its own bus client so the client reaches the user\'s manager; never read from the caller.',
   IPINFO_TOKEN: 'Credential for the allowed-IPs lookup; it does not affect update routing.',
   WG_ALLOWEDIPS_CACHE_DIRECTORY: 'Locates the allowed-IPs cache only.',
-  WG_QUICKER_CALLER_PATH: 'The caller\'s PATH, searched last for a companion installed by name; it cannot disable the watcher.',
+  WG_QUICKER_CALLER_PATH: 'The caller\'s PATH, searched last for a companion installed by name. It can substitute a different watcher when neither the sibling build nor the secure path has one, so it is the same class as the removed overrides and is an open question for the reviewer.',
   WG_QUICKER_OPENSNITCH_DAEMON_CONFIG: 'Locates the OpenSnitch daemon config for the rule maintenance command only.',
   WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG: 'Locates the OpenSnitch firewall config for the rule maintenance command only.',
   WG_QUICKER_RUNTIME_DIRECTORY: 'Locates the directory of the bypass state file; the state is still written and read.',
