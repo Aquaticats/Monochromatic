@@ -264,7 +264,7 @@ fn probe_manifest(version: &str) -> String {
 ///  Resolve the throwaway driver crate offline.
 /// Why:
 ///  A resolution that succeeds means `cargo dylint` can build the driver without the network;
-///  the first line of cargo's message explains a failure.
+///  the first error line of cargo's message explains a failure.
 ///  The crate lives in a directory named for this process and is removed afterwards.
 ///
 /// In TS you'd write (pseudocode):
@@ -330,13 +330,14 @@ fn resolve_probe(cargo: &Path, package: &Path) -> Result<Option<String>, String>
     if output.status.success() {
         return Ok(None);
     }
-    return Ok(Some(
-        String::from_utf8_lossy(&output.stderr)
-            .lines()
-            .next()
-            .unwrap_or("none")
-            .to_string(),
-    ));
+    // Cargo prints progress notes such as "Locking 81 packages" before its error, so the first error line is quoted.
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    let explanation: &str = stderr
+        .lines()
+        .find(|line| return line.starts_with("error"))
+        .or_else(|| return stderr.lines().next())
+        .unwrap_or("none");
+    return Ok(Some(explanation.to_string()));
 }
 
 /// What:
@@ -405,7 +406,7 @@ pub fn driver_state(
         None => format!("is absent (cargo-dylint is {})", dotted(needed)),
     };
     return DriverState::Missing(format!(
-        "the Dylint driver for toolchain `{toolchain}` at {} {held}, and `dylint_driver` {} with its dependencies is not in the cargo cache, so `cargo dylint` would have to download it, which this linter does not do; run `{warm}` once with network access (it writes the cargo registry and the Dylint driver directory, and is needed again after each cargo-dylint upgrade). First line of cargo's message: {refusal}",
+        "the Dylint driver for toolchain `{toolchain}` at {} {held}, and `dylint_driver` {} with its dependencies is not in the cargo cache, so `cargo dylint` would have to download it, which this linter does not do; run `{warm}` once with network access (it writes the cargo registry and the Dylint driver directory, and is needed again after each cargo-dylint upgrade). Cargo's error: {refusal}",
         driver.display(),
         dotted(needed)
     ));

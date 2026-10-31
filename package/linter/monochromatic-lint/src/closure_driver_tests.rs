@@ -37,7 +37,7 @@ const COLD: [(&str, &str); 2] = [
     ("metadata.dylint-driver-probe.status", "101"),
     (
         "metadata.dylint-driver-probe.stderr",
-        "error: failed to select a version for the requirement `dylint_driver = \"=6.3.0\"`\nmore\n",
+        "     Locking 81 packages to highest compatible versions\nerror: failed to select a version for the requirement `dylint_driver = \"=6.3.0\"`\nmore\n",
     ),
 ];
 
@@ -187,7 +187,7 @@ fn a_newer_driver_is_ready() {
 /// and the reason names the toolchain,
 /// both versions,
 /// the driver path,
-/// the warm command and the first line of cargo's message only.
+/// the warm command and the first error line of cargo's message only.
 #[test]
 fn an_outdated_driver_and_a_cold_cache_are_missing() {
     let machine: Machine = Machine::new(&COLD);
@@ -217,9 +217,28 @@ fn an_outdated_driver_and_a_cold_cache_are_missing() {
         "{reason}"
     );
     assert!(
-        !reason.contains("more"),
-        "only the first line of cargo's message is quoted: {reason}"
+        !reason.contains("more") && !reason.contains("Locking"),
+        "only the first error line of cargo's message is quoted, not its progress notes: {reason}"
     );
+}
+
+/// A refusal without an error line quotes the first line,
+/// and one without any output says so.
+#[test]
+fn a_refusal_without_an_error_line_quotes_what_there_is() {
+    let plain: Machine = Machine::new(&[
+        ("metadata.dylint-driver-probe.status", "101"),
+        ("metadata.dylint-driver-probe.stderr", "plain words\nmore\n"),
+    ]);
+    let DriverState::Missing(reason) = plain.state() else {
+        panic!("the driver should be missing");
+    };
+    assert!(reason.ends_with("Cargo's error: plain words"), "{reason}");
+    let silent: Machine = Machine::new(&[("metadata.dylint-driver-probe.status", "101")]);
+    let DriverState::Missing(none) = silent.state() else {
+        panic!("the driver should be missing");
+    };
+    assert!(none.ends_with("Cargo's error: none"), "{none}");
 }
 
 /// A missing driver with a cold cache is missing,
