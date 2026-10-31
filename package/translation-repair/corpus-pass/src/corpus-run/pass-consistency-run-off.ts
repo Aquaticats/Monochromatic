@@ -23,7 +23,10 @@ import {
   type ConsistencyChoiceRecord,
   consistencyKey,
 } from './pass-consistency-cache.ts';
-import { gatherThroughCache, } from './pass-consistency-gather.ts';
+import {
+  gatherThroughCache,
+  seatFieldsOf,
+} from './pass-consistency-gather.ts';
 
 //region Pass consistency run-off
 // ASKING THE BENCH ONCE MORE among the finalists, or resuming
@@ -92,6 +95,7 @@ export function choiceRecordOf(
     readonly quorum: number;
     readonly voices: readonly {
       readonly modelId: RosterModelId;
+      readonly seat?: RosterModelId;
       readonly value: ConsistencyChoiceWire;
     }[];
     readonly findings: readonly string[];
@@ -101,10 +105,11 @@ export function choiceRecordOf(
   return {
     kind: 'choice',
     quorum,
-    voices: voices.map(function voiceOf({
-      modelId,
-      value,
-    },): ConsistencyChoiceVoice {
+    voices: voices.map(function voiceOf(voice,): ConsistencyChoiceVoice {
+      /**
+       The reply this voice sent.
+       */
+      const { value, } = voice;
       /**
        The reply as the choice the cache stores, which keeps the spelling it was stored under (ledger B762).
        */
@@ -120,7 +125,7 @@ export function choiceRecordOf(
           labels,
         },);
       return {
-        seat: modelId,
+        ...seatFieldsOf({ voice, },),
         reason: heard.reason,
         choice: shown?.choice ?? heard.choice,
       };

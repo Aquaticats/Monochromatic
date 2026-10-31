@@ -27,7 +27,10 @@ import {
   consistencyKey,
   type ConsistencyRecord,
 } from './pass-consistency-cache.ts';
-import { gatherThroughCache, } from './pass-consistency-gather.ts';
+import {
+  gatherThroughCache,
+  seatFieldsOf,
+} from './pass-consistency-gather.ts';
 
 //region Pass consistency ask
 // ASKING THE BENCH ONCE ABOUT ONE REPEATED WORDING, or resuming what it said,
@@ -61,6 +64,8 @@ export type ConsistencyAsked = ConsistencyRecord & {
 
  @param seat - roster seat that answered, which no reply field can replace
 
+ @param answeredBy - model that answered for the seat, where another model than the seat's did (ledger B1142)
+
  @param ballot - reply, of the right shape
 
  @param labels - labels the sheet showed
@@ -75,10 +80,12 @@ export type ConsistencyAsked = ConsistencyRecord & {
 function voiceOf(
   {
     seat,
+    answeredBy,
     ballot,
     labels,
   }: {
     readonly seat: string;
+    readonly answeredBy?: string;
     readonly ballot: ConsistencyBallotWire;
     readonly labels: readonly string[];
   },
@@ -100,6 +107,8 @@ function voiceOf(
   const kept = shown ?? heard;
   return {
     seat,
+    // Conditional spread keeps the model absent where the seat's own model answered.
+    ...((answeredBy === undefined) ? {} : { answeredBy, }),
     reason: kept.reason,
     quotes: kept.quotes
       .map(function quoteOf(entry,): ConsistencyBallot['quotes'][number] {
@@ -165,13 +174,10 @@ function ballotRecordOf(
 ): ConsistencyRecord {
   return {
     quorum,
-    voices: voices.map(function toVoice({
-      modelId,
-      value,
-    },): ConsistencyVoice {
+    voices: voices.map(function toVoice(voice,): ConsistencyVoice {
       return voiceOf({
-        seat: modelId,
-        ballot: value,
+        ...seatFieldsOf({ voice, },),
+        ballot: voice.value,
         labels,
       },);
     },),

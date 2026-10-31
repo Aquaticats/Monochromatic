@@ -1,5 +1,8 @@
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import type { HeardVoice, } from './stage-gather.ts';
+import {
+  type HeardVoice,
+  seatOfVoice,
+} from './stage-gather.ts';
 import {
   silentStageLabel,
   stageQuorumUnmetFinding,
@@ -67,8 +70,9 @@ export function lostVoiceFindings(
   const unheard = seated.filter(function askedAndNeverHeard(modelId,): boolean {
     if (!asked.has(modelId,))
       return false;
+    // A SEAT IS HEARD BY THE VOICE ANOTHER MODEL GAVE FOR IT too (ledger B1142), whose model is on no bench of the gather.
     return !voices.some(function isVoice(voice,): boolean {
-      return voice.modelId === modelId;
+      return seatOfVoice({ voice, },) === modelId;
     },);
   },);
 

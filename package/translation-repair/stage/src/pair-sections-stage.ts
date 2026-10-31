@@ -22,6 +22,7 @@ import { agreePairs, } from './pair-agreement.ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { FanOutMode, } from './stage-fanout-window.ts';
 import { shortBenchStageFinding, } from './stage-reachable-quorum.ts';
+import { answererOf, } from './stage-answerer.ts';
 import { runWindowedRounds, } from './stage-windowed-rounds.ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { StageSettings, } from './stage-settings.ts';
@@ -198,8 +199,8 @@ function readUsablePairings(
       // rest of the roster may still agree on a pairing, and refusing the whole
       // document because one model answered badly is the failure that once
       // discarded translated slices.
-      findings.push(`section-pairing unusable (${outcome.modelId}: ${refusal.message})`,);
-      l.warn(`${outcome.modelId} returned an unusable section pairing: ${refusal.message}`,);
+      findings.push(`section-pairing unusable (${answererOf({ outcome, },)}: ${refusal.message})`,);
+      l.warn(`${answererOf({ outcome, },)} returned an unusable section pairing: ${refusal.message}`,);
     }
   }
   return pairings;

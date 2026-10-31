@@ -6,6 +6,7 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   agreePairs,
+  answererOf,
   type BlockPair,
   type BlockPairingWire,
   countPairedBlocks,
@@ -139,8 +140,8 @@ export function readBlockPairingOutcomes(
        Why the reply cannot be used; anything else propagates.
        */
       const refusal = requireBlockPairingRefusal({ error, },);
-      findings.push(`block-pairing unusable (${outcome.modelId}: ${refusal.message})`,);
-      pl.warn(`${outcome.modelId} returned an unusable pairing: ${refusal.message}`,);
+      findings.push(`block-pairing unusable (${answererOf({ outcome, },)}: ${refusal.message})`,);
+      pl.warn(`${answererOf({ outcome, },)} returned an unusable pairing: ${refusal.message}`,);
     }
   }
   if (pairings.length === 0) {

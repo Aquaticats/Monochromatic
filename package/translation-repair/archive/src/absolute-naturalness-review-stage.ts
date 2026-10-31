@@ -21,6 +21,7 @@ import {
 } from '@monochromatic-dev/translation-repair-adjudication/ts';
 import {
   type FanOutMode,
+  answererOf,
   runWindowedRounds,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
@@ -323,8 +324,9 @@ export async function reviewAbsoluteNaturalness(
      Validated structured reviewer reply.
      */
     const reply = voice.value;
+    // THE REVIEW IS THE MODEL'S THAT WROTE IT (ledger B1142): the model asked in place of a runaway seat, not the seat.
     return {
-      modelId: outcome.modelId,
+      modelId: answererOf({ outcome, },),
       status: reply.isAcceptable ? 'acceptable' : 'unacceptable',
       findings: reply.findings,
       reason: reply.assessment,

@@ -4,7 +4,10 @@ import {
   producerModelIds,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typography/ts';
-import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage/ts';
+import {
+  type HeardVoice,
+  seatOfVoice,
+} from '@monochromatic-dev/translation-repair-stage/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { TranslateReportWire, } from './translate-wire.ts';
 import { requireFoldedVoices, } from './translator-answer-fold.ts';
@@ -216,9 +219,11 @@ export function buildTranslateCandidates(
     left,
     right,
   ) {
-    // A MODEL THE ROSTER DOES NOT LIST (the other translator that revised a runaway author's candidate, ledger B1100)
-    // sorts after every listed one, in arrival order among its kind.
-    return rosterRank({ modelId: left.modelId, },) - rosterRank({ modelId: right.modelId, },);
+    // A VOICE STANDS AT THE SEAT IT ANSWERED FOR (ledger B1142): the model that wrote it may be on no roster. A model the
+    // roster does not list and that answered for no seat (the other translator that revised a runaway author's candidate,
+    // ledger B1100) sorts after every listed one, in arrival order among its kind.
+    return rosterRank({ modelId: seatOfVoice({ voice: left, },), },)
+      - rosterRank({ modelId: seatOfVoice({ voice: right, },), },);
   },);
 
   // FOLDED BEFORE THIS, NOT HERE (ledger B112). Each lane folds an answer

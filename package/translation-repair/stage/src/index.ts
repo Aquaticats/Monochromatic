@@ -130,7 +130,12 @@ export {
   rotatedBench,
 } from './stage-fanout-window.ts';
 export {
+  answererOf,
+  heardVoiceOf,
+} from './stage-answerer.ts';
+export {
   type HeardVoice,
+  seatOfVoice,
   type StageGather,
 } from './stage-gather.ts';
 export {

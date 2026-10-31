@@ -22,6 +22,7 @@ import {
 } from './consolidation-polish-gate-wire.ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
+  answererOf,
   runWindowedRounds,
   shortBenchStageFinding,
   type StageSettings,
@@ -323,7 +324,7 @@ export async function gateConsolidationPolish(
     // (class fifty-six): shi_Yumiaoya36's polish gate settled on neither over
     // a polish that restored a survived suicide attempt the base had dropped
     // (class one hundred fifty), and the log carried only the tally.
-    gl.info(`consolidation polish gate ballot ${outcome.modelId}: ${ballot.choice}: ${ballot.reason}`,);
+    gl.info(`consolidation polish gate ballot ${answererOf({ outcome, },)}: ${ballot.choice}: ${ballot.reason}`,);
     return [ballot,];
   },);
   /**

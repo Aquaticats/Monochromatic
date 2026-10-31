@@ -54,8 +54,9 @@ import type {
 function recordedBallot(
   { voice, }: { readonly voice: ConsistencyAsked['voices'][number]; },
 ): ArtifactConsistencyBallot {
+  // THE ARTIFACT NAMES THE MODEL THAT CAST THE BALLOT (ledger B1142): the one asked in place of a runaway seat, where one was.
   return {
-    seat: voice.seat,
+    seat: voice.answeredBy ?? voice.seat,
     reason: voice.reason,
     quotes: voice.quotes
       .map(function recordedQuote(quote,): ArtifactConsistencyBallot['quotes'][number] {

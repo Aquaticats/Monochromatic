@@ -263,9 +263,14 @@ async function recoverRunaway<ValueT,>(
       rl.debug(`${roundRequest.stage}: ${seat}: ${alternate} cannot take the re-ask, no provider serves it with budget`,);
       continue;
     }
+    // THE OUTCOME STANDS UNDER THE SEAT, AND THE VOICE NAMES THE MODEL THAT WROTE IT (ledger B1142): the model asked, or
+    // the one it was itself re-asked of where its own answer ran away, so no weight, tally or record reads the seat.
     return {
       modelId: seat,
-      voice,
+      voice: voice.heard ? {
+        ...voice,
+        answeredBy: voice.answeredBy ?? alternate,
+      } : voice,
     };
   }
   rl.warn(

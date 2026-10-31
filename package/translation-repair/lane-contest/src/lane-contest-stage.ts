@@ -23,6 +23,7 @@ import {
   benchBelowFloorStageFinding,
   type FanOutMode,
   reachableQuorum,
+  answererOf,
   runWindowedRounds,
   shortBenchStageFinding,
   type StageSettings,
@@ -512,15 +513,13 @@ export async function contestLaneSlice(
     /**
      This seat and its voice, heard or lost.
      */
-    const {
-      modelId,
-      voice,
-    } = outcome;
+    const { voice, } = outcome;
+    // THE BALLOT IS THE MODEL'S THAT CAST IT (ledger B1142): the model asked in place of a runaway seat, not the seat.
     return voice.heard
       ? [
         {
           ...readLaneContestBallot({ wire: voice.value, },),
-          modelId,
+          modelId: answererOf({ outcome, },),
         },
       ]
       : [];

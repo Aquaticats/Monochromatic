@@ -15,6 +15,7 @@ import type { SliceCache, } from '@monochromatic-dev/translation-repair-translat
 import {
   gatherStageVoices,
   type HeardVoice,
+  seatOfVoice,
   type StageRosterRepeatError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type {
@@ -50,6 +51,30 @@ type StoredGather = {
    */
   readonly findings: readonly string[];
 };
+
+/**
+ The seat a heard voice answered for and, beside it, the model that answered when that is another model, as a stored
+ record keeps them (ledger B1142): the record stays under the seat, so it still fits the bench it was asked of, and the
+ artifact names the model that cast the ballot.
+
+ @param voice - heard voice of the gather
+
+ @returns Seat, and the answering model only where it is not the seat's own
+
+ @example
+ ```ts
+ const { seat, } = seatFieldsOf({ voice, },);
+ ```
+ */
+export function seatFieldsOf(
+  { voice, }: { readonly voice: { readonly modelId: RosterModelId; readonly seat?: RosterModelId; }; },
+): { readonly seat: RosterModelId; readonly answeredBy?: RosterModelId; } {
+  return {
+    seat: seatOfVoice({ voice, },),
+    // Conditional spread keeps the model absent where the seat's own model answered.
+    ...((voice.seat === undefined) ? {} : { answeredBy: voice.modelId, }),
+  };
+}
 
 /**
  Whether the voices of a stored gather are ones a fresh gather over this bench
@@ -268,7 +293,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
         left,
         right,
       ): number {
-        return modelIds.indexOf(left.modelId,) - modelIds.indexOf(right.modelId,);
+        return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
       },),
     findings: gather.findings,
   },);

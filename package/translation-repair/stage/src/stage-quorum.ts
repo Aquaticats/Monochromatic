@@ -10,6 +10,7 @@ import {
   type ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import { heardVoiceOf, } from './stage-answerer.ts';
 import {
   askingWindow,
   type FanOutMode,
@@ -465,11 +466,7 @@ export async function gatherStageVoices<ValueT,>(
       for (const outcome of outcomes) {
         if (outcome.voice
           .heard) {
-          collected.push({
-            modelId: outcome.modelId,
-            value: outcome.voice
-              .value,
-          },);
+          collected.push(heardVoiceOf({ outcome, stage, l, },),);
           unreadableSeats.delete(outcome.modelId,);
           askedInstead.delete(outcome.modelId,);
           continue;
@@ -546,11 +543,7 @@ export async function gatherStageVoices<ValueT,>(
       for (const outcome of recovered) {
         if (outcome.voice
           .heard) {
-          collected.push({
-            modelId: outcome.modelId,
-            value: outcome.voice
-              .value,
-          },);
+          collected.push(heardVoiceOf({ outcome, stage, l, },),);
           unreadableSeats.delete(outcome.modelId,);
         }
       }

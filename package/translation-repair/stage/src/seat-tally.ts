@@ -548,6 +548,19 @@ export function seatTallyClient(
          Outcome from the wrapped client, usable only when `ok`.
          */
         const outcome = await inner.chatJson(request,);
+        // AN ANSWER ANOTHER MODEL GAVE FOR A RUNAWAY SEAT is usable for that model and no answer of the seat's (ledger
+        // B1142): counted for the seat, it would keep a seat that runs away on every ask from ever being named dark.
+        if ((outcome.kind === 'ok') && (outcome.answeredBy !== undefined)) {
+          tally.record({
+            modelId: request.modelId,
+            outcome: 'unusable',
+          },);
+          tally.record({
+            modelId: outcome.answeredBy,
+            outcome: 'usable',
+          },);
+          return outcome;
+        }
         tally.record({
           modelId: request.modelId,
           outcome: (outcome.kind === 'ok') ? 'usable' : 'unusable',

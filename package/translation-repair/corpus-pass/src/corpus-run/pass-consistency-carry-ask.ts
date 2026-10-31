@@ -29,7 +29,10 @@ import {
   type ConsistencyWriterVoice,
   type ConsistencyWritersRecord,
 } from './pass-consistency-cache.ts';
-import { gatherThroughCache, } from './pass-consistency-gather.ts';
+import {
+  gatherThroughCache,
+  seatFieldsOf,
+} from './pass-consistency-gather.ts';
 import {
   choiceRecordOf,
   storedChoices,
@@ -112,6 +115,7 @@ function writersRecordOf(
     readonly quorum: number;
     readonly voices: readonly {
       readonly modelId: RosterModelId;
+      readonly seat?: RosterModelId;
       readonly value: TranslateReportWire;
     }[];
     readonly findings: readonly string[];
@@ -120,13 +124,10 @@ function writersRecordOf(
   return {
     kind: 'writers',
     quorum,
-    voices: voices.map(function voiceOf({
-      modelId,
-      value,
-    },): ConsistencyWriterVoice {
+    voices: voices.map(function voiceOf(voice,): ConsistencyWriterVoice {
       return {
-        seat: modelId,
-        translation: value.translation,
+        ...seatFieldsOf({ voice, },),
+        translation: voice.value.translation,
       };
     },),
     findings,
