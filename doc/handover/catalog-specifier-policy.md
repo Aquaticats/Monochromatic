@@ -361,12 +361,78 @@ Findings that bear on any design, including B (the reviewer's claims, not indepe
   (`cargo-publish.yml`, `music-player-release.yml`, `fs-id.yml`, `readonly-semantic-bridge.yml`).
   Whether those non-Linux jobs run `pnpm install` was not checked.
 
+## Dependency round for option B (user answers)
+
+Adopted from the `mpm-shadow` precedent without asking, veto open (the user's answers did not veto any):
+crate home `package/pnpm-shadow/cli` (package `monochromatic-pnpm-shadow`, binary `pnpm-shadow`, linked as `pnpm` the way
+`mpm-shadow` is linked as `mpm`); mode chosen by the name the binary is started under; forwarded pnpm arguments never reach clap;
+the real-pnpm search skips every candidate resolving to the shadow itself; dependencies `clap` and `serde_json` from
+`rust-catalog.toml`, `tempfile` for tests, no `anyhow` or `tracing`; a `check` subcommand that CI and a mise lint task call without pnpm.
+
+- Manifest enumeration: the user chose the `ignore` crate walk, against my ranking (git subprocess first).
+  Consequence: the scope is the set of `package.json` files the walk sees, not strictly the tracked set.
+  Measured today with ripgrep, which uses the same crate: the default walk, the walk with hidden files, and
+  `git ls-files --cached` return the identical 257 manifests, so there is no difference yet.
+  The sets can diverge when an untracked, non-ignored `package.json` exists (it would fail the check), or when a tracked file is
+  gitignored (it would be skipped); the crate also needs a git work tree to apply `.gitignore` by default, which is unmeasured here.
+  Probe `~/temp/agent/compare-enumeration.ts` (its worktree-list step failed, see below, so where linked worktrees live relative
+  to the repo root is not established; a worktree inside the tree and not ignored would add its manifests to the walk).
+- Workspace and YAML: no YAML, as recommended. The root is the nearest ancestor holding `pnpm-workspace.yaml` (existence only),
+  and the preflight checks the same manifests as `check`.
+  Known effect: a violation in `package-paused/` also blocks pnpm in the wrapper although pnpm ignores that manifest.
+- Platforms: the user wrote "unix now, cross platform for a later version."
+  Recorded as: Unix-only for now (as `mpm-shadow`), cross-platform planned for a later version.
+  Whether `check` should already be portable now (my first-ranked option) was not separately answered.
+- Observed during this round, not caused by this session: every `git` command in the main checkout currently fails through the
+  git shadow with `config-invalid` for `cli-git.config.jsonc` (`policies.security/forbidden-strings[1].rulesFile must be a
+  string, found an array`), which looks like another session's in-progress work on forbidden-strings.
+  The last handover commit before it, `f6df1b5d3f`, succeeded.
+
+## CI execution facts for the `check` step (measured by reading the workflows)
+
+- No workflow runs the root `lint` task: the `task-run` calls across the workflows include `lint:monochromatic-lint` (three times)
+  but never `lint`, so a new task added to the root `lint` list would not run in CI by itself.
+  This confirms the `pi` finding that CI execution of a new lint is not automatic.
+- `.github/workflows/current-baseline.yml` and `.depot/workflows/current-baseline.yml` trigger only on `workflow_dispatch`.
+  `.github/workflows/advisory-core.yml` triggers on pushes and pull requests to `main`, runs `task-run prepare:pnpm`,
+  and then runs named repository-invariant steps with `continue-on-error: true` (`Rust catalog drift`, `pnpr config drift`)
+  that print `::error::` with the remedy; this is the existing precedent for a check step.
+- `prepare:pnpm` runs `prepare:pnpm:install` (`pnpm install`, alias `pi`) then `prepare:pnpm:others:*` (`mise.toml`).
+- CI builds Rust crates through `task-run //package/<crate>:build`, so a Rust `check` binary can be built in the same job.
+
+## Behavior round for option B (user answers)
+
+- Verb scope: the user chose "Warn only, never block", against my ranking (install-class verbs first, warn only last).
+  The wrapper prints every violation to stderr and always runs the real pnpm with the arguments untouched.
+  Consequences: no verb parsing and no fail-closed argument scan are needed for blocking; the second `pi` review's outage
+  finding does not apply to the wrapper; the wrapper cannot stop a violation from landing locally; enforcement exists only where
+  `check` is run and fails (CI, a lint task).
+  Whether the warning appears on every invocation or only on install-class verbs is not decided; the first needs no verb parsing.
+- Skip switch: none, as recommended. The only way around the wrapper stays calling the real pnpm directly.
+- CI step: a named step before `task-run prepare:pnpm` in `.github/workflows/advisory-core.yml`, as recommended.
+  Measured after the answer, which the question had listed as a check to make:
+  that workflow states "results are advisory; no required checks and no branch-protection change"
+  (`Summary` step), and its final `Enforce advisory result` step fails the job only when the `static`, `build` or `unit` step
+  failed; the existing `Rust catalog drift` and `pnpr config drift` steps use `continue-on-error: true` and are not in that list,
+  so their failures leave the job green.
+  A new check step therefore shows a red step in the log but does not fail the job unless it is added to the `Enforce advisory result`
+  condition (or run without `continue-on-error`), and no branch protection makes the job a merge gate either way.
+  The line numbers in this workflow moved between two reads in this session, so another session edited it.
+- Not asked yet: whether the new step is added to the `Enforce advisory result` condition; root discovery now that the wrapper does
+  not parse `--dir` or `-C` (the nearest ancestor from the current directory is the simple answer); warning wording;
+  exit-code behavior of `check` (nonzero on any violation); the test corpus layout (a JSON vectors file read by the crate's nextest
+  suite, since no TypeScript implementation is planned); the `zod` landing order (the `check` step and the `zod` fix must land
+  together or the new CI step fails from its first run); PATH linking through the toolchain plan.
+
 ## Open items
 
-- The user has not confirmed that the shared understanding is complete, and has not yet been asked the design questions that
-  follow from option B: dependencies first, then crate home and name, verb scope, workspace-root discovery with `--dir`, `-C`,
-  `--filter` and `--workspace-root`, manifest enumeration (tracked files through git versus a directory walk), the CI step,
-  `PATH` linking, and how the policy corpus is shared.
+- The user has not confirmed that the shared understanding is complete.
+  Dependencies, enumeration, workspace discovery and platforms are answered above.
+  Still to ask: which pnpm verbs the wrapper blocks (a wrapper sees `argv`, so this can be scoped, unlike the hook), how it finds
+  the workspace root when `--dir`, `-C`, `--filter` or `--workspace-root` is passed, what it does when the `ignore` walk or the
+  real-pnpm search fails (fail closed), the explicit CI step and its place before `prepare:pnpm`, `PATH` linking through the
+  toolchain plan, how the policy test corpus is shared, the `--ignore-pnpmfile`-style bypass question (an environment variable
+  or flag to skip the preflight, or none), the repair message wording, and the `zod` landing order.
 - Precedent to read before asking: `package/mpm-shadow/cli` (`Cargo.toml`, `real_binary.rs`, `shim.rs`), the Rust dependency
   catalog (`rust-catalog.toml`, `doc/decision/rust-dependency-catalog.md`) and the `cli-git-native` shadow.
 - Whether the `updateConfig` hook is kept as a second layer later is open; nothing is built.
