@@ -79,6 +79,19 @@ impl Disagreement {
         return !self.added.is_empty() || !self.resolution_edits.is_empty();
     }
 
+    /// The ids only `update` can resolve:
+    /// the tools the lock lacks and the tools with a resolution-affecting edit,
+    /// in plan order of discovery.
+    pub fn ids_needing_update(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.added.clone();
+        for (id, _) in &self.resolution_edits {
+            if !ids.contains(id) {
+                ids.push(id.clone());
+            }
+        }
+        return ids;
+    }
+
     /// What:
     /// One sentence per difference,
     /// each naming the tool and the field.
@@ -291,7 +304,9 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
     for declaration in &plan.tools {
         let Some(locked) = lock.tool(&declaration.id) else {
             return Err(ToolchainError::drift(format!(
-                "{} is in the plan but not in the lock; run `mpm-shadow update` to resolve its version",
+                "{} is in the plan but not in the lock; run `mpm-shadow update {}` to resolve just that tool \
+                 (every other row keeps its version)",
+                declaration.id,
                 declaration.id
             )));
         };
@@ -300,9 +315,10 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
         if !resolution.is_empty() {
             return Err(ToolchainError::drift(format!(
                 "{} changed in the plan in a way that moves its version or artifacts ({}); \
-                 run `mpm-shadow update` to resolve it",
+                 run `mpm-shadow update {}` to resolve just that tool (every other row keeps its version)",
                 declaration.id,
-                resolution.join(", ")
+                resolution.join(", "),
+                declaration.id
             )));
         }
         tools.push(LockedTool {
@@ -329,12 +345,16 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
 /// export function refusal(disagreement: Disagreement): ToolchainError
 /// ```
 pub fn refusal(disagreement: &Disagreement) -> ToolchainError {
-    let remedy: &str = if disagreement.digest_problem.is_some() {
-        "restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`"
+    let remedy: String = if disagreement.digest_problem.is_some() {
+        "restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`".to_string()
     } else if disagreement.needs_update() {
-        "run `mpm-shadow update` (it needs the network)"
+        format!(
+            "run `mpm-shadow update {}` to resolve just those tools (it needs the network; every other row keeps its \
+             version), or `mpm-shadow update` to resolve every tool",
+            disagreement.ids_needing_update().join(" ")
+        )
     } else {
-        "run `mpm-shadow lock` (it works offline)"
+        "run `mpm-shadow lock` (it works offline)".to_string()
     };
     let mut message: String = String::from("the toolchain plan and lock disagree:\n");
     for line in disagreement.describe() {
@@ -342,6 +362,6 @@ pub fn refusal(disagreement: &Disagreement) -> ToolchainError {
         message.push_str(&line);
         message.push('\n');
     }
-    message.push_str(remedy);
+    message.push_str(&remedy);
     return ToolchainError::drift(message);
 }

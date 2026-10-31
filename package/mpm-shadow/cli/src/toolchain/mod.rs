@@ -147,6 +147,9 @@ pub mod sync;
 /// The `update` command.
 pub mod update;
 
+/// Which plan tools a named `update` resolves.
+pub mod update_select;
+
 /// The Android command-line tools and conda package resolvers.
 pub mod update_android_conda;
 

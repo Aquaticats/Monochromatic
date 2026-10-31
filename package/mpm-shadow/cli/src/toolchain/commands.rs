@@ -52,7 +52,7 @@ use super::sync::{format_sync_report, run_sync};
 use super::verify_archive::run_verify_archive;
 
 /// Imports what this module uses from `super::update`.
-use super::update::{format_update_report, run_update};
+use super::update::{format_update_report, run_update_for};
 
 /// The `--global` flag every toolchain verb accepts:
 /// act on the machine-global plan and lock.
@@ -90,7 +90,13 @@ pub fn subcommands() -> Vec<Command> {
         .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory")
         .arg(global_flag());
     let update: Command = Command::new("update")
-        .about("Resolve every tool of the plan and write toolchain.lock.json (looks versions up on the network)")
+        .about("Resolve the plan's tools (all, or only the named ones) and write toolchain.lock.json (looks versions up on the network)")
+        .arg(
+            Arg::new("tool")
+                .num_args(0..)
+                .value_name("TOOL")
+                .help("Tool ids of the plan to resolve, `*` matches any run of characters and a leading `!` excludes (default: every tool); the other rows keep their versions"),
+        )
         .arg(
             Arg::new("check")
                 .long("check")
@@ -222,8 +228,12 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
         }
         "update" => {
             let check: bool = matches.get_flag("check");
+            let names: Vec<String> = match matches.get_many::<String>("tool") {
+                Some(given) => given.cloned().collect(),
+                None => Vec::new(),
+            };
             let http = connect_or_explain();
-            return Some(match run_update(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check) {
+            return Some(match run_update_for(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check, &names) {
                 Ok(update_report) => {
                     print!("{}", format_update_report(&update_report, check));
                     warn_older_locks("update", &scope);
