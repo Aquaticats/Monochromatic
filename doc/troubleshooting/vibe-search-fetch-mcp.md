@@ -151,6 +151,12 @@ Catalogs:
 
 ## Verified workarounds
 
+Disposition:
+the registration was removed with `vibe mcp remove search-fetch`
+on 2026-10-31 by user decision,
+so Vibe sessions carry no trace of the server;
+the mechanisms below are the verified options for a future re-registration.
+
 - Keep the registration but disable it,
   `disabled = true` on the `[[mcp_servers]]` entry
   (a user-managed field per `vibe/core/config/mcp_servers.py`,
