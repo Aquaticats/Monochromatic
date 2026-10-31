@@ -262,7 +262,10 @@ async function settleOver(shape: Case,): Promise<Outcome> {
     subject: {
       sourceText: SOURCE,
       incumbentText: standing,
-      ...(lifeEnded ? { lifeEnded: true, subjectNames: [...SUBJECT_NAMES,], } : {}),
+      // THE NAMES ARE DECLARED WHETHER OR NOT A DEATH IS RECORDED, so the detector can flag "Mittens is" either way and
+      // a case with no death differs only in the record that stops it from reading.
+      subjectNames: [...SUBJECT_NAMES,],
+      ...(lifeEnded ? { lifeEnded: true, } : {}),
     },
     // NO WRITER IS HEARD: the slate is the lane text alone, so no proposal is wrapped through the lint binary, whose
     // pinned version this tree's shared binary does not match until the typography round lands.

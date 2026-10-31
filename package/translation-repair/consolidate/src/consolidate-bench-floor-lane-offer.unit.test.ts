@@ -240,7 +240,10 @@ async function buyOver(
         translateText: TRANSLATE_TEXT,
         ballots: [],
         lineStructured: false,
-        ...(lifeEnded ? { lifeEnded: true, subjectNames: [...SUBJECT_NAMES,], } : {}),
+        // THE NAMES ARE DECLARED WHETHER OR NOT A DEATH IS RECORDED, so the detector can flag "Mittens is" either way and
+        // a case with no death differs only in the record that stops it from reading.
+        subjectNames: [...SUBJECT_NAMES,],
+        ...(lifeEnded ? { lifeEnded: true, } : {}),
       },
       standingText: standing,
       lineStructured: false,
