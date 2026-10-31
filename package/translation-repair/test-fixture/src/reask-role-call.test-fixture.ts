@@ -217,7 +217,11 @@ function namedUnderKey(
 
  @returns One entry per real call, in source order: the value named, the name of the variable passed, `none` where the
  call names none, `<value> then a spread` where a spread after the key can replace it, `duplicate <key>: a, b` where the
- key is written twice, or `not an object literal` where the argument is not an object literal
+ key is written twice, or `not an object literal` where the argument is not an object literal; empty where the source
+ names the function and calls it nowhere
+
+ @throws {@link Error} when the source never names the function, since a test that names the wrong function would
+ otherwise read as a file with no call
 
  @example
  ```ts
@@ -239,6 +243,12 @@ export function rolesNamedAtCalls(
    Tokens of the file.
    */
   const tokens = tokensOf({ source, },);
+  // A CALLEE THE SOURCE NEVER NAMES IS A TEST THAT NAMES THE WRONG FUNCTION, not a file with no call: the list it would
+  // return is empty either way, and a test that expects a role then fails with nothing to say why (ledger B1140).
+  if (!tokens.some(function namesCallee(token,): boolean {
+    return (token.kind === 'word') && (token.text === callee);
+  },))
+    throw new Error(`the source never names ${callee}, so no call of it can be read`,);
 
   /**
    What each call names.

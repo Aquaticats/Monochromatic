@@ -26,7 +26,7 @@ await describe({
       name: 'NAMES THE ROSTER ROLE where the sections of a page are paired',
       fn: async () => {
         const source = await readFile(new URL('pair-sections-stage.ts', import.meta.url,), 'utf8',);
-        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster',],);
+        expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['roster',],);
       },
     },),
   ],
