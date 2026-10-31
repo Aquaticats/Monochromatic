@@ -147,7 +147,8 @@ pub fn select_tools(plan: &Plan, patterns: &[String]) -> Result<BTreeSet<String>
 
 /// What:
 /// The plan tools `update <tool>...` did not select that the lock cannot hold as they are:
-/// no lock row (new, or the lock does not exist),
+/// no lock row (the tool is new,
+/// or there is no lock file),
 /// or a resolution-affecting edit in the plan.
 /// Why:
 /// Keeping their rows would write a lock that fails `lock --check`,
@@ -166,7 +167,7 @@ pub fn unnamed_needing_resolution(plan: &Plan, disagreement: Option<&Disagreemen
         }
         let needs: bool = match disagreement {
             None => true,
-            Some(found) => found.added.contains(&declaration.id) || found.resolution_edits.iter().any(|(id, _)| return *id == declaration.id),
+            Some(found) => found.ids_needing_update().contains(&declaration.id),
         };
         if needs {
             ids.push(declaration.id.clone());

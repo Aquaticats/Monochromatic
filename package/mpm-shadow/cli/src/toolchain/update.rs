@@ -247,7 +247,10 @@ pub fn run_update_for(
     }
     let selected: BTreeSet<String> = select_tools(&loaded.plan, names)?;
     if !names.is_empty() {
-        let disagreement: Option<Disagreement> = loaded.lock.as_ref().map(|parsed| return compare(&loaded.plan, parsed));
+        let mut disagreement: Option<Disagreement> = None;
+        if let Some(parsed) = &loaded.lock {
+            disagreement = Some(compare(&loaded.plan, parsed));
+        }
         let left_out: Vec<String> = unnamed_needing_resolution(&loaded.plan, disagreement.as_ref(), &selected);
         if !left_out.is_empty() {
             return Err(left_out_refusal(&left_out));

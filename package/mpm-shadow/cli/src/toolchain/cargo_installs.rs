@@ -21,6 +21,9 @@
 
 /// Imports `Ordering` from `std::cmp`.
 use std::cmp::Ordering;
+/// Imports `BTreeMap`,
+/// a map sorted by key,
+/// from `std::collections`.
 use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;

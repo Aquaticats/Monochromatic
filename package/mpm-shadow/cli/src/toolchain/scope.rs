@@ -254,12 +254,16 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
 
 /// What:
 /// Both toolchain roots a repository-published cargo tool can be installed under for this user:
-/// the repository scope's (`<data home>/monochromatic-dev/toolchain`) and the machine-global one
-/// (`<data home>/monochromatic-dev/toolchain-global`).
+/// the repository scope's,
+/// `<data home>/monochromatic-dev/toolchain`,
+/// and the machine-global one,
+/// `<data home>/monochromatic-dev/toolchain-global`.
 /// Why:
-/// The registry prune runs as the `mpm` shim, which knows no scope and no worktree,
+/// The registry prune runs as the `mpm` shim,
+/// which knows no scope and no worktree,
 /// yet must read the version-keyed install records of every root `sync` writes to.
-/// Both roots come from the environment alone, so no plan or repository is needed.
+/// Both roots come from the environment alone,
+/// so no plan or repository is needed.
 /// An environment with neither `HOME` nor `USERPROFILE` has no roots.
 ///
 /// In TS you'd write (pseudocode):
