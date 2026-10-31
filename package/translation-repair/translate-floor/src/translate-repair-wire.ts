@@ -157,7 +157,7 @@ Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...
  is not the asked model's, and what comes back is recorded as that model's own new candidate beside the author's.
  */
 const REPAIR_RULES_FOR_ANOTHER_TRANSLATOR =
-  `The ORIGINAL passage was rendered by another translator, and the translation to revise went through a mechanical structural check, not a reader. The check compares Markdown block structure, footnote markers, link and image destinations, and inline code against the ORIGINAL and against the PAGE AS IT STANDS, and every finding names which of the two it came from. Where the two carry different destinations for one reference, the check accepts either and refuses both. It knows nothing about wording, and it can be wrong about what this passage needed.
+  `The translation to revise was written by another translator, and it went through a mechanical structural check, not a reader. The check compares Markdown block structure, footnote markers, link and image destinations, and inline code against the ORIGINAL and against the PAGE AS IT STANDS, and every finding names which of the two it came from. Where the two carry different destinations for one reference, the check accepts either and refuses both. It knows nothing about wording, and it can be wrong about what this passage needed.
 
 Answer in one of exactly three ways:
 
@@ -168,6 +168,47 @@ Answer in one of exactly three ways:
 Do not rewrite for style, and do not translate anything you were not given.
 
 Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...", "translatorNote": "..."}. Use an empty string for "translation" unless the resolution is "revised". No prose, no code fences, no commentary.`;
+
+/**
+ Makes the possessive that addresses the author ("Your translation") the article, outside quotations only.
+
+ A QUOTATION IN A FINDING IS THE MODEL'S OWN TEXT (or the page's), set in double quotes or backticks, and is never
+ rewritten: a word `Your` inside it is a word of the text under revision and not an address. The findings that once
+ spoke to the author in other words (the lines it carries, the wording it chose) are written without a second person, so
+ the article is the only change between the two turns (ledger B1145).
+
+ @param finding - finding as written for the author
+
+ @returns The finding with the possessive made the article outside its quotations
+
+ @example
+ ```ts
+ // yields 'The translation carries "Your Ta".'
+ articleForPossessive({ finding: 'Your translation carries "Your Ta".', },);
+ ```
+ */
+function articleForPossessive({ finding, }: { readonly finding: string; },): string {
+  // The capture group keeps each quotation as an odd piece, so the unquoted pieces are the even ones.
+  return finding
+    .split(/("[^"]*"|`[^`]*`)/u,)
+    .map(function swapped(
+      piece,
+      at,
+    ): string {
+      return ((at % 2) === 1)
+        ? piece
+        : piece
+          .replaceAll(
+          /\bYour\b/gu,
+          'The',
+          )
+          .replaceAll(
+          /\byour\b/gu,
+          'the',
+          );
+    },)
+    .join('',);
+}
 
 /**
  Builds the follow-up turn for a model that is not the candidate's author: the same question and the findings, with the
@@ -203,11 +244,7 @@ export function buildAnotherTranslatorRepairMessages(
    */
   const listed = findings
     .map(function toLine(finding,): string {
-      return `- ${finding
-        .split('Your ',)
-        .join('The ',)
-        .split('your ',)
-        .join('the ',)}`;
+      return `- ${articleForPossessive({ finding, },)}`;
     },)
     .join('\n',);
   return [

@@ -215,9 +215,9 @@ await describe({
               candidateText: 'The cat naps.\nThe cat naps.',
             },);
             expect(againstNoLine,).toEqual([
-              'This slice is LINE-STRUCTURED and your rendering repeats the line `The cat naps.` 2 times where '
+              'This slice is LINE-STRUCTURED and the rendering repeats the line `The cat naps.` 2 times where '
                 + 'the ORIGINAL has no line to repeat. A Chinese line and its own English beside it are one line to '
-                + 'render, not two. Drop the repeat, keeping the wording you chose.',
+                + 'render, not two. Drop the repeat, keeping the wording as it stands.',
             ],);
             /** Findings on the same rendering against an original whose one line stands once. */
             const againstOneLine = compareLineCounts({
@@ -226,9 +226,9 @@ await describe({
               candidateText: 'The cat naps.\nThe cat naps.',
             },);
             expect(againstOneLine,).toEqual([
-              'This slice is LINE-STRUCTURED and your rendering repeats the line `The cat naps.` 2 times where '
+              'This slice is LINE-STRUCTURED and the rendering repeats the line `The cat naps.` 2 times where '
                 + 'the ORIGINAL repeats no line more than once. A Chinese line and its own English beside it are one '
-                + 'line to render, not two. Drop the repeat, keeping the wording you chose.',
+                + 'line to render, not two. Drop the repeat, keeping the wording as it stands.',
             ],);
           },
         },),
@@ -267,8 +267,8 @@ await describe({
               'This slice is LINE-STRUCTURED and the ORIGINAL gives the line `May every cat find a sunbeam.` twice, '
                 + 'once in Chinese and once in English directly beside it; that pair is ONE line whose English is '
                 + 'already its rendering, and the EXISTING TRANSLATION carries the block holding it as 1 line. '
-                + 'Yours carries 2. Drop the second rendering of the pair (the Chinese line, or a second English '
-                + 'wording of it), keeping the wording you chose elsewhere.',
+                + 'The rendering carries 2. Drop the second rendering of the pair (the Chinese line, or a second English '
+                + 'wording of it), keeping the wording used elsewhere.',
             ],);
             expect(compareLineCounts({
               lineStructured: true,
@@ -287,9 +287,9 @@ await describe({
               sourceText: '猫住在北方的小村。\n12345',
               candidateText: 'The cat lived in a small northern village. 12345',
             },),).toEqual([
-              'This slice is LINE-STRUCTURED: every line stands as its own unit, so your rendering owes one line '
-                + 'per line of the ORIGINAL and may never merge two into one. Yours carries 1 line of content where '
-                + 'the ORIGINAL has 2. Put back the line breaks you merged, keeping the wording you chose.',
+              'This slice is LINE-STRUCTURED: every line stands as its own unit, so the rendering owes one line '
+                + 'per line of the ORIGINAL and may never merge two into one. The rendering carries 1 line of content where '
+                + 'the ORIGINAL has 2. Put back the line breaks that were merged, keeping the wording as it stands.',
             ],);
           },
         },),

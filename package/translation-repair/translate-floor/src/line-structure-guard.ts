@@ -271,11 +271,11 @@ function repeatedLines(
     if ((times < 2) || (times <= allowed))
       return [];
     return [
-      `This slice is LINE-STRUCTURED and your rendering repeats the line \`${wording}\` `
+      `This slice is LINE-STRUCTURED and the rendering repeats the line \`${wording}\` `
         + `${howOften({ count: times, },)} where the ORIGINAL ${original}. `
         + 'A Chinese line '
         + `and its own English beside it are one line to render, not two. Drop the repeat, keeping `
-        + `the wording you chose.`,
+        + `the wording as it stands.`,
     ];
   },);
 }
@@ -379,17 +379,17 @@ export function compareLineCounts(
     ];
 
   return [
-    `This slice is LINE-STRUCTURED: every line stands as its own unit, so your `
+    `This slice is LINE-STRUCTURED: every line stands as its own unit, so the `
       + `rendering owes one line per line of the ORIGINAL and may never merge two `
-      + `into one. Yours carries ${String(carried,)} ${
+      + `into one. The rendering carries ${String(carried,)} ${
         wordForCount({
           count: carried,
           one: 'line',
           many: 'lines',
         },)
       } of content where the `
-      + `ORIGINAL has ${String(owed,)}. Put back the line breaks you merged, keeping `
-      + `the wording you chose.`,
+      + `ORIGINAL has ${String(owed,)}. Put back the line breaks that were merged, keeping `
+      + `the wording as it stands.`,
     ...repeats,
   ];
 }

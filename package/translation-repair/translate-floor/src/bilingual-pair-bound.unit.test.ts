@@ -108,8 +108,8 @@ const REFRAIN_PAGE = [
  */
 const REFRAIN_WIDENED = 'This slice is LINE-STRUCTURED and the ORIGINAL gives the line `Good night, cat.` twice, once in '
   + 'Chinese and once in English directly beside it; that pair is ONE line whose English is already its rendering, '
-  + 'and the EXISTING TRANSLATION carries the block holding it as 1 line. Yours carries 2. Drop the second rendering '
-  + 'of the pair (the Chinese line, or a second English wording of it), keeping the wording you chose elsewhere.';
+  + 'and the EXISTING TRANSLATION carries the block holding it as 1 line. The rendering carries 2. Drop the second rendering '
+  + 'of the pair (the Chinese line, or a second English wording of it), keeping the wording used elsewhere.';
 
 await describe({
   name: 'the existing translation bounds a bilingual pair to one line (class eighty)',
@@ -224,9 +224,9 @@ await describe({
         },),).toEqual([
           'This slice is LINE-STRUCTURED and the ORIGINAL gives the line `The cat sleeps on the sill.` twice, once in '
             + 'Chinese and once in English directly beside it; that pair is ONE line whose English is already its '
-            + 'rendering, and the EXISTING TRANSLATION carries the block holding it as 1 line. Yours carries 2. Drop '
+            + 'rendering, and the EXISTING TRANSLATION carries the block holding it as 1 line. The rendering carries 2. Drop '
             + 'the second rendering of the pair (the Chinese line, or a second English wording of it), keeping the '
-            + 'wording you chose elsewhere.',
+            + 'wording used elsewhere.',
         ],);
         expect(compareLineCounts({
           lineStructured: true,
@@ -330,9 +330,9 @@ await describe({
           ].join('\n',),
           pageText: 'Good night, cat.\n\nA cat sits at the window.',
         },),).toEqual([
-          'This slice is LINE-STRUCTURED and your rendering repeats the line `Good night, cat.` 2 times where the '
+          'This slice is LINE-STRUCTURED and the rendering repeats the line `Good night, cat.` 2 times where the '
             + 'ORIGINAL repeats no line more than once. A Chinese line and its own English beside it are one line to '
-            + 'render, not two. Drop the repeat, keeping the wording you chose.',
+            + 'render, not two. Drop the repeat, keeping the wording as it stands.',
         ],);
       },
     },),

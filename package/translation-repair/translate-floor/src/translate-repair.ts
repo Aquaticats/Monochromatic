@@ -297,13 +297,25 @@ async function repairOneCandidate(
     perCallTimeoutMs,
     l: rl,
   },);
+  /**
+   Model that gave the answer where it was not the author, the re-ask of the author's reasoning runaway having gone to
+   another translator; for an answer nothing could read, the model the re-ask went to.
+   */
+  const stood = answer.heard
+    ? answer.answeredBy
+    : ('askedInstead' in answer) ? answer.askedInstead : undefined;
+
+  /**
+   The author, and the model that answered for it where another did, as a finding names them (ledger B1146).
+   */
+  const named = (stood === undefined) ? voice.modelId : `${voice.modelId} -> ${stood}`;
   if (!answer.heard) {
-    rl.warn(`${voice.modelId} gave no usable answer to its findings, so ${fate}`,);
+    rl.warn(`${named} gave no usable answer to its findings, so ${fate}`,);
     return {
       ...((contributorViolation) ? {} : { voice, }),
       findings: [
         ...found,
-        `translate-repair-unheard (${voice.modelId})`,
+        `translate-repair-unheard (${named})`,
       ],
     };
   }
@@ -317,12 +329,12 @@ async function repairOneCandidate(
     translatorNote: explanation,
   } = answer.value;
   if (resolution !== 'revised') {
-    rl.warn(`${voice.modelId} answered ${resolution} to its findings (${explanation}), so ${fate}`,);
+    rl.warn(`${named} answered ${resolution} to its findings (${explanation}), so ${fate}`,);
     return {
       ...((contributorViolation) ? {} : { voice, }),
       findings: [
         ...found,
-        `translate-repair-${resolution} (${voice.modelId}): ${explanation}`,
+        `translate-repair-${resolution} (${named}): ${explanation}`,
       ],
     };
   }
@@ -356,19 +368,18 @@ async function repairOneCandidate(
   // findings and did not, so nothing says the new text is better, while the
   // original is at least what it produced with the whole sheet in front of it.
   if (rechecked.kind === 'invalid') {
-    rl.warn(`${voice.modelId}: revision still fails the publication rule and is not taken, so ${fate}`,);
+    rl.warn(`${named}: revision still fails the publication rule and is not taken, so ${fate}`,);
     return {
       ...((contributorViolation) ? {} : { voice, }),
       findings: [
         ...found,
         ...revision.findings,
-        `translate-repair-unresolved (${voice.modelId}): ${explanation}`,
+        `translate-repair-unresolved (${named}): ${explanation}`,
       ],
     };
   }
   /**
-   Model that gave the revision where it was not the author, the re-ask of the author's reasoning runaway having gone to
-   another translator.
+   Model that gave the revision where it was not the author, as the answer carries it.
    */
   const { answeredBy, } = answer;
   if (answeredBy !== undefined) {
