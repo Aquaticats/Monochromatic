@@ -53,9 +53,10 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'NAMES THE ROSTER ROLE where the editors are asked',
+      name: 'NAMES THE EDITOR ROLE where the editors are asked, since their pool is the writers the editor calibration '
+        + 'seats and not the whole roster',
       fn: async () => {
-        expect(await rolesIn({ file: './editor-gather.ts', callee: 'gatherStageVoices', },),).toEqual(['roster',],);
+        expect(await rolesIn({ file: './editor-gather.ts', callee: 'gatherStageVoices', },),).toEqual(['editor',],);
       },
     },),
 
@@ -88,10 +89,10 @@ await describe({
     },),
 
     it({
-      name: 'NAMES THE ROSTER ROLE where the refiners are asked, and takes the role of the judges of their slate from '
+      name: 'NAMES THE REFINER ROLE where the refiners are asked, and takes the role of the judges of their slate from '
         + 'the caller, since the repair lane seats the wide judges and the consolidation polish the late judges',
       fn: async () => {
-        expect(await rolesIn({ file: './refine-stage.ts', callee: 'gatherStageVoices', },),).toEqual(['roster',],);
+        expect(await rolesIn({ file: './refine-stage.ts', callee: 'gatherStageVoices', },),).toEqual(['refiner',],);
         expect(await rolesIn({ file: './refine-stage.ts', callee: 'selectBestCandidate', },),).toEqual(['judgeRole',],);
       },
     },),
@@ -103,6 +104,15 @@ await describe({
           'wide-judge',
           'wide-judge',
         ],);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE WIDE-JUDGE ROLE where the slate of the refiners is judged in the repair lane',
+      fn: async () => {
+        expect(await rolesIn({ file: './refine-slice-settle.ts', callee: 'runRefineStage', },),).toEqual(['none',],);
+        const source = await readFile(new URL('./refine-slice-settle.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['wide-judge',],);
       },
     },),
   ],
