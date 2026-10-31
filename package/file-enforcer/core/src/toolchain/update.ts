@@ -35,10 +35,6 @@ import {
 } from './update.report.ts';
 import { resolveAll, } from './update.resolve.ts';
 import type { Fetcher, } from './update.resolvers.ts';
-import {
-  NOT_RELAUNCHED,
-  runInUpdatesSlice,
-} from './updates-slice.ts';
 
 export {
   applyResolutions,
@@ -66,14 +62,6 @@ export {
  ```
  */
 export async function main(): Promise<void> {
-  /**
-   Exit code of the run when it was re-executed inside the clearnet updates slice.
-   */
-  const relaunched = await runInUpdatesSlice();
-  if (relaunched !== NOT_RELAUNCHED) {
-    process.exitCode = relaunched;
-    return;
-  }
   /**
    Dry-run flag: report only, never write.
    */
