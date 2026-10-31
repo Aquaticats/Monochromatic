@@ -416,6 +416,51 @@ await describe({
           },
         },),
         it({
+          name: 'SKIPS, NOT SWAPS, where the tense detector flags the standing and the translate text drew one '
+            + 'ballot: one judge alone never decides, so the text is not a winner and the standing is kept unasked',
+          fn: async () => {
+            const bought = await buyOver({
+              standing: FLAGGED_STANDING,
+              laneTexts: BOTH_LANES,
+              translateWinnerBallots: 1,
+              slateReachable: 1,
+            },);
+            expect(readBought({ bought, },),).toEqual(skippedKeepingStanding({ standing: FLAGGED_STANDING, },),);
+          },
+        },),
+        it({
+          name: 'SKIPS, NOT SWAPS, where the standing would be flagged but the entry records no death: the detector '
+            + 'reads nothing for a living person, so the standing is kept unasked',
+          fn: async () => {
+            const bought = await buyOver({
+              standing: FLAGGED_STANDING,
+              laneTexts: BOTH_LANES,
+              translateWinnerBallots: 2,
+              slateReachable: 1,
+              lifeEnded: false,
+            },);
+            expect(readBought({ bought, },),).toEqual(skippedKeepingStanding({ standing: FLAGGED_STANDING, },),);
+          },
+        },),
+        it({
+          name: 'STILL ASKS an endorsed eligible standing with lane texts on the offer, 1 of 7 slate judges '
+            + 'reachable: nothing was ruled about that shape and the skip does not reach it (the driver never builds '
+            + 'it, since the lane offer is empty for a standing that is endorsed and eligible)',
+          fn: async () => {
+            const bought = await buyOver({
+              standing: PAST_STANDING,
+              laneTexts: BOTH_LANES,
+              translateWinnerBallots: 2,
+              slateReachable: 1,
+              standingMayShip: true,
+            },);
+            expect(bought.calls > 0,).toBe(true,);
+            expect(bought.lines.some(function namesTheFloor(line,): boolean {
+              return line.includes('below the floor',);
+            },),).toBe(false,);
+          },
+        },),
+        it({
           name: 'STILL BUYS once the slate bench meets the floor, and when the caller did not count, with the same '
             + 'offer and the same unendorsed standing',
           fn: async () => {

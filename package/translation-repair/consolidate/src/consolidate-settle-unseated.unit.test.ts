@@ -195,6 +195,47 @@ await describe({
       ],
     },),
     describe({
+      name: `${shipWinnerBeforeSlate.name} over an eligible standing the tense detector flags`,
+      children: [
+        it({
+          name: 'READS A CALLER THAT SAYS NOTHING OF THE CONTEST AS ENDORSING THE STANDING: the swap ships only when the '
+            + 'caller says the contest did not endorse it',
+          fn: async () => {
+            /**
+             The arguments every case shares: an eligible standing the detector flags beside a past-tense translate text
+             that drew two ballots, over an entry that records a death, with one slate judge reachable.
+             */
+            const shared = {
+              standingEligible: true,
+              laneTexts: [TRANSLATE_LANE,],
+              translateWinnerBallots: 2,
+              slateReachable: 1,
+              standingText: 'Mittens is a tabby with a white chin.',
+              floor: FLOOR,
+              verdicts: [],
+              producedFindings: [],
+              subject: {
+                ...SUBJECT,
+                lifeEnded: true,
+                subjectNames: ['Mittens',],
+              },
+              sliceIndex: 3,
+              l,
+            } as const;
+            expect({
+              unsaid: shipWinnerBeforeSlate({ ...shared, },).kind,
+              endorsed: shipWinnerBeforeSlate({ ...shared, standingMayShip: true, },).kind,
+              unendorsed: shipWinnerBeforeSlate({ ...shared, standingMayShip: false, },).kind,
+            },).toEqual({
+              unsaid: 'asks',
+              endorsed: 'asks',
+              unendorsed: 'ships',
+            },);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: settleRefusedStanding.name,
       children: [
         it({
