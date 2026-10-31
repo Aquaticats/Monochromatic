@@ -36,6 +36,7 @@ fn the_start_notice_names_the_traffic_and_the_absence_of_a_switch() {
     for phrase in [
         "POLICY NOTICE",
         "without any switch",
+        "with Table = off it installs none",
         "Update entry points",
         "mpm-shadow install, update and outdated",
         "install roots",

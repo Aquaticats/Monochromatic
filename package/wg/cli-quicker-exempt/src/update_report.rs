@@ -31,7 +31,8 @@ pub fn policy_notice(install_roots: &[PathBuf]) -> String {
     let installed = installed_tool_names(install_roots);
     let installed_text = if installed.is_empty() { "nothing yet".to_string() } else { installed.join(", ") };
     return [
-        "wg-quicker-exempt: POLICY NOTICE. By the repository's policy, and without any switch, this traffic leaves outside the tunnel:".to_string(),
+        "wg-quicker-exempt: POLICY NOTICE. By the repository's policy, and without any switch, this traffic leaves outside the tunnel".to_string(),
+        "wherever wg-quicker installed its bypass rules (with Table = off it installs none, and the socket marks then decide nothing):".to_string(),
         "  - Update entry points: mise toolchain tasks that fetch, mpm-shadow install, update and outdated, the mpm shadow,".to_string(),
         "    and the TypeScript toolchain sync and update scripts, together with the processes they start.".to_string(),
         "  - Every program the toolchain installed, not only its updates: any process whose executable is under the toolchain".to_string(),
