@@ -27,7 +27,8 @@ const PUBLISHED: &str = "cargo:monochromatic-mpm-shadow";
 /// The third-party cargo tool of the sample lock.
 const THIRD_PARTY: &str = "cargo:fd-find";
 
-/// A lock holding only the named tools, each at the given version.
+/// A lock holding only the named tools,
+/// each at the given version.
 fn lock_of(rig: &Rig, versions: &[(&str, &str)]) -> Lock {
     let mut tools = Vec::new();
     for (id, version) in versions {
@@ -38,7 +39,8 @@ fn lock_of(rig: &Rig, versions: &[(&str, &str)]) -> Lock {
     return Lock { tools };
 }
 
-/// A second tree that shares the rig's home, and so its toolchain root.
+/// A second tree that shares the rig's home,
+/// and so its toolchain root.
 fn second_tree(rig: &Rig) -> Scope {
     let root = rig._directory.path().join("work-two");
     fs::create_dir_all(&root).expect("make the second tree");

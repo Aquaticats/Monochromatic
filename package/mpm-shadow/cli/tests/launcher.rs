@@ -1,7 +1,8 @@
 //! End-to-end tests of the launcher a tree's exposed link goes through for a repository-published tool,
 //! and of the older-lock warning on the toolchain verbs,
 //! run against the built `mpm-shadow` binary in disposable directories.
-//! Nothing here reads or writes the real `~/.config`, `~/.local` or `~/.cargo`.
+//! Nothing here reads or writes the real `~/.config`,
+//! `~/.local` or `~/.cargo`.
 
 use std::fs;
 use std::os::unix::fs::{PermissionsExt, symlink};
@@ -29,7 +30,9 @@ fn expected_warning(locked: &str, used: &str) -> String {
     );
 }
 
-/// A disposable tree: a toolchain root holding the demo tool at `used`, a lock pinning `locked`,
+/// A disposable tree:
+/// a toolchain root holding the demo tool at `used`,
+/// a lock pinning `locked`,
 /// and the launcher for the tool.
 struct Tree {
     directory: tempfile::TempDir,
@@ -200,7 +203,8 @@ impl VerbTree {
     }
 }
 
-/// The warning the verbs print, with the verb's own prefix.
+/// The warning the verbs print,
+/// with the verb's own prefix.
 fn verb_warning(verb: &str, locked: &str, used: &str) -> String {
     return format!(
         "toolchain {verb}: warning: {TOOL_ID} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \

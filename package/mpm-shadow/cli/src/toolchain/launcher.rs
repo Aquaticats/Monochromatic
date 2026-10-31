@@ -4,7 +4,9 @@
 //! plus a `<name>.launch` record beside it.
 //! Started under that path it reads the record and the tree's lock,
 //! prints a warning on standard error when the tool that will run is newer than the lock pins,
-//! then replaces itself with the real binary, passing argv, environment and standard streams through.
+//! then replaces itself with the real binary,
+//! passing argv,
+//! environment and standard streams through.
 //! Why:
 //! A bare symlink to the binary has nowhere to check the tree's lock.
 //! The kernel resolves a symlink chain to its final file,
@@ -22,7 +24,7 @@
 //! ```
 
 /// Imports `OsString` from `std::ffi`.
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
@@ -31,7 +33,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Imports `Value` from `serde_json`.
-use serde_json::{Value, json};
+use serde_json::{Map, Value};
 
 /// Imports the exit codes the shadow already uses.
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
@@ -42,6 +44,8 @@ use super::cargo_installs::{CURRENT_LINK_NAME, is_newer_than_locked, older_lock_
 use super::error::ToolchainError;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
+/// Imports `file_name_text` from `super::util`.
+use super::util::file_name_text;
 
 /// The suffix of the record beside a launcher.
 pub const RECORD_SUFFIX: &str = ".launch";
@@ -57,7 +61,8 @@ pub struct LaunchRecord {
     pub tool_id: String,
     /// The tree's `toolchain.lock.json`.
     pub lock_file: PathBuf,
-    /// The binary to run: `<crate directory>/current/bin/<name>`.
+    /// The binary to run:
+    /// `<crate directory>/current/bin/<name>`.
     pub real: PathBuf,
 }
 
@@ -70,12 +75,12 @@ pub fn record_path(launcher: &Path) -> PathBuf {
 
 /// The record as JSON text.
 pub fn render_record(record: &LaunchRecord) -> String {
-    return json!({
-        "toolId": record.tool_id,
-        "lockFile": record.lock_file.to_string_lossy(),
-        "real": record.real.to_string_lossy(),
-    })
-    .to_string();
+    // Built field by field: the `json!` macro unwraps a conversion that clippy.toml disallows.
+    let mut fields: Map<String, Value> = Map::new();
+    fields.insert("toolId".to_string(), Value::String(record.tool_id.clone()));
+    fields.insert("lockFile".to_string(), Value::String(record.lock_file.to_string_lossy().to_string()));
+    fields.insert("real".to_string(), Value::String(record.real.to_string_lossy().to_string()));
+    return Value::Object(fields).to_string();
 }
 
 /// The record in `text`,
@@ -198,6 +203,21 @@ fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
     return lock.get("tools")?.get(tool_id)?.get("version")?.as_str().map(str::to_string);
 }
 
+/// The version the crate's `current` link names,
+/// found from the real binary's path `<crate directory>/current/bin/<name>`.
+fn version_that_runs(real: &Path) -> Option<String> {
+    let link: &Path = real.parent().and_then(Path::parent)?;
+    if link.file_name() != Some(OsStr::new(CURRENT_LINK_NAME)) {
+        return None;
+    }
+    let target: PathBuf = fs::read_link(link).ok()?;
+    let name: String = file_name_text(&target);
+    if name.is_empty() {
+        return None;
+    }
+    return Some(name);
+}
+
 /// What:
 /// Compares the version that runs (the target of the crate's `current` link) with the lock's and says what to print.
 /// Why:
@@ -212,11 +232,7 @@ fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
 /// ```
 pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch {
     let mut warning: Option<String> = None;
-    let current: Option<&Path> = record.real.parent().and_then(Path::parent);
-    if let Some(link) = current
-        && link.file_name().is_some_and(|name| return name == CURRENT_LINK_NAME)
-        && let Ok(target) = fs::read_link(link)
-        && let Some(used) = target.file_name().map(|name| return name.to_string_lossy().to_string())
+    if let Some(used) = version_that_runs(&record.real)
         && let Some(text) = lock_text
         && let Some(locked) = locked_version(text, &record.tool_id)
         && is_newer_than_locked(&used, &locked)

@@ -139,8 +139,10 @@ pub struct Scope {
     pub exposure_dir_relative: String,
     /// The directory postinstall links go to when the link names none.
     pub link_dir: PathBuf,
-    /// The directory of per-tree launchers: copies of `mpm-shadow` that warn when this tree's lock pins an older
-    /// repository-published tool than the one that runs, then run the real binary.
+    /// The directory of per-tree launchers:
+    /// copies of `mpm-shadow` that warn when this tree's lock pins an older
+    /// repository-published tool than the one that runs,
+    /// then run the real binary.
     pub launcher_dir: PathBuf,
     /// The directory the `bin` CLI downloads into.
     pub toolchain_bin_dir: PathBuf,

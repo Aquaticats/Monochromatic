@@ -47,7 +47,8 @@ use super::runner::RunRequest;
 /// `--root` (unlike `--install-path`) also covers the build-from-source fallback:
 /// cargo-binstall 1.26.1 passes `--root` on to `cargo install`,
 /// and with `--install-path` it refuses to build instead
-/// (`crates/binstalk/src/ops/resolve/resolution.rs`, `CargoInstallDoesNotSupportInstallPath`).
+/// (`crates/binstalk/src/ops/resolve/resolution.rs`,
+/// `CargoInstallDoesNotSupportInstallPath`).
 /// Tracking stays on,
 /// so the root's `.crates.toml` is the record `status` reads and cargo-binstall's own lock covers two trees
 /// installing the same version at once.

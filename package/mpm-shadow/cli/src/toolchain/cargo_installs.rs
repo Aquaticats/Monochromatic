@@ -45,6 +45,8 @@ use super::model::{LockedTool, OsFamily, Route};
 use super::observe::package_name;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
+/// Imports `file_name_text` from `super::util`.
+use super::util::file_name_text;
 
 /// The directory below the toolchain root that holds every `cargo-binstall` install root.
 pub const CARGO_NAMESPACE: &str = "cargo";
@@ -100,11 +102,15 @@ fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        let is_plain_directory: bool = entry.file_type().is_ok_and(|kind| return kind.is_dir());
+        let is_plain_directory: bool = match entry.file_type() {
+            Ok(kind) => kind.is_dir(),
+            Err(_) => false,
+        };
         if is_plain_directory && !name.starts_with('.') && name != CURRENT_LINK_NAME {
             names.push(name);
         }
     }
+    // Newest first: the comparison is reversed.
     names.sort_by(|left, right| return compare_versions(right, left));
     return names;
 }
@@ -123,7 +129,11 @@ pub fn newest_installed(toolchain_root: &Path, crate_name: &str) -> Option<Strin
 /// or `None` when there is no link.
 pub fn running_version(toolchain_root: &Path, crate_name: &str) -> Option<String> {
     let target: PathBuf = fs::read_link(current_link(toolchain_root, crate_name)).ok()?;
-    return target.file_name().map(|name| return name.to_string_lossy().to_string());
+    let name: String = file_name_text(&target);
+    if name.is_empty() {
+        return None;
+    }
+    return Some(name);
 }
 
 /// What:

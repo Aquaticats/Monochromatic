@@ -81,8 +81,15 @@ pub fn plan_prune(
         let named_here: Option<&BTreeSet<String>> = named.get(crate_name);
         if crate_name.starts_with(OWN_CRATE_PREFIX) {
             let mut newest: Option<&str> = None;
-            for candidate in versions.iter().filter(|candidate| return candidate.finished) {
-                if newest.is_none_or(|kept| return compare_versions(&candidate.version, kept).is_gt()) {
+            for candidate in versions {
+                if !candidate.finished {
+                    continue;
+                }
+                let is_newer: bool = match newest {
+                    Some(kept) => compare_versions(&candidate.version, kept).is_gt(),
+                    None => true,
+                };
+                if is_newer {
                     newest = Some(&candidate.version);
                 }
             }
@@ -99,7 +106,11 @@ pub fn plan_prune(
             continue;
         }
         for candidate in versions {
-            if !named_here.is_some_and(|set| return set.contains(&candidate.version)) {
+            let is_named: bool = match named_here {
+                Some(set) => set.contains(&candidate.version),
+                None => false,
+            };
+            if !is_named {
                 removals.push((crate_name.clone(), candidate.version.clone()));
             }
         }
@@ -157,7 +168,8 @@ pub fn named_versions(lock_text: &str, origin: &str) -> Result<BTreeMap<String, 
 
 /// The worktree lock files `git worktree list --porcelain` reports for the repository at `root`.
 /// A worktree whose directory is gone is skipped only when git marks it `prunable`;
-/// otherwise (an unmounted disk, say) the command refuses.
+/// otherwise (an unmounted disk,
+/// say) the command refuses.
 pub fn worktree_lock_files(runner: &dyn Runner, root: &Path) -> Result<Vec<PathBuf>, ToolchainError> {
     let request: RunRequest = RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]);
     let outcome: RunOutcome = runner.run(&request);
@@ -230,7 +242,10 @@ fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersio
         let mut found: Vec<PresentVersion> = Vec::new();
         for version_entry in versions.flatten() {
             let version: String = version_entry.file_name().to_string_lossy().to_string();
-            let is_plain_directory: bool = version_entry.file_type().is_ok_and(|kind| return kind.is_dir());
+            let is_plain_directory: bool = match version_entry.file_type() {
+                Ok(kind) => kind.is_dir(),
+                Err(_) => false,
+            };
             if is_plain_directory && !version.starts_with('.') && version != CURRENT_LINK_NAME {
                 let finished: bool = recorded_version(&version_entry.path(), &crate_name).is_some();
                 found.push(PresentVersion { version, finished });
@@ -242,7 +257,9 @@ fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersio
 }
 
 /// What:
-/// Deletes (or, with `dry_run`, lists) the version directories no known lock names.
+/// Deletes (or,
+/// with `dry_run`,
+/// lists) the version directories no known lock names.
 /// Why:
 /// This is the cleanup the version-keyed layout needs.
 /// It runs only when asked:
@@ -277,7 +294,10 @@ pub fn prune_toolchain(
         let after = present_versions(&scope.toolchain_root);
         for crate_name in present.keys() {
             let crate_dir: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(crate_name);
-            let remaining: bool = after.get(crate_name).is_some_and(|versions| return !versions.is_empty());
+            let remaining: bool = match after.get(crate_name) {
+                Some(versions) => !versions.is_empty(),
+                None => false,
+            };
             if remaining {
                 // Only a crate this repository publishes has a `current` link; a third-party crate is never given one.
                 if crate_name.starts_with(OWN_CRATE_PREFIX) {
@@ -304,7 +324,10 @@ pub fn prune_toolchain(
 /// ```
 pub fn run_prune_command(matches: &ArgMatches) -> i32 {
     let env: EnvMap = EnvMap::from_process();
-    let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| return PathBuf::from("."));
+    let start: PathBuf = match std::env::current_dir() {
+        Ok(directory) => directory,
+        Err(_) => PathBuf::from("."),
+    };
     let scope: Scope = match resolve_scope(matches.get_flag("global"), &start, &env) {
         Ok(found) => found,
         Err(error) => {
@@ -312,7 +335,12 @@ pub fn run_prune_command(matches: &ArgMatches) -> i32 {
             return error.exit_code();
         }
     };
-    let extras: Vec<PathBuf> = matches.get_many::<String>("lock").map(|values| return values.map(PathBuf::from).collect()).unwrap_or_default();
+    let mut extras: Vec<PathBuf> = Vec::new();
+    if let Some(values) = matches.get_many::<String>("lock") {
+        for value in values {
+            extras.push(PathBuf::from(value));
+        }
+    }
     let dry_run: bool = matches.get_flag("dry-run");
     return match prune_toolchain(&scope, &ProcessRunner, &extras, dry_run) {
         Ok(removed) => {

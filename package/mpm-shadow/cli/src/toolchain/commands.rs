@@ -128,11 +128,14 @@ fn report(error: &ToolchainError) -> i32 {
 /// What:
 /// The warning lines a command prints on standard error when this tree's lock pins an older repository-published tool
 /// than the one installed:
-/// `toolchain <verb>: warning: <text>`, the format `sync` already uses.
+/// `toolchain <verb>: warning: <text>`,
+/// the format `sync` already uses.
 /// Why:
-/// `lock`, `update` and `bin-paths` have no report of their own to carry them,
+/// `lock`,
+/// `update` and `bin-paths` have no report of their own to carry them,
 /// and `bin-paths` prints JSON on standard output.
-/// A missing or unreadable lock gives none: those commands report that themselves.
+/// A missing or unreadable lock gives none:
+/// those commands report that themselves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
