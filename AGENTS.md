@@ -670,7 +670,8 @@ NLG:
  busy loops,
  `--stress-count`,
  or repeated full test runs;
- cap the test's own container (`--cpus`, default 2) instead.
+ cap the test's own container (`--cpus`,
+default 2) instead.
 
 NLD:
  Every subagent brief quotes the synthetic-load ban;
