@@ -793,7 +793,9 @@ A second failure is final and says the lookup was made twice.
 
 ### Clearnet updates slice
 
-`install`, `update` and `outdated` fetch from the network,
+`install`,
+`update`
+and `outdated` fetch from the network,
 so each re-executes itself through
 `systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
 before it does any work.

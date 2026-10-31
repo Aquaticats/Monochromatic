@@ -1,5 +1,7 @@
 //! What:
-//! Moves the network verbs `install`, `update` and `outdated` into the clearnet updates slice.
+//! Moves the network verbs `install`,
+//! `update`
+//! and `outdated` into the clearnet updates slice.
 //! Why:
 //! `wg-quicker-exempt` attaches its socket-marking cgroup programs to that slice,
 //! while a WireGuard tunnel with `ExemptMark` is up,
