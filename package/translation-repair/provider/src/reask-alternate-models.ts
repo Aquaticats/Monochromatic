@@ -252,7 +252,7 @@ function orderedByRunawayShare(
 
  @param readings - census table the share of runaways is read from
 
- @returns The same models in the order to try them
+ @returns Same models in the order to try them
 
  @example
  ```ts

@@ -28,7 +28,7 @@ import { buildAnotherTranslatorRepairMessages, } from '../dist/final/node/index.
 
  @param findings - findings written for the author
 
- @returns The text of the last message
+ @returns Text of the last message
 
  @example
  ```ts
@@ -49,7 +49,7 @@ function turnFor({ findings, }: { readonly findings: readonly string[]; },): str
 
  @param text - text to read
 
- @returns The text outside its quotations
+ @returns Text outside its quotations
 
  @example
  ```ts
@@ -82,7 +82,7 @@ function outsideQuotations({ text, }: { readonly text: string; },): string {
 
  @param text - text to read
 
- @returns The words, in order
+ @returns Words, in order
 
  @example
  ```ts

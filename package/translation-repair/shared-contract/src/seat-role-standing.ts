@@ -110,7 +110,7 @@ export const ROLE_STANDINGS: Readonly<Record<'editor' | 'refiner', readonly Role
 
  @param modelIds - models to place
 
- @returns The models of the list that the role has a standing for, by standing, best first; none for a role with no
+ @returns Models of the list that the role has a standing for, by standing, best first; none for a role with no
  standing recorded, so the caller keeps its other order for it
 
  @example

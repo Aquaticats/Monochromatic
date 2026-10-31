@@ -218,7 +218,7 @@ function articleForWord({ word, }: { readonly word: string; },): string {
 
  @param finding - finding as written for the author
 
- @returns The finding with the possessive made the article outside its quotations
+ @returns Finding with the possessive made the article outside its quotations
 
  @example
  ```ts

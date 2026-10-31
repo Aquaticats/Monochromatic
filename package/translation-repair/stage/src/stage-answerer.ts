@@ -13,7 +13,7 @@ import type { RoundOutcome, } from './stage-round.ts';
 
  @param outcome - one seat's outcome from a round
 
- @returns The model that answered where another than the seat did; the seat itself otherwise, and for a lost voice
+ @returns Model that answered where another than the seat did; the seat itself otherwise, and for a lost voice
  (which has no author) the seat
 
  @example

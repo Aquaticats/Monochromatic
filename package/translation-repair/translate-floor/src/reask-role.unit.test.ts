@@ -49,6 +49,34 @@ const MERGED_TEXT = 'A day in the cat\'s life: it dozes on the windowsill.';
  */
 const HEADED_PAGE = `## A Day in the Cat's Life\n\n${MERGED_TEXT} It naps.`;
 
+/**
+ Client that answers every question with an unreadable reply and keeps the seat each follow-up carried.
+
+ @param seats - list the seats are pushed onto, in the order the calls arrive
+
+ @returns Client whose `chatJson` records `reaskSeat` and whose other calls refuse
+
+ @example
+ ```ts
+ const client = seatRecordingClient({ seats: [], },);
+ ```
+ */
+function seatRecordingClient({ seats, }: { readonly seats: ReaskSeat[]; },): ModelClient {
+  return {
+    chatText: async () => {
+      throw new Error('chatText unused',);
+    },
+    chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+      if (request.reaskSeat !== undefined)
+        seats.push(request.reaskSeat,);
+      return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
+    },
+    quotas: async () => {
+      throw new Error('quotas unused',);
+    },
+  };
+}
+
 await describe({
   name: 'the seat the repair of an invalid candidate names',
   concurrency: 1,
@@ -61,19 +89,7 @@ await describe({
          Seats the follow-up calls carried, in the order they arrived.
          */
         const seats: ReaskSeat[] = [];
-        const client: ModelClient = {
-          chatText: async () => {
-            throw new Error('chatText unused',);
-          },
-          chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
-            if (request.reaskSeat !== undefined)
-              seats.push(request.reaskSeat,);
-            return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
-          },
-          quotas: async () => {
-            throw new Error('quotas unused',);
-          },
-        };
+        const client = seatRecordingClient({ seats, },);
         const claims = createReaskClaims();
         await repairInvalidCandidates({
           client,
@@ -109,19 +125,7 @@ await describe({
          Seats the follow-up calls carried, in the order they arrived.
          */
         const seats: ReaskSeat[] = [];
-        const client: ModelClient = {
-          chatText: async () => {
-            throw new Error('chatText unused',);
-          },
-          chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
-            if (request.reaskSeat !== undefined)
-              seats.push(request.reaskSeat,);
-            return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
-          },
-          quotas: async () => {
-            throw new Error('quotas unused',);
-          },
-        };
+        const client = seatRecordingClient({ seats, },);
         await repairInvalidCandidates({
           client,
           voices: [{ modelId: SEAT_SYNTHETIC_VISION_WITHHELD, value: { translation: MERGED_TEXT, }, },],

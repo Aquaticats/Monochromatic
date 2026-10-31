@@ -154,7 +154,7 @@ async function recoverRunaway<ValueT,>(
    Asks the seat's own model once more, under the cut-short nudge, which is the one ask a measurement makes and the ask
    a run falls back to where no other model could take the re-ask.
 
-   @returns The one outcome that round returned
+   @returns One outcome that round returned
    */
   async function askSeatItself(): Promise<RoundOutcome<ValueT>> {
     /**

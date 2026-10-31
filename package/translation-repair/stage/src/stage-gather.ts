@@ -37,7 +37,7 @@ export type HeardVoice<ValueT,> = {
 
  @param voice - heard voice
 
- @returns The seat it was asked for: the model that answered, unless another model answered for the seat
+ @returns Seat it was asked for: the model that answered, unless another model answered for the seat
 
  @example
  ```ts

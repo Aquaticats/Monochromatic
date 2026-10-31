@@ -123,7 +123,7 @@ export const OWNER_CULLED: ReadonlySet<RosterModelId> = holdSet({ hold: 'owner-c
 
  @param role - role the bench is for
 
- @returns The roster's chat models the role may seat, in roster order
+ @returns Roster's chat models the role may seat, in roster order
 
  @example
  ```ts

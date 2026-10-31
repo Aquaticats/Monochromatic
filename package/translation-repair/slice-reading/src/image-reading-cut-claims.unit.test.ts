@@ -61,7 +61,13 @@ function byAsk(
   left: readonly string[],
   right: readonly string[],
 ): number {
-  return left.join('\u0000',).localeCompare(right.join('\u0000',),);
+  /**
+   Both asks as one text each, compared by code unit.
+   */
+  const [first, second,] = [left.join('\u0000',), right.join('\u0000',),];
+  if (first === second)
+    return 0;
+  return (first < second) ? -1 : 1;
 }
 
 /**
