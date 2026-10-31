@@ -19,6 +19,7 @@ import {
   assertOneWireModelPerBench,
   DECISION_ONLY_ROSTER_IDS,
   holdSet,
+  MEASURED_CHECKER_ORDER,
   type ProviderRecord,
   ROSTER_MODEL_IDS,
   type RosterModelId,
@@ -408,19 +409,13 @@ export const RUN_SELECT_JUDGES: readonly RosterModelId[] = [
  "Remove Qwen from wide seats" (ledger B1030). The benchmark's figures stay as its record. On the XingZ6022
  checker rounds that had a late ballot it was the late voice in 33 of 46, with Mimo v2.6 Flash in 12 and Kimi-K3 in 1.
  The static bench of three is now Mimo v2.6 Flash, Kimi-K3 and Haiku 5.5, the next of the order.
+
+ THE ORDER ITSELF LIVES IN THE SHARED CONTRACT (`MEASURED_CHECKER_ORDER` in `seat-role.ts`), since 2026-10-31 (ledger
+ B1100): the re-ask of a checker that ran away reads the same list as its pool, so the bench and the models that stand
+ in for a bench member are one list and not two copies. Haiku 5.5 joined it at the owner's "Haiku wide" (2026-10-22),
+ unmeasured as a checker, behind the three the benchmark ranks and in front of the two it ranks lowest.
  */
-export const RUN_CHECKER_ORDER: readonly RosterModelId[] = [
-  'xiaomi/mimo-v2.6-flash',
-  'hf:moonshotai/Kimi-K3',
-  // HAIKU 5.5 JOINED THE ORDER AT THE OWNER'S "Haiku wide" (2026-10-22), UNMEASURED AS A CHECKER, behind the three the
-  // benchmark ranks and in front of the two it ranks lowest, so that it filled the bench only when a provider serving one
-  // of those three was dry. The order lost its first seat on 2026-10-29, so it now holds the third place of the static
-  // bench of three: the Claude key serves a checker round in every reading in which it is wet, and when it is dry the
-  // next seat a wet provider serves takes the place. It sends no effort; the effort bench decides that.
-  'claude-haiku-5-5',
-  'google.gemma-4-31b',
-  'inception/mercury-2.5',
-];
+export const RUN_CHECKER_ORDER: readonly RosterModelId[] = MEASURED_CHECKER_ORDER;
 
 /**
  Places on the checker bench: the contract's floor, so a split verdict
