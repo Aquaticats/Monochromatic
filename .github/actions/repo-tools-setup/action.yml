@@ -1,9 +1,10 @@
 name: repository tools setup
 description: >
-  Fetches the prebuilt `file-enforcer` and `mpm-shadow` binaries this repository publishes, at the versions
-  `toolchain.lock.json` names for `cargo:monochromatic-file-enforcer-cli` and `cargo:monochromatic-mpm-shadow`,
-  and puts them on PATH. Each archive is checked against the checksums file of its own release before it is
-  unpacked. Plain shell only, so running it never adds an external action to the repository's allow-list.
+  Fetches the prebuilt `file-enforcer` and `mpm-shadow` binaries this repository publishes and puts them on PATH.
+  `mpm-shadow` comes from the archive row of the `mpm-shadow` tool in `toolchain.lock.json` and is checked against the
+  SHA-256 recorded there. `file-enforcer` comes from the release of the version the lock names for
+  `cargo:monochromatic-file-enforcer-cli` and is checked against the checksums file of that release. Plain shell only,
+  so running it never adds an external action to the repository's allow-list.
 
 inputs:
   tools:
@@ -27,31 +28,46 @@ runs:
           exit 1
         fi
         case "$RUNNER_PLATFORM" in
-          Linux-X64) target=x86_64-unknown-linux-gnu ;;
-          Linux-ARM64) target=aarch64-unknown-linux-gnu ;;
+          Linux-X64) platform=linux-x64; target=x86_64-unknown-linux-gnu ;;
+          Linux-ARM64) platform=linux-arm64; target=aarch64-unknown-linux-gnu ;;
           *) echo "::error::repo-tools-setup: no prebuilt archive for runner $RUNNER_PLATFORM" >&2; exit 1 ;;
         esac
         bin_dir="$RUNNER_TEMP/repo-tools-bin"
         mkdir -p "$bin_dir"
         for tool in $TOOLS; do
+          work=$(mktemp -d)
           case "$tool" in
-            file-enforcer) crate=monochromatic-file-enforcer-cli ;;
-            mpm-shadow) crate=monochromatic-mpm-shadow ;;
+            mpm-shadow)
+              # The bootstrap archive: its URL and SHA-256 are in the lock.
+              url=$(jq --raw-output --arg platform "$platform" '.tools["mpm-shadow"].artifacts[$platform].url // empty' toolchain.lock.json)
+              sum=$(jq --raw-output --arg platform "$platform" '.tools["mpm-shadow"].artifacts[$platform].sha256 // empty' toolchain.lock.json)
+              if [ -z "$url" ] || [ -z "$sum" ]; then
+                echo "::error::repo-tools-setup: toolchain.lock.json has no mpm-shadow archive row for $platform; run 'mpm-shadow update'" >&2
+                exit 1
+              fi
+              archive="$work/mpm-shadow.tar.gz"
+              curl --fail --silent --show-error --location --output "$archive" "$url"
+              echo "$sum  $archive" | sha256sum --check
+              ;;
+            file-enforcer)
+              crate=monochromatic-file-enforcer-cli
+              version=$(jq --raw-output --arg id "cargo:$crate" '.tools[$id].version // empty' toolchain.lock.json)
+              if [ -z "$version" ]; then
+                echo "::error::repo-tools-setup: toolchain.lock.json has no cargo:$crate row; run 'mpm-shadow update'" >&2
+                exit 1
+              fi
+              name="$crate-$version-$target.tar.gz"
+              sums="$crate-$version-sha256sums.txt"
+              base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$crate-v$version"
+              archive="$work/$name"
+              curl --fail --silent --show-error --location --output "$archive" "$base/$name"
+              curl --fail --silent --show-error --location --output "$work/$sums" "$base/$sums"
+              (cd "$work" && grep " $name\$" "$sums" | sha256sum --check)
+              ;;
             *) echo "::error::repo-tools-setup: unknown tool '$tool'" >&2; exit 1 ;;
           esac
-          version=$(jq --raw-output --arg id "cargo:$crate" '.tools[$id].version // empty' toolchain.lock.json)
-          if [ -z "$version" ]; then
-            echo "::error::repo-tools-setup: toolchain.lock.json has no cargo:$crate row; run 'mpm-shadow update'" >&2
-            exit 1
-          fi
-          archive="$crate-$version-$target.tar.gz"
-          sums="$crate-$version-sha256sums.txt"
-          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$crate-v$version"
-          work=$(mktemp -d)
-          curl --fail --silent --show-error --location --output "$work/$archive" "$base/$archive"
-          curl --fail --silent --show-error --location --output "$work/$sums" "$base/$sums"
-          (cd "$work" && grep " $archive\$" "$sums" | sha256sum --check)
-          tar --extract --gzip --file "$work/$archive" --strip-components=1 --directory "$bin_dir" "$crate-$version-$target/$tool"
+          member=$(tar --list --gzip --file "$archive" | grep "/$tool\$" | head --lines=1)
+          tar --extract --gzip --file "$archive" --strip-components=1 --directory "$bin_dir" "$member"
           "$bin_dir/$tool" --version
         done
         echo "$bin_dir" >> "$GITHUB_PATH"

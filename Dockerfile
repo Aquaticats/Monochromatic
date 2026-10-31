@@ -44,18 +44,14 @@ RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolcha
 # The workspace dependencies the tasks import (`mise run prepare` below needs `node_modules`).
 RUN pnpm install --frozen-lockfile
 
-# `mpm-shadow` is the one prebuilt binary a fresh machine needs: the release of the version
-# `toolchain.lock.json` names for `cargo:monochromatic-mpm-shadow` is fetched and its archive is checked against the
-# release's checksums file before it is unpacked. It then installs every other tool, `file-enforcer` among them.
-RUN crate=monochromatic-mpm-shadow \
- && version="$(jq --raw-output '.tools["cargo:monochromatic-mpm-shadow"].version' toolchain.lock.json)" \
- && target=x86_64-unknown-linux-gnu \
- && archive="${crate}-${version}-${target}.tar.gz" \
- && base="https://github.com/Aquaticats/Monochromatic/releases/download/${crate}-v${version}" \
- && curl --fail --silent --show-error --location --output "/tmp/${archive}" "${base}/${archive}" \
- && curl --fail --silent --show-error --location --output "/tmp/${crate}-${version}-sha256sums.txt" "${base}/${crate}-${version}-sha256sums.txt" \
- && (cd /tmp && grep " ${archive}\$" "${crate}-${version}-sha256sums.txt" | sha256sum --check) \
- && tar --extract --gzip --file "/tmp/${archive}" --strip-components=1 --directory /usr/local/bin "${crate}-${version}-${target}/mpm-shadow" \
+# `mpm-shadow` is the one prebuilt binary a fresh machine needs: the archive row of the `mpm-shadow` tool in
+# `toolchain.lock.json` (URL and SHA-256, the same pattern as Node and pnpm above) is fetched and checked before it is
+# unpacked. It then installs every other tool, `file-enforcer` among them.
+RUN ms_url="$(jq --raw-output '.tools["mpm-shadow"].artifacts["linux-x64"].url' toolchain.lock.json)" \
+ && ms_sum="$(jq --raw-output '.tools["mpm-shadow"].artifacts["linux-x64"].sha256' toolchain.lock.json)" \
+ && curl --fail --silent --show-error --location --output /tmp/mpm-shadow.tar.gz "$ms_url" \
+ && echo "$ms_sum  /tmp/mpm-shadow.tar.gz" | sha256sum --check \
+ && tar --extract --gzip --file /tmp/mpm-shadow.tar.gz --wildcards --strip-components=1 --directory /usr/local/bin '*/mpm-shadow' \
  && mpm-shadow --version
 
 # Every tool converges to `toolchain.lock.json`; mise runs only the repository's tasks afterwards

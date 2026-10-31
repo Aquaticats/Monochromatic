@@ -190,24 +190,21 @@ See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
 A fresh machine has neither `mpm-shadow` nor `file-enforcer`.
-Fetch the `mpm-shadow` release archive of the version `toolchain.lock.json` names,
-check it against the release's checksums file,
+Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platform,
+check it against the SHA-256 recorded beside it,
 and put the binary on `PATH`
 (the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI and in the `Dockerfile`):
 
 ```sh
-# Run from the repository root; the lock names the version
-crate=monochromatic-mpm-shadow
-version="$(jq --raw-output '.tools["cargo:monochromatic-mpm-shadow"].version' toolchain.lock.json)"
-target=x86_64-unknown-linux-gnu # aarch64-unknown-linux-gnu on ARM
-base="https://github.com/Aquaticats/Monochromatic/releases/download/${crate}-v${version}"
-archive="${crate}-${version}-${target}.tar.gz"
-curl --fail --silent --show-error --location --remote-name "${base}/${archive}" \
-  --remote-name "${base}/${crate}-${version}-sha256sums.txt"
-grep " ${archive}\$" "${crate}-${version}-sha256sums.txt" | sha256sum --check
+# Run from the repository root; platform is linux-x64 or linux-arm64.
+platform=linux-x64
+url="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].url' toolchain.lock.json)"
+sum="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].sha256' toolchain.lock.json)"
+curl --fail --silent --show-error --location --output /tmp/mpm-shadow.tar.gz "${url}"
+echo "${sum}  /tmp/mpm-shadow.tar.gz" | sha256sum --check
 mkdir --parents "${HOME}/.local/bin"
-tar --extract --gzip --file "${archive}" --strip-components=1 --directory "${HOME}/.local/bin" \
-  "${crate}-${version}-${target}/mpm-shadow"
+tar --extract --gzip --file /tmp/mpm-shadow.tar.gz --wildcards --strip-components=1 \
+  --directory "${HOME}/.local/bin" '*/mpm-shadow'
 ```
 
 Then provision the toolchain,

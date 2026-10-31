@@ -1,11 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedFrom": "package/file-enforcer/core/src/toolchain/plan.ts",
+  "generatedFrom": "toolchain.plan.jsonc",
   "tools": {
     "bin": {
-      "request": {
-        "pinned": "0.29.4"
-      },
+      "request": "github:marcosnils/bin@0.29.4",
       "version": "0.29.4",
       "route": "archive",
       "bins": [
@@ -22,36 +20,24 @@
           "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_linux_arm64",
           "sha256": "706d5576d64f4ce66136f866cf51b92b2d0c2cc087e2cd17f32cd390b68e52cf"
         },
+        "linux-arm64-musl": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_linux_arm64",
+          "sha256": "706d5576d64f4ce66136f866cf51b92b2d0c2cc087e2cd17f32cd390b68e52cf"
+        },
         "linux-x64": {
           "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_linux_amd64",
           "sha256": "f7a179a813675bde2d8cf0ad3b4ae1d7bb1c6732daf623fb8deeba9f5f4782a7"
         },
-        "macos-arm64": {
-          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_darwin_arm64",
-          "sha256": "690ba4c3bbf8074a93da6b1ae86484bf43265f4b144d2b9de0ece7ae994414b9"
-        },
-        "macos-x64": {
-          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_darwin_amd64",
-          "sha256": "4b71583e1227b911a0448be522cb09d359bb7160b24ff1f6a7dfac8595f741d4"
-        },
-        "windows-arm64": {
-          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_windows_arm64.exe",
-          "sha256": "8521509a2991d07f07a57aa75b98505da1c12ed8145ff8b4c1412730de27b901"
-        },
-        "windows-x64": {
-          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_windows_amd64.exe",
-          "sha256": "d4606c4b310d222ae222286d98a305f2ac0678f80a91ffe695d4be9260689c76"
+        "linux-x64-musl": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_linux_amd64",
+          "sha256": "f7a179a813675bde2d8cf0ad3b4ae1d7bb1c6732daf623fb8deeba9f5f4782a7"
         }
       }
     },
     "mpm": {
-      "request": {
-        "pinned": "8.2.0"
-      },
+      "request": "pipx:meta-package-manager@8.2.0",
       "version": "8.2.0",
       "route": "mpm-uvx",
-      "manager": "uvx",
-      "packageId": "meta-package-manager",
       "bins": [
         "mpm",
         "meta-package-manager"
@@ -83,9 +69,7 @@
       }
     },
     "bun": {
-      "request": {
-        "pinned": "1.3.14"
-      },
+      "request": "github:oven-sh/bun@bun-v1.3.14",
       "version": "1.3.14",
       "route": "bin-sourced",
       "bins": [
@@ -111,24 +95,14 @@
           "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip",
           "sha256": "951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f"
         },
-        "linux-x64-baseline": {
-          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-baseline.zip",
-          "sha256": "a063908ae08b7852ca10939bbdc6ceed3ddabce8fb9402dce83d65d73b36e6c7"
-        },
         "linux-x64-musl": {
           "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-musl.zip",
           "sha256": "14bd9aedeebf1dba67e8def9531c89bc989ecfdf1de42e5bfcaf1b8cd9294719"
-        },
-        "linux-x64-musl-baseline": {
-          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-musl-baseline.zip",
-          "sha256": "56a7d6806cf155536c0178f0ea5fbd098e684fa509ebdb4fc0a7e19fb65382dc"
         }
       }
     },
     "pnpm": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:pnpm/pnpm@latest",
       "version": "12.16.1",
       "route": "bin-sourced",
       "bins": [
@@ -165,13 +139,9 @@
       }
     },
     "cargo:fd-find": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:fd-find@latest",
       "version": "10.5.0",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "fd-find",
       "bins": [
         "fd"
       ],
@@ -180,9 +150,7 @@
       "artifacts": {}
     },
     "ripgrep": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:BurntSushi/ripgrep@latest",
       "version": "15.2.0",
       "route": "bin-sourced",
       "bins": [
@@ -196,8 +164,8 @@
           "sha256": "a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d"
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "800b1e7206afe799dfb5a6901f23147cfaabe0e52210538100f61e86e1740915"
         },
         "linux-x64": {
           "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
@@ -210,13 +178,9 @@
       }
     },
     "cargo:fastmod": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:fastmod@latest",
       "version": "0.4.4",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "fastmod",
       "bins": [
         "fastmod"
       ],
@@ -225,13 +189,9 @@
       "artifacts": {}
     },
     "cargo:cargo-fuzz": {
-      "request": {
-        "pinned": "0.13.2"
-      },
+      "request": "cargo:cargo-fuzz@0.13.2",
       "version": "0.13.2",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "cargo-fuzz",
       "bins": [
         "cargo-fuzz"
       ],
@@ -240,9 +200,7 @@
       "artifacts": {}
     },
     "node": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "node@latest",
       "version": "26.13.0",
       "route": "archive",
       "bins": [
@@ -272,39 +230,37 @@
       }
     },
     "harper-cli": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:Automattic/harper@latest",
       "version": "3.0.0",
       "route": "bin-sourced",
       "bins": [
         "harper-cli"
       ],
       "env": {},
-      "options": {},
+      "options": {
+        "asset": "harper-cli-*"
+      },
       "artifacts": {
         "linux-arm64": {
           "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
           "sha256": "5b583c04ffcbda2abfaee3ac13c7f0e2d64f71899aff27adfe293a1194b460f7"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "5b583c04ffcbda2abfaee3ac13c7f0e2d64f71899aff27adfe293a1194b460f7"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "9a29e026662b219f31987101f0fdcaab7895804f6686bfe18fc6357dfff64e55"
         },
         "linux-x64": {
           "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
           "sha256": "d136a76d75cfc95d778da1aedc36958faa90cf47f43801f4cbfc7b8323d5404a"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "d136a76d75cfc95d778da1aedc36958faa90cf47f43801f4cbfc7b8323d5404a"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "fb15a5a2deed78ea68c02ef048b80680a7cd770cde1712bedfb42207410ac53a"
         }
       }
     },
     "dprint": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:dprint/dprint@latest",
       "version": "0.64.3",
       "route": "bin-sourced",
       "bins": [
@@ -332,9 +288,7 @@
       }
     },
     "uv": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:astral-sh/uv@latest",
       "version": "0.13.6",
       "route": "archive",
       "bins": [
@@ -363,9 +317,7 @@
       }
     },
     "hyperfine": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:sharkdp/hyperfine@latest",
       "version": "2.0.0",
       "route": "bin-sourced",
       "bins": [
@@ -379,8 +331,8 @@
           "sha256": "f8244d1e17f8da23ee6b3ae2cdc04a6a185a450f6b74e09bff12e498038fcbc9"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "f8244d1e17f8da23ee6b3ae2cdc04a6a185a450f6b74e09bff12e498038fcbc9"
+          "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "f0591c2cb8f66f2d2624d23979cf96dc99a67cb935f9925c82b9a4e3ffe5b2e1"
         },
         "linux-x64": {
           "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-x86_64-unknown-linux-gnu.tar.gz",
@@ -393,9 +345,7 @@
       }
     },
     "caddy": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:caddyserver/caddy@latest",
       "version": "2.11.7",
       "route": "bin-sourced",
       "bins": [
@@ -423,9 +373,7 @@
       }
     },
     "watchexec": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:watchexec/watchexec@latest",
       "version": "2.8.0",
       "route": "bin-sourced",
       "bins": [
@@ -453,9 +401,7 @@
       }
     },
     "sops": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:getsops/sops@latest",
       "version": "3.13.3",
       "route": "bin-sourced",
       "bins": [
@@ -483,9 +429,7 @@
       }
     },
     "age": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:FiloSottile/age@latest",
       "version": "1.3.2",
       "route": "archive",
       "bins": [
@@ -519,9 +463,7 @@
       }
     },
     "rust": {
-      "request": {
-        "channel": "nightly"
-      },
+      "request": "rust@nightly",
       "version": "nightly-2026-10-31",
       "route": "rustup-toolchain",
       "manager": "rustup",
@@ -557,9 +499,7 @@
       "artifacts": {}
     },
     "cargo-binstall": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:cargo-bins/cargo-binstall@latest",
       "version": "1.26.1",
       "route": "bin-sourced",
       "bins": [
@@ -587,13 +527,9 @@
       }
     },
     "cargo:timeout-cli": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:timeout-cli@latest",
       "version": "0.1.0",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "timeout-cli",
       "bins": [
         "timeout"
       ],
@@ -602,13 +538,9 @@
       "artifacts": {}
     },
     "cargo:cargo-dylint": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:cargo-dylint@latest",
       "version": "6.3.2",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "cargo-dylint",
       "bins": [
         "cargo-dylint"
       ],
@@ -617,13 +549,9 @@
       "artifacts": {}
     },
     "cargo:dylint-link": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:dylint-link@latest",
       "version": "6.3.2",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "dylint-link",
       "bins": [
         "dylint-link"
       ],
@@ -632,13 +560,9 @@
       "artifacts": {}
     },
     "cargo:cargo-nextest": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:cargo-nextest@latest",
       "version": "0.9.150",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "cargo-nextest",
       "bins": [
         "cargo-nextest"
       ],
@@ -647,13 +571,9 @@
       "artifacts": {}
     },
     "cargo:cargo-about": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:cargo-about@latest",
       "version": "0.9.3",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "cargo-about",
       "bins": [
         "cargo-about"
       ],
@@ -662,13 +582,9 @@
       "artifacts": {}
     },
     "cargo:monochromatic-lint": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:monochromatic-lint@latest",
       "version": "0.4.0",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "monochromatic-lint",
       "bins": [
         "monochromatic-lint"
       ],
@@ -677,13 +593,9 @@
       "artifacts": {}
     },
     "cargo:monochromatic-git-policy-cli": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:monochromatic-git-policy-cli@latest",
       "version": "0.4.4",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "monochromatic-git-policy-cli",
       "bins": [
         "cli-git-native"
       ],
@@ -704,13 +616,9 @@
       "artifacts": {}
     },
     "cargo:monochromatic-search-shadow": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:monochromatic-search-shadow@latest",
       "version": "0.2.0",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "monochromatic-search-shadow",
       "bins": [
         "search-shadow"
       ],
@@ -732,14 +640,10 @@
       },
       "artifacts": {}
     },
-    "cargo:monochromatic-mpm-shadow": {
-      "request": {
-        "track": "latest"
-      },
-      "version": "0.1.1",
-      "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "monochromatic-mpm-shadow",
+    "mpm-shadow": {
+      "request": "github:Aquaticats/Monochromatic@monochromatic-mpm-shadow-v0.2.0",
+      "version": "0.2.0",
+      "route": "archive",
       "bins": [
         "mpm-shadow"
       ],
@@ -757,16 +661,43 @@
           }
         }
       },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "f353b52336c8e7c88f79cb91705cc6194c1a803d5edc0ec0855e40f940b6780c"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "f353b52336c8e7c88f79cb91705cc6194c1a803d5edc0ec0855e40f940b6780c"
+        },
+        "linux-x64": {
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "0d278802c31126c54511a5d02eb0465b629b63492e6941bda5851c2509d5c9ed"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "0d278802c31126c54511a5d02eb0465b629b63492e6941bda5851c2509d5c9ed"
+        }
+      }
+    },
+    "cargo:monochromatic-file-enforcer-cli": {
+      "request": "cargo:monochromatic-file-enforcer-cli@latest",
+      "version": "0.1.1",
+      "route": "cargo-binstall",
+      "bins": [
+        "file-enforcer"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {},
       "artifacts": {}
     },
     "cargo:monochromatic-nested-wayland-session": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:monochromatic-nested-wayland-session@latest",
       "version": "0.6.2",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "monochromatic-nested-wayland-session",
       "bins": [
         "monochromatic-nested-wayland-session"
       ],
@@ -775,9 +706,7 @@
       "artifacts": {}
     },
     "cmake": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:Kitware/CMake@latest",
       "version": "4.4.5",
       "route": "archive",
       "bins": [
@@ -809,13 +738,9 @@
       }
     },
     "cargo:apple-codesign": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:apple-codesign@latest",
       "version": "0.29.0",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "apple-codesign",
       "bins": [
         "rcodesign"
       ],
@@ -824,9 +749,7 @@
       "artifacts": {}
     },
     "zig": {
-      "request": {
-        "pinned": "0.15.2"
-      },
+      "request": "zig@0.15.2",
       "version": "0.15.2",
       "route": "archive",
       "bins": [
@@ -854,13 +777,9 @@
       }
     },
     "cargo:slint-lsp": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:slint-lsp@latest",
       "version": "1.18.1",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "slint-lsp",
       "bins": [
         "slint-lsp"
       ],
@@ -869,13 +788,9 @@
       "artifacts": {}
     },
     "cargo:slint-viewer": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:slint-viewer@latest",
       "version": "1.18.1",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "slint-viewer",
       "bins": [
         "slint-viewer"
       ],
@@ -884,13 +799,9 @@
       "artifacts": {}
     },
     "conda:bubblewrap": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "conda:bubblewrap@latest",
       "version": "0.13.1",
       "route": "archive",
-      "manager": "conda",
-      "packageId": "bubblewrap",
       "bins": [
         "bwrap"
       ],
@@ -919,9 +830,7 @@
       }
     },
     "taplo": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:tamasfe/taplo@latest",
       "version": "0.10.0",
       "route": "archive",
       "bins": [
@@ -954,16 +863,16 @@
       }
     },
     "tombi": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:tombi-toml/tombi@latest",
       "version": "1.9.8",
       "route": "bin-sourced",
       "bins": [
         "tombi"
       ],
       "env": {},
-      "options": {},
+      "options": {
+        "asset": "tombi-cli-*"
+      },
       "artifacts": {
         "linux-arm64": {
           "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz",
@@ -984,9 +893,7 @@
       }
     },
     "marksman": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:artempyanykh/marksman@latest",
       "version": "2026-02-08",
       "route": "bin-sourced",
       "bins": [
@@ -1000,23 +907,21 @@
           "sha256": "db8e124527f7f8048e3e6c91821b9c52ef173d92c01e47d221bf1337afd962fb"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-arm64",
-          "sha256": "db8e124527f7f8048e3e6c91821b9c52ef173d92c01e47d221bf1337afd962fb"
+          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-musl-arm64",
+          "sha256": "cd3b91b630042cc09b20505583203f875fbb4bf2fdf74dd6d87fddc3238d2798"
         },
         "linux-x64": {
           "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-x64",
           "sha256": "be5098e8213219269c47fc0d916a66fa31ce0602ec967475c722260aabf26087"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-x64",
-          "sha256": "be5098e8213219269c47fc0d916a66fa31ce0602ec967475c722260aabf26087"
+          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-musl-x64",
+          "sha256": "d33df4544bb1f9f1b93b862ea78375ca8c04cd467ed2bcee354d605fc483ceee"
         }
       }
     },
     "rumdl": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:rvben/rumdl@latest",
       "version": "0.3.2",
       "route": "bin-sourced",
       "bins": [
@@ -1044,9 +949,7 @@
       }
     },
     "github:Feel-ix-343/markdown-oxide": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:Feel-ix-343/markdown-oxide@latest",
       "version": "0.25.12",
       "route": "bin-sourced",
       "bins": [
@@ -1074,9 +977,7 @@
       }
     },
     "zizmor": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:zizmorcore/zizmor@latest",
       "version": "1.31.1",
       "route": "bin-sourced",
       "bins": [
@@ -1104,13 +1005,9 @@
       }
     },
     "npm:yaml-language-server": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:yaml-language-server@latest",
       "version": "2.0.0",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "yaml-language-server",
       "bins": [
         "yaml-language-server"
       ],
@@ -1119,13 +1016,9 @@
       "artifacts": {}
     },
     "npm:@actions/languageserver": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:@actions/languageserver@latest",
       "version": "0.3.61",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "@actions/languageserver",
       "bins": [
         "actions-languageserver"
       ],
@@ -1134,13 +1027,9 @@
       "artifacts": {}
     },
     "npm:@ansible/ansible-language-server": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:@ansible/ansible-language-server@latest",
       "version": "26.6.0",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "@ansible/ansible-language-server",
       "bins": [
         "ansible-language-server"
       ],
@@ -1149,13 +1038,9 @@
       "artifacts": {}
     },
     "npm:vscode-langservers-extracted": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:vscode-langservers-extracted@latest",
       "version": "4.10.0",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "vscode-langservers-extracted",
       "bins": [
         "vscode-css-language-server",
         "vscode-eslint-language-server",
@@ -1168,9 +1053,7 @@
       "artifacts": {}
     },
     "superhtml": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:kristoff-it/superhtml@latest",
       "version": "0.7.1",
       "route": "bin-sourced",
       "bins": [
@@ -1198,13 +1081,9 @@
       }
     },
     "npm:bash-language-server": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:bash-language-server@latest",
       "version": "5.8.1",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "bash-language-server",
       "bins": [
         "bash-language-server"
       ],
@@ -1213,13 +1092,9 @@
       "artifacts": {}
     },
     "npm:dockerfile-language-server-nodejs": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:dockerfile-language-server-nodejs@latest",
       "version": "0.15.0",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "dockerfile-language-server-nodejs",
       "bins": [
         "docker-langserver"
       ],
@@ -1228,13 +1103,9 @@
       "artifacts": {}
     },
     "npm:@microsoft/compose-language-service": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:@microsoft/compose-language-service@latest",
       "version": "1.0.0",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "@microsoft/compose-language-service",
       "bins": [
         "docker-compose-langserver"
       ],
@@ -1243,9 +1114,7 @@
       "artifacts": {}
     },
     "github:docker/docker-language-server": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:docker/docker-language-server@latest",
       "version": "0.20.1",
       "route": "bin-sourced",
       "bins": [
@@ -1273,9 +1142,7 @@
       }
     },
     "llama.cpp": {
-      "request": {
-        "pinned": "b9829"
-      },
+      "request": "github:ggml-org/llama.cpp@b9829",
       "version": "b9829",
       "route": "archive",
       "bins": [
@@ -1325,9 +1192,7 @@
       }
     },
     "opentofu": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:opentofu/opentofu@latest",
       "version": "1.13.2",
       "route": "bin-sourced",
       "bins": [
@@ -1355,9 +1220,7 @@
       }
     },
     "hcloud": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:hetznercloud/cli@latest",
       "version": "1.70.2",
       "route": "bin-sourced",
       "bins": [
@@ -1385,13 +1248,9 @@
       }
     },
     "npm:typescript-language-server": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:typescript-language-server@latest",
       "version": "6.0.2",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "typescript-language-server",
       "bins": [
         "typescript-language-server"
       ],
@@ -1400,13 +1259,9 @@
       "artifacts": {}
     },
     "cargo:coreutils": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:coreutils@latest",
       "version": "0.12.0",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "coreutils",
       "bins": [
         "coreutils"
       ],
@@ -1419,13 +1274,9 @@
       "artifacts": {}
     },
     "npm:socket": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:socket@latest",
       "version": "1.12.2",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "socket",
       "bins": [
         "socket",
         "socket-npm",
@@ -1438,13 +1289,9 @@
       "artifacts": {}
     },
     "npm:wrangler": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:wrangler@latest",
       "version": "4.156.0",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "wrangler",
       "bins": [
         "cf-wrangler",
         "wrangler",
@@ -1455,13 +1302,9 @@
       "artifacts": {}
     },
     "npm:pagefind": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "npm:pagefind@latest",
       "version": "1.5.2",
       "route": "mpm-pnpm",
-      "manager": "pnpm",
-      "packageId": "pagefind",
       "bins": [
         "pagefind"
       ],
@@ -1470,9 +1313,7 @@
       "artifacts": {}
     },
     "betterleaks": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "github:betterleaks/betterleaks@latest",
       "version": "1.9.0",
       "route": "bin-sourced",
       "bins": [
@@ -1500,9 +1341,7 @@
       }
     },
     "java": {
-      "request": {
-        "channel": "temurin-21"
-      },
+      "request": "java:temurin@21",
       "version": "temurin-21.0.13+9.0.LTS",
       "route": "archive",
       "bins": [
@@ -1560,9 +1399,7 @@
       }
     },
     "android-sdk": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "android-sdk@latest",
       "version": "23.0",
       "route": "android-sdk",
       "bins": [
@@ -1616,13 +1453,9 @@
       }
     },
     "cargo:cargo-ndk": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "cargo:cargo-ndk@latest",
       "version": "4.1.2",
       "route": "cargo-binstall",
-      "manager": "cargo",
-      "packageId": "cargo-ndk",
       "bins": [
         "cargo-ndk",
         "cargo-ndk-env",
@@ -1634,13 +1467,9 @@
       "artifacts": {}
     },
     "pipx:slopo": {
-      "request": {
-        "track": "latest"
-      },
+      "request": "pipx:slopo@latest",
       "version": "0.9.0",
       "route": "mpm-uvx",
-      "manager": "uvx",
-      "packageId": "slopo",
       "bins": [
         "slopo"
       ],
@@ -1648,5 +1477,6 @@
       "options": {},
       "artifacts": {}
     }
-  }
+  },
+  "digest": "sha256:9c375a1e34c55edd1017eb7a7f7b2fffa94264056702d180358a18c35c211332"
 }
