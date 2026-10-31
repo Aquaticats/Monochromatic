@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-mpm-shadow"
-version = "0.1.1"
+version = "0.2.0"
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/mpm-shadow/cli"
