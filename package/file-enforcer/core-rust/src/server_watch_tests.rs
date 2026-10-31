@@ -100,20 +100,25 @@ impl WatchClient {
 
     /// Wait up to `seconds` for an event with `code`, returning it; earlier events are skipped.
     fn wait_for(&self, code: &str, seconds: u64) -> Event {
-        return self.try_wait_for(code, Duration::from_secs(seconds)).unwrap_or_else(|| panic!("no {code} event within {seconds} seconds"));
+        return match self.try_wait_for(code, Duration::from_secs(seconds)) {
+            Ok(event) => event,
+            Err(skipped) => panic!("no {code} event within {seconds} seconds; saw {skipped:?}"),
+        };
     }
 
-    /// Like `wait_for` but returns `None` on timeout.
-    fn try_wait_for(&self, code: &str, limit: Duration) -> Option<Event> {
+    /// Like `wait_for` but returns the messages of the events skipped on timeout.
+    fn try_wait_for(&self, code: &str, limit: Duration) -> Result<Event, Vec<String>> {
         let deadline = Instant::now() + limit;
+        let mut skipped: Vec<String> = Vec::new();
         while Instant::now() < deadline {
-            if let Ok(event) = self.events.recv_timeout(Duration::from_millis(100))
-                && event.code == code
-            {
-                return Some(event);
+            if let Ok(event) = self.events.recv_timeout(Duration::from_millis(100)) {
+                if event.code == code {
+                    return Ok(event);
+                }
+                skipped.push(format!("{}: {}", event.code, event.message));
             }
         }
-        return None;
+        return Err(skipped);
     }
 
     /// Wait for the request to return after the server was asked to stop, and join its thread.
@@ -124,6 +129,31 @@ impl WatchClient {
         }
         return code;
     }
+}
+
+/// What:
+///  Run `action` again and again until an event with `code` arrives or twenty seconds pass.
+///  `impl FnMut(usize)` is any closure that takes the attempt number and may change what it captured
+///  (TS: a callback `(attempt: number) => void`).
+/// Why:
+///  A file-system change made before the watcher has registered the path is lost, and nothing on the event stream
+///  says when registration finished, so the test repeats the change instead of sleeping a fixed time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function retryUntil(watch: WatchClient, code: string, action: (attempt: number) => void): boolean
+/// ```
+fn retry_until(watch: &WatchClient, code: &str, mut action: impl FnMut(usize)) -> bool {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut attempt = 0;
+    while Instant::now() < deadline {
+        attempt += 1;
+        action(attempt);
+        if watch.try_wait_for(code, Duration::from_millis(1500)).is_ok() {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -143,26 +173,29 @@ fn stop(server: TestServer) {
 fn watch_notices_an_absent_directory_being_created_and_then_a_file_inside_it() {
     let runtime = short_runtime_dir();
     let dir = scratch_dir();
-    let config = dir.path().join("file-enforcer.config.jsonc");
+    // The config lives outside the worktree so that the worktree root is watched only because the absent
+    // input's nearest existing ancestor is the root; otherwise the config's own directory would hide a bug there.
+    let config_home = scratch_dir();
+    let config = config_home.path().join("file-enforcer.config.jsonc");
     let text = r#"{"rules": [{"kind": "concat", "id": "c", "output": "out.txt", "parts": [{"file": "later/in.txt"}]}]}"#;
-    write_files(dir.path(), &[("file-enforcer.config.jsonc", text)]);
+    write_files(config_home.path(), &[("file-enforcer.config.jsonc", text)]);
     let server = TestServer::start(dir.path(), runtime.path(), Duration::from_secs(60));
     let watch = WatchClient::start(&server.client(), &config);
     watch.wait_for("watch-started", 10);
     watch.wait_for("input-missing", 10);
-    // Creating the absent directory is a change to the nearest existing ancestor (the worktree root).
+    // The worktree root is watched only after the first run finishes, so a change made right now can be missed;
+    // touching an unrelated file until another run happens proves the root is watched before the real step.
+    let root_watched = retry_until(&watch, "input-missing", |attempt| {
+        std::fs::write(dir.path().join("probe.txt"), format!("probe {attempt}")).expect("touch an unrelated file");
+    });
+    assert!(root_watched, "the worktree root was never watched: it is the nearest existing ancestor of the absent input");
+    // Creating the absent directory is a change to that ancestor, which the watch must notice.
     std::fs::create_dir_all(dir.path().join("later")).expect("create the absent directory");
     watch.wait_for("input-missing", 10);
-    // The new directory is watched only after the next loop pass, so a write made too early is missed;
-    // rewriting the file until the output appears keeps the test free of a fixed sleep.
-    let deadline = Instant::now() + Duration::from_secs(20);
-    let mut written = false;
-    let mut attempt = 0;
-    while !written && Instant::now() < deadline {
-        attempt += 1;
+    // The new directory is watched only after the next loop pass, so a write made too early is missed.
+    let written = retry_until(&watch, "file-written", |attempt| {
         std::fs::write(dir.path().join("later/in.txt"), format!("created {attempt}")).expect("write the input");
-        written = watch.try_wait_for("file-written", Duration::from_millis(1500)).is_some();
-    }
+    });
     assert!(written, "the file created inside the new directory was never noticed");
     assert!(read_text(dir.path(), "out.txt").starts_with("created "), "{}", read_text(dir.path(), "out.txt"));
     stop(server);
@@ -184,7 +217,7 @@ fn watch_on_the_per_user_server_follows_the_user_config() {
     let mut seen: Option<Event> = None;
     while seen.is_none() && Instant::now() < deadline {
         std::fs::write(&config, misplaced).expect("rewrite the user config");
-        seen = watch.try_wait_for("config-invalid", Duration::from_millis(1500));
+        seen = watch.try_wait_for("config-invalid", Duration::from_millis(1500)).ok();
     }
     let event = seen.expect("changing the per-user config was never noticed");
     assert!(event.message.contains("belongs in the repository config, not the per-user config"), "{}", event.message);
