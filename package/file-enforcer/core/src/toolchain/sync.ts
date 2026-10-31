@@ -53,10 +53,12 @@ import {
   appliesToHost,
   syncOrder,
 } from './sync.order.ts';
+import { observeTool, } from './status.ts';
+import { versionMatches, } from './version.ts';
 import {
-  observeTool,
-  versionMatches,
-} from './status.ts';
+  keptNewerWarning,
+  lockOutcome,
+} from './lock.outcome.ts';
 import type {
   ToolPlanEntry,
   ToolRoute,
@@ -72,6 +74,11 @@ export type SyncReport = {
    Tool ids that were already at their locked version.
    */
   readonly unchanged: readonly string[];
+  /**
+   Repository-published tool ids kept at an installed version newer than the lock instead of downgraded; each is also
+   listed in `unchanged`, because the sync counts it as satisfied.
+   */
+  readonly keptNewer: readonly string[];
   /**
    Tool ids installed or converged in this run.
    */
@@ -107,7 +114,8 @@ const INSTALLERS: Readonly<Record<ToolRoute, (context: ProviderContext,) => Prom
 
  Trees whose locks pin different versions of one tool share one install
  (the `cargo binstall` record under `~/.cargo`), so installing the locked
- version here changes the tool for every tree that shares it.
+ version here changes the tool for every tree that shares it. A repository-published tool installed newer than the
+ lock never reaches this warning: `lockOutcome` keeps it and `keptNewerWarning` speaks instead.
 
  @param id - Plan entry id the warning names
 
@@ -119,8 +127,8 @@ const INSTALLERS: Readonly<Record<ToolRoute, (context: ProviderContext,) => Prom
 
  @example
  ```ts
- replacementWarning({ id: 'cargo:monochromatic-lint', observed: '0.4.0', locked: '0.3.0', },);
- // ['cargo:monochromatic-lint is installed at 0.4.0 but this tree\'s lock pins 0.3.0; ...']
+ replacementWarning({ id: 'cargo:cargo-nextest', observed: '0.9.1', locked: '0.9.0', },);
+ // ['cargo:cargo-nextest is installed at 0.4.0 but this tree\'s lock pins 0.3.0; ...']
  ```
  */
 export function replacementWarning(
@@ -146,10 +154,17 @@ export function replacementWarning(
 }
 
 /**
- Whether one entry already sits at its locked version.
+ What the sync does with one entry: `satisfied` when it sits at its locked version, `kept-newer` when it is a
+ repository-published tool installed newer than the lock, `install` otherwise.
+ */
+type EntryAction = 'satisfied' | 'kept-newer' | 'install';
+
+/**
+ Decides what the sync does with one entry from its installed version.
 
  A probe that cannot run (its own staging prerequisite missing) reads as absent, and the install converges it.
- An installed version that differs from the lock logs a warning, because the install that follows replaces it.
+ An installed version that differs from the lock logs a warning: the install that follows replaces it, except for a
+ repository-published tool installed newer than the lock, which stays so the sync never installs an older one.
 
  @param entry - Plan entry to probe
 
@@ -159,9 +174,9 @@ export function replacementWarning(
 
  @param tools - Plan the probe resolves sibling tools against
 
- @returns `true` when the observed version matches the lock
+ @returns The action the sync takes for the entry
  */
-async function isAtLockedVersion(
+async function entryAction(
   {
     entry,
     paths,
@@ -173,12 +188,12 @@ async function isAtLockedVersion(
     readonly env: PathEnv;
     readonly tools: readonly ToolPlanEntry[];
   },
-): Promise<boolean> {
+): Promise<EntryAction> {
   /**
    Logger tagged with this probe.
    */
   const log = tagged({
-    tag: isAtLockedVersion.name,
+    tag: entryAction.name,
     l,
   },);
   try {
@@ -191,20 +206,35 @@ async function isAtLockedVersion(
       env,
       tools,
     },);
+    /**
+     What the observed version means for this entry.
+     */
+    const outcome = lockOutcome({
+      entry,
+      observed: (observed === NOT_INSTALLED)
+        ? undefined
+        : observed,
+    },);
+    if ((outcome === 'kept-newer') && (observed !== NOT_INSTALLED)) {
+      log.warn(keptNewerWarning({
+        id: entry.id,
+        observed,
+        locked: entry.version,
+      },),);
+      return 'kept-newer';
+    }
     for (const warning of replacementWarning({
       id: entry.id,
       observed,
       locked: entry.version,
     },))
       log.warn(warning,);
-    return (observed !== NOT_INSTALLED)
-      && versionMatches({
-        observed,
-        locked: entry.version,
-      },);
+    return (outcome === 'at-lock')
+      ? 'satisfied'
+      : 'install';
   } catch (error) {
     log.debug(`${entry.id} could not be probed, installing it: ${caughtValueText(error,)}`,);
-    return false;
+    return 'install';
   }
 }
 
@@ -298,6 +328,10 @@ export async function syncToolchain(
    */
   const unchanged: string[] = [];
   /**
+   Repository-published tool ids kept at a newer installed version.
+   */
+  const keptNewer: string[] = [];
+  /**
    Installed or converged tool ids.
    */
   const installed: string[] = [];
@@ -308,12 +342,18 @@ export async function syncToolchain(
 
   for (const entry of entries) {
     // oxlint-disable-next-line no-await-in-loop -- staging order makes later probes depend on earlier installs
-    if (await isAtLockedVersion({
+    /**
+     Action this entry needs.
+     */
+    const action = await entryAction({
       entry,
       paths,
       env: e,
       tools,
-    },)) {
+    },);
+    if (action === 'kept-newer')
+      keptNewer.push(entry.id,);
+    if (action !== 'install') {
       unchanged.push(entry.id,);
       continue;
     }
@@ -366,6 +406,7 @@ export async function syncToolchain(
 
   return {
     unchanged,
+    keptNewer,
     installed,
     failed,
     missingBins: await unresolvableBins({
@@ -434,7 +475,13 @@ export async function main(): Promise<void> {
     } installed, ${
       report.unchanged
         .length
-    } unchanged, ${
+    } unchanged${
+      (report.keptNewer
+        .length
+        > 0)
+        ? ` (${report.keptNewer.length} kept at a newer installed version)`
+        : ''
+    }, ${
       Object.keys(report.failed,)
         .length
     } failed\n`,
