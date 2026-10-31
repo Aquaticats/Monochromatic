@@ -18,6 +18,24 @@ and shadows `mpm` ([Meta Package Manager](https://mpm.run)).
   deletes the superseded cached versions of this repository's own crates from cargo's registry,
   and exits with mpm's own status.
 
+## Design rule: pnpm answers first
+
+Where pnpm's behaviour answers a toolchain question
+(the plan,
+the lock,
+`update`,
+`install`,
+`sync`,
+or what happens in CI and when frozen),
+mpm-shadow follows it,
+and the change is recorded,
+even when it overrides an earlier decision line.
+Only what pnpm leaves open goes to the owner.
+The user's words:
+"Please go with pnpm style instead of blocking questions that can be resolved by it on me."
+The decisions themselves are in `doc/decision/file-enforcer-rust-rewrite.md`,
+section "Toolchain (mpm-shadow)".
+
 ## Toolchain plan and lock
 
 People edit `toolchain.plan.jsonc` (JSONC:
@@ -341,9 +359,11 @@ except where a musl platform now gets the musl build the release offers):
   A brand-new downloaded tool is just a new plan entry:
   every origin has a resolver,
   and none reads the previous lock.
-- `mpm-shadow sync`:
-  installs every locked tool that is not at its locked version,
-  then makes the postinstall links,
+- `mpm-shadow sync [--frozen-lock | --no-frozen-lock]`:
+  first resolves the plan entries the lock lacks or holds for an older request
+  (see "Syncing a plan that is ahead of the lock"),
+  then installs every locked tool that is not at its locked version,
+  makes the postinstall links,
   rebuilds the exposure directory and runs the postinstall commands.
 - `mpm-shadow status`:
   compares the installed tools with the lock.
@@ -360,8 +380,10 @@ except where a musl platform now gets the musl build the release offers):
   and `bins` as JSON for the IDE launcher.
   It reads only the plan and the file system.
 
-`sync` and `status` refuse when the plan and lock disagree,
-and name `mpm-shadow lock` or `mpm-shadow update`.
+`status` refuses when the plan and lock disagree,
+and names `mpm-shadow lock` or `mpm-shadow update <ids>`;
+`sync` does the same when frozen or when only an offline fix is needed,
+and otherwise locks the new entries itself.
 
 ### Updating named tools
 
@@ -417,11 +439,73 @@ the way `pnpm install` after adding one dependency resolves only that dependency
   `update` never installs anything with `--check`,
   and otherwise installs only to retry a failed npm or PyPI lookup,
   so it already behaves as `--lockfile-only` does.
-- `lock` stays offline and `sync` stays an installer that refuses when the plan and lock disagree.
-  They do not resolve a new entry on their own,
-  because a lookup needs the network and `sync` is what CI runs against a committed lock
-  (pnpm's `install` is frozen in CI for the same reason);
-  their refusals name `mpm-shadow update <id>` for exactly the tools that need it.
+- `lock` stays offline.
+  `sync` resolves a plan that is ahead of the lock,
+  as the next section says.
+
+### Syncing a plan that is ahead of the lock
+
+`mpm-shadow sync` mirrors `pnpm install` after a dependency was added to `package.json`:
+the entries the lock cannot hold as they are
+(the same set the named `update` refuses to leave out:
+no lock row,
+or an edit of `request`,
+`route`,
+`manager`,
+`packageId`,
+`os`,
+`options.asset`
+or `options.bootstrap`)
+are resolved,
+only their rows are written to the lock,
+and then the install runs.
+No other row moves,
+exactly as with `mpm-shadow update <those ids>`,
+and the report prints `toolchain sync: locked <id> <version> ...` for each.
+
+- **Frozen:** with `--frozen-lock`,
+  or when a CI environment is detected,
+  `sync` resolves nothing:
+  it refuses as before,
+  names `mpm-shadow update <ids>` for exactly those entries,
+  and says why it did not resolve.
+  pnpm's `--frozen-lockfile` is "true by default in CI environments"
+  and "pnpm detects a CI environment with the same rules as the ci-info package.
+  Set `CI=false` to turn detection off"
+  (https://pnpm.io/cli/install).
+  mpm-shadow ports those rules (`src/toolchain/ci_detect.rs`):
+  `CI=false` means not CI,
+  otherwise `CI`,
+  `BUILD_ID`,
+  `BUILD_NUMBER`,
+  `CI_APP_ID`,
+  `CI_BUILD_ID`,
+  `CI_BUILD_NUMBER`,
+  `CI_NAME`,
+  `CONTINUOUS_INTEGRATION`,
+  `RUN_ID`,
+  or a CI vendor's own variable (for example `GITHUB_ACTIONS`) means CI.
+- **`--no-frozen-lock`:**
+  resolves even in CI,
+  like pnpm's `--no-frozen-lockfile`.
+  The two switches cannot be combined.
+- **A lock that does not exist** is never created by `sync`
+  (pnpm in CI also resolves when there is no lockfile;
+  here `update` is the one command that creates the lock from nothing),
+  and the refusal names `mpm-shadow update`.
+- **A failed lookup** stops `sync` before anything is written or installed,
+  naming the entry and the URL.
+- **Unchanged refusals:**
+  a plan that differs from the lock only in what `lock` fixes offline
+  (`bins`,
+  `env`,
+  the install options,
+  a removed entry,
+  the order)
+  is refused naming `mpm-shadow lock`,
+  and a lock whose digest does not match is refused naming the restore,
+  under either policy.
+  `status` never resolves and never writes.
 
 ## How it installs
 
