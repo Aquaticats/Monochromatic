@@ -279,7 +279,10 @@ pub fn prune_toolchain(
             let crate_dir: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(crate_name);
             let remaining: bool = after.get(crate_name).is_some_and(|versions| return !versions.is_empty());
             if remaining {
-                point_current_at_newest(&scope.toolchain_root, crate_name)?;
+                // Only a crate this repository publishes has a `current` link; a third-party crate is never given one.
+                if crate_name.starts_with(OWN_CRATE_PREFIX) {
+                    point_current_at_newest(&scope.toolchain_root, crate_name)?;
+                }
             } else if let Err(error) = fs::remove_dir_all(&crate_dir) {
                 return Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display())));
             }

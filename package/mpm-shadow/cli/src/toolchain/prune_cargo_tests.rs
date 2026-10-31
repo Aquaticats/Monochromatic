@@ -133,6 +133,7 @@ fn the_command_keeps_every_version_a_listed_worktree_names_and_removes_the_rest(
     assert!(!root.join("cargo").join("cargo-nextest").exists(), "a crate no lock names goes with its directory");
     assert!(!version_directory(&root, "monochromatic-lint", "0.4.0").exists(), "only the newest repository version stays");
     assert_eq!(running_version(&root, "monochromatic-lint").as_deref(), Some("0.4.4"));
+    assert!(!current_link(&root, "fd-find").exists(), "a third-party crate never gets a current link");
 }
 
 #[test]
