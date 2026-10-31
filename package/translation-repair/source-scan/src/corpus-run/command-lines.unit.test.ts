@@ -268,11 +268,85 @@ function invocationsOf({ runner, }: { readonly runner: string; },): readonly str
 }
 
 /**
+ The characters that end a shell command outside quotes: a pipe, an and, a
+ separator, and a redirection of output or input. The `&` of `&&` and `2>&1`
+ ends it too, since a control operator or a redirection stands there.
+ */
+const CONTROL_CHARACTERS: ReadonlySet<string> = new Set(['|', '&', ';', '>', '<',],);
+
+/**
+ What opens and closes a quoted argument, inside which a control character is
+ an argument's own.
+ */
+const QUOTES: ReadonlySet<string> = new Set(['\'', '"',],);
+
+/**
+ What escapes the next character outside single quotes.
+ */
+const ESCAPE = '\\';
+
+/**
+ Where a shell command typed in a doc ends: at the first control operator or
+ redirection outside quotes, so what follows is another command's arguments.
+ A control character inside single or double quotes, or escaped by a backslash
+ outside single quotes, is an argument's own. A quote left open runs to the
+ text's end.
+
+ One pass from the start, so the time is linear in the text.
+
+ @param typed - what a doc types after a runner, on one line
+
+ @returns Offset of the operator that ends the command, the text's length when
+ none does
+
+ @example
+ ```ts
+ invocationEnd({ typed: '-- --plan | rg --count', },); // 10
+ invocationEnd({ typed: '-- "a | b" --plan', },); // 17
+ ```
+ */
+function invocationEnd({ typed, }: { readonly typed: string; },): number {
+  /**
+   The quote the scan is inside, empty outside any.
+   */
+  let open = '';
+
+  /**
+   Where the scan stands.
+   */
+  let at = 0;
+  while (at < typed.length) {
+    /**
+     The character at the scan.
+     */
+    const character = typed.charAt(at,);
+    if (open === '\'') {
+      // Nothing escapes inside single quotes: only the closing quote counts.
+      if (character === open)
+        open = '';
+    } else if (character === ESCAPE)
+      // The escaped character is an argument's own, whatever it is.
+      at += 1;
+    else if (open === '"') {
+      if (character === open)
+        open = '';
+    } else if (QUOTES.has(character,))
+      open = character;
+    else if (CONTROL_CHARACTERS.has(character,))
+      return at;
+    at += 1;
+  }
+  return typed.length;
+}
+
+/**
  Every flag a doc's runner invocations write that the runner does not read.
 
  Each line is read for every runner's spellings; what follows one, up to the
- next backtick or the line's end, is what the doc types after the runner. An
- invocation broken across lines is read up to its first line's end.
+ next backtick or the line's end, and no further than the first shell control
+ operator or redirection outside quotes, is what the doc types after the
+ runner (ledger B1122). An invocation broken across lines is read up to its
+ first line's end.
 
  @param path - doc path, which names each finding
 
@@ -328,12 +402,20 @@ function undeclaredFlagsIn(
              Where the code span closes, absent when it runs to the line's end.
              */
             const closes = after.indexOf('`',);
+
+            /**
+             What the code span holds after the runner, or the line's rest.
+             */
+            const span = (closes === (-1)) ? after : after.slice(
+              0,
+              closes,
+            );
             return {
               where: `${path}:${String(index + 1,)}`,
               runner,
-              typed: (closes === (-1)) ? after : after.slice(
+              typed: span.slice(
                 0,
-                closes,
+                invocationEnd({ typed: span, },),
               ),
             };
           },);
