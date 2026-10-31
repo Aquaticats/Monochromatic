@@ -424,7 +424,7 @@ and how to read the output back once it has exited.
 
 The semantic wrap of shipped text runs in the repository's pinned Rust linter,
 `monochromatic-lint`,
-which `mise run toolchain:sync` installs as a cargo tool from `toolchain.lock.json`.
+which `mise run toolchain:install` installs as a cargo tool from `toolchain.lock.json`.
 A pass started under `mise run` finds it on the PATH,
 in the tree's `.cache/toolchain-bin`;
 without it,

@@ -8,7 +8,7 @@
 # - Terminal (Ghostty via COPR)
 # - Dev tools (helix, strace, inotify-tools, etc.)
 # - mise (task runner in the user's ~/.local/bin; tool versions are provisioned
-#   per worktree by `mise run toolchain:sync`, never seeded into the image)
+#   per worktree by `mise run toolchain:install`, never seeded into the image)
 # - User account with passwordless sudo
 
 FROM ghcr.io/ublue-os/ucore-hci:stable

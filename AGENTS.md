@@ -771,7 +771,7 @@ CM6:
  nothing type-checks automatically.
 
 CM7:
- Provision tools with `mise run toolchain:sync`;
+ Provision tools with `mise run toolchain:install`;
  `toolchain.lock.json` pins every version,
  and ad-hoc installs or lock edits bypass the checked-in toolchain.
  Mise runs tasks;
@@ -873,10 +873,10 @@ CM2:
 WC2:
  file-enforcer manages root files (`CLAUDE.md`,
  ...) and package `Cargo.toml`:
- check `file-enforcer.config.ts` before editing or adding one;
+ check `file-enforcer.config.jsonc` before editing or adding one;
  if managed,
  edit its source,
- run it,
+ run `file-enforcer write`,
  commit output as-is.
 
 ### Simplification

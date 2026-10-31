@@ -4,7 +4,7 @@
 >  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
 >  Mise `[tools]` and `mise.lock`,
 >  so this record is historical for the Mise-era toolchain it investigated.
->  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
 >  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
 Diagnosed 2026-10-02 against `mise 2026.10.0 linux-x64 (2026-10-02)` on Bazzite 44 (glibc 2.43),

@@ -1,26 +1,15 @@
 /**
- Verbatim generated configuration used by disposable mise regression fixtures. @module
+ Verbatim root mise configuration used by disposable mise regression fixtures. @module
  */
 
 import { readFile, } from 'node:fs/promises';
 
 /**
- Generated configuration consumed by mise, not a reconstructed implementation.
+ Root configuration consumed by mise, not a reconstructed implementation.
  */
-export const generatedConfig: string = await readFile(
+export const rootConfig: string = await readFile(
   new URL(
     '../../../../mise.toml',
-    import.meta.url,
-  ),
-  'utf8',
-);
-
-/**
- Source owner used to detect stale generated task definitions.
- */
-export const canonicalConfig: string = await readFile(
-  new URL(
-    '../../../../mise.no-env.toml',
     import.meta.url,
   ),
   'utf8',
@@ -79,7 +68,7 @@ export type BuildAndTestResult = {
 /**
  Extract one required configuration span, failing if its boundary changes.
 
- @param start - unique opening text in generated configuration
+ @param start - unique opening text in the root configuration
 
  @param end - closing boundary excluded from the result
 
@@ -102,17 +91,17 @@ function configurationSpan({
   /**
    Offset of the exact task or variable definition.
    */
-  const startIndex = generatedConfig.indexOf(start,);
+  const startIndex = rootConfig.indexOf(start,);
   /**
    Closing boundary after the opening text, not inside it.
    */
-  const endIndex = generatedConfig.indexOf(
+  const endIndex = rootConfig.indexOf(
     end,
     startIndex + start.length,
   );
   if ((startIndex === (-1)) || (endIndex === (-1)))
     throw new Error(`Missing mise fixture configuration boundary: ${start} to ${end}`,);
-  return generatedConfig.slice(
+  return rootConfig.slice(
     startIndex,
     endIndex,
   );
@@ -121,7 +110,7 @@ function configurationSpan({
 /**
  Extract a root task together with its original interpreter and usage spec.
 
- @param name - task whose generated definition is exercised
+ @param name - task whose definition is exercised
 
  @returns original TOML task section
 

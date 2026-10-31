@@ -1,5 +1,5 @@
 # No [tools] here: the Rust toolchain (nightly + rust-src + llvm-tools-preview)
-# is managed repo-wide in the root mise.no-env.toml [tools], so every crate
+# is managed repo-wide in the root mise.toml [tools], so every crate
 # shares one channel. mise still applies that toolchain to tasks run in this
 # directory; cargo-fuzz needs the nightly it provides.
 

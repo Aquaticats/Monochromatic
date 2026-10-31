@@ -54,7 +54,7 @@ link whose real tool has gone, and reports what it linked, removed and skipped.
 Run it again after installing or removing a tool.
 
 In this repository it is installed through `mpm` by the toolchain plan (entry `cargo:monochromatic-search-shadow` in the plan
-data under `package/file-enforcer/core/src/toolchain/`): `mise run toolchain:sync` runs `cargo binstall` for the locked
+data under `package/file-enforcer/core/src/toolchain/`): `mise run toolchain:install` runs `cargo binstall` for the locked
 version, and the generated `mise.toml` puts `.cache/search-shadow-bin` first on PATH (its source is
 `file-enforcer.config.ts`), ahead of `.cache/toolchain-bin`, which holds the locked ripgrep.
 

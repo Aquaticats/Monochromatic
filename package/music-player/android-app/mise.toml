@@ -5,7 +5,7 @@
 #
 # The toolchain (JDK, Android SDK command-line tools, cargo-ndk) is provisioned
 # from the root mise manifest, not here, so the repo is self-contained from one
-# place (see the "Android toolchain" block in mise.no-env.toml). mise exports
+# place (see the "Android toolchain" block in mise.toml). mise exports
 # ANDROID_HOME / ANDROID_SDK_ROOT from the android-sdk tool, which Gradle and
 # cargo-ndk both read, so no machine-local local.properties is required. The SDK
 # *components* (platforms, build-tools, ndk, platform-tools) and the Android Rust
@@ -48,7 +48,7 @@ const runAndroidClippy = (cargoArgs) => {
 # Tools (java, android-sdk, cargo-ndk) are inherited from the root mise manifest;
 # this package declares no [tools] of its own. The one-time SDK-component install
 # is the root `prepare:android` task (the `prepare` umbrella auto-runs it). See
-# mise.no-env.toml.
+# mise.toml.
 
 [tasks."build:native"]
 description = "Cross-compile the native engine .so for both 64-bit ABIs (arm64-v8a for real devices, x86_64 for emulators; 16KB-aligned via the NDK 29 linker default, API 26 floor) into app/src/main/jniLibs. Derives and exports ANDROID_NDK_HOME from the mise-provisioned $ANDROID_HOME/ndk (run prepare:android once)."

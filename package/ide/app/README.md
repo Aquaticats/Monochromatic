@@ -1161,7 +1161,7 @@ an answer of another shape fails the lookup instead of being half-read.
 
 Node itself is found as `node` under the machine's toolchain root
 (`${XDG_DATA_HOME:-$HOME/.local/share}/monochromatic-dev/toolchain/bin`),
-where `mise run toolchain:sync` links the installed binaries,
+where `mise run toolchain:install` links the installed binaries,
 else `node` in the application's `PATH`;
 a leftover mise shim is never run.
 Without one the folder is not a toolchain project as far as the application can tell.
@@ -1170,7 +1170,7 @@ The answer is kept for the session.
 It is asked again only when it may have changed:
 two seconds or more after a failure,
 or two seconds or more after the last answer when a server of the file's language is missing
-(the user may have run `mise run toolchain:sync`).
+(the user may have run `mise run toolchain:install`).
 A folder the toolchain does not serve stays that way until the application restarts.
 The one run has a limit of 10 seconds (`TIME_LIMIT`),
 and it runs on the language thread,

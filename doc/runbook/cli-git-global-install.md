@@ -5,7 +5,7 @@
 Make `git` resolve to the Git policy wrapper in every repository on a machine you control,
 so commits outside this checkout get the policy checks and auto-push.
 The reasoning and the evidence are in `doc/planning/cli-git-global-install.md` (issue 1796).
-Inside this checkout `mise run toolchain:sync` installs the wrapper and links `git` into
+Inside this checkout `mise run toolchain:install` installs the wrapper and links `git` into
 `.cache/cli-git-bin`,
 and the generated `mise.toml` `[env]` puts the tool exposure directory
 (`.cache/toolchain-bin`) first on `PATH`.

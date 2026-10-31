@@ -101,7 +101,7 @@ pub enum RunFailure {
 /// What:
 ///  Find the node program that runs the toolchain's entry point:
 ///  `node` under the machine's toolchain root (`${XDG_DATA_HOME:-$HOME/.local/share}/monochromatic-dev/toolchain/bin`),
-///  where `mise run toolchain:sync` links the installed binaries,
+///  where `mise run toolchain:install` links the installed binaries,
 ///  else `node` in the application's `PATH`.
 ///  Only an absolute `PATH` entry counts,
 ///  and a shim of a retired tool manager is skipped:

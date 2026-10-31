@@ -6,7 +6,7 @@ failing a CI job that has Rust only from rustup
 >  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
 >  Mise `[tools]` and `mise.lock`,
 >  so this record is historical for the Mise-era toolchain it investigated.
->  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
 >  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
 ## Symptom
@@ -106,7 +106,7 @@ which would change the repository's toolchain pin.
 ## Verified workarounds
 
 Current toolchain:
- `mise run toolchain:sync` stages `bin`,
+ `mise run toolchain:install` stages `bin`,
  `uv`,
  `mpm`,
  `rust`,

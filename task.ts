@@ -332,32 +332,40 @@ await runTestFiles(files, [])
 //region Root tasks: toolchain, prepare, lint, npm and changeset bodies from mise.toml
 
 const tasks: Record<string, TaskDefinition> = {
-  'toolchain:sync': {
-    description: 'Converge every tool to the versions toolchain.lock.json records (lock-constrained installs, the pnpm-install model)',
-    run: 'node package/file-enforcer/core/src/toolchain/sync.ts',
+  'toolchain:install': {
+    description: 'Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI)',
+    run: 'mpm-shadow install',
   },
-  'toolchain:status': {
+  'toolchain:list': {
     description: 'Print observed versus locked tool versions and exit non-zero on drift',
-    run: 'node package/file-enforcer/core/src/toolchain/status.ts',
+    run: 'mpm-shadow list',
   },
   'toolchain:update': {
-    description: 'Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing',
-    run: 'node package/file-enforcer/core/src/toolchain/update.ts',
+    description: 'Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model)',
+    run: 'mpm-shadow update',
+  },
+  'toolchain:outdated': {
+    description: 'Report which tools toolchain:update would move, writing and installing nothing; exits non-zero when any would move',
+    run: 'mpm-shadow outdated',
+  },
+  'toolchain:lock:check': {
+    description: 'Offline gate: fail when toolchain.plan.jsonc and toolchain.lock.json disagree or the lock\'s digest does not match (CI, beside file-enforcer check)',
+    run: 'mpm-shadow install --lockfile-only --frozen-lockfile',
   },
   'bootstrap': {
-    description: 'Alias of toolchain:sync: converge every tool to the versions toolchain.lock.json records (runs on directory entry)',
-    run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:sync')", },
+    description: 'Alias of toolchain:install: converge every tool to the versions toolchain.lock.json records (runs on directory entry)',
+    run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:install')", },
   },
   'prepare:android': {
-    description: 'Alias of toolchain:sync: install the Android SDK components and rustup Android targets package/music-player/android-app needs (EXPENSIVE on a fresh machine, ~2.9 GB; idempotent once provisioned)',
-    run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:sync')", },
+    description: 'Alias of toolchain:install: install the Android SDK components and rustup Android targets package/music-player/android-app needs (EXPENSIVE on a fresh machine, ~2.9 GB; idempotent once provisioned)',
+    run: { shell: 'node --input-type=module-typescript -e', run: "runTaskCli('toolchain:install')", },
   },
   'prepare:pnpm': {
     description: 'Install dependencies and sync managed files',
     run: [
       'pnpm install',
       'pnpm approve-builds sharp',
-      'node file-enforcer.config.ts',
+      'file-enforcer write',
     ],
   },
   'prepare:pnpm:install': {
@@ -376,7 +384,7 @@ const tasks: Record<string, TaskDefinition> = {
     description: 'Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths',
     run: 'monochromatic-lint',
   },
-  // Same commands as mise.no-env.toml's npm:package:* tasks: npm-publish.yml releases one package at a time,
+  // Same commands as mise.toml's npm:package:* tasks: npm-publish.yml releases one package at a time,
   // so packing and publishing touch only package/$NPM_PACKAGE, never the whole workspace.
   'npm:package:pack': {
     description: 'Pack the package at package/$NPM_PACKAGE for the targeted npm trusted-publisher workflow',

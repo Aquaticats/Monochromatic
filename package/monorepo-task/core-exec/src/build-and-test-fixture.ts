@@ -1,5 +1,5 @@
 /**
- Disposable process boundary for generated mise task regression tests. @module
+ Disposable process boundary for root mise task regression tests. @module
  */
 
 import { spawn, } from 'node:child_process';
@@ -208,7 +208,7 @@ function fixtureEnvironment({
 //endregion Executable resolution
 
 /**
- Run generated orchestration against fake phase scripts and isolated mise state.
+ Run root orchestration against fake phase scripts and isolated mise state.
 
  @param args - arguments forwarded through mise's own usage parser
 
@@ -218,7 +218,7 @@ function fixtureEnvironment({
 
  @param prepareFails - whether preparation throws for the tolerant-wrapper control
 
- @param task - generated root task to invoke
+ @param task - root task to invoke
 
  @param testFails - whether fake tests throw after recording execution
 

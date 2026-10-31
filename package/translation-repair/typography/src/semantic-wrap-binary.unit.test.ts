@@ -70,7 +70,7 @@ await describe({
               'LintBinaryMissingError',
             );
             expect((thrown as Error).message,).toContain('purr-lint-nobody-installed',);
-            expect((thrown as Error).message,).toContain('mise run toolchain:sync',);
+            expect((thrown as Error).message,).toContain('mise run toolchain:install',);
             expect((thrown as Error).message,).toContain(
               `cargo binstall ${LINT_BINARY_NAME}@${PINNED_LINT_BINARY_VERSION}`,
             );
@@ -102,7 +102,7 @@ await describe({
             expect(thrown,).toBeInstanceOf(LintBinaryVersionError,);
             expect((thrown as Error).message,).toContain('9.9.9',);
             expect((thrown as Error).message,).toContain(PINNED_LINT_BINARY_VERSION,);
-            expect((thrown as Error).message,).toContain('mise run toolchain:sync',);
+            expect((thrown as Error).message,).toContain('mise run toolchain:install',);
             expect(await startsOf({ log, },),).toEqual([['--version',],],);
           },
         },),

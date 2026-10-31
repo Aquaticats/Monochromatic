@@ -1,6 +1,6 @@
 # Monorepo-wide Kotlin linter (custom detekt rule set), the Kotlin sibling of
 # package/linter/monochromatic-lint. The whole-tree scan lives in the root `lint:detekt` task (in
-# mise.no-env.toml), not here, so the fanout-discovered package `lint` below stays a
+# mise.toml), not here, so the fanout-discovered package `lint` below stays a
 # local compile check and does not scan the repo twice.
 #
 # Gradle is the committed wrapper (gradle 9.5.1), matching the android-app pattern;

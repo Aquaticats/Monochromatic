@@ -151,8 +151,9 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 
 ### Prerequisites
 
-Install [Mise][mise-home] as the task runner and a system Node,
-which executes the toolchain sync entry.
+Install [Mise][mise-home] as the task runner, `curl`, `jq` and `tar`.
+The toolchain commands are the Rust program `mpm-shadow`
+(see [Provision the toolchain](#clone-and-bootstrap) for the one prebuilt archive a fresh machine needs).
 Mise runs tasks only;
 every tool this repository runs (Node,
 pnpm,
@@ -164,9 +165,9 @@ and the rest) is provisioned from `toolchain.lock.json` by the repository
 toolchain,
 recorded in [`doc/decision/mpm-toolchain-adoption.md`](doc/decision/mpm-toolchain-adoption.md).
 The `bin`-sourced tools resolve their releases through the GitHub API,
-so the sync reads `GITHUB_TOKEN` from the environment or the machine's
+so `mpm-shadow install` reads `GITHUB_TOKEN` from the environment or the machine's
 `gh` login;
-an unauthenticated machine can exhaust the API quota mid-sync.
+an unauthenticated machine can exhaust the API quota mid-install.
 
 ### Clone and bootstrap
 
@@ -188,17 +189,38 @@ under `package/`.
 See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
-Provision the toolchain,
-converging every tool to the versions `toolchain.lock.json` records:
+A fresh machine has neither `mpm-shadow` nor `file-enforcer`.
+Fetch the `mpm-shadow` release archive of the version `toolchain.lock.json` names,
+check it against the release's checksums file,
+and put the binary on `PATH`
+(the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI and in the `Dockerfile`):
 
 ```sh
-mise run toolchain:sync
+# Run from the repository root; the lock names the version
+crate=monochromatic-mpm-shadow
+version="$(jq --raw-output '.tools["cargo:monochromatic-mpm-shadow"].version' toolchain.lock.json)"
+target=x86_64-unknown-linux-gnu # aarch64-unknown-linux-gnu on ARM
+base="https://github.com/Aquaticats/Monochromatic/releases/download/${crate}-v${version}"
+archive="${crate}-${version}-${target}.tar.gz"
+curl --fail --silent --show-error --location --remote-name "${base}/${archive}" \
+  --remote-name "${base}/${crate}-${version}-sha256sums.txt"
+grep " ${archive}\$" "${crate}-${version}-sha256sums.txt" | sha256sum --check
+mkdir --parents "${HOME}/.local/bin"
+tar --extract --gzip --file "${archive}" --strip-components=1 --directory "${HOME}/.local/bin" \
+  "${crate}-${version}-${target}/mpm-shadow"
 ```
 
-The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
-and `node package/file-enforcer/core/src/toolchain/sync.ts`
-runs the same work without the task wrapper.
-The sync entry stages its own bootstrap tools first:
+Then provision the toolchain,
+converging every tool to the versions `toolchain.lock.json` records
+(that installs `file-enforcer` too):
+
+```sh
+mise run toolchain:install
+```
+
+The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:install`,
+and `mpm-shadow install` runs the same work without the task wrapper.
+The install stages its own bootstrap tools first:
 `bin` as a standalone release binary
 (SHA-256 checked against the release `checksums.txt` values),
 then `uv`,
@@ -206,8 +228,8 @@ then [mpm][mpm-home] as the PyPI wheel `meta-package-manager` 8.2.0
 (SHA-256 checked against PyPI's published digest,
 installed with `uv tool install`).
 Then it installs the remaining tools
-and rebuilds the gitignored `.cache/toolchain-bin` directory that the
-generated `mise.toml` `[env]` puts first on `PATH`.
+and rebuilds the gitignored `.cache/toolchain-bin` directory that
+`.config/mise/conf.d/20-env.toml` puts first on `PATH`.
 Then install dependencies and build all packages:
 
 ```sh
@@ -219,17 +241,18 @@ mise run prepareAndBuild
 - `mise run toolchain:update` re-resolves the floating requests and the
   channel stamps to their current upstream versions and rewrites
   `toolchain.lock.json` as a reviewable diff
-  (`node package/file-enforcer/core/src/toolchain/update.ts`,
-  `--check` reports without writing);
+  (`mpm-shadow update`);
+  `mise run toolchain:outdated` reports what it would move without writing;
   explicit pins never move without a plan edit.
-- `mise run toolchain:status` prints observed versus locked versions and exits
+- `mise run toolchain:list` prints observed versus locked versions and exits
   non-zero on drift
-  (`node package/file-enforcer/core/src/toolchain/status.ts` runs the
-  same check).
+  (`mpm-shadow list` runs the same check),
+  and `mise run toolchain:lock:check` is the offline gate that fails when
+  `toolchain.plan.jsonc` and `toolchain.lock.json` disagree.
 - `mpm installed` lists what every package manager on the machine holds,
   `mpm outdated` lists available upgrades,
   and `mpm sbom` exports the inventory as SPDX or CycloneDX.
-- `node package/file-enforcer/core/src/toolchain/bin-paths.ts` prints the
+- `mpm-shadow bin --json` prints the
   exposure directory,
   PATH directories,
   and one absolute path per linked binary as JSON
@@ -242,14 +265,13 @@ Declarations carry no `@version` pin syntax and keep floating requests;
 `toolchain.lock.json` fixes what the sync installs
 (the semantics `mise install` had against `mise.lock`),
 so the explicit pins still install exactly.
-The sync installs the locked versions the way `pnpm install` honors
+The install installs the locked versions the way `pnpm install` honors
 `pnpm-lock.yaml`;
 re-resolving versions is a separate update action,
 the `pnpm update` analogue.
 
-Version bumps change the typed tool plan in
-`package/file-enforcer/core/src/toolchain/` and the generated
-`toolchain.lock.json`,
+Version bumps change the plan in `toolchain.plan.jsonc` and the lock
+`mpm-shadow` writes from it (`toolchain.lock.json`),
 never a hand-edited lock.
 Upgrades of a single machine package name their tool
 (`mpm upgrade <package>`);
@@ -365,7 +387,7 @@ package-deprecated/         Deprecated packages retained for reference
   upgrade coordination,
   release-age cooldown,
   and SBOM export,
-  plus file-enforcer's typed tool plan and the confirmed per-family install
+  plus the toolchain plan (`toolchain.plan.jsonc`) and the confirmed per-family install
   routes (`bin`,
   `cargo-binstall`,
   `rustup`,

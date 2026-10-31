@@ -9,7 +9,7 @@ The Containerfile COPYs these into the user's `~/.config/` directory.
    Ghostty terminal configuration
 
 Tool versions are not seeded here.
-`mise run toolchain:sync` provisions them per worktree
+`mise run toolchain:install` provisions them per worktree
 (`toolchain.lock.json` pins the versions),
 and the image's mise serves only `mise run` task running.
 

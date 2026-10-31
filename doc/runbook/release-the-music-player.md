@@ -178,7 +178,7 @@ The `notices` job writes the desktop file with `mise run //package/music-player/
 the Android job writes the APK's file with `mise run //package/music-player/android-app:notices`.
 Both run locally the same way,
 with network for `cargo fetch` and the repository's toolchain
-(`mise run toolchain:sync` installs `cargo:cargo-about` from `toolchain.lock.json`).
+(`mise run toolchain:install` installs `cargo:cargo-about` from `toolchain.lock.json`).
 
 When one of them fails,
 nothing is released.
