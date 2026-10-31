@@ -306,16 +306,8 @@ const ESCAPE = '\\';
  ```
  */
 function invocationEnd({ typed, }: { readonly typed: string; },): number {
-  /**
-   The quote the scan is inside, empty outside any.
-   */
-  let open = '';
-
-  /**
-   Where the scan stands.
-   */
-  let at = 0;
-  while (at < typed.length) {
+  // `at` is where the scan stands and `open` the quote it is inside, empty outside any.
+  for (let at = 0, open = ''; at < typed.length; at += 1) {
     /**
      The character at the scan.
      */
@@ -334,7 +326,6 @@ function invocationEnd({ typed, }: { readonly typed: string; },): number {
       open = character;
     else if (CONTROL_CHARACTERS.has(character,))
       return at;
-    at += 1;
   }
   return typed.length;
 }
@@ -692,8 +683,8 @@ await describe({
           text: [
             'mise run corpus-pass -- "a | b" --olny Tabby_01',
             'mise run corpus-pass -- \'a ; b > c\' --olny Tabby_01',
-            'mise run corpus-pass -- "a \\" | b" --olny Tabby_01',
-            'mise run corpus-pass -- a\\|b --olny Tabby_01',
+            String.raw`mise run corpus-pass -- "a \" | b" --olny Tabby_01`,
+            String.raw`mise run corpus-pass -- a\|b --olny Tabby_01`,
             'mise run corpus-pass -- "a | b" | rg --count c',
           ].join('\n',),
         },),).toEqual({
