@@ -4405,3 +4405,9 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - `mise run prepare:pnpm:install` found everything up to date. The container gate was started as the unit
   `cli-git-gate-postboot` (`MemoryMax=12G`, `CPUQuota=800%`, log `~/temp/agent/gate/postboot.log`); its counts are
   recorded in the next update.
+- Container gate on main after the reboot (`3aac899f8c`, tree includes the fault-injection merge `1269236d84`):
+  `mise run //package/git-policy/cli:native:test:container` passed, 2649 tests run, 2649 passed, 7 skipped, in
+  116.9 s of test time; the unit `cli-git-gate-postboot` ended with `Result=success`. The earlier gate (before the
+  fault-injection merge) was 2595 of 2595 with 5 skipped. The log does not list skipped test names, so the two extra
+  skips are not attributed; the `strace` sweeps skip inside this image (it has no `strace`), which is the likely source
+  but is not confirmed. Next: the user's decision on adding `strace` to the test image (task 76).
