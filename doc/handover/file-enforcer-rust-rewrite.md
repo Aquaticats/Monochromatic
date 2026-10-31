@@ -287,6 +287,18 @@ each finished branch is reviewed and merged into `main`):
   `e570fd802d`,
   run `41172650724` green,
   the release has both Linux archives and the checksums file.
+- Released 2026-10-31 (owner approved the push):
+  `monochromatic-mpm-shadow` 0.2.0 (`8846e03d5c`,
+  run `41173602862`,
+  release `monochromatic-mpm-shadow-v0.2.0` with both Linux archives),
+  carrying the pnpm names,
+  pnpm-style install with offline-fixable edits applied,
+  named update,
+  version-keyed installs,
+  launchers,
+  and the `mpm --version`/`--help` shadow notice.
+  Every release the cutover needs now exists;
+  the switch branch regenerates the repository lock with it.
 - Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
   invoked under the shadowed name,
   a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
