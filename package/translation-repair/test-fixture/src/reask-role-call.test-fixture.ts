@@ -481,4 +481,132 @@ export function roleNamedInLiteral(
   },);
 }
 
+/**
+ Reads what every object literal written under a property name names under a key, for a property such as `reaskSeat: { ... }`
+ that builds a value in place wherever it is passed (ledger B1163).
+
+ @param source - text of the file
+ @param holder - name of the property whose object literal is read
+ @param key - key of the literal that is read
+
+ @returns One entry per literal, in source order, as {@link rolesNamedAtCalls} reads a key: the value named, `none` where the
+ literal names none, `only a spread` where it is a spread alone; empty where the property is written with no literal
+
+ @example
+ ```ts
+ expect(keysNamedInLiteralsUnder({ source, holder: 'reaskSeat', key: 'reask', },),).toEqual(['reask',],);
+ ```
+ */
+export function keysNamedInLiteralsUnder(
+  {
+    source,
+    holder,
+    key,
+  }: {
+    readonly source: string;
+    readonly holder: string;
+    readonly key: string;
+  },
+): readonly string[] {
+  /**
+   Tokens of the file.
+   */
+  const tokens = tokensOf({ source, },);
+  return tokens.flatMap(function literalAt(
+    token,
+    at,
+  ): readonly string[] {
+    if ((token.kind !== 'word') || (token.text !== holder) || (tokens[at + 1]
+      ?.text
+      !== ':') || (tokens[at + 2]
+        ?.text
+        !== '{'))
+      return [];
+    /**
+     Index one past the closing brace of the literal.
+     */
+    const after = afterBracket({
+      tokens,
+      open: at + 2,
+      angled: false,
+    },);
+    return [
+      namedUnderKey({
+        properties: propertiesOf({
+          body: tokens.slice(
+            at + 3,
+            after - 1,
+          ),
+        },),
+        key,
+      },),
+    ];
+  },);
+}
+
+/**
+ Reads what every object literal assigned to a variable of a type names under a key, for a value built in a variable
+ before it is handed on, `const seat: ReaskSeat = { ... }` (ledger B1163).
+
+ @param source - text of the file
+ @param type - name of the type the variable is annotated with
+ @param key - key of the literal that is read
+
+ @returns One entry per literal, in source order, as {@link keysNamedInLiteralsUnder} reads a key; empty where no literal
+ is assigned to a variable of the type
+
+ @example
+ ```ts
+ expect(keysNamedInLiteralsOfType({ source, type: 'ReaskSeat', key: 'reask', },),).toEqual(['none',]);
+ ```
+ */
+export function keysNamedInLiteralsOfType(
+  {
+    source,
+    type,
+    key,
+  }: {
+    readonly source: string;
+    readonly type: string;
+    readonly key: string;
+  },
+): readonly string[] {
+  /**
+   Tokens of the file.
+   */
+  const tokens = tokensOf({ source, },);
+  return tokens.flatMap(function literalAt(
+    token,
+    at,
+  ): readonly string[] {
+    if ((token.kind !== 'word') || (token.text !== type) || (tokens[at - 1]
+      ?.text
+      !== ':') || (tokens[at + 1]
+        ?.text
+        !== '=') || (tokens[at + 2]
+          ?.text
+          !== '{'))
+      return [];
+    /**
+     Index one past the closing brace of the literal.
+     */
+    const after = afterBracket({
+      tokens,
+      open: at + 2,
+      angled: false,
+    },);
+    return [
+      namedUnderKey({
+        properties: propertiesOf({
+          body: tokens.slice(
+            at + 3,
+            after - 1,
+          ),
+        },),
+        key,
+      },),
+    ];
+  },);
+}
+
 //endregion Re-ask role at a call

@@ -29,6 +29,8 @@ import {
 } from './family-source.test-fixture.ts';
 import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 import {
+  keysNamedInLiteralsOfType,
+  keysNamedInLiteralsUnder,
   rolesNamedAtCalls,
   sourceNamesFunction,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/reask-role-call.test-fixture.ts';
@@ -54,6 +56,16 @@ const MODE_CARRIERS: readonly string[] = [
 ];
 
 /**
+ Functions of the picture readers whose every production call names the mode: the launch's, passed on, or the one mode
+ its own package names (the pass reads pictures in `other-model`, a measurement of a reader in `measured-model`).
+ */
+const READER_MODE_CARRIERS: readonly string[] = [
+  'readDocumentPictures',
+  'readImagePair',
+  'readPastRefusal',
+];
+
+/**
  Spellings of the launch's mode a call may pass on: the settings it holds, or a parameter of that name it was handed.
  */
 const PASSED_ON: ReadonlySet<string> = new Set([
@@ -71,7 +83,8 @@ await describe({
       fn: async () => {
         const launches = (await readPackageSource())
           .filter(function readsSettings(file,): boolean {
-            return (!file.isTest) && file.text.includes('readStageSettings(',);
+            // BY TOKENS, as the reader below reads: a comment that names the function is no launch (ledger B1163).
+            return (!file.isTest) && sourceNamesFunction({ source: file.text, name: 'readStageSettings', },);
           },);
         expect(launches.length > 0,).toBe(true,);
         expectNoFindings({
@@ -136,6 +149,65 @@ await describe({
                   },);
               },);
           },),
+        },);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE MODE AT EVERY PRODUCTION CALL OF THE PICTURE READERS (ledger B1163): passed on from the launch, or the '
+        + 'one mode the package of the call names, so a measurement of a reader cannot take the mode of the pass',
+      fn: async () => {
+        const files = (await readPackageSource())
+          .filter(function isProduction(file,): boolean {
+            return !file.isTest;
+          },);
+        expectNoFindings({
+          findings: READER_MODE_CARRIERS.flatMap(function carrierFindings(callee,): readonly string[] {
+            return files
+              .filter(function names(file,): boolean {
+                return sourceNamesFunction({ source: file.text, name: callee, },);
+              },)
+              .flatMap(function misses(file,): readonly string[] {
+                /**
+                 Mode this file's package names when it names one itself.
+                 */
+                const own = MEASURING_PACKAGES.has(packageDirectoryOf({ path: file.path, },),)
+                  ? 'measured-model'
+                  : 'other-model';
+                return rolesNamedAtCalls({ source: file.text, callee, key: 'reask', },)
+                  .filter(function notNamed(named,): boolean {
+                    return !PASSED_ON.has(named,) && (named !== own);
+                  },)
+                  .map(function toFinding(named,): string {
+                    return `${file.path}: a call of ${callee} names reask as ${named}`;
+                  },);
+              },);
+          },),
+        },);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE MODE IN EVERY SEAT LITERAL OF A RE-ASK (ledger B1163): a `reaskSeat: { ... }` written in production '
+        + 'code has a `reask` key, or spreads a seat that has one, so a seat built for a new caller cannot leave the mode out',
+      fn: async () => {
+        expectNoFindings({
+          findings: (await readPackageSource())
+            .filter(function isProduction(file,): boolean {
+              return !file.isTest;
+            },)
+            .flatMap(function seatFindings(file,): readonly string[] {
+              return [
+                ...keysNamedInLiteralsUnder({ source: file.text, holder: 'reaskSeat', key: 'reask', },),
+                ...keysNamedInLiteralsOfType({ source: file.text, type: 'ReaskSeat', key: 'reask', },),
+              ]
+                .filter(function lacksMode(named,): boolean {
+                  return (named === 'none') || named.startsWith('duplicate',);
+                },)
+                .map(function toFinding(named,): string {
+                  return `${file.path}: a reaskSeat literal names reask as ${named}`;
+                },);
+            },),
         },);
       },
     },),
