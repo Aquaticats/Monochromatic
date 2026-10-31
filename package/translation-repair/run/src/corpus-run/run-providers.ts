@@ -1,4 +1,5 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { runLogger, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 import {
   type BedrockClient,
@@ -314,7 +315,7 @@ export function configureProviders(
   /**
    Logger pre-tagged with this function's name.
    */
-  const rl = tagged({ tag: configureProviders.name, },);
+  const rl = tagged({ tag: configureProviders.name, l: runLogger, },);
   if (deepSeekKey === '')
     rl.info(
       `${DEEPSEEK_KEY_VARIABLE} is not set, so DeepSeek is unconfigured: its meter reads dry and no call goes there`,

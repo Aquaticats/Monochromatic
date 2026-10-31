@@ -1,4 +1,5 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { runLogger, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
@@ -192,7 +193,7 @@ async function gateProvider(
       /**
        Logger tagged with the gate's name.
        */
-      const rl = tagged({ tag: gateProvider.name, },);
+      const rl = tagged({ tag: gateProvider.name, l: runLogger, },);
       rl.warn(`${provider} meter could not be read: ${exchangeFailureLogText({ error, },)}`,);
       return 'unreadable';
     }
