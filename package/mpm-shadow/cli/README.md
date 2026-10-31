@@ -35,26 +35,38 @@ or from `MONOCHROMATIC_WORKTREE_ROOT`.
 
 ### The plan
 
+Every entry has a stable id (an alias,
+like a `package.json` key)
+and a `request`,
+like a `package.json` value:
+`<origin>@<range>`.
+The origin says where versions come from,
+the range says which are wanted
+(`latest`,
+an exact version or tag,
+a channel such as `nightly`,
+or a Java major line such as `21`).
+
 ```jsonc
 // toolchain.plan.jsonc
 {
   "schemaVersion": 1,
   "tools": {
     // Why this pin exists belongs here, beside it.
-    "bin": { "request": { "pinned": "0.29.4" }, "route": "archive", "bins": ["bin"] },
-    "cargo:fd-find": { "request": { "track": "latest" }, "route": "cargo-binstall", "packageId": "fd-find", "bins": ["fd"] },
+    "bin": { "request": "github:marcosnils/bin@0.29.4", "route": "archive", "bins": ["bin"] },
+    "age": { "request": "github:FiloSottile/age@latest", "route": "archive", "bins": ["age", "age-keygen"] },
+    "zig": { "request": "zig@0.15.2", "route": "archive", "bins": ["zig"] },
+    "cargo:fd-find": { "request": "cargo:fd-find@latest", "route": "cargo-binstall", "bins": ["fd"] },
     // `{version}` stands for the resolved version in `packageId` and in `env` values.
     "rust": {
-      "request": { "channel": "nightly" }, "route": "rustup-toolchain", "packageId": "{version}",
+      "request": "rust@nightly", "route": "rustup-toolchain", "packageId": "{version}",
       "bins": ["rustc"], "env": { "RUSTUP_TOOLCHAIN": "{version}" }
     }
   }
 }
 ```
 
-- A tool is `request` (`{"track": "latest"}`,
-  `{"pinned": "<version>"}`
-  or `{"channel": "<name>"}`),
+- A tool is `request`,
   `route`,
   optional `manager`,
   `packageId`
@@ -62,6 +74,25 @@ or from `MONOCHROMATIC_WORKTREE_ROOT`.
   `bins`,
   `env`
   and `options`.
+- The origins are
+  `github:<owner>/<repo>` (a generic release resolver),
+  `npm:`,
+  `cargo:`,
+  `pipx:`,
+  `conda:`,
+  `go:<module>`,
+  `git:<url>` (the range is the revision),
+  and the named resolvers
+  `node`,
+  `go`,
+  `zig`,
+  `rustup`,
+  `aws`,
+  `rust`,
+  `android-sdk`
+  and `java:temurin`.
+- The `@` that separates the range is the last one not preceded by `:` or `/`,
+  so `npm:@actions/languageserver@0.3.61` reads as expected.
 - The routes are
   `bin-sourced`,
   `archive`,
@@ -73,7 +104,9 @@ or from `MONOCHROMATIC_WORKTREE_ROOT`.
   `rustup-toolchain`,
   `rustup-components`
   and `android-sdk`.
-- An unknown field is an error naming its path.
+  The route is how a tool installs;
+  the request is where its versions come from.
+- An unknown field or origin is an error naming its path.
   `version` and `artifacts` are not plan fields:
   only `update` writes them.
 - Tools install in the order written,
@@ -87,14 +120,195 @@ or from `MONOCHROMATIC_WORKTREE_ROOT`.
   `node`
   and `pnpm` come first.
 
+#### The `github:` resolver
+
+- It takes the newest release (or the release of the range as a tag,
+  with and without a leading `v`),
+  and for each of the four Linux platforms
+  (`linux-x64`,
+  `linux-x64-musl`,
+  `linux-arm64`,
+  `linux-arm64-musl`)
+  the asset whose name says Linux and the platform's CPU
+  (`x86_64`,
+  `amd64`,
+  `x64`,
+  `aarch64`,
+  `arm64`).
+- It skips checksums,
+  signatures,
+  installer packages,
+  scripts,
+  other operating systems and CPUs,
+  baseline,
+  debug,
+  source,
+  `.full.`
+  and GPU (`vulkan`,
+  `rocm`,
+  `cuda`)
+  builds.
+- It prefers the platform's libc (a `musl` name for a musl platform,
+  otherwise one without),
+  then `.tar.gz`,
+  `.tar.xz`,
+  `.zip`,
+  `.gz`,
+  and a bare file.
+- Two equally good assets are an error that names both.
+  `options.asset` (a glob with `*`) settles it,
+  for example `"asset": "harper-cli-*"` for a release that ships two programs.
+- A platform with no matching asset is left out of the lock
+  and fails at `sync` with a message naming it.
+- The version is the tag without its `v` or `name-v` prefix.
+
+#### Lock rows
+
+- A downloaded tool is recorded for the four Linux platforms only
+  (the repository's Linux-only stopgap).
+- Zig,
+  Go,
+  Node,
+  rustup,
+  conda
+  and GitHub publish checksums,
+  which the lock records.
+  Java uses the release asset's digest.
+  The Android command-line tools and the AWS CLI publish none,
+  so `update` downloads each once and records the hash of what it got.
+
 ### The lock
 
+- The lock is derived from the plan and nothing else.
+  Deleting `toolchain.lock.json` and running `update` rebuilds it
+  (the same versions for exact requests,
+  the newest for `latest`).
+  No resolver reads a previous lock row to learn a repository,
+  a tag shape,
+  an asset
+  or a platform list.
 - Tool entries keep the key order `request, version, route, manager, packageId, bins, os, env, options, artifacts`.
 - A top-level `digest` (`sha256:` and the hash of the compact JSON of everything else) covers the whole content.
   `lock --check` recomputes it,
   so a hand edit of a resolved version,
   a URL or a hash fails the gate.
   A reformatted file keeps its digest.
+
+### What the cutover converter must write
+
+For every entry the converter writes a `request` string.
+Package-manager entries keep their specifier:
+`cargo:<crate>@latest`,
+`npm:<name>@latest`,
+`pipx:<name>@latest`
+(`@<version>` where the old request was `pinned`,
+for example `cargo:cargo-fuzz@0.13.2`).
+`manager` and `packageId` become optional because the request names the package;
+`routes`,
+`bins`,
+`os`
+and every `options` field except `cargoGit` (replaced by `git:<url>@<revision>`)
+and `assetPattern` (renamed `asset`) carry over unchanged.
+
+**The `{version}` placeholder is required.**
+Where a field must equal the resolved version,
+the converter must write `{version}`,
+never today's literal:
+
+- `rust`:
+  `"packageId": "{version}"` and `"env": { "RUSTUP_TOOLCHAIN": "{version}" }`.
+- `java`:
+  `"env": { "JAVA_HOME": "java/{version}" }`.
+- `android-sdk`:
+  `"env": { "ANDROID_HOME": "android-sdk/{version}", "ANDROID_SDK_ROOT": "android-sdk/{version}" }`.
+
+A literal such as `nightly-2026-10-30` there would make the first `update` move `version`
+while `packageId` keeps the old date,
+and `rustup toolchain install` would install the stale channel.
+
+Requests for today's downloaded tools,
+each checked by a live `update` in a disposable home against the current lock
+(the four Linux platforms resolve to the same files,
+except where a musl platform now gets the musl build the release offers):
+
+- `bin`:
+  `github:marcosnils/bin@0.29.4` (pinned;
+  keep the `bootstrap` option).
+- `mpm`:
+  `pipx:meta-package-manager@8.2.0`
+  (pinned;
+  keep `route: mpm-uvx` and the `bootstrap` option with `distribution: wheel`).
+- `bun`:
+  `github:oven-sh/bun@bun-v1.3.14` (pinned tag;
+  keep `binAliases`).
+  The baseline platforms (`linux-x64-baseline` and the musl baseline) are no longer recorded.
+- `pnpm`:
+  `github:pnpm/pnpm@latest` (keep `binAliases`).
+- `ripgrep`:
+  `github:BurntSushi/ripgrep@latest`.
+- `node`:
+  `node@latest`.
+- `harper-cli`:
+  `github:Automattic/harper@latest` with `"asset": "harper-cli-*"`.
+- `dprint`:
+  `github:dprint/dprint@latest`.
+- `uv`:
+  `github:astral-sh/uv@latest`.
+- `hyperfine`:
+  `github:sharkdp/hyperfine@latest`.
+- `caddy`:
+  `github:caddyserver/caddy@latest`.
+- `watchexec`:
+  `github:watchexec/watchexec@latest`.
+- `sops`:
+  `github:getsops/sops@latest`.
+- `age`:
+  `github:FiloSottile/age@latest`.
+- `cargo-binstall`:
+  `github:cargo-bins/cargo-binstall@latest`.
+- `cmake`:
+  `github:Kitware/CMake@latest`.
+- `zig`:
+  `zig@0.15.2` (pinned).
+- `conda:bubblewrap`:
+  `conda:bubblewrap@latest` (keep `os: ["linux"]`;
+  the package is a `.conda` file,
+  which `sync` unpacks with `unzip` and `tar --zstd`).
+- `taplo`:
+  `github:tamasfe/taplo@latest` (keep `binAliases`).
+- `tombi`:
+  `github:tombi-toml/tombi@latest` with `"asset": "tombi-cli-*"`.
+- `marksman`:
+  `github:artempyanykh/marksman@latest`.
+- `rumdl`:
+  `github:rvben/rumdl@latest`.
+- `github:Feel-ix-343/markdown-oxide`:
+  `github:Feel-ix-343/markdown-oxide@latest`.
+- `zizmor`:
+  `github:zizmorcore/zizmor@latest`.
+- `superhtml`:
+  `github:kristoff-it/superhtml@latest`.
+- `github:docker/docker-language-server`:
+  `github:docker/docker-language-server@latest`.
+- `llama.cpp`:
+  `github:ggml-org/llama.cpp@b9829` (pinned).
+- `opentofu`:
+  `github:opentofu/opentofu@latest`.
+- `hcloud`:
+  `github:hetznercloud/cli@latest`.
+- `betterleaks`:
+  `github:betterleaks/betterleaks@latest`.
+- `java`:
+  `java:temurin@21` (a major line that moves;
+  the version is `temurin-<release>.0.LTS`).
+- `android-sdk`:
+  `android-sdk@latest` (keep `androidPackages`).
+- `rust`:
+  `rust@nightly` (keep `rustComponents` and `rustTargets`).
+- The machine-global plan also holds `go: go@latest`,
+  `aws: aws@latest`,
+  `rustup: rustup@latest`
+  and `go:github.com/charmbracelet/crush@latest` on the `go-install` route.
 
 ## Commands
 
@@ -107,8 +321,7 @@ or from `MONOCHROMATIC_WORKTREE_ROOT`.
   `manager`,
   `packageId`,
   `os`,
-  `assetPattern`,
-  `cargoGit`,
+  `asset`,
   `bootstrap`)
   and names `mpm-shadow update`.
 - `mpm-shadow lock --check`:
@@ -116,17 +329,15 @@ or from `MONOCHROMATIC_WORKTREE_ROOT`.
   beside `file-enforcer check`.
   Writes nothing.
   Exits 1 when the plan and lock disagree or the digest does not match.
-- `mpm-shadow lock --adopt`:
-  the one-time conversion of a lock that has no digest yet.
-  Versions and artifacts are taken as they are and the digest is added.
 - `mpm-shadow update [--check]`:
   resolves every tool and writes the whole lock.
   `--check` reports what would move,
   writes nothing,
   installs nothing,
   and exits 1 when something would move.
-  A tool without a resolver yet keeps its lock entry and is reported as `skipped`;
-  a new tool without one fails the update.
+  A brand-new downloaded tool is just a new plan entry:
+  every origin has a resolver,
+  and none reads the previous lock.
 - `mpm-shadow sync`:
   installs every locked tool that is not at its locked version,
   then makes the postinstall links,
@@ -170,7 +381,13 @@ first or later,
 is looked up directly at `registry.npmjs.org` and `pypi.org` over HTTPS.
 crates.io,
 `static.rust-lang.org`,
-`nodejs.org`
+`nodejs.org`,
+`go.dev`,
+`proxy.golang.org`,
+`ziglang.org`,
+`api.adoptium.net`,
+`dl.google.com`,
+`api.anaconda.org`
 and the GitHub API are asked the same way.
 The client is `hyper` with `hyper-rustls` (native root certificates),
 HTTPS only,
