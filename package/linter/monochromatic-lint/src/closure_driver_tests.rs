@@ -217,7 +217,9 @@ fn an_outdated_driver_and_a_cold_cache_are_missing() {
         "{reason}"
     );
     assert!(
-        !reason.contains("more") && !reason.contains("Locking"),
+        reason.contains("Cargo's error: failed to select")
+            && !reason.contains("more")
+            && !reason.contains("Locking"),
         "only the first error line of cargo's message is quoted, not its progress notes: {reason}"
     );
 }

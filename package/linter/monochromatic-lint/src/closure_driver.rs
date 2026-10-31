@@ -337,7 +337,12 @@ fn resolve_probe(cargo: &Path, package: &Path) -> Result<Option<String>, String>
         .find(|line| return line.starts_with("error"))
         .or_else(|| return stderr.lines().next())
         .unwrap_or("none");
-    return Ok(Some(explanation.to_string()));
+    return Ok(Some(
+        explanation
+            .strip_prefix("error: ")
+            .unwrap_or(explanation)
+            .to_string(),
+    ));
 }
 
 /// What:
