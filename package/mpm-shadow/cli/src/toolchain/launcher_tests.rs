@@ -84,6 +84,13 @@ fn a_launcher_is_made_with_its_record_beside_it() {
     let record = parse_record(&fs::read_to_string(record_path(&launcher)).expect("a record")).expect("parses");
     assert_eq!(record.real, real);
     assert_eq!(record.lock_file, rig.scope.lock_file);
-    // A second call replaces both without failing.
+    // A second call (the exposure link and a postinstall link both ask) leaves no temporary name behind.
     ensure_launcher(&rig.scope, TOOL, "git", &real).expect("made again");
+    let mut names: Vec<String> = fs::read_dir(&rig.scope.launcher_dir)
+        .expect("list")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["git".to_string(), "git.launch".to_string()]);
 }

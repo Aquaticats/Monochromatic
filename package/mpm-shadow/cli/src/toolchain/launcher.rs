@@ -105,9 +105,30 @@ fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainError> {
     return Ok(());
 }
 
+/// Whether both paths name the same file (the same device and inode),
+/// which a rename between two links of one file would silently leave as two names.
+#[cfg(unix)]
+fn is_same_file(first: &Path, second: &Path) -> bool {
+    /// Imports `MetadataExt` from `std::os::unix::fs`.
+    use std::os::unix::fs::MetadataExt;
+    return match (fs::metadata(first), fs::metadata(second)) {
+        (Ok(left), Ok(right)) => left.dev() == right.dev() && left.ino() == right.ino(),
+        _ => false,
+    };
+}
+
+/// Without inodes every placement replaces the target.
+#[cfg(not(unix))]
+fn is_same_file(_first: &Path, _second: &Path) -> bool {
+    return false;
+}
+
 /// A hard link of `source` at `target` (a copy when the two are on different file systems),
 /// placed with a rename.
 fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
+    if is_same_file(source, target) {
+        return Ok(());
+    }
     let mut temporary_name: OsString = OsString::from(".");
     temporary_name.push(target.file_name().unwrap_or_default());
     temporary_name.push(format!(".{}.bin", std::process::id()));
