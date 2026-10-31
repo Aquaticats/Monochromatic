@@ -4,7 +4,10 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import {
+  createReaskClaims,
+  type ModelClient,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { ProposalValidity, } from './consolidate-validity-floor.ts';
 import {
   buildConsolidateMessages,
@@ -141,6 +144,12 @@ export async function produceConsolidations(
   const messages = buildConsolidateMessages({ subject, },);
 
   /**
+   The models asked for the seats of this slice, which the gather that writes the proposals and the repair of an invalid
+   one share, so a model that took a runaway seat in the gather gives no second voice in the repair (ledger B1100).
+   */
+  const reaskClaims = createReaskClaims();
+
+  /**
    Every proposal the roster answered with, retried to quorum so a lost voice
    here means what it means in production.
    */
@@ -156,6 +165,7 @@ export async function produceConsolidations(
     // THE CONSOLIDATION WRITERS ARE ASKED IN THE WRITER ROLE (`seats.writers`), so a runaway is re-asked of no model the
     // cards drop from it.
     role: 'writer',
+    reaskClaims,
     // A WRITER ROUND: every voice the window cuts is one fewer proposal, so it
     // waits under the writer window, built in since 2026-09-06
     // (`writer-grace-override.ts`).
@@ -225,6 +235,9 @@ export async function produceConsolidations(
     ...((subject.declared === undefined) ? {} : { declared: subject.declared, }),
     ...((subject.disputedWordings === undefined) ? {} : { disputedWordings: subject.disputedWordings, }),
     priorMessages: messages,
+    // THE AUTHORS ARE THE WRITERS, and the record is the gather's own (ledger B1100).
+    role: 'writer',
+    reaskClaims,
     signal,
     perCallTimeoutMs,
     l: pl,

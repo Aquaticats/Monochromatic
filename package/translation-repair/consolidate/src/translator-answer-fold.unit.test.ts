@@ -26,6 +26,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { createReaskClaims, } from '@monochromatic-dev/translation-repair-provider';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { produceTranslateSlate, } from '@monochromatic-dev/translation-repair-translate-stage';
 import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage';
@@ -487,6 +488,8 @@ await describe({
              Voices after the author answered its findings with a hidden break.
              */
             const repaired = await repairInvalidCandidates({
+              role: 'translator',
+              reaskClaims: createReaskClaims(),
               client: cannedClient({
                 replyByModel: [revisionReply({ translation: HIDDEN_BREAK, },),],
               },),
