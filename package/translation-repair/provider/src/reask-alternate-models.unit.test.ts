@@ -243,6 +243,57 @@ await describe({
     },),
 
     it({
+      name: 'ORDERS THE STAND-INS OF AN EDITOR OR A REFINER BY THEIR STANDING IN THAT ROLE, best first, then the models never '
+        + 'measured in it by the share of runaways (the owner\'s "Order by role standing (Recommended)", 2026-10-31, ledger '
+        + 'B1144): the editor calibration of 2026-09-01 puts Qwen3.8-27B (17.3) before Kimi-K3 (14.2), minimax-m3 (8.4) and '
+        + 'gemma-4-26b (7.0) as an editor, and glm-5.3 (12.1) before Kimi-K3 (7.8), Qwen3.8-27B (7.7) and gemma-4-26b (3.4) '
+        + 'as a refiner',
+      fn: async () => {
+        expect(alternateModelsFor({
+          modelId: 'hf:zai-org/GLM-5.3-Flash',
+          role: 'editor',
+          bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', 'deepseek-v4.1-flash',],
+        },).alternates,).toEqual([
+          'hf:Qwen/Qwen3.8-27B',
+          'hf:moonshotai/Kimi-K3',
+          'minimax-m3',
+          'gemma-4-26b-a4b-it',
+          'google.gemma-4-e2b',
+          'inception/mercury-2.5',
+        ],);
+        expect(alternateModelsFor({
+          modelId: 'hf:zai-org/GLM-5.3-Flash',
+          role: 'refiner',
+          bench: ['hf:zai-org/GLM-5.3-Flash', 'deepseek-v4.1-flash', 'minimax-m3',],
+        },).alternates,).toEqual([
+          'glm-5.3',
+          'hf:moonshotai/Kimi-K3',
+          'hf:Qwen/Qwen3.8-27B',
+          'gemma-4-26b-a4b-it',
+          'google.gemma-4-e2b',
+          'inception/mercury-2.5',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE SHARE OF RUNAWAYS AS THE ORDER OF EVERY OTHER ROLE, the roles with no recorded standing',
+      fn: async () => {
+        for (const role of ['roster', 'writer', 'wide-judge', 'checker',] as const) {
+          const { alternates, } = alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR, role, },);
+          const byShare = alternates.map(function shareOf(modelId,): number | 'unmeasured' {
+            return providerExports.runawayShareOf({ modelId, readings: providerExports.RUNAWAY_READINGS, },);
+          },).filter(function measured(share,): share is number {
+            return share !== 'unmeasured';
+          },);
+          expect(byShare,).toEqual(byShare.toSorted(function ascending(left, right,): number {
+            return left - right;
+          },),);
+        }
+      },
+    },),
+
+    it({
       name: 'LEAVES OUT EVERY MODEL ON THE BENCH OF THE QUESTION, each named with why, since its answer recorded as the '
         + 'voice of the seat that ran away would count one model twice',
       fn: async () => {
