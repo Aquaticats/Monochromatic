@@ -295,6 +295,8 @@ export async function gateConsolidationPolish(
     responseFormat: CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT,
     validate: isConsolidationPolishGateWire,
     stage: 'consolidation-polish-gate',
+    // THE GATE IS ASKED OF THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models from.
+    role: 'late-judge',
     l: gl,
     graceMs: stageSettings
       .grace

@@ -153,6 +153,9 @@ export async function produceConsolidations(
     responseFormat: TRANSLATE_RESPONSE_FORMAT,
     validate: isTranslateReportWire,
     stage: produceConsolidations.name,
+    // THE CONSOLIDATION WRITERS ARE ASKED IN THE WRITER ROLE (`seats.writers`), so a runaway is re-asked of no model the
+    // cards drop from it.
+    role: 'writer',
     // A WRITER ROUND: every voice the window cuts is one fewer proposal, so it
     // waits under the writer window, built in since 2026-09-06
     // (`writer-grace-override.ts`).

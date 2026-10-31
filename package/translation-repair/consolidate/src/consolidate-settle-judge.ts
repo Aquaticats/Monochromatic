@@ -362,6 +362,8 @@ export async function judgeConsolidationSlate(
    */
   const judging: Parameters<typeof judgeTranslateSlate>[0] = {
     client,
+    // THE CONSOLIDATION SLATE IS JUDGED BY THE LATE JUDGES (`seats.slateJudges`), the bench the cards drop two models from.
+    role: 'late-judge',
     produced: {
       candidates: built.candidates,
 

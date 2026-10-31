@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE WRITER ROLE where the writers are asked for a consolidation',
       fn: async () => {
-        const source = await readFile(new URL('./consolidate-produce.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('consolidate-produce.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['writer',],);
       },
     },),
@@ -34,7 +34,7 @@ await describe({
     it({
       name: 'NAMES THE LATE-JUDGE ROLE where the gate is asked',
       fn: async () => {
-        const source = await readFile(new URL('./consolidate-gate-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('consolidate-gate-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['late-judge',],);
       },
     },),
@@ -42,7 +42,7 @@ await describe({
     it({
       name: 'NAMES THE LATE-JUDGE ROLE where the polish gate is asked',
       fn: async () => {
-        const source = await readFile(new URL('./consolidation-polish-gate-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('consolidation-polish-gate-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['late-judge',],);
       },
     },),

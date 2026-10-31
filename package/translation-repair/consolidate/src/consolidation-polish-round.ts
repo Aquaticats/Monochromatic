@@ -307,6 +307,8 @@ export async function runConsolidationPolishRound(
     client,
     refinerModelIds: config.refinerModelIds,
     judgeModelIds: config.judgeModelIds,
+    // THE POLISH IS JUDGED BY THE LATE JUDGES (`seats.slateJudges`), the bench the cards drop two models from.
+    judgeRole: 'late-judge',
     sourceText,
     repairedText: baseText,
     envelopes,
