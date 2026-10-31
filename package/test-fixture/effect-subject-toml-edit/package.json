@@ -1,0 +1,15 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/test-fixture-effect-subject-toml-edit",
+  "description": "Source-only subject for the prefer-readonly-parameter-type effect analysis: functions that call workspace toml-edit-core.",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "files": [
+    "src/",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/toml-edit-core": "workspace:*"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "extends": "@monochromatic-dev/config-typescript",
+  "include": [],
+}

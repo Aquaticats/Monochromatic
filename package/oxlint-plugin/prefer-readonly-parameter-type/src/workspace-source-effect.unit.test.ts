@@ -16,10 +16,10 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
- File-enforcer source calling workspace `module-toml-edit` functions.
+ Fixture source calling workspace `toml-edit-core` functions (package/test-fixture/effect-subject-toml-edit).
  */
 const APPLY_PLAN_PATH = fileURLToPath(new URL(
-  '../../../file-enforcer/core/src/cargo/apply-plan.ts',
+  '../../../test-fixture/effect-subject-toml-edit/src/cargo/apply-plan.ts',
   import.meta.url,
 ),);
 
