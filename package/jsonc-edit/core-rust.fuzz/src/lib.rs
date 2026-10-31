@@ -34,6 +34,17 @@ pub mod generators;
 pub mod invariants;
 
 /// What:
+///  The source-span property checks shared by the fuzz targets that parse documents.
+/// Why:
+///  `parse_jsonc_with_spans` makes its own promises (tokens, order, positions), asserted here once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * as spanInvariants from './spanInvariants';
+/// ```
+pub mod span_invariants;
+
+/// What:
 ///      Address selection over a parsed document.
 /// Why:
 ///       Edit targets must address members that exist,
@@ -71,6 +82,17 @@ pub use invariants::{
 };
 
 /// What:
+///  Re-export the span checks.
+/// Why:
+///  Targets import the checks by name, like the other invariants.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { assertSpansConsistent, assertSpansMatch } from './spanInvariants';
+/// ```
+pub use span_invariants::{assert_spans_consistent, assert_spans_match};
+
+/// What:
 ///      Re-export address selection.
 /// Why:
 ///       Edit targets need it and nothing else from that module.
@@ -105,6 +127,18 @@ mod generators_tests;
 /// ```
 #[cfg(test)]
 mod invariants_tests;
+
+/// What:
+///  Span-invariant unit tests, including the negative controls that prove each rule can fail.
+/// Why:
+///  A span check that cannot fail turns a clean campaign into silence rather than evidence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './spanInvariants.test';
+/// ```
+#[cfg(test)]
+mod span_invariants_tests;
 
 /// What:
 ///      Address-selection unit tests.
