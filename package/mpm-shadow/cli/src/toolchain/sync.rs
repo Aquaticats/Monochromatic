@@ -29,7 +29,7 @@ use std::collections::BTreeSet;
 /// Imports what this module uses from `super::agree`.
 use super::agree::{Disagreement, compare, refusal};
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_repository_published, older_lock_warnings, point_current_at_newest};
+use super::cargo_installs::{is_repository_published, older_lock_warnings, point_current_at_newest_of};
 /// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
 /// Imports `ToolchainError` from `super::error`.
@@ -51,7 +51,7 @@ use super::lock::Lock;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
-use super::observe::{observe_tool, package_name, satisfies_lock};
+use super::observe::{observe_tool, satisfies_lock};
 /// Imports `version_matches` from `super::parse_output`.
 use super::parse_output::version_matches;
 /// Imports `Plan` from `super::plan`.
@@ -194,8 +194,10 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     }
     for tool in &entries {
         let observed: Option<String> = observe_tool(ctx, tool);
-        // A cargo-binstall install lives in a version directory of its own, so nothing shared is replaced.
+        // A cargo-binstall install lives in a version directory of its own, so nothing shared is replaced;
+        // a repository-published tool is never replaced by an older one (it keeps the newest and warns instead).
         if tool.declaration.route != Route::CargoBinstall
+            && !is_repository_published(tool)
             && let Some(warning) = replacement_warning(&tool.declaration.id, &observed, &tool.version)
         {
             report.warnings.push(warning);
@@ -206,7 +208,7 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
         };
         if current {
             if is_repository_published(tool)
-                && let Err(error) = point_current_at_newest(&ctx.scope.toolchain_root, &package_name(tool))
+                && let Err(error) = point_current_at_newest_of(&ctx.scope.toolchain_root, tool)
             {
                 report.failed.push((tool.declaration.id.clone(), error.message));
             }

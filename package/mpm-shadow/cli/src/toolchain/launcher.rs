@@ -152,6 +152,37 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 }
 
 /// What:
+/// The file to make a launcher from:
+/// the running executable's path,
+/// or `/proc/self/exe` when that path no longer names a file.
+/// Why:
+/// An `mpm-shadow` that installs a newer `mpm-shadow` deletes its own version directory (older repository tools are never
+/// kept) before it rebuilds the exposure directory,
+/// and the kernel then reports the running executable as `<path> (deleted)`;
+/// copying through `/proc/self/exe` still reads the open file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runningBinary(): string
+/// ```
+fn running_binary() -> Result<PathBuf, ToolchainError> {
+    let path: PathBuf = match std::env::current_exe() {
+        Ok(found) => found,
+        Err(error) => return Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
+    };
+    return Ok(usable_source(path));
+}
+
+/// `path` when it names a file,
+/// otherwise the running process's own executable through `/proc`.
+pub fn usable_source(path: PathBuf) -> PathBuf {
+    if path.exists() {
+        return path;
+    }
+    return PathBuf::from("/proc/self/exe");
+}
+
+/// What:
 /// Makes the launcher for binary `name` of a repository-published tool in this tree and returns its path.
 /// The record is written first,
 /// so a launcher never exists without one.
@@ -169,10 +200,7 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
     let launcher: PathBuf = scope.launcher_dir.join(name);
     let record: LaunchRecord = LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf() };
     write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
-    let source: PathBuf = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
-    };
+    let source: PathBuf = running_binary()?;
     place_binary(&source, &launcher)?;
     return Ok(launcher);
 }
@@ -203,13 +231,19 @@ fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
     return lock.get("tools")?.get(tool_id)?.get("version")?.as_str().map(str::to_string);
 }
 
-/// The version the crate's `current` link names,
-/// found from the real binary's path `<crate directory>/current/bin/<name>`.
+/// Whether a path is named `current`,
+/// the link of a repository-published tool.
+fn is_current_link(candidate: &&Path) -> bool {
+    return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME));
+}
+
+/// The version the tool's `current` link names,
+/// found from the real binary's path:
+/// `<crate directory>/current/bin/<name>` for a crate,
+/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
+/// so the link is the nearest ancestor of the binary that is named `current`.
 fn version_that_runs(real: &Path) -> Option<String> {
-    let link: &Path = real.parent().and_then(Path::parent)?;
-    if link.file_name() != Some(OsStr::new(CURRENT_LINK_NAME)) {
-        return None;
-    }
+    let link: &Path = real.ancestors().skip(1).find(is_current_link)?;
     let target: PathBuf = fs::read_link(link).ok()?;
     let name: String = file_name_text(&target);
     if name.is_empty() {

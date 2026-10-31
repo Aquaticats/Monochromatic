@@ -2,7 +2,8 @@
 //! The cleanup step for `cargo-binstall` installs:
 //! `mpm-shadow prune --toolchain` deletes the version directories under `<toolchain root>/cargo` that no known lock
 //! names,
-//! and for a crate this repository publishes keeps only the newest installed version.
+//! and for a crate this repository publishes keeps only the newest installed version;
+//! the same holds for a release archive of this repository that a lock names (`published_archive.rs`).
 //! Why:
 //! Version-keyed installs let trees with different locks coexist,
 //! so nothing removes a version when the last lock naming it moves on.
@@ -41,6 +42,12 @@ use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::cargo_installs`.
 use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME, point_current_at_newest, recorded_version};
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{
+    NamedArchive, named_archives, plan_archive_prune, point_current_at_newest_archive, present_archive_versions,
+};
+/// Imports `tool_install_dir` from `super::layout`.
+use super::layout::tool_install_dir;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::runner`.
@@ -208,11 +215,12 @@ pub fn worktree_lock_files(runner: &dyn Runner, root: &Path) -> Result<Vec<PathB
     return Ok(files);
 }
 
-/// The versions every lock in `lock_files` names;
+/// The cargo versions and the release-archive tools every lock in `lock_files` names;
 /// a file that does not exist names none,
 /// one that cannot be read or is not a lock refuses.
-fn named_by_all(lock_files: &[PathBuf]) -> Result<BTreeMap<String, BTreeSet<String>>, ToolchainError> {
+fn named_by_all(lock_files: &[PathBuf]) -> Result<(BTreeMap<String, BTreeSet<String>>, BTreeMap<String, NamedArchive>), ToolchainError> {
     let mut named: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut archives: BTreeMap<String, NamedArchive> = BTreeMap::new();
     for file in lock_files {
         let text: String = match fs::read_to_string(file) {
             Ok(text) => text,
@@ -224,8 +232,46 @@ fn named_by_all(lock_files: &[PathBuf]) -> Result<BTreeMap<String, BTreeSet<Stri
         for (crate_name, versions) in named_versions(&text, &file.display().to_string())? {
             named.entry(crate_name).or_default().extend(versions);
         }
+        for (id, archive) in named_archives(&text) {
+            let slot: &mut NamedArchive = archives.entry(id).or_default();
+            slot.versions.extend(archive.versions);
+            slot.first_bin = archive.first_bin;
+        }
     }
-    return Ok(named);
+    return Ok((named, archives));
+}
+
+/// What:
+/// Deletes (or,
+/// with `dry_run`,
+/// lists) the versions of repository-published release-archive tools that are older than the newest finished one,
+/// and points each tool's `current` link at that version.
+/// Why:
+/// Older repository-published tools are never kept,
+/// whichever route installed them.
+/// Only tools some known lock names are judged:
+/// an archive directory nothing names cannot be told from a third-party tool's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pruneArchives(scope: Scope, named: Map<string, NamedArchive>, dryRun: boolean): string[]
+/// ```
+fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run: bool) -> Result<Vec<PathBuf>, ToolchainError> {
+    let present = present_archive_versions(&scope.toolchain_root, named);
+    let mut removed: Vec<PathBuf> = Vec::new();
+    for (id, version) in plan_archive_prune(&present) {
+        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version);
+        if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
+            return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
+        }
+        removed.push(directory);
+    }
+    if !dry_run {
+        for (id, archive) in named {
+            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)?;
+        }
+    }
+    return Ok(removed);
 }
 
 /// Every crate and version directory under `<toolchain root>/cargo`.
@@ -280,7 +326,7 @@ pub fn prune_toolchain(
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
     lock_files.extend(extra_locks.iter().cloned());
-    let named = named_by_all(&lock_files)?;
+    let (named, named_archive_tools) = named_by_all(&lock_files)?;
     let present = present_versions(&scope.toolchain_root);
     let mut removed: Vec<PathBuf> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
@@ -308,6 +354,7 @@ pub fn prune_toolchain(
             }
         }
     }
+    removed.extend(prune_archives(scope, &named_archive_tools, dry_run)?);
     return Ok(removed);
 }
 

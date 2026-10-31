@@ -41,6 +41,8 @@ use super::layout::{install_dir_name, tool_install_dir};
 use super::util::ends_with_any;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{first_bin_of_tool, is_published_archive, point_current_at_newest_archive, remove_older_archives};
 
 /// What:
 /// The last path segment of a URL (query and fragment removed) made safe as a file name:
@@ -88,7 +90,30 @@ fn gunzip_to(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 }
 
 /// What:
-/// Installs one archive-route tool.
+/// Installs one archive-route tool,
+/// and for a tool this repository publishes points its `current` link at the newest finished version
+/// and deletes every older one.
+/// Why:
+/// Older repository-published tools are never kept once a newer one is installed,
+/// and every tree's exposed link goes through `current`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function installArchive(ctx: Context, tool: LockedTool): void
+/// ```
+pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+    install_archive_files(ctx, tool)?;
+    if is_published_archive(tool) {
+        let first_bin: &str = first_bin_of_tool(tool);
+        point_current_at_newest_archive(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin)?;
+        remove_older_archives(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin)?;
+    }
+    return Ok(());
+}
+
+/// What:
+/// Downloads,
+/// verifies and unpacks the archive of one archive-route tool into its version directory.
 /// Why:
 /// A URL ending in an archive suffix is unpacked and its launchers get their execute bits back;
 /// any other
@@ -96,9 +121,9 @@ fn gunzip_to(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function installArchive(ctx: Context, tool: LockedTool): void
+/// function installArchiveFiles(ctx: Context, tool: LockedTool): void
 /// ```
-pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let artifact = artifact_for_host(tool, &ctx.host.platform)?;
     let file_name: String = safe_file_name(&artifact.url);
     let download_path: PathBuf = ctx.scope.toolchain_root.join("downloads").join(format!(

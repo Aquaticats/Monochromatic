@@ -47,6 +47,10 @@ use super::layout::{applies_to_family, install_dir_name};
 use super::model::{LockedTool, OsFamily, Route};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{
+    first_bin_of_tool, is_published_archive, newest_installed_archive, point_current_at_newest_archive,
+};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports `file_name_text` from `super::util`.
@@ -60,10 +64,12 @@ pub const CURRENT_LINK_NAME: &str = "current";
 
 /// What:
 /// Whether a tool is published by this repository:
-/// a `cargo-binstall` tool whose crate name starts with `monochromatic-`.
+/// a `cargo-binstall` tool whose crate name starts with `monochromatic-`,
+/// or an `archive` tool whose `options.tagPrefix` starts with it (a release archive of this repository,
+/// such as `mpm-shadow` itself).
 /// Why:
 /// This repository names every crate it publishes that way (`OWN_CRATE_PREFIX`,
-/// the same rule that limits the registry prune to its own crates),
+/// the same rule that limits the registry prune to its own crates) and tags every release with the same start,
 /// so the plan needs no second list that could drift from the crates.
 ///
 /// In TS you'd write (pseudocode):
@@ -71,7 +77,46 @@ pub const CURRENT_LINK_NAME: &str = "current";
 /// export function isRepositoryPublished(tool: LockedTool): boolean
 /// ```
 pub fn is_repository_published(tool: &LockedTool) -> bool {
+    if is_published_archive(tool) {
+        return true;
+    }
     return tool.declaration.route == Route::CargoBinstall && package_name(tool).starts_with(OWN_CRATE_PREFIX);
+}
+
+/// What:
+/// The newest finished version of a repository-published tool under the toolchain root,
+/// whichever route installed it.
+/// Why:
+/// `install`,
+/// `list` and the warnings all ask this one question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function newestInstalledOf(root: string, tool: LockedTool): string | undefined
+/// ```
+pub fn newest_installed_of(toolchain_root: &Path, tool: &LockedTool) -> Option<String> {
+    if is_published_archive(tool) {
+        return newest_installed_archive(toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+    }
+    return newest_installed(toolchain_root, &package_name(tool));
+}
+
+/// What:
+/// Points the `current` link of a repository-published tool at its newest finished version,
+/// whichever route installed it,
+/// and returns that version.
+/// Why:
+/// Every tree's exposed link goes through `current`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pointCurrentAtNewestOf(root: string, tool: LockedTool): string | undefined
+/// ```
+pub fn point_current_at_newest_of(toolchain_root: &Path, tool: &LockedTool) -> Result<Option<String>, ToolchainError> {
+    if is_published_archive(tool) {
+        return point_current_at_newest_archive(toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+    }
+    return point_current_at_newest(toolchain_root, &package_name(tool));
 }
 
 /// `<toolchain root>/cargo/<crate>`.
@@ -315,7 +360,7 @@ pub fn older_lock_warnings(scope: &Scope, tools: &[LockedTool], family: Option<O
         if !is_repository_published(tool) || !applies_to_family(&tool.declaration.os, family) {
             continue;
         }
-        let Some(used) = newest_installed(&scope.toolchain_root, &package_name(tool)) else {
+        let Some(used) = newest_installed_of(&scope.toolchain_root, tool) else {
             continue;
         };
         if is_newer_than_locked(&used, &tool.version) {

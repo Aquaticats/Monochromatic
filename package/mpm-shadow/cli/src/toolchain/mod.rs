@@ -118,6 +118,9 @@ pub mod observe;
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
 
+/// The newest-only install layout of the archive-route tools this repository publishes.
+pub mod published_archive;
+
 /// Readers for the text other tools print,
 /// and the version comparison.
 pub mod parse_output;
@@ -284,6 +287,10 @@ mod fakes_cargo;
 /// The unit tests of the version-keyed cargo installs and the older-lock warnings.
 #[cfg(test)]
 mod cargo_installs_tests;
+
+/// The unit tests of the newest-only layout for archive-route tools this repository publishes.
+#[cfg(test)]
+mod published_archive_tests;
 
 /// The unit tests of the launcher's decision.
 #[cfg(test)]

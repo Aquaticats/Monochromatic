@@ -36,6 +36,8 @@ use super::context::Context;
 use super::layout::{applies_to_family, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Origin, Route};
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{first_bin_of_tool, is_published_archive, newest_installed_archive};
 /// Imports what this module uses from `super::parse_output`.
 use super::parse_output::{
     global_pnpm_versions, parse_bin_list, parse_uv_tool_list, version_matches,
@@ -198,6 +200,10 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
         Route::MpmUvx => return observe_mpm_uvx(ctx, tool),
         Route::RustupToolchain => return observe_rustup_toolchain(ctx, tool),
         Route::AndroidSdk => return observe_android_sdk(ctx, tool),
+        // A release archive of this repository: the newest finished version, as for a `monochromatic-` crate.
+        Route::Archive if is_published_archive(tool) => {
+            return newest_installed_archive(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+        }
         Route::Archive | Route::CargoGit | Route::GoInstall | Route::RustupComponents => {
             return observe_version_directory(ctx, tool);
         }

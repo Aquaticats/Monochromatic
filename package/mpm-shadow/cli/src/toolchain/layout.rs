@@ -29,6 +29,8 @@ use std::path::{Path, PathBuf};
 use super::cargo_installs::cargo_bin_dir_of;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, OsFamily, Route};
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{current_link_of, is_published_archive};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
@@ -252,6 +254,8 @@ pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dir
             dirs.push(uv_tool_bin_dir(env, &scope.home));
             dirs.extend(extra_dirs.iter().cloned());
         }
+        // A release archive of this repository is run from the newest installed version, through its `current` link.
+        Route::Archive if is_published_archive(tool) => dirs.push(current_link_of(&scope.toolchain_root, &tool.declaration.id)),
         Route::CargoGit | Route::GoInstall | Route::Archive => dirs.push(install_dir),
         Route::RustupToolchain => {
             dirs.push(cargo_bin_dir(env, &scope.home));

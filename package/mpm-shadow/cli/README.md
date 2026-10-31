@@ -691,19 +691,31 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
   each tree's `.cache/toolchain-bin` links the version its own lock names.
 - A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
   repository's own crates) is repository-published.
+  So is an `archive` tool whose `options.tagPrefix` starts with `monochromatic-`:
+  a release archive of this repository,
+  such as `mpm-shadow` itself,
+  whose plan entry is `github:Aquaticats/Monochromatic@latest` with `"tagPrefix": "monochromatic-mpm-shadow-v"`
+  so that the lock records the archive's SHA-256 for the bootstrap.
   The plan and lock carry no second list of them.
   See the next section.
 
 ### Repository-published tools keep only the newest version
 
-Older repository-published tools are never kept once a newer one is installed.
+Older repository-published tools are never kept once a newer one is installed,
+whichever route installed them.
 
 - `install` never installs a version older than the newest finished one in the toolchain root,
-  and after installing a version it deletes every older one.
-- `<toolchain root>/cargo/<crate>/current` is a link to the newest finished version.
+  and after installing a version it deletes every older one
+  (for a release archive also the archives downloaded for them).
+  A cargo version is finished when cargo's record names the crate;
+  a release-archive version is finished when the tool's first declared bin is found in its directory.
+- `<toolchain root>/cargo/<crate>/current` (for a release archive,
+  `<toolchain root>/<tool id>/current`) is a link to the newest finished version.
   Every tree's exposed link goes through it,
   so deleting an older version never leaves a dangling link,
   and two trees syncing at once converge on the newest.
+- A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file;
+  the launcher it makes afterwards is copied through `/proc/self/exe`.
 - `list` counts an installed version that is newer than the locked one as satisfied,
   not drift.
 - A tree whose lock pins an older version than the one that runs is warned,
@@ -768,6 +780,9 @@ It runs only when asked;
 - A third-party version is kept when any known lock names it;
   a repository-published crate keeps only its newest finished version,
   and nothing when no known lock names the crate.
+  A release archive of this repository that some known lock names keeps only its newest finished version too,
+  and its `current` link follows;
+  an archive directory no lock names as a release archive is never judged.
 - It refuses,
   deleting nothing,
   when git cannot list the worktrees,
