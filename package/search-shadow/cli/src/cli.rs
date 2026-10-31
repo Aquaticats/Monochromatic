@@ -25,7 +25,7 @@ use std::env;
 /// Imports `Path` (a borrowed read-only path) and `PathBuf` (the owned one).
 use std::path::{Path, PathBuf};
 
-use crate::constants::USAGE_EXIT_CODE;
+use crate::constants::{SHADOWED_NAMES, USAGE_EXIT_CODE};
 use crate::link::link_shadows;
 
 /// What:     `pub fn build_command() -> Command` declares a public function returning a `Command` description.
@@ -45,8 +45,20 @@ pub fn build_command() -> Command {
     // ```ts
     // return new Command('search-shadow').description('...').version(pkg.version).addCommand(link);
     // ```
+    let shadowed: String = SHADOWED_NAMES.join(", ");
+
+    // What:     `Box::leak(text.into_boxed_str())` gives the text up to the program for good and returns a `&'static str`.
+    // Why:      clap's `version` wants text that lives for the whole program (an owned `String` needs clap's `string`
+    //           feature, which this crate does not enable). The command is built once per process, so the leak is one
+    //           short string.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const versionText = `${pkg.version}, a shadow of ${shadowed}`;
+    // ```
+    let version_text: &'static str = Box::leak(format!("{}, a shadow of {shadowed}", env!("CARGO_PKG_VERSION")).into_boxed_str());
     let link_command: Command = Command::new("link")
-        .about("Create the rg, grep and find shadow links in DIRECTORY; put DIRECTORY first on PATH to activate them")
+        .about("Create a shadow link for every shadowed tool whose real binary is on PATH in DIRECTORY; put DIRECTORY first on PATH to activate them")
         .arg(
             Arg::new("directory")
                 .required(true)
@@ -54,8 +66,10 @@ pub fn build_command() -> Command {
         );
 
     return Command::new("search-shadow")
-        .about("Runs rg, grep and find at the lowest best-effort disk priority, and refuses repository-wide unrestricted rg walks. Invoked as rg, grep or find it acts as that tool's shadow.")
-        .version(env!("CARGO_PKG_VERSION"))
+        .about(format!(
+            "search-shadow is a shadow: it stands in for other tools, it is not a tool of its own. It shadows {shadowed}. Started under one of those names it runs the real tool at the lowest best-effort disk priority, refuses wide rg, grep and find walks, and prints one extra line after the tool's --version and one extra section after its --help. Started as search-shadow it offers the link command."
+        ))
+        .version(version_text)
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(link_command);
