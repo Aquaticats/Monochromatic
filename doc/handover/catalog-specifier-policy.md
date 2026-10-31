@@ -236,6 +236,28 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
 - The Rust dependency catalog has `clap`, `serde` and `serde_json` but no YAML crate (`rust-catalog.toml`),
   so a Rust checker must hand-parse `packages:` too or add a crate.
 
+### Upstream state (agent report `~/temp/agent/pnpm-upstream-research.md`, source reading of pnpm commit `c7b46aedef`, not run)
+
+- Issue [8644](https://github.com/pnpm/pnpm/issues/8644) "Checks to enforce pnpm catalog protocol usage" is the direct request.
+  It proposed "Or the `pnpm install` command fails if enforcement is enabled" and was closed `COMPLETED` on 2026-02-15
+  with no closing PR, on the grounds that `catalogMode` "likely addresses this feature request".
+  `catalogMode` does not: its code is wired to add and update only (`crates/package-manager/src/catalog_mode.rs:1`).
+- Discussion [8567](https://github.com/orgs/pnpm/discussions/8567) holds an unanswered question from 2026-03-11 asking whether a
+  hand-edited `package.json` should be covered; no maintainer replied.
+  Install-time warnings were also suggested in 15022 (now a locked discussion); neither it nor 11742 has a maintainer reply.
+  The maintainers point to `syncpack` as the external route.
+  No upstream fix is on the horizon, so the repo needs its own check.
+- No pnpm command or setting validates specifiers: no `pnpm catalog` or lint command exists, and `blockExoticSubdeps`,
+  `trustPolicy`, `minimumReleaseAge` and `strictDepBuilds` act on resolved packages.
+- The agent's source reading agrees with the probes: `updateConfig` receives settings (`dir`, `workspaceDir`,
+  `workspacePackagePatterns`) and no manifests, runs before the command on almost every verb, and does not run on `dlx` or `doctor`.
+  `pnpm dlx` is therefore an unchecked path, which is acceptable because it installs into a throwaway project.
+- The no-op install fast path refuses to short-circuit when a pnpmfile is present, which is why `updateConfig` still runs.
+- The agent's `gh search` first PR round used a quoted multi-word phrase that returns nothing, so only its rerun counts.
+  It did not search `pnpm/rfcs`.
+- The earlier `pi` verdict (defer the hook) was reached on my wrong premise that no hook reaches the no-op install and that the
+  hook must wait for manifests through `readPackage`; the verdict should be treated as superseded on that point.
+
 ### What this changes
 
 Reach is no longer an argument for the Rust shadow over a hook: an `updateConfig` hook covers the no-op install and every
