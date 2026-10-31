@@ -82,7 +82,7 @@ pub fn announced_flags(name: &str) -> Option<AnnouncedFlags> {
     // switch (name) { case 'rg': case 'fd': return {...}; default: return undefined; }
     // ```
     return match name {
-        "rg" | "fd" | "ag" | "tokei" => Some(AnnouncedFlags {
+        "rg" | "fd" | "fdfind" | "ag" | "tokei" => Some(AnnouncedFlags {
             version: &["--version", "-V"],
             help: &["--help", "-h"],
         }),
