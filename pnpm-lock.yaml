@@ -485,10 +485,6 @@ pnpmfileChecksum: sha256-4MHx8h0RjylATEj1UFhwz4qSVa6W/VuwwB8xwgLv+0g=
 importers:
 
   .:
-    dependencies:
-      '@monochromatic-dev/search-fetch-cli':
-        specifier: workspace:*
-        version: link:package/search-fetch/cli
     devDependencies:
       '@changesets/cli':
         specifier: 'catalog:'
@@ -559,6 +555,9 @@ importers:
       '@monochromatic-dev/pi-plugin-spawn':
         specifier: workspace:*
         version: link:package/pi-plugin/spawn
+      '@monochromatic-dev/search-fetch-cli':
+        specifier: workspace:*
+        version: link:package/search-fetch/cli
       '@monochromatic-dev/terminal-exec-cli':
         specifier: workspace:*
         version: link:package/terminal-exec/cli

@@ -9,9 +9,6 @@
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git"
   },
-  "dependencies": {
-    "@monochromatic-dev/search-fetch-cli": "workspace:*"
-  },
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@monochromatic-dev/css-cli": "workspace:*",
@@ -28,6 +25,7 @@
     "@monochromatic-dev/git-clone-size-cli": "workspace:*",
     "@monochromatic-dev/mvm-cli": "workspace:*",
     "@monochromatic-dev/open-code-review-issue-cli": "workspace:*",
+    "@monochromatic-dev/search-fetch-cli": "workspace:*",
     "@monochromatic-dev/terminal-exec-cli": "workspace:*",
     "@monochromatic-dev/wg-cli-allowedips": "workspace:*",
     "@monochromatic-dev/wg-cli-quicker": "workspace:*",
