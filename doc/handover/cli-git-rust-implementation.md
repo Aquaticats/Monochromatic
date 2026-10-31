@@ -4391,3 +4391,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Not ours and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `.projenrc.ts`,
   `doc/audit/standards-review-gate-truth-check.md`, `doc/handover/superlinear-cost-dismissal-gate.md` (another
   session's changes in the main checkout).
+
+## Update at 2026-10-30 (after the reboot)
+
+- Repository integrity: local `main` equals `origin/main` (`36c263b600`); the `RBT`, handover, fault-injection and
+  license commits are ancestors of it. `git fsck --no-dangling` found no missing reachable object. It did report four
+  commits (`20e5135a60`, `439fb9a6ca`, `6c1284ab51`, `dcef62f3a4`) that the split commit-graph listed but the object
+  database could not read. No ref or reflog reaches them, so they were unreachable scratch commits whose objects were
+  gone; the reboot or an earlier prune lost nothing that is referenced.
+- Repair: `git commit-graph write --reachable --split=replace` rebuilt the derived cache; `git commit-graph verify` and
+  a second `git fsck --no-dangling` were then clean. A first attempt with `--no-split --changed-paths` only printed
+  usage and changed nothing.
+- `mise run prepare:pnpm:install` found everything up to date. The container gate was started as the unit
+  `cli-git-gate-postboot` (`MemoryMax=12G`, `CPUQuota=800%`, log `~/temp/agent/gate/postboot.log`); its counts are
+  recorded in the next update.
