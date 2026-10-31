@@ -7,21 +7,149 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! export { resolveBrowserslistrc, renderResolvedJson, parseLock, type DataLock } from './index';
+//! export { resolveBrowserslistrc, renderBrowserslistrc } from './api';
+//! export { DataLock } from './lock';
+//! export { DataSource } from './source';
 //! ```
 
+/// What:
+///  The engine-facing entry points `resolve_browserslistrc` and `render_browserslistrc`.
+/// Why:
+///  Callers need only these two functions plus a lock and a data source.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './api';
+/// ```
+pub mod api;
+/// What:
+///  Decoding of caniuse-lite's packed agent data.
+/// Why:
+///  The browser version lists every query reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './caniuse';
+/// ```
 pub mod caniuse;
+/// What:
+///  The command-line surface used by the `monochromatic-browserslist` binary.
+/// Why:
+///  Kept in the library so the commands are testable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './cli';
+/// ```
+pub mod cli;
+/// What:
+///  `.browserslistrc` text to query lines.
+/// Why:
+///  Accepts comments and blank lines; refuses the other `parseConfig` features.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './config';
+/// ```
 pub mod config;
+/// What:
+///  The decoded data one resolve run reads.
+/// Why:
+///  Resolution is a pure function of query text plus this value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './data';
+/// ```
 pub mod data;
+/// What:
+///  browserslist's `dead` expansion and the `not dead` subtraction.
+/// Why:
+///  Public so tests (and the engine, if it wants) can run the subtraction on a chosen vector.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './dead';
+/// ```
 pub mod dead;
+/// What:
+///  The crate's single error type.
+/// Why:
+///  One type for all failures, with a distinct "not implemented" variant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './error';
+/// ```
 pub mod error;
+#[cfg(test)]
+mod fake_registry;
+/// What:
+///  Firefox ESR value parsing.
+/// Why:
+///  Shared by the lock and the update step.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './firefoxEsr';
+/// ```
 pub mod firefox_esr;
+mod fetch;
 #[cfg(test)]
 mod fixture;
+mod integrity;
+/// What:
+///  The parser for the packed-JavaScript literal subset.
+/// Why:
+///  Public for the adversarial tests and for reuse by a future caller.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './jsLiteral';
+/// ```
 pub mod js_literal;
-pub mod js_number;
-pub mod node_releases;
-pub mod query;
-pub mod render;
-pub mod resolve;
-pub mod select;
+mod js_number;
+/// What:
+///  The lock that pins the data revisions.
+/// Why:
+///  The engine parses the committed lock and hands it to `resolve_browserslistrc`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './lock';
+/// ```
+pub mod lock;
+mod node_releases;
+mod query;
+mod render;
+mod resolve;
+mod select;
+/// What:
+///  The pinned-tarball cache and data loader.
+/// Why:
+///  Public for `DataSource`, the one knob (cache directory and registry) callers may turn.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './source';
+/// ```
+pub mod source;
+mod tarball;
+/// What:
+///  The update step that builds a new lock from the newest published data.
+/// Why:
+///  Run by the update binary, never by resolve.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export * from './update';
+/// ```
+pub mod update;
+
+pub use api::{render_browserslistrc, resolve_browserslistrc};
+pub use data::{BrowserData, DataFiles};
+pub use error::{BrowserslistError, Outcome};
+pub use lock::{DataLock, PinnedPackage};
+pub use render::render_resolved_json;
+pub use resolve::{finalize, resolve_config_text};
+pub use source::DataSource;

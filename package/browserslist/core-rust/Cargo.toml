@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["parser-implementations", "development-tools"]
 edition = "2024"
+homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/browserslist/core-rust"
 include = [
   "src/**/*.rs",
   "fixtures/**",
@@ -15,6 +16,7 @@ include = [
 keywords = ["browserslist", "caniuse", "browsers", "targets"]
 license = "LGPL-3.0-or-later"
 readme = "README.md"
+repository = "https://github.com/Aquaticats/Monochromatic.git"
 description = "Resolves this repository's .browserslistrc to the target list npm browserslist 4.29.5 produces, for the query forms the repository uses only, from caniuse-lite and node-releases data pinned by hash in a lock file; every other query form fails with a not-implemented error."
 
 [lib]
@@ -22,8 +24,8 @@ name = "monochromatic_browserslist"
 path = "src/lib.rs"
 
 [[bin]]
-name = "browserslist-lock-update"
-path = "src/bin/browserslist_lock_update.rs"
+name = "monochromatic-browserslist"
+path = "src/main.rs"
 
 [dependencies]
 # The sha-512 digest that npm publishes as `dist.integrity`; every downloaded tarball is checked against it.
@@ -35,7 +37,7 @@ base64 = { workspace = true }
 # Reads the lock, the node-releases data, and the Mozilla product-details document, and writes the lock.
 serde_json = { workspace = true }
 
-# Locates the per-user cache directory that holds the verified, extracted data keyed by integrity.
+# Locates the per-user cache directory that holds the verified tarballs keyed by integrity.
 directories = { workspace = true }
 
 # Inflates the gzip layer of an npm tarball.
@@ -55,9 +57,6 @@ tokio = { workspace = true, features = ["rt", "net", "time"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-# The fake registry in the tests is a plain tokio TCP listener, so it needs the io helpers and the test macro.
-tokio = { workspace = true, features = ["rt", "net", "time", "io-util"] }
-
 # Disposable cache and fixture directories for the tests.
 tempfile = { workspace = true }
 

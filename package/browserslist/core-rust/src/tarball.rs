@@ -1,0 +1,76 @@
+//! What:
+//!  Pulls a few named files out of an npm tarball held in memory.
+//! Why:
+//!  The data files are the only part of caniuse-lite and node-releases this crate reads;
+//!  nothing from the archive is ever written to disk by path, so entry names cannot escape anywhere.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! function extractFiles(tgz: Uint8Array, wanted: string[]): Uint8Array[]; // gunzip, walk tar entries, match by exact path
+//! ```
+
+use crate::error::{BrowserslistError, Outcome};
+use flate2::read::GzDecoder;
+use std::io::Read;
+use tar::Archive;
+
+/// The most decompressed tar bytes the reader consumes (the real caniuse-lite tarball is under 25 MiB unpacked).
+const MAX_ARCHIVE_BYTES: u64 = 256 * 1024 * 1024;
+
+/// The largest single wanted file accepted.
+const MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Build an error naming the tarball.
+fn failure(subject: &str, message: &str) -> BrowserslistError {
+    return BrowserslistError::Data { file: format!("{subject} tarball"), offset: None, message: message.to_string() };
+}
+
+/// What:
+///  Return the contents of each wanted path, in the order requested.
+///  Paths are matched exactly against tar entry paths such as `package/data/agents.js`.
+/// Why:
+///  A missing, duplicated, oversized or non-regular wanted entry is an error, never a silent gap.
+/// Gotcha:
+///  Reading stops after `MAX_ARCHIVE_BYTES` of decompressed data, so a gzip bomb cannot exhaust memory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function extractFiles(subject: string, tgz: Uint8Array, wanted: string[]): Uint8Array[];
+/// ```
+pub fn extract_files(subject: &str, tgz: &[u8], wanted: &[&str]) -> Outcome<Vec<Vec<u8>>> {
+    let decoder = GzDecoder::new(tgz).take(MAX_ARCHIVE_BYTES);
+    let mut archive = Archive::new(decoder);
+    let mut found: Vec<Option<Vec<u8>>> = vec![None; wanted.len()];
+    let entries = archive.entries().map_err(|error| failure(subject, &format!("unreadable archive: {error}")))?;
+    for entry_result in entries {
+        let mut entry = entry_result.map_err(|error| failure(subject, &format!("unreadable archive entry: {error}")))?;
+        let path = entry.path().map_err(|error| failure(subject, &format!("unreadable entry path: {error}")))?.to_string_lossy().into_owned();
+        let Some(position) = wanted.iter().position(|candidate| *candidate == path) else {
+            continue;
+        };
+        if !entry.header().entry_type().is_file() {
+            return Err(failure(subject, &format!("{path} is not a regular file")));
+        }
+        if found[position].is_some() {
+            return Err(failure(subject, &format!("{path} appears more than once")));
+        }
+        if entry.size() > MAX_FILE_BYTES {
+            return Err(failure(subject, &format!("{path} is larger than {MAX_FILE_BYTES} bytes")));
+        }
+        let mut contents: Vec<u8> = Vec::new();
+        entry.read_to_end(&mut contents).map_err(|error| failure(subject, &format!("{path}: {error}")))?;
+        found[position] = Some(contents);
+    }
+    let mut files: Vec<Vec<u8>> = Vec::with_capacity(wanted.len());
+    for (path, contents) in wanted.iter().zip(found) {
+        let Some(bytes) = contents else {
+            return Err(failure(subject, &format!("{path} is missing")));
+        };
+        files.push(bytes);
+    }
+    return Ok(files);
+}
+
+#[cfg(test)]
+#[path = "tarball_tests.rs"]
+mod tests;

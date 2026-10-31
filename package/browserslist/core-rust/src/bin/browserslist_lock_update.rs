@@ -1,2 +1,0 @@
-//! placeholder
-fn main() {}
