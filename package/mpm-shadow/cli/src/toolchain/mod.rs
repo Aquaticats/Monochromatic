@@ -26,11 +26,35 @@ pub mod context;
 /// The error type and its exit codes.
 pub mod error;
 
+/// The exposure directory, postinstall links and postinstall commands.
+pub mod exposure;
+
 /// SHA-256 helpers.
 pub mod hash;
 
 /// The network seam and its real client.
 pub mod http;
+
+/// The switch from a tool's route to its installer.
+pub mod install;
+
+/// The `archive` route.
+pub mod install_archive;
+
+/// The `bin-sourced` route.
+pub mod install_bin;
+
+/// The cargo routes.
+pub mod install_cargo;
+
+/// The routes through pnpm, uv and go.
+pub mod install_managers;
+
+/// The Rust toolchain and Android SDK routes.
+pub mod install_rust_android;
+
+/// Downloads, extraction and links shared by the installers.
+pub mod install_support;
 
 /// Where tools install and how their binaries are found.
 pub mod layout;
@@ -67,6 +91,9 @@ pub mod scope;
 
 /// The `status` command.
 pub mod status_cmd;
+
+/// The `sync` command.
+pub mod sync;
 
 /// Test fixtures shared by the toolchain unit tests.
 #[cfg(test)]
@@ -115,3 +142,11 @@ mod parse_output_tests;
 /// The unit tests of the observers and the status report.
 #[cfg(test)]
 mod observe_tests;
+
+/// The unit tests of every installer.
+#[cfg(test)]
+mod install_tests;
+
+/// The unit tests of `sync`, the exposure directory and the postinstall steps.
+#[cfg(test)]
+mod sync_tests;

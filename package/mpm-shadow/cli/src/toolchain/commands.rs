@@ -18,11 +18,13 @@ use std::path::PathBuf;
 use super::bin_paths::{bin_paths_output, render_bin_paths};
 use super::error::ToolchainError;
 use super::context::Host;
+use super::http::connect_or_explain;
 use super::lock_cmd::{LockMode, run_lock};
 use super::plan::read_plan;
 use super::runner::ProcessRunner;
 use super::scope::{EnvMap, Scope, resolve_scope};
 use super::status_cmd::run_status;
+use super::sync::{format_sync_report, run_sync};
 
 /// The `--global` flag every toolchain verb accepts: act on the machine-global plan and lock.
 fn global_flag() -> Arg {
@@ -59,10 +61,13 @@ pub fn subcommands() -> Vec<Command> {
     let bin_paths: Command = Command::new("bin-paths")
         .about("Print the toolchain's program directories and exposed binaries as JSON (read-only, offline)")
         .arg(global_flag());
+    let sync: Command = Command::new("sync")
+        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory")
+        .arg(global_flag());
     let status: Command = Command::new("status")
         .about("Compare the installed tools with the lock (read-only; exits 1 on drift or when the plan and lock disagree)")
         .arg(global_flag());
-    return vec![lock, bin_paths, status];
+    return vec![lock, sync, status, bin_paths];
 }
 
 /// Prints a success line to standard output.
@@ -109,6 +114,22 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 Ok(line) => {
                     print_line(&line);
                     0
+                }
+                Err(error) => report(&error),
+            });
+        }
+        "sync" => {
+            let http = connect_or_explain();
+            return Some(match run_sync(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current()) {
+                Ok(sync_report) => {
+                    println!(
+                        "toolchain sync: platform {}, root {}, exposure {}",
+                        Host::current().platform,
+                        scope.toolchain_root.display(),
+                        scope.exposure_dir.display()
+                    );
+                    print!("{}", format_sync_report(&sync_report));
+                    i32::from(!sync_report.failed.is_empty())
                 }
                 Err(error) => report(&error),
             });

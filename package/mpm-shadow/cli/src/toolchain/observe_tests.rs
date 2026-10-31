@@ -2,57 +2,13 @@
 //! scope. Every test also asserts what was started, which proves nothing reached the real host.
 
 use std::fs;
-use std::path::Path;
 
-use super::context::{Context, Host};
-use super::fakes::{FakeHttp, FakeRunner};
-use super::fixtures::{sample_lock, sample_scope_on_disk};
+use super::context::Host;
+use super::fakes::{Rig, write_executable};
 use super::layout::tool_install_dir;
-use super::lock::Lock;
 use super::model::OsFamily;
 use super::observe::{format_status, observe_all, observe_tool};
-use super::scope::{EnvMap, Scope};
 
-fn host() -> Host {
-    return Host { platform: "linux-x64".to_string(), family: Some(OsFamily::Linux) };
-}
-
-fn write_executable(path: &Path) {
-    fs::create_dir_all(path.parent().expect("a parent")).expect("make the directory");
-    fs::write(path, "#!/bin/sh\n").expect("write");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("chmod");
-    }
-}
-
-struct Rig {
-    _directory: tempfile::TempDir,
-    scope: Scope,
-    env: EnvMap,
-    runner: FakeRunner,
-    http: FakeHttp,
-    lock: Lock,
-    host: Host,
-}
-
-impl Rig {
-    fn new() -> Rig {
-        let (directory, scope, env) = sample_scope_on_disk();
-        return Rig { _directory: directory, scope, env, runner: FakeRunner::new(), http: FakeHttp::new(), lock: sample_lock(), host: host() };
-    }
-
-    fn context(&self) -> Context<'_> {
-        return Context { scope: &self.scope, env: &self.env, runner: &self.runner, http: &self.http, host: &self.host, tools: &self.lock.tools };
-    }
-
-    fn install_tool_binary(&self, tool_id: &str, name: &str) {
-        let tool = self.lock.tool(tool_id).expect("tool");
-        let directory = tool_install_dir(&self.scope.toolchain_root, tool_id, &tool.version);
-        write_executable(&directory.join(name));
-    }
-}
 
 #[test]
 fn a_cargo_binstall_tool_is_read_from_the_binstall_list() {
@@ -108,7 +64,7 @@ fn an_npm_listing_that_is_not_json_reads_as_absent() {
 #[test]
 fn a_python_tool_is_read_from_the_uv_tool_list_by_its_underscored_name() {
     let rig = Rig::new();
-    rig.install_tool_binary("uv", "uv");
+    rig.install_binary("uv", "uv");
     rig.runner.answer("uv tool list", "slopo v0.9.0\n- slopo\n", 0);
     let tool = rig.lock.tool("pipx:slopo").expect("tool").clone();
     assert_eq!(observe_tool(&rig.context(), &tool), Some("0.9.0".to_string()));
@@ -137,7 +93,7 @@ fn a_rust_toolchain_is_the_listed_name_that_starts_with_the_locked_channel() {
 #[test]
 fn a_bin_sourced_tool_is_read_from_bin_list_with_the_scope_config() {
     let rig = Rig::new();
-    rig.install_tool_binary("bin", "bin");
+    rig.install_binary("bin", "bin");
     rig.runner.answer("bin list", "/x/pnpm  v1.2.3  https://example.test  ok\n", 0);
     let tool = rig.lock.tool("pnpm").expect("tool").clone();
     assert_eq!(observe_tool(&rig.context(), &tool), Some("1.2.3".to_string()));

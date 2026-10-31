@@ -20,11 +20,18 @@ use super::runner::{RunOutcome, RunRequest, Runner};
 pub(crate) struct FakeRunner {
     calls: RefCell<Vec<RunRequest>>,
     rules: RefCell<Vec<(String, RunOutcome)>>,
+    effects: RefCell<Vec<(String, Box<dyn Fn(&RunRequest)>)>>,
 }
 
 impl FakeRunner {
     pub(crate) fn new() -> FakeRunner {
         return FakeRunner::default();
+    }
+
+    /// Runs `effect` (for example, creating the files a real tool would create) whenever a request whose line starts
+    /// with `prefix` arrives.
+    pub(crate) fn on(&self, prefix: &str, effect: Box<dyn Fn(&RunRequest)>) {
+        self.effects.borrow_mut().push((prefix.to_string(), effect));
     }
 
     /// Answers requests whose line starts with `prefix` with this stdout and exit code.
@@ -63,6 +70,11 @@ impl Runner for FakeRunner {
     fn run(&self, request: &RunRequest) -> RunOutcome {
         self.calls.borrow_mut().push(request.clone());
         let line: String = matching_line(request);
+        for (prefix, effect) in self.effects.borrow().iter() {
+            if line.starts_with(prefix.as_str()) {
+                effect(request);
+            }
+        }
         for (prefix, outcome) in self.rules.borrow().iter() {
             if line.starts_with(prefix.as_str()) {
                 return outcome.clone();
@@ -151,5 +163,73 @@ impl HttpGet for FakeHttp {
         }
         std::fs::write(target, &body).expect("write the fake download");
         return Ok(sha256_hex(&body));
+    }
+}
+
+/// What:     Everything a test of a provider, observer or resolver needs: a disposable scope on disk, the sample lock, a
+///           fake runner and a fake network, and a Linux x64 host.
+/// Why:      One constructor instead of the same twelve lines in every test file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Rig { scope; env; runner = new FakeRunner(); http = new FakeHttp(); lock = sampleLock(); host = linuxX64; }
+/// ```
+pub(crate) struct Rig {
+    pub(crate) _directory: tempfile::TempDir,
+    pub(crate) scope: super::scope::Scope,
+    pub(crate) env: super::scope::EnvMap,
+    pub(crate) runner: FakeRunner,
+    pub(crate) http: FakeHttp,
+    pub(crate) lock: super::lock::Lock,
+    pub(crate) host: super::context::Host,
+}
+
+impl Rig {
+    pub(crate) fn new() -> Rig {
+        let (directory, scope, env) = super::fixtures::sample_scope_on_disk();
+        return Rig {
+            _directory: directory,
+            scope,
+            env,
+            runner: FakeRunner::new(),
+            http: FakeHttp::new(),
+            lock: super::fixtures::sample_lock(),
+            host: super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) },
+        };
+    }
+
+    pub(crate) fn context(&self) -> super::context::Context<'_> {
+        return super::context::Context {
+            scope: &self.scope,
+            env: &self.env,
+            runner: &self.runner,
+            http: &self.http,
+            host: &self.host,
+            tools: &self.lock.tools,
+        };
+    }
+
+    /// The locked tool with this id (cloned so the test can keep using the rig).
+    pub(crate) fn tool(&self, id: &str) -> super::model::LockedTool {
+        return self.lock.tool(id).expect("the sample lock holds the tool").clone();
+    }
+
+    /// Writes an executable stand-in at `<install dir of tool>/<name>`.
+    pub(crate) fn install_binary(&self, tool_id: &str, name: &str) -> std::path::PathBuf {
+        let tool = self.tool(tool_id);
+        let path = super::layout::tool_install_dir(&self.scope.toolchain_root, tool_id, &tool.version).join(name);
+        write_executable(&path);
+        return path;
+    }
+}
+
+/// Writes a small executable file, creating its directory.
+pub(crate) fn write_executable(path: &std::path::Path) {
+    std::fs::create_dir_all(path.parent().expect("a parent")).expect("make the directory");
+    std::fs::write(path, "#!/bin/sh\n").expect("write");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
     }
 }
