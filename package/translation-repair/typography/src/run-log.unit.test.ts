@@ -20,7 +20,10 @@ import {
 import { join, } from 'node:path';
 
 import { createLogger, } from '@monochromatic-dev/logger-core/ts';
-import { createFileSink, } from '@monochromatic-dev/logger-core/ts/node.ts';
+import {
+  createFileSink,
+  NO_LOG_RETENTION_SWEEP,
+} from '@monochromatic-dev/logger-core/ts/node.ts';
 import {
   describe,
   expect,
@@ -391,6 +394,109 @@ await describe({
               },
             ],);
             expect([printedLog.args, printedError.args,],).toEqual([[], [],],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'a destination that does not answer',
+      concurrency: 1,
+      children: [
+        it({
+          name: 'STOPS WAITING for a sink that never says whether its folder is writable, once the bound has passed '
+            + '(ledger B1112): the log is open but records nothing, and says it is unanswered and not unwritable, so '
+            + 'the pass can refuse naming the folder',
+          fn: async (ctx) => {
+            ctx.sinon.stub(
+              console,
+              'info',
+            );
+            /**
+             Fake timers, so the bound passes at once and the case waits for no clock.
+             */
+            const clock = ctx.sinon.useFakeTimers({
+              toFake: ['setTimeout', 'clearTimeout',],
+              shouldClearNativeTimers: true,
+            },);
+            await using scratch = await scratchDir({ prefix: 'run-log-', },);
+            /**
+             The real sink, whose verification a hung disk would never finish.
+             */
+            const real = createFileSink({
+              directory: join(
+                scratch.path,
+                'log',
+              ),
+              retention: NO_LOG_RETENTION_SWEEP,
+              environment: {},
+            },);
+            /**
+             The verification a hung disk would never finish, which only the case can settle.
+             */
+            const held = Promise.withResolvers<boolean>();
+            /**
+             Whether the open has settled.
+             */
+            let settled = false;
+            /**
+             The run log being opened.
+             */
+            const opening = (async function opens() {
+              const opened = await openRunLog({
+                runDir: scratch.path,
+                fileSinkOf: () => ({
+                  ...real,
+                  verify: () => held.promise,
+                }),
+                verifyWithinMs: 5_000,
+              },);
+              settled = true;
+              return opened;
+            })();
+            await clock.tickAsync(4_999,);
+            /**
+             Whether the open had settled before the bound.
+             */
+            const settledEarly = settled;
+            await clock.tickAsync(2,);
+            await using log = await opening;
+
+            expect(settledEarly,).toBe(false,);
+            expect(log.recording,).toBe(false,);
+            expect(log.destination,).toBe('unanswered',);
+            held.resolve(true,);
+          },
+        },),
+
+        it({
+          name: 'SAYS A SINK THAT ANSWERS is writable, or unwritable, as it always did',
+          fn: async (ctx) => {
+            ctx.sinon.stub(
+              console,
+              'info',
+            );
+            await using scratch = await scratchDir({ prefix: 'run-log-', },);
+            /**
+             A file where the folder's `log` directory would go, which nothing can write under.
+             */
+            const blocked = join(
+              scratch.path,
+              'blocked',
+            );
+            await mkdir(blocked,);
+            await writeFile(
+              join(
+                blocked,
+                'log',
+              ),
+              'a file',
+            );
+            await using writable = await openRunLog({ runDir: scratch.path, },);
+            await using unwritable = await openRunLog({ runDir: blocked, },);
+
+            expect([writable.recording, writable.destination,],).toEqual([true, 'writable',],);
+            expect([unwritable.recording, unwritable.destination,],).toEqual([false, 'unwritable',],);
           },
         },),
       ],
