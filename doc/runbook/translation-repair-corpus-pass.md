@@ -595,7 +595,10 @@ as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
     ```
 
     Expected:
-    `0`.
+    no output and exit status 1,
+    because `rg --count` prints a count only for an input that matches
+    and exits 1 when nothing matches.
+    Any number printed is the count of `[error]` records.
 
 -   `METERS`,
     once per reading,

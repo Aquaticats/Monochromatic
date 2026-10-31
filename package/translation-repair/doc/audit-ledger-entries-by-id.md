@@ -523,6 +523,7 @@ which lists every file of this record.
 - [B1119, a folder named beside its own log was counted twice](audit-ledger-pass-records-in-the-run-folder.md)
 - [B1120, a reader holds no file whole](audit-ledger-pass-records-in-the-run-folder.md)
 - [B1121, corrections to this record, and what did not move](audit-ledger-pass-records-in-the-run-folder.md)
+- [B1122, the flags of a runner end at a shell control operator](audit-ledger-command-lines-read-by-each-runner.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

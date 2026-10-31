@@ -954,7 +954,7 @@ named for that subject and listed here.
   ledger rows and log lines that name one key more than once,
   read by the first or the last without saying so.
 - [Audit ledger: command lines read by each runner](audit-ledger-command-lines-read-by-each-runner.md):
-  How the runners read their command lines,
+  How the runners read their command lines and where a doc's invocation of one ends (B1122),
   and ids a line names that its runner cannot reach.
 - [Audit ledger: operator refusals printed as faults](audit-ledger-operator-refusals-printed-as-faults.md):
   Refusals of an operator's own mistake that printed as faults of the command,

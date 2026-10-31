@@ -842,9 +842,14 @@ B1091 and B1093 in `audit-ledger-entries-by-id.md` were over 120 columns and are
 Commit messages that say something this record corrects:
 `ab7b3d8389` says 5 new cases in the glossary reader suite;
 there are 4.
-`6d57f27934` also holds the lint spellings of `adjudication/src/child-environment.test-fixture.ts`,
+An earlier version of this entry said that `6d57f27934` also holds the lint spellings of
+`adjudication/src/child-environment.test-fixture.ts`,
 a test fixture,
 which its message does not list.
+That was wrong:
+`6d57f27934` has no file of the adjudication package among its 12 files.
+The fixture changed in `e34df38acf` and `e903a69302`,
+and the message of each names it.
 
 No cache version moved:
 this round changed where records are written and how they are shown,
