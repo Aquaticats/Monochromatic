@@ -235,6 +235,8 @@ export async function runIntroducedDefectProbe(
     responseFormat: INTRODUCED_DEFECT_RESPONSE_FORMAT,
     validate: isIntroducedDefectReportWire,
     stage: 'introduced-defect-probe',
+    // THE PROBERS ARE THE CHECKERS (`checkerModelIds`), whose role honours the cull alone.
+    role: 'checker',
     l,
     graceMs: stageSettings
       .grace

@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE WIDE-JUDGE ROLE where the panel is asked',
       fn: async () => {
-        const source = await readFile(new URL('./panel-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('panel-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['wide-judge',],);
       },
     },),
@@ -34,7 +34,7 @@ await describe({
     it({
       name: 'NAMES THE CHECKER ROLE where the probe of introduced defects is asked',
       fn: async () => {
-        const source = await readFile(new URL('./introduced-defect-probe.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('introduced-defect-probe.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['checker',],);
       },
     },),

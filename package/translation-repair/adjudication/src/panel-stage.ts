@@ -392,6 +392,8 @@ export async function runPanelStage(
             .length,
         },),
         stage: 'panel',
+        // THE PANEL IS THE WIDE SEATS (`panelModelIds`), so a runaway is re-asked of no model the cards drop from them.
+        role: 'wide-judge',
         l: packetLogger,
         graceMs: stageSettings
           .grace
