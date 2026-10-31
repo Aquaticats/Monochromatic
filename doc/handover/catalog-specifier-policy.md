@@ -201,6 +201,14 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
 - `pnpm install --ignore-pnpmfile` exits 0 with the violation present: the one bypass found.
   `config get` and `--version` are unaffected, so the repair path through pnpm itself is not blocked.
   No file in the repo uses `--ignore-pnpmfile` or `ignorePnpmfile`.
+- Reach and bypass probe `~/temp/agent/catalog-updateconfig-reach.ts`, same fixture, violation planted
+  (the message, not the exit code, is the discriminator; the control run without a violation printed no message):
+  the check fired for `--dir`, `-C`, `--filter`, `-r`, `--workspace-root`, and `--dir <fixture>` run from an unrelated cwd.
+  It was skipped for `pnpm_config_ignore_pnpmfile=true` in the environment and for `--config.ignore-pnpmfile=true`,
+  as well as `--ignore-pnpmfile`; `npm_config_ignore_pnpmfile=true` did not skip it.
+  `--pnpmfile ./missing.mjs` fails with exit 2 rather than skipping.
+  A deliberate bypass therefore exists in three spellings (flag, `--config.` form, `pnpm_config_` environment variable),
+  which is why the source lint stays as the backstop.
 - Cost: the same scan over the real repo's workspace manifests took a median of 4.9 ms over 15 in-process runs
   (minimum 4.4, maximum 9.0 on the first), and it found the one real violation, `zod` in `cost-dismissal`.
   This is the scan alone, not pnpm's own startup.
