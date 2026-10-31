@@ -7,13 +7,15 @@
  default effort until the completion cap cut it: `text: ""`, `finishReason:
  "length"`, 18316 completion tokens, 0 content characters. An empty reply was
  never asked again, only a refusal was, so the reader's one reading was lost.
- A cut reasoning run is a property of the roll and of the serving stack, which
- is the case a second ask on another provider that serves the model can win.
 
- WHAT THESE PIN: only an empty reply that the length limit ended is asked
- once more; it is asked on another provider where one is wet and on the same
- provider otherwise; a second cut stays a failed reading; an empty reply with
- no cut reason is still asked once, as before.
+ WHAT THEY PIN SINCE 2026-10-30 (ledger B1074, B1075, B1076): a cut empty reply is a reasoning runaway, and the
+ owner's answer "Everywhere (Recommended)" sends its re-ask to another model, not to the same weights on another
+ route. The other model is chosen in the order of the cap census's runaway shares ("Lowest runaway share"), among the
+ models that read pictures, that their cards do not hold out of the reader role ("Honour holds") and that are not
+ readers of the same picture (the bench), and it is asked the picture as the first ask asked it, with no change of
+ wording ("Plain question"). Where no model can take it, the reader itself is asked as before: on another provider
+ where one is wet, on the same provider otherwise. ONCE, not up to the refusal limit: a second cut stays a failed
+ reading.
 
  Fixtures are cat-themed invention. No corpus content appears here.
 
@@ -39,8 +41,22 @@ import {
 } from '@monochromatic-dev/translation-repair-provider';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { readPastRefusal, } from '../dist/final/node/index.mjs';
-import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import {
+  SEAT_BEDROCK_ONLY_TEXT,
+  SEAT_BEDROCK_ONLY_VISION_UNSEATED,
+  SEAT_HYPER_ONLY,
+  SEAT_HYPER_OPENROUTER_UNMEASURED,
+  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_HYPER_VISION,
+  SEAT_OPENROUTER_ONLY,
+  SEAT_OPENROUTER_ONLY_CHECKER,
+  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+
+//region Cut-empty reading tests
 
 /**
  Reader used by every case.
@@ -67,62 +83,99 @@ const CUT: ChatTextReply = {
 const NO_HINT = 'no hint';
 
 /**
- One scripted step: a reply, or the router's refusal to serve it elsewhere.
+ Readers of a picture other than the one that was cut, in the order the census gives them: the models that read
+ pictures and that no hold keeps out of the reader role.
  */
-type Step = ChatTextReply | 'nowhere-else';
+const READING_ALTERNATES: readonly RosterModelId[] = [
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_BEDROCK_ONLY_VISION_UNSEATED,
+  SEAT_HYPER_VISION,
+  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+];
+
+/**
+ One scripted step: a reply, or the router's refusal for want of a provider.
+ */
+type Step = ChatTextReply | 'no-provider';
+
+/**
+ One ask the scripted client saw.
+ */
+type SeenAsk = {
+  /**
+   Model the ask was addressed to.
+   */
+  readonly modelId: RosterModelId;
+
+  /**
+   The `otherThan` hint of the ask, or the no-hint word.
+   */
+  readonly hint: string;
+
+  /**
+   Prompt text of the ask.
+   */
+  readonly prompt: string;
+};
 
 /**
  Client that answers from a script and records what each ask carried.
 
- @param steps - what each ask gets, in order; the last one repeats
+ @param scripts - steps each model gets, in order, the last one repeating; a model not named reads the picture
 
- @returns Client, the `otherThan` hint of each ask (or the no-hint word), and each ask's prompt
+ @returns Client and the asks it saw
 
  @example
  ```ts
- const { client, hints, } = scriptedClient({ steps: [CUT, { text: READING, },], },);
+ const { client, seen, } = scriptedClient({ scripts: { [READER]: [CUT,], }, },);
  ```
  */
 function scriptedClient(
-  { steps, }: { readonly steps: readonly Step[]; },
+  { scripts, }: { readonly scripts: Readonly<Record<string, readonly Step[]>>; },
 ): {
   readonly client: ModelClient;
-  readonly hints: string[];
-  readonly prompts: string[];
+  readonly seen: SeenAsk[];
 } {
   /**
-   The `otherThan` hint of each ask.
+   Asks the client saw, in order.
    */
-  const hints: string[] = [];
-  /**
-   Prompt text of each ask.
-   */
-  const prompts: string[] = [];
+  const seen: SeenAsk[] = [];
   return {
-    hints,
-    prompts,
+    seen,
     client: {
       chatText: async (request,) => {
         /**
          Request as this package's own contract describes it.
          */
         const asked = request as ChatTextRequest;
-        hints.push(asked.otherThan ?? NO_HINT,);
-        prompts.push(asked.messages
-          .map(function text(message,): string {
-            return messageText({ message, },);
-          },)
-          .join('\n',),);
+
+        /**
+         Asks this model had before this one.
+         */
+        const before = seen.filter(function sameModel(ask,): boolean {
+          return ask.modelId === asked.modelId;
+        },).length;
+        seen.push({
+          modelId: asked.modelId,
+          hint: asked.otherThan ?? NO_HINT,
+          prompt: asked.messages
+            .map(function text(message,): string {
+              return messageText({ message, },);
+            },)
+            .join('\n',),
+        },);
 
         /**
          Step for this ask, holding at the last scripted one.
          */
-        const step = steps[hints.length - 1] ?? steps.at(-1,) ?? { text: '', };
+        const steps = scripts[asked.modelId] ?? [{ text: READING, servedBy: 'hyper', },];
+        const step = steps[before] ?? steps.at(-1,) ?? { text: '', };
         await Promise.resolve();
-        if (step === 'nowhere-else') {
+        if (step === 'no-provider') {
           throw new NoProviderForModelError({
             modelId: asked.modelId,
-            reason: 'no provider other than neuralwatt serves it with budget',
+            reason: 'no provider with budget serves it',
           },);
         }
         return step;
@@ -173,7 +226,10 @@ function keepingLogger({ said, }: { readonly said: string[]; },): Logger {
  Reads the picture once, past whatever the script gives.
 
  @param client - scripted client
+
  @param l - logger
+
+ @param benchModelIds - readers of the same picture, when the case names them
 
  @returns Reading
 
@@ -186,9 +242,11 @@ async function readOnce(
   {
     client,
     l,
+    benchModelIds,
   }: {
     readonly client: ModelClient;
     readonly l: Logger;
+    readonly benchModelIds?: readonly RosterModelId[];
   },
 ): ReturnType<typeof readPastRefusal> {
   return await readPastRefusal({
@@ -199,46 +257,154 @@ async function readOnce(
     signal: AbortSignal.timeout(HANG_STOP_MS,),
     perCallTimeoutMs: HANG_STOP_MS,
     l,
+    ...((benchModelIds === undefined) ? {} : { benchModelIds, }),
   },);
+}
+
+/**
+ Scripts that give every model other than the reader no provider.
+
+ @returns Script for each model that reads pictures and is not held out of the reader role
+
+ @example
+ ```ts
+ const scripts = { ...nobodyElse(), [READER]: [CUT, READING_STEP,], };
+ ```
+ */
+function nobodyElse(): Readonly<Record<string, readonly Step[]>> {
+  return Object.fromEntries(READING_ALTERNATES.map(function refused(modelId,): readonly [string, readonly Step[]] {
+    return [modelId, ['no-provider',],];
+  },),);
 }
 
 await describe({
   name: 'reading past a reply the completion limit cut',
+  concurrency: 1,
   children: [
     it({
-      name: 'ASKS AGAIN ON ANOTHER PROVIDER AFTER AN EMPTY REPLY THE LENGTH LIMIT CUT, with a prompt of its '
-        + 'own so the uniqueness wrapper buys it, and returns the reading that follows',
+      name: 'ASKS ANOTHER MODEL AFTER AN EMPTY REPLY THE LENGTH LIMIT CUT, the one with the lowest share of runaways that '
+        + 'reads pictures, with the same prompt and no provider hint, and returns the reading that follows',
       fn: async () => {
-        const { client, hints, prompts, } = scriptedClient({ steps: [CUT, { text: READING, servedBy: 'openrouter', },], },);
+        const { client, seen, } = scriptedClient({ scripts: { [READER]: [CUT,], }, },);
         const reading = await readOnce({ client, l: tagged({ tag: 'cut-empty-test', },), },);
 
         expect(reading.kind,).toBe('read',);
-        expect(hints,).toEqual([NO_HINT, 'neuralwatt',],);
-        expect(new Set(prompts,).size,).toBe(2,);
-        expect(prompts[1],).toContain('Small-text pass',);
+        expect(seen.map(function ask(asked,) {
+          return [asked.modelId, asked.hint,];
+        },),).toEqual([[READER, NO_HINT,], [SEAT_HYPER_TEXT_BEDROCK, NO_HINT,],],);
+        // THE PLAIN QUESTION: the picture is asked exactly as the first ask asked it.
+        expect(new Set(seen.map(function promptOf(asked,) {
+          return asked.prompt;
+        },),).size,).toBe(1,);
       },
     },),
 
     it({
-      name: 'ASKS THE SAME PROVIDER WHEN NO OTHER ONE IS WET, with no hint on the third ask, because the '
-        + 'router refuses a hinted ask that has nowhere else to go',
+      name: 'MOVES ON TO THE NEXT MODEL when one has no provider with budget, and passes over every model that reads no '
+        + 'picture, the culled model and the ones the reader role holds out',
       fn: async () => {
-        const { client, hints, } = scriptedClient({ steps: [CUT, 'nowhere-else', { text: READING, },], },);
+        const { client, seen, } = scriptedClient({
+          scripts: { [READER]: [CUT,], [SEAT_HYPER_TEXT_BEDROCK]: ['no-provider',], },
+        },);
         const reading = await readOnce({ client, l: tagged({ tag: 'cut-empty-test', },), },);
 
         expect(reading.kind,).toBe('read',);
-        expect(hints,).toEqual([NO_HINT, 'neuralwatt', NO_HINT,],);
+        expect(seen.map(function modelOf(asked,) {
+          return asked.modelId;
+        },),).toEqual([READER, SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_VISION_UNSEATED,],);
+
+        const everyone = scriptedClient({ scripts: { [READER]: [CUT,], ...nobodyElse(), }, },);
+        await readOnce({ client: everyone.client, l: tagged({ tag: 'cut-empty-test', },), },);
+        /**
+         Models the second case asked.
+         */
+        const asked = new Set(everyone.seen.map(function modelOf(ask,) {
+          return ask.modelId;
+        },),);
+        for (const passedOver of [
+          SEAT_BEDROCK_ONLY_TEXT,
+          SEAT_OPENROUTER_ONLY,
+          SEAT_HYPER_ONLY,
+          SEAT_HYPER_OPENROUTER_UNMEASURED,
+          SEAT_OPENROUTER_ONLY_CHECKER,
+        ]) {
+          expect(asked.has(passedOver,),).toBe(false,);
+        }
       },
     },),
 
     it({
-      name: 'LEAVES A SECOND CUT AS A FAILED READING, so a reader that reasons to the limit twice costs '
-        + 'two asks and not an unbounded number',
+      name: 'LEAVES OUT THE READERS OF THE SAME PICTURE, so an answer recorded as the cut reader\'s reading is never a '
+        + 'second reading by a model that also reads the picture on its own seat',
       fn: async () => {
-        const { client, hints, } = scriptedClient({ steps: [CUT,], },);
+        const { client, seen, } = scriptedClient({ scripts: { [READER]: [CUT,], }, },);
+        await readOnce({
+          client,
+          l: tagged({ tag: 'cut-empty-test', },),
+          benchModelIds: [READER, SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_VISION_UNSEATED,],
+        },);
+
+        expect(seen.map(function modelOf(asked,) {
+          return asked.modelId;
+        },),).toEqual([READER, SEAT_HYPER_VISION,],);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE READER ITSELF ON ANOTHER PROVIDER WHEN NO OTHER MODEL CAN TAKE IT, with the next reading '
+        + 'responsibility, saying so in the log, and on the same provider when no other one is wet',
+      fn: async () => {
+        /**
+         Every line written.
+         */
+        const said: string[] = [];
+        const { client, seen, } = scriptedClient({
+          scripts: { ...nobodyElse(), [READER]: [CUT, 'no-provider', { text: READING, },], },
+        },);
+        const reading = await readOnce({ client, l: keepingLogger({ said, },), },);
+
+        expect(reading.kind,).toBe('read',);
+        expect(seen.filter(function isReader(asked,): boolean {
+          return asked.modelId === READER;
+        },).map(function hintOf(asked,) {
+          return asked.hint;
+        },),).toEqual([NO_HINT, 'neuralwatt', NO_HINT,],);
+        // THE FIRST ASK AND THE OTHER MODELS' ASKS SHARE A PROMPT; THE FALL BACK TAKES THE NEXT RESPONSIBILITY.
+        expect(seen.at(-1,)?.prompt,).toContain('Small-text pass',);
+        expect(seen[0]?.prompt,).not.toContain('Small-text pass',);
+        expect(said.some(function names(line,): boolean {
+          return line.includes('no other model could take the re-ask',);
+        },),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'FALLS BACK TO THE READER ITSELF WHEN THE BENCH HOLDS EVERY MODEL THAT COULD TAKE IT: nothing else is asked',
+      fn: async () => {
+        const { client, seen, } = scriptedClient({ scripts: { [READER]: [CUT, { text: READING, },], }, },);
+        const reading = await readOnce({
+          client,
+          l: tagged({ tag: 'cut-empty-test', },),
+          benchModelIds: [READER, ...READING_ALTERNATES,],
+        },);
+
+        expect(reading.kind,).toBe('read',);
+        expect(seen.map(function ask(asked,) {
+          return [asked.modelId, asked.hint,];
+        },),).toEqual([[READER, NO_HINT,], [READER, 'neuralwatt',],],);
+      },
+    },),
+
+    it({
+      name: 'LEAVES A SECOND CUT AS A FAILED READING, so a reader that reasons to the limit and the model asked in its '
+        + 'place cost two asks and not an unbounded number',
+      fn: async () => {
+        const { client, seen, } = scriptedClient({
+          scripts: { [READER]: [CUT,], [SEAT_HYPER_TEXT_BEDROCK]: [CUT,], },
+        },);
         const reading = await readOnce({ client, l: tagged({ tag: 'cut-empty-test', },), },);
 
-        expect(hints.length,).toBe(2,);
+        expect(seen.length,).toBe(2,);
         expect(reading.kind,).toBe('unavailable',);
         if (reading.kind !== 'unavailable')
           throw new Error('unavailable by construction',);
@@ -247,18 +413,25 @@ await describe({
     },),
 
     it({
-      name: 'LOGS THE RE-ASK AND ITS REASON, naming the picture, the provider that was cut and the finish reason',
+      name: 'LOGS THE RE-ASK AND ITS REASON, naming the picture, the provider that was cut, the finish reason, the model '
+        + 'chosen and each model left out with why',
       fn: async () => {
         /**
          Every line written.
          */
         const said: string[] = [];
-        const { client, } = scriptedClient({ steps: [CUT, { text: READING, },], },);
-        await readOnce({ client, l: keepingLogger({ said, },), },);
+        const { client, } = scriptedClient({ scripts: { [READER]: [CUT,], }, },);
+        await readOnce({
+          client,
+          l: keepingLogger({ said, },),
+          benchModelIds: [READER, SEAT_HYPER_VISION,],
+        },);
 
         expect(said.some(function names(line,): boolean {
-          return line.includes('noticeboard.webp',) && line.includes('finish reason length',)
-            && line.includes('neuralwatt',) && line.includes('asking again',);
+          return line.includes('noticeboard.webp',) && line.includes('finish reason length on neuralwatt',)
+            && line.includes(`re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question`,)
+            && line.includes(`${SEAT_HYPER_VISION} (seated on the bench of this question)`,)
+            && line.includes(`${SEAT_HYPER_OPENROUTER_UNMEASURED} (held out of the reader role by reader-unmeasured)`,);
         },),).toBe(true,);
       },
     },),
@@ -267,27 +440,35 @@ await describe({
       name: 'STILL ASKS ONCE FOR AN EMPTY REPLY THAT NO LENGTH LIMIT CUT, since only the cut run has '
         + 'been measured to change on a second ask',
       fn: async () => {
-        const { client, hints, } = scriptedClient({
-          steps: [{ text: '', finishReason: 'stop', servedBy: 'neuralwatt', },],
+        const { client, seen, } = scriptedClient({
+          scripts: { [READER]: [{ text: '', finishReason: 'stop', servedBy: 'neuralwatt', },], },
         },);
         const reading = await readOnce({ client, l: tagged({ tag: 'cut-empty-test', },), },);
 
-        expect(hints.length,).toBe(1,);
+        expect(seen.length,).toBe(1,);
         expect(reading.kind,).toBe('unavailable',);
       },
     },),
 
     it({
-      name: 'ASKS WITHOUT A HINT WHEN THE CUT REPLY NAMED NO PROVIDER, as a client that routes nowhere gives',
+      name: 'ASKS THE READER WITHOUT A HINT WHEN THE CUT REPLY NAMED NO PROVIDER, as a client that routes nowhere gives, '
+        + 'once no other model can take it',
       fn: async () => {
-        const { client, hints, } = scriptedClient({
-          steps: [{ text: '', finishReason: 'length', }, { text: READING, },],
+        const { client, seen, } = scriptedClient({
+          scripts: { ...nobodyElse(), [READER]: [{ text: '', finishReason: 'length', }, { text: READING, },], },
         },);
         const reading = await readOnce({ client, l: tagged({ tag: 'cut-empty-test', },), },);
 
         expect(reading.kind,).toBe('read',);
-        expect(hints,).toEqual([NO_HINT, NO_HINT,],);
+        expect(seen.map(function hintOf(asked,) {
+          return asked.hint;
+        },).every(function isNoHint(hint,): boolean {
+          return hint === NO_HINT;
+        },),).toBe(true,);
+        expect(seen.at(-1,)?.modelId,).toBe(READER,);
       },
     },),
   ],
 },);
+
+//endregion Cut-empty reading tests
