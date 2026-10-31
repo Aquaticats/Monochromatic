@@ -108,7 +108,15 @@ pub struct Shared {
     pub build: String,
 }
 
-/// The `impl Shared` block.
+/// What:
+///   Operations on the state every connection thread shares.
+/// Why:
+///   `touch` records activity so the idle timer only counts time with no connection and no request.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Shared { touch(): void }
+/// ```
 impl Shared {
     /// What:
     ///  Note that something happened,
@@ -149,7 +157,10 @@ fn should_stop(shared: &Shared) -> bool {
     if shared.connections.load(Ordering::SeqCst) > 0 {
         return false;
     }
-    let idle_for = shared.last_activity.lock().map(|last| return last.elapsed()).unwrap_or_default();
+    let idle_for = match shared.last_activity.lock() {
+        Ok(last) => last.elapsed(),
+        Err(_) => Duration::default(),
+    };
     return idle_for >= shared.options.idle;
 }
 

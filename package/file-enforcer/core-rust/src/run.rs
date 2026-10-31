@@ -43,11 +43,40 @@ use crate::run_finish::{finish_check, finish_write};
 /// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// Exit code for a clean run.
+/// What:
+///   Exit code `0`.
+///   `i32` is a signed 32-bit integer,
+/// the type process exit codes use.
+/// Why:
+///   Every generated file is up to date and no rule failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const EXIT_CLEAN = 0;
+/// ```
 pub const EXIT_CLEAN: i32 = 0;
-/// Exit code for drift or a rule failure.
+/// What:
+///   Exit code `1`.
+/// Why:
+///   Scripts can tell that files differ from their rules,
+///   or a rule failed,
+///   apart from a mistake in how the tool was called.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const EXIT_DRIFT = 1;
+/// ```
 pub const EXIT_DRIFT: i32 = 1;
-/// Exit code for a bad command line or config.
+/// What:
+///   Exit code `2`.
+/// Why:
+///   The command line or the config is wrong,
+///   so nothing was planned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const EXIT_USAGE = 2;
+/// ```
 pub const EXIT_USAGE: i32 = 2;
 
 /// How many times a write replans after a read file changed before it gives up.

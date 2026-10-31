@@ -49,21 +49,42 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Debug)]
 pub struct View {
-    /// The `root` field.
+    /// The worktree root every relative path is resolved against.
     root: PathBuf,
-    /// The `overlay` field.
+    /// What earlier rules planned,
+    /// by path;
+    /// reads see it before the real files.
     overlay: BTreeMap<String, Planned>,
-    /// The `files` field.
+    /// The real state of each file path read so far,
+    /// kept so revalidation can compare it with the disk later.
     files: BTreeMap<String, Observed>,
-    /// The `dirs` field.
+    /// A fingerprint of each directory listing read so far.
     dirs: BTreeMap<String, String>,
-    /// The `accesses` field.
+    /// Every read as (rule position,
+    /// path),
+    /// in order.
     accesses: Vec<(usize, String)>,
-    /// The `current_rule` field.
+    /// Position of the rule being planned,
+    /// recorded with each read.
     current_rule: usize,
 }
 
-/// The `impl View` block.
+/// What:
+///   Everything a rule can do with the virtual worktree:
+/// read,
+/// list,
+/// apply a planned change,
+/// and report what was read.
+/// Why:
+///   Every read is recorded,
+/// which is what revalidation,
+/// ordering checks,
+/// `explain` and `watch` are built from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class View { readText(rel); readBytes(rel); modeOf(rel); list(rel); apply(change); changedPaths() }
+/// ```
 impl View {
     /// What:
     ///  Start a view over a worktree root with an empty overlay.
@@ -85,7 +106,15 @@ impl View {
         };
     }
 
-    /// The worktree root this view reads.
+    /// What:
+    ///  The worktree root this view reads.
+    /// Why:
+    ///  A rule that must touch the real disk outside the view (a test rule that races the engine) needs the root.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// root(): string
+    /// ```
     pub fn root(&self) -> &Path {
         return &self.root;
     }
@@ -103,15 +132,32 @@ impl View {
         self.current_rule = index;
     }
 
-    /// Every (rule position,
+    /// What:
+    ///  Every (rule position,
     /// path) pair read so far,
     /// in order.
+    /// Why:
+    ///  `explain` names the rules that read a path,
+    ///  and the run catches a rule that reads a later rule's output.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// accesses(): [number, string][]
+    /// ```
     pub fn accesses(&self) -> &[(usize, String)] {
         return &self.accesses;
     }
 
-    /// The overlay of planned paths,
+    /// What:
+    ///  The overlay of planned paths,
     /// sorted by path.
+    /// Why:
+    ///  Drift detection compares each planned file with the real one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// overlay(): Map<string, Planned>
+    /// ```
     pub fn overlay(&self) -> &BTreeMap<String, Planned> {
         return &self.overlay;
     }

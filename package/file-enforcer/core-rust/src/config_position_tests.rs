@@ -134,21 +134,25 @@ fn a_key_with_a_slash_is_escaped_in_the_pointer_and_still_located() {
 #[test]
 fn conversion_problems_carry_the_same_position_format() {
     let duplicate = "{\n  \"rules\": [],\n  \"rules\": []\n}";
-    let error = parse_config_text(duplicate, "c.jsonc").expect_err("duplicate key");
-    let expected = format!("c.jsonc:{}: /: the key \"rules\" appears twice in this object", where_is(duplicate, 3, "\"rules\""));
-    assert_eq!(error.message, expected);
+    let duplicate_error = parse_config_text(duplicate, "c.jsonc").expect_err("duplicate key");
+    let duplicate_at = where_is(duplicate, 3, "\"rules\"");
+    let duplicate_message = format!("c.jsonc:{duplicate_at}: /: the key \"rules\" appears twice in this object");
+    assert_eq!(duplicate_error.message, duplicate_message);
     let surrogate = "{\n  \"rules\": [],\n  \"x\": \"\\ud800\"\n}";
-    let error = parse_config_text(surrogate, "c.jsonc").expect_err("lone surrogate");
-    let expected = format!("c.jsonc:{}: /x: the string holds an unpaired surrogate", where_is(surrogate, 3, "\"\\ud800\""));
-    assert_eq!(error.message, expected);
+    let surrogate_error = parse_config_text(surrogate, "c.jsonc").expect_err("lone surrogate");
+    let surrogate_at = where_is(surrogate, 3, "\"\\ud800\"");
+    let surrogate_message = format!("c.jsonc:{surrogate_at}: /x: the string holds an unpaired surrogate");
+    assert_eq!(surrogate_error.message, surrogate_message);
     let key_surrogate = "{\n  \"\\ud800\": 1\n}";
-    let error = parse_config_text(key_surrogate, "c.jsonc").expect_err("lone surrogate key");
-    assert_eq!(error.message, format!("c.jsonc:{}: /: a key holds an unpaired surrogate", where_is(key_surrogate, 2, "\"\\ud800\"")));
+    let key_error = parse_config_text(key_surrogate, "c.jsonc").expect_err("lone surrogate key");
+    let key_at = where_is(key_surrogate, 2, "\"\\ud800\"");
+    assert_eq!(key_error.message, format!("c.jsonc:{key_at}: /: a key holds an unpaired surrogate"));
     let huge = "{\n  \"n\": 1e999\n}";
-    let error = parse_config_text(huge, "c.jsonc").expect_err("unrepresentable number");
-    assert_eq!(error.message, format!("c.jsonc:{}: /n: the number 1e999 is not representable", where_is(huge, 2, "1e999")));
-    assert_eq!(error.code, "config-syntax");
-    assert_eq!(error.path.as_deref(), Some("c.jsonc"));
+    let huge_error = parse_config_text(huge, "c.jsonc").expect_err("unrepresentable number");
+    let huge_at = where_is(huge, 2, "1e999");
+    assert_eq!(huge_error.message, format!("c.jsonc:{huge_at}: /n: the number 1e999 is not representable"));
+    assert_eq!(huge_error.code, "config-syntax");
+    assert_eq!(huge_error.path.as_deref(), Some("c.jsonc"));
 }
 
 #[test]

@@ -20,8 +20,31 @@ use crate::json_build::object;
 use serde_json::Value;
 /// Imports `MetadataExt` from `std::os::unix::fs`.
 use std::os::unix::fs::MetadataExt;
-/// Imports `Path` from `std::path`.
-use std::path::Path;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
+use std::path::{Path, PathBuf};
+
+/// What:
+///  The canonical form of a path (symlinks and `..` resolved),
+/// or the path itself when it cannot be resolved.
+///  `PathBuf` is the owned path (TS:
+/// a `string`),
+/// `&Path` the borrowed one.
+/// Why:
+///  Server sockets and overlap checks compare directories by their canonical names,
+/// and a directory that does not exist yet has none,
+/// so the given path stands in rather than failing the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function canonicalOrSame(path: string): string { try { return fs.realpathSync(path); } catch { return path; } }
+/// ```
+pub fn canonical_or_same(path: &Path) -> PathBuf {
+    match std::fs::canonicalize(path) {
+        Ok(canonical) => return canonical,
+        Err(_) => return path.to_path_buf(),
+    }
+}
 
 /// What:
 ///  The running executable's identity:

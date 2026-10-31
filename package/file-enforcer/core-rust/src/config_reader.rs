@@ -68,7 +68,16 @@ pub struct Reader<'a> {
     pub locations: &'a ConfigLocations,
 }
 
-/// The `impl Reader` block.
+/// What:
+///   The readers and the error recorders of `Reader`.
+/// Why:
+///   Each reader returns a harmless default after recording an error so decoding continues,
+///   and the caller discards the result when any error was recorded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Reader { error(pointer, message); text(object, key, pointer): string; array(object, key, pointer): unknown[] }
+/// ```
 impl<'a> Reader<'a> {
     /// What:
     ///  Start a reader for one config file and the table of where its nodes sit.

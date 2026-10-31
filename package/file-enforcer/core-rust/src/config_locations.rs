@@ -124,6 +124,40 @@ fn unescape_segment(segment: &str) -> String {
 }
 
 /// What:
+///  Step from a node to one child.
+/// Why:
+///  An object is stepped into by key and an array by index,
+/// and the walk below should not care which.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LocationNode { child(segment: string): LocationNode | undefined }
+/// ```
+impl LocationNode {
+    /// What:
+    ///  The child named by one unescaped pointer segment:
+    /// the member with that key for an object,
+    /// the element at that index for an array,
+    /// nothing for a scalar or a segment that does not resolve.
+    /// Why:
+    ///  Lookup costs one table probe,
+    /// so a config with many keys is not scanned member by member.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// child(segment: string): LocationNode | undefined
+    /// ```
+    fn child(&self, segment: &str) -> Option<&LocationNode> {
+        if let Some(by_key) = &self.by_key {
+            let index = by_key.get(segment)?;
+            return self.items.get(*index);
+        }
+        let index = segment.parse::<usize>().ok()?;
+        return self.items.get(index);
+    }
+}
+
+/// What:
 ///  The lookups.
 /// Why:
 ///  A pointer that no longer resolves (a key that is missing from the file) still has a useful position:
@@ -153,11 +187,7 @@ impl ConfigLocations {
         }
         for raw in pointer.split('/').skip(1) {
             let segment = unescape_segment(raw);
-            let next = match &node.by_key {
-                Some(by_key) => by_key.get(&segment).and_then(|index| return node.items.get(*index)),
-                None => segment.parse::<usize>().ok().and_then(|index| return node.items.get(index)),
-            };
-            let Some(found) = next else { return (node, false) };
+            let Some(found) = node.child(&segment) else { return (node, false) };
             node = found;
         }
         return (node, true);

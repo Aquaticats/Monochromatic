@@ -71,6 +71,22 @@ pub fn is_repo_relative(path: &str) -> bool {
 }
 
 /// What:
+///  Whether one byte is an octal digit `0` to `7`.
+///  `&u8` is a borrowed byte,
+/// the item type `filter` hands over.
+/// Why:
+///  `filter` takes a function,
+/// and a named one is clearer than a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isOctalDigit(code: number): boolean { return code >= 48 && code <= 55; }
+/// ```
+fn is_octal_digit(byte: &u8) -> bool {
+    return (b'0'..=b'7').contains(byte);
+}
+
+/// What:
 ///  Check that a mode string is three or four octal digits.
 /// Why:
 ///  JSON has no octal literals,
@@ -84,7 +100,7 @@ pub fn is_octal_mode(mode: &str) -> bool {
     if mode.len() < 3 || mode.len() > 4 {
         return false;
     }
-    return mode.bytes().all(|byte| return (b'0'..=b'7').contains(&byte));
+    return mode.bytes().filter(is_octal_digit).count() == mode.len();
 }
 
 /// What:

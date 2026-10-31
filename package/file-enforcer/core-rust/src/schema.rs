@@ -91,7 +91,13 @@ pub fn flatten_descriptions(node: &mut Value) {
 /// function oneLine(text: string): string { return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(' '); }
 /// ```
 pub fn one_line(text: &str) -> String {
-    let lines: Vec<&str> = text.lines().map(str::trim).filter(|line| return !line.is_empty()).collect();
+    let mut lines: Vec<&str> = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            lines.push(trimmed);
+        }
+    }
     return lines.join(" ");
 }
 

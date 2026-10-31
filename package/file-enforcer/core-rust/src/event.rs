@@ -66,7 +66,18 @@ pub struct Event {
     pub fields: Map<String, Value>,
 }
 
-/// The `impl Event` block.
+/// What:
+///   Building an event,
+/// adding extra members,
+/// and converting to and from its JSON line.
+/// Why:
+///   Extra members keep the order they were added,
+/// which is the order they print in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Event { static new(type, code, message); setField(key, value); toJson(sequence); toLine(sequence) }
+/// ```
 impl Event {
     /// What:
     ///  Build an event with no hint and no extra fields.
@@ -208,7 +219,16 @@ pub struct CollectingSink {
     pub events: Vec<Event>,
 }
 
-/// The `impl EventSink for CollectingSink` block.
+/// What:
+///   How the collecting sink receives an event:
+/// it appends to a list.
+/// Why:
+///   Tests and `watch` run the engine into a list first and decide afterwards what to forward.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// emit(event: Event): void { this.events.push(event); }
+/// ```
 impl EventSink for CollectingSink {
     /// What:
     ///  Append the event to the list.

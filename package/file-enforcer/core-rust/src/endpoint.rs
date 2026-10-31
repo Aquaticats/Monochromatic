@@ -14,6 +14,8 @@
 
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `canonical_or_same` from `crate::identity`.
+use crate::identity::canonical_or_same;
 /// Imports `prepare_runtime_directory`,
 /// `runtime_directory`,
 /// `server_key`,
@@ -75,7 +77,7 @@ fn resolve_runtime_directory() -> Result<PathBuf, Diagnostic> {
 /// function repositoryEndpoint(root: string): Endpoint
 /// ```
 pub fn repository_endpoint(root: &Path) -> Result<Endpoint, Diagnostic> {
-    let canonical = std::fs::canonicalize(root).unwrap_or_else(|_| return root.to_path_buf());
+    let canonical = canonical_or_same(root);
     let directory = resolve_runtime_directory()?;
     let key = server_key(&canonical.display().to_string());
     return Ok(Endpoint { socket: socket_path(&directory, &key)?, root: canonical });

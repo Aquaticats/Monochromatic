@@ -51,9 +51,28 @@ pub enum DriftReason {
     ReplaceLink,
 }
 
-/// The `impl DriftReason` block.
+/// What:
+///   The name of a drift reason as it appears in events.
+/// Why:
+///   Output names are kebab-case strings that scripts match on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// driftReasonName(reason: DriftReason): string
+/// ```
 impl DriftReason {
-    /// The kebab-case name used in events.
+    /// What:
+    ///  The kebab-case name of the reason,
+    ///  such as `missing` or `extra-directory`.
+    ///  `&'static str` is text baked into the program (TS:
+    /// a string literal type).
+    /// Why:
+    ///  Events carry it as the `reason` member and scripts match on it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// name(): 'missing' | 'content' | 'mode' | 'extra' | 'extra-directory' | 'replace-link'
+    /// ```
     pub fn name(&self) -> &'static str {
         match self {
             DriftReason::Missing => return "missing",
@@ -91,7 +110,15 @@ pub struct Drift {
     pub expected: Option<Vec<u8>>,
 }
 
-/// The `impl Drift` block.
+/// What:
+///   The event form of a drift.
+/// Why:
+///   `check` prints one event per drift and `write` reports the same facts as it publishes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// drift.toEvent(): Event
+/// ```
 impl Drift {
     /// What:
     ///  Render the drift as a `drift` event.
@@ -126,7 +153,11 @@ impl Drift {
 /// ```
 pub fn compute_drift(report: &mut PlanReport) -> Result<Vec<Drift>, Diagnostic> {
     let mut drifts: Vec<Drift> = Vec::new();
-    let planned: Vec<(String, Planned)> = report.view.overlay().iter().map(|pair| return (pair.0.clone(), pair.1.clone())).collect();
+    // The overlay is copied out first because observing real files below needs the view mutably.
+    let mut planned: Vec<(String, Planned)> = Vec::new();
+    for (path, state) in report.view.overlay() {
+        planned.push((path.clone(), state.clone()));
+    }
     for (path, state) in planned {
         let rule = report.owners.get(&path).cloned().unwrap_or_default();
         let real = report.view.observe_file(&path)?;
