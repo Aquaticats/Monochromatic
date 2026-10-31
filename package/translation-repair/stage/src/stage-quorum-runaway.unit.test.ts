@@ -18,6 +18,7 @@ import type {
   ChatJsonOutcome,
   ChatJsonRequest,
   ModelClient,
+  ReaskMode,
   ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
 import { gatherStageVoices, } from '../dist/final/node/index.mjs';
@@ -78,7 +79,13 @@ type SeenAsk = {
  ```
  */
 async function gatherWithARunaway(
-  { role, }: { readonly role: 'roster' | 'wide-judge'; },
+  {
+    role,
+    reask = 'other-model',
+  }: {
+    readonly role: 'roster' | 'wide-judge';
+    readonly reask?: ReaskMode;
+  },
 ) {
   /**
    Asks the client saw.
@@ -142,6 +149,7 @@ async function gatherWithARunaway(
       graceMs: HANG_STOP_MS,
       fanOut: 'whole-bench',
       role,
+      reask,
     },),
   };
 }
@@ -162,6 +170,24 @@ await describe({
             expect(ask.reaskSeat?.bench,).toEqual(BENCH,);
           }
         }
+      },
+    },),
+
+    it({
+      name: 'NAMES THE MODE THE CALLER GAVE ON EVERY ASK and asks no model off the bench of a measurement: the runaway '
+        + 'seat is asked its own question again, nudged, and stays unreadable, since a rival\'s answer would be scored as '
+        + 'its own',
+      fn: async () => {
+        const { gather, seen, } = await gatherWithARunaway({ role: 'wide-judge', reask: 'measured-model', },);
+        for (const ask of seen)
+          expect(ask.reaskSeat?.reask,).toBe('measured-model',);
+        expect(seen.filter(function isAlternate(ask,): boolean {
+          return !BENCH.includes(ask.modelId,);
+        },),).toEqual([],);
+        expect(seen.filter(function isSeat(ask,): boolean {
+          return ask.modelId === SEAT_HYPER_OPENROUTER_UNMEASURED;
+        },),).toHaveLength(2,);
+        expect([...gather.unreadable,],).toEqual([SEAT_HYPER_OPENROUTER_UNMEASURED,],);
       },
     },),
 

@@ -18,6 +18,7 @@ import type {
   ChatJsonOutcome,
   ChatJsonRequest,
   ModelClient,
+  ReaskMode,
   ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
 import { runWindowedRounds, } from '../dist/final/node/index.mjs';
@@ -47,14 +48,16 @@ const BENCH: readonly RosterModelId[] = [
 /**
  Runs the rounds over the bench with every seat answering, and returns the seat each ask carried.
 
+ @param reask - mode the rounds are given, the run's unless a case is about a measurement
+
  @returns Seat of each ask, in the order the asks were made
 
  @example
  ```ts
- const seats = await seatsOfAsks();
+ const seats = await seatsOfAsks({ reask: 'other-model', },);
  ```
  */
-async function seatsOfAsks(): Promise<readonly ReaskSeat[]> {
+async function seatsOfAsks({ reask, }: { readonly reask: ReaskMode; },): Promise<readonly ReaskSeat[]> {
   /**
    Seat each ask carried; an ask that carried none adds nothing, so a missing seat shows as a short list.
    */
@@ -102,6 +105,7 @@ async function seatsOfAsks(): Promise<readonly ReaskSeat[]> {
     graceMs: HANG_STOP_MS,
     fanOut: 'whole-bench',
     role: 'late-judge',
+    reask,
   },);
   return seats;
 }
@@ -114,7 +118,7 @@ await describe({
       name: 'NAMES ITS ROLE AND ITS BENCH ON EVERY ASK, so a runaway of one of its seats is re-asked of a model the role '
         + 'does not hold out and that is none of the seats',
       fn: async () => {
-        const seats = await seatsOfAsks();
+        const seats = await seatsOfAsks({ reask: 'other-model', },);
         expect(seats,).toHaveLength(BENCH.length,);
         for (const seat of seats) {
           expect(seat.role,).toBe('late-judge',);
@@ -124,10 +128,24 @@ await describe({
     },),
 
     it({
+      name: 'NAMES THE MODE THE CALLER GAVE ON EVERY ASK, so the rounds of a measurement re-ask a runaway of the model '
+        + 'itself and the rounds of a run of another model',
+      fn: async () => {
+        for (const reask of ['measured-model', 'other-model',] as const) {
+          // oxlint-disable-next-line no-await-in-loop -- one round at a time, so each mode's asks stay apart
+          const seats = await seatsOfAsks({ reask, },);
+          expect(seats,).toHaveLength(BENCH.length,);
+          for (const seat of seats)
+            expect(seat.reask,).toBe(reask,);
+        }
+      },
+    },),
+
+    it({
       name: 'SHARES ONE RECORD OF THE MODELS ASKED ACROSS EVERY SEAT OF THE ROUNDS, so a model one seat takes is not '
         + 'taken again by another',
       fn: async () => {
-        const seats = await seatsOfAsks();
+        const seats = await seatsOfAsks({ reask: 'other-model', },);
         expect(seats,).toHaveLength(BENCH.length,);
         const [first,] = seats;
         expect(first?.claims === undefined,).toBe(false,);

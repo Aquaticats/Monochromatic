@@ -38,13 +38,14 @@ await describe({
           name: 'GIVES every round the built-in window, the writers their longer built-in, and keeps no contest, '
             + 'for an environment that sets none of the three',
           fn: async () => {
-            expect(readStageSettings({ env: {}, },),).toStrictEqual({
+            expect(readStageSettings({ env: {}, reask: 'other-model', },),).toStrictEqual({
               grace: {
                 writerMs: WRITER_GRACE_MS,
                 roundMs: STRAGGLER_GRACE_MS,
                 source: 'built-in',
               },
               contestLedger: { kind: 'unkept', },
+              reask: 'other-model',
             },);
           },
         },),
@@ -58,6 +59,7 @@ await describe({
                 TRANSLATION_REPAIR_WRITER_GRACE_MS: '240000',
                 TRANSLATION_REPAIR_RUNS_DIR: '/cattery/runs',
               },
+              reask: 'other-model',
             },),).toStrictEqual({
               grace: {
                 writerMs: 240_000,
@@ -68,7 +70,15 @@ await describe({
                 kind: 'kept',
                 runsDir: '/cattery/runs',
               },
+              reask: 'other-model',
             },);
+          },
+        },),
+
+        it({
+          name: 'CARRIES THE MODE THE LAUNCH NAMES, so a measurement states that its re-ask goes to the measured model',
+          fn: async () => {
+            expect(readStageSettings({ env: {}, reask: 'measured-model', },).reask,).toBe('measured-model',);
           },
         },),
 
@@ -79,7 +89,7 @@ await describe({
              What the read threw on an unreadable round dial.
              */
             const refusal = caught(function readUnit(): StageSettings {
-              return readStageSettings({ env: { TRANSLATION_REPAIR_STRAGGLER_GRACE_MS: '2m', }, },);
+              return readStageSettings({ env: { TRANSLATION_REPAIR_STRAGGLER_GRACE_MS: '2m', }, reask: 'other-model', },);
             },);
 
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);

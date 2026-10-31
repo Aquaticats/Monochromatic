@@ -275,6 +275,27 @@ await describe({
     },),
 
     it({
+      name: 'ASKS THE SEAT\'S OWN MODEL, NUDGED, WHERE THE GATHER IS A MEASUREMENT: a rival\'s answer recorded as the '
+        + 'seat\'s would be scored as the measured model\'s, so no other model is asked and no warning is written',
+      fn: async () => {
+        const run = await recoverRunaway({
+          noProvider: [],
+          reaskSeat: { role: 'roster', bench: [], reask: 'measured-model', },
+        },);
+        expect(run.seen.map(function ask(seen,) {
+          return [seen.modelId, seen.contents,];
+        },),).toEqual([[RUNAWAY_SEAT, [STAGE_PROMPT, CUT_SHORT_RECOVERY_NUDGE.content,],],],);
+        expect(run.outcomes,).toEqual([{ modelId: RUNAWAY_SEAT, heard: true, wroteBy: RUNAWAY_SEAT, },],);
+        expect(run.lines.some(function isWarning(line,): boolean {
+          return line.startsWith('warn ',) && line.includes('reasoning runaway',);
+        },),).toBe(false,);
+        expect(run.lines.some(function saysMeasurement(line,): boolean {
+          return line.startsWith('info ',) && line.includes('measurement',) && line.includes(RUNAWAY_SEAT,);
+        },),).toBe(true,);
+      },
+    },),
+
+    it({
       name: 'MOVES ON TO THE NEXT MODEL when one has no provider with budget, and asks nothing of the seat\'s own model '
         + 'while another model is left',
       fn: async () => {
