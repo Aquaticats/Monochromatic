@@ -54,8 +54,8 @@ then writes (write mode) or diffs (check mode) what comes back.
 - Prunes entries no crate uses when `catalogPrune = true`,
   and warns about them otherwise.
 
-```text
-// Write mode and check mode in the file-enforcer engine (Rust sketch).
+```rust
+// Write mode and check mode in the file-enforcer engine.
 let input = SyncInput { catalog_path: "rust-catalog.toml", catalog_source: &catalog, manifests: &manifests };
 let output = sync(&input)?;
 for file in output.drift() {

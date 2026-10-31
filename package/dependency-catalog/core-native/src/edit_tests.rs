@@ -93,6 +93,16 @@ fn prunes_with_leading_comments() {
     assert_eq!(output.catalog.changes, vec![Change::CatalogEntryPruned { path: "catalog.b".to_string() }]);
 }
 
+/// Pruning also removes the blank line directly above the pruned entry's comment block.
+#[test]
+fn prunes_the_blank_line_above_the_comment_block() {
+    let output: SyncOutput = run_ok(
+        &["catalogPrune = true", "[catalog]", "a = \">=1\"", "", "# gone", "b = \">=1\"", "", "c = \">=1\""],
+        &[krate("package/cli/a", &["[dependencies]", "a = { workspace = true }", "c = { workspace = true }"])],
+    );
+    assert_eq!(output.catalog.expected, text(&["catalogPrune = true", "[catalog]", "a = \">=1\"", "", "c = \">=1\""]));
+}
+
 /// A string site becomes an inline table and keeps its trailing comment.
 #[test]
 fn rewrites_string_sites_keeping_comments() {
