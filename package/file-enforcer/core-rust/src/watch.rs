@@ -116,21 +116,27 @@ fn watch_targets(root: &Path, config: &Path, paths: &WatchPaths) -> BTreeSet<Pat
 /// Why:
 ///  Newly discovered directories are added,
 /// directories no longer needed are dropped.
+///  The result says whether a directory was newly watched,
+/// because a change made to it before the watch began produced no event
+/// and only a fresh run can notice it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function syncWatches(watcher: Watcher, current: Set<string>, wanted: Set<string>): void
+/// function syncWatches(watcher: Watcher, current: Set<string>, wanted: Set<string>): boolean
 /// ```
-fn sync_watches(watcher: &mut RecommendedWatcher, current: &mut BTreeSet<PathBuf>, wanted: &BTreeSet<PathBuf>) {
+fn sync_watches(watcher: &mut RecommendedWatcher, current: &mut BTreeSet<PathBuf>, wanted: &BTreeSet<PathBuf>) -> bool {
     for stale in current.difference(wanted).cloned().collect::<Vec<PathBuf>>() {
         let _ = watcher.unwatch(&stale);
         current.remove(&stale);
     }
+    let mut armed_new = false;
     for added in wanted.difference(&current.clone()) {
         if watcher.watch(added, RecursiveMode::NonRecursive).is_ok() {
             current.insert(added.clone());
+            armed_new = true;
         }
     }
+    return armed_new;
 }
 
 /// What:
@@ -231,9 +237,16 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
     let mut last_ping = Instant::now();
     loop {
         let wanted = watch_targets(&root, config_path, &paths);
-        sync_watches(&mut watcher, &mut current, &wanted);
+        let armed_new = sync_watches(&mut watcher, &mut current, &wanted);
         if shared.shutdown.load(Ordering::SeqCst) {
             return;
+        }
+        // A directory is watched only after the run that discovered it, so a change made between that run's read and
+        // the watch produced no event. One more cycle, started after the watch exists, settles it:
+        // anything changed later is reported by the watcher.
+        if armed_new {
+            cycle(shared, &mut sink, &base, &BTreeSet::new(), &mut paths);
+            continue;
         }
         // A closed client is noticed by a failing write, so ping on a clock, not only when the file system is quiet.
         if last_ping.elapsed() >= TICK {
