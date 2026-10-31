@@ -112,7 +112,15 @@ each finished branch is reviewed and merged into `main`):
   runbook sections;
   the owner token step is asked only once the dry runs pass);
   the cutover inventory `doc/planning/file-enforcer-rust-cutover.md`
-  with a rehearsed toolchain plan conversion in scratch.
+  with a rehearsed toolchain plan conversion in scratch;
+  version-keyed cargo-binstall installs in mpm-shadow
+  (decided 2026-10-31,
+  "Fix in mpm-shadow before cutover",
+  after a sync in `/var/home/user/worktrees/tr-g245` with an older lock replaced the git wrapper in the shared `~/.cargo/bin`
+  and broke git in every checkout;
+  repaired the same night by an owner-approved `toolchain:sync` in the main checkout;
+  see `doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`).
+  The cutover waits for this agent too.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
