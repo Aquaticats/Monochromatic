@@ -1,7 +1,11 @@
-//! What:     Unit tests of the version and help announcements in `announce.rs`: which argument lists count as a request,
+//! What:
+//!     Unit tests of the version and help announcements in `announce.rs`:
+//! which argument lists count as a request,
 //!           and the exact added text.
-//! Why:      The flag table is the part most likely to be wrong (`-h` means help for one tool and "human-readable" for
-//!           another), so each tool's spelling is written out here independently of the table itself.
+//! Why:
+//!      The flag table is the part most likely to be wrong (`-h` means help for one tool and "human-readable" for
+//!           another),
+//! so each tool's spelling is written out here independently of the table itself.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,7 +16,8 @@
 /// Imports what is under test.
 use crate::announce::{Announcement, announced_flags, announcement_for, help_section, version_line};
 
-/// Imports the list of shadowed names, to prove the flag table covers every one.
+/// Imports the list of shadowed names,
+/// to prove the flag table covers every one.
 use crate::constants::SHADOWED_NAMES;
 
 /// Imports the owned operating-system text type and the trait that builds one from raw bytes.
@@ -22,9 +27,11 @@ use std::os::unix::ffi::OsStringExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// What:     `fn texts(items: &[&str]) -> Vec<OsString>` declares a helper turning borrowed texts into owned
+/// What:
+///     `fn texts(items: &[&str]) -> Vec<OsString>` declares a helper turning borrowed texts into owned
 ///           operating-system texts.
-/// Why:      `announcement_for` takes arguments in the shape the process API gives them.
+/// Why:
+///      `announcement_for` takes arguments in the shape the process API gives them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,8 +45,10 @@ fn texts(items: &[&str]) -> Vec<OsString> {
     return owned;
 }
 
-/// What:     `#[test]` marks the next function as a test case.
-/// Why:      The runner finds the tests by it.
+/// What:
+///     `#[test]` marks the next function as a test case.
+/// Why:
+///      The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,9 +57,9 @@ fn texts(items: &[&str]) -> Vec<OsString> {
 #[test]
 fn every_shadowed_name_has_flags_and_an_unshadowed_name_has_none() {
     for name in SHADOWED_NAMES {
-        let flags = announced_flags(name);
-        assert!(flags.is_some(), "{name} has no announced flags");
-        let flags = flags.expect("checked above");
+        let maybe_flags = announced_flags(name);
+        assert!(maybe_flags.is_some(), "{name} has no announced flags");
+        let flags = maybe_flags.expect("checked above");
         assert!(flags.version.contains(&"--version"), "{name} must announce --version");
         assert!(flags.help.contains(&"--help"), "{name} must announce --help");
     }
@@ -58,7 +67,12 @@ fn every_shadowed_name_has_flags_and_an_unshadowed_name_has_none() {
     assert!(announced_flags("cat").is_none());
 }
 
-/// The expected spellings, one row per tool, read off each real tool's own CLI: (name, version flags, help flags).
+/// The expected spellings,
+/// one row per tool,
+/// read off each real tool's own CLI:
+/// (name,
+/// version flags,
+/// help flags).
 const EXPECTED: &[(&str, &[&str], &[&str])] = &[
     ("rg", &["--version", "-V"], &["--help", "-h"]),
     ("grep", &["--version", "-V"], &["--help"]),
@@ -79,11 +93,18 @@ const EXPECTED: &[(&str, &[&str], &[&str])] = &[
     ("cloc", &["--version"], &["--help"]),
 ];
 
-/// Every tool recognizes exactly its own flags as a lone argument, and the expected table covers every shadowed name.
+/// Every tool recognizes exactly its own flags as a lone argument,
+/// and the expected table covers every shadowed name.
 #[test]
 fn each_tool_recognizes_exactly_its_own_lone_version_and_help_flags() {
     for name in SHADOWED_NAMES {
-        assert!(EXPECTED.iter().any(|row| row.0 == *name), "{name} is missing from the expected table");
+        let mut listed: bool = false;
+        for row in EXPECTED {
+            if row.0 == *name {
+                listed = true;
+            }
+        }
+        assert!(listed, "{name} is missing from the expected table");
     }
     for (name, version_flags, help_flags) in EXPECTED {
         for flag in *version_flags {
@@ -104,8 +125,10 @@ fn each_tool_recognizes_exactly_its_own_lone_version_and_help_flags() {
     }
 }
 
-/// The short flags that mean something else must stay untouched: `du -h` and `tree -h` are human-readable sizes,
-/// `grep -h` and `ack -h` are no-filename, `find -V` is an error.
+/// The short flags that mean something else must stay untouched:
+/// `du -h` and `tree -h` are human-readable sizes,
+/// `grep -h` and `ack -h` are no-filename,
+/// `find -V` is an error.
 #[test]
 fn short_flags_with_another_meaning_are_not_requests() {
     assert_eq!(announcement_for("du", &texts(&["-h"])), None);
@@ -118,7 +141,9 @@ fn short_flags_with_another_meaning_are_not_requests() {
     assert_eq!(announcement_for("du", &texts(&["-V"])), None);
 }
 
-/// Only a lone flag counts: extra arguments, no arguments and a non-UTF-8 argument all pass through.
+/// Only a lone flag counts:
+/// extra arguments,
+/// no arguments and a non-UTF-8 argument all pass through.
 #[test]
 fn only_a_lone_flag_is_a_top_level_request() {
     assert_eq!(announcement_for("rg", &texts(&["--version", "foo"])), None);
@@ -137,7 +162,8 @@ fn the_version_line_names_the_shadow_its_version_the_tool_and_the_real_path() {
     assert_eq!(line, format!("search-shadow {}, shadowing rg at /usr/bin/rg\n", env!("CARGO_PKG_VERSION")));
 }
 
-/// A relative real path is made absolute, so the line means the same from any directory.
+/// A relative real path is made absolute,
+/// so the line means the same from any directory.
 #[test]
 fn a_relative_real_path_is_printed_absolute() {
     let line = version_line("fd", Path::new("bin/fd"));
@@ -145,7 +171,8 @@ fn a_relative_real_path_is_printed_absolute() {
     assert!(line.ends_with("/bin/fd\n"), "{line}");
 }
 
-/// The help section begins with a blank line and the version line, and names what is added per tool group.
+/// The help section begins with a blank line and the version line,
+/// and names what is added per tool group.
 #[test]
 fn the_help_section_starts_with_the_version_line_and_describes_the_tools_policy() {
     let rg = help_section("rg", Path::new("/usr/bin/rg"));

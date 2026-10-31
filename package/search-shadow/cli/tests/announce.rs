@@ -1,8 +1,16 @@
-//! What:     End-to-end tests of the version and help announcements: the built `search-shadow` binary is started through a
-//!           symlink named after each shadowed tool, with a fixture executable standing in for the real tool.
-//! Why:      The announcement runs the real tool as a child and appends text, so only a real process shows that the real
-//!           tool's output is byte-identical, the added text is exactly one line or section, the exit status passes
-//!           through, other argument lists are untouched and the refusal policies still come first.
+//! What:
+//!     End-to-end tests of the version and help announcements:
+//! the built `search-shadow` binary is started through a
+//!           symlink named after each shadowed tool,
+//! with a fixture executable standing in for the real tool.
+//! Why:
+//!      The announcement runs the real tool as a child and appends text,
+//! so only a real process shows that the real
+//!           tool's output is byte-identical,
+//! the added text is exactly one line or section,
+//! the exit status passes
+//!           through,
+//! other argument lists are untouched and the refusal policies still come first.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,7 +18,8 @@
 //! const result = spawnSync(path.join(shadowDirectory, 'rg'), ['--version'], { env: { PATH } });
 //! ```
 
-/// Imports the file-system module (write scripts, make links).
+/// Imports the file-system module (write scripts,
+/// make links).
 use std::fs;
 
 /// Imports the owned operating-system text and the trait that builds one from raw bytes.
@@ -22,16 +31,20 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// Imports `Command` (start a program), `Output` (its result) and `Stdio` (what its standard streams attach to).
+/// Imports `Command` (start a program),
+/// `Output` (its result) and `Stdio` (what its standard streams attach to).
 use std::process::{Command, Output, Stdio};
 
-/// The path of the freshly built binary, pasted in at compile time by Cargo for integration tests.
+/// The path of the freshly built binary,
+/// pasted in at compile time by Cargo for integration tests.
 const SHADOW_EXECUTABLE: &str = env!("CARGO_BIN_EXE_search-shadow");
 
-/// The version the shadow reports, pasted in at compile time.
+/// The version the shadow reports,
+/// pasted in at compile time.
 const SHADOW_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Every shadowed name with the version flags and help flags that must be announced, written out independently of the
+/// Every shadowed name with the version flags and help flags that must be announced,
+/// written out independently of the
 /// crate's own table (read off each real tool's CLI).
 const TOOLS: &[(&str, &[&str], &[&str])] = &[
     ("rg", &["--version", "-V"], &["--help", "-h"]),
@@ -53,8 +66,10 @@ const TOOLS: &[(&str, &[&str], &[&str])] = &[
     ("cloc", &["--version"], &["--help"]),
 ];
 
-/// What:     `fn write_script(directory: &Path, name: &str, body: &str)` writes an executable shell script.
-/// Why:      The fixture "real" tools are scripts.
+/// What:
+///     `fn write_script(directory: &Path, name: &str, body: &str)` writes an executable shell script.
+/// Why:
+///      The fixture "real" tools are scripts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,9 +80,16 @@ fn write_script(directory: &Path, name: &str, body: &str) {
     fs::set_permissions(directory.join(name), fs::Permissions::from_mode(0o755)).expect("make the script executable");
 }
 
-/// What:     `fn real_body(name: &str) -> String` returns the fixture's script body: two fixed stdout lines that include
-///           the arguments it got, one stderr line, and exit status 3.
-/// Why:      Status 3 proves the exit code passes through; the stderr line proves stderr is untouched; the argument echo
+/// What:
+///     `fn real_body(name: &str) -> String` returns the fixture's script body:
+/// two fixed stdout lines that include
+///           the arguments it got,
+/// one stderr line,
+/// and exit status 3.
+/// Why:
+///      Status 3 proves the exit code passes through;
+/// the stderr line proves stderr is untouched;
+/// the argument echo
 ///           proves the arguments arrive.
 ///
 /// In TS you'd write (pseudocode):
@@ -78,9 +100,12 @@ fn real_body(name: &str) -> String {
     return format!("printf 'REAL {name} args=[%s]\\nsecond line\\n' \"$*\"\nprintf 'fixture stderr\\n' >&2\nexit 3");
 }
 
-/// What:     `fn make_world() -> tempfile::TempDir` builds a scratch directory holding `shadow/` (one symlink per shadowed
-///           name) and `real/` (one fixture script per name), and returns it.
-/// Why:      Every test starts from the same arrangement.
+/// What:
+///     `fn make_world() -> tempfile::TempDir` builds a scratch directory holding `shadow/` (one symlink per shadowed
+///           name) and `real/` (one fixture script per name),
+/// and returns it.
+/// Why:
+///      Every test starts from the same arrangement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,8 +124,12 @@ fn make_world() -> tempfile::TempDir {
     return root;
 }
 
-/// What:     `fn path_variable(root: &Path) -> String` returns the PATH text: the shadow directory, then the real one.
-/// Why:      The shadow must skip its own links and find the fixture.
+/// What:
+///     `fn path_variable(root: &Path) -> String` returns the PATH text:
+/// the shadow directory,
+/// then the real one.
+/// Why:
+///      The shadow must skip its own links and find the fixture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,9 +139,13 @@ fn path_variable(root: &Path) -> String {
     return format!("{}:{}:/usr/bin:/bin", root.join("shadow").display(), root.join("real").display());
 }
 
-/// What:     `fn run_tool(...) -> Output` runs the shadow link of one tool with the given arguments, standard input
+/// What:
+///     `fn run_tool(...) -> Output` runs the shadow link of one tool with the given arguments,
+/// standard input
 ///           attached to nothing and the working directory given.
-/// Why:      Standard input must not be a pipe, or the `rg` policy would take the run for a piped search.
+/// Why:
+///      Standard input must not be a pipe,
+/// or the `rg` policy would take the run for a piped search.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,9 +163,13 @@ fn run_tool(root: &Path, name: &str, arguments: &[&str], working_directory: &Pat
     return command.output().expect("run the shadow");
 }
 
-/// What:     `fn real_stdout(name: &str, arguments: &[&str]) -> String` returns exactly what the fixture prints on
+/// What:
+///     `fn real_stdout(name: &str, arguments: &[&str]) -> String` returns exactly what the fixture prints on
 ///           standard output for those arguments.
-/// Why:      The expected standard output is the real tool's, byte for byte, plus the added text.
+/// Why:
+///      The expected standard output is the real tool's,
+/// byte for byte,
+/// plus the added text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,13 +179,16 @@ fn real_stdout(name: &str, arguments: &[&str]) -> String {
     return format!("REAL {name} args=[{}]\nsecond line\n", arguments.join(" "));
 }
 
-/// The header line the shadow adds: the version line without its newline.
+/// The header line the shadow adds:
+/// the version line without its newline.
 fn header(root: &Path, name: &str) -> String {
     return format!("search-shadow {SHADOW_VERSION}, shadowing {name} at {}", root.join("real").join(name).display());
 }
 
-/// What:     `#[test]` marks the next function as a test case.
-/// Why:      The runner finds the tests by it.
+/// What:
+///     `#[test]` marks the next function as a test case.
+/// Why:
+///      The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -169,7 +209,8 @@ fn every_tool_prints_the_real_version_output_then_exactly_one_line() {
     }
 }
 
-/// The help section, written out in full for `rg`.
+/// The help section,
+/// written out in full for `rg`.
 #[test]
 fn rg_help_is_the_real_help_then_the_full_section() {
     let root = make_world();
@@ -210,7 +251,8 @@ fn every_tool_prints_the_real_help_output_then_one_section_naming_the_shadow() {
     }
 }
 
-/// Anything but a lone version or help flag runs untouched: the output is the real tool's alone.
+/// Anything but a lone version or help flag runs untouched:
+/// the output is the real tool's alone.
 #[test]
 fn other_argument_lists_run_untouched() {
     let root = make_world();
@@ -241,7 +283,8 @@ fn other_argument_lists_run_untouched() {
     }
 }
 
-/// The refusal policies still fire before any of this: `rg -rV` is refused and the real tool never runs.
+/// The refusal policies still fire before any of this:
+/// `rg -rV` is refused and the real tool never runs.
 #[test]
 fn a_refused_run_is_refused_before_any_announcement() {
     let root = make_world();
@@ -274,7 +317,8 @@ fn a_real_tool_that_cannot_start_exits_126_without_an_announcement() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("could not start"));
 }
 
-/// A real tool ended by a signal gives the shell's `128 + signal` exit code, and the announcement is still added.
+/// A real tool ended by a signal gives the shell's `128 + signal` exit code,
+/// and the announcement is still added.
 #[test]
 fn a_signal_exit_is_reported_as_128_plus_the_signal() {
     let root = make_world();
@@ -304,7 +348,8 @@ fn an_unwritable_standard_output_keeps_the_real_exit_code() {
     assert_eq!(status.code(), Some(3));
 }
 
-/// `search-shadow --version` and `--help` say plainly that it is a shadow, and of which tools.
+/// `search-shadow --version` and `--help` say plainly that it is a shadow,
+/// and of which tools.
 #[test]
 fn the_search_shadow_command_says_it_is_a_shadow_of_the_listed_tools() {
     let version = Command::new(SHADOW_EXECUTABLE).arg("--version").env_clear().output().expect("run --version");

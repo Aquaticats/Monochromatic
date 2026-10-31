@@ -1,8 +1,16 @@
-//! What:     The "say that this is a shadow" feature: when a shadowed tool is started with exactly one argument that
-//!           asks for its version or its help, the real tool runs as usual and the shadow then adds one line (version) or
-//!           one short section (help) that names the shadow, its version and the real binary's path.
-//! Why:      A shadow is invisible by design, so `rg --version` printed only ripgrep's version and nobody could tell that
-//!           `rg` was a shadow. The convention follows the `hub` wrapper, which prints git's version line and then its own.
+//! What:
+//!     The "say that this is a shadow" feature:
+//! when a shadowed tool is started with exactly one argument that
+//!           asks for its version or its help,
+//! the real tool runs as usual and the shadow then adds one line (version) or
+//!           one short section (help) that names the shadow,
+//! its version and the real binary's path.
+//! Why:
+//!      A shadow is invisible by design,
+//! so `rg --version` printed only ripgrep's version and nobody could tell that
+//!           `rg` was a shadow.
+//! The convention follows the `hub` wrapper,
+//! which prints git's version line and then its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,13 +19,15 @@
 //! export function runAnnounced(name: string, real: string, args: string[], kind: 'version' | 'help'): number { ... }
 //! ```
 
-/// Imports the owned operating-system text type, the shape of an argument that may not be valid UTF-8.
+/// Imports the owned operating-system text type,
+/// the shape of an argument that may not be valid UTF-8.
 use std::ffi::OsString;
 
 /// Imports `Write` (the trait that adds `write_all` and `flush` to standard output).
 use std::io::{self, Write};
 
-/// Imports the Unix-only trait that adds `.signal()` to an exit status, so a tool killed by a signal gets the shell's
+/// Imports the Unix-only trait that adds `.signal()` to an exit status,
+/// so a tool killed by a signal gets the shell's
 /// `128 + signal` exit code.
 use std::os::unix::process::ExitStatusExt;
 
@@ -27,11 +37,15 @@ use std::path::{self, Path};
 /// Imports `Command` (the builder that starts the real tool) and `ExitStatus` (how it ended).
 use std::process::{Command, ExitStatus};
 
+/// Imports the escape-hatch variable name (printed in the help section) and the exit code for a real tool that cannot start.
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE};
 
-/// What:     `pub enum Announcement { Version, Help }` declares a type whose value is exactly one of the two listed
+/// What:
+///     `pub enum Announcement { Version, Help }` declares a type whose value is exactly one of the two listed
 ///           variants (a TS union of string literals).
-/// Why:      The two requests add different text, so the caller says which one it saw.
+/// Why:
+///      The two requests add different text,
+/// so the caller says which one it saw.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,16 +53,22 @@ use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Announcement {
-    /// The tool was asked for its version; the shadow adds one line.
+    /// The tool was asked for its version;
+    /// the shadow adds one line.
     Version,
-    /// The tool was asked for its help; the shadow adds one section.
+    /// The tool was asked for its help;
+    /// the shadow adds one section.
     Help,
 }
 
-/// What:     `pub struct AnnouncedFlags { ... }` declares a record of two lists of borrowed texts that live for the whole
+/// What:
+///     `pub struct AnnouncedFlags { ... }` declares a record of two lists of borrowed texts that live for the whole
 ///           program (`&'static`).
-/// Why:      Each tool spells its version and help flags differently: `-h` is help for `rg` but "human-readable" for
-///           `du`, and `-V` is version for `rg` but an error for `find`.
+/// Why:
+///      Each tool spells its version and help flags differently:
+/// `-h` is help for `rg` but "human-readable" for
+///           `du`,
+/// and `-V` is version for `rg` but an error for `find`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,11 +82,30 @@ pub struct AnnouncedFlags {
     pub help: &'static [&'static str],
 }
 
-/// What:     `pub fn announced_flags(name: &str) -> Option<AnnouncedFlags>` declares a public function that returns the
-///           flags of one shadowed tool, or nothing for a name that is not shadowed.
-/// Why:      Each row was read off the real tool's own `--version`, `--help` and short flags (ripgrep, GNU grep, ugrep, ag,
-///           ack, GNU find, fd, bfs, tree, GNU du, ncdu, tokei, cloc), so a short flag that means something else in one
-///           tool (`du -h`, `tree -h`, `grep -h`, `ack -h`) is never taken for help.
+/// What:
+///     `pub fn announced_flags(name: &str) -> Option<AnnouncedFlags>` declares a public function that returns the
+///           flags of one shadowed tool,
+/// or nothing for a name that is not shadowed.
+/// Why:
+///      Each row was read off the real tool's own `--version`,
+/// `--help` and short flags (ripgrep,
+/// GNU grep,
+/// ugrep,
+/// ag,
+///           ack,
+/// GNU find,
+/// fd,
+/// bfs,
+/// tree,
+/// GNU du,
+/// ncdu,
+/// tokei,
+/// cloc),
+/// so a short flag that means something else in one
+///           tool (`du -h`,
+/// `tree -h`,
+/// `grep -h`,
+/// `ack -h`) is never taken for help.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -110,10 +149,18 @@ pub fn announced_flags(name: &str) -> Option<AnnouncedFlags> {
     };
 }
 
-/// What:     `pub fn announcement_for(name: &str, arguments: &[OsString]) -> Option<Announcement>` declares a public
+/// What:
+///     `pub fn announcement_for(name: &str, arguments: &[OsString]) -> Option<Announcement>` declares a public
 ///           function that decides whether this run asks for a version or a help.
-/// Why:      Only a top-level request counts: the whole argument list is exactly one of the tool's version or help
-///           flags. Anything else (`rg --version foo`, `grep -h x`, a pattern, no arguments) runs untouched, because only
+/// Why:
+///      Only a top-level request counts:
+/// the whole argument list is exactly one of the tool's version or help
+///           flags.
+/// Anything else (`rg --version foo`,
+/// `grep -h x`,
+/// a pattern,
+/// no arguments) runs untouched,
+/// because only
 ///           the lone flag is certainly a request for the tool itself and not for a sub-feature of it.
 ///
 /// In TS you'd write (pseudocode):
@@ -145,23 +192,34 @@ pub fn announcement_for(name: &str, arguments: &[OsString]) -> Option<Announceme
     return None;
 }
 
-/// What:     `fn absolute(real: &Path) -> String` declares a private function returning the real binary's path as text,
+/// What:
+///     `fn absolute(real: &Path) -> String` declares a private function returning the real binary's path as text,
 ///           made absolute without following symlinks.
-/// Why:      A relative PATH entry would otherwise print a path that means something else from another directory. The
-///           symlinks stay unresolved so the line shows the PATH entry that won, which is what `command -v` would show.
+/// Why:
+///      A relative PATH entry would otherwise print a path that means something else from another directory.
+/// The
+///           symlinks stay unresolved so the line shows the PATH entry that won,
+/// which is what `command -v` would show.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const absolute = (real: string) => path.resolve(real);
 /// ```
 fn absolute(real: &Path) -> String {
-    let resolved = path::absolute(real).unwrap_or_else(|_| real.to_path_buf());
-    return resolved.display().to_string();
+    // `match` picks the branch for the success or the failure of making the path absolute; on failure the path is used as given.
+    return match path::absolute(real) {
+        Ok(resolved) => resolved.display().to_string(),
+        Err(_) => real.display().to_string(),
+    };
 }
 
-/// What:     `pub fn version_line(name: &str, real: &Path) -> String` declares a public function returning the one line
-///           the shadow adds after the real tool's version output, newline included.
-/// Why:      The exact text is part of the contract (`search-shadow <version>, shadowing <tool> at <path>`), so tests and
+/// What:
+///     `pub fn version_line(name: &str, real: &Path) -> String` declares a public function returning the one line
+///           the shadow adds after the real tool's version output,
+/// newline included.
+/// Why:
+///      The exact text is part of the contract (`search-shadow <version>, shadowing <tool> at <path>`),
+/// so tests and
 ///           the README can quote it.
 ///
 /// In TS you'd write (pseudocode):
@@ -176,9 +234,13 @@ pub fn version_line(name: &str, real: &Path) -> String {
     );
 }
 
-/// What:     `fn behaviour_lines(name: &str) -> String` declares a private function returning the bullet lines that say
+/// What:
+///     `fn behaviour_lines(name: &str) -> String` declares a private function returning the bullet lines that say
 ///           what the shadow adds for this tool.
-/// Why:      The help section must be honest per tool: a `tree` user is not told about `rg -r`. The groups mirror
+/// Why:
+///      The help section must be honest per tool:
+/// a `tree` user is not told about `rg -r`.
+/// The groups mirror
 ///           `refusal_for` in `policy.rs`.
 ///
 /// In TS you'd write (pseudocode):
@@ -202,11 +264,19 @@ fn behaviour_lines(name: &str) -> String {
     };
 }
 
-/// What:     `pub fn help_section(name: &str, real: &Path) -> String` declares a public function returning the section
-///           the shadow adds after the real tool's help output: a blank separator line, a header line in the same shape as
-///           the version line, and the bullet lines.
-/// Why:      A reader of `rg --help` learns that the tool is a shadow, which version, where the real tool is and what the
-///           shadow adds, without leaving the page.
+/// What:
+///     `pub fn help_section(name: &str, real: &Path) -> String` declares a public function returning the section
+///           the shadow adds after the real tool's help output:
+/// a blank separator line,
+/// a header line in the same shape as
+///           the version line,
+/// and the bullet lines.
+/// Why:
+///      A reader of `rg --help` learns that the tool is a shadow,
+/// which version,
+/// where the real tool is and what the
+///           shadow adds,
+/// without leaving the page.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -220,10 +290,15 @@ pub fn help_section(name: &str, real: &Path) -> String {
     );
 }
 
-/// What:     `fn exit_code_of(status: ExitStatus) -> i32` declares a private function turning how a process ended into
+/// What:
+///     `fn exit_code_of(status: ExitStatus) -> i32` declares a private function turning how a process ended into
 ///           the shell's exit code.
-/// Why:      The shadow must report the real tool's status: its own code, or `128 + signal` when a signal ended it (the
-///           shell convention, and what a shell reports for the same process).
+/// Why:
+///      The shadow must report the real tool's status:
+/// its own code,
+/// or `128 + signal` when a signal ended it (the
+///           shell convention,
+/// and what a shell reports for the same process).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -239,12 +314,21 @@ fn exit_code_of(status: ExitStatus) -> i32 {
     return 1;
 }
 
-/// What:     `pub fn run_announced(...) -> i32` declares a public function that runs the real tool as a child with the
-///           shadow's standard streams, waits for it, then appends the version line or the help section to standard output.
-/// Why:      Replacing the process (as the normal path does) leaves no code to run afterward, so these two rare requests
-///           pay for one extra process to get the last word. The child's output reaches the same descriptors untouched, so
-///           the standard output is byte for byte the real tool's plus the added text. The added text is written whatever
-///           the status, since some tools exit non-zero on a plain help request (`ugrep --help` exits 2).
+/// What:
+///     `pub fn run_announced(...) -> i32` declares a public function that runs the real tool as a child with the
+///           shadow's standard streams,
+/// waits for it,
+/// then appends the version line or the help section to standard output.
+/// Why:
+///      Replacing the process (as the normal path does) leaves no code to run afterward,
+/// so these two rare requests
+///           pay for one extra process to get the last word.
+/// The child's output reaches the same descriptors untouched,
+/// so
+///           the standard output is byte for byte the real tool's plus the added text.
+/// The added text is written whatever
+///           the status,
+/// since some tools exit non-zero on a plain help request (`ugrep --help` exits 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

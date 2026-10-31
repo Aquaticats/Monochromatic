@@ -5,7 +5,9 @@ the finders (`find`, `fd`, `fdfind`, `bfs`, `tree`) and the counters (`du`, `ncd
 Started under one of those names, the binary lowers its own disk priority to best-effort level 7 (the same as
 `ionice -c2 -n7`, set directly with the `ioprio_set` system call) and replaces itself with the real tool, which keeps
 the priority. So it adds no process and keeps exit codes, signals and terminal behavior.
-Started as `search-shadow`, it offers `link` and `--help`.
+Started as `search-shadow`, it offers `link`, `--help` and `--version`; the last two say plainly that it is a shadow and
+list the tools it shadows.
+When a shadowed tool is asked for its version or help, the shadow says so (see "Version and help" below).
 
 ## Why
 
@@ -36,11 +38,49 @@ The measurements are in `doc/planning/agent-search-io-throttle.md`.
 - Only slows down the other tools (`ugrep`, `ug`, `ag`, `ack`, `fd`, `fdfind`, `tree`, `du`, `ncdu`, `tokei`, `cloc`);
   `fd` is never refused.
   Scripts that relied on plain GNU or ripgrep behavior for a wide walk will stop; that is deliberate.
+- Adds one line after a lone `--version` and one section after a lone `--help` (see "Version and help").
 - Skips its own links when it looks for the real tool, so it never runs itself.
 - Passes arguments through byte for byte, including ones that are not valid UTF-8.
 
 In Claude Code shells, `grep` and `find` are shell functions that run Claude's embedded `ugrep` and `bfs`, and functions
 win over PATH, so the links reach `rg` there but not those two.
+
+## Version and help
+
+A shadow is invisible by default, so `rg --version` would print only ripgrep's version.
+When the whole argument list is exactly one version flag or one help flag of the tool, the shadow runs the real tool as a
+child (not by replacing itself), waits, and then adds text after the real tool's own output.
+The real tool's standard output, standard error and exit status are otherwise untouched: `ugrep --help` still exits 2, and a
+tool ended by a signal gives the shell's `128 + signal`.
+The text is added whatever the status, and the policies run first, so a refused run prints only the refusal.
+
+The version flag adds one standard-output line, in the style of `hub` after git's own version line:
+
+```text
+# search-shadow output, after the real ripgrep's version output
+search-shadow 0.2.0, shadowing rg at /usr/bin/rg
+```
+
+The path is the real binary found on PATH (made absolute, symlinks not resolved), the one `command -v` would show without
+the shadow.
+The help flag adds a blank line, the same header line, and a short section that says the help above is the real tool's own
+and what the shadow adds for that tool: the `rg -r` refusal and the wide-walk refusal for `rg`, the wide recursive refusal
+for `grep`, `egrep` and `fgrep`, the `-maxdepth` refusal for `find` and `bfs`, and "never refuses a run" for the rest.
+
+Only a lone flag counts; `rg --version foo`, `rg --no-config --help` and every other argument list pass through untouched.
+That keeps flags that mean something else from being taken for a request.
+The flags are read off each real tool's own command line:
+
+- `rg`, `fd`, `fdfind`, `ag`, `tokei`: version `--version`, `-V`; help `--help`, `-h`.
+- `ncdu`: version `--version`, `-V`; help `--help`, `-h`, `-?`.
+- `grep`, `egrep`, `fgrep`: version `--version`, `-V`; help `--help` (`-h` means no file names).
+- `ugrep`, `ug`: version `--version`, `-V`; help `--help`, `-?` (`-h` means no file names).
+- `find`, `bfs`: version `--version`, `-version`; help `--help`, `-help`.
+- `ack`, `tree`, `du`, `cloc`: version `--version`; help `--help` (`-h` means no file names for `ack`, human-readable
+  sizes for `tree` and `du`, and an ambiguous option for `cloc`).
+
+`search-shadow --version` prints `search-shadow <version>, a shadow of <every shadowed tool>`, and `search-shadow --help`
+opens by saying it is a shadow and not a tool of its own.
 
 ## Use
 
@@ -72,6 +112,6 @@ mise run //package/search-shadow/cli:lint
 mise run //package/search-shadow/cli:lint:clippy
 mise run //package/search-shadow/cli:test
 # Installs the tools this host lacks inside a podman container (no network at run time, 2 GiB, 2 CPUs) and checks
-# every shadow against its real tool.
+# every shadow against its real tool (a lone --version must equal the real tool's output plus the one announcement line).
 mise run //package/search-shadow/cli:test:container
 ```
