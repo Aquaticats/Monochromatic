@@ -768,12 +768,12 @@ SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
 SLINT_EMIT_DEBUG_INFO = "1"
 
 # Points the forbidden-strings scanner (and the cli-git forbidden-strings
-# policy adapter, which reads the same variable) at the file-enforcer
-# generated rules file under the gitignored .cache/ scratch dir; rules no
-# longer materialize at the repository root
-# (doc/decision/gitignore-negations.md). {{config_root}} makes the path
-# absolute so scans started from any subdirectory resolve the same file.
-FORBIDDEN_STRINGS_RULES = "{{config_root}}/.cache/forbidden-strings.rules.txt"
+# policy adapter, which reads the same variable) at the two committed and
+# gitignored appendixes directly, as a comma-separated list; the trailing
+# question mark makes the gitignored sensitive appendix optional, so a clean
+# clone or CI scans with the shared one alone. {{config_root}} makes each path
+# absolute so scans started from any subdirectory resolve the same files.
+FORBIDDEN_STRINGS_RULES = "{{config_root}}/forbidden-strings.append.txt,{{config_root}}/forbidden-strings.append.local.txt?"
 `;
   await overwrite({
     dest: './mise.toml',
