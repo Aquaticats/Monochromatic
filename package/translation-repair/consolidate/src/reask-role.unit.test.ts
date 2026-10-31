@@ -15,7 +15,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { rolesNamedAtCalls, } from '@monochromatic-dev/translation-repair-test-fixture/ts/reask-role-call.test-fixture.ts';
+import {
+  roleNamedInLiteral,
+  rolesNamedAtCalls,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/reask-role-call.test-fixture.ts';
 
 //region Consolidate role tests
 
@@ -44,6 +47,36 @@ await describe({
       fn: async () => {
         const source = await readFile(new URL('consolidation-polish-gate-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['late-judge',],);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE AUTHORS ABOUT THEIR FINDINGS IN THE WRITER ROLE and shares with the gather that wrote the proposals '
+        + 'the one record of the models asked',
+      fn: async () => {
+        const source = await readFile(new URL('consolidate-produce.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'repairInvalidCandidates', },),).toEqual(['writer',],);
+        expect(rolesNamedAtCalls({ source, callee: 'repairInvalidCandidates', key: 'reaskClaims', },),).toEqual([
+          'reaskClaims',
+        ],);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', key: 'reaskClaims', },),).toEqual(['reaskClaims',],);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE LATE-JUDGE ROLE where the consolidation slate is judged, in the argument object both asks share',
+      fn: async () => {
+        const source = await readFile(new URL('consolidate-settle-judge.ts', import.meta.url,), 'utf8',);
+        expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('late-judge',);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE ROLE OF THE BENCH THE POLISH IS HANDED, the select judges, which are the wide judges and not the '
+        + 'late judges',
+      fn: async () => {
+        const source = await readFile(new URL('consolidation-polish-round.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['wide-judge',],);
       },
     },),
   ],
