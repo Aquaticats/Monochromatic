@@ -34,7 +34,8 @@ the shape of the root `mise.toml`,
 how CI and containers obtain the two binaries,
 the plan entries that install the binaries,
 and the IDE launcher's explicit path.
-The `asset` hints of the machine-global plan, the fifth, are settled from the real data in "Global plan conversion".
+The `asset` hints of the machine-global plan, the fifth, are settled from the real data in "Global plan conversion",
+except `yt-dlp`, which needs an owner veto or choice (Open decisions, item 5).
 
 ## Preconditions
 
@@ -820,8 +821,21 @@ and nothing yet installs the `file-enforcer` binary (open decision).
     (the rehearsal `update` queries crates.io).
 4.  The IDE launcher's explicit path,
     proposed in the IDE launcher section as `<worktree>/.cache/toolchain-bin/mpm-shadow`.
-5.  Settled: the machine-global plan's `asset` hints came from a copy of the real files
-    (see "Global plan conversion"), so this is no longer open.
+5.  The machine-global plan's `asset` hints came from a copy of the real files and are settled
+    (see "Global plan conversion"), with one flagged adoption: `yt-dlp`.
+    Today's lock records the standalone binary `yt-dlp_linux` from GitHub,
+    which the `github:` resolver cannot select on linux-x64 (it names no CPU and the resolver prefers its `.zip` twin).
+    The converter currently emits the reroute (option A); the owner can veto it for option B.
+    Option A, reroute to `pipx:yt-dlp@latest` on the `mpm-uvx` route (adopted in the rehearsal):
+    works with no code change, same program and version from PyPI;
+    but it needs Python and `uv tool install`, and the program runs from uv's tool environment instead of a standalone file.
+    Option B, keep the standalone binary:
+    a resolver change (read an architecture-less Linux name as x86_64 when an `options.asset` glob matches,
+    and a way to prefer the bare file over its archive twin),
+    so the install is unchanged;
+    but it is code in the resolver and was not written or tested.
+    Ranking: A > B, because A is verified by the rehearsal's lock and needs no new resolver behavior,
+    while B keeps today's install exactly but costs resolver work for one tool.
 
 ## Toolchain plan conversion
 
@@ -1166,7 +1180,7 @@ and against what `update --global` picked on the four Linux platforms.
   `options.asset` `tree-sitter-linux-*.gz` keeps the recorded file on all four platforms
   (`-arm.gz`,
   `-x86.gz` and `-powerpc64.gz` name no supported CPU token).
-- `yt-dlp`:
+- `yt-dlp` (flagged, not settled; Open decisions, item 5):
   cannot be expressed with `github:` on linux-x64.
   Today's lock records the bare PyInstaller file `yt-dlp_linux` for `linux-x64`;
   its name names no CPU,
@@ -1175,12 +1189,13 @@ and against what `update --global` picked on the four Linux platforms.
   and sync would have failed for yt-dlp on this machine).
   A glob cannot fix it:
   the resolver also ranks the `yt-dlp_linux.zip` onedir twin above the bare file.
-  The converter therefore reroutes `yt-dlp` to `pipx:yt-dlp@latest` on the `mpm-uvx` route (`bins` unchanged):
+  The converter therefore currently reroutes `yt-dlp` to `pipx:yt-dlp@latest` on the `mpm-uvx` route (`bins` unchanged):
   the same program and the same version (`2026.10.26`) from PyPI,
   installed with `uv tool install`.
   This changes how the program is installed,
-  not which version or program;
-  an owner who wants the standalone binary needs a resolver change
+  not which version or program,
+  and it is an adoption the owner may veto;
+  keeping the standalone binary needs a resolver change
   (an architecture-less Linux name read as `x86_64` under a hint,
   and a way to prefer the bare file).
 - `harper-cli` and `tombi` do not exist in the global plan.
@@ -1321,6 +1336,17 @@ For the coordinator to run on the owner's machine,
 after the switch commit and after the repository's `mpm-shadow sync` is verified.
 Each step names the command;
 none has been run against the real directory.
+
+Precondition on the binary:
+`MS` must be built from a revision that contains commit `7c7ca78478`
+(`fix(mpm-shadow)`: an `options.asset` glob lets a GPU build through).
+A binary without it fails step 4 and step 6 with
+`github:lemonade-sdk/llamacpp-rocm ... has no Linux asset`,
+and writes no lock.
+Merge that commit into `main`,
+then build `MS` with `mise run //package/mpm-shadow/cli:build` in a checkout of that revision
+(the `mpm-shadow` the repository's own sync installs is the published release in its lock,
+which does not contain the fix until a release is cut).
 In this procedure `D` is `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain`
 and `S` is a scratch directory `${HOME}/temp/agent/global-cutover` (create it with `mkdir --parents`, then `chmod 700`).
 `MS` is the repository's built `mpm-shadow`
@@ -1392,8 +1418,14 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
 6.  Write the real lock:
     `MS update --global`
     (real environment).
-    It reads only `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`
+    It reads `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`
     (the old lock is replaced; the `.pre-cutover` copy is the old one).
+    Export `GITHUB_TOKEN` first to avoid API rate limits.
+    It is not purely a lookup in the real environment:
+    when an npm or PyPI lookup fails for a tool that is in the lock but not installed,
+    plain `update` installs just the missing tools (and `node`,
+    `pnpm` or `uv` when they need them) and looks again once (README, "Network").
+    The rehearsal's disposable home had every lookup succeed, so no such install ran.
     Then `MS lock --check --global` must print `toolchain lock is current: 60 tools, digest verified`.
 7.  `MS status --global`.
     Entries installed by the old tool at the same version may still report drift;
@@ -1401,7 +1433,18 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     Read the list; it is the sync's work list.
 8.  Sync, as a capped unit:
     `systemd-run --user --unit=fe-global-sync --collect --property=MemoryMax=24G --property=CPUQuota=2400% --setenv=PATH="$PATH" MS sync --global`
-    (a real job may use most of the host, `FHU`; the unit needs the caller's `PATH` for the tools it installs and runs).
+    (a real job may use most of the host, `FHU`).
+    A user service starts in the user manager's environment, not the shell's:
+    before starting it,
+    compare `systemctl --user show-environment` with `env` for `HOME`,
+    `XDG_CONFIG_HOME`,
+    `XDG_DATA_HOME`,
+    `XDG_CACHE_HOME`,
+    `CARGO_HOME`,
+    `RUSTUP_HOME` and `GITHUB_TOKEN`,
+    and pass every variable the shell sets with `--setenv=NAME=value` (print them first, as `run-global.ts` does);
+    otherwise the sync installs under default paths.
+    `PATH` must be passed too, for the tools the sync installs and runs.
     Wait on the unit state with a deadline, read `journalctl --user --unit fe-global-sync`.
     A failure of one tool is reported and does not undo the others;
     stop at the first one that matters (`git`, `rust`, `node`, `uv`, `bin`) and use the rollback.
