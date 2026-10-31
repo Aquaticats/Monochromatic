@@ -76,10 +76,27 @@ each finished branch is reviewed and merged into `main`):
   and the crate's lint debt is cleared);
   the linter's Dylint driver skip (`package/linter/monochromatic-lint`,
   after the owner-approved toolchain sync and driver warm on 2026-10-30).
-- Running (worktree agents):
-  wiring the `rust-catalog`,
+- Finished,
+  merge into `main` blocked:
+  branch `worktree-agent-a23c3740c67ba36d9` wires the `rust-catalog`,
   `browserslist`,
-  and `jetbrains-harper` rule kinds plus moving the browserslist lock to the root;
+  and `jetbrains-harper` rule kinds in the cli crate and moves the browserslist lock to the root.
+  `git merge` refused because the main checkout holds someone else's uncommitted `pnpm-lock.yaml`
+  (catalog specifiers raised to their resolved versions, a subset of the branch's own regenerated lock);
+  monochromatic-c0 was asked on 2026-10-31 whether it is theirs and whether the merge may carry it.
+  Merge after the answer,
+  then rerun the dependency-catalog golden test.
+  Its scope deviations to keep in mind:
+  `core-rust/src/plan.rs` no longer reports `rule-order` between two composing rules,
+  so "rust-catalog after toml-keys" is a config convention;
+  `package-licenses` moved after `rust-catalog` in `file-enforcer.config.jsonc`;
+  the jetbrains-harper policy constants are hardcoded from the TypeScript tool;
+  the browserslist `environment` field selects nothing because sections are refused.
+- Running (worktree agents):
+  loose ends of the wiring branch
+  (browserslist `bin/*.ts` oxlint errors with a real rerun of the scripts,
+  `XDG_CONFIG_HOME` in JetBrains discovery,
+  the closure lint the offline `cargo metadata` skipped for the cli crate);
   hardening the core (jsonc-edit value spans for `file:line:col` decode errors,
   the untested branches,
   single-line schema descriptions).
