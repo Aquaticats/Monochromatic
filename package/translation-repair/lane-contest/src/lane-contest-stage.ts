@@ -489,6 +489,8 @@ export async function contestLaneSlice(
     responseFormat: LANE_CONTEST_RESPONSE_FORMAT,
     validate: isLaneContestWire,
     stage: 'lane-contest',
+    // THE CONTEST IS ASKED OF THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models from.
+    role: 'late-judge',
     l: cl,
     graceMs: stageSettings
       .grace

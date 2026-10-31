@@ -25,7 +25,7 @@ await describe({
     it({
       name: 'NAMES THE LATE-JUDGE ROLE where the lanes of a slice are contested',
       fn: async () => {
-        const source = await readFile(new URL('./lane-contest-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('lane-contest-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['late-judge',],);
       },
     },),
