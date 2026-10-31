@@ -643,12 +643,42 @@ it honours the cull and `judge-unmeasured`,
 and not the holds of the wide judges,
 the late judges,
 the translators or the writers.
-A model dropped from the wide seats can therefore be asked for the voice of a runaway critic,
-panelist or select judge,
-though the order puts the three such models (`glm-5.3`,
-`hf:Qwen/Qwen3.8-27B`,
-`hf:zai-org/GLM-5.3-Flash`) last,
-so they are asked only when every model before them has no provider with budget.
+Until the callers name a role,
+the re-ask is asked of the models the cards drop,
+which is the opposite of the owner's answer "Honour holds (Recommended)" wherever the bench is narrower than the
+roster.
+Worked through from the bench constants of `run-config.ts`,
+and not run,
+for a wide gather:
+
+- The bench is `RUN_WIDE_SEATS`:
+  the roster less the cull,
+  the two models no judge probe seated,
+  the decision-only seat and the three models dropped from the wide seats.
+- For a runaway of `deepseek-v4.1-flash` the other chat models are eleven.
+  The bench takes five of them (Kimi-K3,
+  minimax-m3,
+  gemma-4-26b-a4b-it,
+  gemma-4-e2b and mercury-2.5),
+  and the roster-wide role takes three (gpt-oss-120b,
+  gemma-4-31b and mimo-v2.6-flash).
+- What is left is exactly `glm-5.3`,
+  `hf:Qwen/Qwen3.8-27B` and `hf:zai-org/GLM-5.3-Flash`,
+  in that census order:
+  the three models the card drops from the wide seats.
+  So a runaway critic,
+  panelist or select judge is asked of the first of them,
+  and the fall back to the runaway never fires.
+- The late judges have the same shape
+  (what is left is `hf:zai-org/GLM-5.3-Flash` and `hf:Qwen/Qwen3.8-27B`,
+  both `late-judge-dropped`),
+  and the translators too
+  (the first model left is `inception/mercury-2.5`,
+  which is `translator-dropped`).
+
+With `role: 'wide-judge'` on those gathers the list is empty and the fall back to the runaway fires,
+which is what the owner asked for.
+The lead decides whether to wire the callers next round or to accept the interim.
 
 The callers in the production code,
 and the role the bench constants of `run-config.ts` suggest for each
