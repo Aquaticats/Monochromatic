@@ -1,21 +1,27 @@
 //! What:
-//!  The JSON Schema of the config, derived from the config types.
+//!  The JSON Schema of the config,
+//! derived from the config types.
 //! Why:
-//!  `file-enforcer.schema.json` is committed so editors can read it; a golden test keeps the committed file equal
-//!  to this output, and a corpus test keeps the hand-written decoder and the schema agreeing.
+//!  `file-enforcer.schema.json` is committed so editors can read it;
+//! a golden test keeps the committed file equal
+//!  to this output,
+//! and a corpus test keeps the hand-written decoder and the schema agreeing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function configSchema(): object { return zodToJsonSchema(ConfigSchema); }
 //! ```
 
+/// Imports `Config` from `crate::config_types`.
 use crate::config_types::Config;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
 /// What:
 ///  Derive the schema as a JSON value.
 /// Why:
-///  One function serves the golden test, the corpus test and the `write-schema` example.
+///  One function serves the golden test,
+/// the corpus test and the `write-schema` example.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -27,7 +33,9 @@ pub fn config_schema() -> Value {
 }
 
 /// What:
-///  Render the schema the way the committed file stores it: pretty-printed, one trailing newline.
+///  Render the schema the way the committed file stores it:
+/// pretty-printed,
+/// one trailing newline.
 /// Why:
 ///  Byte equality with the committed file is the golden test.
 ///

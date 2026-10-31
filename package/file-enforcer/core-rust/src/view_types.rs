@@ -1,5 +1,6 @@
 //! What:
-//!  The small value types the virtual view stores: planned states and observed states.
+//!  The small value types the virtual view stores:
+//! planned states and observed states.
 //! Why:
 //!  Kept apart so the view itself stays under the file length limit.
 //!
@@ -8,12 +9,16 @@
 //! type Planned = { kind: 'file'; content: Uint8Array; mode?: number } | { kind: 'removed' };
 //! ```
 
+/// Imports `RealState`,
+/// `sha256_hex` from `crate::real_fs`.
 use crate::real_fs::{RealState, sha256_hex};
 
 /// What:
-///  A planned state of one path, as an earlier rule left it.
+///  A planned state of one path,
+/// as an earlier rule left it.
 /// Why:
-///  The overlay stores these; a removal hides the real file.
+///  The overlay stores these;
+/// a removal hides the real file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -25,7 +30,8 @@ pub enum Planned {
     File {
         /// Planned content.
         content: Vec<u8>,
-        /// Planned permission bits, when the rule sets them.
+        /// Planned permission bits,
+        /// when the rule sets them.
         mode: Option<u32>,
     },
     /// The path will not exist.
@@ -33,9 +39,11 @@ pub enum Planned {
 }
 
 /// What:
-///  What the run observed about one real path, compact enough to compare later.
+///  What the run observed about one real path,
+/// compact enough to compare later.
 /// Why:
-///  Revalidation re-observes the path and compares; content is kept as a digest.
+///  Revalidation re-observes the path and compares;
+/// content is kept as a digest.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,8 +60,12 @@ pub enum Observed {
         /// Permission bits.
         mode: u32,
     },
-    /// A directory, a link or a special file.
-    NotAFile(String),
+    /// A directory,
+    /// a link or a special file.
+    NotAFile(
+        /// The wrapped value.
+        String,
+    ),
 }
 
 /// What:

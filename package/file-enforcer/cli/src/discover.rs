@@ -1,15 +1,20 @@
 //! What:
 //!  Find the repository config and the worktree root it implies.
 //! Why:
-//!  The worktree root is the directory holding `file-enforcer.config.jsonc`; commands run from any subdirectory find
-//!  the nearest one above, and `--config` names one explicitly.
+//!  The worktree root is the directory holding `file-enforcer.config.jsonc`;
+//! commands run from any subdirectory find
+//!  the nearest one above,
+//! and `--config` names one explicitly.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function findConfig(start: string): string | undefined
 //! ```
 
+/// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
 /// The config file name searched for upward from the current directory.
@@ -17,9 +22,11 @@ pub const CONFIG_FILE_NAME: &str = "file-enforcer.config.jsonc";
 
 /// What:
 ///  Resolve the config path and the worktree root.
-///  `(PathBuf, PathBuf)` is a pair of owned paths (TS: `[string, string]`).
+///  `(PathBuf, PathBuf)` is a pair of owned paths (TS:
+/// `[string, string]`).
 /// Why:
-///  An explicit `--config` wins; otherwise the nearest config above the current directory is used.
+///  An explicit `--config` wins;
+/// otherwise the nearest config above the current directory is used.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

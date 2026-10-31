@@ -1,7 +1,9 @@
 //! What:
 //!  Decode one rule object by its `kind` tag.
 //! Why:
-//!  Each kind has its own fields; the per-kind readers keep the accepted keys next to the fields they read, the same
+//!  Each kind has its own fields;
+//! the per-kind readers keep the accepted keys next to the fields they read,
+//! the same
 //!  names the derived schema lists.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,16 +11,29 @@
 //! function decodeRule(value: unknown, pointer: string): RuleConfig | undefined
 //! ```
 
+/// Imports `is_octal_mode`,
+/// `is_repo_relative` from `crate::config_decode`.
 use crate::config_decode::{is_octal_mode, is_repo_relative};
+/// Imports `HarperScopedServer`,
+/// `LicenseRequirement`,
+/// `TomlBlock`,
+/// `TomlEdit` from `crate::config_parts`.
 use crate::config_parts::{HarperScopedServer, LicenseRequirement, TomlBlock, TomlEdit};
+/// Imports `Reader` from `crate::config_reader`.
 use crate::config_reader::Reader;
+/// Imports `RuleConfig` from `crate::config_types`.
 use crate::config_types::RuleConfig;
+/// Imports `Map`,
+/// `Value` from `serde_json`.
 use serde_json::{Map, Value};
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 
 /// What:
-///  Decode one rule; `None` when it is not an object or its kind is unknown.
-///  `Option<RuleConfig>` is "a rule or nothing" (TS: `RuleConfig | undefined`).
+///  Decode one rule;
+/// `None` when it is not an object or its kind is unknown.
+///  `Option<RuleConfig>` is "a rule or nothing" (TS:
+/// `RuleConfig | undefined`).
 /// Why:
 ///  The caller keeps decoding the other rules after one fails.
 ///
@@ -83,6 +98,8 @@ fn mode_text(reader: &mut Reader, object: &Map<String, Value>, key: &str, pointe
     return mode;
 }
 
+/// Decodes the fields of a `concat` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_concat(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "output", "parts", "mode"]);
     let output = repo_path(reader, object, "output", pointer);
@@ -100,6 +117,8 @@ fn decode_concat(reader: &mut Reader, object: &Map<String, Value>, pointer: &str
     return RuleConfig::Concat { id, output, parts, mode };
 }
 
+/// Decodes the fields of a `mode-only` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_mode_only(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "path", "mode"]);
     let path = repo_path(reader, object, "path", pointer);
@@ -107,6 +126,8 @@ fn decode_mode_only(reader: &mut Reader, object: &Map<String, Value>, pointer: &
     return RuleConfig::ModeOnly { id, path, mode };
 }
 
+/// Decodes the fields of a `package-licenses` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "manifests", "directory", "texts", "requires"]);
     let manifests = reader.text_list(object, "manifests", pointer);
@@ -145,6 +166,8 @@ fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, poi
     return RuleConfig::PackageLicenses { id, manifests, directory, texts, requires };
 }
 
+/// Decodes the fields of a `mirror` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_mirror(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "from", "to"]);
     let from = repo_path(reader, object, "from", pointer);
@@ -152,6 +175,8 @@ fn decode_mirror(reader: &mut Reader, object: &Map<String, Value>, pointer: &str
     return RuleConfig::Mirror { id, from, to };
 }
 
+/// Decodes the fields of a `toml-keys` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_toml_keys(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "manifests", "onlyDirs", "edits", "blocks"]);
     let manifests = reader.text_list(object, "manifests", pointer);
@@ -194,6 +219,8 @@ fn decode_toml_keys(reader: &mut Reader, object: &Map<String, Value>, pointer: &
     return RuleConfig::TomlKeys { id, manifests, only_dirs, edits, blocks };
 }
 
+/// Decodes the fields of a `mise-path-list` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_mise_path_list(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "output", "directories", "header"]);
     let output = repo_path(reader, object, "output", pointer);
@@ -205,6 +232,8 @@ fn decode_mise_path_list(reader: &mut Reader, object: &Map<String, Value>, point
     return RuleConfig::MisePathList { id, output, directories, header };
 }
 
+/// Decodes the fields of a `rust-catalog` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_rust_catalog(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "catalog", "manifests"]);
     let catalog = repo_path(reader, object, "catalog", pointer);
@@ -212,6 +241,8 @@ fn decode_rust_catalog(reader: &mut Reader, object: &Map<String, Value>, pointer
     return RuleConfig::RustCatalog { id, catalog, manifests };
 }
 
+/// Decodes the fields of a `browserslist` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_browserslist(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     reader.reject_unknown(object, pointer, &["kind", "id", "source", "output", "environment"]);
     let source = repo_path(reader, object, "source", pointer);
@@ -220,6 +251,8 @@ fn decode_browserslist(reader: &mut Reader, object: &Map<String, Value>, pointer
     return RuleConfig::Browserslist { id, source, output, environment };
 }
 
+/// Decodes the fields of a `jetbrains-harper` rule into a `RuleConfig`,
+/// recording every problem in the reader.
 fn decode_jetbrains_harper(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
     let allowed = ["kind", "id", "productPrefixes", "disabledLinters", "excludePatterns", "scopedServers"];
     reader.reject_unknown(object, pointer, &allowed);

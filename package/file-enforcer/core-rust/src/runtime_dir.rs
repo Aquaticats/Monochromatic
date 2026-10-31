@@ -1,28 +1,43 @@
 //! What:
-//!  Where the per-worktree server's socket and startup lock live, and how they are named.
+//!  Where the per-worktree server's socket and startup lock live,
+//! and how they are named.
 //! Why:
-//!  The socket must sit in an owner-only directory (`$XDG_RUNTIME_DIR`, or a verified owner-only fallback when it is
-//!  unset or unusable), its name derives from a hash of the worktree root, and the whole path must fit the Unix socket
-//!  limit, so a long worktree path never produces an unbindable socket.
+//!  The socket must sit in an owner-only directory (`$XDG_RUNTIME_DIR`,
+//! or a verified owner-only fallback when it is
+//!  unset or unusable),
+//! its name derives from a hash of the worktree root,
+//! and the whole path must fit the Unix socket
+//!  limit,
+//! so a long worktree path never produces an unbindable socket.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function runtimeDirectory(env: Record<string, string>): string
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `sha256_hex` from `crate::real_fs`.
 use crate::real_fs::sha256_hex;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `DirBuilderExt`,
+/// `MetadataExt` from `std::os::unix::fs`.
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// The longest socket path accepted; the kernel's `sun_path` holds 108 bytes including the terminator.
+/// The longest socket path accepted;
+/// the kernel's `sun_path` holds 108 bytes including the terminator.
 pub const MAX_SOCKET_PATH_BYTES: usize = 100;
 
 /// What:
-///  Name a server by hashing what it serves (a worktree root, or the per-user config path).
+///  Name a server by hashing what it serves (a worktree root,
+/// or the per-user config path).
 /// Why:
-///  The name is short and fixed-length, whatever the path.
+///  The name is short and fixed-length,
+/// whatever the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,11 +96,16 @@ fn create_private(dir: &Path) -> Result<(), Diagnostic> {
 }
 
 /// What:
-///  Choose the runtime directory: `xdg` when it verifies, else the owner-only fallback under the cache directory.
-///  `Option<PathBuf>` is "a path or nothing" (TS: `string | undefined`).
+///  Choose the runtime directory:
+/// `xdg` when it verifies,
+/// else the owner-only fallback under the cache directory.
+///  `Option<PathBuf>` is "a path or nothing" (TS:
+/// `string | undefined`).
 /// Why:
-///  `$XDG_RUNTIME_DIR` is unset in minimal containers and sometimes points at a directory the user cannot use; the
-///  server must still start there, deterministically.
+///  `$XDG_RUNTIME_DIR` is unset in minimal containers and sometimes points at a directory the user cannot use;
+/// the
+///  server must still start there,
+/// deterministically.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +127,8 @@ pub fn runtime_directory(xdg: Option<PathBuf>, fallback_base: &Path) -> Result<P
 /// What:
 ///  Create (if needed) and verify the directory that holds this program's sockets.
 /// Why:
-///  `runtime_directory` names the directory; this makes it exist with mode 0700.
+///  `runtime_directory` names the directory;
+/// this makes it exist with mode 0700.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,7 +144,8 @@ pub fn prepare_runtime_directory(dir: &Path) -> Result<(), Diagnostic> {
 /// What:
 ///  Build the socket path for a key and reject one that is too long for the kernel.
 /// Why:
-///  The kernel fails `bind` with a cryptic error when the path exceeds `sun_path`; a named diagnostic is better.
+///  The kernel fails `bind` with a cryptic error when the path exceeds `sun_path`;
+/// a named diagnostic is better.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

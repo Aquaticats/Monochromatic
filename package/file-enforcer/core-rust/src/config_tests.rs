@@ -1,7 +1,8 @@
 //! What:
 //!  Unit tests for JSONC loading and config decoding.
 //! Why:
-//!  Positioned syntax errors, pointer-named decode errors and scope checks are the contract the CLI reports.
+//!  Positioned syntax errors,
+//! pointer-named decode errors and scope checks are the contract the CLI reports.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

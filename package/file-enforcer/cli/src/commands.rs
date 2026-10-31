@@ -1,7 +1,9 @@
 //! What:
-//!  Turn a parsed command line into a request to the right server, or run the server itself.
+//!  Turn a parsed command line into a request to the right server,
+//! or run the server itself.
 //! Why:
-//!  Every command except the hidden `serve` is a client of the per-worktree (or per-user) server, which starts on
+//!  Every command except the hidden `serve` is a client of the per-worktree (or per-user) server,
+//! which starts on
 //!  demand and exits when idle.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,21 +11,46 @@
 //! async function dispatch(cli: Cli, sink: EventSink): Promise<number>
 //! ```
 
+/// Imports `Cli`,
+/// `Command`,
+/// `UserCommand` from `crate::args`.
 use crate::args::{Cli, Command, UserCommand};
+/// Imports `resolve_repository` from `crate::discover`.
 use crate::discover::resolve_repository;
+/// Imports `ClientOptions`,
+/// `connect` from `monochromatic_file_enforcer::client`.
 use monochromatic_file_enforcer::client::{ClientOptions, connect};
+/// Imports `ConfigScope` from `monochromatic_file_enforcer::config_decode`.
 use monochromatic_file_enforcer::config_decode::ConfigScope;
+/// Imports `Diagnostic` from `monochromatic_file_enforcer::diagnostic`.
 use monochromatic_file_enforcer::diagnostic::Diagnostic;
+/// Imports `Endpoint`,
+/// `default_user_config_path`,
+/// `repository_endpoint`,
+/// `user_endpoint` from `monochromatic_file_enforcer::endpoint`.
 use monochromatic_file_enforcer::endpoint::{Endpoint, default_user_config_path, repository_endpoint, user_endpoint};
+/// Imports `EventSink` from `monochromatic_file_enforcer::event`.
 use monochromatic_file_enforcer::event::EventSink;
+/// Imports `object` from `monochromatic_file_enforcer::json_build`.
 use monochromatic_file_enforcer::json_build::object;
+/// Imports `ServerLaunch` from `monochromatic_file_enforcer::launch`.
 use monochromatic_file_enforcer::launch::ServerLaunch;
+/// Imports `RuleRegistry` from `monochromatic_file_enforcer::registry`.
 use monochromatic_file_enforcer::registry::RuleRegistry;
+/// Imports `EXIT_DRIFT`,
+/// `EXIT_USAGE` from `monochromatic_file_enforcer::run`.
 use monochromatic_file_enforcer::run::{EXIT_DRIFT, EXIT_USAGE};
+/// Imports `ServerOptions`,
+/// `serve` from `monochromatic_file_enforcer::server`.
 use monochromatic_file_enforcer::server::{ServerOptions, serve};
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Duration` from `std::time`.
 use std::time::Duration;
 
 /// How long a client keeps trying to reach or start a server.
@@ -35,7 +62,9 @@ pub const IDLE_SECONDS_VARIABLE: &str = "FILE_ENFORCER_IDLE_SECONDS";
 /// What:
 ///  The idle seconds to give a server this client starts.
 /// Why:
-///  Containers and CI want a short, deterministic shutdown; people want a server that stays warm.
+///  Containers and CI want a short,
+/// deterministic shutdown;
+/// people want a server that stays warm.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +89,8 @@ fn usage_failure(sink: &mut dyn EventSink, error: &Diagnostic) -> i32 {
 }
 
 /// What:
-///  Build the client options for an endpoint: how to reach the server and how to start one.
+///  Build the client options for an endpoint:
+/// how to reach the server and how to start one.
 /// Why:
 ///  The server is started by running this same executable with the hidden `serve` command.
 ///
@@ -91,7 +121,10 @@ fn client_options(endpoint: &Endpoint, user: bool) -> Result<ClientOptions, Diag
 /// What:
 ///  Send one request to the endpoint's server and return the exit code.
 /// Why:
-///  The shared body of `write`, `check`, `explain`, `watch` and the `user` commands.
+///  The shared body of `write`,
+/// `check`,
+/// `explain`,
+/// `watch` and the `user` commands.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,7 +165,8 @@ fn run_params(mode: &str, config: &Path, extra: &[(&str, Value)]) -> Value {
 /// What:
 ///  Make a possibly relative path absolute against the current directory.
 /// Why:
-///  The server's current directory is not the client's, so every path crosses the socket absolute.
+///  The server's current directory is not the client's,
+/// so every path crosses the socket absolute.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,9 +249,12 @@ fn dispatch_user(cli: &Cli, subcommand: &UserCommand, sink: &mut dyn EventSink) 
 }
 
 /// What:
-///  Run the server until it stops; the hidden `serve` command.
+///  Run the server until it stops;
+/// the hidden `serve` command.
 /// Why:
-///  Started detached by the first client; any failure to start is an `error` event on a stream nobody reads, so the
+///  Started detached by the first client;
+/// any failure to start is an `error` event on a stream nobody reads,
+/// so the
 ///  client sees it as the server exiting before it listens.
 ///
 /// In TS you'd write (pseudocode):

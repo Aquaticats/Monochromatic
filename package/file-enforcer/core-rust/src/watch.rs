@@ -1,26 +1,57 @@
 //! What:
-//!  The server side of `watch`: keep the generated files current and warn when one is edited by hand.
+//!  The server side of `watch`:
+//! keep the generated files current and warn when one is edited by hand.
 //! Why:
-//!  The server watches every path the last run depended on (inputs, outputs, listed directories, the nearest existing
-//!  ancestor of an absent one, and the config), re-runs when something changes, and so also notices files and
-//!  directories that appear later. Its watch set is rebuilt after every cycle from what the run actually read.
+//!  The server watches every path the last run depended on (inputs,
+//! outputs,
+//! listed directories,
+//! the nearest existing
+//!  ancestor of an absent one,
+//! and the config),
+//! re-runs when something changes,
+//! and so also notices files and
+//!  directories that appear later.
+//! Its watch set is rebuilt after every cycle from what the run actually read.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! async function watchConnection(shared: Shared, sink: RpcSink, configPath: string): Promise<void>
 //! ```
 
+/// Imports `CollectingSink`,
+/// `Event`,
+/// `EventSink` from `crate::event`.
 use crate::event::{CollectingSink, Event, EventSink};
+/// Imports `STAGING_MARKER` from `crate::publish`.
 use crate::publish::STAGING_MARKER;
+/// Imports `EXIT_CLEAN`,
+/// `RunMode`,
+/// `RunRequest`,
+/// `WatchPaths`,
+/// `run_detailed` from `crate::run`.
 use crate::run::{EXIT_CLEAN, RunMode, RunRequest, WatchPaths, run_detailed};
+/// Imports `Shared` from `crate::server`.
 use crate::server::Shared;
+/// Imports `RpcSink` from `crate::server_connection`.
 use crate::server_connection::RpcSink;
+/// Imports `RecommendedWatcher`,
+/// `RecursiveMode`,
+/// `Watcher` from `notify`.
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Ordering` from `std::sync::atomic`.
 use std::sync::atomic::Ordering;
+/// Imports `RecvTimeoutError`,
+/// `channel` from `std::sync::mpsc`.
 use std::sync::mpsc::{RecvTimeoutError, channel};
+/// Imports `Duration`,
+/// `Instant` from `std::time`.
 use std::time::{Duration, Instant};
 
 /// How long the file system must stay quiet before a cycle runs.
@@ -31,9 +62,11 @@ const TICK: Duration = Duration::from_millis(500);
 const MAX_DEBOUNCE: Duration = Duration::from_secs(2);
 
 /// What:
-///  The nearest ancestor of a path that exists, or the path itself when it does.
+///  The nearest ancestor of a path that exists,
+/// or the path itself when it does.
 /// Why:
-///  An absent fan-out root is watched through its nearest existing ancestor, so its creation is noticed.
+///  An absent fan-out root is watched through its nearest existing ancestor,
+/// so its creation is noticed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,9 +85,12 @@ fn nearest_existing(path: &Path) -> PathBuf {
 
 /// What:
 ///  The directories to watch for a run's paths and the config file.
-///  `BTreeSet` is a sorted set (TS: `Set`, iterated in order).
+///  `BTreeSet` is a sorted set (TS:
+/// `Set`,
+/// iterated in order).
 /// Why:
-///  Files are watched through their parent directory so creation, replacement and deletion all show up.
+///  Files are watched through their parent directory so creation,
+/// replacement and deletion all show up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,7 +114,8 @@ fn watch_targets(root: &Path, config: &Path, paths: &WatchPaths) -> BTreeSet<Pat
 /// What:
 ///  Bring the watcher's registrations in line with the wanted set.
 /// Why:
-///  Newly discovered directories are added, directories no longer needed are dropped.
+///  Newly discovered directories are added,
+/// directories no longer needed are dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -111,10 +148,15 @@ fn run_locked(shared: &Shared, request: &RunRequest, sink: &mut dyn EventSink, p
 }
 
 /// What:
-///  Run one watch cycle: check, warn about hand edits, then write.
+///  Run one watch cycle:
+/// check,
+/// warn about hand edits,
+/// then write.
 /// Why:
-///  A drifted file that was itself among the changed paths was edited by hand; one that drifted because an input
-///  changed was not, and gets no warning.
+///  A drifted file that was itself among the changed paths was edited by hand;
+/// one that drifted because an input
+///  changed was not,
+/// and gets no warning.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,7 +198,8 @@ fn cycle(shared: &Shared, sink: &mut RpcSink, base: &RunRequest, changed: &BTree
 /// What:
 ///  Serve one `watch` subscription until the client leaves or the server shuts down.
 /// Why:
-///  The first cycle brings every file current; later cycles run when watched paths change.
+///  The first cycle brings every file current;
+/// later cycles run when watched paths change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -215,7 +258,8 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
 }
 
 /// What:
-///  Add the repo-relative paths of one notification to the changed set, skipping staging files.
+///  Add the repo-relative paths of one notification to the changed set,
+/// skipping staging files.
 /// Why:
 ///  The tool's own atomic writes create and rename hidden staging files that must not trigger a cycle.
 ///

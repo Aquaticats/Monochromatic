@@ -1,24 +1,46 @@
 //! What:
-//!  Execute one command (`write`, `check` or `explain`) against a worktree and report through an event sink.
+//!  Execute one command (`write`,
+//! `check` or `explain`) against a worktree and report through an event sink.
 //! Why:
-//!  The server calls this under its write lock and the in-process path calls it directly, so both behave the same;
-//!  the exit code is decided here: 0 clean, 1 drift or rule failure, 2 bad config.
+//!  The server calls this under its write lock and the in-process path calls it directly,
+//! so both behave the same;
+//!  the exit code is decided here:
+//! 0 clean,
+//! 1 drift or rule failure,
+//! 2 bad config.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function run(request: RunRequest, registry: RuleRegistry, sink: EventSink): number
 //! ```
 
+/// Imports `ConfigScope`,
+/// `decode_config` from `crate::config_decode`.
 use crate::config_decode::{ConfigScope, decode_config};
+/// Imports `load_config_file` from `crate::config_load`.
 use crate::config_load::load_config_file;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Drift`,
+/// `compute_drift` from `crate::drift`.
 use crate::drift::{Drift, compute_drift};
+/// Imports `EventSink` from `crate::event`.
 use crate::event::EventSink;
+/// Imports `explain`,
+/// `normalize_target` from `crate::explain`.
 use crate::explain::{explain, normalize_target};
+/// Imports `PlanReport`,
+/// `plan_run` from `crate::plan`.
 use crate::plan::{PlanReport, plan_run};
+/// Imports `RuleRegistry` from `crate::registry`.
 use crate::registry::RuleRegistry;
+/// Imports `Rule` from `crate::rule`.
 use crate::rule::Rule;
+/// Imports `finish_check`,
+/// `finish_write` from `crate::run_finish`.
 use crate::run_finish::{finish_check, finish_write};
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
 /// Exit code for a clean run.
@@ -44,7 +66,8 @@ const REPLAN_LIMIT: usize = 3;
 pub enum RunMode {
     /// Regenerate every drifted file.
     Write,
-    /// Report drift; optionally write the paired trees.
+    /// Report drift;
+    /// optionally write the paired trees.
     Check {
         /// Directory for `actual/` and `expected/` trees.
         expected_dir: Option<PathBuf>,
@@ -57,9 +80,13 @@ pub enum RunMode {
 }
 
 /// What:
-///  Everything a run needs: the worktree root, the config file, its scope and the mode.
+///  Everything a run needs:
+/// the worktree root,
+/// the config file,
+/// its scope and the mode.
 /// Why:
-///  Each server request carries its canonical config path and options; the config is re-read every run.
+///  Each server request carries its canonical config path and options;
+/// the config is re-read every run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,9 +120,12 @@ pub fn emit_errors(sink: &mut dyn EventSink, errors: &[Diagnostic]) {
 }
 
 /// What:
-///  Load, decode and build the rules of a config; `Err` carries the exit code and the diagnostics already emitted.
+///  Load,
+/// decode and build the rules of a config;
+/// `Err` carries the exit code and the diagnostics already emitted.
 /// Why:
-///  Any failure here is a bad config: exit code 2.
+///  Any failure here is a bad config:
+/// exit code 2.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +159,8 @@ pub fn load_rules(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn 
 /// What:
 ///  Emit a plan's warnings as `warning` events.
 /// Why:
-///  A kind that is not wired is a warning, never drift.
+///  A kind that is not wired is a warning,
+/// never drift.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,10 +173,15 @@ fn emit_warnings(sink: &mut dyn EventSink, report: &PlanReport) {
 }
 
 /// What:
-///  Plan the run and compute its drift, replanning while a file the plan read changes under it.
+///  Plan the run and compute its drift,
+/// replanning while a file the plan read changes under it.
 /// Why:
-///  Snapshot revalidation: a plan built on files that changed since is discarded and redone, so `write` never
-///  publishes from stale reads. The race with writers that do not use the server is documented, not denied.
+///  Snapshot revalidation:
+/// a plan built on files that changed since is discarded and redone,
+/// so `write` never
+///  publishes from stale reads.
+/// The race with writers that do not use the server is documented,
+/// not denied.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,9 +225,12 @@ pub fn run(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSi
 }
 
 /// What:
-///  The repo-relative paths a run depended on: files read or planned, and directories listed.
+///  The repo-relative paths a run depended on:
+/// files read or planned,
+/// and directories listed.
 /// Why:
-///  `watch` watches exactly these, so its set cannot be narrower than what the run read.
+///  `watch` watches exactly these,
+/// so its set cannot be narrower than what the run read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -199,14 +238,16 @@ pub fn run(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSi
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct WatchPaths {
-    /// Files read, planned or observed (absent ones included).
+    /// Files read,
+    /// planned or observed (absent ones included).
     pub files: Vec<String>,
     /// Directories listed (absent ones included).
     pub directories: Vec<String>,
 }
 
 /// What:
-///  Run one request, also reporting the paths the run depended on.
+///  Run one request,
+/// also reporting the paths the run depended on.
 /// Why:
 ///  The server's `watch` calls this to learn what to watch after each cycle.
 ///

@@ -1,7 +1,10 @@
 //! What:
-//!  Tests for the built-in rule kinds, each run through the real `run` entry point on a scratch worktree.
+//!  Tests for the built-in rule kinds,
+//! each run through the real `run` entry point on a scratch worktree.
 //! Why:
-//!  A kind is correct when `write` converges, a second `check` is clean, and unowned files survive.
+//!  A kind is correct when `write` converges,
+//! a second `check` is clean,
+//! and unowned files survive.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

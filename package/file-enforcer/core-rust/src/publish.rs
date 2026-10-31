@@ -1,30 +1,55 @@
 //! What:
-//!  Publish a plan's drift to the real filesystem, file by file, through hidden staging names.
+//!  Publish a plan's drift to the real filesystem,
+//! file by file,
+//! through hidden staging names.
 //! Why:
-//!  Each file is replaced atomically (written beside its target under a hidden name with its final mode, then
-//!  renamed), so a reader never sees half a file; atomicity is per file, and a partial run reconverges on the next
-//!  run. Containment is rechecked at each mutation: no ancestor may be a link, whatever the plan saw earlier.
+//!  Each file is replaced atomically (written beside its target under a hidden name with its final mode,
+//! then
+//!  renamed),
+//! so a reader never sees half a file;
+//! atomicity is per file,
+//! and a partial run reconverges on the next
+//!  run.
+//! Containment is rechecked at each mutation:
+//! no ancestor may be a link,
+//! whatever the plan saw earlier.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function publish(root: string, report: PlanReport, drifts: Drift[]): PublishOutcome
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Drift`,
+/// `DriftReason` from `crate::drift`.
 use crate::drift::{Drift, DriftReason};
+/// Imports `PlanReport` from `crate::plan`.
 use crate::plan::PlanReport;
+/// Imports `EntryKind`,
+/// `absolute`,
+/// `ancestors_are_real_directories`,
+/// `kind_of` from `crate::real_fs`.
 use crate::real_fs::{EntryKind, absolute, ancestors_are_real_directories, kind_of};
+/// Imports `Planned` from `crate::view_types`.
 use crate::view_types::Planned;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `Write` from `std::io`.
 use std::io::Write;
+/// Imports `OpenOptionsExt`,
+/// `PermissionsExt` from `std::os::unix::fs`.
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+/// Imports `Path` from `std::path`.
 use std::path::Path;
 
-/// The marker every staging file's name contains; names also start with `.` so Mise and Git tooling skip them.
+/// The marker every staging file's name contains;
+/// names also start with `.` so Mise and Git tooling skip them.
 pub const STAGING_MARKER: &str = ".fe-staging-";
 
 /// What:
-///  What a publish changed, by path.
+///  What a publish changed,
+/// by path.
 /// Why:
 ///  The `done` event reports the counts and the lists.
 ///
@@ -57,7 +82,8 @@ fn io_failure(action: &str, path: &str, error: &std::io::Error) -> Diagnostic {
 }
 
 /// What:
-///  Create the missing directories above `rel`, checking each step is a real directory.
+///  Create the missing directories above `rel`,
+/// checking each step is a real directory.
 /// Why:
 ///  Creating a directory next to a planted link must not follow the link.
 ///
@@ -88,7 +114,9 @@ fn ensure_parents(root: &Path, rel: &str) -> Result<(), Diagnostic> {
 }
 
 /// What:
-///  Replace one file atomically: write a hidden sibling with the final mode, then rename it over the target.
+///  Replace one file atomically:
+/// write a hidden sibling with the final mode,
+/// then rename it over the target.
 /// Why:
 ///  The rename is the only moment the target changes.
 ///
@@ -128,7 +156,8 @@ fn replace_file(root: &Path, rel: &str, content: &[u8], planned_mode: Option<u32
 /// What:
 ///  Remove abandoned staging files left beside the paths this run will touch.
 /// Why:
-///  A run killed between write and rename leaves a hidden file; the next run cleans it.
+///  A run killed between write and rename leaves a hidden file;
+/// the next run cleans it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -155,9 +184,13 @@ fn clean_staging(root: &Path, drifts: &[Drift]) {
 }
 
 /// What:
-///  Apply the drift: writes and mode repairs first, then file removals, then directory removals deepest-first.
+///  Apply the drift:
+/// writes and mode repairs first,
+/// then file removals,
+/// then directory removals deepest-first.
 /// Why:
-///  Ordering keeps a directory from being removed before its files, and a replaced file never disappears first.
+///  Ordering keeps a directory from being removed before its files,
+/// and a replaced file never disappears first.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

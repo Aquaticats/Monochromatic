@@ -1,5 +1,6 @@
 //! What:
-//!  The `file-enforcer` executable: hand the process arguments to the library and exit with its code.
+//!  The `file-enforcer` executable:
+//! hand the process arguments to the library and exit with its code.
 //! Why:
 //!  All behavior lives in `file_enforcer_cli` so tests can call it without starting a process.
 //!
@@ -9,11 +10,13 @@
 //! process.exit(await main(process.argv.slice(2)));
 //! ```
 
+/// Imports `ExitCode` from `std::process`.
 use std::process::ExitCode;
 
 /// What:
 ///  Run the command line and convert the code into the process exit status.
-///  `ExitCode` is the value `main` returns to set the exit status (TS: `process.exitCode`).
+///  `ExitCode` is the value `main` returns to set the exit status (TS:
+/// `process.exitCode`).
 /// Why:
 ///  Returning (not calling `exit`) lets destructors and buffered writes finish.
 ///

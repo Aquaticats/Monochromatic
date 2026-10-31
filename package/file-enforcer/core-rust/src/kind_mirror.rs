@@ -1,19 +1,33 @@
 //! What:
-//!  The `mirror` rule kind: make one directory an exact copy of another, owning the target outright.
+//!  The `mirror` rule kind:
+//! make one directory an exact copy of another,
+//! owning the target outright.
 //! Why:
-//!  `.claude/skills` and `.factory/skills` are copies of `.agents/skills`; anything in a target that the source does
-//!  not hold is drift, which `check` lists and `write` removes. Source links and special files are rejected, and
-//!  target links are removed as links, never followed.
+//!  `.claude/skills` and `.factory/skills` are copies of `.agents/skills`;
+//! anything in a target that the source does
+//!  not hold is drift,
+//! which `check` lists and `write` removes.
+//! Source links and special files are rejected,
+//! and
+//!  target links are removed as links,
+//! never followed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function mirrorRule(from: string, to: string): Rule
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
+/// Imports `Change`,
+/// `Rule`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Change, Rule, RulePlan};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 
 /// What:
@@ -35,8 +49,11 @@ pub struct MirrorRule {
 }
 
 /// What:
-///  The files and directories under one directory, as relative paths.
-///  `BTreeSet<String>` is a sorted set of text (TS: `Set<string>`, but always iterated in order).
+///  The files and directories under one directory,
+/// as relative paths.
+///  `BTreeSet<String>` is a sorted set of text (TS:
+/// `Set<string>`,
+/// but always iterated in order).
 /// Why:
 ///  Comparing the two trees is a set difference.
 ///
@@ -45,15 +62,20 @@ pub struct MirrorRule {
 /// type Tree = { files: Set<string>; directories: Set<string>; others: Set<string> };
 /// ```
 struct Tree {
+    /// The `files` field.
     files: BTreeSet<String>,
+    /// The `directories` field.
     directories: BTreeSet<String>,
+    /// The `others` field.
     others: BTreeSet<String>,
 }
 
 /// What:
 ///  Walk a directory with an explicit work stack and collect its relative paths by kind.
 /// Why:
-///  A stack, not recursion, keeps the walk's depth from limiting what it can read.
+///  A stack,
+/// not recursion,
+/// keeps the walk's depth from limiting what it can read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,6 +105,7 @@ fn walk(view: &mut View, root: &str) -> Result<Tree, Diagnostic> {
     return Ok(tree);
 }
 
+/// The `impl Rule for MirrorRule` block.
 impl Rule for MirrorRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -95,9 +118,11 @@ impl Rule for MirrorRule {
     }
 
     /// What:
-    ///  Copy every source file, remove every target entry the source lacks.
+    ///  Copy every source file,
+    /// remove every target entry the source lacks.
     /// Why:
-    ///  Target contents equal the source; the removal list is deepest-first so directories empty before they go.
+    ///  Target contents equal the source;
+    /// the removal list is deepest-first so directories empty before they go.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

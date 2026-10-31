@@ -1,25 +1,39 @@
 //! What:
 //!  Disposable worktrees and small helpers shared by the engine tests.
 //! Why:
-//!  Tests must never touch a real worktree, and scratch must live under the build directory, not `/tmp`.
+//!  Tests must never touch a real worktree,
+//! and scratch must live under the build directory,
+//! not `/tmp`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function scratchWorktree(files: Record<string, string>): { root: string }
 //! ```
 
+/// Imports `CollectingSink` from `crate::event`.
 use crate::event::CollectingSink;
+/// Imports `Event` from `crate::event`.
 use crate::event::Event;
+/// Imports `RuleRegistry` from `crate::registry`.
 use crate::registry::RuleRegistry;
+/// Imports `RunMode`,
+/// `RunRequest`,
+/// `run` from `crate::run`.
 use crate::run::{RunMode, RunRequest, run};
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `TempDir` from `tempfile`.
 use tempfile::TempDir;
 
 /// What:
-///  The parent directory of every scratch tree: `target/test-scratch` under this package.
+///  The parent directory of every scratch tree:
+/// `target/test-scratch` under this package.
 /// Why:
-///  `clippy.toml` bans `std::env::temp_dir`; the build directory is the sanctioned place.
+///  `clippy.toml` bans `std::env::temp_dir`;
+/// the build directory is the sanctioned place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,7 +46,8 @@ pub fn scratch_base() -> PathBuf {
 }
 
 /// What:
-///  Create a scratch directory, deleted when the returned guard drops.
+///  Create a scratch directory,
+/// deleted when the returned guard drops.
 /// Why:
 ///  Each test gets its own tree.
 ///
@@ -45,7 +60,8 @@ pub fn scratch_dir() -> TempDir {
 }
 
 /// What:
-///  Write files (path to text) under a root, creating directories.
+///  Write files (path to text) under a root,
+/// creating directories.
 /// Why:
 ///  Compact fixtures.
 ///
@@ -75,7 +91,8 @@ pub fn read_text(root: &Path, path: &str) -> String {
 }
 
 /// What:
-///  Run a config text against a root in the given mode with the default registry; return the exit code and events.
+///  Run a config text against a root in the given mode with the default registry;
+/// return the exit code and events.
 /// Why:
 ///  The tests drive the same entry point the server uses.
 ///

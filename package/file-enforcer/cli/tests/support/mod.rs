@@ -1,8 +1,11 @@
 //! What:
 //!  A harness that runs the real `file-enforcer` binary in a scratch worktree with its own runtime directory.
 //! Why:
-//!  Every test that starts a server owns its end: servers get a short idle time, and a drop guard stops any that
-//!  remain, so nothing outlives the test and nothing lands in the real `$XDG_RUNTIME_DIR`.
+//!  Every test that starts a server owns its end:
+//! servers get a short idle time,
+//! and a drop guard stops any that
+//!  remain,
+//! so nothing outlives the test and nothing lands in the real `$XDG_RUNTIME_DIR`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,7 +19,9 @@ use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
 /// What:
-///  One scratch worktree, one runtime directory and one home directory, plus the guard that stops stray servers.
+///  One scratch worktree,
+/// one runtime directory and one home directory,
+/// plus the guard that stops stray servers.
 /// Why:
 ///  The runtime directory sits under `${HOME}/temp/agent` so socket paths stay short.
 ///
@@ -61,7 +66,8 @@ impl Harness {
         return harness;
     }
 
-    /// Write a file under the repository, creating directories.
+    /// Write a file under the repository,
+    /// creating directories.
     pub fn write(&self, path: &str, text: &str) {
         let target = self.repo.path().join(path);
         std::fs::create_dir_all(target.parent().expect("a parent")).expect("directories");
@@ -73,7 +79,10 @@ impl Harness {
         return std::fs::read_to_string(self.repo.path().join(path)).expect("read");
     }
 
-    /// The command with this harness's environment: own runtime directory, own home, short idle time.
+    /// The command with this harness's environment:
+    /// own runtime directory,
+    /// own home,
+    /// short idle time.
     pub fn command(&self, args: &[&str]) -> Command {
         let mut command = Command::new(env!("CARGO_BIN_EXE_file-enforcer"));
         command
@@ -86,7 +95,8 @@ impl Harness {
         return command;
     }
 
-    /// Run a command to completion; return the exit code and the JSON lines it printed.
+    /// Run a command to completion;
+    /// return the exit code and the JSON lines it printed.
     pub fn run(&self, args: &[&str]) -> (i32, Vec<Value>) {
         let output = self.command(args).output().expect("the binary runs");
         let lines = parse_lines(&String::from_utf8_lossy(&output.stdout));
@@ -110,7 +120,8 @@ impl Harness {
         return pids;
     }
 
-    /// Wait up to `seconds` for every server of this harness to exit; return whether they did.
+    /// Wait up to `seconds` for every server of this harness to exit;
+    /// return whether they did.
     pub fn servers_gone_within(&self, seconds: u64) -> bool {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(seconds);
         while std::time::Instant::now() < deadline {
@@ -124,7 +135,8 @@ impl Harness {
 }
 
 impl Drop for Harness {
-    /// Stop any server this test left, so none outlives the test.
+    /// Stop any server this test left,
+    /// so none outlives the test.
     fn drop(&mut self) {
         for pid in self.server_pids() {
             // SAFETY: `kill` with a positive pid and SIGTERM has no memory-safety preconditions.
@@ -135,7 +147,8 @@ impl Drop for Harness {
     }
 }
 
-/// Parse stdout into JSON values, one per non-empty line.
+/// Parse stdout into JSON values,
+/// one per non-empty line.
 pub fn parse_lines(text: &str) -> Vec<Value> {
     let mut values: Vec<Value> = Vec::new();
     for line in text.lines() {
@@ -152,7 +165,8 @@ pub fn count_code(lines: &[Value], code: &str) -> usize {
     return lines.iter().filter(|line| return line["code"] == code).count();
 }
 
-/// The standard minimal config: one concat rule from AGENTS.md to CLAUDE.md.
+/// The standard minimal config:
+/// one concat rule from AGENTS.md to CLAUDE.md.
 pub const CONFIG: &str = r#"{"rules": [{"kind": "concat", "id": "claude", "output": "CLAUDE.md", "parts": ["head\n", {"file": "AGENTS.md"}]}]}"#;
 
 /// Path of the repo config inside a harness.

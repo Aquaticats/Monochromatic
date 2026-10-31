@@ -1,5 +1,7 @@
 //! What:
-//!  The last step of `check` and `write`: report drift or publish, and build the summary event.
+//!  The last step of `check` and `write`:
+//! report drift or publish,
+//! and build the summary event.
 //! Why:
 //!  Kept apart from `run.rs` so each file stays under the length limit.
 //!
@@ -8,13 +10,27 @@
 //! function finishCheck(...): number; function finishWrite(...): number
 //! ```
 
+/// Imports `Drift` from `crate::drift`.
 use crate::drift::Drift;
+/// Imports `Event`,
+/// `EventSink` from `crate::event`.
 use crate::event::{Event, EventSink};
+/// Imports `validate_expected_dir`,
+/// `write_expected_trees` from `crate::expected_dir`.
 use crate::expected_dir::{validate_expected_dir, write_expected_trees};
+/// Imports `PlanReport` from `crate::plan`.
 use crate::plan::PlanReport;
+/// Imports `publish` from `crate::publish`.
 use crate::publish::publish;
+/// Imports `EXIT_CLEAN`,
+/// `EXIT_DRIFT`,
+/// `EXIT_USAGE`,
+/// `RunRequest`,
+/// `emit_errors` from `crate::run`.
 use crate::run::{EXIT_CLEAN, EXIT_DRIFT, EXIT_USAGE, RunRequest, emit_errors};
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
 /// What:
@@ -42,9 +58,12 @@ pub fn result_event(command: &str, clean: bool, counts: &[(&str, usize)]) -> Eve
 }
 
 /// What:
-///  Report drift for `check`, writing the paired trees when asked.
+///  Report drift for `check`,
+/// writing the paired trees when asked.
 /// Why:
-///  Exit code 1 when anything drifted, 0 otherwise; a bad `--expected-dir` is a usage error (2).
+///  Exit code 1 when anything drifted,
+/// 0 otherwise;
+/// a bad `--expected-dir` is a usage error (2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,7 +98,8 @@ pub fn finish_check(request: &RunRequest, sink: &mut dyn EventSink, drifts: &[Dr
 /// What:
 ///  Publish the drift for `write` and report what changed.
 /// Why:
-///  Exit code 0 after a successful publish, 1 when publishing failed part way (the next run reconverges).
+///  Exit code 0 after a successful publish,
+/// 1 when publishing failed part way (the next run reconverges).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

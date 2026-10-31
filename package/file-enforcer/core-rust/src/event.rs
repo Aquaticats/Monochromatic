@@ -1,21 +1,29 @@
 //! What:
-//!  The JSON event every output line is, and where events go.
+//!  The JSON event every output line is,
+//! and where events go.
 //! Why:
-//!  Every line file-enforcer writes is one JSON object, so the engine emits `Event`s to an `EventSink` and only the
-//!  outermost layer decides whether they become lines on standard output, test assertions or socket notifications.
+//!  Every line file-enforcer writes is one JSON object,
+//! so the engine emits `Event`s to an `EventSink` and only the
+//!  outermost layer decides whether they become lines on standard output,
+//! test assertions or socket notifications.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type Event = { type: string; code: string; message: string; hint?: string; fields: Record<string, unknown> };
 //! ```
 
+/// Imports `Map`,
+/// `Value` from `serde_json`.
 use serde_json::{Map, Value};
 
 /// What:
 ///  The version number every event line carries as `schemaVersion`.
-///  `u64` is an unsigned 64-bit integer (siblings: `u32`, `i64`).
+///  `u64` is an unsigned 64-bit integer (siblings:
+/// `u32`,
+/// `i64`).
 /// Why:
-///  Consumers branch on it when the event shape changes; `u64` matches the number type `serde_json` writes.
+///  Consumers branch on it when the event shape changes;
+/// `u64` matches the number type `serde_json` writes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,9 +32,14 @@ use serde_json::{Map, Value};
 pub const SCHEMA_VERSION: u64 = 1;
 
 /// What:
-///  One output line before it is numbered: its type, code, message, optional hint and extra fields.
+///  One output line before it is numbered:
+/// its type,
+/// code,
+/// message,
+/// optional hint and extra fields.
 /// Why:
-///  The sequence number belongs to whoever prints the lines (one counter per process), not to the engine.
+///  The sequence number belongs to whoever prints the lines (one counter per process),
+/// not to the engine.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,7 +47,13 @@ pub const SCHEMA_VERSION: u64 = 1;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Event {
-    /// The `type` member: `drift`, `warning`, `error`, `help`, `done`, and so on.
+    /// The `type` member:
+    /// `drift`,
+    /// `warning`,
+    /// `error`,
+    /// `help`,
+    /// `done`,
+    /// and so on.
     pub event_type: String,
     /// Stable kebab-case handle for the specific occurrence.
     pub code: String,
@@ -42,10 +61,12 @@ pub struct Event {
     pub message: String,
     /// What a person can do next.
     pub hint: Option<String>,
-    /// Further members, written after `hint` in insertion order.
+    /// Further members,
+    /// written after `hint` in insertion order.
     pub fields: Map<String, Value>,
 }
 
+/// The `impl Event` block.
 impl Event {
     /// What:
     ///  Build an event with no hint and no extra fields.
@@ -69,7 +90,8 @@ impl Event {
     /// What:
     ///  Add or replace one extra member.
     /// Why:
-    ///  Drift and explain events carry `path`, `rule` and similar members.
+    ///  Drift and explain events carry `path`,
+    /// `rule` and similar members.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -151,17 +173,23 @@ impl Event {
 }
 
 /// What:
-///  Where events go: a printer, a collector in a test, or a socket connection.
-///  `dyn` trait objects are values chosen at run time (TS: an interface-typed parameter).
+///  Where events go:
+/// a printer,
+/// a collector in a test,
+/// or a socket connection.
+///  `dyn` trait objects are values chosen at run time (TS:
+/// an interface-typed parameter).
 /// Why:
-///  The engine emits events without knowing whether a person, a test or a remote client reads them.
+///  The engine emits events without knowing whether a person,
+/// a test or a remote client reads them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// interface EventSink { emit(event: Event): void }
 /// ```
 pub trait EventSink {
-    /// Receive one event; sinks that can fail keep the failure to themselves.
+    /// Receive one event;
+    /// sinks that can fail keep the failure to themselves.
     fn emit(&mut self, event: Event);
 }
 
@@ -180,6 +208,7 @@ pub struct CollectingSink {
     pub events: Vec<Event>,
 }
 
+/// The `impl EventSink for CollectingSink` block.
 impl EventSink for CollectingSink {
     /// What:
     ///  Append the event to the list.

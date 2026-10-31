@@ -1,16 +1,24 @@
 //! What:
-//!  The `mode-only` rule kind: keep a file's permission bits when the file exists.
+//!  The `mode-only` rule kind:
+//! keep a file's permission bits when the file exists.
 //! Why:
-//!  `forbidden-strings.append.local.txt` must stay 0600 when present, and the tool must never create it.
+//!  `forbidden-strings.append.local.txt` must stay 0600 when present,
+//! and the tool must never create it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function modeOnlyRule(path: string, mode: number): Rule
 //! ```
 
+/// Imports `parse_mode` from `crate::config_decode`.
 use crate::config_decode::parse_mode;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Change`,
+/// `Rule`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Change, Rule, RulePlan};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
 
 /// What:
@@ -31,6 +39,7 @@ pub struct ModeOnlyRule {
     pub mode: u32,
 }
 
+/// The `impl ModeOnlyRule` block.
 impl ModeOnlyRule {
     /// What:
     ///  Build from decoded fields.
@@ -46,6 +55,7 @@ impl ModeOnlyRule {
     }
 }
 
+/// The `impl Rule for ModeOnlyRule` block.
 impl Rule for ModeOnlyRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -58,9 +68,12 @@ impl Rule for ModeOnlyRule {
     }
 
     /// What:
-    ///  Plan a mode change when the file exists, nothing otherwise.
+    ///  Plan a mode change when the file exists,
+    /// nothing otherwise.
     /// Why:
-    ///  Absence is fine: the file is created by a person, not by the tool.
+    ///  Absence is fine:
+    /// the file is created by a person,
+    /// not by the tool.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

@@ -1,26 +1,39 @@
 //! What:
 //!  Plan every rule against the virtual view and validate the whole run.
 //! Why:
-//!  Rules run in config order and each reads what earlier rules planned. Every rule failure, every pair of writers
-//!  that cannot share a path, and every rule that reads a later rule's output is collected before anything is
-//!  published, so a failing run writes nothing.
+//!  Rules run in config order and each reads what earlier rules planned.
+//! Every rule failure,
+//! every pair of writers
+//!  that cannot share a path,
+//! and every rule that reads a later rule's output is collected before anything is
+//!  published,
+//! so a failing run writes nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function planRun(root: string, rules: Rule[]): PlanReport
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Change`,
+/// `Rule` from `crate::rule`.
 use crate::rule::{Change, Rule};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
+/// Imports `Path` from `std::path`.
 use std::path::Path;
 
 /// What:
 ///  Everything a run learned while planning.
-///  `(String, String)` is a pair of owned text (TS: `[string, string]`).
+///  `(String, String)` is a pair of owned text (TS:
+/// `[string, string]`).
 /// Why:
-///  Drift detection, publishing, `explain` and `watch` all start from this one value.
+///  Drift detection,
+/// publishing,
+/// `explain` and `watch` all start from this one value.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -28,17 +41,20 @@ use std::path::Path;
 /// ```
 #[derive(Debug)]
 pub struct PlanReport {
-    /// The view, with the overlay of planned outputs and the record of reads.
+    /// The view,
+    /// with the overlay of planned outputs and the record of reads.
     pub view: View,
     /// Path to the id of the last rule that planned it.
     pub owners: BTreeMap<String, String>,
-    /// Directories rules want removed, with the rule id.
+    /// Directories rules want removed,
+    /// with the rule id.
     pub removed_directories: Vec<(String, String)>,
     /// Warnings from rules.
     pub warnings: Vec<Diagnostic>,
     /// Failures from rules and from whole-run validation.
     pub errors: Vec<Diagnostic>,
-    /// `(id, kind)` of every rule, in order.
+    /// `(id, kind)` of every rule,
+    /// in order.
     pub rules: Vec<(String, String)>,
 }
 
@@ -63,7 +79,8 @@ fn change_path(change: &Change) -> &str {
 /// What:
 ///  Run every rule's `plan` in order and validate the run as a whole.
 /// Why:
-///  The planning half of every command; publishing happens only when `errors` is empty.
+///  The planning half of every command;
+/// publishing happens only when `errors` is empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,9 +139,11 @@ pub fn plan_run(root: &Path, rules: &[Box<dyn Rule>]) -> PlanReport {
 }
 
 /// What:
-///  Report a rule that read a path a later rule writes, unless the reader writes that path itself.
+///  Report a rule that read a path a later rule writes,
+/// unless the reader writes that path itself.
 /// Why:
-///  Config order is execution order; reading an output that is only planned later would see stale content.
+///  Config order is execution order;
+/// reading an output that is only planned later would see stale content.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

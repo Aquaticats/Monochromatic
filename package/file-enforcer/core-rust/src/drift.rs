@@ -1,7 +1,10 @@
 //! What:
 //!  Compare a plan's outputs with the real files and list what differs.
 //! Why:
-//!  `check` reports exactly this list, `write` publishes exactly this list, and `--expected-dir` renders it, so one
+//!  `check` reports exactly this list,
+//! `write` publishes exactly this list,
+//! and `--expected-dir` renders it,
+//! so one
 //!  computation serves all three and `check` needs no prior write.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,11 +12,17 @@
 //! function computeDrift(report: PlanReport): Drift[]
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Event` from `crate::event`.
 use crate::event::Event;
+/// Imports `PlanReport` from `crate::plan`.
 use crate::plan::PlanReport;
+/// Imports `RealState` from `crate::real_fs`.
 use crate::real_fs::RealState;
+/// Imports `Planned` from `crate::view_types`.
 use crate::view_types::Planned;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
 /// What:
@@ -37,10 +46,12 @@ pub enum DriftReason {
     Extra,
     /// The directory exists but a rule wants it removed.
     ExtraDirectory,
-    /// A link or special file stands where a regular file is planned; publishing replaces it.
+    /// A link or special file stands where a regular file is planned;
+    /// publishing replaces it.
     ReplaceLink,
 }
 
+/// The `impl DriftReason` block.
 impl DriftReason {
     /// The kebab-case name used in events.
     pub fn name(&self) -> &'static str {
@@ -72,12 +83,15 @@ pub struct Drift {
     pub rule: String,
     /// Why it differs.
     pub reason: DriftReason,
-    /// Current bytes, when the file exists.
+    /// Current bytes,
+    /// when the file exists.
     pub actual: Option<Vec<u8>>,
-    /// Planned bytes, when the file will exist.
+    /// Planned bytes,
+    /// when the file will exist.
     pub expected: Option<Vec<u8>>,
 }
 
+/// The `impl Drift` block.
 impl Drift {
     /// What:
     ///  Render the drift as a `drift` event.
@@ -101,7 +115,8 @@ impl Drift {
 
 /// What:
 ///  Compare every planned output and planned removal with the real filesystem.
-///  The comparison observes each real path through the view, so revalidation covers outputs as well as inputs.
+///  The comparison observes each real path through the view,
+/// so revalidation covers outputs as well as inputs.
 /// Why:
 ///  Drift is exactly the set of paths `write` must touch.
 ///

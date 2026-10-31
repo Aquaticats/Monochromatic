@@ -1,8 +1,15 @@
 //! What:
-//!  One client connection: the handshake, then `run`, `watch` and `shutdown` requests.
+//!  One client connection:
+//! the handshake,
+//! then `run`,
+//! `watch` and `shutdown` requests.
 //! Why:
-//!  The handshake (protocol version, build identity, worktree identity) comes first, so a server from another build
-//!  or serving another directory never answers a request. A mismatch makes the server drain and exit so the client
+//!  The handshake (protocol version,
+//! build identity,
+//! worktree identity) comes first,
+//! so a server from another build
+//!  or serving another directory never answers a request.
+//! A mismatch makes the server drain and exit so the client
 //!  can start a fresh one.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,18 +17,34 @@
 //! async function handleConnection(shared: Shared, socket: Socket): Promise<void>
 //! ```
 
+/// Imports `Event`,
+/// `EventSink` from `crate::event`.
 use crate::event::{Event, EventSink};
+/// Imports  from `crate::rpc_protocol`.
 use crate::rpc_protocol::{
     ERROR_FAILED, ERROR_METHOD, ERROR_MISMATCH, ERROR_PARSE, PROTOCOL_VERSION, error_line, notification_line, result_line,
 };
+/// Imports `RunMode`,
+/// `RunRequest`,
+/// `run` from `crate::run`.
 use crate::run::{RunMode, RunRequest, run};
+/// Imports `Shared` from `crate::server`.
 use crate::server::Shared;
+/// Imports `watch_connection` from `crate::watch`.
 use crate::watch::watch_connection;
+/// Imports `object` from `crate::json_build`.
 use crate::json_build::object;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `BufRead`,
+/// `BufReader`,
+/// `Write` from `std::io`.
 use std::io::{BufRead, BufReader, Write};
+/// Imports `UnixStream` from `std::os::unix::net`.
 use std::os::unix::net::UnixStream;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
+/// Imports `Ordering` from `std::sync::atomic`.
 use std::sync::atomic::Ordering;
 
 /// What:
@@ -34,9 +57,11 @@ use std::sync::atomic::Ordering;
 /// class RpcSink implements EventSink { socket: Socket }
 /// ```
 pub struct RpcSink {
+    /// The `stream` field.
     stream: UnixStream,
 }
 
+/// The `impl RpcSink` block.
 impl RpcSink {
     /// What:
     ///  Wrap a stream.
@@ -52,9 +77,11 @@ impl RpcSink {
     }
 
     /// What:
-    ///  Send a keepalive notification; `false` when the client is gone.
+    ///  Send a keepalive notification;
+    /// `false` when the client is gone.
     /// Why:
-    ///  A write to a closed peer fails, which is how a long-lived `watch` notices its client left.
+    ///  A write to a closed peer fails,
+    /// which is how a long-lived `watch` notices its client left.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -65,8 +92,10 @@ impl RpcSink {
     }
 }
 
+/// The `impl EventSink for RpcSink` block.
 impl EventSink for RpcSink {
-    /// Send the event; a closed client is ignored so the run still finishes.
+    /// Send the event;
+    /// a closed client is ignored so the run still finishes.
     fn emit(&mut self, event: Event) {
         let line = notification_line("event", event.to_json(0));
         let _ = self.stream.write_all(line.as_bytes());
@@ -84,7 +113,8 @@ fn exit_code_object(code: i32) -> Value {
 }
 
 /// What:
-///  Compare the client's handshake with this server; `Some(reason)` on a mismatch.
+///  Compare the client's handshake with this server;
+/// `Some(reason)` on a mismatch.
 /// Why:
 ///  Each of the three identities can differ independently.
 ///
@@ -108,7 +138,8 @@ fn handshake_mismatch(shared: &Shared, params: &Value) -> Option<String> {
 /// What:
 ///  Read the `run` parameters into a request.
 /// Why:
-///  Each request carries its canonical config path and options; the config is re-read every run.
+///  Each request carries its canonical config path and options;
+/// the config is re-read every run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,7 +166,8 @@ fn run_request_of(shared: &Shared, params: &Value) -> Result<RunRequest, String>
 /// What:
 ///  Serve one connection until it closes or asks the server to stop.
 /// Why:
-///  Runs execute under the shared run lock, one at a time across all connections.
+///  Runs execute under the shared run lock,
+/// one at a time across all connections.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

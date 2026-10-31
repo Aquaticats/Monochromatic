@@ -1,31 +1,57 @@
 //! What:
-//!  Start the per-worktree server when none answers: the startup lock, stale-socket recovery and the detached spawn.
+//!  Start the per-worktree server when none answers:
+//! the startup lock,
+//! stale-socket recovery and the detached spawn.
 //! Why:
-//!  Many clients may find no server at the same moment. An owner-only lock file, separate from the socket, elects one
-//!  of them: only its holder probes the socket, removes a socket whose owner is dead (connection refused), and spawns
-//!  the server; the others wait. The server runs detached from the client's terminal and standard streams.
+//!  Many clients may find no server at the same moment.
+//! An owner-only lock file,
+//! separate from the socket,
+//! elects one
+//!  of them:
+//! only its holder probes the socket,
+//! removes a socket whose owner is dead (connection refused),
+//! and spawns
+//!  the server;
+//! the others wait.
+//! The server runs detached from the client's terminal and standard streams.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! async function startServerIfNeeded(options: LaunchOptions): Promise<void>
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `lock_path` from `crate::runtime_dir`.
 use crate::runtime_dir::lock_path;
+/// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `OpenOptionsExt` from `std::os::unix::fs`.
 use std::os::unix::fs::OpenOptionsExt;
+/// Imports `UnixStream` from `std::os::unix::net`.
 use std::os::unix::net::UnixStream;
+/// Imports `CommandExt` from `std::os::unix::process`.
 use std::os::unix::process::CommandExt;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Command`,
+/// `Stdio` from `std::process`.
 use std::process::{Command, Stdio};
+/// Imports `Duration`,
+/// `Instant` from `std::time`.
 use std::time::{Duration, Instant};
 
 /// What:
-///  How to start a server: the program and its arguments.
-///  `Vec<OsString>` is a list of operating-system strings (TS: `string[]`).
+///  How to start a server:
+/// the program and its arguments.
+///  `Vec<OsString>` is a list of operating-system strings (TS:
+/// `string[]`).
 /// Why:
-///  The library does not know the command line; the CLI crate supplies the hidden `serve` arguments.
+///  The library does not know the command line;
+/// the CLI crate supplies the hidden `serve` arguments.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,7 +59,8 @@ use std::time::{Duration, Instant};
 /// ```
 #[derive(Clone, Debug)]
 pub struct ServerLaunch {
-    /// Executable to start, usually the current executable.
+    /// Executable to start,
+    /// usually the current executable.
     pub program: PathBuf,
     /// Arguments that make it run the server.
     pub args: Vec<OsString>,
@@ -42,7 +69,10 @@ pub struct ServerLaunch {
 /// What:
 ///  The result of one attempt to start a server.
 /// Why:
-///  The caller loops: connect, start if needed, connect again.
+///  The caller loops:
+/// connect,
+/// start if needed,
+/// connect again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -52,15 +82,18 @@ pub struct ServerLaunch {
 pub enum StartOutcome {
     /// This caller spawned a server that now accepts connections.
     Started,
-    /// Another caller holds the lock; wait and connect again.
+    /// Another caller holds the lock;
+    /// wait and connect again.
     Waiting,
     /// A server answered while the lock was held.
     AlreadyRunning,
 }
 
 /// What:
-///  Make the child its own session leader, detached from the client's terminal.
-///  `unsafe` marks code the compiler cannot check; here it is one call to `setsid`.
+///  Make the child its own session leader,
+/// detached from the client's terminal.
+///  `unsafe` marks code the compiler cannot check;
+/// here it is one call to `setsid`.
 /// Why:
 ///  The server must outlive the terminal and must not receive its hangup or interrupt.
 ///
@@ -79,9 +112,11 @@ fn detach_session(command: &mut Command) {
 }
 
 /// What:
-///  Wait until the socket accepts a connection, failing if the server process exits first.
+///  Wait until the socket accepts a connection,
+/// failing if the server process exits first.
 /// Why:
-///  A server that dies on startup (for example a bind error) must be reported, not waited for.
+///  A server that dies on startup (for example a bind error) must be reported,
+/// not waited for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,10 +138,15 @@ fn wait_for_socket(socket: &Path, child: &mut std::process::Child, deadline: Ins
 }
 
 /// What:
-///  Take the startup lock; start a server unless one answers.
+///  Take the startup lock;
+/// start a server unless one answers.
 /// Why:
-///  Stale-socket recovery is verified: a socket file is removed only after a connection to it is refused, which
-///  proves nothing is listening; any other failure is reported, not worked around.
+///  Stale-socket recovery is verified:
+/// a socket file is removed only after a connection to it is refused,
+/// which
+///  proves nothing is listening;
+/// any other failure is reported,
+/// not worked around.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

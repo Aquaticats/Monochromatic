@@ -1,28 +1,53 @@
 //! What:
-//!  The `toml-keys` rule kind: set guarded keys and append absent blocks in every matching `Cargo.toml`.
+//!  The `toml-keys` rule kind:
+//! set guarded keys and append absent blocks in every matching `Cargo.toml`.
 //! Why:
-//!  Edition, license, lints, repository, homepage and profiles are owned by the tool inside hand-written manifests;
-//!  comments, order and unowned keys survive, and a manifest that already conforms is not rewritten.
+//!  Edition,
+//! license,
+//! lints,
+//! repository,
+//! homepage and profiles are owned by the tool inside hand-written manifests;
+//!  comments,
+//! order and unowned keys survive,
+//! and a manifest that already conforms is not rewritten.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function tomlKeysRule(manifests: string[], onlyDirs: string[] | undefined, edits: TomlEdit[], blocks: TomlBlock[]): Rule
 //! ```
 
+/// Imports `TomlBlock`,
+/// `TomlEdit` from `crate::config_parts`.
 use crate::config_parts::{TomlBlock, TomlEdit};
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
+/// Imports `Change`,
+/// `Rule`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Change, Rule, RulePlan};
+/// Imports `append_block`,
+/// `lookup`,
+/// `set_key` from `crate::toml_ops`.
 use crate::toml_ops::{append_block, lookup, set_key};
+/// Imports `Vars`,
+/// `evaluate`,
+/// `evaluate_text` from `crate::value_eval`.
 use crate::value_eval::{Vars, evaluate, evaluate_text};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `expand_glob` from `crate::view_glob`.
 use crate::view_glob::expand_glob;
+/// Imports `DocumentMut` from `toml_edit`.
 use toml_edit::DocumentMut;
 
 /// What:
 ///  A planned `toml-keys` rule.
 /// Why:
-///  Holds the manifest globs, the optional directory filter, the edits and the blocks.
+///  Holds the manifest globs,
+/// the optional directory filter,
+/// the edits and the blocks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,7 +67,8 @@ pub struct TomlKeysRule {
 }
 
 /// What:
-///  Parse a manifest, naming the file when the TOML is malformed.
+///  Parse a manifest,
+/// naming the file when the TOML is malformed.
 /// Why:
 ///  A broken manifest fails the whole run with its path instead of being skipped.
 ///
@@ -60,11 +86,15 @@ fn parse_manifest(path: &str, text: &str) -> Result<DocumentMut, Diagnostic> {
     }
 }
 
+/// The `impl TomlKeysRule` block.
 impl TomlKeysRule {
     /// What:
-    ///  Apply every edit and block to one manifest's text; returns the new text.
+    ///  Apply every edit and block to one manifest's text;
+    /// returns the new text.
     /// Why:
-    ///  Edits run first on the parsed document, then blocks are appended one at a time, re-parsing after each so a
+    ///  Edits run first on the parsed document,
+    /// then blocks are appended one at a time,
+    /// re-parsing after each so a
     ///  later block sees the earlier one.
     ///
     /// In TS you'd write (pseudocode):
@@ -93,6 +123,7 @@ impl TomlKeysRule {
     }
 }
 
+/// The `impl Rule for TomlKeysRule` block.
 impl Rule for TomlKeysRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -104,7 +135,8 @@ impl Rule for TomlKeysRule {
         return "toml-keys";
     }
 
-    /// Transforms a file in place, so it composes with other transforming rules (the catalog rule).
+    /// Transforms a file in place,
+    /// so it composes with other transforming rules (the catalog rule).
     fn composes(&self) -> bool {
         return true;
     }
@@ -112,7 +144,8 @@ impl Rule for TomlKeysRule {
     /// What:
     ///  Transform each matching manifest and plan a write for the ones that changed.
     /// Why:
-    ///  Manifests that already conform produce no change, so a clean tree plans nothing.
+    ///  Manifests that already conform produce no change,
+    /// so a clean tree plans nothing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

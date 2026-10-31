@@ -1,5 +1,11 @@
 //! What:
-//!  Tests for whole-run behavior: validation, ordering, snapshot revalidation, containment, expected trees, explain.
+//!  Tests for whole-run behavior:
+//! validation,
+//! ordering,
+//! snapshot revalidation,
+//! containment,
+//! expected trees,
+//! explain.
 //! Why:
 //!  These are the engine's guarantees that no single rule kind can show.
 //!
@@ -151,8 +157,11 @@ fn staging_files_left_by_a_killed_run_are_cleaned_and_modes_are_set_before_renam
 }
 
 /// What:
-///  A rule that reads a file once, then changes it, to prove the run replans.
-///  `Arc<AtomicUsize>` is a shared counter several owners can bump (TS: a shared mutable object).
+///  A rule that reads a file once,
+/// then changes it,
+/// to prove the run replans.
+///  `Arc<AtomicUsize>` is a shared counter several owners can bump (TS:
+/// a shared mutable object).
 /// Why:
 ///  Snapshot revalidation must notice a file changing between the plan's read and its publish.
 ///
@@ -175,7 +184,9 @@ impl Rule for RacingRule {
         return "concat";
     }
 
-    /// Reads `input.txt`, rewrites it on the first plan only, and copies what it read to `copy.txt`.
+    /// Reads `input.txt`,
+    /// rewrites it on the first plan only,
+    /// and copies what it read to `copy.txt`.
     fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
         let text = view.read_text("input.txt")?.unwrap_or_default();
         if self.plans.fetch_add(1, Ordering::SeqCst) == 0 {
@@ -192,7 +203,8 @@ struct RacingBuilder {
 }
 
 impl RuleBuilder for RacingBuilder {
-    /// Build the racing rule; the config entry is ignored.
+    /// Build the racing rule;
+    /// the config entry is ignored.
     fn build(&self, _config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
         return Ok(Box::new(RacingRule { plans: Arc::clone(&self.plans) }));
     }

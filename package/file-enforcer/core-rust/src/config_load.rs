@@ -1,24 +1,37 @@
 //! What:
-//!  Read a JSONC config file into a plain JSON value, with positioned errors.
+//!  Read a JSONC config file into a plain JSON value,
+//! with positioned errors.
 //! Why:
-//!  The decoder works on `serde_json::Value`, the schema corpus check feeds the same value to the JSON Schema
-//!  validator, and syntax errors need `path:line:col` instead of a byte offset.
+//!  The decoder works on `serde_json::Value`,
+//! the schema corpus check feeds the same value to the JSON Schema
+//!  validator,
+//! and syntax errors need `path:line:col` instead of a byte offset.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function loadJsonc(path: string): unknown; // throws a Diagnostic naming path:line:col
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `JsoncKind`,
+/// `JsoncValue`,
+/// `parse_jsonc` from `monochromatic_jsonc_edit`.
 use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, parse_jsonc};
+/// Imports `Map`,
+/// `Number`,
+/// `Value` from `serde_json`.
 use serde_json::{Map, Number, Value};
+/// Imports `Path` from `std::path`.
 use std::path::Path;
 
 /// What:
 ///  Turn a byte offset in `source` into a one-based line and column.
-///  `(usize, usize)` is a pair of unsigned machine-size integers (TS: `[number, number]`).
+///  `(usize, usize)` is a pair of unsigned machine-size integers (TS:
+/// `[number, number]`).
 /// Why:
-///  `JsoncParseError` only carries an offset; people read `path:line:col`.
+///  `JsoncParseError` only carries an offset;
+/// people read `path:line:col`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,7 +55,9 @@ pub fn line_and_column(source: &str, offset: usize) -> (usize, usize) {
 }
 
 /// What:
-///  Parse JSONC text into a plain JSON value; comments are dropped, trailing commas are accepted.
+///  Parse JSONC text into a plain JSON value;
+/// comments are dropped,
+/// trailing commas are accepted.
 /// Why:
 ///  Duplicate object keys and unpaired UTF-16 surrogates cannot survive in a `serde_json::Value`,
 ///  so they are rejected here with the key named instead of silently keeping the last one.
@@ -92,9 +107,11 @@ pub fn load_config_file(path: &Path) -> Result<Value, Diagnostic> {
 }
 
 /// What:
-///  Convert one JSONC value (and its children) into a `serde_json::Value`, recording a JSON pointer for errors.
+///  Convert one JSONC value (and its children) into a `serde_json::Value`,
+/// recording a JSON pointer for errors.
 /// Why:
-///  A recursive walk is fine here: the parser already refuses more than 512 nested containers.
+///  A recursive walk is fine here:
+/// the parser already refuses more than 512 nested containers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,7 +167,8 @@ fn convert_value(value: &JsoncValue, pointer: &str, display_path: &str) -> Resul
 /// What:
 ///  Convert a number token into a JSON number.
 /// Why:
-///  The config only uses small integers; anything else is reported with its pointer instead of being rounded.
+///  The config only uses small integers;
+/// anything else is reported with its pointer instead of being rounded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

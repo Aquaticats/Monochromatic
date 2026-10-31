@@ -1,17 +1,24 @@
 //! What:
-//!  Glob expansion over the virtual view, one path segment at a time.
+//!  Glob expansion over the virtual view,
+//! one path segment at a time.
 //! Why:
-//!  `package/*/*/Cargo.toml` must match exactly two levels and never walk `target/` or `node_modules/`; expanding
-//!  segment by segment lists only the directories the pattern names, and every listing is recorded for revalidation.
+//!  `package/*/*/Cargo.toml` must match exactly two levels and never walk `target/` or `node_modules/`;
+//! expanding
+//!  segment by segment lists only the directories the pattern names,
+//! and every listing is recorded for revalidation.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function expandGlob(view: View, pattern: string, want: EntryKind): string[]
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `Glob` from `globset`.
 use globset::Glob;
 
 /// What:
@@ -29,9 +36,12 @@ fn is_pattern(segment: &str) -> bool {
 
 /// What:
 ///  Expand a pattern into the sorted repo-relative paths whose last segment has kind `want`.
-///  Hidden names (starting with `.`) match only a segment that starts with `.` itself, as shell globs do.
+///  Hidden names (starting with `.`) match only a segment that starts with `.` itself,
+/// as shell globs do.
 /// Why:
-///  Deterministic, bounded-depth discovery; `**` is not supported on purpose.
+///  Deterministic,
+/// bounded-depth discovery;
+/// `**` is not supported on purpose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -88,7 +98,8 @@ pub fn expand_glob(view: &mut View, pattern: &str, want: EntryKind) -> Result<Ve
 }
 
 /// What:
-///  Join a directory prefix and a name with `/`, treating the empty prefix as the root.
+///  Join a directory prefix and a name with `/`,
+/// treating the empty prefix as the root.
 /// Why:
 ///  Keeps repo-relative paths free of a leading slash.
 ///

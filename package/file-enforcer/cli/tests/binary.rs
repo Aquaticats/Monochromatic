@@ -1,8 +1,14 @@
 //! What:
-//!  Tests that run the real `file-enforcer` binary: JSON-lines output, exit codes, the auto-started server.
+//!  Tests that run the real `file-enforcer` binary:
+//! JSON-lines output,
+//! exit codes,
+//! the auto-started server.
 //! Why:
-//!  The command line, the server lifecycle and the JSON-lines contract only exist in the built executable, so these
-//!  tests start it as a user would, in a scratch worktree with its own runtime directory.
+//!  The command line,
+//! the server lifecycle and the JSON-lines contract only exist in the built executable,
+//! so these
+//!  tests start it as a user would,
+//! in a scratch worktree with its own runtime directory.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -158,7 +164,8 @@ fn explain_names_the_rule_that_generates_a_path() {
 }
 
 /// What:
-///  Wait for a line with the given `code` from a watch child's line channel, within a time limit.
+///  Wait for a line with the given `code` from a watch child's line channel,
+/// within a time limit.
 /// Why:
 ///  Watch output arrives asynchronously after file-system events.
 ///

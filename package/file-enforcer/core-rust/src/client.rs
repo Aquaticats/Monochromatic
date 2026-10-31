@@ -1,24 +1,51 @@
 //! What:
-//!  The client side: find or start the server, handshake, send one request, and print what comes back.
+//!  The client side:
+//! find or start the server,
+//! handshake,
+//! send one request,
+//! and print what comes back.
 //! Why:
-//!  Every command except the hidden `serve` is a client. A request is never replayed after an ambiguous disconnect:
-//!  a dropped connection mid-run is reported, because the server may or may not have written.
+//!  Every command except the hidden `serve` is a client.
+//! A request is never replayed after an ambiguous disconnect:
+//!  a dropped connection mid-run is reported,
+//! because the server may or may not have written.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! export async function connect(options: ClientOptions): Promise<Connection>
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Event`,
+/// `EventSink` from `crate::event`.
 use crate::event::{Event, EventSink};
+/// Imports `build_identity`,
+/// `worktree_identity` from `crate::identity`.
 use crate::identity::{build_identity, worktree_identity};
+/// Imports `ServerLaunch`,
+/// `StartOutcome`,
+/// `start_server_if_needed` from `crate::launch`.
 use crate::launch::{ServerLaunch, StartOutcome, start_server_if_needed};
+/// Imports `ERROR_MISMATCH`,
+/// `PROTOCOL_VERSION`,
+/// `request_line` from `crate::rpc_protocol`.
 use crate::rpc_protocol::{ERROR_MISMATCH, PROTOCOL_VERSION, request_line};
+/// Imports `object` from `crate::json_build`.
 use crate::json_build::object;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `BufRead`,
+/// `BufReader`,
+/// `Write` from `std::io`.
 use std::io::{BufRead, BufReader, Write};
+/// Imports `UnixStream` from `std::os::unix::net`.
 use std::os::unix::net::UnixStream;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Duration`,
+/// `Instant` from `std::time`.
 use std::time::{Duration, Instant};
 
 /// What:
@@ -43,7 +70,8 @@ pub struct ClientOptions {
 }
 
 /// What:
-///  A connected, handshaken connection.
+///  A connected,
+/// handshaken connection.
 /// Why:
 ///  The buffered reader and the writer must stay paired so no bytes are lost between requests.
 ///
@@ -52,28 +80,34 @@ pub struct ClientOptions {
 /// type Connection = { reader: LineReader; writer: Socket };
 /// ```
 pub struct Connection {
+    /// The `reader` field.
     reader: BufReader<UnixStream>,
+    /// The `writer` field.
     writer: UnixStream,
 }
 
 /// What:
 ///  Why a handshake did not succeed.
 /// Why:
-///  A mismatch means drain the old server and start a new one; anything else is retried.
+///  A mismatch means drain the old server and start a new one;
+/// anything else is retried.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type HandshakeFailure = { kind: 'mismatch'; pid: number } | { kind: 'other' };
 /// ```
 enum HandshakeFailure {
+    /// The `Mismatch` variant.
     Mismatch,
+    /// The `Other` variant.
     Other,
 }
 
 /// What:
 ///  Send the handshake and read the reply.
 /// Why:
-///  The server compares protocol, build and worktree identities before it serves anything.
+///  The server compares protocol,
+/// build and worktree identities before it serves anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,9 +157,12 @@ fn wait_for_socket_gone(socket: &Path, deadline: Instant) {
 }
 
 /// What:
-///  Reach a server for this worktree, starting one if none answers, and complete the handshake.
+///  Reach a server for this worktree,
+/// starting one if none answers,
+/// and complete the handshake.
 /// Why:
-///  A stale or mismatched server is replaced; many callers at once end up on the same new server.
+///  A stale or mismatched server is replaced;
+/// many callers at once end up on the same new server.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -150,11 +187,14 @@ pub fn connect(options: &ClientOptions) -> Result<Connection, Diagnostic> {
     return Err(Diagnostic::new("server-unavailable", &message));
 }
 
+/// The `impl Connection` block.
 impl Connection {
     /// What:
-    ///  Send one request and print its events until the response arrives; return the exit code.
+    ///  Send one request and print its events until the response arrives;
+    /// return the exit code.
     /// Why:
-    ///  A disconnect before the response is reported and never retried: the server may have written.
+    ///  A disconnect before the response is reported and never retried:
+    /// the server may have written.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

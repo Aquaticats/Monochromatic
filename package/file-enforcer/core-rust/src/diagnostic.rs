@@ -1,22 +1,36 @@
 //! What:
-//!  One failure or warning, and the JSON event that carries it.
+//!  One failure or warning,
+//! and the JSON event that carries it.
 //! Why:
-//!  Every line file-enforcer writes is one JSON object (`schemaVersion`, `sequence`, `type`, `code`, `message`,
-//!  `hint`), so every problem the engine finds is a `Diagnostic` first and an event only at the output boundary.
+//!  Every line file-enforcer writes is one JSON object (`schemaVersion`,
+//! `sequence`,
+//! `type`,
+//! `code`,
+//! `message`,
+//!  `hint`),
+//! so every problem the engine finds is a `Diagnostic` first and an event only at the output boundary.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type Diagnostic = { code: string; message: string; hint?: string; path?: string; rule?: string };
 //! ```
 
+/// Imports `Event` from `crate::event`.
 use crate::event::Event;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `fmt` from `std`.
 use std::fmt;
 
 /// What:
-///  A problem found while loading, planning or publishing.
-///  `String` is owned, growable text (sibling: `&str`, a borrowed read-only view);
-///  `Option<String>` is "a `String` or nothing" (TS: `string | undefined`).
+///  A problem found while loading,
+/// planning or publishing.
+///  `String` is owned,
+/// growable text (sibling:
+/// `&str`,
+/// a borrowed read-only view);
+///  `Option<String>` is "a `String` or nothing" (TS:
+/// `string | undefined`).
 /// Why:
 ///  Plain owned fields let a diagnostic cross threads and the socket without borrowing from the run that made it.
 ///
@@ -26,23 +40,31 @@ use std::fmt;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Diagnostic {
-    /// Stable kebab-case handle consumers match on, for example `config-invalid`.
+    /// Stable kebab-case handle consumers match on,
+    /// for example `config-invalid`.
     pub code: String,
     /// Operation-focused explanation naming the affected input.
     pub message: String,
-    /// What a person can do next, when the code alone says it.
+    /// What a person can do next,
+    /// when the code alone says it.
     pub hint: Option<String>,
-    /// Repo-relative path the problem is about, when there is one.
+    /// Repo-relative path the problem is about,
+    /// when there is one.
     pub path: Option<String>,
-    /// Identifier of the rule that raised it, when a rule did.
+    /// Identifier of the rule that raised it,
+    /// when a rule did.
     pub rule: Option<String>,
 }
 
+/// The `impl Diagnostic` block.
 impl Diagnostic {
     /// What:
-    ///  Build a diagnostic from a code and a message, with no hint, path or rule.
+    ///  Build a diagnostic from a code and a message,
+    /// with no hint,
+    /// path or rule.
     /// Why:
-    ///  Most failures start with only these two; the `with_*` methods add the rest.
+    ///  Most failures start with only these two;
+    /// the `with_*` methods add the rest.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -61,7 +83,8 @@ impl Diagnostic {
     /// What:
     ///  Return a copy that carries the given hint.
     /// Why:
-    ///  Builder style keeps construction a single expression; the original stays untouched.
+    ///  Builder style keeps construction a single expression;
+    /// the original stays untouched.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -122,9 +145,11 @@ impl Diagnostic {
     }
 }
 
+/// The `impl fmt::Display for Diagnostic` block.
 impl fmt::Display for Diagnostic {
     /// What:
-    ///  Print `code: message`, the shape a test failure shows.
+    ///  Print `code: message`,
+    /// the shape a test failure shows.
     /// Why:
     ///  Lets `?` and `{}` formatting work on a diagnostic.
     ///
@@ -137,4 +162,5 @@ impl fmt::Display for Diagnostic {
     }
 }
 
+/// The `impl std::error::Error for Diagnostic {}` block.
 impl std::error::Error for Diagnostic {}

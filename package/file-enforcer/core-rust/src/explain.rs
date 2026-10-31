@@ -1,7 +1,9 @@
 //! What:
-//!  Answer "which rules read or write this path?" from a plan.
+//!  Answer "which rules read or write this path?"
+//! from a plan.
 //! Why:
-//!  `explain <path>` names the rule that generates a file and the rules that read it, from what the plan recorded,
+//!  `explain <path>` names the rule that generates a file and the rules that read it,
+//! from what the plan recorded,
 //!  so the answer cannot disagree with what `write` would do.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,12 +11,16 @@
 //! function explain(report: PlanReport, path: string): Event[]
 //! ```
 
+/// Imports `Event` from `crate::event`.
 use crate::event::Event;
+/// Imports `PlanReport` from `crate::plan`.
 use crate::plan::PlanReport;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
 /// What:
-///  Turn a command-line path into a repo-relative path: strip a leading `./` and the worktree root prefix.
+///  Turn a command-line path into a repo-relative path:
+/// strip a leading `./` and the worktree root prefix.
 /// Why:
 ///  People type `./CLAUDE.md` or an absolute path.
 ///
@@ -37,7 +43,9 @@ pub fn normalize_target(root: &std::path::Path, path: &str) -> String {
 /// What:
 ///  List the `explain` events for one path.
 /// Why:
-///  A path can be a rule's output, a file or directory some rule read, or both.
+///  A path can be a rule's output,
+/// a file or directory some rule read,
+/// or both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

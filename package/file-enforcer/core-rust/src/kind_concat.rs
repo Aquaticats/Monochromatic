@@ -1,5 +1,6 @@
 //! What:
-//!  The `concat` rule kind: one output file whose content is its parts joined end to end.
+//!  The `concat` rule kind:
+//! one output file whose content is its parts joined end to end.
 //! Why:
 //!  `CLAUDE.md` (a preamble file then `AGENTS.md`) and the root `LICENSE` (one copied file) are the same rule with
 //!  different parts.
@@ -9,17 +10,27 @@
 //! function concatRule(output: string, parts: ValueExpr[], mode?: number): Rule
 //! ```
 
+/// Imports `parse_mode` from `crate::config_decode`.
 use crate::config_decode::parse_mode;
+/// Imports `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::ValueExpr;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Change`,
+/// `Rule`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Change, Rule, RulePlan};
+/// Imports `Vars`,
+/// `evaluate_text` from `crate::value_eval`.
 use crate::value_eval::{Vars, evaluate_text};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
 
 /// What:
 ///  A planned `concat` rule.
 /// Why:
-///  Holds the decoded fields; planning evaluates the parts through the view.
+///  Holds the decoded fields;
+/// planning evaluates the parts through the view.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,13 +43,16 @@ pub struct ConcatRule {
     pub output: String,
     /// Parts in order.
     pub parts: Vec<ValueExpr>,
-    /// Permission bits, when the rule owns them.
+    /// Permission bits,
+    /// when the rule owns them.
     pub mode: Option<u32>,
 }
 
+/// The `impl ConcatRule` block.
 impl ConcatRule {
     /// What:
-    ///  Build from decoded fields, converting the mode text.
+    ///  Build from decoded fields,
+    /// converting the mode text.
     /// Why:
     ///  The registry calls this with the decoded config entry.
     ///
@@ -52,6 +66,7 @@ impl ConcatRule {
     }
 }
 
+/// The `impl Rule for ConcatRule` block.
 impl Rule for ConcatRule {
     /// The rule id.
     fn id(&self) -> &str {

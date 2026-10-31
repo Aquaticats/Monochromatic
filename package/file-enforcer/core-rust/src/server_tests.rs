@@ -1,8 +1,16 @@
 //! What:
-//!  Tests for the server, the handshake, stale-socket recovery and the runtime directory.
+//!  Tests for the server,
+//! the handshake,
+//! stale-socket recovery and the runtime directory.
 //! Why:
-//!  The server's lifecycle contracts (handshake, drain on mismatch, idle exit, root-gone exit, verified stale
-//!  recovery, owner-only runtime directory, socket path length) each need a test that can fail.
+//!  The server's lifecycle contracts (handshake,
+//! drain on mismatch,
+//! idle exit,
+//! root-gone exit,
+//! verified stale
+//!  recovery,
+//! owner-only runtime directory,
+//! socket path length) each need a test that can fail.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,9 +37,11 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 /// What:
-///  A short-lived runtime directory under `${HOME}/temp/agent`, short enough for a socket path.
+///  A short-lived runtime directory under `${HOME}/temp/agent`,
+/// short enough for a socket path.
 /// Why:
-///  The scratch under `target/` is longer than the 108-byte socket limit, and a test server must never land in the
+///  The scratch under `target/` is longer than the 108-byte socket limit,
+/// and a test server must never land in the
 ///  real `$XDG_RUNTIME_DIR`.
 ///
 /// In TS you'd write (pseudocode):
@@ -87,7 +97,8 @@ impl TestServer {
 }
 
 impl Drop for TestServer {
-    /// Ask the server to stop and join it, so no test leaves a thread or a socket behind.
+    /// Ask the server to stop and join it,
+    /// so no test leaves a thread or a socket behind.
     fn drop(&mut self) {
         if let Ok(mut connection) = connect(&self.client()) {
             connection.shutdown();

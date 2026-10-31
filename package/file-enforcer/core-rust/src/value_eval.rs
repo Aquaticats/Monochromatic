@@ -1,18 +1,28 @@
 //! What:
 //!  Evaluate the config's value expressions against the virtual view.
 //! Why:
-//!  `{"file": ...}` reads through the view, so a rule sees what earlier rules planned; `{"var": ...}` reads a fan-out
-//!  variable; `{"concat": [...]}` joins text. Nothing else exists, so every input is visible in the config.
+//!  `{"file": ...}` reads through the view,
+//! so a rule sees what earlier rules planned;
+//! `{"var": ...}` reads a fan-out
+//!  variable;
+//! `{"concat": [...]}` joins text.
+//! Nothing else exists,
+//! so every input is visible in the config.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function evaluate(view: View, expr: ValueExpr, vars: Record<string, string>): Evaluated
 //! ```
 
+/// Imports `is_repo_relative` from `crate::config_decode`.
 use crate::config_decode::is_repo_relative;
+/// Imports `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::ValueExpr;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 
 /// What:
@@ -27,9 +37,13 @@ use std::collections::BTreeMap;
 pub type Vars = BTreeMap<String, String>;
 
 /// What:
-///  A computed value: text, boolean, integer or a list of those.
+///  A computed value:
+/// text,
+/// boolean,
+/// integer or a list of those.
 /// Why:
-///  TOML edits need typed values; everything else needs text.
+///  TOML edits need typed values;
+/// everything else needs text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,13 +52,25 @@ pub type Vars = BTreeMap<String, String>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Evaluated {
     /// Text.
-    Text(String),
+    Text(
+        /// The wrapped value.
+        String,
+    ),
     /// Boolean.
-    Bool(bool),
+    Bool(
+        /// The wrapped value.
+        bool,
+    ),
     /// Integer.
-    Integer(i64),
+    Integer(
+        /// The wrapped value.
+        i64,
+    ),
     /// List.
-    List(Vec<Evaluated>),
+    List(
+        /// The wrapped value.
+        Vec<Evaluated>,
+    ),
 }
 
 /// What:
@@ -102,7 +128,8 @@ pub fn evaluate(view: &mut View, expr: &ValueExpr, vars: &Vars) -> Result<Evalua
 /// What:
 ///  Evaluate an expression that must produce text.
 /// Why:
-///  Paths, file parts and block text are all text.
+///  Paths,
+/// file parts and block text are all text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

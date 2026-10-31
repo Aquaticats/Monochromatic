@@ -1,26 +1,44 @@
 //! What:
-//!  The registry that turns decoded config entries into rules, and the placeholder for kinds whose library is not
+//!  The registry that turns decoded config entries into rules,
+//! and the placeholder for kinds whose library is not
 //!  linked yet.
 //! Why:
-//!  The dependency-catalog library, the browserslist crate and the JetBrains XML crate are separate crates; each
+//!  The dependency-catalog library,
+//! the browserslist crate and the JetBrains XML crate are separate crates;
+//! each
 //!  registers its own builder under its kind (`registry.register("browserslist", Box::new(builder))`) and replaces
-//!  the placeholder, with no change to the engine.
+//!  the placeholder,
+//! with no change to the engine.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! class RuleRegistry { register(kind: string, builder: RuleBuilder): void; build(config: Config): Rule[] }
 //! ```
 
+/// Imports `Config`,
+/// `RuleConfig` from `crate::config_types`.
 use crate::config_types::{Config, RuleConfig};
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `ConcatRule` from `crate::kind_concat`.
 use crate::kind_concat::ConcatRule;
+/// Imports `MirrorRule` from `crate::kind_mirror`.
 use crate::kind_mirror::MirrorRule;
+/// Imports `MisePathListRule` from `crate::kind_mise_path_list`.
 use crate::kind_mise_path_list::MisePathListRule;
+/// Imports `ModeOnlyRule` from `crate::kind_mode_only`.
 use crate::kind_mode_only::ModeOnlyRule;
+/// Imports `PackageLicensesRule` from `crate::kind_package_licenses`.
 use crate::kind_package_licenses::PackageLicensesRule;
+/// Imports `TomlKeysRule` from `crate::kind_toml_keys`.
 use crate::kind_toml_keys::TomlKeysRule;
+/// Imports `Rule`,
+/// `RuleBuilder`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Rule, RuleBuilder, RulePlan};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 
 /// What:
@@ -34,11 +52,13 @@ use std::collections::BTreeMap;
 /// ```
 pub struct BuiltinBuilder;
 
+/// The `impl RuleBuilder for BuiltinBuilder` block.
 impl RuleBuilder for BuiltinBuilder {
     /// What:
     ///  Build one built-in rule from its config entry.
     /// Why:
-    ///  Kinds owned by other crates are not matched here; they get their own builders.
+    ///  Kinds owned by other crates are not matched here;
+    /// they get their own builders.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -94,7 +114,9 @@ impl RuleBuilder for BuiltinBuilder {
 /// What:
 ///  A rule whose kind is declared but whose library is not linked into this build.
 /// Why:
-///  Planning it yields a `kind-not-wired` warning and no changes, which is not drift: the run stays usable while the
+///  Planning it yields a `kind-not-wired` warning and no changes,
+/// which is not drift:
+/// the run stays usable while the
 ///  library that owns the kind is still being built.
 ///
 /// In TS you'd write (pseudocode):
@@ -102,11 +124,15 @@ impl RuleBuilder for BuiltinBuilder {
 /// class NotWiredRule implements Rule { id: string; kind: string; owner: string }
 /// ```
 pub struct NotWiredRule {
+    /// The `id` field.
     id: String,
+    /// The `kind` field.
     kind: String,
+    /// The `owner` field.
     owner: String,
 }
 
+/// The `impl Rule for NotWiredRule` block.
 impl Rule for NotWiredRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -121,7 +147,8 @@ impl Rule for NotWiredRule {
     /// What:
     ///  Report that the kind is not linked and plan nothing.
     /// Why:
-    ///  The warning names the kind, the rule and the library that will provide it.
+    ///  The warning names the kind,
+    /// the rule and the library that will provide it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -151,6 +178,7 @@ pub struct NotWiredBuilder {
     pub owner: String,
 }
 
+/// The `impl RuleBuilder for NotWiredBuilder` block.
 impl RuleBuilder for NotWiredBuilder {
     /// Build the placeholder rule for `config`.
     fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
@@ -172,12 +200,15 @@ impl RuleBuilder for NotWiredBuilder {
 /// class RuleRegistry { builders: Map<string, RuleBuilder> }
 /// ```
 pub struct RuleRegistry {
+    /// The `builders` field.
     builders: BTreeMap<String, Box<dyn RuleBuilder>>,
 }
 
+/// The `impl RuleRegistry` block.
 impl RuleRegistry {
     /// What:
-    ///  The registry with the six built-in kinds and placeholders for `rust-catalog`, `browserslist` and
+    ///  The registry with the six built-in kinds and placeholders for `rust-catalog`,
+    /// `browserslist` and
     ///  `jetbrains-harper`.
     /// Why:
     ///  This is what the command line uses until the other libraries are linked.
@@ -205,7 +236,8 @@ impl RuleRegistry {
     /// What:
     ///  Install or replace the builder for a kind.
     /// Why:
-    ///  This is the seam: another crate calls it with its own builder.
+    ///  This is the seam:
+    /// another crate calls it with its own builder.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -216,9 +248,11 @@ impl RuleRegistry {
     }
 
     /// What:
-    ///  Build every rule of a config, collecting every failure.
+    ///  Build every rule of a config,
+    /// collecting every failure.
     /// Why:
-    ///  Whole-run validation: all problems are reported before anything is planned.
+    ///  Whole-run validation:
+    /// all problems are reported before anything is planned.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

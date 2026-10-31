@@ -1,9 +1,14 @@
 //! What:
-//!  `monochromatic-file-enforcer` is the engine behind the `file-enforcer` command: it reads the JSONC config, plans
-//!  every rule against a virtual view of the worktree, validates the whole run, publishes generated files one by one,
+//!  `monochromatic-file-enforcer` is the engine behind the `file-enforcer` command:
+//! it reads the JSONC config,
+//! plans
+//!  every rule against a virtual view of the worktree,
+//! validates the whole run,
+//! publishes generated files one by one,
 //!  and serves all of that over a per-worktree Unix socket.
 //! Why:
-//!  The engine has no command-line parsing so that other tools (meow) can link it; the `file-enforcer` binary in
+//!  The engine has no command-line parsing so that other tools (meow) can link it;
+//! the `file-enforcer` binary in
 //!  `package/file-enforcer/cli` is a thin client over it.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,10 +16,13 @@
 //! import { runRules, startServer } from '@monochromatic-dev/file-enforcer-core-rust';
 //! ```
 
-/// Diagnostics: a failure or warning before it becomes an event.
+/// Diagnostics:
+/// a failure or warning before it becomes an event.
 pub mod diagnostic;
 
-/// Events: the JSON object each output line is, and the sinks that receive them.
+/// Events:
+/// the JSON object each output line is,
+/// and the sinks that receive them.
 pub mod event;
 
 /// Config types shared by the decoder and the derived schema.
@@ -131,25 +139,31 @@ pub mod watch;
 /// The client.
 pub mod client;
 
+/// The `module` module.
 #[cfg(test)]
 mod test_support;
 
+/// The `module` module.
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod config_tests;
 
+/// The `module` module.
 #[cfg(test)]
 #[path = "kinds_tests.rs"]
 mod kinds_tests;
 
+/// The `module` module.
 #[cfg(test)]
 #[path = "run_tests.rs"]
 mod run_tests;
 
+/// The `module` module.
 #[cfg(test)]
 #[path = "schema_tests.rs"]
 mod schema_tests;
 
+/// The `module` module.
 #[cfg(test)]
 #[path = "server_tests.rs"]
 mod server_tests;

@@ -1,7 +1,10 @@
 //! What:
-//!  The identities a client and a server compare in the handshake: build identity and worktree identity.
+//!  The identities a client and a server compare in the handshake:
+//! build identity and worktree identity.
 //! Why:
-//!  A server left running by an older build, or serving a different or replaced worktree, must not answer requests;
+//!  A server left running by an older build,
+//! or serving a different or replaced worktree,
+//! must not answer requests;
 //!  the client drains it and starts a fresh one.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,16 +12,24 @@
 //! function buildIdentity(): string; function worktreeIdentity(root: string): { path: string; dev: number; ino: number }
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `object` from `crate::json_build`.
 use crate::json_build::object;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `MetadataExt` from `std::os::unix::fs`.
 use std::os::unix::fs::MetadataExt;
+/// Imports `Path` from `std::path`.
 use std::path::Path;
 
 /// What:
-///  The running executable's identity: crate version, size and modification time.
+///  The running executable's identity:
+/// crate version,
+/// size and modification time.
 /// Why:
-///  A rebuilt binary changes size or mtime, so a server started from the old build is recognized without hashing
+///  A rebuilt binary changes size or mtime,
+/// so a server started from the old build is recognized without hashing
 ///  the whole executable on every invocation.
 ///
 /// In TS you'd write (pseudocode):
@@ -36,9 +47,11 @@ pub fn build_identity() -> String {
 
 /// What:
 ///  The canonical path plus directory identity (device and inode) of a worktree root.
-///  `Value` is a JSON value (TS: `unknown` parsed JSON).
+///  `Value` is a JSON value (TS:
+/// `unknown` parsed JSON).
 /// Why:
-///  The same path can name a different directory after a delete and recreate; device and inode tell them apart.
+///  The same path can name a different directory after a delete and recreate;
+/// device and inode tell them apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

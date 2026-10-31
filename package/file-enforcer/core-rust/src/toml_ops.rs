@@ -1,7 +1,13 @@
 //! What:
-//!  Format-preserving edits to a TOML document: key lookup, guarded assignment, and block append.
+//!  Format-preserving edits to a TOML document:
+//! key lookup,
+//! guarded assignment,
+//! and block append.
 //! Why:
-//!  `Cargo.toml` files are hand-written: comments, key order and keys the tool does not own must survive, and a
+//!  `Cargo.toml` files are hand-written:
+//! comments,
+//! key order and keys the tool does not own must survive,
+//! and a
 //!  value that already equals the wanted one must not be rewritten (so an unchanged file stays byte-identical).
 //!
 //! In TS you'd write (pseudocode):
@@ -9,12 +15,19 @@
 //! function setKey(doc: TomlDocument, path: string[], value: Evaluated): boolean
 //! ```
 
+/// Imports `Evaluated` from `crate::value_eval`.
 use crate::value_eval::Evaluated;
+/// Imports `Array`,
+/// `DocumentMut`,
+/// `Item`,
+/// `Value` from `toml_edit`.
 use toml_edit::{Array, DocumentMut, Item, Value};
 
 /// What:
-///  Look up a key path as an item, if every step exists.
-///  `Option<&Item>` is a borrowed item or nothing (TS: `Item | undefined`).
+///  Look up a key path as an item,
+/// if every step exists.
+///  `Option<&Item>` is a borrowed item or nothing (TS:
+/// `Item | undefined`).
 /// Why:
 ///  Guards and block checks only ask whether a path exists.
 ///
@@ -86,8 +99,10 @@ fn to_toml_value(wanted: &Evaluated) -> Value {
 }
 
 /// What:
-///  Set `path` to `wanted` when the guard path exists and the value differs; return whether anything changed.
-///  Intermediate tables must already exist; the last key is inserted or replaced in its parent table.
+///  Set `path` to `wanted` when the guard path exists and the value differs;
+/// return whether anything changed.
+///  Intermediate tables must already exist;
+/// the last key is inserted or replaced in its parent table.
 /// Why:
 ///  The tool owns a key only where the crate already opted in with the guard.
 ///
@@ -127,9 +142,11 @@ pub fn set_key(document: &mut DocumentMut, guard: &[String], path: &[String], wa
 }
 
 /// What:
-///  Append a block of TOML text after the document, separated by one blank line.
+///  Append a block of TOML text after the document,
+/// separated by one blank line.
 /// Why:
-///  Whole tables such as `[lints.clippy]` are added once, as written in the content file.
+///  Whole tables such as `[lints.clippy]` are added once,
+/// as written in the content file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

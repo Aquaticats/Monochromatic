@@ -1,17 +1,28 @@
 //! What:
-//!  Where a command's server lives: the repository's per-worktree one, or the per-user one.
+//!  Where a command's server lives:
+//! the repository's per-worktree one,
+//! or the per-user one.
 //! Why:
 //!  The repository server is keyed by the canonical worktree root and the per-user server by the canonical per-user
-//!  config path, so the two never share a socket and neither depends on the current directory.
+//!  config path,
+//! so the two never share a socket and neither depends on the current directory.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function repositoryEndpoint(root: string): Endpoint; function userEndpoint(configPath: string): Endpoint
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `prepare_runtime_directory`,
+/// `runtime_directory`,
+/// `server_key`,
+/// `socket_path` from `crate::runtime_dir`.
 use crate::runtime_dir::{prepare_runtime_directory, runtime_directory, server_key, socket_path};
+/// Imports `BaseDirs` from `directories`.
 use directories::BaseDirs;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -33,9 +44,11 @@ pub struct Endpoint {
 
 /// What:
 ///  Resolve and prepare the runtime directory for the current environment.
-///  `std::env::var_os` reads an environment variable that may not be UTF-8 (TS: `process.env.X`).
+///  `std::env::var_os` reads an environment variable that may not be UTF-8 (TS:
+/// `process.env.X`).
 /// Why:
-///  `$XDG_RUNTIME_DIR` is used when usable; otherwise an owner-only directory under the cache directory.
+///  `$XDG_RUNTIME_DIR` is used when usable;
+/// otherwise an owner-only directory under the cache directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,7 +67,8 @@ fn resolve_runtime_directory() -> Result<PathBuf, Diagnostic> {
 /// What:
 ///  The endpoint for a repository worktree.
 /// Why:
-///  One server per worktree; the socket name derives from a hash of the canonical root.
+///  One server per worktree;
+/// the socket name derives from a hash of the canonical root.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -70,7 +84,8 @@ pub fn repository_endpoint(root: &Path) -> Result<Endpoint, Diagnostic> {
 /// What:
 ///  The endpoint for the per-user config.
 /// Why:
-///  `user` commands get their own server keyed by the canonical per-user config path, independent of any worktree.
+///  `user` commands get their own server keyed by the canonical per-user config path,
+/// independent of any worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,7 +110,8 @@ pub fn user_endpoint(config_path: &Path) -> Result<Endpoint, Diagnostic> {
 /// What:
 ///  The default location of the per-user config.
 /// Why:
-///  People can pass `--user-config`; otherwise this is `<config dir>/monochromatic-dev/file-enforcer/user.config.jsonc`.
+///  People can pass `--user-config`;
+/// otherwise this is `<config dir>/monochromatic-dev/file-enforcer/user.config.jsonc`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

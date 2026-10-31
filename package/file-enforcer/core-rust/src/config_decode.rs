@@ -1,25 +1,38 @@
 //! What:
-//!  Decode a JSON value into the typed `Config`, checking ids, scope and cross-rule facts.
+//!  Decode a JSON value into the typed `Config`,
+//! checking ids,
+//! scope and cross-rule facts.
 //! Why:
-//!  The decoder is hand-written so every message names the pointer and the remedy; the committed JSON Schema is
-//!  checked against it by a corpus test, so the two cannot drift unnoticed.
+//!  The decoder is hand-written so every message names the pointer and the remedy;
+//! the committed JSON Schema is
+//!  checked against it by a corpus test,
+//! so the two cannot drift unnoticed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function decodeConfig(value: unknown, scope: ConfigScope, displayPath: string): Config; // throws Diagnostic[]
 //! ```
 
+/// Imports `decode_rule` from `crate::config_decode_rules`.
 use crate::config_decode_rules::decode_rule;
+/// Imports `Reader` from `crate::config_reader`.
 use crate::config_reader::Reader;
+/// Imports `Config`,
+/// `RuleConfig` from `crate::config_types`.
 use crate::config_types::{Config, RuleConfig};
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 
 /// What:
-///  Which config file is being decoded: the repository's or the per-user one.
+///  Which config file is being decoded:
+/// the repository's or the per-user one.
 /// Why:
-///  Rules that write outside the repository belong only in the per-user config; the repository config rejects them.
+///  Rules that write outside the repository belong only in the per-user config;
+/// the repository config rejects them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,10 +47,12 @@ pub enum ConfigScope {
 }
 
 /// What:
-///  Check that a repo-relative path is relative, normalized and stays inside the root.
+///  Check that a repo-relative path is relative,
+/// normalized and stays inside the root.
 ///  `&str` is a borrowed text view.
 /// Why:
-///  Every output path is checked again at mutation time, but a bad path should fail at load time with its pointer.
+///  Every output path is checked again at mutation time,
+/// but a bad path should fail at load time with its pointer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -58,7 +73,8 @@ pub fn is_repo_relative(path: &str) -> bool {
 /// What:
 ///  Check that a mode string is three or four octal digits.
 /// Why:
-///  JSON has no octal literals, so modes are strings such as `0600`.
+///  JSON has no octal literals,
+/// so modes are strings such as `0600`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -72,7 +88,8 @@ pub fn is_octal_mode(mode: &str) -> bool {
 }
 
 /// What:
-///  Decode the whole config, collecting every problem.
+///  Decode the whole config,
+/// collecting every problem.
 ///  `Result<Config, Vec<Diagnostic>>` is TS's "value or thrown list".
 /// Why:
 ///  People fix all the mistakes in one pass.
@@ -111,7 +128,8 @@ pub fn decode_config(value: &Value, scope: ConfigScope, display_path: &str) -> R
 /// What:
 ///  Reject a rule kind that does not belong in this config file.
 /// Why:
-///  The per-user config holds only rules that write outside the repository, and the repository config holds none.
+///  The per-user config holds only rules that write outside the repository,
+/// and the repository config holds none.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -132,7 +150,8 @@ fn check_scope(reader: &mut Reader, rule: &RuleConfig, scope: ConfigScope, point
 /// What:
 ///  Convert a validated octal mode string such as `0600` into permission bits.
 /// Why:
-///  Rules store the text the config holds; publishing needs the number.
+///  Rules store the text the config holds;
+/// publishing needs the number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

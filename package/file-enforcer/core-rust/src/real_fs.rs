@@ -1,25 +1,39 @@
 //! What:
 //!  Reads of the real filesystem under a worktree root that never follow a symlink.
 //! Why:
-//!  Mirror and export paths must not be redirected outside the worktree, so every component of a path is inspected
-//!  with `symlink_metadata` (the `lstat` call) and a link anywhere on the way is refused, not followed.
+//!  Mirror and export paths must not be redirected outside the worktree,
+//! so every component of a path is inspected
+//!  with `symlink_metadata` (the `lstat` call) and a link anywhere on the way is refused,
+//! not followed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function readReal(root: string, rel: string): RealState; // uses lstat, never stat
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Digest`,
+/// `Sha256` from `sha2`.
 use sha2::{Digest, Sha256};
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PermissionsExt` from `std::os::unix::fs`.
 use std::os::unix::fs::PermissionsExt;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
 /// What:
 ///  What a path holds on disk right now.
-///  `Vec<u8>` is a growable byte buffer (TS: `Uint8Array`); `u32` is an unsigned 32-bit integer (sibling: `u64`).
+///  `Vec<u8>` is a growable byte buffer (TS:
+/// `Uint8Array`);
+/// `u32` is an unsigned 32-bit integer (sibling:
+/// `u64`).
 /// Why:
-///  Planning and drift detection compare content and mode; a directory, a link or anything else is a distinct answer.
+///  Planning and drift detection compare content and mode;
+/// a directory,
+/// a link or anything else is a distinct answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -27,7 +41,8 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RealState {
-    /// Nothing at the path, or an ancestor directory is missing.
+    /// Nothing at the path,
+    /// or an ancestor directory is missing.
     Absent,
     /// A regular file with its bytes and permission bits (`0o7777` mask).
     File {
@@ -40,14 +55,17 @@ pub enum RealState {
     Directory,
     /// A symbolic link (never followed).
     Symlink,
-    /// A socket, device or other special file.
+    /// A socket,
+    /// device or other special file.
     Other,
 }
 
 /// What:
-///  The kind of one directory entry, from `lstat`.
+///  The kind of one directory entry,
+/// from `lstat`.
 /// Why:
-///  Listings drive globs and the mirror, which treat links and special files as errors or drift.
+///  Listings drive globs and the mirror,
+/// which treat links and special files as errors or drift.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,7 +127,8 @@ pub fn kind_of(metadata: &fs::Metadata) -> EntryKind {
 /// What:
 ///  Join a root and a repo-relative path.
 /// Why:
-///  Callers validate the relative path first; this only joins.
+///  Callers validate the relative path first;
+/// this only joins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -121,7 +140,8 @@ pub fn absolute(root: &Path, rel: &str) -> PathBuf {
 
 /// What:
 ///  Check that no ancestor directory of `rel` is a link or a non-directory.
-///  Returns `Ok(false)` when an ancestor is missing, so the path is simply absent.
+///  Returns `Ok(false)` when an ancestor is missing,
+/// so the path is simply absent.
 /// Why:
 ///  A link anywhere on the way could redirect a read or a write outside the worktree.
 ///
@@ -197,8 +217,10 @@ pub fn read_real(root: &Path, rel: &str) -> Result<RealState, Diagnostic> {
 }
 
 /// What:
-///  List a real directory's entries with their kinds, sorted by name.
-///  `Vec<(String, EntryKind)>` is a list of pairs (TS: `[string, EntryKind][]`).
+///  List a real directory's entries with their kinds,
+/// sorted by name.
+///  `Vec<(String, EntryKind)>` is a list of pairs (TS:
+/// `[string, EntryKind][]`).
 /// Why:
 ///  Sorting makes every walk deterministic across filesystems.
 ///

@@ -1,8 +1,12 @@
 //! What:
 //!  The schema golden test and the corpus check of the hand-written decoder against the committed schema.
 //! Why:
-//!  `file-enforcer.schema.json` is derived from the config types, the decoder is hand-written, and editors read the
-//!  schema; this test fails when the committed file is stale, and names every sample where the two disagree.
+//!  `file-enforcer.schema.json` is derived from the config types,
+//! the decoder is hand-written,
+//! and editors read the
+//!  schema;
+//! this test fails when the committed file is stale,
+//! and names every sample where the two disagree.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -18,7 +22,8 @@ use std::path::Path;
 /// What:
 ///  Read a file relative to this package's directory.
 /// Why:
-///  The committed schema sits at the repository root, the corpus beside this package.
+///  The committed schema sits at the repository root,
+/// the corpus beside this package.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -71,7 +76,9 @@ fn decoder_accepts(sample: &Value) -> bool {
 }
 
 /// What:
-///  The members of one corpus section, as (name, sample) pairs.
+///  The members of one corpus section,
+/// as (name,
+/// sample) pairs.
 /// Why:
 ///  Each section is an object of named samples.
 ///

@@ -1,27 +1,53 @@
 //! What:
-//!  The per-worktree server: listens on an owner-only Unix socket, serializes every run, and exits when idle.
+//!  The per-worktree server:
+//! listens on an owner-only Unix socket,
+//! serializes every run,
+//! and exits when idle.
 //! Why:
-//!  One process owns all writes to a worktree, so concurrent `write`, `check` and `watch` commands never clobber each
-//!  other. It exits after an idle period with no clients and no watch subscriber, when its worktree root disappears
-//!  or is replaced, and when a client's handshake shows a different build.
+//!  One process owns all writes to a worktree,
+//! so concurrent `write`,
+//! `check` and `watch` commands never clobber each
+//!  other.
+//! It exits after an idle period with no clients and no watch subscriber,
+//! when its worktree root disappears
+//!  or is replaced,
+//! and when a client's handshake shows a different build.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! export async function serve(options: ServerOptions, registry: RuleRegistry): Promise<void>
 //! ```
 
+/// Imports `ConfigScope` from `crate::config_decode`.
 use crate::config_decode::ConfigScope;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `build_identity`,
+/// `worktree_identity` from `crate::identity`.
 use crate::identity::{build_identity, worktree_identity};
+/// Imports `RuleRegistry` from `crate::registry`.
 use crate::registry::RuleRegistry;
+/// Imports `handle_connection` from `crate::server_connection`.
 use crate::server_connection::handle_connection;
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PermissionsExt` from `std::os::unix::fs`.
 use std::os::unix::fs::PermissionsExt;
+/// Imports `UnixListener` from `std::os::unix::net`.
 use std::os::unix::net::UnixListener;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
+/// Imports `AtomicBool`,
+/// `AtomicUsize`,
+/// `Ordering` from `std::sync::atomic`.
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+/// Imports `Arc`,
+/// `Mutex` from `std::sync`.
 use std::sync::{Arc, Mutex};
+/// Imports `Duration`,
+/// `Instant` from `std::time`.
 use std::time::{Duration, Instant};
 
 /// What:
@@ -35,7 +61,8 @@ use std::time::{Duration, Instant};
 /// ```
 #[derive(Clone, Debug)]
 pub struct ServerOptions {
-    /// Worktree root, or the home directory for the per-user server.
+    /// Worktree root,
+    /// or the home directory for the per-user server.
     pub root: PathBuf,
     /// Which config scope this server runs.
     pub scope: ConfigScope,
@@ -47,10 +74,14 @@ pub struct ServerOptions {
 
 /// What:
 ///  State shared by every connection thread.
-///  `Arc` is a shared, reference-counted pointer (TS: an object several closures keep alive);
-///  `Mutex` is a lock around a value (TS has no equivalent: threads share memory).
+///  `Arc` is a shared,
+/// reference-counted pointer (TS:
+/// an object several closures keep alive);
+///  `Mutex` is a lock around a value (TS has no equivalent:
+/// threads share memory).
 /// Why:
-///  The run lock is what serializes writes; the counters decide idle exit.
+///  The run lock is what serializes writes;
+/// the counters decide idle exit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,11 +92,13 @@ pub struct Shared {
     pub options: ServerOptions,
     /// Rule builders for every run.
     pub registry: RuleRegistry,
-    /// Held while a run executes, so runs never overlap.
+    /// Held while a run executes,
+    /// so runs never overlap.
     pub run_lock: Mutex<()>,
     /// Set to ask the accept loop to stop.
     pub shutdown: AtomicBool,
-    /// Open client connections, watch subscribers included.
+    /// Open client connections,
+    /// watch subscribers included.
     pub connections: AtomicUsize,
     /// When a connection last opened or closed.
     pub last_activity: Mutex<Instant>,
@@ -75,9 +108,11 @@ pub struct Shared {
     pub build: String,
 }
 
+/// The `impl Shared` block.
 impl Shared {
     /// What:
-    ///  Note that something happened, restarting the idle clock.
+    ///  Note that something happened,
+    /// restarting the idle clock.
     /// Why:
     ///  Idle means "no connection opened or closed for a while".
     ///
@@ -93,7 +128,10 @@ impl Shared {
 }
 
 /// What:
-///  Whether the server should stop: asked to, idle too long, or its worktree is gone or replaced.
+///  Whether the server should stop:
+/// asked to,
+/// idle too long,
+/// or its worktree is gone or replaced.
 /// Why:
 ///  A server must not outlive the directory it serves.
 ///
@@ -116,7 +154,8 @@ fn should_stop(shared: &Shared) -> bool {
 }
 
 /// What:
-///  Bind the socket and serve until `should_stop`; remove the socket on the way out.
+///  Bind the socket and serve until `should_stop`;
+/// remove the socket on the way out.
 /// Why:
 ///  The accept loop is non-blocking so the idle and worktree checks run every few milliseconds.
 ///

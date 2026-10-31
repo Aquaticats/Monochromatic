@@ -1,7 +1,12 @@
 //! What:
-//!  The command-line grammar, declared with clap's derive macros.
+//!  The command-line grammar,
+//! declared with clap's derive macros.
 //! Why:
-//!  clap owns parsing, help, version and error text; `output.rs` turns its help, version and errors into JSON lines
+//!  clap owns parsing,
+//! help,
+//! version and error text;
+//! `output.rs` turns its help,
+//! version and errors into JSON lines
 //!  so standard output stays one JSON object per line.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,14 +14,20 @@
 //! program.command('write'); program.command('check').option('--expected-dir <dir>');
 //! ```
 
+/// Imports `Parser`,
+/// `Subcommand` from `clap`.
 use clap::{Parser, Subcommand};
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
 /// What:
-///  The whole command line: global options and one subcommand.
-///  `Option<PathBuf>` is "a path or nothing" (TS: `string | undefined`).
+///  The whole command line:
+/// global options and one subcommand.
+///  `Option<PathBuf>` is "a path or nothing" (TS:
+/// `string | undefined`).
 /// Why:
-///  `--config` picks the repository config; without it the nearest `file-enforcer.config.jsonc` above the current
+///  `--config` picks the repository config;
+/// without it the nearest `file-enforcer.config.jsonc` above the current
 ///  directory is used.
 ///
 /// In TS you'd write (pseudocode):
@@ -26,7 +37,8 @@ use std::path::PathBuf;
 #[derive(Debug, Parser)]
 #[command(name = "file-enforcer", version, about = "Generate and check the files this repository derives from other files.")]
 pub struct Cli {
-    /// Path of the repository config; the worktree root is its directory.
+    /// Path of the repository config;
+    /// the worktree root is its directory.
     #[arg(long, global = true, value_name = "PATH")]
     pub config: Option<PathBuf>,
 
@@ -41,7 +53,8 @@ pub struct Cli {
 
 /// What:
 ///  The subcommands.
-///  An enum with data is a tagged union (TS: a discriminated union).
+///  An enum with data is a tagged union (TS:
+/// a discriminated union).
 /// Why:
 ///  Every command except the hidden `serve` is a client of the per-worktree server.
 ///
@@ -53,9 +66,11 @@ pub struct Cli {
 pub enum Command {
     /// Regenerate every drifted file.
     Write,
-    /// Report drift without writing; exit 1 when anything differs.
+    /// Report drift without writing;
+    /// exit 1 when anything differs.
     Check {
-        /// Write paired actual/ and expected/ trees here, for `diff -ru` or `git diff --no-index`.
+        /// Write paired actual/ and expected/ trees here,
+        /// for `diff -ru` or `git diff --no-index`.
         #[arg(long, value_name = "DIR")]
         expected_dir: Option<PathBuf>,
     },
@@ -63,13 +78,19 @@ pub enum Command {
     Watch,
     /// Say which rules read or write a path.
     Explain {
-        /// Path to explain, relative to the worktree root or absolute.
+        /// Path to explain,
+        /// relative to the worktree root or absolute.
         path: String,
     },
-    /// Rules that write outside the repository, from the per-user config.
+    /// Rules that write outside the repository,
+    /// from the per-user config.
     #[command(subcommand)]
-    User(UserCommand),
-    /// Run the per-worktree server; started automatically by the other commands.
+    User(
+        /// The wrapped value.
+        UserCommand,
+    ),
+    /// Run the per-worktree server;
+    /// started automatically by the other commands.
     #[command(hide = true)]
     Serve {
         /// Worktree root (or home directory for the per-user server).

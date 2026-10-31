@@ -1,26 +1,39 @@
 //! What:
-//!  The `mise-path-list` rule kind: a Mise config that lists the existing non-empty directories matching the globs.
+//!  The `mise-path-list` rule kind:
+//! a Mise config that lists the existing non-empty directories matching the globs.
 //! Why:
 //!  `.config/mise/conf.d/10-bin.local.toml` carries the `package/*/*/node_modules/.bin` directories pnpm created;
-//!  only directories that exist and hold something are listed, sorted so the file does not depend on listing order.
+//!  only directories that exist and hold something are listed,
+//! sorted so the file does not depend on listing order.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function misePathListRule(output: string, directories: string[], header?: ValueExpr): Rule
 //! ```
 
+/// Imports `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::ValueExpr;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
+/// Imports `Change`,
+/// `Rule`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Change, Rule, RulePlan};
+/// Imports `Vars`,
+/// `evaluate_text` from `crate::value_eval`.
 use crate::value_eval::{Vars, evaluate_text};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `expand_glob` from `crate::view_glob`.
 use crate::view_glob::expand_glob;
 
 /// What:
 ///  A planned `mise-path-list` rule.
 /// Why:
-///  Holds the output path, the directory globs and the optional header.
+///  Holds the output path,
+/// the directory globs and the optional header.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,6 +73,7 @@ fn toml_string(text: &str) -> String {
     return quoted;
 }
 
+/// The `impl Rule for MisePathListRule` block.
 impl Rule for MisePathListRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -72,7 +86,9 @@ impl Rule for MisePathListRule {
     }
 
     /// What:
-    ///  Expand the globs, keep non-empty directories, and render the TOML.
+    ///  Expand the globs,
+    /// keep non-empty directories,
+    /// and render the TOML.
     /// Why:
     ///  Empty `.bin` directories add nothing to PATH and would churn the file.
     ///

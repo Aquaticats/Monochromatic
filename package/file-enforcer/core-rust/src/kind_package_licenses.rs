@@ -1,8 +1,11 @@
 //! What:
-//!  The `package-licenses` rule kind: copy the license texts a package needs into its `LICENSES` directory.
+//!  The `package-licenses` rule kind:
+//! copy the license texts a package needs into its `LICENSES` directory.
 //! Why:
-//!  Each package's manifest license expression decides which texts must ship in its artifact; texts the tool owns
-//!  (the keys of `texts`) that are no longer required are removed, and any other file in the directory is left alone.
+//!  Each package's manifest license expression decides which texts must ship in its artifact;
+//! texts the tool owns
+//!  (the keys of `texts`) that are no longer required are removed,
+//! and any other file in the directory is left alone.
 //!  A manifest with no license expression is not managed at all.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,18 +13,30 @@
 //! function packageLicensesRule(manifests: string[], directory: string, texts: Record<string, string>, requires: Requirement[]): Rule
 //! ```
 
+/// Imports `LicenseRequirement` from `crate::config_parts`.
 use crate::config_parts::LicenseRequirement;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
+/// Imports `Change`,
+/// `Rule`,
+/// `RulePlan` from `crate::rule`.
 use crate::rule::{Change, Rule, RulePlan};
+/// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `expand_glob` from `crate::view_glob`.
 use crate::view_glob::expand_glob;
+/// Imports `BTreeMap`,
+/// `BTreeSet` from `std::collections`.
 use std::collections::{BTreeMap, BTreeSet};
 
 /// What:
 ///  A planned `package-licenses` rule.
 /// Why:
-///  Holds the manifest globs, the directory name, the owned texts and the requirement table.
+///  Holds the manifest globs,
+/// the directory name,
+/// the owned texts and the requirement table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,9 +57,11 @@ pub struct PackageLicensesRule {
 
 /// What:
 ///  Read the license expression out of one manifest.
-///  `Option<String>` is "text or nothing" (TS: `string | undefined`).
+///  `Option<String>` is "text or nothing" (TS:
+/// `string | undefined`).
 /// Why:
-///  `package.json` holds it under `license`, `Cargo.toml` under `[package] license`.
+///  `package.json` holds it under `license`,
+/// `Cargo.toml` under `[package] license`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -72,6 +89,7 @@ fn license_of(manifest: &str, text: &str) -> Result<Option<String>, Diagnostic> 
     return Ok(license.map(str::to_string));
 }
 
+/// The `impl Rule for PackageLicensesRule` block.
 impl Rule for PackageLicensesRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -84,7 +102,9 @@ impl Rule for PackageLicensesRule {
     }
 
     /// What:
-    ///  Work out each package directory's required texts, copy them, and prune owned texts that are not required.
+    ///  Work out each package directory's required texts,
+    /// copy them,
+    /// and prune owned texts that are not required.
     /// Why:
     ///  A package with both a `package.json` and a `Cargo.toml` needs the union of what each asks for.
     ///

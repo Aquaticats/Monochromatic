@@ -1,7 +1,11 @@
 //! What:
-//!  The building blocks rules are made of: value expressions, license requirements, TOML edits and blocks.
+//!  The building blocks rules are made of:
+//! value expressions,
+//! license requirements,
+//! TOML edits and blocks.
 //! Why:
-//!  They derive `JsonSchema` like the rule types, and keeping them apart holds each file under the line limit.
+//!  They derive `JsonSchema` like the rule types,
+//! and keeping them apart holds each file under the line limit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,12 +17,19 @@
 // doc/troubleshooting/schemars-derive-trips-disallowed-methods.md.
 #![expect(clippy::disallowed_methods, reason = "the schemars JsonSchema derive expands to Result::unwrap")]
 
+/// Imports `JsonSchema` from `schemars`.
 use schemars::JsonSchema;
 
 /// What:
-///  A value the config can compute: a literal, a list, or a tagged object (`file`, `var`, `concat`).
+///  A value the config can compute:
+/// a literal,
+/// a list,
+/// or a tagged object (`file`,
+/// `var`,
+/// `concat`).
 /// Why:
-///  Fixed tagged objects replace a string expression language, so every input path is visible without running anything.
+///  Fixed tagged objects replace a string expression language,
+/// so every input path is visible without running anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -28,34 +39,52 @@ use schemars::JsonSchema;
 #[schemars(untagged, deny_unknown_fields, description = "A literal, a list, or a tagged object: file, var or concat.")]
 pub enum ValueExpr {
     /// Literal text.
-    Text(String),
+    Text(
+        /// The wrapped value.
+        String,
+    ),
     /// Literal boolean.
-    Bool(bool),
+    Bool(
+        /// The wrapped value.
+        bool,
+    ),
     /// Literal integer.
-    Integer(i64),
-    /// List of values, used by array-valued Cargo keys.
-    List(Vec<ValueExpr>),
-    /// The text of a file, read through the virtual view so earlier rules' planned output is visible.
+    Integer(
+        /// The wrapped value.
+        i64,
+    ),
+    /// List of values,
+    /// used by array-valued Cargo keys.
+    List(
+        /// The wrapped value.
+        Vec<ValueExpr>,
+    ),
+    /// The text of a file,
+    /// read through the virtual view so earlier rules' planned output is visible.
     File {
         /// Repo-relative path of the file to read.
         file: Box<ValueExpr>,
     },
-    /// A variable a fan-out rule binds, such as `dir` (the crate directory) or `manifest`.
+    /// A variable a fan-out rule binds,
+    /// such as `dir` (the crate directory) or `manifest`.
     Var {
         /// Variable name.
         var: String,
     },
     /// The text of every part joined end to end.
     Concat {
-        /// Parts in order; each must evaluate to text.
+        /// Parts in order;
+        /// each must evaluate to text.
         concat: Vec<ValueExpr>,
     },
 }
 
 /// What:
-///  One license-text requirement: a manifest license expression containing `contains` needs these texts.
+///  One license-text requirement:
+/// a manifest license expression containing `contains` needs these texts.
 /// Why:
-///  LGPL-3.0-or-later needs the GPL text as well, so one requirement can name several ids.
+///  LGPL-3.0-or-later needs the GPL text as well,
+/// so one requirement can name several ids.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,7 +102,8 @@ pub struct LicenseRequirement {
 /// What:
 ///  One guarded key assignment inside a `Cargo.toml`.
 /// Why:
-///  The tool owns a key only where the crate already has its table or key, so crates that opt out stay untouched.
+///  The tool owns a key only where the crate already has its table or key,
+/// so crates that opt out stay untouched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,11 +112,16 @@ pub struct LicenseRequirement {
 #[derive(Clone, Debug, JsonSchema, PartialEq)]
 #[schemars(deny_unknown_fields, description = "A key assignment applied only where the guard key path exists.")]
 pub struct TomlEdit {
-    /// Key path that must exist before the edit applies; empty means always.
+    /// Key path that must exist before the edit applies;
+    /// empty means always.
     pub guard: Vec<String>,
     /// Key path to set.
     pub path: Vec<String>,
-    /// New value; text, boolean, integer, or a list of those.
+    /// New value;
+    /// text,
+    /// boolean,
+    /// integer,
+    /// or a list of those.
     pub value: ValueExpr,
 }
 
@@ -104,12 +139,14 @@ pub struct TomlEdit {
 pub struct TomlBlock {
     /// Key path whose absence triggers the append.
     pub absent_path: Vec<String>,
-    /// Text appended after a blank line; usually a `{"file": ...}` value.
+    /// Text appended after a blank line;
+    /// usually a `{"file": ...}` value.
     pub text: ValueExpr,
 }
 
 /// What:
-///  A second language server entry the Harper policy adds, scoped to named files.
+///  A second language server entry the Harper policy adds,
+/// scoped to named files.
 /// Why:
 ///  AGENTS.md and CLAUDE.md need different linters than other Markdown.
 ///

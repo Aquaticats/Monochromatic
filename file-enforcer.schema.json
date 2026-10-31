@@ -7,7 +7,7 @@
         "string",
         "null"
       ],
-      "description": "Path or URL of the JSON Schema; editors read it, the tool ignores it."
+      "description": "Path or URL of the JSON Schema;\neditors read it,\nthe tool ignores it."
     },
     "rules": {
       "type": "array",
@@ -54,7 +54,7 @@
                 "string",
                 "null"
               ],
-              "description": "Octal mode such as `0600`; absent keeps the existing mode.",
+              "description": "Octal mode such as `0600`;\nabsent keeps the existing mode.",
               "pattern": "^[0-7]{3,4}$"
             }
           },
@@ -94,7 +94,7 @@
             "path",
             "mode"
           ],
-          "description": "Keep a file's mode when the file exists; never creates it."
+          "description": "Keep a file's mode when the file exists;\nnever creates it."
         },
         {
           "type": "object",
@@ -124,7 +124,7 @@
               "additionalProperties": {
                 "type": "string"
               },
-              "description": "License id to the repo-relative path of its text; only these ids are ever pruned."
+              "description": "License id to the repo-relative path of its text;\nonly these ids are ever pruned."
             },
             "requires": {
               "type": "array",
@@ -171,7 +171,7 @@
             "from",
             "to"
           ],
-          "description": "Make a directory an exact copy of another; the target is owned outright."
+          "description": "Make a directory an exact copy of another;\nthe target is owned outright."
         },
         {
           "type": "object",
@@ -200,7 +200,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Crate directories the rule is limited to; absent means every matching manifest."
+              "description": "Crate directories the rule is limited to;\nabsent means every matching manifest."
             },
             "edits": {
               "type": "array",
@@ -247,7 +247,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "Directory globs, for example `package/*/*/node_modules/.bin`."
+              "description": "Directory globs,\nfor example `package/*/*/node_modules/.bin`."
             },
             "header": {
               "anyOf": [
@@ -299,7 +299,7 @@
             "catalog",
             "manifests"
           ],
-          "description": "Render the Rust dependency catalog into every manifest; provided by the dependency-catalog library."
+          "description": "Render the Rust dependency catalog into every manifest;\nprovided by the dependency-catalog library."
         },
         {
           "type": "object",
@@ -326,7 +326,7 @@
                 "string",
                 "null"
               ],
-              "description": "Config section to resolve, such as `production`."
+              "description": "Config section to resolve,\nsuch as `production`."
             }
           },
           "required": [
@@ -335,7 +335,7 @@
             "source",
             "output"
           ],
-          "description": "Resolve `.browserslistrc` into a JSON array of targets; provided by the in-repo browserslist crate."
+          "description": "Resolve `.browserslistrc` into a JSON array of targets;\nprovided by the in-repo browserslist crate."
         },
         {
           "type": "object",
@@ -354,7 +354,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "IDE product prefixes, newest installed version wins."
+              "description": "IDE product prefixes,\nnewest installed version wins."
             },
             "disabledLinters": {
               "type": "array",
@@ -386,7 +386,7 @@
             "excludePatterns",
             "scopedServers"
           ],
-          "description": "Apply the Harper language-server policy to the IDE's settings; per-user config only."
+          "description": "Apply the Harper language-server policy to the IDE's settings;\nper-user config only."
         }
       ],
       "description": "One rule: a kind tag plus that kind's fields."
@@ -411,7 +411,7 @@
           "items": {
             "$ref": "#/$defs/ValueExpr"
           },
-          "description": "List of values, used by array-valued Cargo keys."
+          "description": "List of values,\nused by array-valued Cargo keys."
         },
         {
           "type": "object",
@@ -425,7 +425,7 @@
           "required": [
             "file"
           ],
-          "description": "The text of a file, read through the virtual view so earlier rules' planned output is visible."
+          "description": "The text of a file,\nread through the virtual view so earlier rules' planned output is visible."
         },
         {
           "type": "object",
@@ -439,7 +439,7 @@
           "required": [
             "var"
           ],
-          "description": "A variable a fan-out rule binds, such as `dir` (the crate directory) or `manifest`."
+          "description": "A variable a fan-out rule binds,\nsuch as `dir` (the crate directory) or `manifest`."
         },
         {
           "type": "object",
@@ -450,7 +450,7 @@
               "items": {
                 "$ref": "#/$defs/ValueExpr"
               },
-              "description": "Parts in order; each must evaluate to text."
+              "description": "Parts in order;\neach must evaluate to text."
             }
           },
           "required": [
@@ -492,7 +492,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Key path that must exist before the edit applies; empty means always."
+          "description": "Key path that must exist before the edit applies;\nempty means always."
         },
         "path": {
           "type": "array",
@@ -503,7 +503,7 @@
         },
         "value": {
           "$ref": "#/$defs/ValueExpr",
-          "description": "New value; text, boolean, integer, or a list of those."
+          "description": "New value;\ntext,\nboolean,\ninteger,\nor a list of those."
         }
       },
       "required": [
@@ -526,7 +526,7 @@
         },
         "text": {
           "$ref": "#/$defs/ValueExpr",
-          "description": "Text appended after a blank line; usually a `{\"file\": ...}` value."
+          "description": "Text appended after a blank line;\nusually a `{\"file\": ...}` value."
         }
       },
       "required": [

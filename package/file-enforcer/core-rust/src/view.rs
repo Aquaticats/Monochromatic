@@ -1,8 +1,10 @@
 //! What:
-//!  The virtual view of the worktree that rules plan against: the real files plus the outputs earlier rules planned.
+//!  The virtual view of the worktree that rules plan against:
+//! the real files plus the outputs earlier rules planned.
 //! Why:
 //!  Downstream rules read upstream rules' new content (a catalog rule sees the Cargo.toml a key rule just changed),
-//!  and every read is recorded, so the run can later check that nothing it read changed before it publishes
+//!  and every read is recorded,
+//! so the run can later check that nothing it read changed before it publishes
 //!  (snapshot revalidation) and so `explain` and `watch` know the exact inputs.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,16 +12,34 @@
 //! class View { readText(rel: string): string | undefined; list(rel: string): [string, EntryKind][]; }
 //! ```
 
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `EntryKind`,
+/// `RealState`,
+/// `list_real`,
+/// `read_real`,
+/// `sha256_hex` from `crate::real_fs`.
 use crate::real_fs::{EntryKind, RealState, list_real, read_real, sha256_hex};
+/// Imports `Change` from `crate::rule`.
 use crate::rule::Change;
+/// Imports `Observed`,
+/// `Planned`,
+/// `observed_of` from `crate::view_types`.
 use crate::view_types::{Observed, Planned, observed_of};
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
+/// Imports `Path`,
+/// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
 /// What:
-///  The view: root, overlay, and the record of what was read.
-///  `BTreeMap` is a key-sorted map (TS: `Map`, but iteration is always sorted).
+///  The view:
+/// root,
+/// overlay,
+/// and the record of what was read.
+///  `BTreeMap` is a key-sorted map (TS:
+/// `Map`,
+/// but iteration is always sorted).
 /// Why:
 ///  Sorted maps keep every walk and every report deterministic.
 ///
@@ -29,14 +49,21 @@ use std::path::{Path, PathBuf};
 /// ```
 #[derive(Debug)]
 pub struct View {
+    /// The `root` field.
     root: PathBuf,
+    /// The `overlay` field.
     overlay: BTreeMap<String, Planned>,
+    /// The `files` field.
     files: BTreeMap<String, Observed>,
+    /// The `dirs` field.
     dirs: BTreeMap<String, String>,
+    /// The `accesses` field.
     accesses: Vec<(usize, String)>,
+    /// The `current_rule` field.
     current_rule: usize,
 }
 
+/// The `impl View` block.
 impl View {
     /// What:
     ///  Start a view over a worktree root with an empty overlay.
@@ -76,18 +103,22 @@ impl View {
         self.current_rule = index;
     }
 
-    /// Every (rule position, path) pair read so far, in order.
+    /// Every (rule position,
+    /// path) pair read so far,
+    /// in order.
     pub fn accesses(&self) -> &[(usize, String)] {
         return &self.accesses;
     }
 
-    /// The overlay of planned paths, sorted by path.
+    /// The overlay of planned paths,
+    /// sorted by path.
     pub fn overlay(&self) -> &BTreeMap<String, Planned> {
         return &self.overlay;
     }
 
     /// What:
-    ///  Record that the current rule applied a change, updating the overlay.
+    ///  Record that the current rule applied a change,
+    /// updating the overlay.
     /// Why:
     ///  Later rules read the planned content through `read_bytes`.
     ///
@@ -114,8 +145,11 @@ impl View {
     }
 
     /// What:
-    ///  Read a file's bytes as the run will see them: planned content first, then the real file.
-    ///  `Option<Vec<u8>>` is "bytes or nothing" (TS: `Uint8Array | undefined`).
+    ///  Read a file's bytes as the run will see them:
+    /// planned content first,
+    /// then the real file.
+    ///  `Option<Vec<u8>>` is "bytes or nothing" (TS:
+    /// `Uint8Array | undefined`).
     /// Why:
     ///  `None` means the path does not exist (or is planned for removal).
     ///
@@ -167,7 +201,9 @@ impl View {
     }
 
     /// What:
-    ///  The mode a path will have: the planned mode when set, else the real file's.
+    ///  The mode a path will have:
+    /// the planned mode when set,
+    /// else the real file's.
     /// Why:
     ///  Mode-only rules and copies need the current bits.
     ///
@@ -192,7 +228,8 @@ impl View {
     /// What:
     ///  Read the real state of a path and remember how it looked.
     /// Why:
-    ///  The first observation of each path is what revalidation compares against; outputs' current state is
+    ///  The first observation of each path is what revalidation compares against;
+    /// outputs' current state is
     ///  observed through here too.
     ///
     /// In TS you'd write (pseudocode):
@@ -208,9 +245,12 @@ impl View {
     }
 
     /// What:
-    ///  List a directory as the run will see it: real entries plus planned files, minus planned removals.
+    ///  List a directory as the run will see it:
+    /// real entries plus planned files,
+    /// minus planned removals.
     /// Why:
-    ///  Globs and mirrors walk through here, so planned outputs are visible and every listing is recorded.
+    ///  Globs and mirrors walk through here,
+    /// so planned outputs are visible and every listing is recorded.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -251,7 +291,8 @@ impl View {
     /// What:
     ///  Re-observe every real path this run read and report the ones that changed.
     /// Why:
-    ///  Snapshot revalidation: a plan built on files that changed since is discarded and redone.
+    ///  Snapshot revalidation:
+    /// a plan built on files that changed since is discarded and redone.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -279,9 +320,11 @@ impl View {
     }
 
     /// What:
-    ///  Every real path and directory the run read, for `watch` and `explain`.
+    ///  Every real path and directory the run read,
+    /// for `watch` and `explain`.
     /// Why:
-    ///  The watched set is exactly what the run depended on, absent paths included.
+    ///  The watched set is exactly what the run depended on,
+    /// absent paths included.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

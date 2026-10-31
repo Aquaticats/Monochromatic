@@ -1,7 +1,9 @@
 //! What:
-//!  Field-by-field readers over a `serde_json::Value`, collecting every problem with its JSON pointer.
+//!  Field-by-field readers over a `serde_json::Value`,
+//! collecting every problem with its JSON pointer.
 //! Why:
-//!  The decoder reports all the mistakes in a config at once, each naming the file and the pointer (`/rules/3/output`),
+//!  The decoder reports all the mistakes in a config at once,
+//! each naming the file and the pointer (`/rules/3/output`),
 //!  instead of stopping at the first.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,15 +11,21 @@
 //! class Reader { errors: Diagnostic[]; text(object, key, pointer): string; }
 //! ```
 
+/// Imports `ValueExpr` from `crate::config_parts`.
 use crate::config_parts::ValueExpr;
+/// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `Map`,
+/// `Value` from `serde_json`.
 use serde_json::{Map, Value};
 
 /// What:
 ///  The error collector and the readers that fill it.
-///  `Vec<Diagnostic>` is a growable list (TS: `Diagnostic[]`).
+///  `Vec<Diagnostic>` is a growable list (TS:
+/// `Diagnostic[]`).
 /// Why:
-///  Readers return a harmless default after recording an error, so decoding continues and the caller discards
+///  Readers return a harmless default after recording an error,
+/// so decoding continues and the caller discards
 ///  the result when `errors` is not empty.
 ///
 /// In TS you'd write (pseudocode):
@@ -25,12 +33,14 @@ use serde_json::{Map, Value};
 /// class Reader { errors: Diagnostic[] = []; constructor(readonly displayPath: string) {} }
 /// ```
 pub struct Reader {
-    /// Every problem found so far, in discovery order.
+    /// Every problem found so far,
+    /// in discovery order.
     pub errors: Vec<Diagnostic>,
     /// The config path shown in messages.
     pub display_path: String,
 }
 
+/// The `impl Reader` block.
 impl Reader {
     /// What:
     ///  Start a reader for one config file.
@@ -62,9 +72,11 @@ impl Reader {
     }
 
     /// What:
-    ///  Require a JSON object, borrowing its members.
+    ///  Require a JSON object,
+    /// borrowing its members.
     /// Why:
-    ///  Every rule and part is an object; anything else is a typed mistake.
+    ///  Every rule and part is an object;
+    /// anything else is a typed mistake.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -81,7 +93,8 @@ impl Reader {
     /// What:
     ///  Report every key that is not in the allowed list.
     /// Why:
-    ///  Unknown keys are almost always typos; the schema says `additionalProperties: false` too.
+    ///  Unknown keys are almost always typos;
+    /// the schema says `additionalProperties: false` too.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -115,7 +128,9 @@ impl Reader {
     }
 
     /// What:
-    ///  Read an optional text member; `null` counts as absent, as the schema allows.
+    ///  Read an optional text member;
+    /// `null` counts as absent,
+    /// as the schema allows.
     /// Why:
     ///  `Option` fields in the schema accept `null`.
     ///
@@ -133,7 +148,8 @@ impl Reader {
     }
 
     /// What:
-    ///  Read a required array member, borrowing its elements.
+    ///  Read a required array member,
+    /// borrowing its elements.
     /// Why:
     ///  Callers decode each element with its own pointer.
     ///
@@ -153,7 +169,8 @@ impl Reader {
     /// What:
     ///  Read a required array of text.
     /// Why:
-    ///  Globs, key paths and ids are lists of strings.
+    ///  Globs,
+    /// key paths and ids are lists of strings.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -165,7 +182,8 @@ impl Reader {
     }
 
     /// What:
-    ///  Read an optional array of text; `null` counts as absent.
+    ///  Read an optional array of text;
+    /// `null` counts as absent.
     /// Why:
     ///  `onlyDirs` is optional.
     ///
@@ -181,7 +199,8 @@ impl Reader {
     }
 
     /// What:
-    ///  Convert every element of an array to text, recording a problem for each that is not.
+    ///  Convert every element of an array to text,
+    /// recording a problem for each that is not.
     /// Why:
     ///  Shared by the list readers above.
     ///
@@ -202,7 +221,12 @@ impl Reader {
     }
 
     /// What:
-    ///  Decode a value expression: a literal, a list, or one of the tagged objects `file`, `var`, `concat`.
+    ///  Decode a value expression:
+    /// a literal,
+    /// a list,
+    /// or one of the tagged objects `file`,
+    /// `var`,
+    /// `concat`.
     /// Why:
     ///  The only expression language the config has.
     ///
@@ -236,7 +260,9 @@ impl Reader {
     /// What:
     ///  Decode the tagged-object forms of a value expression.
     /// Why:
-    ///  Exactly one of `file`, `var`, `concat` must be present.
+    ///  Exactly one of `file`,
+    /// `var`,
+    /// `concat` must be present.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
