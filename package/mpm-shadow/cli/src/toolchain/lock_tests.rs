@@ -201,7 +201,7 @@ fn the_refusal_names_lock_for_offline_fixes_and_update_for_network_ones() {
     let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
     let offline = refusal(&compare(&sample_plan(), &parsed));
     assert_eq!(offline.kind, ErrorKind::Drift);
-    assert!(offline.message.contains("mpm-shadow lock"), "{offline}");
+    assert!(offline.message.contains("mpm-shadow install --lockfile-only --offline"), "{offline}");
     assert!(offline.message.contains("node differs between the plan and the lock in: bins"), "{offline}");
 
     let mut missing = sample_lock();

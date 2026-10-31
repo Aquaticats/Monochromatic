@@ -498,7 +498,7 @@ pub fn connect_or_explain() -> Box<dyn HttpGet> {
 /// What:
 /// An `HttpGet` that refuses every request.
 /// Why:
-/// `status` and `bin-paths` never need the network;
+/// `list` and `bin` never need the network;
 /// handing them this makes "they never touch it" a fact the
 ///           compiler and a test can check,
 /// and gives a clear diagnostic if code ever tries.

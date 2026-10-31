@@ -8,8 +8,10 @@
 //! so
 //!           the copies a plain `cargo install` leaves behind pile up in cargo's registry.
 //!
-//! The kept version is the installed one when cargo's install record names the crate (that is the version just
-//! provisioned),
+//! The kept version is the installed one when an install record names the crate (that is the version just
+//! provisioned):
+//! the newest of cargo's `<cargo home>/.crates.toml` and the version-keyed records under
+//! `<toolchain root>/cargo/<crate>/` that `mpm-shadow install` writes;
 //! otherwise the newest cached version (a library crate such as `monochromatic-jsonc-edit`).
 //!
 //! In TS you'd write (pseudocode):
@@ -36,6 +38,8 @@ use crate::installed::installed_versions;
 /// Imports `RegistryEntry`,
 /// `list_own_entries` from `crate::registry`.
 use crate::registry::{RegistryEntry, list_own_entries};
+/// Imports `repository_versions_installed` from `crate::toolchain::cargo_installs`.
+use crate::toolchain::cargo_installs::repository_versions_installed;
 /// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
@@ -122,8 +126,47 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
 }
 
 /// What:
-/// `pub fn prune_stale_own_crates(cargo_home: &Path) -> Vec<PathBuf>` declares a public function that deletes
-///           the stale entries under a cargo home and returns the paths it deleted.
+/// `pub fn installed_everywhere(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> BTreeMap<String, String>`
+///           declares a public function returning,
+/// for each repository crate,
+/// the newest version recorded as installed in any of
+///           the places `install` or a plain `cargo install` can put it:
+/// the version-keyed records under
+///           `<toolchain root>/cargo/<crate>/` of every given root,
+/// and cargo's own `<cargo home>/.crates.toml`.
+/// Why:
+/// After the cutover `install` writes only the version-keyed records,
+/// so the `.crates.toml` row goes stale and,
+/// read alone,
+/// would keep an old cached version and delete a newer one.
+/// Trees still on the TypeScript toolchain keep installing into `$CARGO_HOME`,
+/// so that file is still read.
+/// The newest wins because older repository tools are never kept once a newer one is installed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function installedEverywhere(cargoHome: string, toolchainRoots: string[]): Map<string, string>
+/// ```
+pub fn installed_everywhere(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> BTreeMap<String, String> {
+    let mut merged: BTreeMap<String, String> = installed_versions(cargo_home);
+    for root in toolchain_roots {
+        for (crate_name, version) in repository_versions_installed(root) {
+            let is_newer: bool = match merged.get(&crate_name) {
+                None => true,
+                Some(current) => compare_versions(&version, current) == Ordering::Greater,
+            };
+            if is_newer {
+                merged.insert(crate_name, version);
+            }
+        }
+    }
+    return merged;
+}
+
+/// What:
+/// `pub fn prune_stale_own_crates(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> Vec<PathBuf>` declares a
+///           public function that deletes the stale entries under a cargo home and returns the paths it deleted.
+///           The kept version of a crate comes from `installed_everywhere`.
 /// Why:
 /// A deletion that fails is reported on standard error and skipped:
 /// a leftover cache entry never affects the
@@ -134,8 +177,8 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
 /// ```ts
 /// export function pruneStaleOwnCrates(cargoHome: string): string[]
 /// ```
-pub fn prune_stale_own_crates(cargo_home: &Path) -> Vec<PathBuf> {
-    let installed: BTreeMap<String, String> = installed_versions(cargo_home);
+pub fn prune_stale_own_crates(cargo_home: &Path, toolchain_roots: &[PathBuf]) -> Vec<PathBuf> {
+    let installed: BTreeMap<String, String> = installed_everywhere(cargo_home, toolchain_roots);
     let stale: Vec<RegistryEntry> = find_stale(list_own_entries(cargo_home), &installed);
     let mut deleted: Vec<PathBuf> = Vec::new();
     for entry in stale {

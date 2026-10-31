@@ -302,7 +302,7 @@ pub struct Artifact {
 /// and the per-platform artifact rows in written order.
 /// Why:
 /// `update` writes the version and artifacts;
-/// `lock` rewrites only the declaration half.
+/// `install --lockfile-only` rewrites only the declaration half.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

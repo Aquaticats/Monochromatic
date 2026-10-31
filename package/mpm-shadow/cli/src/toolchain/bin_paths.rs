@@ -40,7 +40,7 @@ use super::plan::Plan;
 use super::scope::{EnvMap, Scope};
 
 /// What:
-/// Builds the `bin-paths` document.
+/// Builds the `bin` document.
 /// Why:
 /// A binary name declared twice is refused (the link farm could hold only one of them);
 /// a declared name

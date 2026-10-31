@@ -18,14 +18,14 @@ use super::model::{Artifact, Request};
 use super::scope::{EnvMap, Scope};
 use super::update::{OutcomeKind, UpdateReport, format_update_report, run_update};
 
-const NPM_URL: &str = "https://registry.npmjs.org/wrangler";
-const PYPI_URL: &str = "https://pypi.org/pypi/slopo/json";
-const CRATES_URL: &str = "https://crates.io/api/v1/crates/fd-find";
+pub(super) const NPM_URL: &str = "https://registry.npmjs.org/wrangler";
+pub(super) const PYPI_URL: &str = "https://pypi.org/pypi/slopo/json";
+pub(super) const CRATES_URL: &str = "https://crates.io/api/v1/crates/fd-find";
 const RUST_URL: &str = "https://static.rust-lang.org/dist/channel-rust-nightly.toml";
 
 /// A plan of four tools resolved by registries and the Rust manifest,
 /// with `{version}` placeholders for the toolchain.
-const REGISTRY_PLAN: &str = r#"{
+pub(super) const REGISTRY_PLAN: &str = r#"{
   "schemaVersion": 1,
   "tools": {
     "cargo:fd-find": { "request": "cargo:fd-find@latest", "route": "cargo-binstall", "manager": "cargo", "packageId": "fd-find", "bins": ["fd"] },
@@ -39,29 +39,29 @@ const REGISTRY_PLAN: &str = r#"{
 }
 "#;
 
-fn serve_registries(http: &FakeHttp, crate_version: &str, npm_version: &str, pypi_version: &str, nightly_date: &str) {
+pub(super) fn serve_registries(http: &FakeHttp, crate_version: &str, npm_version: &str, pypi_version: &str, nightly_date: &str) {
     http.serve(CRATES_URL, format!("{{\"crate\": {{\"max_stable_version\": \"{crate_version}\"}}}}").as_bytes());
     http.serve(NPM_URL, format!("{{\"dist-tags\": {{\"latest\": \"{npm_version}\", \"next\": \"9.0.0-beta\"}}}}").as_bytes());
     http.serve(PYPI_URL, format!("{{\"info\": {{\"version\": \"{pypi_version}\"}}}}").as_bytes());
     http.serve(RUST_URL, format!("date = \"{nightly_date}\"\n[pkg.rust]\nversion = \"1.103.0-nightly (abc 2026-10-29)\"\n").as_bytes());
 }
 
-fn registry_scope() -> (tempfile::TempDir, Scope, EnvMap) {
+pub(super) fn registry_scope() -> (tempfile::TempDir, Scope, EnvMap) {
     let (directory, scope, env) = sample_scope_on_disk();
     fs::write(&scope.plan_file, REGISTRY_PLAN).expect("write the plan");
     fs::remove_file(&scope.lock_file).expect("start without a lock");
     return (directory, scope, env);
 }
 
-fn linux() -> super::context::Host {
+pub(super) fn linux() -> super::context::Host {
     return super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) };
 }
 
-fn outcome_of<'a>(report: &'a UpdateReport, id: &str) -> &'a OutcomeKind {
+pub(super) fn outcome_of<'a>(report: &'a UpdateReport, id: &str) -> &'a OutcomeKind {
     return &report.outcomes.iter().find(|outcome| return outcome.id == id).expect("an outcome for the tool").kind;
 }
 
-fn read_lock(scope: &Scope) -> Lock {
+pub(super) fn read_lock(scope: &Scope) -> Lock {
     return parse_lock(&fs::read_to_string(&scope.lock_file).expect("read the lock"), "lock").expect("parses").lock;
 }
 

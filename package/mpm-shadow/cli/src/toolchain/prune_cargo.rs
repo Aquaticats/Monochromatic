@@ -263,7 +263,7 @@ fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersio
 /// Why:
 /// This is the cleanup the version-keyed layout needs.
 /// It runs only when asked:
-/// `sync` never deletes another tree's version.
+/// `install` never deletes another tree's version.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -4604,3 +4604,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   for the release tool, its own `release` and `release:wait` tasks), then the wrapper release with the policy gates green,
   then `toolchain:update` (user decision each time, the tool has no per-tool filter), then `toolchain:sync`. A CI step
   `git cli-git check --all --policy mono/catalog-specifiers` must land only after the lock names the new wrapper.
+
+## In progress: wrapper identity on top-level --version and --help (2026-10-31)
+
+- Request relayed by `monochromatic-6e`; history search found no earlier banner (the Rust wrapper printed byte-identical
+  output since `414ab5ff76`, pinned by `version_is_identical_to_native_git`; the retired TypeScript wrapper handled only
+  `git cli-git --help`). The user chose option A: after real Git's output, top-level `--version` prints one stdout line
+  `monochromatic-git-policy-cli <version>, shadowing git at <resolved real git path>`; top-level `--help` and `-h` get an
+  appended section naming the shadow, its version, what it adds and the real binary path; subcommand help and exit status
+  stay Git's. Reverses the byte-identical test, which is replaced by a pinned two-line test.
+- Mechanism: those Query invocations must run Git as a child (`run_real_git`) rather than replace the process, so the
+  line can follow Git's output. Other Query forms (`--exec-path`, `--html-path` and so on) keep the exec replacement.

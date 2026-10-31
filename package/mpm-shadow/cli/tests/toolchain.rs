@@ -89,12 +89,12 @@ fn text(bytes: &[u8]) -> String {
 #[test]
 fn lock_check_refuses_a_lock_without_a_digest_and_passes_once_it_is_signed() {
     let fixture = Fixture::new();
-    let refused = fixture.run(&["lock", "--check"]);
+    let refused = fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
     assert_eq!(refused.status.code(), Some(1), "{}", text(&refused.stderr));
     assert!(text(&refused.stderr).contains("no digest"), "{}", text(&refused.stderr));
 
     fixture.sign_lock(&fixture.work());
-    let checked = fixture.run(&["lock", "--check"]);
+    let checked = fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
     assert_eq!(checked.status.code(), Some(0), "{}", text(&checked.stderr));
     assert!(text(&checked.stdout).contains("digest verified"), "{}", text(&checked.stdout));
 }
@@ -105,21 +105,21 @@ fn lock_after_a_plan_edit_keeps_the_resolved_versions_and_passes_the_gate() {
     fixture.sign_lock(&fixture.work());
     let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
     fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
-    assert_eq!(fixture.run(&["lock", "--check"]).status.code(), Some(1));
-    let rewritten = fixture.run(&["lock"]);
+    assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(1));
+    let rewritten = fixture.run(&["install", "--lockfile-only", "--offline"]);
     assert_eq!(rewritten.status.code(), Some(0), "{}", text(&rewritten.stderr));
     let lock: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(fixture.work().join("toolchain.lock.json")).expect("read")).expect("JSON");
     assert_eq!(lock["tools"]["cargo:fd-find"]["version"], "10.5.0");
     assert_eq!(lock["tools"]["cargo:fd-find"]["bins"][1], "fdfind");
-    assert_eq!(fixture.run(&["lock", "--check"]).status.code(), Some(0));
+    assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(0));
 }
 
 #[test]
 fn a_broken_plan_exits_with_code_two_naming_the_file() {
     let fixture = Fixture::new();
     fs::write(fixture.work().join("toolchain.plan.jsonc"), "{ \"tools\": ").expect("break the plan");
-    let output = fixture.run(&["lock", "--check"]);
+    let output = fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
     assert_eq!(output.status.code(), Some(2));
     assert!(text(&output.stderr).contains("toolchain.plan.jsonc"), "{}", text(&output.stderr));
 }
@@ -129,7 +129,7 @@ fn outside_a_worktree_the_command_names_what_to_do() {
     let fixture = Fixture::new();
     let lonely = fixture.directory.path().join("lonely");
     fs::create_dir_all(&lonely).expect("make the directory");
-    let output = fixture.run_in(&lonely, &["lock", "--check"]);
+    let output = fixture.run_in(&lonely, &["install", "--lockfile-only", "--frozen-lockfile"]);
     assert_eq!(output.status.code(), Some(2));
     assert!(text(&output.stderr).contains("MONOCHROMATIC_WORKTREE_ROOT"), "{}", text(&output.stderr));
 }
@@ -137,7 +137,7 @@ fn outside_a_worktree_the_command_names_what_to_do() {
 #[test]
 fn global_reads_the_per_user_config_directory() {
     let fixture = Fixture::new();
-    let output = fixture.run(&["lock", "--check", "--global"]);
+    let output = fixture.run(&["install", "--lockfile-only", "--frozen-lockfile", "--global"]);
     assert_eq!(output.status.code(), Some(2));
     assert!(
         text(&output.stderr).contains(".config/monochromatic-dev/toolchain/toolchain.plan.jsonc"),
@@ -149,16 +149,16 @@ fn global_reads_the_per_user_config_directory() {
     fs::write(config.join("toolchain.plan.jsonc"), PLAN).expect("write the global plan");
     fs::write(config.join("toolchain.lock.json"), OLD_LOCK).expect("write the global lock");
     fixture.sign_lock(&config);
-    assert_eq!(fixture.run(&["lock", "--check", "--global"]).status.code(), Some(0));
+    assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile", "--global"]).status.code(), Some(0));
 }
 
 #[test]
-fn bin_paths_prints_the_pinned_shape_for_the_ide_launcher() {
+fn bin_json_prints_the_pinned_shape_for_the_ide_launcher() {
     let fixture = Fixture::new();
     let exposure = fixture.work().join(".cache").join("toolchain-bin");
     fs::create_dir_all(&exposure).expect("make the exposure directory");
     fs::write(exposure.join("fd"), "").expect("write a link stand-in");
-    let output = fixture.run(&["bin-paths"]);
+    let output = fixture.run(&["bin", "--json"]);
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
     let document: serde_json::Value = serde_json::from_str(&text(&output.stdout)).expect("JSON on standard output");
     assert_eq!(document["exposureDir"], ".cache/toolchain-bin");
@@ -168,10 +168,10 @@ fn bin_paths_prints_the_pinned_shape_for_the_ide_launcher() {
 }
 
 #[test]
-fn bin_paths_needs_no_lock() {
+fn bin_needs_no_lock() {
     let fixture = Fixture::new();
     fs::remove_file(fixture.work().join("toolchain.lock.json")).expect("remove the lock");
-    let output = fixture.run(&["bin-paths"]);
+    let output = fixture.run(&["bin", "--json"]);
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
 }
 
@@ -180,21 +180,22 @@ fn help_lists_the_toolchain_verbs() {
     let fixture = Fixture::new();
     let output = fixture.run(&["--help"]);
     let help = text(&output.stdout);
-    for verb in ["lock", "update", "sync", "status", "verify-archive", "bin-paths", "prune"] {
+    for verb in ["install", "update", "outdated", "list", "verify-archive", "bin", "prune"] {
         assert!(help.contains(verb), "{verb} missing from:\n{help}");
     }
 }
 
 #[test]
-fn sync_and_status_refuse_when_the_plan_and_lock_disagree_and_name_the_remedy() {
+fn install_and_list_refuse_when_the_plan_and_lock_disagree_and_name_the_remedy() {
     let fixture = Fixture::new();
     fixture.sign_lock(&fixture.work());
     let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
     fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
-    for verb in ["sync", "status"] {
-        let output = fixture.run(&[verb]);
+    for arguments in [&["install", "--frozen-lockfile"][..], &["list"][..]] {
+        let verb = arguments[0];
+        let output = fixture.run(arguments);
         assert_eq!(output.status.code(), Some(1), "{verb}: {}", text(&output.stderr));
-        assert!(text(&output.stderr).contains("mpm-shadow lock"), "{verb}: {}", text(&output.stderr));
+        assert!(text(&output.stderr).contains("mpm-shadow install --lockfile-only --offline"), "{verb}: {}", text(&output.stderr));
         assert!(text(&output.stdout).is_empty(), "{verb} printed nothing before refusing: {}", text(&output.stdout));
     }
     assert!(!fixture.directory.path().join("home").join(".local").exists(), "nothing was installed under the home");
@@ -207,7 +208,7 @@ fn update_refuses_a_hand_edited_lock_before_any_network_use() {
     let path = fixture.work().join("toolchain.lock.json");
     let text_before = fs::read_to_string(&path).expect("read");
     fs::write(&path, text_before.replace("\"version\": \"10.5.0\"", "\"version\": \"1.0.0\"")).expect("hand edit");
-    let output = fixture.run(&["update", "--check"]);
+    let output = fixture.run(&["outdated"]);
     assert_eq!(output.status.code(), Some(1), "{}", text(&output.stderr));
     assert!(text(&output.stderr).contains("edited by hand"), "{}", text(&output.stderr));
 }
@@ -224,4 +225,82 @@ fn verify_archive_accepts_the_recorded_hash_and_refuses_anything_else() {
     assert!(text(&refused.stderr).contains("439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791"), "{}", text(&refused.stderr));
     let unknown = fixture.run(&["verify-archive", "bin", download.to_str().expect("utf-8"), "--platform", "plan9-mips"]);
     assert_eq!(unknown.status.code(), Some(2));
+}
+
+#[test]
+fn the_pre_pnpm_command_names_are_gone() {
+    let fixture = Fixture::new();
+    for verb in ["sync", "lock", "status", "bin-paths"] {
+        let output = fixture.run(&[verb]);
+        assert_eq!(output.status.code(), Some(2), "{verb} is no longer a command: {}", text(&output.stderr));
+    }
+    let output = fixture.run(&["update", "--check"]);
+    assert_eq!(output.status.code(), Some(2), "update has no --check; outdated is the report: {}", text(&output.stderr));
+}
+
+#[test]
+fn offline_needs_lockfile_only_and_the_aliases_are_pnpms() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let output = fixture.run(&["install", "--offline"]);
+    assert_eq!(output.status.code(), Some(2), "{}", text(&output.stderr));
+    assert!(text(&output.stderr).contains("--lockfile-only"), "{}", text(&output.stderr));
+    let aliased = fixture.run(&["i", "--lockfile-only", "--offline"]);
+    assert_eq!(aliased.status.code(), Some(0), "i is pnpm's alias of install: {}", text(&aliased.stderr));
+    let listed = fixture.run(&["ls"]);
+    assert_ne!(listed.status.code(), Some(2), "ls is pnpm's alias of list: {}", text(&listed.stderr));
+}
+
+#[test]
+fn bin_prints_the_exposure_directory_like_pnpm_bin_and_json_prints_the_document() {
+    let fixture = Fixture::new();
+    let plain = fixture.run(&["bin"]);
+    assert_eq!(plain.status.code(), Some(0), "{}", text(&plain.stderr));
+    let expected = fixture.work().join(".cache").join("toolchain-bin");
+    assert_eq!(text(&plain.stdout), format!("{}\n", expected.display()));
+    let json = fixture.run(&["bin", "--json"]);
+    serde_json::from_str::<serde_json::Value>(&text(&json.stdout)).expect("JSON on standard output");
+}
+
+#[test]
+fn a_frozen_lock_check_and_a_plain_offline_rewrite_are_the_two_lockfile_only_modes() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
+    fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
+    let before = fs::read_to_string(fixture.work().join("toolchain.lock.json")).expect("read");
+    let checked = fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
+    assert_eq!(checked.status.code(), Some(1), "{}", text(&checked.stderr));
+    assert_eq!(fs::read_to_string(fixture.work().join("toolchain.lock.json")).expect("read"), before, "a check writes nothing");
+    let rewritten = fixture.run(&["install", "--lockfile-only", "--offline"]);
+    assert_eq!(rewritten.status.code(), Some(0), "{}", text(&rewritten.stderr));
+    assert_ne!(fs::read_to_string(fixture.work().join("toolchain.lock.json")).expect("read"), before);
+    assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(0));
+}
+
+#[test]
+fn a_non_frozen_install_lockfile_only_writes_an_offline_fixable_edit_into_the_lock() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
+    fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
+    let output = fixture.run(&["install", "--lockfile-only"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(text(&output.stdout).contains("lock updated from the plan: cargo:fd-find now differs from the plan in: bins"), "{}", text(&output.stdout));
+    assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(0), "the lock now agrees");
+}
+
+#[test]
+fn help_says_in_its_first_line_that_it_is_a_shadow_of_mpm_and_lists_the_pnpm_named_commands() {
+    let fixture = Fixture::new();
+    let output = fixture.run(&["--help"]);
+    let help = text(&output.stdout);
+    let first = help.lines().next().expect("a first line");
+    assert!(first.starts_with("A shadow of mpm"), "{first}");
+    assert!(first.contains("invoked as `mpm`"), "{first}");
+    for verb in ["install", "update", "outdated", "list", "bin"] {
+        assert!(first.contains(verb), "{verb} is missing from the first line: {first}");
+    }
+    let version = fixture.run(&["--version"]);
+    assert_eq!(text(&version.stdout), format!("mpm-shadow {}\n", env!("CARGO_PKG_VERSION")));
 }

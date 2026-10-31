@@ -283,6 +283,42 @@ each finished branch is reviewed and merged into `main`):
   which lacks `output_scope` (merged after publication);
   core and cli are bumped to 0.1.1 with the internal pin `=0.1.1`,
   and the push publishes both and creates `monochromatic-file-enforcer-cli-v0.1.1`.
+  Done (owner approved the push after the auto-mode check blocked it as a public surface):
+  `e570fd802d`,
+  run `41172650724` green,
+  the release has both Linux archives and the checksums file.
+- Released 2026-10-31 (owner approved the push):
+  `monochromatic-mpm-shadow` 0.2.0 (`8846e03d5c`,
+  run `41173602862`,
+  release `monochromatic-mpm-shadow-v0.2.0` with both Linux archives),
+  carrying the pnpm names,
+  pnpm-style install with offline-fixable edits applied,
+  named update,
+  version-keyed installs,
+  launchers,
+  and the `mpm --version`/`--help` shadow notice.
+  Every release the cutover needs now exists;
+  the switch branch regenerates the repository lock with it.
+- Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
+  invoked under the shadowed name,
+  a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
+  (the `hub` precedent),
+  and a top-level `--help` appends a short shadow section;
+  subcommand help passes through.
+  The owner noticed `mpm --version`/`--help` never mention the shadow,
+  and reports the git wrapper's silence as a regression introduced some time ago.
+  mpm-shadow: the update-by-tool agent's branch;
+  search-shadow: its own agent;
+  git wrapper: reported to monochromatic-7a with the convention.
+  7a's finding:
+  no earlier banner existed to restore
+  (the Rust wrapper has printed byte-identical Git output for `--version` since its first commit `414ab5ff76`,
+  2026-10-05,
+  pinned by `version_is_identical_to_native_git`;
+  the retired TypeScript wrapper handled only `git cli-git --help`),
+  so the "regression" reading is not supported by history;
+  7a's agent implements the convention for the next wrapper release.
+  The owner also confirmed mpm-shadow's separate toolchain command set "is fine".
 - Running:
   the cutover switch branch (repoints,
   `20-env.toml`,

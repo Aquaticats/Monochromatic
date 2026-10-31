@@ -1,4 +1,4 @@
-//! Unit tests of `bin-paths`:
+//! Unit tests of `bin`:
 //! the output shape the IDE launcher pins,
 //! built from a disposable scope.
 

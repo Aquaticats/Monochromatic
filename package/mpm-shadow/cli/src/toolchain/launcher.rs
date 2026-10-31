@@ -51,7 +51,7 @@ use super::util::file_name_text;
 pub const RECORD_SUFFIX: &str = ".launch";
 
 /// What a launcher needs to know,
-/// written at `sync` time:
+/// written at `install` time:
 /// the tool's id in the lock,
 /// the lock file to compare against,
 /// and the real binary (through the crate's `current` link).
