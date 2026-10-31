@@ -25,7 +25,7 @@ await describe({
     it({
       name: 'NAMES THE CHECKER ROLE where a rendering is audited',
       fn: async () => {
-        const source = await readFile(new URL('./rendering-audit.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('rendering-audit.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['checker',],);
       },
     },),

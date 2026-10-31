@@ -188,6 +188,8 @@ export async function runRenderingAudit(
     responseFormat: RENDERING_AUDIT_RESPONSE_FORMAT,
     validate: isRenderingAuditReportWire,
     stage: runRenderingAudit.name,
+    // THE AUDIT IS ASKED OF THE CHECKERS (`checkerModelIds`), whose role honours the cull alone.
+    role: 'checker',
     l,
     graceMs: stageSettings
       .grace
