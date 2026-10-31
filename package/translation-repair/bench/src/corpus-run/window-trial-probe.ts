@@ -60,7 +60,10 @@ async function main(): Promise<void> {
     roster: RUN_ROSTER,
     perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     l,
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({
+      env: process.env,
+      reask: 'measured-model',
+    },),
   },);
 }
 

@@ -228,6 +228,8 @@ export async function settleRefinedSlice(
     client,
     refinerModelIds,
     judgeModelIds: models.judgeModelIds,
+    // THE REPAIR LANE'S SLATES ARE JUDGED BY THE WIDE SEATS (`selectJudges`).
+    judgeRole: 'select-judge',
     sourceText,
     repairedText: outcome.repairedText,
     envelopes: slice.envelopes,

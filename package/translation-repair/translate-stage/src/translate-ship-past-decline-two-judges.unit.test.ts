@@ -230,6 +230,7 @@ async function judgedWith(
         findings: [],
       },
       judgeModelIds: JUDGES,
+      role: 'wide-judge',
       sourceText: SOURCE,
       incumbentText: withheldStanding ? ARCHIVE : '',
       incumbentKind: 'absent',

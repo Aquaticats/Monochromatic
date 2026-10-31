@@ -75,7 +75,10 @@ if (import.meta.main)
         resolveRunsDir,
         now: nowIso,
         log: tagged({ tag: 'coverage-probe', },),
-        stageSettings: readStageSettings({ env: process.env, },),
+        stageSettings: readStageSettings({
+          env: process.env,
+          reask: 'measured-model',
+        },),
       },);
     },
   },);

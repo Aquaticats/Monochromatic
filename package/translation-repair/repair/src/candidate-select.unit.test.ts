@@ -337,6 +337,7 @@ async function runSelection(
     },),
     candidates,
     judgeModelIds,
+    role: 'wide-judge',
     // THE WHOLE BENCH BY DEFAULT HERE, since these cases script every seat's
     // ballot and read the tally over the bench they wrote; production asks the
     // window of quorum plus one (`stage-fanout-window.ts`), pinned by the
@@ -429,6 +430,7 @@ async function runCollapsedSelection(
       },),
       candidates,
       judgeModelIds: JUDGES,
+      role: 'wide-judge',
       fanOut: 'whole-bench',
       task: 'Pick one.',
       criteria: ['Faithful.',],
@@ -499,6 +501,7 @@ async function runShortBench(
     },),
     candidates: STRING_CANDIDATES,
     judgeModelIds: WIDE_BENCH,
+    role: 'wide-judge',
     fanOut: 'whole-bench',
     task: 'Pick one.',
     criteria: ['Faithful.',],
@@ -555,6 +558,7 @@ await describe({
               },),
               candidates: STRING_CANDIDATES,
               judgeModelIds: JUDGES,
+              role: 'wide-judge',
               fanOut: 'whole-bench',
               task: 'Pick one.',
               criteria: ['Faithful.',],
@@ -909,6 +913,7 @@ await describe({
                 counter,
               },),
               candidates: STRING_CANDIDATES,
+              role: 'wide-judge',
               judgeModelIds: [
                 SEAT_SYNTHETIC_VISION_WITHHELD,
                 SEAT_SYNTHETIC_VISION_WITHHELD,

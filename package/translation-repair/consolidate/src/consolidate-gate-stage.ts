@@ -20,6 +20,7 @@ import {
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type FanOutMode,
+  answererOf,
   runWindowedRounds,
   shortBenchStageFinding,
   type StageSettings,
@@ -246,12 +247,15 @@ export async function gateConsolidatedSlice(
     responseFormat: CONSOLIDATE_GATE_RESPONSE_FORMAT,
     validate: isConsolidateGateWire,
     stage: 'consolidate-gate',
+    // THE GATE IS ASKED OF THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models from.
+    role: 'late-judge',
     l: gl,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**
@@ -274,7 +278,7 @@ export async function gateConsolidatedSlice(
     // XingZ606's gate kept an ineligible standing 4 of 5 and the log carried
     // only the tally, so why four judges preferred a text the rule refuses
     // could not be read afterwards.
-    gl.info(`consolidate gate ballot ${outcome.modelId}: ${ballot.choice}: ${ballot.reason}`,);
+    gl.info(`consolidate gate ballot ${answererOf({ outcome, },)}: ${ballot.choice}: ${ballot.reason}`,);
     return [ballot,];
   },);
 

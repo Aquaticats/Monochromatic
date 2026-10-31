@@ -23,6 +23,7 @@ import {
   benchBelowFloorStageFinding,
   type FanOutMode,
   reachableQuorum,
+  answererOf,
   runWindowedRounds,
   shortBenchStageFinding,
   type StageSettings,
@@ -489,10 +490,13 @@ export async function contestLaneSlice(
     responseFormat: LANE_CONTEST_RESPONSE_FORMAT,
     validate: isLaneContestWire,
     stage: 'lane-contest',
+    // THE CONTEST IS ASKED OF THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models from.
+    role: 'late-judge',
     l: cl,
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
   },);
@@ -509,15 +513,13 @@ export async function contestLaneSlice(
     /**
      This seat and its voice, heard or lost.
      */
-    const {
-      modelId,
-      voice,
-    } = outcome;
+    const { voice, } = outcome;
+    // THE BALLOT IS THE MODEL'S THAT CAST IT (ledger B1142): the model asked in place of a runaway seat, not the seat.
     return voice.heard
       ? [
         {
           ...readLaneContestBallot({ wire: voice.value, },),
-          modelId,
+          modelId: answererOf({ outcome, },),
         },
       ]
       : [];

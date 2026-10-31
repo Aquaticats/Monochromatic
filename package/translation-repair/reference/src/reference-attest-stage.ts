@@ -196,11 +196,14 @@ async function confirmCandidates(
     responseFormat: REFERENCE_ATTEST_CONFIRM_RESPONSE_FORMAT,
     validate: isReferenceAttestConfirmWire,
     stage: 'reference-attest-confirm',
+    // THE CONFIRMATION IS ASKED OF THE RUN ROSTER (`seats.roster`) and nothing narrower.
+    role: 'roster',
     l,
     ...((fanOut === undefined) ? {} : { fanOut, }),
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Voices heard on the confirmation.
@@ -368,11 +371,14 @@ export async function attestCitedReferences(
     responseFormat: REFERENCE_ATTEST_RESPONSE_FORMAT,
     validate: isReferenceAttestWire,
     stage: 'reference-attest',
+    // THE ATTESTATION IS ASKED OF THE RUN ROSTER (`seats.roster`) and nothing narrower.
+    role: 'roster',
     l: al,
     ...((fanOut === undefined) ? {} : { fanOut, }),
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Voices heard.

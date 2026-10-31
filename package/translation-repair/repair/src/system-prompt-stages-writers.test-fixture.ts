@@ -21,6 +21,7 @@ import {
 } from '@monochromatic-dev/translation-repair-archive';
 import { buildLaneContestMessages, } from '@monochromatic-dev/translation-repair-lane-contest';
 import {
+  buildAnotherTranslatorRepairMessages,
   buildTranslateMessages,
   buildTranslateRepairMessages,
 } from '@monochromatic-dev/translation-repair-translate-floor';
@@ -137,6 +138,21 @@ export const WRITER_STAGES: readonly PromptStage[] = [
     name: 'translate repair',
     render: function renderTranslateRepair({ subject, },) {
       return buildTranslateRepairMessages({
+        priorMessages: buildTranslateMessages({
+          sourceText: subject.source,
+          existingText: subject.archive,
+          identityContext: subject.identity,
+        },)
+          .messages,
+        priorTranslation: subject.repair,
+        findings: [subject.finding,],
+      },);
+    },
+  },
+  {
+    name: 'translate repair for another translator',
+    render: function renderTranslateRepairForAnotherTranslator({ subject, },) {
+      return buildAnotherTranslatorRepairMessages({
         priorMessages: buildTranslateMessages({
           sourceText: subject.source,
           existingText: subject.archive,

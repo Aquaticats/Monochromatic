@@ -156,11 +156,19 @@
  record stands under a number whose rule differs, and a build whose pipeline digest differs discards the namespace
  before it reads it (`openNamespacedCache`). No record has been written at 9, which this change sets first.
 
+ Version 10 covers the model that answers for a runaway seat (ledger B1142): a voice of a stored gather may carry
+ `answeredBy`, the model the re-ask of the seat's reasoning runaway went to, beside the `seat` it answered for. The record
+ stays under the seat so it still fits the bench, and the artifact names the answerer; a record written at 9 holds no such
+ field and reads as an answer of its own seat, which it was, since the answerer was recorded as the seat until now. The
+ shape of a stored voice gains a key, and no stored record stands under a number whose shape differs; a build whose
+ pipeline digest differs discards the namespace before it reads it (`openNamespacedCache`), and the number is the belt
+ beside that brace. No record has been written at 10, which this change sets first.
+
  @example
  ```ts
  const material = JSON.stringify({ version: CONSISTENCY_CACHE_VERSION, sheet, roster, },);
  ```
  */
-export const CONSISTENCY_CACHE_VERSION = 9;
+export const CONSISTENCY_CACHE_VERSION = 10;
 
 //endregion Consistency cache version

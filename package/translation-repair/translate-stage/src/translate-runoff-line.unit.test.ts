@@ -294,6 +294,7 @@ async function judgeFirstRound(
     client,
     produced,
     judgeModelIds: JUDGES,
+    role: 'wide-judge' as const,
     sourceText: SOURCE_TEXT,
     incumbentText: INCUMBENT_TEXT,
     incumbentKind: 'present' as const,

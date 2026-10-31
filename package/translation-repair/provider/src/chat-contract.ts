@@ -6,9 +6,11 @@ import type {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { Decider, } from './decision-contract.ts';
+import type { ReaskClaims, } from './reask-claims.ts';
 import type {
   ProviderName,
   RosterModelId,
+  SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { QuotaSnapshot, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 
@@ -253,6 +255,74 @@ export type ChatTextRequest = {
    No client puts it on the wire.
    */
   readonly reuseScope?: string;
+
+  /**
+   The seat this exchange answers for, set by a caller that knows it, so the re-ask of a reasoning runaway asks a model
+   that the seat's role may take and that is not on the bench of the question (ledger B1074, B1076).
+   Absent for a caller that names none, and then no other model is asked: the re-ask of a reasoning runaway has no role
+   to read the pool of, so it asks the model that ran away again on another provider, nudged, on a warning (ledger
+   B1081, B1100).
+   Not part of the prompt identity, and no client puts it on the wire.
+   */
+  readonly reaskSeat?: ReaskSeat;
+};
+
+/**
+ Whose answer the re-ask of a reasoning runaway may give.
+
+ `other-model` is the run: a runaway is re-asked of another roster model its role may take, so the question is answered.
+ `measured-model` is a measurement (a probe, a bench, a calibration or a census): the runaway is re-asked of the model
+ itself, on another provider, nudged, since a measurement must score the model it measures and a rival's answer
+ recorded as that model's would be scored as its own (ledger B1141).
+
+ @example
+ ```ts
+ const mode: ReaskMode = 'measured-model';
+ ```
+ */
+export type ReaskMode = 'other-model' | 'measured-model';
+
+/**
+ What a re-ask needs to know of the seat that ran away, beyond the question itself.
+
+ @example
+ ```ts
+ const seat: ReaskSeat = { role: 'wide-judge', bench: ['minimax-m3', 'gemma-4-26b-a4b-it',], };
+ ```
+ */
+export type ReaskSeat = {
+  /**
+   Role of the seat, which decides the holds of a card that keep a model from taking the re-ask.
+   */
+  readonly role: SeatRole;
+
+  /**
+   Whose answer the re-ask of a runaway may give; absent means another model, which is what a run wants. Every builder of
+   a seat in production code takes the mode from the launch's `StageSettings.reask` and names it, so a measurement that
+   builds a seat through them cannot leave it out (ledger B1141).
+   */
+  readonly reask?: ReaskMode;
+
+  /**
+   Every model seated on the question, whose answer recorded as the runaway's would count one model twice.
+   */
+  readonly bench: readonly RosterModelId[];
+
+  /**
+   Record of the models already asked for the seats of this question, which every seat of one question shares so that
+   no model is asked for two of them (ledger B1080); absent for a seat that is alone on its question, which has no
+   other seat to share a model with.
+   */
+  readonly claims?: ReaskClaims;
+
+  /**
+   The conversation a model other than the one asked gets in place of the request's own, for a seat whose question
+   speaks to its asker (the follow-up on a model's own candidate says "your translation"), so the model that takes the
+   re-ask of a runaway is told whose text it revises and not that it is its own (ledger B1100). Absent for a seat whose
+   question reads the same to any model, which then asks the plain question. The fall back to the model that ran away
+   keeps the request's own conversation and the nudge.
+   */
+  readonly otherModelMessages?: readonly ChatMessage[];
 };
 
 /**
@@ -360,9 +430,17 @@ export type ChatJsonReaskFailure = {
   readonly rawText: string;
 
   /**
-   What failed in it: the refusal marker, or the mismatch's detail.
+   What failed in it: the refusal marker, or the mismatch's detail, followed by `; asked of` and the model's name where
+   the re-ask went to another model than the one that ran away (ledger B1072).
    */
   readonly cause: string;
+
+  /**
+   Model the re-ask was addressed to, set only where it was another model than the one that ran away (ledger B1072),
+   so a later re-ask for the same seat can leave that model out and ask the next, and not replay this one's claimed
+   reply as another voice.
+   */
+  readonly askedModelId?: RosterModelId;
 };
 
 /**
@@ -395,6 +473,12 @@ export type ChatJsonOutcome<ValueT,> =
      Token usage when reported; thinking tokens included.
      */
     readonly usage?: CompletionUsage;
+
+    /**
+     Model that gave the answer, set only where the re-ask of a reasoning runaway went to another model than the one
+     asked and that model answered usably (ledger B1100); absent when the model asked answered.
+     */
+    readonly answeredBy?: RosterModelId;
   }
     | {
     /**

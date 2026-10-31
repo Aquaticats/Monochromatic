@@ -150,6 +150,21 @@ export {
 } from './model-card.ts';
 export { MODEL_CARDS, } from './model-cards.ts';
 export {
+  holdsKeepingOutOf,
+  reaskHoldsKeepingOutOf,
+  MEASURED_CHECKER_ORDER,
+  reaskPoolOf,
+  rolePoolOf,
+  SEAT_ROLE_HOLDS,
+  SEAT_ROLES,
+  type SeatRole,
+} from './seat-role.ts';
+export {
+  ROLE_STANDINGS,
+  type RoleStanding,
+  standingOrderOf,
+} from './seat-role-standing.ts';
+export {
   APPARATUS_KINDS,
   NARRATIVE_DETAIL_IS_NOT_APPARATUS,
   PAGE_APPARATUS_IS_KEPT,

@@ -187,10 +187,13 @@ export async function runDerivabilityProbe(
     responseFormat: DERIVABILITY_RESPONSE_FORMAT,
     validate: isRestorationJudgeWire,
     stage: 'derivability-probe',
+    // THE PROBE IS ASKED OF THE RESTORATION JUDGES, the wide seats (`RECALL_JUDGE_MODEL_IDS`).
+    role: 'wide-judge',
     l,
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

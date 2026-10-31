@@ -1,6 +1,18 @@
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import {
+  alternateModelsFor,
+  describeLeftOut,
+  measuresModelOf,
+  type ReaskSeat,
+  takenFor,
+  takeFor,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   RECOVERY_NUDGES,
@@ -50,12 +62,228 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  */
 export type SharedRoundRequest<ValueT,> = Omit<
   Parameters<typeof runGatherRound<ValueT>>[0],
-  'heardNeeded' | 'modelIds' | 'reserve'
-  >;
+  'heardNeeded' | 'modelIds' | 'reserve' | 'reaskSeat'
+  > & NamedSeat;
+
+/**
+ The seat of a gather, required of the part of a round request the recovery round reads, so it never asks a runaway
+ seat of a model on a guess about its role (ledger B1079).
+ */
+type NamedSeat = {
+  /**
+   Role, bench and shared record of the gather.
+   */
+  readonly reaskSeat: ReaskSeat;
+};
+
+// A SEAT WHOSE ANSWER RAN AWAY IS ASKED OF ANOTHER MODEL (ledger B1073, B1074, the
+// owner's answer of 2026-10-30, "Everywhere (Recommended)"). A reply that ended in a
+// length stop with no content is a model that spent its whole completion cap
+// thinking, and this round used to ask the seat's own model a third time: in
+// `XingZ6020` slice 92 the round's ask was the third runaway of one model for one
+// question, and the next round's re-ask the fourth. The round now asks the models
+// `alternateModelsFor` lists, in the order of their share of runaways, with the
+// plain question ("Plain question (Recommended)") and records the answer as the
+// seat's voice. It leaves out the models the seat's role is held out of, the
+// models seated on the question (the lead's adoption of 2026-10-30) and the model
+// an earlier re-ask for the seat already went to, whose claimed reply the
+// uniqueness wrapper would otherwise replay as a second voice. It also leaves out
+// the models asked for the other seats of the gather, which the seats share one
+// record of and take from before they ask (`ReaskSeat.claims`, ledger B1080): the
+// seats of this round run together, so two that ran away would each take the first
+// model left. Only where no model is left is the seat's own model asked, under the
+// `cut-short` nudge as before, on a warning.
+
+/**
+ Asks a seat whose answer ran away of another model, once, and records the answer as the seat's voice.
+
+ @param roundRequest - what every round of the gather sends, prompt and bench included
+
+ @param seat - seat whose answer ran away
+
+ @param askedInstead - model an earlier re-ask for the seat already went to, when it went to another model
+
+ @param l - logger of the recovery round
+
+ @returns Outcome for the seat: the first reachable model's answer, or the seat's own model's under the cut-short nudge
+ where no other model could take the re-ask
+
+ @throws Whatever the round of the model asked throws, which is the caller's own abort, a request the route refused as
+ malformed, or the router's every-provider-dry refusal
+
+ @example
+ ```ts
+ const outcome = await recoverRunaway({ roundRequest, seat, l, },);
+ ```
+ */
+async function recoverRunaway<ValueT,>(
+  {
+    roundRequest,
+    seat,
+    askedInstead,
+    l,
+  }: ForeignBorrowed<{
+    readonly roundRequest: SharedRoundRequest<ValueT>;
+    readonly seat: RosterModelId;
+    readonly askedInstead?: RosterModelId;
+    readonly l: Logger;
+  }>,
+): Promise<RoundOutcome<ValueT>> {
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const rl = tagged({
+    tag: recoverRunaway.name,
+    l,
+  },);
+
+  /**
+   The seat the gather named: its role, its bench and the record its seats share.
+   */
+  const named: ReaskSeat = roundRequest.reaskSeat;
+
+  /**
+   Role and bench of the gather.
+   */
+  const {
+    role,
+    bench,
+  } = named;
+
+  /**
+   Asks the seat's own model once more, under the cut-short nudge, which is the one ask a measurement makes and the ask
+   a run falls back to where no other model could take the re-ask.
+
+   @returns One outcome that round returned
+   */
+  async function askSeatItself(): Promise<RoundOutcome<ValueT>> {
+    /**
+     The seat's own model's round, nudged as the cut-short wording has it.
+     */
+    const ownRound = await runGatherRound<ValueT>({
+      ...roundRequest,
+      l: rl,
+      messages: [
+        ...roundRequest.messages,
+        RECOVERY_NUDGES.runaway,
+      ],
+      modelIds: [seat,],
+      heardNeeded: 0,
+    },);
+
+    /**
+     The one outcome that round returned.
+     */
+    const own = ownRound.at(0,);
+    if (own === undefined)
+      throw new Error(`unreachable: the round that asked ${seat} returned no outcome`,);
+    return own;
+  }
+  // A MEASUREMENT SCORES THE MODEL IT ASKS (ledger B1141): a rival's answer recorded as the seat's would be scored as the
+  // seat's own, so the seat is asked again, nudged, and that is no fault to warn of.
+  if (measuresModelOf({ seat: named, })) {
+    rl.info(
+      `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); this is a measurement, `
+        + `so no other model is asked and ${seat} is re-asked, nudged`,
+    );
+    return await askSeatItself();
+  }
+
+  /**
+   The bench with the seat on it, which an ask of another model carries so that model's own runaway is not re-asked of
+   the seat that began this one.
+   */
+  const benchWithSeat: readonly RosterModelId[] = bench.includes(seat,)
+    ? bench
+    : [
+      ...bench,
+      seat,
+    ];
+
+  /**
+   Models to ask in the order of their share of runaways, and the ones left out of the seat's role, the bench or an
+   earlier ask.
+   */
+  const {
+    alternates,
+    leftOut,
+  } = alternateModelsFor({
+    modelId: seat,
+    role,
+    bench,
+    askedAlready: (askedInstead === undefined) ? [] : [askedInstead,],
+    askedForOtherSeats: takenFor({ seat: named, },),
+  },);
+  // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines of
+  // the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).
+  rl.info(
+    `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); `
+      + `left out: ${describeLeftOut({ leftOut, },)}; to ask in turn: ${alternates.length === 0 ? 'none' : alternates.join(', ',)}`,
+  );
+  for (const alternate of alternates) {
+    // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts` in the provider): another runaway seat of
+    // this gather whose function ran first may have taken this model since the list was made (ledger B1080).
+    if (!takeFor({
+      seat: named,
+      modelId: alternate,
+    },)) {
+      rl.info(`${roundRequest.stage}: ${seat}: ${alternate} was asked for another seat of this question since the list was made`,);
+      continue;
+    }
+    rl.info(`${roundRequest.stage}: ${seat}: re-asking ${alternate} instead, plain question`,);
+
+    /* oxlint-disable no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
+    /**
+     The other model's round, asked the question as it stood.
+     */
+    const askedRound = await runGatherRound<ValueT>({
+      ...roundRequest,
+      l: rl,
+      modelIds: [alternate,],
+      heardNeeded: 0,
+      reaskSeat: {
+        ...named,
+        bench: benchWithSeat,
+      },
+    },);
+    /* oxlint-enable no-await-in-loop */
+
+    /**
+     The one outcome that round returned.
+     */
+    const asked = askedRound.at(0,);
+    if (asked === undefined)
+      throw new Error(`unreachable: the round that asked ${alternate} returned no outcome`,);
+
+    /**
+     What came back from the other model.
+     */
+    const { voice, } = asked;
+    if ((!voice.heard) && voice.unreachable) {
+      rl.debug(`${roundRequest.stage}: ${seat}: ${alternate} cannot take the re-ask, no provider serves it with budget`,);
+      continue;
+    }
+    // THE OUTCOME STANDS UNDER THE SEAT, AND THE VOICE NAMES THE MODEL THAT WROTE IT (ledger B1142): the model asked, or
+    // the one it was itself re-asked of where its own answer ran away, so no weight, tally or record reads the seat.
+    return {
+      modelId: seat,
+      voice: voice.heard ? {
+        ...voice,
+        answeredBy: voice.answeredBy ?? alternate,
+      } : voice,
+    };
+  }
+  rl.warn(
+    `${roundRequest.stage}: ${seat}: no other model could take the re-ask of a reasoning runaway `
+      + `(${String(alternates.length,)} tried); re-asking ${seat}, nudged`,
+  );
+  return await askSeatItself();
+}
 
 /**
  Re-asks, once, every seat whose answer arrived and could not be read, each
- under the nudge naming what happened to it.
+ under the nudge naming what happened to it, except a seat whose answer ran
+ away, which is asked of another model with the plain question.
 
  @param roundRequest - what every round of the gather sends, prompt included
 
@@ -64,6 +292,10 @@ export type SharedRoundRequest<ValueT,> = Omit<
 
  @param causeOf - why each of those seats' latest answer could not be read,
  which picks its nudge (ledger P10)
+
+ @param askedInstead - for a seat whose answer ran away and was already
+ re-asked of another model, that model, which the round leaves out; absent
+ where no seat was
 
  @returns One outcome per seat re-asked, grouped by cause in
  `UNREADABLE_CAUSES` order
@@ -78,10 +310,12 @@ export async function runRecoveryRound<ValueT,>(
     roundRequest,
     unreadable,
     causeOf,
+    askedInstead,
   }: ForeignBorrowed<{
     readonly roundRequest: SharedRoundRequest<ValueT>;
     readonly unreadable: readonly RosterModelId[];
     readonly causeOf: ReadonlyMap<RosterModelId, UnreadableCause>;
+    readonly askedInstead?: ReadonlyMap<RosterModelId, RosterModelId>;
   }>,
 ): Promise<readonly RoundOutcome<ValueT>[]> {
   /**
@@ -159,6 +393,25 @@ export async function runRecoveryRound<ValueT,>(
    resolves as soon as every ask settles.
    */
   const recovered = (await Promise.all(byCause.map(async function recoverGroup(group,) {
+    // A RUNAWAY IS ASKED OF ANOTHER MODEL, one seat at a time within the group's window, each seat's own models in turn.
+    if (group.cause === 'runaway') {
+      return await allInInputOrder({
+        members: group.modelIds
+          .map(async function recoverSeat(seat,) {
+            /**
+             Model an earlier re-ask for this seat already went to, if one did.
+             */
+            const askedAlready = askedInstead?.get(seat,);
+            return await recoverRunaway<ValueT>({
+              roundRequest,
+              seat,
+              // Conditional spread keeps the model absent where no earlier re-ask went to another.
+              ...((askedAlready === undefined) ? {} : { askedInstead: askedAlready, }),
+              l: rl,
+            },);
+          },),
+      },);
+    }
     return await runGatherRound<ValueT>({
       ...roundRequest,
       l: rl,

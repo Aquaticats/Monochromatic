@@ -172,7 +172,11 @@ and each task sets it to its own name.
 - `cap-census`:
   re-reads the completion cap rule over pass-run logs before a launch,
   per seat and provider,
-  with how many capped calls ran to the cap and whether they carried content.
+  with how many capped calls ran to the cap and whether they carried content,
+  had no stream line to pair with,
+  or could each be the pair of two or more
+  (ambiguous,
+  B1070).
   Name log files or directories after `--`.
   Spends no quota.
 - `ledger-report`:

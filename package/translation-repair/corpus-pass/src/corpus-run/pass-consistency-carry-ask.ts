@@ -29,7 +29,10 @@ import {
   type ConsistencyWriterVoice,
   type ConsistencyWritersRecord,
 } from './pass-consistency-cache.ts';
-import { gatherThroughCache, } from './pass-consistency-gather.ts';
+import {
+  gatherThroughCache,
+  seatFieldsOf,
+} from './pass-consistency-gather.ts';
 import {
   choiceRecordOf,
   storedChoices,
@@ -112,6 +115,7 @@ function writersRecordOf(
     readonly quorum: number;
     readonly voices: readonly {
       readonly modelId: RosterModelId;
+      readonly seat?: RosterModelId;
       readonly value: TranslateReportWire;
     }[];
     readonly findings: readonly string[];
@@ -120,13 +124,11 @@ function writersRecordOf(
   return {
     kind: 'writers',
     quorum,
-    voices: voices.map(function voiceOf({
-      modelId,
-      value,
-    },): ConsistencyWriterVoice {
+    voices: voices.map(function voiceOf(voice,): ConsistencyWriterVoice {
       return {
-        seat: modelId,
-        translation: value.translation,
+        ...seatFieldsOf({ voice, },),
+        translation: voice.value
+          .translation,
       };
     },),
     findings,
@@ -196,6 +198,8 @@ export async function askCarryWriters(
   } = await gatherThroughCache({
     client,
     modelIds,
+    // THE WRITERS OF A CARRY ARE THE TRANSLATORS (`seats.translators`), not the late judges (ledger B1100).
+    role: 'translator',
     messages,
     signal,
     exchangeTimeoutMs,
@@ -228,6 +232,7 @@ export async function askCarryWriters(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     cache,
     key: consistencyKey({
       stage: 'writers',
@@ -325,6 +330,8 @@ export async function askCarryChoice(
   } = await gatherThroughCache({
     client,
     modelIds,
+    // THE CHOICE OF A CARRY IS MADE BY THE LATE JUDGES (`seats.lateJudges`) (ledger B1100).
+    role: 'late-judge',
     messages,
     signal,
     exchangeTimeoutMs,
@@ -334,6 +341,7 @@ export async function askCarryChoice(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     cache,
     key: consistencyKey({
       stage: runOff ? 'choice-run-off' : 'choice',

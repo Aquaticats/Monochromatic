@@ -9,6 +9,7 @@ import { archiveReplyVerdict, } from './archive-reply-verdict.ts';
 import { recordArchiveBlockNaturalness, } from './archive-block-naturalness.ts';
 import { compositeOfDisjointRevisions, } from './archive-composite-revision.ts';
 import { voicesAsRead, } from './archive-voices-as-read.ts';
+import type { ArchiveBlockReviewOutcome, } from './archive-block-review-outcome.ts';
 import { replacementCandidates, } from './archive-replacement-candidates.ts';
 import {
   archiveBlockSelectionEvidence,
@@ -43,25 +44,6 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  Evidence marker assigning distinct prior-decline selection responsibility.
  */
 const PRIOR_CORRECTION_DECLINE = 'archive correction slate declined';
-
-/**
- Settled review of one unclaimed archive block.
- */
-export type ArchiveBlockReviewOutcome = {
-  /**
-   Whether exact archived text stands or a different replacement was selected.
-   */
-  readonly kind: 'retained' | 'revised';
-  /**
-   Original or selected replacement text.
-   */
-  readonly text: string;
-  /**
-   Review and selection evidence.
-   */
-  readonly findings: readonly string[];
-};
-
 
 /**
  Reviews one archive-only block once and selects a correction when any voice rejects it.
@@ -194,6 +176,8 @@ export async function runArchiveBlockReviewStage(
     responseFormat: ARCHIVE_BLOCK_REVIEW_RESPONSE_FORMAT,
     validate: isArchiveBlockReviewWire,
     stage: 'archive-block-review',
+    // THE REVIEW IS ASKED OF THE RUN ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     l: reviewLog,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
@@ -205,6 +189,7 @@ export async function runArchiveBlockReviewStage(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
   },);
   /**
    Replies as the review reads them: a replacement that shows a reader nothing
@@ -444,6 +429,8 @@ export async function runArchiveBlockReviewStage(
     client,
     candidates,
     judgeModelIds: modelIds,
+    // THE CORRECTIONS ARE JUDGED BY THE REVIEW ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     sourceText,
     task: ARCHIVE_BLOCK_SELECTION_TASK,
     criteria: ARCHIVE_BLOCK_SELECTION_CRITERIA,

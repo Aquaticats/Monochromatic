@@ -6,8 +6,17 @@ import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import type {
+  ModelClient,
+  ReaskClaims,
+  ReaskMode,
+  ReaskSeat,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   type DisputedWording,
   disputedWordingFindings,
@@ -16,20 +25,8 @@ import {
   CONTRIBUTOR_AUTHORITY_FINDING,
   type DeclaredNamePair,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
-import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
-import {
-  attemptStageCall,
-  type HeardVoice,
-  markFailureWritten,
-  type StageVoice,
-} from '@monochromatic-dev/translation-repair-stage/ts';
-import { producedVolumeBound, } from './produced-volume-bound.ts';
-import {
-  buildTranslateRepairMessages,
-  isTranslateRepairWire,
-  TRANSLATE_REPAIR_RESPONSE_FORMAT,
-  type TranslateRepairWire,
-} from './translate-repair-wire.ts';
+import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage/ts';
+import { askAboutFindings, } from './translate-repair-ask.ts';
 import { requireComparedVerdict, } from './translate-floor-ground.ts';
 import { validateTranslatedSlice, } from './translate-validate.ts';
 import type { TranslateReportWire, } from './translate-wire.ts';
@@ -52,12 +49,6 @@ import { sameWording, } from './wording-key.ts';
 // could delete the archive.
 
 /**
- Stage label of the follow-up turn, which the exchange's own lines and the
- line a re-ask's failure under the caller's stop leaves both open with.
- */
-const REPAIR_STAGE = 'translate-repair';
-
-/**
  One translator's final text after validation, with what happened to it.
 
  @example
@@ -71,6 +62,12 @@ export type RepairOutcome = {
    absent when non-defensible contributor violation was not repaired.
    */
   readonly voice?: HeardVoice<TranslateReportWire>;
+
+  /**
+   Candidates of other models that the follow-up turn brought: a revision the author's reasoning runaway sent to another
+   translator, recorded under that model's own id beside the author's candidate (ledger B1100).
+   */
+  readonly extraVoices?: readonly HeardVoice<TranslateReportWire>[];
 
   /**
    What validation and the follow-up turn recorded, in scorecard-stable
@@ -117,6 +114,9 @@ function unrevisedFate({ contributorViolation, }: { readonly contributorViolatio
 
  @param priorMessages - exact messages that produced the candidate
 
+ @param reaskSeat - role, bench and shared record of the authors of the slate, which the re-ask of a reasoning runaway
+ reads (ledger B1079, B1080)
+
  @param signal - caller abort honored by the follow-up exchange
 
  @param perCallTimeoutMs - deadline for it
@@ -161,6 +161,7 @@ async function repairOneCandidate(
     declared = [],
     disputedWordings = [],
     priorMessages,
+    reaskSeat,
     signal,
     perCallTimeoutMs,
     l,
@@ -175,6 +176,7 @@ async function repairOneCandidate(
     readonly declared?: readonly DeclaredNamePair[];
     readonly disputedWordings?: readonly DisputedWording[];
     readonly priorMessages: readonly ChatMessage[];
+    readonly reaskSeat: ReaskSeat;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -282,74 +284,38 @@ async function repairOneCandidate(
     }`,
   );
   /**
-   Characters of finding text this answer has to address.
-
-   COUNTED BECAUSE THE REPAIR WIRE EXPLAINS ITSELF. Its `translatorNote` field
-   answers these findings, and the producing wire has no such field, so the
-   slice alone does not bound what a correct answer here can run to.
+   The author's answer to its own findings, or the answer of the model its runaway was re-asked of.
    */
-  const findingsChars = validation.findings
-    .join('',)
-    .length;
+  const answer = await askAboutFindings({
+    client,
+    voice,
+    findings: validation.findings,
+    priorMessages,
+    sourceText,
+    reaskSeat,
+    signal,
+    perCallTimeoutMs,
+    l: rl,
+  },);
+  /**
+   Model that gave the answer where it was not the author, the re-ask of the author's reasoning runaway having gone to
+   another translator; for an answer nothing could read, the model the re-ask went to.
+   */
+  const stood = answer.heard
+    ? answer.answeredBy
+    : ('askedInstead' in answer) ? answer.askedInstead : undefined;
 
   /**
-   The author's answer to its own findings.
+   The author, and the model that answered for it where another did, as a finding names them (ledger B1146).
    */
-  const answer = await (async function asked(): Promise<StageVoice<TranslateRepairWire>> {
-    try {
-      return await attemptStageCall({
-        client,
-        modelId: voice.modelId,
-        messages: buildTranslateRepairMessages({
-          priorMessages,
-          priorTranslation: voice.value
-            .translation,
-          findings: validation.findings,
-        },),
-        signal,
-        exchangeTimeoutMs: perCallTimeoutMs,
-        // THE SAME BOUND AS PRODUCING, over more material. This call re-renders
-        // the same slice, so the slice still bounds it; it also argues with the
-        // findings, which producing never had to do.
-        maxAnswerChars: producedVolumeBound({
-          materialChars: sourceText.length + findingsChars,
-        },),
-        responseFormat: TRANSLATE_REPAIR_RESPONSE_FORMAT,
-        validate: isTranslateRepairWire,
-        stage: REPAIR_STAGE,
-        l: rl,
-      },);
-    }
-    catch (error) {
-      // A FAILURE OF THE RE-ASK'S OWN IS WRITTEN HERE, inside the member, as
-      // it ends. `attemptStageCall` rethrows unwritten once the caller has
-      // aborted, and `repairInvalidCandidates` throws only the first failure
-      // in input order, so a deadline or a provider's refusal another seat's
-      // re-ask ended in as the stop arrived would reach no line (ledger B365
-      // left this open). Rendered as the round's seats are (`askOnce` in
-      // `stage-round.ts`), so a refusal keeps its status and the provider's
-      // words; the caller's own reason is no failure of this seat and is not
-      // written. Lines land in the order the re-asks end.
-      if (signal.aborted && (error !== signal.reason)) {
-        rl.warn(
-          `${REPAIR_STAGE} ${voice.modelId}: ${exchangeFailureLogText({ error, },)}, as the caller stopped the repair`,
-        );
-        // MARKED AS WRITTEN, so the layers this failure passes through on its
-        // way out, the twin memo around a consolidation buy, the translate
-        // attempt's abort line and the overlapped map, leave its words to
-        // this line (ledger B412).
-        markFailureWritten({ error, },);
-      }
-      throw error;
-    }
-  })();
+  const named = (stood === undefined) ? voice.modelId : `${voice.modelId} -> ${stood}`;
   if (!answer.heard) {
-    rl.warn(`${voice.modelId} gave no usable answer to its findings, so ${fate}`,);
+    rl.warn(`${named} gave no usable answer to its findings, so ${fate}`,);
     return {
       ...((contributorViolation) ? {} : { voice, }),
       findings: [
         ...found,
-        `translate-repair-unheard (${voice.modelId})`,
+        `translate-repair-unheard (${named})`,
       ],
     };
   }
@@ -363,12 +329,12 @@ async function repairOneCandidate(
     translatorNote: explanation,
   } = answer.value;
   if (resolution !== 'revised') {
-    rl.warn(`${voice.modelId} answered ${resolution} to its findings (${explanation}), so ${fate}`,);
+    rl.warn(`${named} answered ${resolution} to its findings (${explanation}), so ${fate}`,);
     return {
       ...((contributorViolation) ? {} : { voice, }),
       findings: [
         ...found,
-        `translate-repair-${resolution} (${voice.modelId}): ${explanation}`,
+        `translate-repair-${resolution} (${named}): ${explanation}`,
       ],
     };
   }
@@ -402,13 +368,37 @@ async function repairOneCandidate(
   // findings and did not, so nothing says the new text is better, while the
   // original is at least what it produced with the whole sheet in front of it.
   if (rechecked.kind === 'invalid') {
-    rl.warn(`${voice.modelId}: revision still fails the publication rule and is not taken, so ${fate}`,);
+    rl.warn(`${named}: revision still fails the publication rule and is not taken, so ${fate}`,);
     return {
       ...((contributorViolation) ? {} : { voice, }),
       findings: [
         ...found,
         ...revision.findings,
-        `translate-repair-unresolved (${voice.modelId}): ${explanation}`,
+        `translate-repair-unresolved (${named}): ${explanation}`,
+      ],
+    };
+  }
+  /**
+   Model that gave the revision where it was not the author, as the answer carries it.
+   */
+  const { answeredBy, } = answer;
+  if (answeredBy !== undefined) {
+    // THE REVISION IS THE OTHER MODEL'S OWN CANDIDATE (ledger B1100, the owner's answer "Other model, own name"): it goes
+    // on the slate under that model's id, where its ballot for it weighs half as for any text its author judges, and the
+    // author's candidate stays as it was written (dropped only where it respells a contributor, which no defence keeps).
+    rl.info(`translate-repair: ${answeredBy} revised the candidate of ${voice.modelId} as a candidate of its own`,);
+    return {
+      ...((contributorViolation) ? {} : { voice, }),
+      extraVoices: [
+        {
+          modelId: answeredBy,
+          value: { translation: revision.translation, },
+        },
+      ],
+      findings: [
+        ...found,
+        ...revision.findings,
+        `translate-repair-revised-by-another (${voice.modelId} -> ${answeredBy})`,
       ],
     };
   }
@@ -449,6 +439,16 @@ async function repairOneCandidate(
  that won, and the two are different texts
 
  @param priorMessages - exact messages every translator was given
+
+ @param role - role of the seats that wrote the candidates, which the re-ask of an author's reasoning runaway reads to
+ ask a model the role may take (ledger B1079, B1100): the translator role for the translate lane, the writer role for
+ the consolidation
+
+ @param reask - whose answer the re-ask of an author's reasoning runaway may give, from the launch's `StageSettings`;
+ required, with no default, so that a measurement cannot be asked in the pass's mode (ledger B1141)
+
+ @param reaskClaims - record of the models asked for the seats of this question, the same one the gather that produced
+ the candidates used, so a model that took a runaway seat there cannot give a second voice here (ledger B1100)
 
  @param signal - caller abort honored by every exchange
 
@@ -495,6 +495,9 @@ export async function repairInvalidCandidates(
     declared = [],
     disputedWordings = [],
     priorMessages,
+    role,
+    reask,
+    reaskClaims,
     signal,
     perCallTimeoutMs,
     l,
@@ -509,6 +512,9 @@ export async function repairInvalidCandidates(
     readonly declared?: readonly DeclaredNamePair[];
     readonly disputedWordings?: readonly DisputedWording[];
     readonly priorMessages: readonly ChatMessage[];
+    readonly role: SeatRole;
+    readonly reask: ReaskMode;
+    readonly reaskClaims: ReaskClaims;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -517,6 +523,13 @@ export async function repairInvalidCandidates(
   readonly voices: readonly HeardVoice<TranslateReportWire>[];
   readonly findings: readonly string[];
 }> {
+  /**
+   The models that wrote the candidates, each seated on this slice.
+   */
+  const authors = voices.map(function authorOf(voice,): RosterModelId {
+    return voice.modelId;
+  },);
+
   /**
    One outcome per heard voice.
    */
@@ -533,6 +546,17 @@ export async function repairInvalidCandidates(
         declared,
         disputedWordings,
         priorMessages,
+        // AN AUTHOR IS ASKED ABOUT ITS FINDINGS IN THE ROLE THE CALLER GIVES, with the authors of the slate as the bench
+        // and the record the gather that produced them used, so a runaway author is re-asked of a model its role may
+        // take that wrote none of the candidates and took no seat of the question (ledger B1079, B1100). Without a seat
+        // the re-ask asks no other model at all.
+        reaskSeat: {
+          role,
+          bench: authors,
+          claims: reaskClaims,
+          // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the author it scores.
+          reask,
+        },
         signal,
         perCallTimeoutMs,
         l,
@@ -544,7 +568,10 @@ export async function repairInvalidCandidates(
     voices: outcomes.flatMap(function toVoice(
       outcome,
     ): readonly HeardVoice<TranslateReportWire>[] {
-      return (outcome.voice === undefined) ? [] : [outcome.voice,];
+      return [
+        ...((outcome.voice === undefined) ? [] : [outcome.voice,]),
+        ...(outcome.extraVoices ?? []),
+      ];
     },),
     findings: outcomes.flatMap(function toFindings(outcome,): readonly string[] {
       return outcome.findings;

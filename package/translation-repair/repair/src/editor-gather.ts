@@ -192,6 +192,8 @@ export async function gatherEditorProposals(
     responseFormat: EDITOR_RESPONSE_FORMAT,
     validate: isEditorReportWire,
     stage: 'editor',
+    // THE EDITORS ARE A HAND-PICKED BENCH OF THE WRITERS the editor calibration seats in that chair (ledger B1100).
+    role: 'editor',
     // Retries stop at QUORUM, which on this three-editor roster is two voices.
     // This stage waited for every voice from 2026-08-12 until the user removed
     // that option on 2026-08-15: one model degrading for a day made every
@@ -203,6 +205,7 @@ export async function gatherEditorProposals(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     // A launch that pins the editor bench's rotation (a fixture or a calibration that must seat the same editors whatever the
     // sheet says) hands the seat down in its settings; the prompt decides otherwise.
     ...((stageSettings.editorBenchStart === undefined) ? {} : { benchStart: stageSettings.editorBenchStart, }),

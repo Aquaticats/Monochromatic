@@ -38,9 +38,14 @@ import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage/ts
  */
 export type ResolvedReply = {
   /**
-   Rewriter that sent the reply.
+   Rewriter that wrote the reply: the model asked in place of a runaway seat when one answered for it (ledger B1142).
    */
   readonly modelId: RosterModelId;
+
+  /**
+   Seat the reply answered for, set only where another model than the seat's gave it.
+   */
+  readonly seat?: RosterModelId;
 
   /**
    Operations the reply's rewrites bound to, and what the resolver dropped
@@ -74,6 +79,11 @@ export type AppliedReply = {
    Rewriter whose operations these were.
    */
   readonly modelId: RosterModelId;
+
+  /**
+   Seat the reply answered for, set only where another model than the seat's gave it.
+   */
+  readonly seat?: RosterModelId;
 
   /**
    The rewriter's whole-slice proposal, absent where no operation applied.
@@ -213,6 +223,8 @@ export function resolveReply(
     },);
   return {
     modelId: voice.modelId,
+    // Conditional spread keeps the seat absent where the seat's own model answered.
+    ...((voice.seat === undefined) ? {} : { seat: voice.seat, }),
     resolution,
     passed: judged.filter(function wasPassed(outcome,): outcome is PatchOperation {
       return (typeof outcome) !== 'string';
@@ -346,6 +358,8 @@ export function applyReply(
   if (passed.length === 0) {
     return {
       modelId: reply.modelId,
+      // Conditional spread keeps the seat absent where the seat's own model answered.
+      ...((reply.seat === undefined) ? {} : { seat: reply.seat, }),
       candidates: [],
       rejections: [],
     };
@@ -366,6 +380,8 @@ export function applyReply(
   },);
   return {
     modelId: reply.modelId,
+    // Conditional spread keeps the seat absent where the seat's own model answered.
+    ...((reply.seat === undefined) ? {} : { seat: reply.seat, }),
     candidates: (patch.applied
       .length
       === 0)
@@ -406,7 +422,10 @@ export function applyReply(
  const ordered = inRosterOrder({ replies, roster: refinerModelIds, },);
  ```
  */
-export function inRosterOrder<ReplyT extends { readonly modelId: RosterModelId; },>(
+export function inRosterOrder<ReplyT extends {
+  readonly modelId: RosterModelId;
+  readonly seat?: RosterModelId
+},>(
   {
     replies,
     roster,
@@ -419,8 +438,9 @@ export function inRosterOrder<ReplyT extends { readonly modelId: RosterModelId; 
     left,
     right,
   ): number {
-    return roster.indexOf(left.modelId,)
-      - roster.indexOf(right.modelId,);
+    // A REPLY STANDS AT THE SEAT IT ANSWERED FOR (ledger B1142): the model that wrote it may be on no roster.
+    return roster.indexOf(left.seat ?? left.modelId,)
+      - roster.indexOf(right.seat ?? right.modelId,);
   },);
 }
 

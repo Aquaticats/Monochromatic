@@ -19,7 +19,10 @@ import {
   isUnreadableReason,
   type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage/ts';
+import {
+  type HeardVoice,
+  seatOfVoice,
+} from '@monochromatic-dev/translation-repair-stage/ts';
 
 //region Editor candidate assembly
 // Turning heard editor voices into comparable candidates, and turning those
@@ -117,8 +120,9 @@ export function buildEditorCandidates(
     left,
     right,
   ) {
-    return editorModelIds.indexOf(left.modelId,)
-      - editorModelIds.indexOf(right.modelId,);
+    // A VOICE STANDS AT THE SEAT IT ANSWERED FOR (ledger B1142): the model that wrote it may be on no roster.
+    return editorModelIds.indexOf(seatOfVoice({ voice: left, },),)
+      - editorModelIds.indexOf(seatOfVoice({ voice: right, },),);
   },);
 
   /**

@@ -102,6 +102,12 @@ export type ConsistencyWriterVoice = {
   readonly seat: string;
 
   /**
+   Model that wrote the paragraph for the seat, set only where the re-ask of the seat's reasoning runaway went to another
+   model (ledger B1142).
+   */
+  readonly answeredBy?: string;
+
+  /**
    The paragraph the seat wrote.
    */
   readonly translation: string;

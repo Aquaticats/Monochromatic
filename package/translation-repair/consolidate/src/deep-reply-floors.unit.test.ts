@@ -174,6 +174,7 @@ await describe({
                 },
               },),
               refinerModelIds: [DEEP_VOICE, ORDINARY_VOICE,],
+              judgeRole: 'late-judge',
               judgeModelIds: [
                 DEEP_VOICE,
                 ORDINARY_VOICE,

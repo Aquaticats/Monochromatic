@@ -159,9 +159,11 @@ export function scriptedClient(
         modelId: request.modelId,
         prompt,
       },)) {
+        // A CUT THAT HOLDS CONTENT, not a length stop with no content: that one is a reasoning runaway, which the
+        // recovery round asks of another model, and the cases using this fixture need the seat to stay unreadable.
         return {
           kind: 'schema-mismatch',
-          rawText: '',
+          rawText: '{"verdict":',
           reason: 'truncated-completion',
           detail: 'provider reported a truncating completion (model stopped with finish_reason=length)',
         };

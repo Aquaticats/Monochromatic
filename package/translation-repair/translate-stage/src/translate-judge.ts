@@ -13,7 +13,10 @@ import {
   translatedSlateBreakEvidence,
   translatedSlateCriteria,
 } from './translated-slate-criteria.ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   blankAgainst,
   BlankSelectionError,
@@ -65,6 +68,9 @@ import type {
 
  @param judgeModelIds - whole roster selection seats, translators included;
  a ballot for the judge's own rendering counts for less
+
+ @param role - role the judges stand in, which their caller seats them in (the wide judges in the translate lane, the
+ late judges in the consolidation slate), with no default (ledger B1079)
 
  @param sourceText - original slice text
 
@@ -151,6 +157,7 @@ export async function judgeTranslateSlate(
     client,
     produced,
     judgeModelIds,
+    role,
     sourceText,
     incumbentText,
     incumbentKind,
@@ -176,6 +183,7 @@ export async function judgeTranslateSlate(
     readonly client: ModelClient;
     readonly produced: ProducedSlate;
     readonly judgeModelIds: readonly RosterModelId[];
+    readonly role: SeatRole;
     readonly sourceText: string;
     readonly incumbentText: string;
     readonly incumbentKind: IncumbentKind;
@@ -417,6 +425,7 @@ export async function judgeTranslateSlate(
     client,
     candidates: rotated,
     judgeModelIds,
+    role,
     sourceText,
     // WHAT A DECLINE ACTUALLY COSTS HERE, which is not what the shared sheet
     // says by default. Judges are told declining is safe because the caller

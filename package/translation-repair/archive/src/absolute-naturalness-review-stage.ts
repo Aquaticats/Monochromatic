@@ -21,6 +21,7 @@ import {
 } from '@monochromatic-dev/translation-repair-adjudication/ts';
 import {
   type FanOutMode,
+  answererOf,
   runWindowedRounds,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
@@ -290,11 +291,14 @@ export async function reviewAbsoluteNaturalness(
       },);
     },
     stage: 'absolute-naturalness-review',
+    // THE REVIEW IS ASKED OF THE RUN ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     l: rl,
     quorumOver,
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
   },);
@@ -320,8 +324,9 @@ export async function reviewAbsoluteNaturalness(
      Validated structured reviewer reply.
      */
     const reply = voice.value;
+    // THE REVIEW IS THE MODEL'S THAT WROTE IT (ledger B1142): the model asked in place of a runaway seat, not the seat.
     return {
-      modelId: outcome.modelId,
+      modelId: answererOf({ outcome, },),
       status: reply.isAcceptable ? 'acceptable' : 'unacceptable',
       findings: reply.findings,
       reason: reply.assessment,

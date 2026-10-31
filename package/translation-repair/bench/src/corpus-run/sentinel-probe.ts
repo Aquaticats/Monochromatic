@@ -35,7 +35,10 @@ if (import.meta.main)
         models: RUN_MODELS,
         perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
         now: monotonicMs,
-        stageSettings: readStageSettings({ env: process.env, },),
+        stageSettings: readStageSettings({
+          env: process.env,
+          reask: 'measured-model',
+        },),
       },);
     },
   },);

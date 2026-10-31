@@ -15,6 +15,7 @@ import {
   ModelNotServedError,
   NeuralWattModelNotServedError,
   OpenRouterModelNotServedError,
+  type ReaskSeat,
   SyntheticModelNotServedError,
   UnnameableToolError,
   XiaomiModelNotServedError,
@@ -65,6 +66,12 @@ export type StageVoice<ValueT,> =
      Validated reply value.
      */
     readonly value: ValueT;
+
+    /**
+     Model that gave the reply, set only where the re-ask of a reasoning runaway went to another model than the one
+     asked (ledger B1100); absent when the model asked answered.
+     */
+    readonly answeredBy?: RosterModelId;
   }
     | {
     /**
@@ -126,6 +133,13 @@ export type StageVoice<ValueT,> =
      not that its shape was wrong.
      */
       readonly unreadable: UnreadableCause;
+
+    /**
+     Model an earlier re-ask for this seat already went to, when its answer ran away and another model was asked
+     (ledger B1072, B1074): the recovery round leaves it out, so it asks the next model and does not replay the first
+     model's claimed reply as a second voice. Absent where no other model was asked.
+     */
+      readonly askedInstead?: RosterModelId;
     };
 
 /**
@@ -342,6 +356,10 @@ export function isRequestFault({ error, }: { readonly error: unknown; },): boole
  seat on the bench; absent on a stage that has none, which loses that
  seat's voice rather than asking it for prose
 
+ @param reaskSeat - role and bench of the gather this exchange belongs to, which the re-ask of a reasoning runaway reads
+ to leave out the models the role is held out of and the models seated on the question; absent where the caller
+ names none
+
  @returns Voice as data; a lost voice never throws unless the caller aborted, the route refused the request as
  malformed, or every provider read dry
 
@@ -382,6 +400,7 @@ export async function attemptStageCall<ValueT,>(
     stage,
     l,
     decision,
+    reaskSeat,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
     readonly modelId: RosterModelId;
@@ -394,6 +413,7 @@ export async function attemptStageCall<ValueT,>(
     readonly stage: string;
     readonly l: Logger;
     readonly decision?: StageDecision;
+    readonly reaskSeat?: ReaskSeat;
   }>,
 ): Promise<StageVoice<ValueT>> {
   // A DECISION SEAT NEVER SEES THE SHEET: it is asked the stage's typed
@@ -424,6 +444,8 @@ export async function attemptStageCall<ValueT,>(
       ...((maxAnswerChars === undefined) ? {} : { maxAnswerChars, }),
       responseFormat,
       validate,
+      // Conditional spread keeps the seat absent for a caller that names none.
+      ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
     },);
     if (outcome.kind !== 'ok') {
       l.warn(`${stage} ${modelId}: ${lostVoiceCause({ outcome, },)}, voice lost`,);
@@ -438,16 +460,25 @@ export async function attemptStageCall<ValueT,>(
       // here. CONFIRMED LIVE on the first recovery rounds (two calibration arms
       // of 2026-08-26): all four re-asked voices were `schema-mismatch`, three
       // came back readable, and none of the thirteen grace cuts was re-asked.
+      /**
+       Model the seat's re-ask went to, when it went to another than the seat's own.
+       */
+      const askedModelId = outcome.reaskFailure
+        ?.askedModelId;
       return {
         heard: false,
         answered: true,
         unreachable: false,
         unreadable: unreadableCauseOf({ outcome, },),
+        // Conditional spread keeps the model absent where the re-ask went to none or to the seat's own model.
+        ...((askedModelId === undefined) ? {} : { askedInstead: askedModelId, }),
       };
     }
     return {
       heard: true,
       value: outcome.value,
+      // Conditional spread keeps the model absent where the model asked answered.
+      ...((outcome.answeredBy === undefined) ? {} : { answeredBy: outcome.answeredBy, }),
     };
   }
   catch (error) {

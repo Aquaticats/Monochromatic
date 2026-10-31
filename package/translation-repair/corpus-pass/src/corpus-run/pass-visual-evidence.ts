@@ -187,6 +187,9 @@ export async function readPassVisualEvidence(
       readerModelIds,
       cache,
       priorReadings,
+      // THE PASS ASKS ANOTHER READER OF A PICTURE THE LENGTH LIMIT CUT (ledger B1141): this step runs only inside the pass,
+      // and a measurement of readers calls `readPastRefusal` itself with the mode of its own launch.
+      reask: 'other-model',
       signal,
       perCallTimeoutMs,
       l,

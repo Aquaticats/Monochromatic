@@ -707,6 +707,10 @@ const ALLOWED_BLIND_SETS: ReadonlyMap<string, string> = new Map<string, string>(
     'a later round\'s unreadable answer of a seat replaces the earlier on purpose, and a seat that then answers readably is deleted',
   ],
   [
+    'stage/stage-quorum.ts#collectRounds: askedInstead.set(outcome.modelId,...)',
+    'a later round\'s answer of a seat replaces the earlier on purpose, and a seat whose latest answer was re-asked of no other model is deleted',
+  ],
+  [
     'stage/stage-round.ts#askOnce: arrived.set(position,...)',
     'each position is asked once, and the abandoned outcome is written only where the answer did not arrive',
   ],

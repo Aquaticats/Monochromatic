@@ -17,6 +17,12 @@ export type ConsistencyVoice = ConsistencyBallot & {
    Seat that answered.
    */
   readonly seat: string;
+
+  /**
+   Model that answered for the seat, set only where the re-ask of the seat's reasoning runaway went to another model
+   (ledger B1142); the record stays under the seat, so a stored answer still fits the bench it was asked of.
+   */
+  readonly answeredBy?: string;
 };
 
 /**

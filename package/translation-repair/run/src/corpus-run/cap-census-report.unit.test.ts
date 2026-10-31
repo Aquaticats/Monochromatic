@@ -189,7 +189,7 @@ await describe({
                 + 'lines left out for a stamp the logger did not write: 0',
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads nothing (too few calls)`,
               `  hyper: 4 calls, p99 ${String(COMPLETION_CAP[SEAT],)}; since the caps 4 calls, 1 at the cap (25.00%): `
-                + '1 with content, 0 with none, 0 unpaired',
+                + '1 with content, 0 with none, 0 unpaired, 0 ambiguous',
               CAP_CENSUS_CLOSING_NOTE,
             ],);
           },
@@ -433,7 +433,7 @@ await describe({
                 + 'lines left out for a stamp the logger did not write: 0',
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads nothing (too few calls)`,
               `  hyper: 2 calls, p99 ${String(COMPLETION_CAP[SEAT],)}; since the caps 2 calls, 1 at the cap (50.00%): `
-                + '1 with content, 0 with none, 0 unpaired',
+                + '1 with content, 0 with none, 0 unpaired, 0 ambiguous',
               CAP_CENSUS_CLOSING_NOTE,
               '',
             ].join('\n',),);

@@ -24,6 +24,10 @@ import type { TrustedRecord, } from './reader-measure-score.ts';
 // THE CANDIDATE IS ASKED THROUGH THE PRODUCTION READER STAGE (`readPastRefusal`),
 // so a refusal is re-asked and a reply the length limit cut is asked once more,
 // exactly as in a pass; what the candidate would do in a pass is what is measured.
+//
+// NO BENCH IS NAMED, ON PURPOSE (ledger B1100): a reading cut by the length limit is then asked of the candidate itself
+// and of no other model, so a rival's reading is never scored as the candidate's. A measurement must measure the
+// candidate.
 
 /**
  A picture on disk.

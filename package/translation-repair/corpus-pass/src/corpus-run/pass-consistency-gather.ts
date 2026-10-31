@@ -7,6 +7,7 @@ import {
 import type {
   JsonSchemaResponseFormat,
   ModelClient,
+  ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
@@ -14,9 +15,13 @@ import type { SliceCache, } from '@monochromatic-dev/translation-repair-translat
 import {
   gatherStageVoices,
   type HeardVoice,
+  seatOfVoice,
   type StageRosterRepeatError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { ConsistencyCacheValue, } from './pass-consistency-cache.ts';
 
 //region Pass consistency gather
@@ -46,6 +51,36 @@ type StoredGather = {
    */
   readonly findings: readonly string[];
 };
+
+/**
+ The seat a heard voice answered for and, beside it, the model that answered when that is another model, as a stored
+ record keeps them (ledger B1142): the record stays under the seat, so it still fits the bench it was asked of, and the
+ artifact names the model that cast the ballot.
+
+ @param voice - heard voice of the gather
+
+ @returns Seat, and the answering model only where it is not the seat's own
+
+ @example
+ ```ts
+ const { seat, } = seatFieldsOf({ voice, },);
+ ```
+ */
+export function seatFieldsOf(
+  { voice, }: { readonly voice: {
+    readonly modelId: RosterModelId;
+    readonly seat?: RosterModelId
+  }; },
+): {
+  readonly seat: RosterModelId;
+  readonly answeredBy?: RosterModelId
+} {
+  return {
+    seat: seatOfVoice({ voice, },),
+    // Conditional spread keeps the model absent where the seat's own model answered.
+    ...((voice.seat === undefined) ? {} : { answeredBy: voice.modelId, }),
+  };
+}
 
 /**
  Whether the voices of a stored gather are ones a fresh gather over this bench
@@ -102,6 +137,9 @@ export function recordFits(
 
  @param modelIds - bench asked, in roster order
 
+ @param role - role of that bench, which the re-ask of a reasoning runaway reads to ask a model the role may take; the
+ caller names it, since it knows the bench it hands in (ledger B1100)
+
  @param messages - sheet every seat reads
 
  @param signal - entry deadline and caller abort
@@ -117,6 +155,8 @@ export function recordFits(
  @param stage - stage label for logging and findings
 
  @param graceMs - window a straggler gets after quorum
+
+ @param reask - whose answer the re-ask of a reasoning runaway may give, from the launch's `StageSettings` (ledger B1141)
 
  @param cache - store an earlier answer is read from and a settled one kept in
 
@@ -134,13 +174,14 @@ export function recordFits(
 
  @example
  ```ts
- const { record, resumed, } = await gatherThroughCache({ client, modelIds, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage, graceMs, cache, key, readStored, recordOf, l, },);
+ const { record, resumed, } = await gatherThroughCache({ client, modelIds, role, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage, graceMs, reask, cache, key, readStored, recordOf, l, },);
  ```
  */
 export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
   {
     client,
     modelIds,
+    role,
     messages,
     signal,
     exchangeTimeoutMs,
@@ -149,6 +190,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     validate,
     stage,
     graceMs,
+    reask,
     cache,
     key,
     readStored,
@@ -157,6 +199,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
   }: {
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
+    readonly role: SeatRole;
     readonly messages: readonly ChatMessage[];
     readonly signal: AbortSignal;
     readonly exchangeTimeoutMs: number;
@@ -165,6 +208,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     readonly validate: (value: unknown,) => value is WireT;
     readonly stage: string;
     readonly graceMs: number;
+    readonly reask: ReaskMode;
     readonly cache: SliceCache<ConsistencyCacheValue>;
     readonly key: string;
     readonly readStored: (value: ConsistencyCacheValue,) => readonly RecordT[];
@@ -239,8 +283,11 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     responseFormat,
     validate,
     stage,
+    // THE ROLE IS THE CALLER'S, which knows the bench it hands in (ledger B1100).
+    role,
     l: gl,
     graceMs,
+    reask,
   },);
   /**
    What this gather comes to, voices in roster order so a stored record does not depend on arrival.
@@ -252,7 +299,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
         left,
         right,
       ): number {
-        return modelIds.indexOf(left.modelId,) - modelIds.indexOf(right.modelId,);
+        return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
       },),
     findings: gather.findings,
   },);

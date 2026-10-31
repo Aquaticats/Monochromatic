@@ -44,7 +44,10 @@ if (import.meta.main)
         editorModelIds: RUN_MODELS.editorModelIds,
         perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
         log: tagged({ tag: 'translate-probe', },),
-        stageSettings: readStageSettings({ env: process.env, },),
+        stageSettings: readStageSettings({
+          env: process.env,
+          reask: 'measured-model',
+        },),
       },);
     },
   },);

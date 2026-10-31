@@ -39,6 +39,8 @@ export function scriptedStageSettingsWaiting({ graceMs, }: { readonly graceMs: n
       source: 'round-window',
     },
     contestLedger: { kind: 'unkept', },
+    // A SCRIPTED CASE IS A RUN, NOT A MEASUREMENT: a case about the measurement's mode names its own.
+    reask: 'other-model',
   };
 }
 

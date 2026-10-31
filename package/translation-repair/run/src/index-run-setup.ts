@@ -74,8 +74,6 @@ export {
   RUN_WIDE_SEATS,
   RUN_WRITERS,
   type RunRepairModels,
-  TRANSLATOR_DROPPED,
-  WRITER_UNMEASURED,
 } from './corpus-run/run-config.ts';
 export {
   RUN_CALL_CONFIG,

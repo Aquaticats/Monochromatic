@@ -112,7 +112,10 @@ async function main({ line, }: { readonly line: CommandLineOf<'rendering-audit-s
     // for the same reason the digest is: a rebuild mid-run would otherwise
     // stamp a build that never ran.
     runnerClosure: await readRunnerClosure({ entryPath: line.script, },),
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({
+      env: process.env,
+      reask: 'measured-model',
+    },),
   },);
 }
 

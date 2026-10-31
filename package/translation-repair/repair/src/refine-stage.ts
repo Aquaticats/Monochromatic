@@ -17,6 +17,7 @@ import type { ModelClient, } from '@monochromatic-dev/translation-repair-provide
 import type {
   EditableEnvelope,
   RosterModelId,
+  SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { buildRefineMessages, } from './refine-prompt.ts';
 import {
@@ -121,6 +122,9 @@ export type RefineStageResult = {
 
  @param judgeModelIds - whole roster selection draws judges from
 
+ @param judgeRole - role the judges of the slate stand in, which the caller seats them in (the wide judges in the repair
+ lane, the late judges in the consolidation polish), with no default (ledger B1079)
+
  @param sourceText - original chunk text, the faithfulness anchor
 
  @param repairedText - `T1`, the text refinement may improve
@@ -179,6 +183,7 @@ export async function runRefineStage(
     client,
     refinerModelIds,
     judgeModelIds,
+    judgeRole,
     sourceText,
     repairedText,
     envelopes,
@@ -199,6 +204,7 @@ export async function runRefineStage(
     readonly client: ModelClient;
     readonly refinerModelIds: readonly RosterModelId[];
     readonly judgeModelIds: readonly RosterModelId[];
+    readonly judgeRole: SeatRole;
     readonly sourceText: string;
     readonly repairedText: string;
     readonly envelopes: readonly EditableEnvelope[];
@@ -270,6 +276,8 @@ export async function runRefineStage(
     responseFormat: REFINE_RESPONSE_FORMAT,
     validate: isRefineReportWire,
     stage: 'refiner',
+    // THE REFINERS ARE A HAND-PICKED BENCH OF THE WRITERS the editor calibration seats in that chair (ledger B1100).
+    role: 'refiner',
     // Retries stop at QUORUM, which on this three-refiner roster is two voices.
     // See the same note in `repair-editor-stage.ts`: waiting for every voice
     // let one degraded model stall every gather that seated it, and the user
@@ -280,6 +288,7 @@ export async function runRefineStage(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     l,
   },);
 
@@ -451,6 +460,8 @@ export async function runRefineStage(
     perCallTimeoutMs,
     l,
     stageSettings,
+    // LAST, so the context spread cannot replace the role of the bench the caller seats (ledger B1100).
+    role: judgeRole,
   },);
   /**
    This round's ballots, recorded before any branch so a decline and a

@@ -1946,12 +1946,6 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SCANNER,
   },
-  'slice-reading/image-reading-stage.ts#readImageAsset': {
-    tests: 1,
-    why: 'a reply of no characters, which the log names an empty reply; one that shows a reader nothing '
-      + 'and is not empty is refused as too short by `readingMakesSense`, and either way the picture '
-      + 'stays unread',
-  },
   'markup/inline-container-tags.ts#scan': {
     tests: 1,
     why: SCANNER,

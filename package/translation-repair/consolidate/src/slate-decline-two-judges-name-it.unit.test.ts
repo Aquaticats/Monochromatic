@@ -300,6 +300,7 @@ async function judgedRejecting(
       client,
       produced: withLanes,
       judgeModelIds,
+      role: 'late-judge',
       sourceText: SOURCE,
       incumbentText: '',
       incumbentKind: 'absent',

@@ -45,7 +45,10 @@ function main({ line, }: { readonly line: CommandLineOf<'producer-calibrate'>; }
       },);
     },
     readHead: readHeadSha,
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({
+      env: process.env,
+      reask: 'measured-model',
+    },),
   },);
 }
 

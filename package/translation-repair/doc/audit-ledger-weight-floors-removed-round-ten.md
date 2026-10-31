@@ -23,7 +23,7 @@ Round 12,
 the third round of the follow-up,
 is kept in this file at B952.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md),
 which lists every file of this record.
 
 ## Round 10 at a glance

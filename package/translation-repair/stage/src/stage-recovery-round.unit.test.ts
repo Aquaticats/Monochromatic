@@ -194,6 +194,8 @@ async function recoverOver(
       stage: 'gate',
       l: levelCapturingLogger({ lines, },),
       graceMs: HANG_STOP_MS,
+      // A ROUND NAMES ITS SEAT (ledger B1079): the roster-wide role with no bench, which this case was written under.
+      reaskSeat: { role: 'roster', bench: [], },
     },
     unreadable,
     causeOf,

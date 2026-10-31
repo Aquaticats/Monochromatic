@@ -24,7 +24,7 @@ The rulings are quoted in
 and referenced from
 [shipping and the archive](design-commitments-shipping-and-the-archive.md).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md),
 which lists every file of this record.
 
 ## B900: the panel tally asked for a summed weight of three, so a unanimous panel of two decided nothing

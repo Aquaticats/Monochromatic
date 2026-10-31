@@ -191,6 +191,7 @@ await describe({
         };
         const outcome = await decideBestCandidate({
           client,
+          role: 'wide-judge',
           candidates: CANDIDATES,
           judgeModelIds: [
             ...CHAT_JUDGES,

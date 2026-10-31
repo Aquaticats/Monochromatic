@@ -208,6 +208,9 @@ async function produceAndJudgeOnce(
           client: input.client,
           produced,
           judgeModelIds: input.judgeModelIds,
+          // THE TRANSLATE LANE SEATS THE WIDE JUDGES (`selectJudges`); the consolidation slate seats the late judges
+          // where it builds its own.
+          role: 'select-judge',
           sourceText: input.sourceText,
           incumbentText: input.incumbentText,
           incumbentKind: input.incumbentKind,

@@ -2,11 +2,15 @@ import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import type {
-  JsonSchemaResponseFormat,
-  ModelClient,
+import {
+  createReaskClaims,
+  type JsonSchemaResponseFormat,
+  type ModelClient,
+  type ReaskClaims,
+  type ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import { heardVoiceOf, } from './stage-answerer.ts';
 import {
   askingWindow,
   type FanOutMode,
@@ -39,7 +43,10 @@ import {
   RUN_SEATS,
   type SeatTally,
 } from './seat-tally.ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 //region Stage quorum
 // A stage that loses voices retries exactly the lost ones on fresh
@@ -161,6 +168,17 @@ type RoundsOutcome<ValueT,> = {
  prompt's own, which a launch pins in its `StageSettings` so that the seats
  asked move with no sheet text (`rotatedBench`); absent in production
 
+ @param role - role the stage's seats stand in, which the re-ask of a reasoning runaway reads to leave out the models
+ their cards hold out of it (ledger B1074); required, since a caller that left it out was asked as the roster-wide
+ role and so re-asked a runaway of exactly the models its card drops from the seat (ledger B1079)
+
+ @param reask - whose answer the re-ask of a reasoning runaway may give, taken from the launch's `StageSettings` and
+ required, with no default, so that a measurement cannot be asked in the pass's mode (ledger B1141)
+
+ @param reaskClaims - record of the models asked for the seats of this question, handed in by a caller that goes on to
+ ask more seats of the same question (the repair of an invalid candidate) so that one model gives at most one voice
+ across both steps (ledger B1100); absent, the gather makes a record for its own seats
+
  @returns Heard voices plus quorum verdict and degradation findings
 
  @throws {@link StageRosterRepeatError} when the roster seats one model more
@@ -192,6 +210,9 @@ export async function gatherStageVoices<ValueT,>(
     benchStart,
     decision,
     seatTally = RUN_SEATS,
+    role,
+    reask,
+    reaskClaims,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
@@ -209,6 +230,9 @@ export async function gatherStageVoices<ValueT,>(
     readonly benchStart?: number;
     readonly decision?: StageDecision;
     readonly seatTally?: SeatTally;
+    readonly role: SeatRole;
+    readonly reask: ReaskMode;
+    readonly reaskClaims?: ReaskClaims;
   }>,
 ): Promise<StageGather<ValueT>> {
   /**
@@ -320,6 +344,12 @@ export async function gatherStageVoices<ValueT,>(
     const unreadableSeats = new Map<RosterModelId, UnreadableCause>();
 
     /**
+     For a seat whose answer ran away and whose re-ask went to another model, that model, so the recovery round asks
+     the next one.
+     */
+    const askedInstead = new Map<RosterModelId, RosterModelId>();
+
+    /**
      Everything a round needs except who to ask, how many to wait for and its
      reserve.
 
@@ -341,6 +371,16 @@ export async function gatherStageVoices<ValueT,>(
       graceMs,
       // Conditional spread keeps the question absent instead of undefined.
       ...((decision === undefined) ? {} : { decision, }),
+      // THE BENCH IS THE WHOLE ROSTER THE STAGE NAMED, withheld seats included: a model seated on the question is never
+      // asked for the voice of another seat of it (ledger B1076). THE SEATS SHARE ONE RECORD OF THE MODELS ASKED, made
+      // here for this question alone, so a model one seat took is not taken for another (ledger B1080).
+      reaskSeat: {
+        role,
+        bench: modelIds,
+        claims: reaskClaims ?? createReaskClaims(),
+        // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the model it scores.
+        reask,
+      },
     };
 
     /**
@@ -426,12 +466,13 @@ export async function gatherStageVoices<ValueT,>(
       for (const outcome of outcomes) {
         if (outcome.voice
           .heard) {
-          collected.push({
-            modelId: outcome.modelId,
-            value: outcome.voice
-              .value,
-          },);
+          collected.push(heardVoiceOf({
+            outcome,
+            stage,
+            l,
+          },),);
           unreadableSeats.delete(outcome.modelId,);
+          askedInstead.delete(outcome.modelId,);
           continue;
         }
         stillLost.push(outcome.modelId,);
@@ -446,6 +487,17 @@ export async function gatherStageVoices<ValueT,>(
             outcome.voice
               .unreadable,
           );
+          /**
+           Model the seat's latest answer was re-asked of, when it was another than the seat's own.
+           */
+          const { askedInstead: askedOf, } = outcome.voice;
+          if (askedOf === undefined)
+            askedInstead.delete(outcome.modelId,);
+          else
+            askedInstead.set(
+              outcome.modelId,
+              askedOf,
+            );
         }
       }
       // A SEAT THE ROUTER REFUSED IS NOT RE-ASKED. Nothing changes between
@@ -490,15 +542,16 @@ export async function gatherStageVoices<ValueT,>(
         roundRequest,
         unreadable,
         causeOf: unreadableSeats,
+        askedInstead,
       },);
       for (const outcome of recovered) {
         if (outcome.voice
           .heard) {
-          collected.push({
-            modelId: outcome.modelId,
-            value: outcome.voice
-              .value,
-          },);
+          collected.push(heardVoiceOf({
+            outcome,
+            stage,
+            l,
+          },),);
           unreadableSeats.delete(outcome.modelId,);
         }
       }

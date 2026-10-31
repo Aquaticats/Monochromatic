@@ -21,6 +21,12 @@ import {
 import type { SliceCache, } from '@monochromatic-dev/translation-repair-translate-floor';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
+  alternateModelsFor,
+  type ChatJsonOutcome,
+  type ChatJsonRequest,
+  type ModelClient,
+} from '@monochromatic-dev/translation-repair-provider';
+import {
   createSeatTally,
   gatherStageVoices,
   StageRosterRepeatError,
@@ -267,6 +273,8 @@ async function gatheredBy(
     stage: 'page-consistency',
     l: levelCapturingLogger({ lines: [], },),
     graceMs: HANG_STOP_MS,
+    role: 'late-judge',
+    reask: 'other-model',
     ...((seatTally === undefined) ? {} : { seatTally, }),
     // Conditional spread keeps the pinned seat absent instead of undefined.
     ...((benchStart === undefined) ? {} : { benchStart, }),
@@ -319,6 +327,63 @@ await describe({
             },);
           },
         },),
+        it({
+          name: 'RECORDS THE BALLOT OF THE MODEL THAT ANSWERED FOR A RUNAWAY SEAT UNDER THE SEAT AND NAMES THE ANSWERER '
+            + 'BESIDE IT (ledger B1142), so a stored answer still fits the bench and the artifact names who cast the ballot',
+          fn: async () => {
+            /**
+             Model the re-ask of the first seat's runaway goes to, on no bench of this question.
+             */
+            const [answerer,] = alternateModelsFor({ modelId: BENCH[0] ?? SEAT_HYPER_ONLY, role: 'late-judge', bench: BENCH, },)
+              .alternates;
+            if (answerer === undefined)
+              throw new Error('the late-judge role has a model left to answer a runaway',);
+            const client: ModelClient = {
+              chatText: async () => {
+                throw new Error('chatText unused',);
+              },
+              chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+                if (request.modelId === BENCH[0]) {
+                  return {
+                    kind: 'schema-mismatch',
+                    rawText: '',
+                    reason: 'truncated-completion',
+                    detail: 'provider reported a truncating completion',
+                  };
+                }
+                const value: unknown = JSON.parse(replyOf({ seat: request.modelId, },),);
+                if (!request.validate(value,))
+                  throw new Error('scripted ballot failed the guard',);
+                return { kind: 'ok', value, rawText: JSON.stringify(value,), };
+              },
+              quotas: async () => {
+                throw new Error('quotas unused',);
+              },
+            };
+            const persisted: { key: string; serialized: string; }[] = [];
+            const result = await askConsistencyBench({
+              client,
+              modelIds: BENCH,
+              subject: SUBJECT,
+              cache: recordingCache({ resumed: new Map(), persisted, },),
+              signal: AbortSignal.timeout(HANG_STOP_MS,),
+              exchangeTimeoutMs: HANG_STOP_MS,
+              l: levelCapturingLogger({ lines: [], },),
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+            expect(result.voices.map(function seatAndAnswerer(voice,): string {
+              return `${voice.seat}${(voice.answeredBy === undefined) ? '' : ` answered by ${voice.answeredBy}`}`;
+            },),).toEqual([`${BENCH[0]} answered by ${answerer}`, BENCH[1], BENCH[2],],);
+            /**
+             The first persisted record as stored, read for the key this case pins.
+             */
+            const stored = JSON.parse(persisted[0]?.serialized ?? 'null',) as {
+              readonly voices: readonly { readonly answeredBy?: string; }[];
+            };
+            expect(stored.voices[0]?.answeredBy,).toBe(answerer,);
+          },
+        },),
+
         it({
           name: 'STORES NOTHING FOR A GATHER THAT MISSED ITS QUORUM, handing back the ballot it did hear with the quorum '
             + 'it needed and the gather\'s findings, so a resume asks again',

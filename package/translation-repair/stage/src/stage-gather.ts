@@ -14,15 +14,42 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  */
 export type HeardVoice<ValueT,> = {
   /**
-   Model that answered.
+   Model that wrote the reply. It is the seat's own model unless the seat's reasoning runaway was re-asked of another,
+   and then that other model: weight, the half weight of a model on its own text, the check of a model on the text it
+   wrote, the tallies and the records all read this and never the seat (ledger B1142).
    */
   readonly modelId: RosterModelId;
+
+  /**
+   Seat the reply answered for, set only where another model than the seat's gave it. Order on the roster, the seats
+   asked and the seats unheard read this, since the model that answered is on no bench of the gather.
+   */
+  readonly seat?: RosterModelId;
 
   /**
    Validated reply value.
    */
   readonly value: ValueT;
 };
+
+/**
+ The seat a heard voice answered for.
+
+ @param voice - heard voice
+
+ @returns Seat it was asked for: the model that answered, unless another model answered for the seat
+
+ @example
+ ```ts
+ const seat = seatOfVoice({ voice, },);
+ ```
+ */
+export function seatOfVoice({ voice, }: { readonly voice: {
+  readonly modelId: RosterModelId;
+  readonly seat?: RosterModelId
+}; },): RosterModelId {
+  return voice.seat ?? voice.modelId;
+}
 
 /**
  Everything a quorum gather produced.

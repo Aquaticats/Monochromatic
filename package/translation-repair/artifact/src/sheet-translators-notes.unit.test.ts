@@ -85,6 +85,9 @@ const WRITERS: Readonly<Record<string, string>> = {
   'consolidation writer': 'shows the archive and both candidates as evidence for the wording it writes; a note '
     + 'it keeps stands carried, one it leaves out is put back after the slice',
   'translate repair': 'continues the translate writer\'s own exchange, so it shows what that writer was shown',
+  'translate repair for another translator': 'revises a translation and returns wording that replaces it, as the '
+    + 'translate writer does; it carries that writer\'s own first turn and the translation as plain text, so a note '
+    + 'it keeps stands carried and one it leaves out is put back after the slice',
   'page consistency carry writer, repeated sentence': 'rewrites the words of one place inside the paragraph it '
     + 'is shown, and the paragraph around them stays as it was',
   'page consistency carry writer, repeated sentence, death recorded': 'rewrites the words of one place inside '

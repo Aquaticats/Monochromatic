@@ -85,6 +85,7 @@ function readingOf(
     atCapWithContent: atCap,
     atCapNoContent: 0,
     atCapUnpaired: 0,
+    atCapAmbiguous: 0,
   };
 }
 
@@ -166,7 +167,24 @@ await describe({
           fn: async () => {
             expect(capCensusProviderLine({ reading: readingOf({ calls: 12, sinceCaps: 3, atCap: 1, },), },),).toBe(
               '  hyper: 12 calls, p99 321; since the caps 3 calls, 1 at the cap (33.33%): '
-                + '1 with content, 0 with none, 0 unpaired',
+                + '1 with content, 0 with none, 0 unpaired, 0 ambiguous',
+            );
+          },
+        },),
+        it({
+          name: 'PRINTS THE CALLS AT THE CAP WHOSE STREAM COULD NOT BE TOLD APART as their own count, after the unpaired',
+          fn: async () => {
+            expect(capCensusProviderLine({
+              reading: {
+                ...readingOf({ calls: 12, sinceCaps: 9, atCap: 4, },),
+                atCapWithContent: 1,
+                atCapNoContent: 1,
+                atCapUnpaired: 1,
+                atCapAmbiguous: 1,
+              },
+            },),).toBe(
+              '  hyper: 12 calls, p99 321; since the caps 9 calls, 4 at the cap (44.44%): '
+                + '1 with content, 1 with none, 1 unpaired, 1 ambiguous',
             );
           },
         },),
@@ -175,7 +193,7 @@ await describe({
           fn: async () => {
             expect(capCensusProviderLine({ reading: readingOf({ calls: 1, sinceCaps: 1, atCap: 0, },), },),).toBe(
               '  hyper: 1 call, p99 321; since the caps 1 call, 0 at the cap (0.00%): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
             );
           },
         },),
@@ -184,7 +202,7 @@ await describe({
           fn: async () => {
             expect(capCensusProviderLine({ reading: readingOf({ calls: 2, sinceCaps: 0, atCap: 0, },), },),).toBe(
               '  hyper: 2 calls, p99 321; since the caps 0 calls, 0 at the cap (n/a): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
             );
           },
         },),
@@ -261,7 +279,7 @@ await describe({
             },).slice(1,),).toEqual([
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads ${String(COMPLETION_CAP[SEAT],)}`,
               '  hyper: 4 calls, p99 321; since the caps 4 calls, 0 at the cap (0.00%): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
               CAP_CENSUS_CLOSING_NOTE,
             ],);
           },
@@ -285,7 +303,7 @@ await describe({
             },).slice(1,),).toEqual([
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)} (pooled placeholder), rule reads nothing (too few calls)`,
               '  hyper: 1 call, p99 321; since the caps 1 call, 0 at the cap (0.00%): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
               CAP_CENSUS_CLOSING_NOTE,
             ],);
           },
@@ -347,12 +365,12 @@ await describe({
             },).slice(1,),).toEqual([
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads ${String(COMPLETION_CAP[SEAT],)}`,
               '  hyper: 2 calls, p99 321; since the caps 2 calls, 0 at the cap (0.00%): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
               '  hyper: 3 calls, p99 321; since the caps 3 calls, 0 at the cap (0.00%): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads nothing (too few calls)`,
               '  hyper: 1 call, p99 321; since the caps 1 call, 0 at the cap (0.00%): '
-                + '0 with content, 0 with none, 0 unpaired',
+                + '0 with content, 0 with none, 0 unpaired, 0 ambiguous',
               CAP_CENSUS_CLOSING_NOTE,
             ],);
           },

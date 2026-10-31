@@ -83,7 +83,7 @@ import {
  set withholds is its translator, picture reader, consolidation writer and
  roster seats, which the owner's answers did not take away.
  */
-export const HYPER_SLOW_JUDGES: ReadonlySet<RosterModelId> = new Set<RosterModelId>(['hf:Qwen/Qwen3.8-27B',],);
+export const HYPER_SLOW_JUDGES: ReadonlySet<RosterModelId> = holdSet({ hold: 'hyper-slow', },);
 
 /**
  Judges that Hyper serves too slowly in the SELECT role alone (both lanes'

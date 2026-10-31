@@ -270,6 +270,7 @@ async function judgedUnder(
       client: rig.client,
       produced,
       judgeModelIds: JUDGES,
+      role: 'wide-judge',
       sourceText: SOURCE_TEXT,
       incumbentText: '',
       incumbentKind: 'absent',

@@ -15,6 +15,7 @@ import {
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_TEXT_BEDROCK,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -51,6 +52,23 @@ await describe({
               `stage-voice-lost (critic ${SEAT_HYPER_OPENROUTER_VISION_EDITOR})`,
               `stage-voice-lost (critic ${SEAT_SYNTHETIC_VISION_WITHHELD})`,
             ],);
+          },
+        },),
+
+        it({
+          name: 'NAMES NO SEAT WHOSE VOICE ANOTHER MODEL GAVE: the voice carries the model that answered and the seat it '
+            + 'answered for, and the seat is heard (ledger B1142)',
+          fn: async () => {
+            expect(lostVoiceFindings({
+              stage: 'editor',
+              seated: SEATED,
+              asked: new Set(SEATED,),
+              voices: [
+                { modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR, value: {}, },
+                { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, value: {}, },
+                { modelId: SEAT_HYPER_TEXT_BEDROCK, seat: SEAT_SYNTHETIC_VISION_WITHHELD, value: {}, },
+              ],
+            },),).toStrictEqual([],);
           },
         },),
 

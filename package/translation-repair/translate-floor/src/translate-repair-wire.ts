@@ -150,6 +150,191 @@ Do not rewrite for style, and do not translate anything you were not given.
 Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...", "translatorNote": "..."}. Use an empty string for "translation" unless the resolution is "revised". No prose, no code fences, no commentary.`;
 
 /**
+ Instructions for the follow-up turn when the model asked is not the candidate's author, which a reasoning runaway of
+ the author sends to another translator (ledger B1100).
+
+ It speaks of "the translation to revise" and of "another translator", never of the asked model's own work, since the text
+ is not the asked model's, and what comes back is recorded as that model's own new candidate beside the author's.
+ */
+const REPAIR_RULES_FOR_ANOTHER_TRANSLATOR =
+  `The translation to revise was written by another translator, and it went through a mechanical structural check, not a reader. The check compares Markdown block structure, footnote markers, link and image destinations, and inline code against the ORIGINAL and against the PAGE AS IT STANDS, and every finding names which of the two it came from. Where the two carry different destinations for one reference, the check accepts either and refuses both. It knows nothing about wording, and it can be wrong about what this passage needed.
+
+Answer in one of exactly three ways:
+
+- "revised": you can fix every finding without changing anything else about the translation to revise. Put the whole corrected translation in "translation". It will be recorded as a candidate of its own, beside the translation to revise.
+- "unable": you cannot fix them, and say why in "translatorNote". The translation to revise still stands as a candidate.
+- "as-intended": the translation to revise is right as it is and the finding is a fact about the passage or the check rather than about the translation. Say why in "translatorNote". A footnote marker whose definition is not in this passage is the usual case.
+
+Do not rewrite for style, and do not translate anything you were not given.
+
+Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...", "translatorNote": "..."}. Use an empty string for "translation" unless the resolution is "revised". No prose, no code fences, no commentary.`;
+
+/**
+ Whether a character belongs to a word as the pattern `\b` reads it: an ASCII letter, digit or underscore.
+
+ @param character - one character
+
+ @returns True for an ASCII letter, digit or underscore
+
+ @example
+ ```ts
+ const inWord = isWordCharacter({ character: 'y', },); // true
+ ```
+ */
+function isWordCharacter({ character, }: { readonly character: string; },): boolean {
+  return ((character >= 'a') && (character <= 'z'))
+    || ((character >= 'A') && (character <= 'Z'))
+    || ((character >= '0') && (character <= '9'))
+    || (character === '_');
+}
+
+/**
+ Makes the one word that addresses the author the article, and leaves any other word as it is.
+
+ @param word - unquoted word, possibly empty
+
+ @returns `The` for `Your`, `the` for `your`, the word otherwise
+
+ @example
+ ```ts
+ const article = articleForWord({ word: 'Your', },); // 'The'
+ ```
+ */
+function articleForWord({ word, }: { readonly word: string; },): string {
+  if (word === 'Your')
+    return 'The';
+  if (word === 'your')
+    return 'the';
+  return word;
+}
+
+/**
+ Makes the possessive that addresses the author ("Your translation") the article, outside quotations only.
+
+ A QUOTATION IN A FINDING IS THE MODEL'S OWN TEXT (or the page's), set in double quotes or backticks, and is never
+ rewritten: a word `Your` inside it is a word of the text under revision and not an address. The findings that once
+ spoke to the author in other words (the lines it carries, the wording it chose) are written without a second person, so
+ the article is the only change between the two turns (ledger B1145).
+
+ @param finding - finding as written for the author
+
+ @returns Finding with the possessive made the article outside its quotations
+
+ @example
+ ```ts
+ // yields 'The translation carries "Your Ta".'
+ articleForPossessive({ finding: 'Your translation carries "Your Ta".', },);
+ ```
+ */
+function articleForPossessive({ finding, }: { readonly finding: string; },): string {
+  // ONE LINEAR PASS, NO REGEX: a quotation is copied as it stands, and an unquoted word is read whole and swapped when it
+  // is the possessive. A quote mark with no closing mark after it opens no quotation, as it opened none for the pattern
+  // this replaces.
+  /**
+   Pieces of the result, joined at the end.
+   */
+  const pieces: string[] = [];
+  /**
+   Letters of the unquoted word being read.
+   */
+  const word: string[] = [];
+  /**
+   Whether a quotation is being copied, and the mark that closes it.
+   */
+  const quotation = {
+    open: false,
+    closer: '',
+  };
+  /**
+   Marks that have no closing mark left in the text, so they open nothing.
+   */
+  const unclosed = new Set<string>();
+  for (const [at, character,] of finding.split('',)
+    .entries()) {
+    if (quotation.open) {
+      pieces.push(character,);
+      if (character === quotation.closer)
+        quotation.open = false;
+      continue;
+    }
+    if (isWordCharacter({ character, },)) {
+      word.push(character,);
+      continue;
+    }
+    pieces.push(
+      articleForWord({ word: word.join('',), },),
+      character,
+    );
+    word.length = 0;
+    if (((character === '"') || (character === '`')) && (!unclosed.has(character,))) {
+      if (finding.includes(
+        character,
+        at + 1,
+      )) {
+        quotation.open = true;
+        quotation.closer = character;
+      }
+      else
+        unclosed.add(character,);
+    }
+  }
+  pieces.push(articleForWord({ word: word.join('',), },),);
+  return pieces.join('',);
+}
+
+/**
+ Builds the follow-up turn for a model that is not the candidate's author: the same question and the findings, with the
+ text named as another translator's and handed over as plain text, not as a turn the asked model wrote.
+
+ @param priorMessages - exact messages that produced the candidate
+
+ @param priorTranslation - candidate another translator returned
+
+ @param findings - structural divergences, written for the model
+
+ @returns Messages asking the model to revise the translation
+
+ @example
+ ```ts
+ const messages = buildAnotherTranslatorRepairMessages({ priorMessages, priorTranslation, findings, },);
+ ```
+ */
+export function buildAnotherTranslatorRepairMessages(
+  {
+    priorMessages,
+    priorTranslation,
+    findings,
+  }: {
+    readonly priorMessages: readonly ChatMessage[];
+    readonly priorTranslation: string;
+    readonly findings: readonly string[];
+  },
+): readonly ChatMessage[] {
+  /**
+   Findings as a list the model reads rather than a sentence it skims, with the possessive that addresses the author
+   ("your translation") made the article, since the text is not the asked model's.
+   */
+  const listed = findings
+    .map(function toLine(finding,): string {
+      return `- ${articleForPossessive({ finding, },)}`;
+    },)
+    .join('\n',);
+  return [
+    ...priorMessages,
+    {
+      role: 'user',
+      content: `${REPAIR_RULES_FOR_ANOTHER_TRANSLATOR}
+
+THE TRANSLATION TO REVISE
+${priorTranslation}
+
+FINDINGS
+${listed}`,
+    },
+  ];
+}
+
+/**
  Builds the follow-up turn for one candidate's author.
 
  @param priorMessages - exact messages that produced the candidate

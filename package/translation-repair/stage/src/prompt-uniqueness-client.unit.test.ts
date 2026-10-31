@@ -337,6 +337,54 @@ await describe({
     },),
 
     it({
+      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through the same claims (ledger B1072, B1076): a first reply '
+        + 'that ended in a length stop with no content is re-asked under another model\'s name with no provider hint and '
+        + 'no nudge, so its digest is the one that model\'s own first ask of the question has, and a later ask of the '
+        + 'question replays both exchanges',
+      fn: async () => {
+        /** Every request that crossed the wrapper, in order. */
+        const asked: ChatTextRequest[] = [];
+        const inner: ModelClient = {
+          chatText: async (request,) => {
+            asked.push(request,);
+            return (asked.length === 1)
+              ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
+              : { text: '"windowsill"', servedBy: 'hyper', };
+          },
+          chatJson: async () => {
+            throw new Error('chatJson bypassed by prompt payload reader',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const client = promptUniqueClient({ inner, },);
+        // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079).
+        const seated = { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', bench: [], }, } as const;
+        const outcome = await client.chatJson(seated,);
+        expect(outcome.kind,).toBe('ok',);
+        // THE MODEL THAT ANSWERED RIDES ON THE OUTCOME through the wrapper, so a caller can record its answer as its own
+        // (ledger B1102).
+        expect(outcome.kind === 'ok' ? outcome.answeredBy : 'not ok',).toBe(asked[1]?.modelId,);
+        expect(asked,).toHaveLength(2,);
+        expect(asked[1]?.modelId,).not.toBe(REQUEST.modelId,);
+        expect(asked[1]?.otherThan,).toBeUndefined();
+        // THE PLAIN QUESTION: the other model is asked the messages as they stood, with no nudge after them.
+        expect(asked[1]?.messages,).toStrictEqual(REQUEST.messages,);
+        expect(modelPromptDigest({ request: asked[1] ?? REQUEST, },),).not.toBe(modelPromptDigest({ request: REQUEST, },),);
+        // ITS DIGEST IS THAT MODEL'S OWN FIRST ASK OF THE QUESTION, so a payload stored for that ask is replayed.
+        expect(modelPromptDigest({ request: asked[1] ?? REQUEST, },),).toBe(
+          modelPromptDigest({ request: { ...REQUEST, modelId: asked[1]?.modelId ?? REQUEST.modelId, }, },),
+        );
+
+        // Asked again, both answers come from the claims.
+        const again = await client.chatJson(seated,);
+        expect(again.kind,).toBe('ok',);
+        expect(asked,).toHaveLength(2,);
+      },
+    },),
+
+    it({
       name: 'READS A CLAIMED PAYLOAD AGAINST THE RESPONSE FORMAT OF THE REQUEST, taking the schema\'s spelling of a '
         + 'listed value that came back differing only in its capital',
       fn: async () => {

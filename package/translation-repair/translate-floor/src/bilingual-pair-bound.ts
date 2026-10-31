@@ -466,9 +466,9 @@ export function pairBoundFindings(
               one: 'line',
               many: 'lines',
             },)
-          }. Yours carries ${String(candidateBlock.count,)}. Drop the second `
+          }. The rendering carries ${String(candidateBlock.count,)}. Drop the second `
           + `rendering of the pair (the Chinese line, or a second English wording of it), keeping the wording `
-          + `you chose elsewhere.`,
+          + `used elsewhere.`,
       ];
     },);
   },);

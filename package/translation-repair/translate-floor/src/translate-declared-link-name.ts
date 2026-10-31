@@ -374,7 +374,7 @@ export function declaredLinkNameFindings(
           handles.join(', ',)
         }).`;
       return [
-        `The link text for ${link.href} names ${pair.source}, whom this page's front matter declares "${pair.rendering}", but your link text "${quoted}" does not carry "${pair.rendering}". A declared name inside a title takes its declared form, whatever the existing translation calls the person there; keep the rest of the title as you rendered it.${handleClause}`,
+        `The link text for ${link.href} names ${pair.source}, whom this page's front matter declares "${pair.rendering}", but the link text "${quoted}" does not carry "${pair.rendering}". A declared name inside a title takes its declared form, whatever the existing translation calls the person there; keep the rest of the title as it was rendered.${handleClause}`,
       ];
     },);
 }

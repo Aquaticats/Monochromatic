@@ -231,7 +231,7 @@ export function sheetLeakFindings(
     ...listed,
     ...fenced,
   ].map(function toFinding(label,): string {
-    return `Your translation carries the sheet's own "${label}" block, which is evidence shown to you and `
+    return `Your translation carries the sheet's own "${label}" block, which is evidence shown to the translator and `
       + 'never part of the passage. Render the ORIGINAL alone and leave every fenced block out.';
   },);
 }

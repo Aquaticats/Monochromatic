@@ -126,6 +126,10 @@ export type SeatHold =
    */
     | 'hyper-slow-select'
   /**
+   Too slow for the round window in every seat the run keeps it in while Hyper serves it.
+   */
+    | 'hyper-slow'
+  /**
    Out of every seat by the owner's decision, the card kept for the catalogs
    and the unit fixture: the seats go, the identity stays typed.
    */

@@ -238,6 +238,8 @@ export async function selectPerEnvelope(
       client,
       candidates: proposals,
       judgeModelIds,
+      // THE SLATE OF THE EDITORS IS JUDGED BY THE WIDE SEATS (`judgeModelIds` of the repair roster).
+      role: 'select-judge',
       sourceText,
       task: ENVELOPE_SELECTION_TASK,
       criteria: ENVELOPE_SELECTION_CRITERIA,
@@ -415,6 +417,8 @@ export async function selectChunkPatch(
     client,
     candidates,
     judgeModelIds,
+    // THE SLATE OF THE EDITORS IS JUDGED BY THE WIDE SEATS (`judgeModelIds` of the repair roster).
+    role: 'select-judge',
     sourceText,
     task: CHUNK_SELECTION_TASK,
     criteria: CHUNK_SELECTION_CRITERIA,
