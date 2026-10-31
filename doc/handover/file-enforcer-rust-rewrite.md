@@ -102,7 +102,7 @@ each finished branch is reviewed and merged into `main`):
   single-line schema descriptions).
 - Then:
   the cutover (task 25),
-  keeping the rules-file generator until monochromatic-7a reports the cli-git config switch.
+  dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
 
 Decided 2026-10-30 and recorded in the decision record:
 the HTTP stack (`hyper`,
@@ -139,6 +139,16 @@ Cutover reminders from finished agents:
   the lock entry,
   install,
   and config switch are still 7a's to report.
+  Gate cleared 2026-10-31:
+  7a reported the switch done in `ad9fe75d05`
+  (`FORBIDDEN_STRINGS_RULES` in `mise.toml`,
+  generated from `file-enforcer.config.ts`,
+  is now `{{config_root}}/forbidden-strings.append.txt,{{config_root}}/forbidden-strings.append.local.txt?`,
+  and `cli-git.config.jsonc` `rulesFile` is the matching array),
+  with wrapper 0.4.4 installed as the production git.
+  The cutover commit drops the rules-file generator (the eager compile-rules step) and the seeded local appendix step,
+  and the Rust config must render that new `mise.toml` value,
+  since `file-enforcer.config.jsonc` was written before `ad9fe75d05`.
 - mpm-shadow at cutover
   (from `package/mpm-shadow/cli/README.md`):
   the converter writes each tool's `request` as `<origin>@<range>`,
