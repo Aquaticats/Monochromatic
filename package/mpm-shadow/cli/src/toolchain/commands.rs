@@ -51,7 +51,7 @@ use super::scope::{EnvMap, Scope, resolve_scope};
 /// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
 /// Imports what this module uses from `super::sync`.
-use super::sync::{FrozenReason, LockPolicy, format_sync_report, locked_line, run_lockfile_only, run_sync_with};
+use super::sync::{FrozenReason, LockPolicy, format_sync_report, locked_line, rewritten_line, run_lockfile_only, run_sync_with};
 /// Imports `is_ci` from `super::ci_detect`.
 use super::ci_detect::is_ci;
 /// Imports what this module uses from `super::verify_archive`.
@@ -262,11 +262,14 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 }
                 let http = connect_or_explain();
                 return Some(match run_lockfile_only(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), policy) {
-                    Ok(resolved) => {
-                        for (id, version) in &resolved {
+                    Ok(prepared) => {
+                        for (id, version) in &prepared.resolved {
                             print!("{}", locked_line(id, version));
                         }
-                        if resolved.is_empty() {
+                        for description in &prepared.rewritten {
+                            print!("{}", rewritten_line(description));
+                        }
+                        if prepared.resolved.is_empty() && prepared.rewritten.is_empty() {
                             println!("toolchain lock already current: {}", scope.lock_file.display());
                         } else {
                             println!("toolchain install: wrote {}; nothing was installed", scope.lock_file.display());

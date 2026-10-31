@@ -191,8 +191,9 @@ fn install_and_list_refuse_when_the_plan_and_lock_disagree_and_name_the_remedy()
     fixture.sign_lock(&fixture.work());
     let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
     fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
-    for verb in ["install", "list"] {
-        let output = fixture.run(&[verb]);
+    for arguments in [&["install", "--frozen-lockfile"][..], &["list"][..]] {
+        let verb = arguments[0];
+        let output = fixture.run(arguments);
         assert_eq!(output.status.code(), Some(1), "{verb}: {}", text(&output.stderr));
         assert!(text(&output.stderr).contains("mpm-shadow install --lockfile-only --offline"), "{verb}: {}", text(&output.stderr));
         assert!(text(&output.stdout).is_empty(), "{verb} printed nothing before refusing: {}", text(&output.stdout));
@@ -275,4 +276,16 @@ fn a_frozen_lock_check_and_a_plain_offline_rewrite_are_the_two_lockfile_only_mod
     assert_eq!(rewritten.status.code(), Some(0), "{}", text(&rewritten.stderr));
     assert_ne!(fs::read_to_string(fixture.work().join("toolchain.lock.json")).expect("read"), before);
     assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(0));
+}
+
+#[test]
+fn a_non_frozen_install_lockfile_only_writes_an_offline_fixable_edit_into_the_lock() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
+    fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
+    let output = fixture.run(&["install", "--lockfile-only"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert!(text(&output.stdout).contains("lock updated from the plan: cargo:fd-find now differs from the plan in: bins"), "{}", text(&output.stdout));
+    assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(0), "the lock now agrees");
 }

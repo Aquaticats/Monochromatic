@@ -196,17 +196,77 @@ fn a_failed_lookup_of_the_new_entry_stops_before_anything_is_written_or_installe
     assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), lock_before);
 }
 
+/// pnpm's non-frozen install updates the lockfile for any manifest change.
 #[test]
-fn what_lock_fixes_offline_is_still_refused_naming_lock_under_either_policy() {
-    for policy in [LockPolicy::Resolve, LockPolicy::Frozen(FrozenReason::Ci)] {
+fn a_non_frozen_install_writes_an_offline_fixable_plan_edit_into_the_lock_without_a_lookup() {
+    let (_directory, scope, env) = locked_scope();
+    let before = read_lock(&scope);
+    let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
+    fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
+    let http = moved_network();
+    let runner = FakeRunner::new();
+    let report = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("synced");
+    assert!(report.resolved.is_empty(), "nothing needed resolving");
+    assert_eq!(report.rewritten, vec!["cargo:fd-find now differs from the plan in: bins".to_string()]);
+    assert!(http.requests().is_empty(), "no lookup for an offline fix");
+    let after = read_lock(&scope);
+    assert_eq!(after.tool("cargo:fd-find").expect("fd").declaration.bins, vec!["fd".to_string(), "fdfind".to_string()]);
+    assert_eq!(after.tool("cargo:fd-find").expect("fd").version, before.tool("cargo:fd-find").expect("fd").version, "the version stays");
+    for id in ["npm:wrangler", "pipx:slopo", "rust"] {
+        assert_eq!(after.tool(id), before.tool(id), "{id}");
+    }
+    run_lock(&scope, LockMode::Check).expect("plan and lock agree");
+    assert!(!runner.calls().is_empty(), "the install step ran after the lock was rewritten");
+    assert!(format_sync_report(&report).contains("toolchain install: lock updated from the plan: cargo:fd-find now differs from the plan in: bins"));
+}
+
+#[test]
+fn a_non_frozen_install_drops_a_removed_entry_and_a_frozen_one_refuses_naming_the_offline_command() {
+    let (_directory, scope, env) = locked_scope();
+    let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
+    let wrangler = plan.lines().find(|line| return line.contains("\"npm:wrangler\"")).expect("the wrangler line").to_string();
+    fs::write(&scope.plan_file, plan.replace(&format!("{wrangler}\n"), "")).expect("remove wrangler from the plan");
+    let before = fs::read_to_string(&scope.lock_file).expect("read");
+    let frozen = run_sync_with(&scope, &env, &FakeRunner::new(), &moved_network(), &linux(), LockPolicy::Frozen(FrozenReason::Ci))
+        .expect_err("refused");
+    assert!(frozen.message.contains("`mpm-shadow install --lockfile-only --offline`"), "{frozen}");
+    assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), before, "a frozen install writes nothing");
+
+    let http = moved_network();
+    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), LockPolicy::Resolve).expect("synced");
+    assert_eq!(report.rewritten, vec!["npm:wrangler is no longer in the plan".to_string()]);
+    assert!(read_lock(&scope).tool("npm:wrangler").is_none());
+    assert!(http.requests().is_empty());
+}
+
+#[test]
+fn a_frozen_install_refuses_an_offline_fixable_edit_naming_the_offline_command_and_writes_nothing() {
+    for reason in [FrozenReason::Flag, FrozenReason::Ci] {
         let (_directory, scope, env) = locked_scope();
         let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
         fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
+        let before = fs::read_to_string(&scope.lock_file).expect("read");
         let http = moved_network();
-        let error = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), policy).expect_err("refused");
-        assert!(error.message.contains("`mpm-shadow install --lockfile-only --offline`"), "{policy:?}: {error}");
-        assert!(http.requests().is_empty(), "{policy:?}: nothing is looked up for an offline fix");
+        let runner = FakeRunner::new();
+        let error = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Frozen(reason)).expect_err("refused");
+        assert!(error.message.contains("`mpm-shadow install --lockfile-only --offline`"), "{reason:?}: {error}");
+        assert_eq!(fs::read_to_string(&scope.lock_file).expect("read"), before);
+        assert!(http.requests().is_empty() && runner.calls().is_empty());
     }
+}
+
+#[test]
+fn an_edit_that_needs_a_lookup_also_carries_the_offline_edits_in_one_write() {
+    let (_directory, scope, env) = locked_scope();
+    let plan = fs::read_to_string(&scope.plan_file).expect("read the plan");
+    fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
+    add_vite(&scope);
+    let http = moved_network();
+    let report = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), LockPolicy::Resolve).expect("synced");
+    assert_eq!(report.resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
+    assert_eq!(report.rewritten, vec!["cargo:fd-find now differs from the plan in: bins".to_string()]);
+    assert_eq!(http.requests(), vec![VITE_URL.to_string()]);
+    run_lock(&scope, LockMode::Check).expect("plan and lock agree");
 }
 
 #[test]
@@ -304,7 +364,7 @@ fn lockfile_only_resolves_and_writes_the_new_entry_and_installs_nothing() {
     add_vite(&scope);
     let http = moved_network();
     let runner = FakeRunner::new();
-    let resolved = run_lockfile_only(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("locked");
+    let resolved = run_lockfile_only(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("locked").resolved;
     assert_eq!(resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
     assert!(runner.calls().is_empty(), "nothing was installed");
     let after = read_lock(&scope);

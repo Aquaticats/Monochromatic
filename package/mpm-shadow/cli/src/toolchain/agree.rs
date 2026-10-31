@@ -92,6 +92,25 @@ impl Disagreement {
         return ids;
     }
 
+    /// One sentence per difference that only the plan's declaration half causes
+    /// (removed tools,
+    /// install-shaping fields,
+    /// order),
+    /// the ones a non-frozen `install` writes into the lock itself.
+    pub fn offline_fixable_lines(&self) -> Vec<String> {
+        let mut lines: Vec<String> = Vec::new();
+        for id in &self.removed {
+            lines.push(format!("{id} is no longer in the plan"));
+        }
+        for (id, fields) in &self.projection_edits {
+            lines.push(format!("{id} now differs from the plan in: {}", fields.join(", ")));
+        }
+        if self.order_differs {
+            lines.push("the tools follow the plan's order".to_string());
+        }
+        return lines;
+    }
+
     /// What:
     /// One sentence per difference,
     /// each naming the tool and the field.

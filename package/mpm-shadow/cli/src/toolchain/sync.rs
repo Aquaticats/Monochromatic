@@ -44,6 +44,8 @@ use super::install::install_tool;
 use super::layout::applies_to_family;
 /// Imports what this module uses from `super::load`.
 use super::load::{Loaded, load, load_agreeing};
+/// Imports what this module uses from `super::lock_cmd`.
+use super::lock_cmd::{LockMode, run_lock};
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
 /// Imports what this module uses from `super::model`.
@@ -131,6 +133,10 @@ pub struct SyncReport {
     /// as tool id and locked version:
     /// the plan entries that were new or whose resolution-affecting fields changed.
     pub resolved: Vec<(String, String)>,
+    /// What `install` wrote into the lock from the plan without a lookup:
+    /// one sentence per offline-fixable difference,
+    /// such as a changed `bins` list.
+    pub rewritten: Vec<String>,
 }
 
 /// What:
@@ -363,12 +369,23 @@ pub fn run_sync_with(
     host: &Host,
     policy: LockPolicy,
 ) -> Result<SyncReport, ToolchainError> {
-    let resolved: Vec<(String, String)> = prepare_lock(scope, env, runner, http, host, policy)?;
+    let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy)?;
     let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
     let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
     let mut report: SyncReport = sync_tools(&context, None);
-    report.resolved = resolved;
+    report.resolved = prepared.resolved;
+    report.rewritten = prepared.rewritten;
     return Ok(report);
+}
+
+/// What `prepare_lock` did to the lock.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LockPreparation {
+    /// The tools it resolved and locked,
+    /// as tool id and version.
+    pub resolved: Vec<(String, String)>,
+    /// One sentence per plan change it wrote into the lock without a lookup.
+    pub rewritten: Vec<String>,
 }
 
 /// What:
@@ -384,7 +401,7 @@ pub fn run_sync_with(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function prepareLock(scope, env, runner, http, host, policy: LockPolicy): [string, string][]
+/// export function prepareLock(scope, env, runner, http, host, policy: LockPolicy): { resolved: [string, string][]; rewritten: string[] }
 /// ```
 pub fn prepare_lock(
     scope: &Scope,
@@ -393,9 +410,10 @@ pub fn prepare_lock(
     http: &dyn HttpGet,
     host: &Host,
     policy: LockPolicy,
-) -> Result<Vec<(String, String)>, ToolchainError> {
+) -> Result<LockPreparation, ToolchainError> {
     let loaded: Loaded = load(scope)?;
     let mut resolved: Vec<(String, String)> = Vec::new();
+    let mut rewritten: Vec<String> = Vec::new();
     match &loaded.lock {
         None => match policy {
             // pnpm: `--frozen-lockfile` fails when no lockfile is present (ERR_PNPM_NO_LOCKFILE).
@@ -419,12 +437,18 @@ pub fn prepare_lock(
                     LockPolicy::Resolve => {
                         let ids: Vec<String> = verdict.ids_needing_update();
                         resolved = resolve_before_installing(&loaded, Some(&ids), scope, env, runner, http, host)?;
+                        // The same write also carried the plan's other declaration changes into the lock.
+                        rewritten = verdict.offline_fixable_lines();
                     }
                 }
+            } else if verdict.digest_problem.is_none() && !verdict.is_empty() && policy == LockPolicy::Resolve {
+                // Only the declaration half differs: pnpm's non-frozen install updates the lockfile for any manifest change.
+                run_lock(scope, LockMode::Write)?;
+                rewritten = verdict.offline_fixable_lines();
             }
         }
     }
-    return Ok(resolved);
+    return Ok(LockPreparation { resolved, rewritten });
 }
 
 /// What:
@@ -437,7 +461,7 @@ pub fn prepare_lock(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function runLockfileOnly(scope, env, runner, http, host, policy: LockPolicy): [string, string][]
+/// export function runLockfileOnly(scope, env, runner, http, host, policy: LockPolicy): LockPreparation
 /// ```
 pub fn run_lockfile_only(
     scope: &Scope,
@@ -446,10 +470,15 @@ pub fn run_lockfile_only(
     http: &dyn HttpGet,
     host: &Host,
     policy: LockPolicy,
-) -> Result<Vec<(String, String)>, ToolchainError> {
-    let resolved: Vec<(String, String)> = prepare_lock(scope, env, runner, http, host, policy)?;
+) -> Result<LockPreparation, ToolchainError> {
+    let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy)?;
     load_agreeing(scope)?;
-    return Ok(resolved);
+    return Ok(prepared);
+}
+
+/// The line `install` prints for a plan change it wrote into the lock without a lookup.
+pub fn rewritten_line(description: &str) -> String {
+    return format!("toolchain install: lock updated from the plan: {description}\n");
 }
 
 /// The line `install` prints for a tool it locked itself.
@@ -478,6 +507,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
     let mut text: String = String::new();
     for (id, version) in &report.resolved {
         text.push_str(&locked_line(id, version));
+    }
+    for description in &report.rewritten {
+        text.push_str(&rewritten_line(description));
     }
     for warning in &report.warnings {
         text.push_str(&format!("toolchain install: warning: {warning}\n"));

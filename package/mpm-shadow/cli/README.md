@@ -472,8 +472,9 @@ except where a musl platform now gets the musl build the release offers):
 
 `list` refuses when the plan and lock disagree,
 and names `mpm-shadow install --lockfile-only --offline` or `mpm-shadow update <ids>`;
-`install` does the same when frozen or when only an offline fix is needed,
-and otherwise locks the new entries itself.
+`install` does the same when frozen,
+and otherwise updates the lock itself:
+it resolves the new entries and writes the plan's other declaration changes.
 
 ### Updating named tools
 
@@ -592,15 +593,26 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   and names `mpm-shadow update`.
 - **A failed lookup** stops `install` before anything is written or installed,
   naming the entry and the URL.
-- **Unchanged refusals:**
-  a plan that differs from the lock only in what `install --lockfile-only` fixes offline
+- **Offline-fixable edits:**
+  a plan that differs from the lock only in what `install --lockfile-only --offline` fixes
   (`bins`,
   `env`,
   the install options,
   a removed entry,
   the order)
-  is refused naming `mpm-shadow install --lockfile-only --offline`,
-  and a lock whose digest does not match is refused naming the restore,
+  is written into the lock by a non-frozen `install`,
+  without a lookup and without moving any version,
+  and the report prints `toolchain install: lock updated from the plan: ...` for each change.
+  This is pnpm's non-frozen install,
+  which updates the lockfile for any manifest change.
+  The same write also carries these edits when a new entry is resolved in the same run.
+  Frozen (`--frozen-lockfile`,
+  or CI with a lock present)
+  refuses instead,
+  writes nothing,
+  and names `mpm-shadow install --lockfile-only --offline`.
+- **A lock whose digest does not match**
+  is refused naming the restore,
   under either policy.
   `list` never resolves and never writes.
 
