@@ -609,6 +609,10 @@ pub mod filesystem_identity;
 #[cfg(target_os = "linux")]
 pub mod filesystem_identity_mount;
 
+/// The Linux `f_fsid` of a path asked of the kernel in-process instead of by starting `stat`.
+#[cfg(target_os = "linux")]
+pub mod filesystem_identity_fsid;
+
 /// Running real Git for transaction,
 ///  recovery and landing work.
 pub mod transaction_git;

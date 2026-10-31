@@ -191,16 +191,19 @@ thread_local! {
 }
 
 /// A mechanism that starts nothing:
-/// it records the command and answers an empty line for `findmnt` and a fixed `f_fsid` for `stat`.
+/// it records the command and answers an empty line, as `findmnt` does for a filesystem without a UUID.
 #[cfg(target_os = "linux")]
 fn recording_runner(command: &str, _arguments: &[&std::ffi::OsStr]) -> Option<String> {
     STARTED_COMMANDS.with(|started: &std::cell::RefCell<Vec<String>>| {
         return started.borrow_mut().push(String::from(command));
     });
-    if command == "stat" {
-        return Some(String::from("abc\n"));
-    }
     return Some(String::from("\n"));
+}
+
+/// The degraded identity of a path as the kernel reports it, spelled as `stat` spells it.
+#[cfg(target_os = "linux")]
+fn in_process_f_fsid(path: &Path) -> String {
+    return format!("f-fsid_{}", super::super::filesystem_identity_fsid::f_fsid_text(path).expect("a text"));
 }
 
 /// The commands recorded since the last call,
@@ -212,25 +215,38 @@ fn take_started_commands() -> Vec<String> {
     });
 }
 
-/// A pseudo filesystem needs no `findmnt`;
-/// only the `f_fsid` fallback starts.
+/// A pseudo filesystem needs no `findmnt` and, with the `f_fsid` read in-process, no command at all.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_pseudo_filesystem_starts_only_stat() {
+fn a_pseudo_filesystem_starts_nothing() {
     if !Path::new("/proc/self/mountinfo").exists() {
         println!("skipped: /proc/self/mountinfo is absent");
         return;
     }
     take_started_commands();
     assert_eq!(
-        linux_fs_id_with(Path::new("/proc"), recording_runner).as_deref(),
-        Some("f-fsid_abc")
+        linux_fs_id_with(Path::new("/proc"), recording_runner),
+        Some(in_process_f_fsid(Path::new("/proc")))
     );
     assert_eq!(
         take_started_commands(),
-        vec![String::from("stat")],
+        Vec::<String>::new(),
         "in-process verdict for /proc: {:?}",
         super::super::filesystem_identity_mount::mount_uuid(Path::new("/proc"))
+    );
+}
+
+/// A host that refuses every process start still resolves the degraded identity of a path the mount table cannot
+/// name by UUID: the answer comes from the kernel, so a release of a lock this process holds does not depend on a start.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_degraded_identity_needs_no_process_start() {
+    fn refusing_runner(_command: &str, _arguments: &[&std::ffi::OsStr]) -> Option<String> {
+        return None;
+    }
+    assert_eq!(
+        linux_fs_id_with(Path::new("/proc"), refusing_runner),
+        Some(in_process_f_fsid(Path::new("/proc")))
     );
 }
 
@@ -269,11 +285,8 @@ fn an_unprovable_path_still_starts_findmnt() {
     }
     take_started_commands();
     assert_eq!(
-        linux_fs_id_with(stacked, recording_runner).as_deref(),
-        Some("f-fsid_abc")
+        linux_fs_id_with(stacked, recording_runner),
+        Some(in_process_f_fsid(stacked))
     );
-    assert_eq!(
-        take_started_commands(),
-        vec![String::from("findmnt"), String::from("stat")]
-    );
+    assert_eq!(take_started_commands(), vec![String::from("findmnt")]);
 }
