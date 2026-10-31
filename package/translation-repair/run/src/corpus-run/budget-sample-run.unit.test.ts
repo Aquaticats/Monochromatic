@@ -12,6 +12,7 @@
  @module
  */
 
+import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
@@ -20,15 +21,25 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
+import {
+  readRunLogText,
+  StatedRefusalError,
+} from '@monochromatic-dev/translation-repair-glossary';
+import { contextRoot, } from '@monochromatic-dev/translation-repair-typography';
 import type {
   ModelTransport,
   TransportExchange,
   TransportReply,
 } from '@monochromatic-dev/translation-repair-provider-stream';
 import { compareCodePoints, } from '@monochromatic-dev/translation-repair-markup';
-import { sampleBudgets, } from '../../dist/final/node/index.mjs';
+import {
+  reportMeters,
+  sampleBudgets,
+  sampleIntoRunLog,
+} from '../../dist/final/node/index.mjs';
 import { capturingLoggerPair, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { captureCodedReport, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/report-run-capture.test-fixture.ts';
+import { lineOf, } from './command-line.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
@@ -295,6 +306,93 @@ await describe({
             env: { [LEDGER_VARIABLE]: join(scratch.path, 'ledger.jsonl',), },
             transport: unreachableTransport({ seen, },),
             l: logger,
+          },);
+        },);
+
+        expect(refusal,).toBeInstanceOf(StatedRefusalError,);
+        expect(seen,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'LEAVES ITS READING IN THE RUN FOLDER as a record, where meter-report reads it as the one reading it is',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'info',
+        );
+        ctx.sinon.stub(
+          console,
+          'warn',
+        );
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        /**
+         Run folder the sample is taken into.
+         */
+        const runDir = join(
+          scratch.path,
+          'corpus-pass-tabby',
+        );
+
+        await sampleIntoRunLog({
+          runDir,
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: {},
+          },),
+          transport: unreachableTransport({ seen: [], },),
+          l: contextRoot({ tag: 'budget-sample', },),
+        },);
+
+        expect((await readRunLogText({ path: runDir, },)).split('\n',).filter(function isReading(line,): boolean {
+          return line.includes(' METERS ',);
+        },).length,).toBe(1,);
+        /**
+         What meter-report printed over the folder.
+         */
+        const captured = await captureCodedReport({
+          sinon: ctx.sinon,
+          run: async function reportsFolder(): Promise<number> {
+            return await reportMeters({
+              line: lineOf({
+                command: 'meter-report',
+                typed: [runDir,],
+              },),
+            },);
+          },
+        },);
+        expect(captured.lines.at(0,),).toBe('meter-report: logs=1 readings=1 unread=0',);
+      },
+    },),
+    it({
+      name: 'REFUSES as stated, asking no meter, when the run folder cannot be written',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        /**
+         A file where the run folder should be.
+         */
+        const inTheWay = join(
+          scratch.path,
+          'in-the-way',
+        );
+        await writeFile(
+          inTheWay,
+          'a file',
+        );
+        const seen: TransportExchange[] = [];
+
+        const refusal = await rejectionOf(async function sampleIntoBlockedFolder(): Promise<void> {
+          await sampleIntoRunLog({
+            runDir: inTheWay,
+            env: envWith({
+              ledgerDir: scratch.path,
+              extra: {},
+            },),
+            transport: unreachableTransport({ seen, },),
+            l: contextRoot({ tag: 'budget-sample', },),
           },);
         },);
 
