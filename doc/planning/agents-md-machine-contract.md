@@ -52,6 +52,12 @@ The wording above ("at most 200 characters") keeps `QRY`,
 The strict reading ("under 50 words and 200 characters",
 24 words and 163 characters) flags those 3 rules for splitting instead.
 
+Settled by the user 2026-10-31:
+the boundary is at most 200 characters counting the code prefix,
+so the first wording stands and `QRY`,
+`SGD`,
+`WR2` stay compliant.
+
 Evidence:
 measured 2026-10-31 with `~/temp/agent/agents-md-audit.ts`:
 14 rules over 200 characters,
@@ -146,3 +152,22 @@ the inserted line opens at column 0
 (the linter's prefix model),
 which `GRM` from proposal 2 declares meaningless;
 without `GRM` the repair deepens the indent inconsistency instead.
+
+## What landed after the 2026-10-31 question
+
+Landed:
+proposal 3,
+as commit `caf7665d40`
+(`docs(AGENTS.md): repair the semantic break in the NLG example`),
+taking `monochromatic-lint`'s own fix and regenerating `CLAUDE.md` with `mise run sync:files`.
+`mise run lint:monochromatic-lint -- AGENTS.md CLAUDE.md` now exits 0,
+and issue #1820 closes on auto-push.
+
+Settled:
+the `RLM` boundary is at most 200 characters counting the code prefix
+(proposal 1).
+
+Held in the tracker instead of direct edits:
+proposal 1 as issue #1821
+and proposal 2 as issue #1822,
+opened at the user's request.
