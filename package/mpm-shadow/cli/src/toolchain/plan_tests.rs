@@ -46,9 +46,9 @@ fn the_sample_plan_keeps_the_written_order_and_decodes_every_field() {
             "android-sdk"
         ]
     );
-    assert_eq!(plan.tools[0].request, Request::Pinned("0.29.4".to_string()));
+    assert_eq!(plan.tools[0].request, Request::parse("github:marcosnils/bin@0.29.4").expect("parses"));
     let rust = &plan.tools[4];
-    assert_eq!(rust.request, Request::Channel("nightly".to_string()));
+    assert_eq!(rust.request, Request::parse("rust@nightly").expect("parses"));
     assert_eq!(rust.route, Route::RustupToolchain);
     assert_eq!(rust.package_id.as_deref(), Some("nightly-2026-10-30"));
     assert_eq!(rust.env, vec![("RUSTUP_TOOLCHAIN".to_string(), "nightly-2026-10-30".to_string())]);
@@ -64,7 +64,7 @@ fn the_sample_plan_keeps_the_written_order_and_decodes_every_field() {
 
 #[test]
 fn comments_and_trailing_commas_parse_but_strict_json_is_not_required() {
-    let source = "{ \"schemaVersion\": 1, \"tools\": { /* c */ \"a\": { \"request\": { \"track\": \"latest\" }, \"route\": \"archive\", }, }, }";
+    let source = "{ \"schemaVersion\": 1, \"tools\": { /* c */ \"a\": { \"request\": \"node@latest\", \"route\": \"archive\", }, }, }";
     let plan = parse_plan(source, "inline").expect("JSONC parses");
     assert_eq!(plan.tools.len(), 1);
 }
@@ -87,7 +87,7 @@ fn a_resolved_field_in_the_plan_is_rejected_because_update_owns_it() {
 
 #[test]
 fn a_tool_id_written_twice_is_rejected() {
-    let source = "{ \"schemaVersion\": 1, \"tools\": { \"a\": { \"request\": { \"track\": \"latest\" }, \"route\": \"archive\" }, \"a\": { \"request\": { \"track\": \"latest\" }, \"route\": \"archive\" } } }";
+    let source = "{ \"schemaVersion\": 1, \"tools\": { \"a\": { \"request\": \"node@latest\", \"route\": \"archive\" }, \"a\": { \"request\": \"node@latest\", \"route\": \"archive\" } } }";
     let error = parse_plan(source, "plan.jsonc").expect_err("duplicate ids are rejected");
     assert!(error.message.contains("twice"), "{error}");
 }

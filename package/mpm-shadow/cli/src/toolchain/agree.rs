@@ -157,11 +157,8 @@ fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec
     if plan.os != locked.os {
         resolution.push("os".to_string());
     }
-    if plan.options.asset_pattern != locked.options.asset_pattern {
-        resolution.push("options.assetPattern".to_string());
-    }
-    if plan.options.cargo_git_url != locked.options.cargo_git_url {
-        resolution.push("options.cargoGit".to_string());
+    if plan.options.asset != locked.options.asset {
+        resolution.push("options.asset".to_string());
     }
     if plan.options.bootstrap != locked.options.bootstrap {
         resolution.push("options.bootstrap".to_string());

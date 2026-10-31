@@ -57,8 +57,7 @@ fn a_failed_install_names_the_step_the_tool_and_the_programs_message() {
 fn cargo_git_installs_at_the_pinned_revision_into_the_tool_directory() {
     let mut rig = Rig::new();
     rig.lock.tools[6].declaration.route = super::model::Route::CargoGit;
-    rig.lock.tools[6].declaration.request = Request::Pinned("ref:abc123".to_string());
-    rig.lock.tools[6].declaration.options.cargo_git_url = Some("https://git.example/repo".to_string());
+    rig.lock.tools[6].declaration.request = Request::parse("git:https://git.example/repo@ref:abc123").expect("parses");
     install_tool(&rig.context(), &rig.tool("cargo:fd-find")).expect("installed");
     let root = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3");
     assert_eq!(
@@ -73,7 +72,7 @@ fn cargo_git_without_a_source_url_is_refused_before_anything_runs() {
     let mut rig = Rig::new();
     rig.lock.tools[6].declaration.route = super::model::Route::CargoGit;
     let error = install_tool(&rig.context(), &rig.tool("cargo:fd-find")).expect_err("no url");
-    assert!(error.message.contains("carries no cargoGit source url"), "{error}");
+    assert!(error.message.contains("its request is not git:<url>@<revision>"), "{error}");
     assert!(rig.runner.calls().is_empty());
 }
 

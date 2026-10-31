@@ -76,13 +76,6 @@ pub fn subcommands() -> Vec<Command> {
                 .action(ArgAction::SetTrue)
                 .help("Write nothing; exit 1 when the plan and the lock disagree or the lock's digest does not match"),
         )
-        .arg(
-            Arg::new("adopt")
-                .long("adopt")
-                .action(ArgAction::SetTrue)
-                .conflicts_with("check")
-                .help("Accept a lock that has no digest yet (the first conversion of an older lock) and add the digest"),
-        )
         .arg(global_flag());
     let bin_paths: Command = Command::new("bin-paths")
         .about("Print the toolchain's program directories and exposed binaries as JSON (read-only, offline)")
@@ -153,8 +146,6 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
         "lock" => {
             let mode: LockMode = if matches.get_flag("check") {
                 LockMode::Check
-            } else if matches.get_flag("adopt") {
-                LockMode::Adopt
             } else {
                 LockMode::Write
             };

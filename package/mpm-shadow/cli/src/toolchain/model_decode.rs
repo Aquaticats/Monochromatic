@@ -28,25 +28,14 @@ use super::model::{
 };
 
 
-/// The request object at `path`.
+/// The request text at `path`:
+/// `<origin>@<range>`.
 fn decode_request(value: &Value, path: &str) -> DecodeResult<Request> {
-    let map = as_object(value, path)?;
-    if map.len() != 1 {
-        return Err(format!("{path} must hold exactly one of track, pinned or channel"));
-    }
-    if let Some(track) = map.get("track") {
-        if track.as_str() == Some("latest") {
-            return Ok(Request::Latest);
-        }
-        return Err(format!("{path}.track must be \"latest\""));
-    }
-    if let Some(pinned) = map.get("pinned") {
-        return Ok(Request::Pinned(as_nonempty_text(pinned, &format!("{path}.pinned"))?));
-    }
-    if let Some(channel) = map.get("channel") {
-        return Ok(Request::Channel(as_nonempty_text(channel, &format!("{path}.channel"))?));
-    }
-    return Err(format!("{path} must hold exactly one of track, pinned or channel"));
+    let text: String = as_nonempty_text(value, path)?;
+    return match Request::parse(&text) {
+        Ok(request) => Ok(request),
+        Err(message) => Err(format!("{path}: {message}")),
+    };
 }
 
 /// The postinstall object at `path`.
@@ -111,8 +100,7 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
             "rustComponents",
             "rustTargets",
             "cargoFeatures",
-            "cargoGit",
-            "assetPattern",
+            "asset",
             "allowBuilds",
             "androidPackages",
             "postinstall",
@@ -131,17 +119,8 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
     if let Some(list) = map.get("cargoFeatures") {
         options.cargo_features = Some(as_text_list(list, &format!("{path}.cargoFeatures"))?);
     }
-    if let Some(git) = map.get("cargoGit") {
-        let git_path: String = format!("{path}.cargoGit");
-        let git_map = as_object(git, &git_path)?;
-        reject_unknown_keys(git_map, &["url"], &git_path)?;
-        let Some(url) = git_map.get("url") else {
-            return Err(format!("{git_path}.url is required"));
-        };
-        options.cargo_git_url = Some(as_nonempty_text(url, &format!("{git_path}.url"))?);
-    }
-    if let Some(pattern) = map.get("assetPattern") {
-        options.asset_pattern = Some(as_nonempty_text(pattern, &format!("{path}.assetPattern"))?);
+    if let Some(pattern) = map.get("asset") {
+        options.asset = Some(as_nonempty_text(pattern, &format!("{path}.asset"))?);
     }
     if let Some(list) = map.get("allowBuilds") {
         options.allow_builds = Some(as_text_list(list, &format!("{path}.allowBuilds"))?);

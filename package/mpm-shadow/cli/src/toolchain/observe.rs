@@ -29,7 +29,7 @@ use super::context::Context;
 /// Imports what this module uses from `super::layout`.
 use super::layout::{applies_to_family, tool_install_dir};
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Route};
+use super::model::{LockedTool, Origin, Route};
 /// Imports what this module uses from `super::parse_output`.
 use super::parse_output::{
     global_pnpm_versions, parse_bin_list, parse_cargo_binstall_list, parse_uv_tool_list, version_matches,
@@ -54,14 +54,30 @@ fn first_word(line: &str) -> &str {
 /// const key = (tool.packageId ?? tool.id).replaceAll('-', '_');
 /// ```
 fn uv_key(tool: &LockedTool) -> String {
-    return tool.declaration.package_id.clone().unwrap_or_else(|| return tool.declaration.id.clone()).replace('-', "_");
+    return package_name(tool).replace('-', "_");
 }
 
+/// What:
 /// The package or crate name a manager route installs:
-/// the package id,
-/// or the tool id when none is declared.
+/// the declared package id,
+/// else the name in the request's origin (`npm:wrangler` gives `wrangler`),
+/// else the tool id.
+/// Why:
+/// The request names the package once,
+/// so a plan entry need not repeat it in `packageId`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function packageName(tool: LockedTool): string
+/// ```
 pub fn package_name(tool: &LockedTool) -> String {
-    return tool.declaration.package_id.clone().unwrap_or_else(|| return tool.declaration.id.clone());
+    if let Some(package_id) = &tool.declaration.package_id {
+        return package_id.clone();
+    }
+    return match tool.declaration.request.origin() {
+        Origin::Npm(name) | Origin::Cargo(name) | Origin::Pipx(name) | Origin::Conda(name) | Origin::GoModule(name) => name,
+        _ => tool.declaration.id.clone(),
+    };
 }
 
 /// `bin list`,

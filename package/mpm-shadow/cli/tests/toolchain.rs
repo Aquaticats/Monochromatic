@@ -5,6 +5,8 @@
 //! `~/.local` or `~/.cargo`.
 
 use std::fs;
+
+use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -15,8 +17,8 @@ const PLAN: &str = r#"{
   // Two tools: a pinned archive and a binstall crate.
   "schemaVersion": 1,
   "tools": {
-    "bin": { "request": { "pinned": "0.29.4" }, "route": "archive", "bins": ["bin"] },
-    "cargo:fd-find": { "request": { "track": "latest" }, "route": "cargo-binstall", "packageId": "fd-find", "bins": ["fd"] },
+    "bin": { "request": "github:marcosnils/bin@0.29.4", "route": "archive", "bins": ["bin"] },
+    "cargo:fd-find": { "request": "cargo:fd-find@latest", "route": "cargo-binstall", "packageId": "fd-find", "bins": ["fd"] },
   },
 }
 "#;
@@ -28,11 +30,11 @@ const OLD_LOCK: &str = r#"{
   "generatedFrom": "package/file-enforcer/core/src/toolchain/plan.ts",
   "tools": {
     "bin": {
-      "request": { "pinned": "0.29.4" }, "version": "0.29.4", "route": "archive", "bins": ["bin"], "env": {}, "options": {},
+      "request": "github:marcosnils/bin@0.29.4", "version": "0.29.4", "route": "archive", "bins": ["bin"], "env": {}, "options": {},
       "artifacts": { "linux-x64": { "url": "https://example.invalid/bin.tar.gz", "sha256": "439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791" } }
     },
     "cargo:fd-find": {
-      "request": { "track": "latest" }, "version": "10.5.0", "route": "cargo-binstall", "packageId": "fd-find", "bins": ["fd"], "env": {}, "options": {}, "artifacts": {}
+      "request": "cargo:fd-find@latest", "version": "10.5.0", "route": "cargo-binstall", "packageId": "fd-find", "bins": ["fd"], "env": {}, "options": {}, "artifacts": {}
     }
   }
 }
@@ -50,6 +52,13 @@ impl Fixture {
         fs::write(directory.path().join("work").join("toolchain.plan.jsonc"), PLAN).expect("write the plan");
         fs::write(directory.path().join("work").join("toolchain.lock.json"), OLD_LOCK).expect("write the lock");
         return Fixture { directory };
+    }
+
+    /// Rewrites the lock in `directory` with its digest, the way `update` would have written it.
+    fn sign_lock(&self, directory: &Path) {
+        let path = directory.join("toolchain.lock.json");
+        let parsed = parse_lock(&fs::read_to_string(&path).expect("read the lock"), "lock").expect("the fixture lock parses");
+        fs::write(&path, render_lock(&parsed.lock)).expect("write the signed lock");
     }
 
     fn work(&self) -> PathBuf {
@@ -77,16 +86,13 @@ fn text(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn lock_check_refuses_a_lock_without_a_digest_then_adopt_then_check_passes() {
+fn lock_check_refuses_a_lock_without_a_digest_and_passes_once_it_is_signed() {
     let fixture = Fixture::new();
     let refused = fixture.run(&["lock", "--check"]);
     assert_eq!(refused.status.code(), Some(1), "{}", text(&refused.stderr));
     assert!(text(&refused.stderr).contains("no digest"), "{}", text(&refused.stderr));
 
-    let adopted = fixture.run(&["lock", "--adopt"]);
-    assert_eq!(adopted.status.code(), Some(0), "{}", text(&adopted.stderr));
-    assert!(text(&adopted.stdout).contains("rewritten from the plan"), "{}", text(&adopted.stdout));
-
+    fixture.sign_lock(&fixture.work());
     let checked = fixture.run(&["lock", "--check"]);
     assert_eq!(checked.status.code(), Some(0), "{}", text(&checked.stderr));
     assert!(text(&checked.stdout).contains("digest verified"), "{}", text(&checked.stdout));
@@ -95,7 +101,7 @@ fn lock_check_refuses_a_lock_without_a_digest_then_adopt_then_check_passes() {
 #[test]
 fn lock_after_a_plan_edit_keeps_the_resolved_versions_and_passes_the_gate() {
     let fixture = Fixture::new();
-    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    fixture.sign_lock(&fixture.work());
     let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
     fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
     assert_eq!(fixture.run(&["lock", "--check"]).status.code(), Some(1));
@@ -141,7 +147,7 @@ fn global_reads_the_per_user_config_directory() {
     fs::create_dir_all(&config).expect("make the config directory");
     fs::write(config.join("toolchain.plan.jsonc"), PLAN).expect("write the global plan");
     fs::write(config.join("toolchain.lock.json"), OLD_LOCK).expect("write the global lock");
-    assert_eq!(fixture.run(&["lock", "--adopt", "--global"]).status.code(), Some(0));
+    fixture.sign_lock(&config);
     assert_eq!(fixture.run(&["lock", "--check", "--global"]).status.code(), Some(0));
 }
 
@@ -181,7 +187,7 @@ fn help_lists_the_toolchain_verbs() {
 #[test]
 fn sync_and_status_refuse_when_the_plan_and_lock_disagree_and_name_the_remedy() {
     let fixture = Fixture::new();
-    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    fixture.sign_lock(&fixture.work());
     let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
     fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
     for verb in ["sync", "status"] {
@@ -196,7 +202,7 @@ fn sync_and_status_refuse_when_the_plan_and_lock_disagree_and_name_the_remedy() 
 #[test]
 fn update_refuses_a_hand_edited_lock_before_any_network_use() {
     let fixture = Fixture::new();
-    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    fixture.sign_lock(&fixture.work());
     let path = fixture.work().join("toolchain.lock.json");
     let text_before = fs::read_to_string(&path).expect("read");
     fs::write(&path, text_before.replace("\"version\": \"10.5.0\"", "\"version\": \"1.0.0\"")).expect("hand edit");
@@ -208,7 +214,7 @@ fn update_refuses_a_hand_edited_lock_before_any_network_use() {
 #[test]
 fn verify_archive_accepts_the_recorded_hash_and_refuses_anything_else() {
     let fixture = Fixture::new();
-    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    fixture.sign_lock(&fixture.work());
     let download = fixture.directory.path().join("bin.tar.gz");
     fs::write(&download, "not the recorded bytes").expect("write the download");
     let refused = fixture.run(&["verify-archive", "bin", download.to_str().expect("utf-8"), "--platform", "linux-x64"]);

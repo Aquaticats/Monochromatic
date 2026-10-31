@@ -166,6 +166,61 @@ pub fn extract_archive(ctx: &Context, archive: &Path, into: &Path) -> Result<(),
     return Ok(());
 }
 
+/// What:
+/// Unpacks a `.conda` package into `into`.
+/// A `.conda` file is a zip holding `info-*.tar.zst` and `pkg-*.tar.zst`;
+/// the payload is the `pkg-` archive,
+/// so `unzip` opens the outer file into a staging directory and `tar --zstd` unpacks the payload.
+/// Why:
+/// The TypeScript sync copied the `.conda` file as if it were the program,
+/// which installed nothing usable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function extractConda(ctx: Context, archive: string, into: string): void
+/// ```
+pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), ToolchainError> {
+    let staging: PathBuf = into.join(".conda-staging");
+    // Best effort: a staging directory left by a killed run is cleared; absence is the normal case.
+    let _ = fs::remove_dir_all(&staging);
+    if let Err(error) = fs::create_dir_all(&staging) {
+        return Err(ToolchainError::failure(format!("cannot create {}: {error}", staging.display())));
+    }
+    let archive_text: String = archive.to_string_lossy().to_string();
+    let staging_text: String = staging.to_string_lossy().to_string();
+    let opened: RunOutcome = ctx.run(&RunRequest::new("unzip", &["-q", "-o", &archive_text, "-d", &staging_text]).with_env(ctx.path_env()));
+    if !opened.succeeded() {
+        return Err(ToolchainError::failure(format!("unzip failed for {archive_text}: {}", opened.failure_text())));
+    }
+    let mut names: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&staging) {
+        for entry in entries.flatten() {
+            names.push(entry.path());
+        }
+    }
+    names.sort();
+    let mut payload: Option<PathBuf> = None;
+    for path in names {
+        let name: String = path.file_name().map(|file| return file.to_string_lossy().to_string()).unwrap_or_default();
+        if name.starts_with("pkg-") && name.ends_with(".tar.zst") {
+            payload = Some(path);
+            break;
+        }
+    }
+    let Some(payload_path) = payload else {
+        return Err(ToolchainError::failure(format!("{archive_text} holds no pkg-*.tar.zst payload")));
+    };
+    let payload_text: String = payload_path.to_string_lossy().to_string();
+    let into_text: String = into.to_string_lossy().to_string();
+    let unpacked: RunOutcome = ctx.run(&RunRequest::new("tar", &["--extract", "--zstd", "--file", &payload_text, "--directory", &into_text]).with_env(ctx.path_env()));
+    // Best effort: the staging directory only held the outer archive's members.
+    let _ = fs::remove_dir_all(&staging);
+    if !unpacked.succeeded() {
+        return Err(ToolchainError::failure(format!("tar --zstd failed for {payload_text}: {}", unpacked.failure_text())));
+    }
+    return Ok(());
+}
+
 /// Marks a file executable (mode 0755 on Unix;
 /// nothing to do elsewhere).
 pub fn make_executable(path: &Path) -> Result<(), ToolchainError> {

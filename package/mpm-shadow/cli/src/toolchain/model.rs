@@ -20,40 +20,8 @@
 
 //region Request, route and OS family
 
-/// What:
-/// How a person asks for a tool's version:
-/// the newest (`Latest`),
-/// one exact version (`Pinned`),
-/// or a named
-///           channel (`Channel`:
-/// an npm dist-tag,
-/// a rustup channel,
-/// a Java line).
-/// Why:
-/// `Pinned` is never moved by `update`;
-/// the other two are.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Request = { track: 'latest' } | { pinned: string } | { channel: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Request {
-    /// `{"track": "latest"}`.
-    Latest,
-    /// `{"pinned": "<version>"}`.
-    Pinned(
-        /// The exact version asked for.
-        String,
-    ),
-    /// `{"channel": "<name>"}`.
-    Channel(
-        /// The channel name (an npm dist-tag,
-        /// a rustup channel,
-        /// a Java line).
-        String,
-    ),
-}
+/// Re-exports the request types, so callers keep importing them from `model`.
+pub use super::request::{Origin, Request};
 
 /// What:
 /// The install route of one tool:
@@ -239,10 +207,8 @@ pub struct Options {
     pub rust_targets: Option<Vec<String>>,
     /// `cargo binstall --features` values.
     pub cargo_features: Option<Vec<String>>,
-    /// Git source URL of a `cargo-git` tool.
-    pub cargo_git_url: Option<String>,
-    /// Release-asset glob the GitHub resolver matches.
-    pub asset_pattern: Option<String>,
+    /// Release-asset glob that picks one asset when a repository's asset names are ambiguous.
+    pub asset: Option<String>,
     /// Packages whose install scripts `pnpm add --global` may run.
     pub allow_builds: Option<Vec<String>>,
     /// `sdkmanager` packages (part of the lock's frozen surface).

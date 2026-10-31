@@ -1,89 +1,39 @@
 //! What:
-//! The GitHub release lookup for `bin-sourced` and GitHub-hosted `archive` tools:
-//! find the newest release of
-//!           the repository the lock's artifact URLs name,
-//! derive the version from its tag,
-//! and map each platform's
-//!           asset by replacing the old version in the old file name.
+//! The generic GitHub release resolver for `github:<owner>/<repo>` requests:
+//! the newest release (or the release of the wanted tag),
+//! and for every Linux platform the asset chosen by the usual OS and architecture naming convention.
 //! Why:
-//! These tools carry no registry of their own;
-//! the lock already names their repository,
-//! tag shape and file
-//!           names,
-//! so the update follows that shape and takes each file's SHA-256 from the release asset's `digest`
-//!           (hashing the download only when GitHub gives none).
+//! The request names the repository,
+//! so nothing is learned from a previous lock row.
+//! A repository whose asset names are ambiguous (two programs in one release) gets an `asset` hint in its plan entry,
+//! and the resolver fails naming the candidates rather than guess.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // update-github.ts
-//! export function resolveGithub(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
-//! export function versionFromTag(oldTag: string, oldVersion: string, newTag: string): string
+//! export function resolveGithub(ctx: Context, declaration: Declaration, repo: string, wanted?: string): Resolution
 //! export function globMatches(pattern: string, name: string): boolean
 //! ```
 
 /// Imports `Value` from `serde_json`.
 use serde_json::Value;
-/// Imports `fs` from `std`.
-use std::fs;
-/// Imports `PathBuf` from `std::path`.
-use std::path::PathBuf;
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
-/// Imports `DEFAULT_MAX_DOWNLOAD_BYTES` from `super::http`.
-use super::http::DEFAULT_MAX_DOWNLOAD_BYTES;
-/// Imports `percent_decode` from `super::install_bin`.
-use super::install_bin::percent_decode;
-/// Imports what this module uses from `super::model`.
-use super::model::{Artifact, Declaration, LockedTool};
-/// Imports what this module uses from `super::update_resolve`.
-use super::update_resolve::{Resolution, ResolveError, get_json, not_implemented, text_at};
-
-/// The repository (`owner/repo`) and the tag of a release-download URL,
-/// or `None` for any other URL.
-pub fn parse_release_download(url: &str) -> Option<(String, String)> {
-    let rest: &str = url.strip_prefix("https://github.com/")?;
-    let segments: Vec<&str> = rest.split('/').collect();
-    if segments.len() < 6 || segments[2] != "releases" || segments[3] != "download" || segments[0].is_empty() || segments[1].is_empty() {
-        return None;
-    }
-    return Some((format!("{}/{}", segments[0], segments[1]), percent_decode(segments[4])));
-}
-
-/// What:
-/// The version a new tag stands for,
-/// given how the old tag related to the old version:
-/// the old tag's prefix
-///           (`v`,
-/// `bun-v`,
-/// nothing) is removed from the new tag.
-/// Why:
-/// Tags are `v1.2.3` for one repository and `bun-v1.2.3` for another;
-/// the old pair shows the shape.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function versionFromTag(oldTag: string, oldVersion: string, newTag: string): string  // throws
-/// ```
-pub fn version_from_tag(old_tag: &str, old_version: &str, new_tag: &str) -> Result<String, ResolveError> {
-    let prefix: &str = match old_tag.find(old_version) {
-        Some(at) => &old_tag[..at],
-        None => {
-            return Err(ResolveError::Failed(format!("cannot derive a version from tag {new_tag} given {old_tag} -> {old_version}")));
-        }
-    };
-    return match new_tag.strip_prefix(prefix) {
-        Some(version) => Ok(version.to_string()),
-        None => Err(ResolveError::Failed(format!("cannot derive a version from tag {new_tag} given {old_tag} -> {old_version}"))),
-    };
-}
+/// Imports the model types the resolver builds.
+use super::model::{Artifact, Declaration};
+/// Imports the version normalizer shared with `status`.
+use super::parse_output::normalize_version;
+/// Imports the asset chooser.
+use super::update_github_assets::pick_asset;
+/// Imports the shared resolver helpers.
+use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json, hash_download, text_at};
 
 /// What:
 /// Whether `name` matches `pattern`,
-/// where `*` matches any run of characters (including none) and every other
-///           character matches itself.
+/// where `*` matches any run of characters (including none) and every other character matches itself.
 /// Why:
-/// The `assetPattern` option selects among several assets of one release.
+/// The `asset` option selects among several assets of one release.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -112,7 +62,7 @@ pub fn glob_matches(pattern: &str, name: &str) -> bool {
 /// The headers for api.github.com:
 /// JSON,
 /// the API version and the token when there is one.
-fn api_headers(ctx: &Context) -> Vec<(String, String)> {
+pub fn api_headers(ctx: &Context) -> Vec<(String, String)> {
     let mut headers: Vec<(String, String)> = vec![
         ("accept".to_string(), "application/vnd.github+json".to_string()),
         ("x-github-api-version".to_string(), "2022-11-28".to_string()),
@@ -125,8 +75,7 @@ fn api_headers(ctx: &Context) -> Vec<(String, String)> {
 
 /// The latest release object of a repository:
 /// `releases/latest`,
-/// or the first of `releases?per_page=1` when the
-/// repository publishes only prereleases.
+/// or the first of `releases?per_page=1` when the repository publishes only prereleases.
 fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
     let headers: Vec<(String, String)> = api_headers(ctx);
     let latest_url: String = format!("https://api.github.com/repos/{repo}/releases/latest");
@@ -141,85 +90,86 @@ fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
     };
 }
 
+/// The asset of `release` with exactly this name,
+/// or `None`.
+pub fn find_asset<'a>(release: &'a Value, name: &str) -> Option<&'a Value> {
+    let assets: &[Value] = release.get("assets").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
+    for asset in assets {
+        if text_at(asset, &["name"]) == Some(name) {
+            return Some(asset);
+        }
+    }
+    return None;
+}
+
+/// The release object of one tag of a repository.
+pub fn release_by_tag(ctx: &Context, repo: &str, tag: &str) -> Result<Value, ResolveError> {
+    let url: String = format!("https://api.github.com/repos/{repo}/releases/tags/{}", tag.replace('+', "%2B"));
+    return get_json(ctx, &url, &api_headers(ctx));
+}
+
 /// SHA-256 of a release asset:
 /// the `digest` GitHub reports,
 /// or the hash of the downloaded file.
-fn asset_digest(ctx: &Context, asset: &Value, name: &str, url: &str) -> Result<String, ResolveError> {
+pub fn asset_digest(ctx: &Context, asset: &Value, url: &str) -> Result<String, ResolveError> {
     if let Some(digest) = asset.get("digest").and_then(Value::as_str) {
         return Ok(digest.strip_prefix("sha256:").unwrap_or(digest).to_string());
     }
-    let scratch: PathBuf = ctx.scope.toolchain_root.join("downloads").join(format!(".update-hash-{}", std::process::id()));
-    let result = ctx.http.download(url, &scratch, DEFAULT_MAX_DOWNLOAD_BYTES);
-    // Best effort: the file only existed to be hashed.
-    let _ = fs::remove_file(&scratch);
-    return match result {
-        Ok(hash) => Ok(hash),
-        Err(error) => Err(ResolveError::Failed(format!("release asset {name} carries no digest and cannot be downloaded to hash it: {error}"))),
+    return hash_download(ctx, url);
+}
+
+/// The release of a wanted tag:
+/// the range as written,
+/// then with a `v` in front (people write `0.64.3` for the tag `v0.64.3`).
+fn release_of_range(ctx: &Context, repo: &str, range: &str) -> Result<Value, ResolveError> {
+    return match release_by_tag(ctx, repo, range) {
+        Ok(release) => Ok(release),
+        Err(first) => match release_by_tag(ctx, repo, &format!("v{range}")) {
+            Ok(release) => Ok(release),
+            Err(_) => Err(first),
+        },
     };
 }
 
 /// What:
-/// Resolves the newest release of a GitHub-hosted tool.
+/// Resolves a GitHub-hosted tool from its repository alone.
 /// Why:
-/// Needs the old rows:
-/// they name the repository,
-/// the tag shape and the platforms.
-/// A tool with no row yet has
-///           nothing to derive them from,
-/// which is reported as not implemented rather than guessed.
+/// The version is the release tag without its `v` or `name-v` prefix;
+/// each Linux platform's asset is chosen by name;
+/// a platform with no matching asset is left out (and fails at `sync` with a message naming it),
+/// but a release that matches no platform at all is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function resolveGithub(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
+/// export function resolveGithub(ctx: Context, declaration: Declaration, repo: string, wanted?: string): Resolution
 /// ```
-pub fn resolve_github(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
-    let Some(locked) = current.filter(|tool| return !tool.artifacts.is_empty()) else {
-        return Err(not_implemented(declaration, "resolving a GitHub-hosted tool that is not in the lock yet"));
+pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
+    if repo.split('/').count() != 2 || repo.contains(char::is_whitespace) || repo.contains("..") {
+        return Err(ResolveError::Failed(format!("{repo:?} is not a GitHub repository (write github:<owner>/<repo>)")));
+    }
+    let release: Value = match wanted {
+        Some(range) => release_of_range(ctx, repo, range)?,
+        None => latest_release(ctx, repo)?,
     };
-    let Some((repo, old_tag)) = locked.artifacts.iter().find_map(|(_, row)| return parse_release_download(&row.url)) else {
-        return Err(not_implemented(declaration, "a source other than GitHub releases"));
-    };
-    let release: Value = latest_release(ctx, &repo)?;
-    let Some(new_tag) = text_at(&release, &["tag_name"]) else {
+    let Some(tag) = text_at(&release, &["tag_name"]) else {
         return Err(ResolveError::Failed(format!("github.com/{repo} reports no release tag")));
     };
-    let new_version: String = version_from_tag(&old_tag, &locked.version, new_tag)?;
-    if new_version == locked.version {
-        return Ok(Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() });
-    }
-    let assets: Vec<Value> = release.get("assets").and_then(Value::as_array).cloned().unwrap_or_default();
-    let pattern_matches: Vec<&Value> = match &declaration.options.asset_pattern {
-        Some(pattern) => assets
-            .iter()
-            .filter(|asset| return text_at(asset, &["name"]).is_some_and(|name| return glob_matches(pattern, name)))
-            .collect(),
-        None => Vec::new(),
-    };
+    let assets: &[Value] = release.get("assets").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
-    for (platform, row) in &locked.artifacts {
-        let old_name: &str = row.url.rsplit('/').next().unwrap_or("");
-        let candidates: [String; 2] = [old_name.replace(&locked.version, &new_version), old_name.to_string()];
-        let by_name: Option<&Value> = candidates
-            .iter()
-            .find_map(|candidate| return assets.iter().find(|asset| return text_at(asset, &["name"]) == Some(candidate.as_str())));
-        let chosen: &Value = match (by_name, &declaration.options.asset_pattern) {
-            (Some(asset), _) => asset,
-            (None, Some(pattern)) if pattern_matches.len() == 1 => pattern_matches[0],
-            (None, Some(pattern)) => {
-                return Err(ResolveError::Failed(format!(
-                    "asset pattern {pattern} matches {} release assets for {platform} in {new_tag}; expected exactly one",
-                    pattern_matches.len()
-                )));
+    let mut missing: Vec<String> = Vec::new();
+    for platform in LINUX_PLATFORMS {
+        match pick_asset(assets, platform, declaration.options.asset.as_deref(), repo, tag)? {
+            Some(asset) => {
+                let Some(url) = text_at(asset, &["browser_download_url"]) else {
+                    return Err(ResolveError::Failed(format!("a release asset of github.com/{repo} {tag} carries no download URL")));
+                };
+                artifacts.push((platform.to_string(), Artifact { url: url.to_string(), sha256: asset_digest(ctx, asset, url)? }));
             }
-            (None, None) => {
-                return Err(ResolveError::Failed(format!("no release asset in {new_tag} of {repo} matches {old_name}")));
-            }
-        };
-        let (Some(name), Some(url)) = (text_at(chosen, &["name"]), text_at(chosen, &["browser_download_url"])) else {
-            return Err(ResolveError::Failed(format!("release asset {old_name} of {repo} carries no download URL")));
-        };
-        let sha256: String = asset_digest(ctx, chosen, name, url)?;
-        artifacts.push((platform.clone(), Artifact { url: url.to_string(), sha256 }));
+            None => missing.push(platform.to_string()),
+        }
     }
-    return Ok(Resolution { version: new_version, artifacts });
+    if artifacts.is_empty() {
+        return Err(ResolveError::Failed(format!("github.com/{repo} {tag} has no Linux asset (platforms looked for: {})", missing.join(", "))));
+    }
+    return Ok(Resolution { version: normalize_version(tag), artifacts });
 }

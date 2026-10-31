@@ -36,13 +36,8 @@ fn options_value(options: &Options) -> Value {
     if let Some(list) = &options.cargo_features {
         map.insert("cargoFeatures".to_string(), text_array(list));
     }
-    if let Some(url) = &options.cargo_git_url {
-        let mut git: Map<String, Value> = Map::new();
-        git.insert("url".to_string(), Value::String(url.clone()));
-        map.insert("cargoGit".to_string(), Value::Object(git));
-    }
-    if let Some(pattern) = &options.asset_pattern {
-        map.insert("assetPattern".to_string(), Value::String(pattern.clone()));
+    if let Some(pattern) = &options.asset {
+        map.insert("asset".to_string(), Value::String(pattern.clone()));
     }
     if let Some(list) = &options.allow_builds {
         map.insert("allowBuilds".to_string(), text_array(list));
@@ -95,24 +90,11 @@ fn postinstall_value(step: &Postinstall) -> Value {
     return Value::Object(map);
 }
 
-/// The request as the JSON object the plan and lock store.
+/// The request as the text the plan and lock store.
 pub fn request_value(request: &Request) -> Value {
-    let mut map: Map<String, Value> = Map::new();
-    match request {
-        Request::Latest => {
-            map.insert("track".to_string(), Value::String("latest".to_string()));
-        }
-        Request::Pinned(version) => {
-            map.insert("pinned".to_string(), Value::String(version.clone()));
-        }
-        Request::Channel(channel) => {
-            map.insert("channel".to_string(), Value::String(channel.clone()));
-        }
-    }
-    return Value::Object(map);
+    return Value::String(request.text());
 }
 
-/// What:
 /// One lock entry as a JSON object with the keys in the fixed order `request, version, route, manager,
 ///           packageId, bins, os, env, options, artifacts`;
 /// absent optional fields are omitted,

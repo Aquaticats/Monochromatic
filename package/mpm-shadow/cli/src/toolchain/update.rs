@@ -69,13 +69,6 @@ pub enum OutcomeKind {
     },
     /// The tool is pinned and the lock already holds that pin.
     Pinned,
-    /// No resolver exists for the tool yet;
-    /// its lock entry is kept as it is.
-    Skipped {
-        /// Why,
-        /// naming the tool and route.
-        reason: String,
-    },
     /// The lookup failed;
     /// nothing is written.
     Failed {
@@ -132,19 +125,6 @@ struct Resolved {
     resolution: Option<Resolution>,
 }
 
-/// Whether the plan's declaration and the lock's differ in a field that decides what is resolved.
-fn resolution_changed(declaration: &Declaration, locked: &LockedTool) -> bool {
-    let expanded: Declaration = expand_version(declaration, &locked.version);
-    return expanded.request != locked.declaration.request
-        || expanded.route != locked.declaration.route
-        || expanded.manager != locked.declaration.manager
-        || expanded.package_id != locked.declaration.package_id
-        || expanded.os != locked.declaration.os
-        || expanded.options.asset_pattern != locked.declaration.options.asset_pattern
-        || expanded.options.cargo_git_url != locked.declaration.options.cargo_git_url
-        || expanded.options.bootstrap != locked.declaration.options.bootstrap;
-}
-
 /// What:
 /// Resolves one plan tool into an outcome (and the resolution to lock when there is one).
 /// Why:
@@ -166,20 +146,11 @@ fn resolve_one(ctx: &Context, declaration: &Declaration, current: Option<&Locked
             let kind: OutcomeKind = match current {
                 None => OutcomeKind::Added { version: resolution.version.clone() },
                 Some(locked) if locked.version == resolution.version && locked.artifacts == resolution.artifacts => {
-                    if matches!(declaration.request, super::model::Request::Pinned(_)) { OutcomeKind::Pinned } else { OutcomeKind::Unchanged }
+                    if declaration.request.is_exact() { OutcomeKind::Pinned } else { OutcomeKind::Unchanged }
                 }
                 Some(locked) => OutcomeKind::Updated { old_version: locked.version.clone(), new_version: resolution.version.clone() },
             };
             return Resolved { outcome: Outcome { id, kind }, resolution: Some(resolution) };
-        }
-        Err(ResolveError::NotImplemented(reason)) => {
-            if let Some(locked) = current
-                && !resolution_changed(declaration, locked)
-            {
-                let kept: Resolution = Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() };
-                return Resolved { outcome: Outcome { id, kind: OutcomeKind::Skipped { reason } }, resolution: Some(kept) };
-            }
-            return Resolved { outcome: Outcome { id, kind: OutcomeKind::Failed { reason } }, resolution: None };
         }
         Err(ResolveError::Failed(reason)) => {
             return Resolved { outcome: Outcome { id, kind: OutcomeKind::Failed { reason } }, resolution: None };
@@ -336,7 +307,6 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
             OutcomeKind::Pinned => format!("pinned    {}", outcome.id),
             OutcomeKind::Updated { old_version, new_version } => format!("updated   {}  {old_version} -> {new_version}", outcome.id),
             OutcomeKind::Added { version } => format!("added     {}  {version}", outcome.id),
-            OutcomeKind::Skipped { reason } => format!("skipped   {}  {reason}", outcome.id),
             OutcomeKind::Failed { reason } => format!("failed    {}  {reason}", outcome.id),
         };
         text.push_str(&line);
@@ -344,16 +314,15 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
     }
     let count = |predicate: fn(&OutcomeKind) -> bool| return report.outcomes.iter().filter(|outcome| return predicate(&outcome.kind)).count();
     let moved: usize = count(|kind| return matches!(kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }));
-    let skipped: usize = count(|kind| return matches!(kind, OutcomeKind::Skipped { .. }));
     let failed: usize = count(|kind| return matches!(kind, OutcomeKind::Failed { .. }));
     if failed > 0 {
         text.push_str(&format!("toolchain update: {failed} lookups failed; toolchain.lock.json was not written\n"));
     } else if check {
-        text.push_str(&format!("toolchain update --check: {moved} tools would move, {skipped} skipped; nothing was written or installed\n"));
+        text.push_str(&format!("toolchain update --check: {moved} tools would move; nothing was written or installed\n"));
     } else if report.wrote {
-        text.push_str(&format!("toolchain update: wrote toolchain.lock.json ({moved} tools moved, {skipped} skipped)\n"));
+        text.push_str(&format!("toolchain update: wrote toolchain.lock.json ({moved} tools moved)\n"));
     } else {
-        text.push_str(&format!("toolchain update: toolchain.lock.json is already current ({skipped} skipped)\n"));
+        text.push_str(&format!("toolchain update: toolchain.lock.json is already current\n"));
     }
     return text;
 }
