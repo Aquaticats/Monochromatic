@@ -8,7 +8,10 @@ import type {
   Candidate,
   DeclaredNamePair,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import {
+  createReaskClaims,
+  type ModelClient,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import {
   buildTranslateCandidates,
@@ -213,6 +216,12 @@ export async function produceTranslateSlate(
   },);
 
   /**
+   The models asked for the seats of this slice, which the gather that writes the candidates and the repair of an invalid
+   one share, so a model that took a runaway seat in the gather gives no second voice in the repair (ledger B1100).
+   */
+  const reaskClaims = createReaskClaims();
+
+  /**
    Translator replies after retry-to-quorum.
    */
   const gather = await gatherStageVoices({
@@ -232,6 +241,7 @@ export async function produceTranslateSlate(
     // THE TRANSLATORS ARE ASKED IN THE TRANSLATOR ROLE (`seats.translators`), so a runaway is re-asked of no model the
     // cards drop from it.
     role: 'translator',
+    reaskClaims,
     // A WRITER ROUND: every voice the window cuts is one fewer rendering on
     // the slate, so it waits under the writer window, built in since 2026-09-06
     // (`writer-grace-override.ts`).
@@ -272,6 +282,9 @@ export async function produceTranslateSlate(
     declared,
     disputedWordings,
     priorMessages: plan.messages,
+    // THE AUTHORS ARE THE TRANSLATORS, and the record is the gather's own (ledger B1100).
+    role: 'translator',
+    reaskClaims,
     signal,
     perCallTimeoutMs,
     l: tl,
