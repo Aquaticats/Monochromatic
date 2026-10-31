@@ -156,6 +156,29 @@ await describe({
         expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['wide-judge',],);
       },
     },),
+
+    it({
+      name: 'READS A KEY INSIDE AN OBJECT THE CALL PASSES, by a dotted key, for a stage that hands its role in a nested '
+        + 'argument',
+      fn: async () => {
+        const source = [
+          'await judgeSlateWithRetry({',
+          '  judging: {',
+          '    client,',
+          '    role: \'wide-judge\',',
+          '  },',
+          '  role: \'roster\',',
+          '},);',
+          'await judgeSlateWithRetry({',
+          '  judging,',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'judgeSlateWithRetry', key: 'judging.role', },),).toEqual([
+          'wide-judge',
+          'none',
+        ],);
+      },
+    },),
   ],
 },);
 
