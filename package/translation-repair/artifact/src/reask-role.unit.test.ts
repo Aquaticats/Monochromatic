@@ -25,7 +25,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where the titles of a page are settled',
       fn: async () => {
-        const source = await readFile(new URL('./page-title-lexicon-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('page-title-lexicon-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster',],);
       },
     },),

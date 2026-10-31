@@ -219,6 +219,8 @@ export async function settlePageTitles(
     responseFormat: PAGE_TITLE_LEXICON_RESPONSE_FORMAT,
     validate: isPageTitleLexiconWire,
     stage: 'page-title-lexicon',
+    // THE LEXICON IS ASKED OF THE RUN ROSTER (`seats.roster`) and nothing narrower.
+    role: 'roster',
     l: tl,
     ...((fanOut === undefined) ? {} : { fanOut, }),
     graceMs: stageSettings
