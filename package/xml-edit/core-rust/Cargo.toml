@@ -1,0 +1,41 @@
+[package]
+name = "monochromatic-xml-edit"
+version = "0.1.0"
+authors = ["Aquaticat"]
+categories = ["parser-implementations", "encoding"]
+documentation = "https://docs.rs/monochromatic-xml-edit"
+edition = "2024"
+include = [
+  "src/**/*.rs",
+  "Cargo.toml",
+  "Cargo.lock",
+  "README.md",
+  "LICENSES/*.txt",
+]
+keywords = ["xml", "edit", "lossless", "parser", "formatting"]
+license = "LGPL-3.0-or-later"
+description = "Formatting-preserving XML attribute and element edits for Rust: an owned scanner and parser record the byte span of every element and attribute, edits splice only those spans, and malformed or out-of-scope XML is rejected with a positioned diagnostic."
+
+[lib]
+name = "monochromatic_xml_edit"
+path = "src/lib.rs"
+
+# No runtime dependencies by decision: doc/decision/file-enforcer-rust-rewrite.md ("Consequences")
+# records the user's choice to write the XML editor in-repo the way monochromatic-jsonc-edit was
+# built (doc/decision/jsonc-edit-rust-foundation.md): an owned scanner, parser and emitter with no
+# third-party parser. Anything added here needs a fresh choosing-technology run.
+[dependencies]
+
+# Canonical lint policy, enforced by file-enforcer (doc/planning/cargo-toml-file-enforcer.md).
+[lints.clippy]
+complexity = { level = "allow", priority = -1 }
+disallowed_methods = "deny"
+implicit_return = "deny"
+needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+# Standalone crate: its own workspace root, so no ancestor Cargo.toml can absorb it.
+# Enforced by file-enforcer (doc/planning/cargo-toml-file-enforcer.md).
+[workspace]
