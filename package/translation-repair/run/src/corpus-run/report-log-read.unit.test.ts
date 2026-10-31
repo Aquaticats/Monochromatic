@@ -375,9 +375,14 @@ await describe({
             );
             await mkdir(empty,);
 
-            expect(String(await rejectionOf(async function namesAnEmptyFolder(): Promise<unknown> {
+            /**
+             What the check threw.
+             */
+            const refusal = await rejectionOf(async function namesAnEmptyFolder(): Promise<unknown> {
               return await refuseRepeatedLogs({ paths: [empty,], },);
-            },),),).toBe(
+            },);
+
+            expect(String(refusal,),).toBe(
               `StatedRefusalError: ${empty} holds no record file (log/<day>/*.log.jsonl), so there is nothing to count. `
                 + 'Name the run folder of a pass that ran, or one of its record files. Nothing was counted.',
             );

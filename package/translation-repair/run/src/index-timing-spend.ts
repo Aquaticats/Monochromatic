@@ -26,6 +26,7 @@ export {
   printInFlight,
   printRounds,
 } from './corpus-run/run-timing-report-print.ts';
+export { printRunRecords, } from './corpus-run/run-records-run.ts';
 export { reportRunTiming, } from './corpus-run/run-timing-report-run.ts';
 export {
   defaultRunsDirIn,

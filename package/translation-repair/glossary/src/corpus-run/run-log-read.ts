@@ -1,6 +1,7 @@
-import { readFile, } from 'node:fs/promises';
+import { createReadStream, } from 'node:fs';
 import { join, } from 'node:path';
 
+import { _neutralizeControlCharacters as neutralizeControlCharacters, } from '@monochromatic-dev/logger-core/ts';
 import {
   allInInputOrder,
   isJsonRecord,
@@ -28,9 +29,14 @@ import {
 //
 // A RECORD IS RENDERED AS THE CONSOLE SINK PRINTS IT, `[level] [ISO instant] message`, which is the text every report
 // parser here was written against, so each parser stays as it was and a report over records cannot drift from a
-// report over the same lines as text. The one difference from a console capture is that the console sink writes
-// control characters other than the line feed and the tab as `\uXXXX` escapes and this does not: a record's message
-// reaches the parser as it was logged.
+// report over the same lines as text. That includes the escaping: the console sink writes control characters other than
+// the line feed and the tab (C0, DEL and C1) as `\uXXXX`, and so does this, through the logger's own function for it
+// (ledger B1118), so a terminal that is handed the rendering never receives a control sequence a message carried.
+//
+// THE CONSOLE DID NOT SHOW DEBUG AND TRACE RECORDS unless a run was verbose, and the file sink records them always. A
+// reader hands the parsers what the console showed, so every count a report makes is the count it made over a
+// console capture, and a debug line that quotes a marker cannot be counted as the line it quotes; a caller that wants
+// the evidence in full asks for the verbose records (ledger B1117).
 //
 // WHERE A RUN'S RECORDS ARE: `<run folder>/log/<UTC day>/<timestamp>.<uuid>.log.jsonl`, one file for each process that
 // opened the run log. A reader is handed the run folder, its `log` directory, a day directory or one file, and finds the
@@ -46,6 +52,14 @@ const LEVELS: ReadonlySet<string> = new Set([
   'info',
   'trace',
   'warn',
+],);
+
+/**
+ Levels the console sink drops unless a run is verbose, so a reader drops them unless it is asked for them.
+ */
+const VERBOSE_LEVELS: ReadonlySet<string> = new Set([
+  'debug',
+  'trace',
 ],);
 
 /**
@@ -236,7 +250,8 @@ export function parseRunLogRecord({ line, }: { readonly line: string; },): RunLo
 
  @param line - one line of the file, without its line feed
 
- @returns Record as `[level] [ISO instant] message`, or the line itself when it is not exactly a record
+ @returns Record as `[level] [ISO instant] message`, its message's control characters escaped as the console sink
+ escapes them, or the line itself when it is not exactly a record
 
  @example
  ```ts
@@ -250,7 +265,25 @@ export function renderRunLogLine({ line, }: { readonly line: string; },): string
   const record = parseRunLogRecord({ line, },);
   if (record === 'not-a-record')
     return line;
-  return `[${record.level}] [${new Date(record.timestamp,).toISOString()}] ${record.message}`;
+  return renderRecord({ record, },);
+}
+
+/**
+ Renders one record as the console sink prints it, the message's control characters escaped as the sink escapes them.
+
+ @param record - record read
+
+ @returns `[level] [ISO instant] message`
+
+ @example
+ ```ts
+ renderRecord({ record: { level: 'info', message: 'purr', timestamp: 0, }, },); // '[info] [1970-01-01T00:00:00.000Z] purr'
+ ```
+ */
+function renderRecord({ record, }: { readonly record: RunLogRecord; },): string {
+  return `[${record.level}] [${new Date(record.timestamp,).toISOString()}] ${
+    neutralizeControlCharacters(record.message,)
+  }`;
 }
 
 /**
@@ -469,11 +502,108 @@ export async function runLogFilesUnder({ path, }: { readonly path: string; },): 
 }
 
 /**
+ Lines of one record file, split on the line feed alone, one at a time.
+
+ @param file - record file
+
+ @returns Each line without its line feed, a last line no line feed ends included
+
+ @example
+ ```ts
+ for await (const line of linesOfFile({ file, },))
+   count += 1;
+ ```
+ */
+async function* linesOfFile({ file, }: { readonly file: string; },): AsyncGenerator<string> {
+  /**
+   Pieces of the line a chunk ended in the middle of.
+   */
+  const unfinished: string[] = [];
+  for await (const chunk of createReadStream(
+    file,
+    { encoding: 'utf8', },
+  )) {
+    if ((typeof chunk) !== 'string')
+      throw new TypeError(`the stream of ${file} gave a ${typeof chunk} and not text`,);
+    /**
+     Where the next line of this chunk starts.
+     */
+    let start = 0;
+    for (let end = chunk.indexOf('\n',); end !== NOT_FOUND; end = chunk.indexOf(
+      '\n',
+      start,
+    )) {
+      unfinished.push(chunk.slice(
+        start,
+        end,
+      ),);
+      yield unfinished.join('',);
+      unfinished.length = 0;
+      start = end + 1;
+    }
+    if (start < chunk.length)
+      unfinished.push(chunk.slice(start,),);
+  }
+  // A LAST LINE NO LINE FEED ENDS is a line too: a process killed mid-write leaves one.
+  if (unfinished.length > 0)
+    yield unfinished.join('',);
+}
+
+/**
+ Reads a run's records one line at a time, as the lines the report parsers read.
+
+ NO FILE IS HELD WHOLE: each is read in chunks and cut into lines as they come, so what stands in memory is a chunk and a
+ line however large the run's records are, and a caller that stops asking stops the read.
+
+ @param path - run folder, its `log` directory, a day directory or one file
+
+ @param verbose - whether to hand on the debug and trace records too, which the console showed only for a verbose run
+
+ @returns One line for each record the console would have shown (or every record when verbose), a cut or foreign line
+ as it stands, in the order of the files
+
+ @throws {@link StatedRefusalError} when no record file can be found under the path
+
+ @example
+ ```ts
+ for await (const line of readRunLogLines({ path: '/runs/corpus-pass-tabby', },))
+   console.log(line,);
+ ```
+ */
+export async function* readRunLogLines(
+  {
+    path,
+    verbose = false,
+  }: {
+    readonly path: string;
+    readonly verbose?: boolean;
+  },
+): AsyncGenerator<string> {
+  for (const file of await runLogFilesUnder({ path, },)) {
+    /* oxlint-disable no-await-in-loop -- one file after the other, so the lines come in the order of the files and no later file is opened before an earlier one is read out */
+    for await (const line of linesOfFile({ file, },)) {
+      /**
+       The line as a record, if it is one.
+       */
+      const record = parseRunLogRecord({ line, },);
+      if (record === 'not-a-record')
+        yield line;
+      else if (verbose || (!VERBOSE_LEVELS.has(record.level,)))
+        yield renderRecord({ record, },);
+    }
+    /* oxlint-enable no-await-in-loop */
+  }
+}
+
+/**
  Reads a run's records as the text of the lines the report parsers read.
 
  @param path - run folder, its `log` directory, a day directory or one file
 
- @returns One line for each record, a cut or foreign line as it stands, each ended by a line feed
+ @param verbose - whether to include the debug and trace records, which the console showed only for a verbose run
+
+ @returns One line for each record the console would have shown, a cut or foreign line as it stands, each ended by a line
+ feed
 
  @throws {@link StatedRefusalError} when no record file can be found under the path
 
@@ -482,47 +612,24 @@ export async function runLogFilesUnder({ path, }: { readonly path: string; },): 
  const text = await readRunLogText({ path: '/runs/corpus-pass-tabby', },);
  ```
  */
-export async function readRunLogText({ path, }: { readonly path: string; },): Promise<string> {
-  /**
-   Record files under the path.
-   */
-  const files = await runLogFilesUnder({ path, },);
-  /**
-   Text of every file, in the order of the files.
-   */
-  const texts = await allInInputOrder({
-    members: files.map(function readOne(file,): Promise<string> {
-      return readFile(
-        file,
-        'utf8',
-      );
-    },),
-  },);
+export async function readRunLogText(
+  {
+    path,
+    verbose = false,
+  }: {
+    readonly path: string;
+    readonly verbose?: boolean;
+  },
+): Promise<string> {
   /**
    Rendered lines, each ended by a line feed.
    */
   const rendered: string[] = [];
-  for (const text of texts) {
-    /**
-     Where the next line of this file starts.
-     */
-    let start = 0;
-    for (let end = text.indexOf('\n',); end !== NOT_FOUND; end = text.indexOf(
-      '\n',
-      start,
-    )) {
-      rendered.push(`${renderRunLogLine({
-        line: text.slice(
-          start,
-          end,
-        ),
-      },)}\n`,);
-      start = end + 1;
-    }
-    // A LAST LINE NO LINE FEED ENDS is a line too: a process killed mid-write leaves one.
-    if (start < text.length)
-      rendered.push(`${renderRunLogLine({ line: text.slice(start,), },)}\n`,);
-  }
+  for await (const line of readRunLogLines({
+    path,
+    verbose,
+  },))
+    rendered.push(`${line}\n`,);
   return rendered.join('',);
 }
 

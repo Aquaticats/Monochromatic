@@ -76,6 +76,7 @@ export type CommandLines = EditorFidelityCommandLines & {
   readonly 'rendering-audit-settled-report': CommandLineSpec<'run' | 'against', never, never>;
   readonly 'roster-bench': CommandLineSpec<never, never, never>;
   readonly 'roster-card': CommandLineSpec<never, never, never>;
+  readonly 'run-records': CommandLineSpec<never, never, 'verbose'>;
   readonly 'run-timing-report': CommandLineSpec<never, never, never>;
   readonly 'score-agreement': CommandLineSpec<'sheet' | 'manifest' | 'pre-grades', never, never>;
   readonly 'score-attribution': CommandLineSpec<never, never, never>;
@@ -306,6 +307,11 @@ export const COMMAND_LINES: CommandLines = {
       least: 2,
       rest: false,
     },
+  },
+  'run-records': {
+    ...NO_ARGUMENTS,
+    positionals: LOG_FILES,
+    switches: { verbose: true, },
   },
   'run-timing-report': {
     ...NO_ARGUMENTS,

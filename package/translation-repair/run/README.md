@@ -161,6 +161,13 @@ and each task sets it to its own name.
   bounded ranges.
   Name one or more log paths after `--`.
   Spends no quota.
+- `run-records`:
+  prints the records a pass kept in its run folder as the console showed them,
+  one line for each record, with the console's escaping of control characters,
+  so a terminal never receives a control sequence a message carried.
+  The debug and trace records are left out unless `--verbose` is given.
+  Name one or more run folders or record files after `--`.
+  Spends no quota.
 - `cap-census`:
   re-reads the completion cap rule over pass-run logs before a launch,
   per seat and provider,

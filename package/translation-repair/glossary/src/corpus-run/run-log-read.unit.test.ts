@@ -261,14 +261,17 @@ await describe({
              The logger a person watches, with the console sink only.
              */
             const { logger, } = createLogger({ sinks: [sinks.createConsoleSink(),], },);
-            for (const character of characters)
+            for (const character of characters) {
               logger.info(`a${character}b`,);
-            await logger.flush();
+              // A RUN OF LINES OF ONE LEVEL IS HANDED TO THE CONSOLE AS ONE CALL, so each is settled before the next.
+              // oxlint-disable-next-line no-await-in-loop -- one line to a console call, so each call holds one character
+              await logger.flush();
+            }
             /**
              What the console printed, a call for each character, the message after the bracketed instant.
              */
             const printed = info.args.flatMap(function messagesOf(call,): readonly string[] {
-              return [format(...call,).split('] ',).slice(2,)
+              return [format(...(call as readonly unknown[]),).split('] ',).slice(2,)
                 .join('] ',),];
             },);
             expect(printed.length,).toBe(characters.length,);
@@ -285,7 +288,7 @@ await describe({
             },);
             // The positive control: the characters that must be written out, and the two that stay.
             expect(renderRunLogLine({ line: JSON.stringify({ level: 'info', message: '\u001B[31mred', timestamp: 0, },), },),)
-              .toBe('[info] [1970-01-01T00:00:00.000Z] \\u001B[31mred',);
+              .toBe(String.raw`[info] [1970-01-01T00:00:00.000Z] \u001B[31mred`,);
             expect(renderRunLogLine({ line: JSON.stringify({ level: 'info', message: 'a\tb\nc', timestamp: 0, },), },),)
               .toBe('[info] [1970-01-01T00:00:00.000Z] a\tb\nc',);
           },
@@ -307,7 +310,7 @@ await describe({
               file,
               `${JSON.stringify({ level: 'warn', message: 'cut \uD800 here', timestamp: 0, },)}\n`,
             );
-            expect(await readFile(file, 'utf8',),).toContain('\\ud800',);
+            expect(await readFile(file, 'utf8',),).toContain(String.raw`\ud800`,);
             expect(await readRunLogText({ path: file, },),).toBe('[warn] [1970-01-01T00:00:00.000Z] cut \uD800 here\n',);
           },
         },),
@@ -333,7 +336,7 @@ await describe({
             );
             await writeFile(
               file,
-              [
+              `${[
                 'trace',
                 'debug',
                 'info',
@@ -342,7 +345,7 @@ await describe({
                 'fatal',
               ].map(function recordOf(level, index,): string {
                 return JSON.stringify({ level, message: `${level} round: ${String(index,)}/3 heard`, timestamp: index, },);
-              },).join('\n',) + '\nnot a record\n',
+              },).join('\n',)}\nnot a record\n`,
             );
             /**
              What the console showed, in file order.

@@ -129,9 +129,9 @@ await describe({
           sinon: ctx.sinon,
           typed: [await writtenRun({ dir: scratch.path, },),],
         },),).toEqual([
-          '[info] [1970-01-01T00:00:00.000Z] START \\u001B]0;title\\u0007 tip',
+          String.raw`[info] [1970-01-01T00:00:00.000Z] START \u001B]0;title\u0007 tip`,
           '[warn] [1970-01-01T00:00:00.001Z] cut \uD800 here',
-          'a foreign line \\u001B[2J of the file',
+          String.raw`a foreign line \u001B[2J of the file`,
         ],);
       },
     },),

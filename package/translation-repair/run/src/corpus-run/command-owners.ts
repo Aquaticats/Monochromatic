@@ -57,6 +57,7 @@ export const COMMAND_OWNERS: Readonly<Record<CommandName, string>> = {
   'rendering-audit-settled-report': 'probe',
   'roster-bench': 'bench',
   'roster-card': 'bench',
+  'run-records': 'run',
   'run-timing-report': 'run',
   'score-agreement': 'probe',
   'score-attribution': 'probe',
