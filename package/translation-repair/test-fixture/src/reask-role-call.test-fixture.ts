@@ -206,6 +206,35 @@ function namedUnderKey(
 }
 
 /**
+ Whether the source names a function anywhere outside comments and strings, as a call, a declaration or an import.
+
+ @param source - text of the file
+
+ @param name - function looked for
+
+ @returns True when a word of that name stands in the code
+
+ @example
+ ```ts
+ const reads = sourceNamesFunction({ source, name: 'gatherStageVoices', },);
+ ```
+ */
+export function sourceNamesFunction(
+  {
+    source,
+    name,
+  }: {
+    readonly source: string;
+    readonly name: string;
+  },
+): boolean {
+  return tokensOf({ source, },)
+    .some(function namesIt(token,): boolean {
+      return (token.kind === 'word') && (token.text === name);
+    },);
+}
+
+/**
  Reads the value each real call of a function names under a key.
 
  @param source - text of the file that calls the function
