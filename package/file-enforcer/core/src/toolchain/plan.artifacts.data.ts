@@ -533,20 +533,20 @@ export const ARTIFACTS: Readonly<Record<string, ToolArtifacts>> = {
   },
   'superhtml': {
     'linux-arm64': {
-      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/aarch64-linux.tar.xz',
-      sha256: '9fa2ed1ec830464c38929531693e7129ae6df3ccb1bb3f01fec3322ed5759fc5',
+      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/aarch64-linux.tar.xz',
+      sha256: '9ed5bbf8e61a94b13db68eca1666403c654ff4a12c12a458e217331f869394b3',
     },
     'linux-arm64-musl': {
-      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/aarch64-linux.tar.xz',
-      sha256: '9fa2ed1ec830464c38929531693e7129ae6df3ccb1bb3f01fec3322ed5759fc5',
+      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/aarch64-linux.tar.xz',
+      sha256: '9ed5bbf8e61a94b13db68eca1666403c654ff4a12c12a458e217331f869394b3',
     },
     'linux-x64': {
-      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/x86_64-linux-musl.tar.xz',
-      sha256: 'b75c6eeef539416096eac38729ee54e5f3b248f039cab4f57660f29a88742f68',
+      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/x86_64-linux-musl.tar.xz',
+      sha256: 'e5493cb412ea50e3686972f6e114137f0d4f612388d8041a294c8314efa55b35',
     },
     'linux-x64-musl': {
-      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/x86_64-linux-musl.tar.xz',
-      sha256: 'b75c6eeef539416096eac38729ee54e5f3b248f039cab4f57660f29a88742f68',
+      url: 'https://github.com/kristoff-it/superhtml/releases/download/v0.7.1/x86_64-linux-musl.tar.xz',
+      sha256: 'e5493cb412ea50e3686972f6e114137f0d4f612388d8041a294c8314efa55b35',
     },
   },
   'taplo': {
