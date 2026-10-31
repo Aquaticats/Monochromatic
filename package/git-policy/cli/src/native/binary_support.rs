@@ -170,6 +170,11 @@ fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
         .env("GIT_COMMITTER_NAME", "Fixture")
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
         .current_dir(&fixture.root);
+    // A developer who sets the wrapper's verbose switch for a run gets its debug log in every wrapped command's
+    //  output; no run sets it otherwise, so the environment stays hermetic.
+    if let Some(verbose) = std::env::var_os("MONOCHROMATIC_VERBOSE") {
+        command.env("MONOCHROMATIC_VERBOSE", verbose);
+    }
 }
 
 /// The PATH most controls use:
