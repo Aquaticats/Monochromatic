@@ -54,6 +54,20 @@ RUN ms_url="$(jq --raw-output '.tools["mpm-shadow"].artifacts["linux-x64"].url' 
  && tar --extract --gzip --file /tmp/mpm-shadow.tar.gz --wildcards --strip-components=1 --directory /usr/local/bin '*/mpm-shadow' \
  && mpm-shadow --version
 
+# The plan's `rust` entry runs `rustup toolchain install`, and every cargo-binstall tool runs `cargo binstall`, a cargo
+# subcommand, so a machine needs rustup before `mpm-shadow install` (the plan does not provision rustup itself; the
+# retired TypeScript sync needed it the same way). rustup-init is checked against the checksum rust-lang publishes
+# beside it, and installs no toolchain (`rustup toolchain install` of the plan does) but the `cargo` and `rustc`
+# proxies that need one. The `rust` entry's RUSTUP_TOOLCHAIN then selects the locked nightly for them.
+RUN rustup_url=https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu \
+ && curl --fail --silent --show-error --location --output /tmp/rustup-init "${rustup_url}/rustup-init" \
+ && curl --fail --silent --show-error --location --output /tmp/rustup-init.sha256 "${rustup_url}/rustup-init.sha256" \
+ && echo "$(cut --delimiter=' ' --fields=1 /tmp/rustup-init.sha256)  /tmp/rustup-init" | sha256sum --check \
+ && chmod +x /tmp/rustup-init \
+ && /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none \
+ && rm /tmp/rustup-init /tmp/rustup-init.sha256
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # Every tool converges to `toolchain.lock.json`; mise runs only the repository's tasks afterwards
 # (`mise run toolchain:install` is the same entry).
 RUN export $(cat .env.local | xargs) && mpm-shadow install --frozen-lockfile
