@@ -236,7 +236,7 @@ pub fn plan_invocation(
             arguments: forwarded,
             stderr,
         } => {
-            // The opt-out, Git's help and version forms, and the commands that need no repository
+            // The opt-out, Git's other query forms (`--exec-path` and so on), and the commands that need no repository
             // (`version`, `help`, `init`, `clone`, user-level `config`) never settle a copy.
             let copy_bypassed: bool = stripped.controls.skip_worktree_copy
                 || stripped.layout.outcome != GlobalOutcome::Command
@@ -477,7 +477,7 @@ fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
 ///  under the landing lock when it writes the real index,
 ///  and settled by the linked-worktree copy when it runs from a linked worktree or a bare repository
 ///  (or creates a worktree from a main checkout whose configuration names the rules file).
-///  `copy_bypassed` is true for the wrapper's opt-out and for Git's help and version forms.
+///  `copy_bypassed` is true for the wrapper's opt-out and for Git's query forms.
 /// Why:
 ///   Only these commands need the wrapper to outlive Git or to hold a lock around it;
 ///  everything else keeps the exact process replacement.
