@@ -79,6 +79,46 @@ mod parse;
 /// ```
 mod query;
 
+/// What: Line ending, indentation and line-ownership probes. Why: Inserted text should match its neighbours.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // private module: detectEol, lineIndent
+/// ```
+mod layout;
+
+/// What: The element description type and the iterative emitter. Why: New markup is data, never string glue.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { XmlElementSpec } from './render';
+/// ```
+mod render;
+
+/// What: Attribute edits (set, remove). Why: The consumer's main operation, with the smallest possible splice.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // methods on XmlDocument: setAttribute, removeAttribute
+/// ```
+mod edit_attribute;
+
+/// What: Element edits (replace, append, remove, set text). Why: Whole-entry management for the consumer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // methods on XmlDocument: replaceElement, appendChild, removeElement, setText
+/// ```
+mod edit_content;
+
+/// What: Re-export the element description types. Why: Callers build the elements they append or replace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export { XmlElementSpec, XmlNodeSpec } from './render';
+/// ```
+pub use render::{XmlElementSpec, XmlNodeSpec};
+
 /// What: Re-export the parser entry point at the crate root. Why: It is the crate's front door.
 ///
 /// In TS you'd write (pseudocode):
@@ -120,3 +160,21 @@ mod fixtures;
 /// ```
 #[cfg(test)]
 mod parse_tests;
+
+/// What: Attribute edit tests. Why: Byte-for-byte preservation outside the edited value is the contract.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './editAttribute.test';
+/// ```
+#[cfg(test)]
+mod edit_attribute_tests;
+
+/// What: Element edit tests. Why: Inserted text must match its neighbours' layout.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './editContent.test';
+/// ```
+#[cfg(test)]
+mod edit_content_tests;

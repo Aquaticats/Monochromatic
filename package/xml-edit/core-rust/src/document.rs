@@ -51,7 +51,7 @@ pub struct XmlElementId(pub(crate) usize);
 /// ```ts
 /// type AttributeData = { name: Span; value: Span; quote: string; decoded: string };
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AttributeData {
     /// Span of the attribute name.
     pub name: XmlSpan,
@@ -72,7 +72,7 @@ pub(crate) struct AttributeData {
 /// ```ts
 /// type ElementData = { name: Span; startTag: Span; endTag?: Span; parent?: number; children: number[] };
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ElementData {
     /// Span of the element name inside the start tag.
     pub name: XmlSpan,
@@ -108,7 +108,7 @@ pub(crate) struct ElementData {
 /// ```ts
 /// class XmlDocument { readonly source: string; root(): XmlElementId; /* queries and edits */ }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct XmlDocument {
     /// The full source text, byte-for-byte as parsed (a leading BOM included).
     pub(crate) source: String,

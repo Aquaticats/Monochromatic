@@ -119,8 +119,8 @@ impl XmlDocument {
         return Some(&data.text);
     }
 
-    /// What: Return the span-free list of attribute names, used by edits to find an insertion point.
-    /// Why: Keeps attribute-name slicing in one place for the edit module.
+    /// What: Return the recorded attribute (spans, quote character, decoded value) with the given name.
+    /// Why: Edits splice the value span and reuse the quote style, so they need more than the decoded text.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

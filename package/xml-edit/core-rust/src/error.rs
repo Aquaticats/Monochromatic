@@ -220,7 +220,7 @@ impl std::fmt::Display for XmlEditError {
                 );
             }
             XmlEditError::MixedContent { element } => {
-                return write!(formatter, "element {element:?} mixes text with child elements, so the edit is ambiguous");
+                return write!(formatter, "element {element:?} holds text beside child elements, comments or instructions, so the edit is ambiguous");
             }
             XmlEditError::CannotRemoveRoot => {
                 return write!(formatter, "the root element cannot be removed because the document would have no root");
