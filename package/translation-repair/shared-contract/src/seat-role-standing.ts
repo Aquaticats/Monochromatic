@@ -8,7 +8,7 @@ import type { RosterModelId, } from './roster-id.ts';
 // their share of runaways. Every other role has no standing recorded and keeps the lowest share of runaways first
 // ("Lowest runaway share (Recommended)", 2026-10-30).
 //
-// ONE RECORDED SOURCE, NOT A HAND-ORDERED LIST: the table below holds the shares as the calibration printed them, and the
+// ONE RECORDED SOURCE, NOT A HAND-ORDERED LIST: the table `ROLE_STANDINGS` holds the shares as the calibration printed them, and the
 // order is derived from them by `standingOrderOf`. A model of the calibration that has since left the roster
 // (`deepseek-v4-pro-0813`, `deepseek-v4-flash-0731`, `hf:openai/gpt-oss-120b`) is not in the table, since no roster model
 // can be asked by it.

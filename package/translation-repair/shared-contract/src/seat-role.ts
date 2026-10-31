@@ -35,7 +35,7 @@ import {
 // HOLDS OF A ROUTE ARE NOT IN THE BENCH TABLE: `openrouter-dropped`, `openrouter-withheld` and `synthetic-withheld` keep a
 // model off a provider, which the router reads at the call; a re-ask is routed like a first ask, so the router refuses
 // them for it too. `hyper-slow` and `hyper-slow-select` are different: only `run-seats.ts` reads them, as a filter of the
-// benches it derives at each phase, and the router does not. They are therefore written below as the holds a re-ask
+// benches it derives at each phase, and the router does not. They are therefore written as the holds a re-ask
 // honours at seating time (`ROUTE_TIME_HOLDS_OF_ROLE`), and the pool a re-ask draws from leaves those models out (ledger
 // B1143); a drift test in the run package fails when the pool and a derived bench part in any reading of the meters.
 

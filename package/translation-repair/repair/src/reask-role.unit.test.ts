@@ -2,8 +2,9 @@
  Tests for the role each asking of a bench names in this package (ledger B1079).
 
  A RUNAWAY IS RE-ASKED OF A MODEL ITS CARD DOES NOT HOLD OUT OF THE ROLE ("Honour holds (Recommended)", 2026-10-30), so
- every call that asks a bench names the role of that bench: the critics, the restoration judges and the slates of the
- repair lane are the wide judges, the checkers the checker role, and the editors and the refiners the roster role.
+ every call that asks a bench names the role of that bench: the critics and the restoration judges are the wide judges,
+ the slates of the editors and the refiners the select judges, the checkers the checker role, and the editors and the
+ refiners the roles of their own (ledger B1143).
 
  @module
  */
@@ -90,7 +91,7 @@ await describe({
 
     it({
       name: 'NAMES THE REFINER ROLE where the refiners are asked, and takes the role of the judges of their slate from '
-        + 'the caller, since the repair lane seats the wide judges and the consolidation polish the late judges',
+        + 'the caller, since the repair lane and the consolidation polish both seat them as select judges',
       fn: async () => {
         expect(await rolesIn({ file: './refine-stage.ts', callee: 'gatherStageVoices', },),).toEqual(['refiner',],);
         expect(await rolesIn({ file: './refine-stage.ts', callee: 'selectBestCandidate', },),).toEqual(['judgeRole',],);
@@ -98,7 +99,7 @@ await describe({
     },),
 
     it({
-      name: 'NAMES THE WIDE-JUDGE ROLE where the slate of the editors is judged, at both of its asks',
+      name: 'NAMES THE SELECT-JUDGE ROLE where the slate of the editors is judged, at both of its asks',
       fn: async () => {
         expect(await rolesIn({ file: './editor-ensemble.ts', callee: 'selectBestCandidate', },),).toEqual([
           'select-judge',
@@ -108,7 +109,7 @@ await describe({
     },),
 
     it({
-      name: 'NAMES THE WIDE-JUDGE ROLE where the slate of the refiners is judged in the repair lane',
+      name: 'NAMES THE SELECT-JUDGE ROLE where the slate of the refiners is judged in the repair lane',
       fn: async () => {
         expect(await rolesIn({ file: './refine-slice-settle.ts', callee: 'runRefineStage', },),).toEqual(['none',],);
         const source = await readFile(new URL('refine-slice-settle.ts', import.meta.url,), 'utf8',);
