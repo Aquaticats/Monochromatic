@@ -114,7 +114,8 @@ fn an_unreadable_file_is_an_error_and_not_a_vanished_process() {
 
 /// A permission error on a process of the watched user is an error,
 /// because a reader that may not look cannot say the process is gone.
-/// Root can read everything, so the test has nothing to show there.
+/// Root can read everything,
+/// so the test has nothing to show there.
 #[test]
 fn a_permission_error_is_an_error_and_not_a_vanished_process() {
     // SAFETY: geteuid has no preconditions.
