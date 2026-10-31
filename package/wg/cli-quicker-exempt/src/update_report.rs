@@ -111,6 +111,14 @@ pub enum Outcome {
     },
 }
 
+/// Classification of outcomes.
+impl Outcome {
+    /// Reports whether the outcome means the policy is not in force for some process.
+    pub fn is_failure(&self) -> bool {
+        return matches!(self, Outcome::Skipped { .. } | Outcome::Failed { .. } | Outcome::Unreadable { .. } | Outcome::ScanFailed { .. });
+    }
+}
+
 /// Formats an outcome for the watcher log,
 /// or `None` when nothing needs saying.
 pub fn describe_outcome(outcome: &Outcome) -> Option<String> {

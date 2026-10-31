@@ -79,6 +79,7 @@ fn a_failure_report_names_the_policy_not_in_force() {
 fn only_adoptions_and_problems_are_logged() {
     for quiet in [Outcome::Ignored, Outcome::AlreadyInSlice, Outcome::Deferred] {
         assert_eq!(describe_outcome(&quiet), None);
+        assert!(!quiet.is_failure());
     }
     let adopted = Outcome::Adopted { pid: 5, reason: MatchReason::MpmShim, count: 2, left_behind: 3 };
     let line = describe_outcome(&adopted).expect("adoption is logged");
@@ -86,6 +87,7 @@ fn only_adoptions_and_problems_are_logged() {
     assert!(line.contains("pid 5"));
     assert!(line.contains("1 descendant(s)"));
     assert!(line.contains("3 other process(es)"));
+    assert!(!adopted.is_failure());
     let problems = [
         Outcome::Skipped { pid: 1, why: "outside the subtree".to_string() },
         Outcome::Failed { pid: 2, error: "refused".to_string(), attempt: 2, retry_in: Duration::from_secs(2) },
@@ -93,6 +95,7 @@ fn only_adoptions_and_problems_are_logged() {
         Outcome::ScanFailed { error: "no procfs".to_string() },
     ];
     for problem in &problems {
+        assert!(problem.is_failure());
         let text = describe_outcome(problem).expect("a problem is reported");
         assert!(text.contains(POLICY_NOT_IN_FORCE_MARKER), "{text}");
     }

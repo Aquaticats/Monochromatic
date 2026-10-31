@@ -31,6 +31,8 @@ use crate::user_account::lookup_user;
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.
 use crate::update_report::{policy_notice, POLICY_NOT_IN_FORCE_MARKER};
+/// Delivery of failures after startup.
+use crate::runtime_report::RuntimeReporter;
 /// The account of the watched user.
 use crate::user_account::UserAccount;
 /// Handshake and file errors.
@@ -301,7 +303,7 @@ pub fn run_application_watch_child(
         proc_root: PathBuf::from("/proc"),
         adopter: Box::new(BusctlAdopter::new()),
     });
-    let mut watch = prepare_application_watch(roots, mark, routing)?;
+    let mut watch = prepare_application_watch(roots, mark, routing, RuntimeReporter::new(uid, account.gid))?;
     println!("{READY}");
     io::stdout().flush()?;
     let mut commit = String::new();

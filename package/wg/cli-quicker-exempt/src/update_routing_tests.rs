@@ -237,6 +237,7 @@ fn processes_already_in_the_slice_or_outside_the_subtree_are_not_moved() {
     assert_eq!(fixture.routing.consider(30), Outcome::AlreadyInSlice);
     let skipped = fixture.routing.consider(31);
     assert!(matches!(skipped, Outcome::Skipped { pid: 31, .. }));
+    assert!(skipped.is_failure());
     assert_eq!(fixture.routing.consider(31), Outcome::Ignored, "a permanent skip is reported once");
     assert!(fixture.requests.borrow().is_empty());
 }
@@ -276,6 +277,7 @@ fn a_failed_adoption_is_reported_and_retried_after_a_backoff() {
     let start = Instant::now();
     let first = fixture.routing.consider_at(40, start);
     assert!(matches!(&first, Outcome::Failed { pid: 40, attempt: 1, .. }), "{first:?}");
+    assert!(first.is_failure());
     assert_eq!(fixture.routing.consider_at(40, start + Duration::from_millis(500)), Outcome::Ignored);
     assert_eq!(fixture.requests.borrow().len(), 1, "no attempt before the wait is over");
     fixture.routing.begin_pass();
@@ -384,6 +386,7 @@ fn an_unreadable_process_is_reported_once() {
     std::fs::write(fixture.proc_root.join("70/exe"), b"not a link").expect("replace it by a file");
     let first = fixture.routing.consider(70);
     assert!(matches!(first, Outcome::Unreadable { pid: 70, .. }), "{first:?}");
+    assert!(first.is_failure());
     assert_eq!(fixture.routing.consider(70), Outcome::Ignored);
 }
 

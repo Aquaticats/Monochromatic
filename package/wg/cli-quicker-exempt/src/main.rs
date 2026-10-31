@@ -35,6 +35,8 @@ mod application_watch;
 mod application_watch_service;
 /// Persists detached application watcher identity.
 mod application_watch_state;
+/// Delivers failures after startup to a person.
+mod runtime_report;
 /// Raw `bpf(2)` ABI and socket-marking program loader.
 mod bpf;
 /// Stable Linux `bpf(2)` UAPI subset.
@@ -67,6 +69,9 @@ mod update_report_tests;
 /// Unit tests for the relay of startup failures.
 #[cfg(test)]
 mod application_watch_service_tests;
+/// Unit tests for failure delivery.
+#[cfg(test)]
+mod runtime_report_tests;
 /// Unit tests for the user client.
 #[cfg(test)]
 mod user_client_tests;
