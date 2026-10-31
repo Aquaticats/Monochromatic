@@ -193,8 +193,7 @@ fn apply_crate(info: &mut CrateInfo, resolved: &Resolved) -> (String, Vec<Change
             }
         }
     }
-    let ends_with_newline: bool = info.manifest.source.ends_with('\n');
-    match sync_generated_table(&mut info.document, ends_with_newline, &resolved.entries) {
+    match sync_generated_table(&mut info.document, &resolved.entries) {
         TableChange::Unchanged => {}
         TableChange::Written => changes.push(Change::GeneratedTableWritten),
         TableChange::Removed => changes.push(Change::GeneratedTableRemoved),

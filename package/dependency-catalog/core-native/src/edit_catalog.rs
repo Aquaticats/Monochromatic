@@ -78,8 +78,14 @@ pub fn end_position(document: &DocumentMut) -> isize {
             last = last.max(position);
         }
         for (_, item) in table.iter() {
-            if let Item::Table(child) = item {
-                stack.push(child);
+            match item {
+                Item::Table(child) => stack.push(child),
+                Item::ArrayOfTables(children) => {
+                    for child in children.iter() {
+                        stack.push(child);
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -88,7 +94,7 @@ pub fn end_position(document: &DocumentMut) -> isize {
 
 /// Creates a missing `[catalog]` table at the end of the file,
 /// one blank line after the previous text.
-fn ensure_catalog_table(document: &mut DocumentMut, source_ends_with_newline: bool, source_is_empty: bool) {
+fn ensure_catalog_table(document: &mut DocumentMut, source_is_empty: bool) {
     if document.as_table().get("catalog").is_some() {
         return;
     }
@@ -96,7 +102,7 @@ fn ensure_catalog_table(document: &mut DocumentMut, source_ends_with_newline: bo
     let mut table: Table = Table::new();
     table.set_position(Some(position));
     if !source_is_empty {
-        table.decor_mut().set_prefix(if source_ends_with_newline { "\n" } else { "\n\n" });
+        table.decor_mut().set_prefix("\n");
     }
     document.as_table_mut().insert("catalog", Item::Table(table));
 }
@@ -151,7 +157,7 @@ fn insert_sorted(table: &mut Table, name: &str, value: Value) {
 /// ```
 pub fn edit_catalog(document: &mut DocumentMut, source: &str, plan: &AdoptionPlan, prunes: &[Vec<String>]) {
     if !plan.additions.is_empty() {
-        ensure_catalog_table(document, source.ends_with('\n'), source.is_empty());
+        ensure_catalog_table(document, source.is_empty());
         if let Some(Item::Table(table)) = document.as_table_mut().get_mut("catalog") {
             for (name, entry) in sorted_additions(&plan.additions) {
                 insert_sorted(table, name, parse_value(&render_entry_value(entry)));

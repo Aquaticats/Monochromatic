@@ -281,7 +281,7 @@ pub enum TableChange {
 /// ```ts
 /// export function generatedTableSplices(args: { source; located; entries }): Splice[]
 /// ```
-pub fn sync_generated_table(document: &mut DocumentMut, source_ends_with_newline: bool, entries: &[(String, GeneratedEntry)]) -> TableChange {
+pub fn sync_generated_table(document: &mut DocumentMut, entries: &[(String, GeneratedEntry)]) -> TableChange {
     let wanted: Table = generated_table(entries);
     let end: isize = end_position(document);
     let root: &mut Table = document.as_table_mut();
@@ -299,8 +299,7 @@ pub fn sync_generated_table(document: &mut DocumentMut, source_ends_with_newline
         }
         let mut fresh: Table = wanted;
         fresh.set_position(Some(end));
-        let separator: &str = if source_ends_with_newline { "\n" } else { "\n\n" };
-        fresh.decor_mut().set_prefix(format!("{separator}{GENERATED_TABLE_COMMENT}\n"));
+        fresh.decor_mut().set_prefix(format!("\n{GENERATED_TABLE_COMMENT}\n"));
         if root.get("workspace").is_none() {
             let mut workspace: Table = Table::new();
             workspace.set_implicit(true);

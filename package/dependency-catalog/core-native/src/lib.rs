@@ -135,3 +135,19 @@ mod sync_test_support;
 /// Unit tests of `sync`.
 #[cfg(test)]
 mod sync_tests;
+
+/// Unit tests of adoption planning and resolution.
+#[cfg(test)]
+mod adopt_tests;
+
+/// Unit tests of use-site classification and manifest reading.
+#[cfg(test)]
+mod classify_tests;
+
+/// Unit tests of the format-preserving edits.
+#[cfg(test)]
+mod edit_tests;
+
+/// Unit tests of the small helpers.
+#[cfg(test)]
+mod helper_tests;
