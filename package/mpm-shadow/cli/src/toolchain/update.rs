@@ -175,6 +175,15 @@ fn resolve_one(ctx: &Context, declaration: &Declaration, current: Option<&Locked
     }
 }
 
+/// Whether a named update leaves this tool out:
+/// names were given and the id is not among the selected ones.
+fn is_left_out(only: Option<&BTreeSet<String>>, id: &str) -> bool {
+    return match only {
+        Some(selected) => !selected.contains(id),
+        None => false,
+    };
+}
+
 /// The tools an npm or PyPI tool needs installed first,
 /// by route.
 fn prerequisites(route: Route) -> &'static [&'static str] {
@@ -290,7 +299,7 @@ pub fn update_loaded(
     for declaration in &loaded.plan.tools {
         let current: Option<&LockedTool> = find_tool(&old_tools, &declaration.id);
         match current {
-            Some(locked) if only.is_some_and(|selected| return !selected.contains(&declaration.id)) => {
+            Some(locked) if is_left_out(only, &declaration.id) => {
                 results.push(Resolved { outcome: Outcome { id: declaration.id.clone(), kind: OutcomeKind::Kept }, resolution: Some(keep(locked)) });
             }
             _ => results.push(resolve_one(&context, declaration, current)),

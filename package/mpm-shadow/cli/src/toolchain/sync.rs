@@ -292,19 +292,22 @@ fn frozen_refusal(verdict: &Disagreement, reason: FrozenReason) -> ToolchainErro
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resolveBeforeInstalling(loaded, ids, scope, env, runner, http, host): [string, string][]
+/// function resolveBeforeInstalling(loaded, only: string[] | undefined, scope, env, runner, http, host): [string, string][]
 /// ```
 fn resolve_before_installing(
     loaded: &Loaded,
-    ids: &[String],
+    ids: Option<&[String]>,
     scope: &Scope,
     env: &EnvMap,
     runner: &dyn Runner,
     http: &dyn HttpGet,
     host: &Host,
 ) -> Result<Vec<(String, String)>, ToolchainError> {
-    let only: BTreeSet<String> = ids.iter().cloned().collect();
-    let report = update_loaded(loaded, scope, env, runner, http, host, false, Some(&only))?;
+    let mut only: Option<BTreeSet<String>> = None;
+    if let Some(given) = ids {
+        only = Some(given.iter().cloned().collect());
+    }
+    let report = update_loaded(loaded, scope, env, runner, http, host, false, only.as_ref())?;
     if report.has_failures() {
         let mut message: String = String::from(
             "mpm-shadow sync could not resolve the plan entries the lock lacks, so it wrote nothing and installed nothing:\n",
@@ -362,13 +365,30 @@ pub fn run_sync_with(
 ) -> Result<SyncReport, ToolchainError> {
     let loaded: Loaded = load(scope)?;
     let mut resolved: Vec<(String, String)> = Vec::new();
-    if let Some(parsed) = &loaded.lock {
-        let verdict: Disagreement = compare(&loaded.plan, parsed);
-        if verdict.digest_problem.is_none() && verdict.needs_update() {
-            match policy {
-                LockPolicy::Frozen(reason) => return Err(frozen_refusal(&verdict, reason)),
-                LockPolicy::Resolve => {
-                    resolved = resolve_before_installing(&loaded, &verdict.ids_needing_update(), scope, env, runner, http, host)?;
+    match &loaded.lock {
+        None => match policy {
+            // pnpm: `--frozen-lockfile` fails when no lockfile is present (ERR_PNPM_NO_LOCKFILE).
+            LockPolicy::Frozen(FrozenReason::Flag) => {
+                return Err(ToolchainError::drift(format!(
+                    "{} does not exist and `--frozen-lock` forbids sync from creating it; \
+                     run `mpm-shadow update` to resolve the plan's tools and write it",
+                    scope.lock_file.display()
+                )));
+            }
+            // pnpm: the CI default is frozen only "if a lockfile is present", so without one it resolves and writes.
+            LockPolicy::Frozen(FrozenReason::Ci) | LockPolicy::Resolve => {
+                resolved = resolve_before_installing(&loaded, None, scope, env, runner, http, host)?;
+            }
+        },
+        Some(parsed) => {
+            let verdict: Disagreement = compare(&loaded.plan, parsed);
+            if verdict.digest_problem.is_none() && verdict.needs_update() {
+                match policy {
+                    LockPolicy::Frozen(reason) => return Err(frozen_refusal(&verdict, reason)),
+                    LockPolicy::Resolve => {
+                        let ids: Vec<String> = verdict.ids_needing_update();
+                        resolved = resolve_before_installing(&loaded, Some(&ids), scope, env, runner, http, host)?;
+                    }
                 }
             }
         }

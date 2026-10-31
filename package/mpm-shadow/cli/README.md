@@ -468,7 +468,7 @@ and the report prints `toolchain sync: locked <id> <version> ...` for each.
 - **Frozen:**
   with `--frozen-lock`,
   or when a CI environment is detected,
-  `sync` resolves nothing:
+  `sync` resolves nothing into an existing lock:
   it refuses as before,
   names `mpm-shadow update <ids>` for exactly those entries,
   and says why it did not resolve.
@@ -492,10 +492,17 @@ and the report prints `toolchain sync: locked <id> <version> ...` for each.
   resolves even in CI,
   like pnpm's `--no-frozen-lockfile`.
   The two switches cannot be combined.
-- **A lock that does not exist** is never created by `sync`
-  (pnpm in CI also resolves when there is no lockfile;
-  here `update` is the one command that creates the lock from nothing),
-  and the refusal names `mpm-shadow update`.
+- **A lock that does not exist** is resolved in full and written by `sync`,
+  frozen by CI or not,
+  and then the install runs.
+  pnpm's `--frozen-lockfile` defaults to "true,
+  if a lockfile is present" in CI,
+  so `CI=true pnpm install` with no `pnpm-lock.yaml` resolves and writes one
+  (checked with pnpm 12.16.1 in a disposable directory).
+  `--frozen-lock` given explicitly refuses instead,
+  as `pnpm install --frozen-lockfile` does with no lockfile
+  (it fails with `ERR_PNPM_NO_LOCKFILE`),
+  and names `mpm-shadow update`.
 - **A failed lookup** stops `sync` before anything is written or installed,
   naming the entry and the URL.
 - **Unchanged refusals:**

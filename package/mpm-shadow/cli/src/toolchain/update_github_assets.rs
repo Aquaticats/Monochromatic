@@ -119,7 +119,11 @@ fn score(name: &str, platform: &str, hinted: bool) -> Option<u32> {
 /// Why:
 /// A `hint` glob restricts the candidates first,
 /// so a repository that ships several programs in one release can say which one it means,
-/// and naming a GPU build (`rocm`, `cuda`, `vulkan`) in the glob is the only way to ask for one.
+/// and naming a GPU build
+/// (`rocm`,
+/// `cuda`,
+/// `vulkan`)
+/// in the glob is the only way to ask for one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

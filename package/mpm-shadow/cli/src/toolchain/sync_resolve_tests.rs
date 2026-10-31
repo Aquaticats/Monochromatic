@@ -223,14 +223,48 @@ fn a_hand_edited_lock_is_refused_under_either_policy_before_any_lookup() {
     }
 }
 
+/// pnpm:
+/// the CI default of `--frozen-lockfile` is "true,
+/// if a lockfile is present",
+/// so with no lockfile `pnpm install` resolves and writes one,
+/// in CI too.
 #[test]
-fn a_missing_lock_is_refused_under_either_policy() {
+fn a_missing_lock_is_resolved_and_written_in_full_when_not_explicitly_frozen() {
+    for policy in [LockPolicy::Resolve, LockPolicy::Frozen(FrozenReason::Ci)] {
+        let (_directory, scope, env) = locked_scope();
+        fs::remove_file(&scope.lock_file).expect("delete the lock");
+        let http = moved_network();
+        let runner = FakeRunner::new();
+        let report = run_sync_with(&scope, &env, &runner, &http, &linux(), policy).expect("synced");
+        let mut ids: Vec<String> = report.resolved.iter().map(|(id, _)| return id.clone()).collect();
+        ids.sort();
+        assert_eq!(ids, vec!["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"], "{policy:?}: every entry is resolved");
+        let lock = read_lock(&scope);
+        assert_eq!(lock.tool("npm:wrangler").expect("wrangler").version, "4.157.0", "{policy:?}: the newest versions are locked");
+        run_lock(&scope, LockMode::Check).expect("the written lock passes the gate");
+        assert!(!runner.calls().is_empty(), "{policy:?}: the install step ran after the lock was written");
+    }
+}
+
+/// pnpm:
+/// `pnpm install --frozen-lockfile` with no lockfile fails with ERR_PNPM_NO_LOCKFILE.
+#[test]
+fn a_missing_lock_is_refused_when_frozen_by_the_flag() {
     let (_directory, scope, env) = locked_scope();
     fs::remove_file(&scope.lock_file).expect("delete the lock");
-    for policy in [LockPolicy::Resolve, LockPolicy::Frozen(FrozenReason::Ci)] {
-        let error = run_sync_with(&scope, &env, &FakeRunner::new(), &moved_network(), &linux(), policy).expect_err("refused");
-        assert!(error.message.contains("does not exist; run `mpm-shadow update`"), "{policy:?}: {error}");
+    let http = moved_network();
+    let runner = FakeRunner::new();
+    for result in [
+        run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Frozen(FrozenReason::Flag)),
+        run_sync(&scope, &env, &runner, &http, &linux()),
+    ] {
+        let error = result.expect_err("refused");
+        assert_eq!(error.kind, ErrorKind::Drift);
+        assert!(error.message.contains("`--frozen-lock` forbids sync from creating it"), "{error}");
+        assert!(error.message.contains("run `mpm-shadow update`"), "{error}");
     }
+    assert!(!scope.lock_file.exists(), "nothing was written");
+    assert!(http.requests().is_empty() && runner.calls().is_empty());
 }
 
 //endregion
