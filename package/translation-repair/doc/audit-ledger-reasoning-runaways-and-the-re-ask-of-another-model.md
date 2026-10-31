@@ -15,6 +15,8 @@ and a request that names no seat re-asked on a guess of its role (B1081).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
+The re-check of this work on 2026-10-31 is filed in
+[the reach of the re-ask and the repair of another model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md).
 
 ## B1072: a reply that ran away reasoning was re-asked of the same model on another route, and ran away again
 
@@ -130,13 +132,16 @@ and how the owner's answers of 2026-10-30 settled each:
   The answer "Honour holds (Recommended)" makes it read the holds of the seat's role (B1074).
 - The nudge read "Your previous reply could not be used",
   which the other model never wrote.
-  The answer "Plain question (Recommended)" removes it from every ask but the fall back to the model that ran away (B1077).
+  The answer "Plain question (Recommended)" removes it from every ask but the fall back to the model
+  that ran away (B1077).
 - Where most providers read dry,
   one runaway costs up to eleven attempts one after another,
   each a routed call that reads the budgets before it refuses,
   and then the fall back to the runaway.
   Unchanged in kind,
   and now eight attempts at most before the fall back for the roster-wide role (B1075).
+  How often a runaway meets any other model at all is B1101's account:
+  on most benches none is free and the fall back to the model that ran away is the ordinary path.
 
 Cache versions:
 none moves,
@@ -145,7 +150,8 @@ and B1074 gives the account for every cache this round touches.
 Tests:
 `nudged-reask.unit.test.ts` (nine cases added by w382,
 seven of them red at `0b52a103b7`),
-`provider-router.unit.test.ts` (the router's own `chatJson` re-asks a Qwen3.8-27B runaway on Synthetic of another model),
+`provider-router.unit.test.ts`
+(the router's own `chatJson` re-asks a Qwen3.8-27B runaway on Synthetic of another model),
 and `prompt-uniqueness-client.unit.test.ts` (the claim path asks another model with no hint,
 and replays both on a later ask).
 `reask-alternate-models.unit.test.ts` holds the list itself.
@@ -220,7 +226,7 @@ Two other places asked the same model again after a length stop with no content:
   so an unmeasured model cannot simply stand in for it.
   The reader role's hold (`reader-unmeasured`) is how a card records that measurement (B1074).
 
-## B1074: after a reasoning runaway the stage recovery round and the picture re-ask asked the same model, and no re-ask read the role of its seat
+## B1074: the recovery round and the picture re-ask asked the same model after a runaway, and no re-ask read a role
 
 Status:
 fixed between 01:50 and 02:40 UTC on 2026-10-31.
@@ -231,9 +237,9 @@ The cases were committed red first:
 the fixes are `b40433e0bd`,
 `35cd20d2a7`,
 `640dac1856` and `37e025db0a`.
-Two fixtures and one case that scripted an empty length stop as "unreadable" now script a cut that holds content
-(`121719e570` in corpus-pass,
-`cf93bef02a` in archive),
+One fixture (`cf93bef02a` in archive) and one case (`121719e570` in corpus-pass),
+and the two cases of `stage-quorum.unit.test.ts` named under Tests,
+scripted an empty length stop as "unreadable" and now script a cut that holds content,
 because an empty length stop is a runaway that the recovery round asks of another model.
 The owner's answers of 2026-10-30:
 "Everywhere (Recommended)" (every re-ask after a runaway goes to a different model)
@@ -282,7 +288,7 @@ What it does now:
 - The stage names the bench and the role on every ask of a gather
   (`gatherStageVoices`,
   parameter `role`,
-  default `roster`),
+  required since B1079 and with no default),
   and the call returns a length stop with no content as the cause `runaway`,
   apart from `cut-short`,
   carrying the model an earlier re-ask went to (`askedInstead`).
@@ -341,14 +347,17 @@ and now script a cut that holds content.
 Cache versions:
 none moves.
 The eight slice-cache versions
-(pairing 3,
-consolidate 32,
-lane contest 16,
-translate slice 25,
-repair slice 43,
-refine 14,
-consistency 7
-and page title 6)
+(read again from the code on 2026-10-31:
+pairing 3,
+consolidate 43,
+lane contest 18,
+translate slice 36,
+repair slice 50,
+refine 19,
+consistency 9
+and page title 9;
+the figures this entry first quoted were the ones of 2026-10-30 and had moved,
+see B1108)
 key what a question was and who answered it,
 and this change alters whose voice a runaway seat contributes to a gather,
 not what any stored record means.
@@ -377,6 +386,8 @@ what the new asks do to those digests is B1077.
 
 Open to the owner's veto:
 the table of roles and holds is a reading of the bench derivation and not a decision of its own.
+Since B1100 the table has nine roles (the editors and the refiners have their own),
+and `run/src/corpus-run/seat-role-pool.unit.test.ts` fails when a role's pool drifts from its bench derivation.
 
 Recurrence:
 a hold names a role,
@@ -723,8 +734,8 @@ for a wide gather:
   in that census order:
   the three models the card drops from the wide seats.
   So a runaway critic,
-  panelist or select judge is asked of the first of them,
-  and the fall back to the runaway never fires.
+  panelist or select judge was asked of the first of them in that interim state,
+  and the owner's rule to honour the holds was broken on every wide gather.
 - The late judges have the same shape
   (what is left is `hf:zai-org/GLM-5.3-Flash` and `hf:Qwen/Qwen3.8-27B`,
   both `late-judge-dropped`),
@@ -734,6 +745,9 @@ for a wide gather:
 
 With `role: 'wide-judge'` on those gathers the list is empty and the fall back to the runaway fires,
 which is what the owner asked for.
+The owner accepted that reach on 2026-10-31 ("Accept the narrow reach (Recommended)"):
+on a bench that is the whole pool of its role another model is asked only where the run withheld a seat of the bench,
+and B1101 names the benches where one is and the benches where none is.
 `stage-quorum-wide-judge.unit.test.ts` builds the wide bench from the cards
 (the chat models no wide-judge hold keeps out of the wide seats)
 and checks two things:
@@ -771,14 +785,20 @@ and not only from the bench constants:
   `consolidate/src/consolidate-gate-stage.ts`,
   `consolidate/src/consolidation-polish-gate-stage.ts`,
   the consolidation slate in `consolidate/src/consolidate-settle-judge.ts`,
-  the polish slate through `consolidate/src/consolidation-polish-round.ts`,
-  and `corpus-pass/src/corpus-run/pass-consistency-gather.ts`.
+  and the choice and the run-off of the page consistency in `corpus-pass`.
+  This list first put the polish slate (`consolidate/src/consolidation-polish-round.ts`) here,
+  and the consistency gather as one fixed `late-judge`;
+  both were wrong and B1104 corrects them:
+  the polish is handed `config.judgeModelIds`,
+  the select judges,
+  so it is `wide-judge`,
+  and the gather takes its role from each caller.
 - `checker`:
   `repair/src/repair-edit-stages.ts`,
   `adjudication/src/introduced-defect-probe.ts`
   and `rendering-audit/src/rendering-audit.ts`.
 - `roster`:
-  the editors and the refiners (hand-picked benches),
+  (the editors and the refiners were filed here and are the `editor` and `refiner` roles since B1100)
   `archive/src/coverage-stage.ts`,
   `archive/src/archive-block-review-stage.ts` (its gather and its slate),
   `archive/src/absolute-naturalness-review-stage.ts`,
@@ -791,10 +811,12 @@ and not only from the bench constants:
 - `reader`:
   the picture re-ask,
   which names it itself.
-- `translator`,
+- the role of the caller,
   with the authors of the slate as the bench:
   the author asked about its findings in `translate-floor/src/translate-repair.ts`,
-  which named no seat before.
+  which named no seat before and named `translator` for every caller after;
+  the consolidation's writers are the `writer` role,
+  and B1102 has the caller hand the role and the record of the question in.
 
 Where a stage is handed benches of two roles it takes the role from its caller and has no default:
 the judges of a slate are `wide-judge` in the translate lane and the repair lane
@@ -813,7 +835,8 @@ and the real gather is driven only where an existing harness reaches it
 `stage-quorum-runaway`,
 `stage-quorum-wide-judge`
 and `stage-windowed-rounds-seat` in the stage package).
-`translate-floor/src/reask-role.unit.test.ts` is a text check of the seat alone.
+`translate-floor/src/reask-role.unit.test.ts` was a text check of the seat alone
+and drives the repair with a scripted client since B1106.
 The editors and the refiners stand in `roster`,
 as the list of roles in this entry has it;
 the roles are a reading of the bench derivation and not a decision of their own,

@@ -678,6 +678,18 @@ named for that subject and listed here.
   the callers that name no role (B1079),
   two seats of one question re-asked of one model (B1080),
   and a request that names no seat re-asked on a guess of its role (B1081).
+- [Audit ledger: the reach of the re-ask and the repair of another model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md):
+  The owner's answers and the lead's rulings of 2026-10-31 on the re-check of that work:
+  the pool of each role (B1100),
+  how rarely another model is asked (B1101),
+  a revision by another model recorded as its own candidate (B1102),
+  the measurement that must measure the candidate and the picture re-ask (B1103),
+  the callers that named the wrong role (B1104),
+  the models left out written once (B1105),
+  the reader of the role a call names (B1106),
+  the checker that wrote the text it checks (B1107),
+  the figures that ledger quoted that were stale (B1108),
+  and what stays open (B1109).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
