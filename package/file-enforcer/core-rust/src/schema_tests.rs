@@ -166,3 +166,64 @@ fn the_per_user_kind_is_accepted_by_both_in_the_user_scope() {
     assert!(decode_config(&document, ConfigScope::User, "corpus").is_ok());
     assert!(decode_config(&document, ConfigScope::Repository, "corpus").is_err());
 }
+
+/// What:
+///  Collect every `description` string in a schema,
+/// at any depth.
+/// Why:
+///  The one-line rule is checked over all of them,
+/// not a sample.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function descriptions(node: unknown): string[]
+/// ```
+fn descriptions_of(node: &Value, found: &mut Vec<String>) {
+    match node {
+        Value::Array(items) => {
+            for item in items {
+                descriptions_of(item, found);
+            }
+        }
+        Value::Object(members) => {
+            for (key, child) in members {
+                match child {
+                    Value::String(text) if key == "description" => found.push(text.clone()),
+                    _ => descriptions_of(child, found),
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+#[test]
+fn every_schema_description_is_one_line_of_prose() {
+    let mut found: Vec<String> = Vec::new();
+    descriptions_of(&config_schema(), &mut found);
+    assert!(found.len() > 20, "the schema should describe its fields: {}", found.len());
+    for text in &found {
+        assert!(!text.contains('\n') && !text.contains('\r'), "{text:?}");
+        assert!(!text.contains("  ") && text == text.trim(), "{text:?}");
+    }
+    // Positive control: schemars really copies the rustdoc line breaks, so the check above has something to catch.
+    let mut raw: Vec<String> = Vec::new();
+    descriptions_of(&schemars::schema_for!(crate::config_types::Config).to_value(), &mut raw);
+    assert!(raw.iter().any(|text| return text.contains('\n')), "the unflattened schema has no line breaks to flatten");
+}
+
+#[test]
+fn flattening_touches_only_description_strings() {
+    let mut node: Value = serde_json::from_str(
+        r#"{"properties": {"description": {"type": "string", "description": "a\n  b\n\nc"}},
+            "default": "x\ny", "enum": ["p\nq"], "list": [{"description": " d\ne "}]}"#,
+    )
+    .expect("the sample is valid JSON");
+    crate::schema::flatten_descriptions(&mut node);
+    assert_eq!(node["properties"]["description"]["description"], "a b c");
+    assert_eq!(node["properties"]["description"]["type"], "string");
+    assert_eq!(node["default"], "x\ny");
+    assert_eq!(node["enum"][0], "p\nq");
+    assert_eq!(node["list"][0]["description"], "d e");
+    assert_eq!(crate::schema::one_line(""), "");
+}
