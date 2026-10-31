@@ -20,6 +20,10 @@ use std::time::{Duration, Instant};
 /// One notification per distinct failure per this interval.
 pub const NOTIFICATION_INTERVAL: Duration = Duration::from_secs(600);
 
+/// One journal line per distinct failure per this interval,
+/// so a failure that repeats every second or two cannot flood the journal.
+pub const JOURNAL_INTERVAL: Duration = Duration::from_secs(60);
+
 /// Distinct failures remembered for the rate limit before expired ones are dropped.
 const MAX_REMEMBERED_FAILURES: usize = 256;
 
@@ -150,53 +154,90 @@ fn failure_key(line: &str) -> String {
     return key;
 }
 
-/// The failure reporter of one watcher.
-pub struct RuntimeReporter {
-    /// Channels that receive every failure.
-    always: Vec<Box<dyn ReportChannel>>,
-    /// Channels limited to one delivery per distinct failure per interval.
-    limited: Vec<Box<dyn ReportChannel>>,
-    /// Minimum time between two deliveries of the same failure on the limited channels.
+/// A channel with its own repeat limit.
+struct Tier {
+    /// The channel.
+    channel: Box<dyn ReportChannel>,
+    /// Minimum time between two deliveries of the same failure on this channel.
     interval: Duration,
-    /// When each distinct failure last reached the limited channels.
-    last_delivery: HashMap<String, Instant>,
+    /// When each distinct failure last reached the channel,
+    /// and how many repeats were held back since.
+    last_delivery: HashMap<String, (Instant, u32)>,
 }
 
-/// Construction and delivery.
-impl RuntimeReporter {
-    /// Builds the production reporter for one watched user.
-    pub fn new(uid: u32, gid: u32) -> RuntimeReporter {
-        return RuntimeReporter::with_channels(
-            vec![Box::new(LogChannel), Box::new(JournalChannel)],
-            vec![Box::new(DesktopChannel { client: UserClient::new("busctl"), uid, gid })],
-            NOTIFICATION_INTERVAL,
-        );
-    }
-
-    /// Builds a reporter over the given channels.
-    pub fn with_channels(always: Vec<Box<dyn ReportChannel>>, limited: Vec<Box<dyn ReportChannel>>, interval: Duration) -> RuntimeReporter {
-        return RuntimeReporter {
-            always,
-            limited,
-            interval,
-            last_delivery: HashMap::new(),
-        };
-    }
-
+/// Limiting for one channel.
+impl Tier {
     /// Drops the remembered failures whose interval is over.
     fn forget_expired(&mut self, now: Instant) {
-        let mut kept: HashMap<String, Instant> = HashMap::new();
-        for (text, last) in self.last_delivery.drain() {
+        let mut kept: HashMap<String, (Instant, u32)> = HashMap::new();
+        for (text, (last, held)) in self.last_delivery.drain() {
             if now.duration_since(last) < self.interval {
-                kept.insert(text, last);
+                kept.insert(text, (last, held));
             }
         }
         self.last_delivery = kept;
     }
 
+    /// Delivers the line unless the same failure reached this channel within the interval.
+    /// A delivery after held-back repeats says how many there were,
+    /// so no occurrence is lost from the record.
+    fn deliver_limited(&mut self, line: &str, key: &str, now: Instant) -> Result<(), String> {
+        let held = match self.last_delivery.get_mut(key) {
+            Some((last, held)) if now.duration_since(*last) < self.interval => {
+                *held += 1;
+                return Ok(());
+            }
+            Some((_last, held)) => *held,
+            None => 0,
+        };
+        if self.last_delivery.len() >= MAX_REMEMBERED_FAILURES {
+            self.forget_expired(now);
+        }
+        self.last_delivery.insert(key.to_string(), (now, 0));
+        if held == 0 {
+            return self.channel.deliver(line);
+        }
+        return self.channel.deliver(&format!("{line} (repeated {held} more time(s) since the last report)"));
+    }
+}
+
+/// The failure reporter of one watcher.
+pub struct RuntimeReporter {
+    /// Channels that receive every failure.
+    always: Vec<Box<dyn ReportChannel>>,
+    /// Channels limited to one delivery per distinct failure per their own interval.
+    tiers: Vec<Tier>,
+}
+
+/// Construction and delivery.
+impl RuntimeReporter {
+    /// Builds the production reporter for one watched user:
+    /// the log file every time,
+    /// the journal once per distinct failure per minute,
+    /// and the desktop once per distinct failure per ten minutes.
+    pub fn new(uid: u32, gid: u32) -> RuntimeReporter {
+        return RuntimeReporter::with_channels(
+            vec![Box::new(LogChannel)],
+            vec![
+                (Box::new(JournalChannel), JOURNAL_INTERVAL),
+                (Box::new(DesktopChannel { client: UserClient::new("busctl"), uid, gid }), NOTIFICATION_INTERVAL),
+            ],
+        );
+    }
+
+    /// Builds a reporter over the given channels,
+    /// each limited channel with its interval.
+    pub fn with_channels(always: Vec<Box<dyn ReportChannel>>, limited: Vec<(Box<dyn ReportChannel>, Duration)>) -> RuntimeReporter {
+        let mut tiers: Vec<Tier> = Vec::new();
+        for (channel, interval) in limited {
+            tiers.push(Tier { channel, interval, last_delivery: HashMap::new() });
+        }
+        return RuntimeReporter { always, tiers };
+    }
+
     /// Delivers a failure line at `now`.
     /// Every always channel receives it.
-    /// The limited channels receive it unless the same failure reached them within the interval.
+    /// Each limited channel receives it unless the same failure reached that channel within its interval.
     /// Two lines are the same failure when they differ only in digits,
     /// such as pids and durations.
     /// The result lists the channels that failed.
@@ -208,19 +249,9 @@ impl RuntimeReporter {
             }
         }
         let key = failure_key(line);
-        let due = match self.last_delivery.get(&key) {
-            Some(last) => now.duration_since(*last) >= self.interval,
-            None => true,
-        };
-        if due {
-            if self.last_delivery.len() >= MAX_REMEMBERED_FAILURES {
-                self.forget_expired(now);
-            }
-            self.last_delivery.insert(key, now);
-            for channel in &self.limited {
-                if let Err(reason) = channel.deliver(line) {
-                    failed.push(format!("{}: {reason}", channel.name()));
-                }
+        for tier in &mut self.tiers {
+            if let Err(reason) = tier.deliver_limited(line, &key, now) {
+                failed.push(format!("{}: {reason}", tier.channel.name()));
             }
         }
         for problem in &failed {

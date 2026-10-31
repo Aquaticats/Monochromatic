@@ -273,12 +273,19 @@ A failure after startup is therefore delivered three ways:
   the watcher's standard error;
 - the system journal,
   under the identifier `wg-quicker-exempt`,
-  at error level (`journalctl --identifier=wg-quicker-exempt`);
+  at error level (`journalctl --identifier=wg-quicker-exempt`),
+  once per distinct failure per minute;
 - a desktop notification to the watched user through `org.freedesktop.Notifications`,
   sent with `busctl` as that user,
-  limited to one notification per distinct failure every ten minutes
-  (two failures are the same when they differ only in digits such as pids),
-  so a failure that repeats on every scan cannot flood the desktop.
+  once per distinct failure every ten minutes.
+
+Two failures are the same when they differ only in digits such as pids and durations.
+A repeat held back by the limit is counted,
+and the next delivery of that failure says "repeated N more time(s) since the last report",
+so a failure that repeats every second or two cannot flood the journal or the desktop and no occurrence is lost.
+The log file receives every failure.
+The route watcher of `wg-quicker` delivers its own failures after startup the same way,
+under the identifier `wg-quicker`.
 
 A channel that fails is named in the log,
 and no channel failure changes routing.
