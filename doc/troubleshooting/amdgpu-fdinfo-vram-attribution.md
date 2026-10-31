@@ -321,6 +321,75 @@ Why the corrected holders hold what they hold (buffer sizes from `amdgpu_gem_inf
 - Purgeable (reclaimable) across all clients:
   about 55 MiB.
 
+### App-private composition, from the 19:50 GEM inventory
+
+Private here means buffers the app does not export as named dma-bufs.
+fdinfo `total - shared` is the exact private figure;
+the objects below are the GEM inventory with named exports removed:
+
+- `ghostty` 373 MiB private:
+  ten 31 MiB screen-resolution render targets (the throwaway probe showed one such
+  target exists per instance even at 20x20 window size),
+  three 4 MiB plus one 2.8 MiB grid buffers,
+  twenty-four 2 MiB atlas tiles,
+  three 1 MiB.
+- `plasmashell` 470 MiB private:
+  one 64 MiB double-4K surface,
+  four layers near 41 MiB (wallpaper and panel backgrounds),
+  17.8,
+  two 16,
+  10,
+  four 8 MiB effect buffers,
+  and sixty 2 MiB widget and icon textures (120 MiB in that class alone).
+- `coolercontrol` 348 MiB private:
+  one 142 MiB texture (its QtWebEngine Chromium renderer),
+  one 40 MiB,
+  three 31 MiB render targets,
+  18.6 and 11.7 MiB,
+  three 8.5 plus two 5.5 MiB Qt Quick textures,
+  fifteen 2 MiB.
+- `firefox-bin` 238 MiB private:
+  five layer textures near 16 MiB,
+  three 4 MiB,
+  two 2.8 MiB,
+  sixty-three 2 MiB tile textures.
+- `equibop` 196 MiB private (its three 31 MiB surfaces are exported):
+  one 17 MiB,
+  eight 8.5 MiB,
+  two 5 MiB,
+  one 4,
+  one 3.7,
+  two 3.5,
+  one 3 MiB,
+  four 2.8 MiB,
+  about thirty-three 2 MiB textures.
+- `music-player` 72 MiB private:
+  one 38 and one 14.5 MiB surface,
+  one 2.8,
+  seven 2 MiB,
+  three 1 MiB.
+- `Xwayland`:
+  at the 19:50 inventory 227 MiB in 24 buffers (two 74 MiB glamor surfaces behind
+  the JetBrains Toolbox window,
+  three 11.7,
+  two 8.5,
+  thirteen 2 MiB).
+  fdinfo counted 114 MiB as multi-handle,
+  part of it shared between Xwayland's own
+  two drm clients,
+  so its app-versus-compositor split is softer than the others.
+  By 19:52 the totals fell to 84 MiB with 43 MiB private when the Toolbox window
+  left the map.
+- `gearlever` 4 MiB private (four tiny objects;
+  its four 30.3 MiB window surfaces are all exported).
+- `xwaylandvideobridge` 21 MiB private:
+  one 11.1 and five 2 MiB.
+
+The recurring 2 MiB class is the dominant count across apps (over 200 objects
+session-wide):
+small texture tiles and icons,
+cheap per object but numerous.
+
 ## Verified decomposition of the card total, 2026-10-30
 
 Per-client `drm-total-vram` splits the card counter into four parts that sum to it.
