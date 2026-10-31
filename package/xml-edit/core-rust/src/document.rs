@@ -205,6 +205,24 @@ impl XmlDocument {
     }
 
     /// What:
+    /// Return every handle of the document in document order,
+    /// the root first.
+    /// Why:
+    /// Callers that visit all elements need the handles without guessing the numbering.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// elementIds(): XmlElementId[];
+    /// ```
+    pub fn element_ids(&self) -> Vec<XmlElementId> {
+        let mut ids: Vec<XmlElementId> = Vec::with_capacity(self.elements.len());
+        for index in 0..self.elements.len() {
+            ids.push(XmlElementId(index));
+        }
+        return ids;
+    }
+
+    /// What:
     /// Look up an element's recorded data,
     /// or `None` for a handle this document did not issue.
     /// Why:

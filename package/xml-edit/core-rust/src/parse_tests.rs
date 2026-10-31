@@ -52,6 +52,8 @@ fn user_defined_shape_exposes_element_source() {
     assert!(source.ends_with("</entry>"));
     assert_eq!(document.span(entry).expect("span").end - document.span(entry).expect("span").start, source.len());
     assert_eq!(document.element_count(), 11);
+    assert_eq!(document.element_ids().len(), 11);
+    assert_eq!(document.element_ids()[0], document.root());
 }
 
 /// Check unknown handles answer with empty results instead of panicking.
