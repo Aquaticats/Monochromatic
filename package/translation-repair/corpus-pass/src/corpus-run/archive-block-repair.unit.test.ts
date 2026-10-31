@@ -818,9 +818,11 @@ await describe({
                     mute.has(request.modelId,)
                       && (request.responseFormat?.json_schema.name === 'archive_block_review')
                   ) {
+                    // A CUT THAT HOLDS CONTENT, not a length stop with no content: that one is a reasoning runaway, which the
+                    // recovery round asks of another model, and this case needs the seats to stay unreadable.
                     return {
                       kind: 'schema-mismatch',
-                      rawText: '',
+                      rawText: '{"verdict":',
                       reason: 'truncated-completion',
                       detail: 'provider reported a truncating completion (model stopped with finish_reason=length)',
                     };
