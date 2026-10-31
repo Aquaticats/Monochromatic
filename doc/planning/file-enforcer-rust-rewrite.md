@@ -865,6 +865,25 @@ but make the syntax forbidden-strings.append.txt,forbidden-strings.append.local.
 - file-enforcer stops writing `.cache/forbidden-strings.rules.txt` and the seed.
 - Tradeoff of the delimited form:
   a path containing a comma cannot be named.
+- As built (task 23,
+  2026-10-30):
+  the grammar is `list := entry ("," entry)*`,
+  `entry := path ["?"]`,
+  with no escape syntax and no trimming;
+  exactly one trailing `?` is the optional marker,
+  so `name??` is the optional file `name?`
+  and a required path ending in `?` cannot be named either.
+  A cli-git `rulesFile` string is never split,
+  so commas and `?` there are part of the path.
+  A percent escape was rejected because it would change the meaning of existing paths containing `%25`,
+  and a backslash escape because it clashes with Windows separators.
+  The compiled-rules cache key stays the SHA-256 of the joined text.
+- Cutover dependency:
+  cli-git pins `forbidden-strings = "=0.5.0"` by path plus version and now uses its new public items
+  (`RulesEntry`,
+  `parse_rules_list`,
+  `Scanner::load_entries`),
+  so a forbidden-strings release must precede publishing cli-git.
 
 #### JetBrains policy: keep user write
 

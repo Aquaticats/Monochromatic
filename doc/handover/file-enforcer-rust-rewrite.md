@@ -91,6 +91,8 @@ Cutover reminders from finished agents:
 - `file-enforcer.config.ts` renders pnpr's config through pnpr's `renderPnprConfigForWorkspace` but writes through its own `overwrite`,
   so `--check` reports drift instead of writing;
   the Rust engine needs the same split.
+- forbidden-strings must be released before cli-git is published:
+  cli-git now uses the rules-list API (task 23; see the planning doc, "Cutover dependency").
 
 ## Superseded next action:
 look at oxc-browserslist
