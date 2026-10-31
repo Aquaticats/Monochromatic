@@ -9,6 +9,9 @@
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git"
   },
+  "dependencies": {
+    "@monochromatic-dev/search-fetch-cli": "workspace:*"
+  },
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@monochromatic-dev/css-cli": "workspace:*",

@@ -485,6 +485,10 @@ pnpmfileChecksum: sha256-4MHx8h0RjylATEj1UFhwz4qSVa6W/VuwwB8xwgLv+0g=
 importers:
 
   .:
+    dependencies:
+      '@monochromatic-dev/search-fetch-cli':
+        specifier: workspace:*
+        version: link:package/search-fetch/cli
     devDependencies:
       '@changesets/cli':
         specifier: 'catalog:'
@@ -4342,6 +4346,40 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+
+  package/search-fetch/cli:
+    dependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
+      '@monochromatic-dev/search-fetch-core':
+        specifier: workspace:*
+        version: link:../core
+      valibot:
+        specifier: 'catalog:'
+        version: 1.5.0(typescript@7.1.0-beta)
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
 
   package/search-fetch/core:
     dependencies:
