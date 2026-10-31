@@ -447,6 +447,22 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
     reinstalled an older `cli-git-native` into the shared `~/.cargo/bin` today and broke every git command until reinstalled);
     it acts only at commit time, so a local `pnpm install` stays silent without the wrapper's warning.
 
+## Layers round (user answers)
+
+- Layers: the user selected only the `cli-git` commit policy `mono/catalog-specifiers` (a native Rust policy in
+  `package/git-policy/cli`, severity `error` by default), alongside the warn-only pnpm wrapper.
+  The separate always-run workflow and the `advisory-core` step were not selected.
+- The second question (should a CI step fail the job) was answered "Fail the job on a violation", but it was conditional on a CI
+  step being kept and the first answer kept none, so the CI position is ambiguous: either no CI step now, or a job-failing step.
+  Recorded as unresolved; asked again below.
+  Without a CI step there is no layer independent of the git shadow, which `doc/decision/cli-git-policies-platform.md` says CI must
+  provide ("CI remains authoritative").
+- Read after the answer: `git cli-git check --all --policy <id>` already runs one policy over the whole repository and prints JSON
+  lines, and `--no-enforce-<policy id>` is the platform's built-in per-invocation skip
+  (`package/git-policy/cli/README.md`, "Commands" and "Wrapper-only options").
+  So a policy in `cli-git` also gives a whole-repository check command and a skip switch without new code.
+  That skip switch exists for every policy; the "no skip switch" answer applied to the pnpm wrapper only.
+
 ## Open items
 
 - The user has not confirmed that the shared understanding is complete.
