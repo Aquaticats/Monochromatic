@@ -53,6 +53,9 @@ pub mod real_binary;
 /// The cached archives and extracted sources of this repository's own crates.
 pub mod registry;
 
+/// The line and the section the shadow adds after mpm's `--version` and `--help`.
+pub mod shadow_notice;
+
 /// The shadow mode:
 /// lookup,
 /// launch,

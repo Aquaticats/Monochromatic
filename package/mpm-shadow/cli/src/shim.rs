@@ -45,6 +45,10 @@ use std::ffi::OsString;
 /// Imports the file-system module (resolves the shadow's own path).
 use std::fs;
 
+/// Imports `Write`,
+/// the trait that adds `write_all` to standard output.
+use std::io::Write;
+
 /// What:
 /// `use std::os::unix::process::ExitStatusExt;` imports a trait that adds `.signal()` to a process's exit
 ///           status.
@@ -73,6 +77,8 @@ use crate::cargo_home::cargo_home;
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
+/// Imports what this module uses from `crate::shadow_notice`.
+use crate::shadow_notice::{TopLevelRequest, help_section, top_level_request, version_line};
 /// Imports the environment view and the toolchain roots (where `install` records version-keyed installs).
 use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports `find_in_path` from `crate::real_binary`.
@@ -184,6 +190,28 @@ fn prune_after_run() {
 }
 
 /// What:
+/// `fn print_shadow_notice(request: TopLevelRequest, real_mpm: &Path)` declares a private function that writes
+///           the shadow's own line (after `--version`) or section (after `--help`) to standard output.
+/// Why:
+/// A shadow that prints only mpm's text cannot be told apart from mpm.
+/// A closed standard output is ignored:
+/// the real mpm's output already went out.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function printShadowNotice(request: 'version' | 'help' | 'other', realMpm: string): void
+/// ```
+fn print_shadow_notice(request: TopLevelRequest, real_mpm: &Path) {
+    let text: String = match request {
+        TopLevelRequest::Version => version_line(real_mpm),
+        TopLevelRequest::Help => help_section(real_mpm),
+        TopLevelRequest::Other => return,
+    };
+    // `let _ =` discards the write result on purpose.
+    let _ = std::io::stdout().write_all(text.as_bytes());
+}
+
+/// What:
 /// `pub fn run_shim(arguments: Vec<OsString>) -> i32` declares a public function taking the arguments mpm was
 ///           started with (an owned list) and returning the exit code.
 /// Why:
@@ -213,8 +241,13 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
         }
     };
 
+    let request: TopLevelRequest = top_level_request(&arguments);
     match run_program(&program, &arguments) {
         Ok(code) => {
+            // Like hub after git's version, but only after a successful plain `--version` or `--help` of mpm itself.
+            if code == 0 {
+                print_shadow_notice(request, &program);
+            }
             prune_after_run();
             return code;
         }

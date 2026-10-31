@@ -289,3 +289,18 @@ fn a_non_frozen_install_lockfile_only_writes_an_offline_fixable_edit_into_the_lo
     assert!(text(&output.stdout).contains("lock updated from the plan: cargo:fd-find now differs from the plan in: bins"), "{}", text(&output.stdout));
     assert_eq!(fixture.run(&["install", "--lockfile-only", "--frozen-lockfile"]).status.code(), Some(0), "the lock now agrees");
 }
+
+#[test]
+fn help_says_in_its_first_line_that_it_is_a_shadow_of_mpm_and_lists_the_pnpm_named_commands() {
+    let fixture = Fixture::new();
+    let output = fixture.run(&["--help"]);
+    let help = text(&output.stdout);
+    let first = help.lines().next().expect("a first line");
+    assert!(first.starts_with("A shadow of mpm"), "{first}");
+    assert!(first.contains("invoked as `mpm`"), "{first}");
+    for verb in ["install", "update", "outdated", "list", "bin"] {
+        assert!(first.contains(verb), "{verb} is missing from the first line: {first}");
+    }
+    let version = fixture.run(&["--version"]);
+    assert_eq!(text(&version.stdout), format!("mpm-shadow {}\n", env!("CARGO_PKG_VERSION")));
+}

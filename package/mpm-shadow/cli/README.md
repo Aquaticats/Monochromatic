@@ -844,6 +844,43 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   A version directory without a record is an unfinished install and names nothing.
 - Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`.
 - Skips every candidate that resolves to its own executable when it looks for the real `mpm`.
+- Shows that it is a shadow in the two places a person looks,
+  after mpm's own output and only after a successful run:
+  a top-level `mpm --version` prints mpm's version text,
+  then one line on standard output,
+  `mpm-shadow <version>, shadowing mpm at <path of the real mpm>`;
+  a top-level `mpm --help` (or `-h`) prints mpm's help,
+  then a blank line and a short section naming the shadow,
+  its version,
+  the real mpm's path,
+  and the prune it runs after every run.
+  This is how `hub` does it:
+  `hub --version` runs `git version` and then prints `hub version <X>`
+  (<https://github.com/mislav/hub/blob/master/commands/version.go>),
+  and `hub help` appends the commands hub adds to git's help.
+- Detects only top-level options,
+  the way mpm's parser reads them:
+  the words before the subcommand,
+  in order,
+  skipping the values of the options that take one
+  (`--verbosity`,
+  `--config`,
+  `-t`,
+  `-j`
+  and the others read from `mpm --help` of mpm 8.2.0;
+  a bare `--color` takes none).
+  The first eager option wins,
+  as in mpm.
+  `mpm install --help`,
+  `mpm help install`,
+  `mpm --help-format json`,
+  `--man`,
+  `--tree`,
+  `--params`,
+  and a failing run print exactly what mpm printed,
+  with mpm's exit status.
+  mpm has no `-V`.
+  A new top-level mpm option that takes a value must be added to `VALUE_OPTIONS` in `src/shadow_notice.rs`.
 
 A cached version that a project's `Cargo.lock` still pins is deleted too when it is not the kept one;
 cargo downloads it again on the next online build,
