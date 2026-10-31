@@ -70,7 +70,7 @@ type SeenAsk = {
 
  @param role - role the gather names, or none
 
- @returns The gather and the asks the client saw
+ @returns Gather and the asks the client saw
 
  @example
  ```ts

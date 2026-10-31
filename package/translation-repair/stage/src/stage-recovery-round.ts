@@ -4,6 +4,7 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   alternateModelsFor,
   describeLeftOut,
@@ -87,7 +88,7 @@ export type SharedRoundRequest<ValueT,> = Omit<
 
  @param l - logger of the recovery round
 
- @returns The seat's outcome: the first reachable model's answer, or the seat's own model's under the cut-short nudge
+ @returns Outcome for the seat: the first reachable model's answer, or the seat's own model's under the cut-short nudge
  where no other model could take the re-ask
 
  @throws Whatever the round of the model asked throws, which is the caller's own abort, a request the route refused as
@@ -344,20 +345,22 @@ export async function runRecoveryRound<ValueT,>(
   const recovered = (await Promise.all(byCause.map(async function recoverGroup(group,) {
     // A RUNAWAY IS ASKED OF ANOTHER MODEL, one seat at a time within the group's window, each seat's own models in turn.
     if (group.cause === 'runaway') {
-      return await Promise.all(group.modelIds
-        .map(async function recoverSeat(seat,) {
-          /**
-           Model an earlier re-ask for this seat already went to, if one did.
-           */
-          const askedAlready = askedInstead?.get(seat,);
-          return await recoverRunaway<ValueT>({
-            roundRequest,
-            seat,
-            // Conditional spread keeps the model absent where no earlier re-ask went to another.
-            ...((askedAlready === undefined) ? {} : { askedInstead: askedAlready, }),
-            l: rl,
-          },);
-        },),);
+      return await allInInputOrder({
+        members: group.modelIds
+          .map(async function recoverSeat(seat,) {
+            /**
+             Model an earlier re-ask for this seat already went to, if one did.
+             */
+            const askedAlready = askedInstead?.get(seat,);
+            return await recoverRunaway<ValueT>({
+              roundRequest,
+              seat,
+              // Conditional spread keeps the model absent where no earlier re-ask went to another.
+              ...((askedAlready === undefined) ? {} : { askedInstead: askedAlready, }),
+              l: rl,
+            },);
+          },),
+      },);
     }
     return await runGatherRound<ValueT>({
       ...roundRequest,

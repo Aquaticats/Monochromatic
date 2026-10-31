@@ -113,14 +113,10 @@ function scriptedClient(
     ): Promise<ChatJsonOutcome<ValueT>> => {
       seen.push({
         modelId: request.modelId,
-        contents: request.messages.map(function contentOf(message,): string {
-          /**
-           What the message says, which every scripted ask writes as text.
-           */
-          const { content, } = message;
-          if ((typeof content) !== 'string')
+        contents: request.messages.map(function textOf(message,): string {
+          if ((typeof message.content) !== 'string')
             throw new Error('scripted asks carry text content only',);
-          return content;
+          return message.content;
         },),
         ...((request.reaskSeat === undefined) ? {} : { reaskSeat: request.reaskSeat, }),
       },);
