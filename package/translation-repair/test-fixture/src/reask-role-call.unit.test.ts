@@ -11,7 +11,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { rolesNamedAtCalls, } from './reask-role-call.test-fixture.ts';
+import {
+  roleNamedInLiteral,
+  rolesNamedAtCalls,
+} from './reask-role-call.test-fixture.ts';
 
 //region Re-ask role call tests
 
@@ -177,6 +180,23 @@ await describe({
           'wide-judge',
           'none',
         ],);
+      },
+    },),
+
+    it({
+      name: 'READS THE KEY OF AN OBJECT LITERAL KEPT IN A VARIABLE, as a stage that builds one argument object for two '
+        + 'calls does, with a type annotation before the equals sign',
+      fn: async () => {
+        const source = [
+          'const judging: Parameters<typeof judgeTranslateSlate>[0] = {',
+          '  client,',
+          '  role: \'late-judge\',',
+          '};',
+          'const other = { role: \'roster\', };',
+        ].join('\n',);
+        expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('late-judge',);
+        expect(roleNamedInLiteral({ source, name: 'other', },),).toBe('roster',);
+        expect(roleNamedInLiteral({ source, name: 'missing', },),).toBe('no such literal',);
       },
     },),
   ],
