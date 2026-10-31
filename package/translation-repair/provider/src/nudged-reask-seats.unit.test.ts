@@ -179,6 +179,44 @@ await describe({
     },),
 
     it({
+      name: 'ASKS THE MEASURED MODEL ITSELF WHERE THE SEAT NAMES A MEASUREMENT: a rival\'s answer would be scored as the '
+        + 'model\'s own, so the re-ask is the runaway\'s own, nudged, on another provider, said at info and not warned',
+      fn: async () => {
+        /**
+         Calls the re-ask received.
+         */
+        const asks: ChatTextRequest[] = [];
+        const { result, warned, } = await warnLinesDuring({
+          run: async () =>
+            infoLinesDuring({
+              run: async () =>
+                reaskElsewhereNudged({
+                  request: {
+                    ...UNSEATED_REQUEST,
+                    reaskSeat: { role: 'roster', bench: [SEAT_HYPER_OPENROUTER_UNMEASURED,], reask: 'measured-model', },
+                  },
+                  first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+                  ask: async (nudged,) => {
+                    asks.push(nudged,);
+                    return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+                  },
+                },),
+            },),
+        },);
+        expect(result.result.kind,).toBe('ok',);
+        expect(result.result.kind === 'ok' ? result.result.answeredBy : 'not ok',).toBeUndefined();
+        expect(asks.map(function askOf(request,) {
+          return [request.modelId, request.otherThan,];
+        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, 'neuralwatt',],],);
+        expect(asks[0]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
+        expect(warned,).toEqual([],);
+        expect(result.logged.some(function saysMeasurement(line,): boolean {
+          return line.includes('measurement',) && line.includes(SEAT_HYPER_OPENROUTER_UNMEASURED,);
+        },),).toBe(true,);
+      },
+    },),
+
+    it({
       name: 'ASKS TWO DIFFERENT MODELS FOR TWO SEATS OF ONE QUESTION THAT RAN AWAY TOGETHER: the second takes the next '
         + 'model of its order that the first did not take, so one claimed reply is never recorded as two voices',
       fn: async () => {
