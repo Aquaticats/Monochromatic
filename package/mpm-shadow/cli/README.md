@@ -165,7 +165,9 @@ or a Java major line such as `21`).
   and GPU (`vulkan`,
   `rocm`,
   `cuda`)
-  builds.
+  builds;
+  an `options.asset` glob that matches a GPU build's name lets that build through,
+  and is the only way to ask for one.
 - It prefers the platform's libc (a `musl` name for a musl platform,
   otherwise one without),
   then `.tar.gz`,

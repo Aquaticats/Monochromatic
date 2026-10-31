@@ -18,6 +18,8 @@ use crate::event::{Event, EventSink};
 /// Imports `validate_expected_dir`,
 /// `write_expected_trees` from `crate::expected_dir`.
 use crate::expected_dir::{validate_expected_dir, write_expected_trees};
+/// Imports `OutputScope` from `crate::output_scope`.
+use crate::output_scope::OutputScope;
 /// Imports `PlanReport` from `crate::plan`.
 use crate::plan::PlanReport;
 /// Imports `publish` from `crate::publish`.
@@ -40,17 +42,22 @@ use std::path::PathBuf;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function resultEvent(command: string, clean: boolean, counts: Record<string, number>): Event
+/// function resultEvent(command: string, clean: boolean, counts: Record<string, number>, outputs: OutputScope): Event
 /// ```
-pub fn result_event(command: &str, clean: bool, counts: &[(&str, usize)]) -> Event {
+pub fn result_event(command: &str, clean: bool, counts: &[(&str, usize)], outputs: OutputScope) -> Event {
+    // A scoped run says which outputs it covered, in the message and in the `outputs` member, so a clean line is never read as covering more.
+    let kind = if outputs == OutputScope::All { "generated".to_string() } else { format!("{} generated", outputs.name()) };
     let (code, message) = if command == "write" {
-        ("write-done".to_string(), "write: every generated file is now up to date".to_string())
+        ("write-done".to_string(), format!("write: every {kind} file is now up to date"))
     } else if clean {
-        (format!("{command}-clean"), format!("{command}: every generated file is up to date"))
+        (format!("{command}-clean"), format!("{command}: every {kind} file is up to date"))
     } else {
-        (format!("{command}-drift"), format!("{command}: generated files differ from their rules"))
+        (format!("{command}-drift"), format!("{command}: {kind} files differ from their rules"))
     };
     let mut event = Event::new("result", &code, &message);
+    if outputs != OutputScope::All {
+        event.set_field("outputs", Value::String(outputs.name().to_string()));
+    }
     for (key, count) in counts {
         event.set_field(key, Value::from(*count as u64));
     }
@@ -91,7 +98,7 @@ pub fn finish_check(request: &RunRequest, sink: &mut dyn EventSink, drifts: &[Dr
         }
         sink.emit(event);
     }
-    sink.emit(result_event("check", drifts.is_empty(), &[("drifted", drifts.len())]));
+    sink.emit(result_event("check", drifts.is_empty(), &[("drifted", drifts.len())], request.outputs));
     if drifts.is_empty() {
         return EXIT_CLEAN;
     }
@@ -117,7 +124,7 @@ pub fn finish_write(request: &RunRequest, sink: &mut dyn EventSink, report: &Pla
                 sink.emit(event);
             }
             let counts = [("written", outcome.written.len()), ("modes", outcome.modes.len()), ("removed", outcome.removed.len())];
-            sink.emit(result_event("write", true, &counts));
+            sink.emit(result_event("write", true, &counts, request.outputs));
             return EXIT_CLEAN;
         }
         Err(error) => {

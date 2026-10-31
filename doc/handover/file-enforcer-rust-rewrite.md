@@ -179,9 +179,37 @@ each finished branch is reviewed and merged into `main`):
   not a tag-pinned `github:` request,
   which AGENTS.md `PIN` forbids for tools this repository publishes);
   the IDE launcher's explicit path is `<worktree>/.cache/toolchain-bin/mpm-shadow`.
-- Queued for an agent after the version-keyed install agent merges
-  (same crate,
-  so not in parallel):
+- Merged 2026-10-31 as `75d2316005`:
+  version-keyed cargo-binstall roots (`--root <toolchain root>/cargo/<crate>/<version>`),
+  newest-only `current` links for `monochromatic-` crates,
+  older-lock warnings on `sync`,
+  `status`,
+  `lock`,
+  `update`,
+  `bin-paths`,
+  and on every run through per-tree launchers (`.cache/toolchain-launchers/`,
+  about +0.57 ms per call),
+  and `mpm-shadow prune --toolchain`;
+  289 tests on `main`.
+  Its open questions:
+  trees git does not list are protected from `prune --toolchain` only by `--lock`
+  (a per-sync consumer registry was not asked for);
+  archive and `cargo-git` version directories also accumulate;
+  no OS lock around the `current` swap.
+- OpenSnitch,
+  2026-10-31:
+  the user's OpenSnitch auto-rejects unanswered prompts and saves `reject-always-simple-<path>` rules,
+  which is how agent worktree builds and old toolchain paths got blocked.
+  At the user's request the rustup rule is now `allow-always-simple-var-home-user-cargo-bin-rustup.json`
+  (its action was already `allow`; only the name said reject).
+- Running:
+  a `package/wg` agent adds OpenSnitch allow rules for toolchain update paths and routes update traffic outside the tunnel
+  ("We control the package/wg/* category. Make our wg auto make update traffics go through clearnet.");
+  it stops before any live change and hands the apply commands to this session.
+- Running:
+  an mpm-shadow agent for the next item and for the registry prune that still reads `$CARGO_HOME/.crates.toml`.
+- Formerly queued,
+  now running:
   `mpm-shadow update <tool>...` and resolving a lock-less plan entry alone,
   without moving other rows
   (decision record,
@@ -196,11 +224,28 @@ each finished branch is reviewed and merged into `main`):
   `toolchain:update:global` also moved 7 tools,
   and the user chose "Install all 8";
   pre-update copies of the plan and lock are in `${HOME}/temp/agent/vibe-install/`.
-- Asked at cutover time,
-  not before:
-  converting the real global plan under `~/.config/monochromatic-dev`,
-  which agents may not read unasked,
-  and its `asset` hints.
+- Global plan conversion:
+  the user delegated it on 2026-10-31
+  ("Use your own judgement. I trust you'll do this step good enough autonomously."),
+  so this session converts the real plan under `~/.config/monochromatic-dev/toolchain/` at cutover without asking,
+  keeping the decision record's 0600 backup beside the original until the converted global sync is verified.
+  A rehearsal on a copy (`${HOME}/temp/agent/fe-rust/global-rehearsal/input/`) runs first,
+  including the `asset` hints the synthetic rehearsal could not settle
+  (`llamacpp-rocm`,
+  `openinterpreter`).
+- Running 2026-10-31 (cutover pieces the inventory found unbuilt):
+  a real-global-plan conversion rehearsal on the copy;
+  `package/vm-builder/cli` gets its own process runner (inventory precondition 7);
+  `file-enforcer check` gains a committed-versus-local outputs selector,
+  replacing the inventory's `jq` stopgap for the four gitignored rules.
+  Still unbuilt after these:
+  CI and container delivery of the two binaries,
+  the `20-env.toml` move,
+  and the repository plan conversion in the switch commit.
+- Found 2026-10-31:
+  the `timeout` on PATH is `~/.cargo/bin/timeout`,
+  and `timeout 60 vibe --version` printed `timeout 0.1.0` instead of running `vibe`;
+  not yet investigated.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).

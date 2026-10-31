@@ -28,13 +28,14 @@ the measured one is given and the drift is noted.
 
 The document inventories the one-switch commit and proves the toolchain plan conversion on a disposable copy.
 It decides nothing the owner has not decided.
-Five points need an owner answer before the switch,
+Four points need an owner answer before the switch,
 each stated in "Open decisions":
 the shape of the root `mise.toml`,
 how CI and containers obtain the two binaries,
 the plan entries that install the binaries,
-the IDE launcher's explicit path,
-and the `asset` hints of the machine-global plan.
+and the IDE launcher's explicit path.
+The `asset` hints of the machine-global plan, the fifth, are settled from the real data in "Global plan conversion",
+except `yt-dlp`, which needs an owner veto or choice (Open decisions, item 5).
 
 ## Preconditions
 
@@ -115,6 +116,10 @@ not of importance.
     The decision lists it under "Elsewhere",
     not in the switch commit's list,
     so it is a third consumer that must be migrated before `package/file-enforcer/core` is deleted.
+    Done on the worktree branch `worktree-agent-a12d076e7eb77be7b`:
+    `package/vm-builder/cli/src/exec.ts` (direct spawn through `nano-spawn`, no platform-aware form),
+    the dependency is gone from `package/vm-builder/cli/package.json` and `pnpm-lock.yaml`,
+    and `rg 'file-enforcer' package/vm-builder` finds nothing.
 8.  The per-user config for `file-enforcer user write` exists on the owner's machine
     (`<config dir>/monochromatic-dev/file-enforcer/user.config.jsonc`).
     No sample is committed (`rg` finds the path only in the Rust sources and the CLI README);
@@ -326,23 +331,28 @@ then local outputs separately"):
     every `LICENSES/`,
     every `Cargo.toml`,
     `rust-catalog.toml`).
-    So the committed-output gate needs a filter on the JSON lines.
-    This filter must print nothing:
+    So the committed-output gate uses the output scope of `check`:
+    `--outputs committed` reports only outputs that no `.gitignore` file matches and exits 0 here.
 
     ```sh
     # CI step sketch, not yet run in a workflow
-    file-enforcer check | jq -c 'select(.type=="drift"
-      and (.rule|IN("skills-claude","skills-factory","mise-bin-list","browserslist-targets")|not))'
+    file-enforcer check --outputs committed
     ```
 
-    The filter was run against the measured output and selected zero lines;
-    it has not been run inside a workflow.
-    There is no per-rule option on `check`,
-    so the list of local rule ids lives in the workflow.
+    The scope is derived from the repository's `.gitignore` files for each drifted path,
+    so no rule id appears in the workflow
+    (`package/file-enforcer/cli/README.md`, section "Committed and local outputs").
+    Measured on a `git archive HEAD` copy with a disposable home and runtime directory:
+    `check --outputs committed` exits 0 (`check-clean`),
+    and `check --outputs local` exits 1 with the same 26 `drift-missing` paths as the unscoped `check`.
 3.  `mpm-shadow lock --check` (offline,
     exits 1 on plan and lock disagreement or a digest mismatch).
 4.  `task-run prepare:pnpm` writes the local outputs,
-    then a second `file-enforcer check` over all rules must be clean.
+    then `file-enforcer check --outputs local` must be clean
+    (measured after `file-enforcer write --outputs local`: exit 0, none of the 26 paths reported),
+    and a last plain `file-enforcer check` over all rules must be clean too.
+    A rule error in a local rule (for example a failed browserslist fetch) still fails the committed step,
+    because the scope filters drift and never rule failures.
 5.  Replace the two `git diff --exit-code` steps at `.github/workflows/advisory-core.yml:92-105` ("Rust catalog drift")
     and `:107-118` ("pnpr config drift") with the checks of this list and
     `task-run //package/config/pnpr:check:config` (`package/config/pnpr/mise.toml:30`,
@@ -820,8 +830,21 @@ and nothing yet installs the `file-enforcer` binary (open decision).
     (the rehearsal `update` queries crates.io).
 4.  The IDE launcher's explicit path,
     proposed in the IDE launcher section as `<worktree>/.cache/toolchain-bin/mpm-shadow`.
-5.  The machine-global plan's `asset` hints (see "Global plan conversion"):
-    the converter cannot know them without reading the file.
+5.  The machine-global plan's `asset` hints came from a copy of the real files and are settled
+    (see "Global plan conversion"), with one flagged adoption: `yt-dlp`.
+    Today's lock records the standalone binary `yt-dlp_linux` from GitHub,
+    which the `github:` resolver cannot select on linux-x64 (it names no CPU and the resolver prefers its `.zip` twin).
+    The converter currently emits the reroute (option A); the owner can veto it for option B.
+    Option A, reroute to `pipx:yt-dlp@latest` on the `mpm-uvx` route (adopted in the rehearsal):
+    works with no code change, same program and version from PyPI;
+    but it needs Python and `uv tool install`, and the program runs from uv's tool environment instead of a standalone file.
+    Option B, keep the standalone binary:
+    a resolver change (read an architecture-less Linux name as x86_64 when an `options.asset` glob matches,
+    and a way to prefer the bare file over its archive twin),
+    so the install is unchanged;
+    but it is code in the resolver and was not written or tested.
+    Ranking: A > B, because A is verified by the rehearsal's lock and needs no new resolver behavior,
+    while B keeps today's install exactly but costs resolver work for one tool.
 
 ## Toolchain plan conversion
 
@@ -1032,131 +1055,457 @@ because upstream releases move `latest` entries and the version-keyed install br
 
 ### Global plan conversion
 
-Source of the global entries:
-the real file `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts` was **not read**.
-A read of that directory was refused by the sandbox,
-and the task also forbids touching it.
-This section therefore rests on `doc/planning/mpm-global-toolchain-migration.md:80-260` and the README line that the
-global plan
-"also holds `go: go@latest`,
-`aws: aws@latest`,
-`rustup: rustup@latest` and `go:github.com/charmbracelet/crush@latest` on the `go-install` route".
-The planning record puts the global plan at 59 entries (`doc/planning/file-enforcer-rust-rewrite.md`,
-"Global toolchain plan:
-converted directly").
+The machine-global plan was rehearsed on a copy of the owner's real files on 2026-10-31.
+The coordinator copied these five files (modes kept) to `${HOME}/temp/agent/fe-rust/global-rehearsal/input/`
+at 00:39;
+the real directory `~/.config/monochromatic-dev` was never read or written by the rehearsal:
+`plan.tools.data.ts` (mode 0600),
+`plan.artifacts.data.ts`,
+`toolchain.lock.json`,
+`mpm.packages.toml`
+and `mpm.managers.toml`.
+The copy holds no secret:
+`rg -i 'token|secret|passw|ghp_|bearer'` over all five matched only the bin name `llama-tokenize`.
 
-To exercise the converter's branches for the forms that only the global plan holds,
-a synthetic fixture (`global-shapes.data.ts`,
-labeled synthetic in its first comment) holds 15 entries of the documented shapes.
-Converted and resolved with `update` in a disposable home,
-the results are:
+What the real file holds:
 
-```text
-// synthetic global-shape fixture, 15 entries: old request, route => new request
-go: {track:latest} archive => "go@latest" route archive
-aws: {track:latest} archive => "aws@latest" route archive
-rustup: {track:latest} archive => "rustup@latest" route archive
-rust: {channel:stable} rustup-toolchain rustup:1.98.1 => "rust@stable" route rustup-toolchain packageId {version}; env RUSTUP_TOOLCHAIN
-go:github.com/charmbracelet/crush: {track:latest} go-install go:github.com/charmbracelet/crush => "go:github.com/charmbracelet/crush@latest" route go-install
-cargo:https://github.com/slint-ui/slint: {pinned:ref:85e3eb76819762cdcaa732fa87533ff896546bac} cargo-git cargo:slint-lsp => "git:https://github.com/slint-ui/slint@85e3eb76819762cdcaa732fa87533ff896546bac" route cargo-git packageId slint-lsp
-npm:typeslayer: {pinned:0.1.32-aquaticat.0319832} mpm-pnpm pnpm:typeslayer => "npm:typeslayer@0.1.32-aquaticat.0319832" route mpm-pnpm
-npm:@deepseek-ai/dsh: {channel:next} mpm-pnpm pnpm:@deepseek-ai/dsh => "npm:@deepseek-ai/dsh@next" route mpm-pnpm
-npm:@opencode/cli: {track:latest} mpm-pnpm pnpm:@opencode/cli => "npm:@opencode/cli@latest" route mpm-pnpm; options allowBuilds
-github:lemonade-sdk/llamacpp-rocm: {track:latest} archive => "github:lemonade-sdk/llamacpp-rocm@latest" route archive; options asset
-github:openinterpreter/openinterpreter: {track:latest} bin-sourced => "github:openinterpreter/openinterpreter@latest" route bin-sourced; options asset
-cargo:coreutils: {track:latest} cargo-binstall cargo:coreutils => "cargo:coreutils@latest" route cargo-binstall; options cargoFeatures
-cargo:tokei: {track:latest} cargo-binstall cargo:tokei => "cargo:tokei@latest" route cargo-binstall
-pipx:huggingface_hub: {track:latest} mpm-uvx uvx:huggingface_hub => "pipx:huggingface_hub@latest" route mpm-uvx
-cargo:monochromatic-git-policy-cli: {track:latest} cargo-binstall cargo:monochromatic-git-policy-cli => "cargo:monochromatic-git-policy-cli@latest" route cargo-binstall; options postinstall; os linux
-```
-
-- Decoded and resolved:
-  `go` 1.27.3,
-  `aws` 2.39.3,
-  `rustup` 1.29.2,
-  `rust@stable` 1.99.1,
-  `go:` (crush 0.99.0),
-  the `git:` request at a pinned revision,
-  `npm:typeslayer@0.1.32-aquaticat.0319832`,
-  `npm:@deepseek-ai/dsh@next` (0.2.1-rc.5),
-  `npm:@opencode/cli` with `allowBuilds`,
-  `cargo:tokei`,
+- 60 entries in `export const TOOLS` (the lock also has 60 tools).
+  By route:
+  19 `bin-sourced`,
+  16 `mpm-pnpm`,
+  10 `archive`,
+  7 `cargo-binstall`,
+  5 `mpm-uvx`,
+  and one each of `go-install`,
+  `cargo-git`
+  and `rustup-toolchain`.
+- `rust` is `{ channel: 'nightly' }` (version `nightly-2026-10-31`),
+  not the `stable` the migration record and the synthetic fixture assumed.
+- `npm:typeslayer` is not in the file.
+  The pinned pre-release the task brief named does not exist in this copy,
+  so the pinned-npm-prerelease form is exercised only by the synthetic fixture
+  (`npm:typeslayer@0.1.32-aquaticat.0319832`, resolved in the first rehearsal).
+- The forms present:
+  `aws`,
+  `go`,
+  `rustup`,
+  `rust@nightly`,
+  `go:github.com/charmbracelet/crush`,
+  `git:https://github.com/slint-ui/slint@85e3eb76819762cdcaa732fa87533ff896546bac`,
+  `npm:@deepseek-ai/dsh@next`,
+  `allowBuilds` on `npm:@opencode/cli`,
+  `cargoFeatures` on `cargo:coreutils`,
+  the `postinstall` link of `cargo:monochromatic-git-policy-cli`,
+  `pipx:mistral-vibe`,
+  `pipx:serena-agent`,
   `pipx:huggingface_hub`,
-  `cargo:coreutils` with `cargoFeatures`,
-  and the absolute `linkDir` postinstall.
-- Two entries failed,
-  and the failures are the finding:
-  `github:lemonade-sdk/llamacpp-rocm` with `asset` `*ubuntu*x64*` ("has no Linux asset"),
-  and `github:openinterpreter/openinterpreter` with `asset` `*linux*` ("has 8 equally good assets for linux-arm64").
-  The `asset` globs in the fixture are invented stand-ins for Mise's `asset_pattern` and `matching` values.
-  The real values must be converted from the real file,
-  and each tool must resolve to exactly one asset per platform,
-  because the resolver's `asset` glob matches release asset names,
-  and the old `asset_pattern` and `matching` values were Mise's ("resolver-side asset selection" in the migration plan),
-  not verified to select the same files.
-- The converter handles `cargo-git`,
-  `go-install`,
-  `assetPattern`,
-  `allowBuilds`,
-  `npm:` pinned and `next` channel,
-  `rust@stable`,
-  `rustup@latest`,
-  `go@latest` and `aws@latest`.
-  It has not run on the real file;
-  run it first as a dry run into a scratch path.
+  and `bin` and `mpm` with `bootstrap` options.
+- Three commented-out declarations after the array
+  (`cargo:xremap`,
+  `github:BtbN/FFmpeg-Builds`,
+  `crush`)
+  and every `//` comment inside or directly before an entry survive as comments in the new file.
+  The header block of the data module becomes `//` lines at the top.
+- The old file writes `null` for absent fields;
+  the converter drops them
+  (`manager`,
+  `packageId`,
+  `os`,
+  and `bootstrap.requiresTool`).
+
+#### The global converter
+
+`convert-global.ts` (Appendix, "The global converter") is the repository converter extended for the global file:
+it reads `TOOLS` instead of `ALL_TOOLS`,
+takes each downloaded tool's GitHub owner, repository and release tag from the lock's own release URLs
+(the global artifacts live in `plan.artifacts.data.ts` and the lock, not in the tool entries;
+a `github:` id is also checked against that URL),
+moves comments found inside an entry to just before it,
+keeps the trailing comments,
+and refuses an `assetPattern` that has no settled mapping.
+Run on the copy it wrote 60 tools to
+`${HOME}/temp/agent/fe-rust/global-rehearsal/output/toolchain.plan.jsonc` (mode 0600).
+
+#### Settled asset hints
+
+The resolver filters release assets by Linux, the platform's CPU, no checksum, signature, installer, debug or GPU name,
+then prefers the platform's libc,
+and `.tar.gz` over `.tar.xz`,
+`.zip`,
+`.gz`
+and a bare file
+(`package/mpm-shadow/cli/src/toolchain/update_github_assets.rs`).
+Each hint below was checked against the release's real asset names (`gh api repos/<owner>/<repo>/releases`)
+and against what `update --global` picked on the four Linux platforms.
+
+- `github:lemonade-sdk/llamacpp-rocm`:
+  `options.assetPattern` `llama-*-ubuntu-rocm-gfx110X-x64.zip` becomes `options.asset` with the same glob.
+  The release ships seven `ubuntu-rocm-*` zips (gfx103X to gfx90a),
+  seven `windows-rocm-*` zips,
+  seven `qualification-*.json` files and `checksums.txt`.
+  The glob matches exactly `llama-b1359-ubuntu-rocm-gfx110X-x64.zip`,
+  which is the only row in today's lock (`linux-x64`).
+  The resolver also records it for `linux-x64-musl` (a new row,
+  same file) and finds nothing for the two arm64 platforms (they stay absent,
+  as today).
+  It needed a resolver fix first:
+  every candidate name says `rocm`,
+  which the chooser skipped even for a matching glob,
+  so the first run failed with "has no Linux asset".
+  A glob that matches a GPU build's name now lets it through (commit `7c7ca78478`, one new test);
+  an unhinted entry still skips GPU builds.
+- `github:openinterpreter/openinterpreter`:
+  `options.assetPattern` `*open-interpreter-package*` becomes `options.asset` `open-interpreter-package-*.tar.gz`.
+  The release ships 12 `open-interpreter-package-*` files
+  (macOS,
+  Windows,
+  Linux musl,
+  for `x86_64` and `aarch64`,
+  each as `.tar.gz` and `.tar.zst`),
+  plus `codex-*`,
+  `codex-package-*`,
+  `bwrap-*` and other programs for the same CPUs.
+  The old glob already restricts to the package family;
+  the new one also drops the `.tar.zst` twins so the choice does not rest on the format ranking.
+  Both Linux CPUs ship only a musl build,
+  so all four platforms resolve to the `*-unknown-linux-musl.tar.gz` file of their CPU,
+  the same four rows as today's lock.
+  The tag is `rust-v0.0.56`,
+  so the lock's `version` becomes `0.0.56` (the resolver strips the `name-v` prefix);
+  the release is the same.
+- `deno`:
+  no hint today,
+  and one is needed.
+  Each CPU has three zips in the release (`deno-`,
+  `denort-`
+  and `libdenort-` prefixed),
+  so the first run failed with "3 equally good assets for linux-arm64".
+  `options.asset` `deno-*` selects the `deno-<cpu>-unknown-linux-gnu.zip` file today's lock records.
+- `tree-sitter`:
+  no hint today.
+  Without one the resolver prefers the `tree-sitter-cli-linux-<cpu>.zip` over the bare `tree-sitter-linux-<cpu>.gz`
+  that today's lock records and that the entry's comment describes,
+  because it ranks `.zip` above `.gz`.
+  `options.asset` `tree-sitter-linux-*.gz` keeps the recorded file on all four platforms
+  (`-arm.gz`,
+  `-x86.gz` and `-powerpc64.gz` name no supported CPU token).
+- `yt-dlp` (flagged, not settled; Open decisions, item 5):
+  cannot be expressed with `github:` on linux-x64.
+  Today's lock records the bare PyInstaller file `yt-dlp_linux` for `linux-x64`;
+  its name names no CPU,
+  so the resolver drops it and the `linux-x64` and `linux-x64-musl` rows vanish
+  (the first lock the rehearsal wrote lacked both,
+  and sync would have failed for yt-dlp on this machine).
+  A glob cannot fix it:
+  the resolver also ranks the `yt-dlp_linux.zip` onedir twin above the bare file.
+  The converter therefore currently reroutes `yt-dlp` to `pipx:yt-dlp@latest` on the `mpm-uvx` route (`bins` unchanged):
+  the same program and the same version (`2026.10.26`) from PyPI,
+  installed with `uv tool install`.
+  This changes how the program is installed,
+  not which version or program,
+  and it is an adoption the owner may veto;
+  keeping the standalone binary needs a resolver change
+  (an architecture-less Linux name read as `x86_64` under a hint,
+  and a way to prefer the bare file).
+- `harper-cli` and `tombi` do not exist in the global plan.
+  Every other `github:` entry in the global plan resolved with no hint and no tie
+  (`rg`,
+  `gh`,
+  `git-lfs`,
+  `neovim`,
+  `usage`,
+  `cargo-binstall`,
+  `hyperfine`,
+  `typst`,
+  `uv`,
+  `pandoc`,
+  `opentofu`,
+  `glow`,
+  `lsd`,
+  `age`,
+  `kopia`,
+  `rclone`,
+  `pnpm`,
+  `starship`,
+  `depot`,
+  `bin`,
+  `bun`).
+
+#### Rehearsal
+
+Build and run (all under `${HOME}/temp/agent/fe-rust/global-rehearsal/`):
+
+1.  `main` merged into the worktree;
+    `mise run //package/mpm-shadow/cli:build` as the transient unit `fe-global-build-mpm` (since collected).
+2.  `node convert-global.ts input/plan.tools.data.ts input/toolchain.lock.json output/toolchain.plan.jsonc`.
+3.  `node run-global.ts <mpm-shadow> <home> update --global`,
+    where `run-global.ts` prints the environment first,
+    stops when any variable resolves into the real home's `.config/monochromatic-dev`,
+    `.local/share/monochromatic-dev`,
+    `.cargo` or `.rustup`,
+    and starts the binary with `HOME`,
+    `XDG_CONFIG_HOME`,
+    `XDG_DATA_HOME`,
+    `XDG_CACHE_HOME`,
+    `CARGO_HOME` and `RUSTUP_HOME` under `global-rehearsal/home/`,
+    `PATH=/usr/bin:/bin`,
+    and a GitHub token in the child's environment only (printed as "present").
+    The printed environment:
+
+    ```text
+    # global-rehearsal/update-3.log
+    env HOME=/var/home/user/temp/agent/fe-rust/global-rehearsal/home
+    env PATH=/usr/bin:/bin
+    env XDG_DATA_HOME=.../global-rehearsal/home/.local/share
+    env XDG_CONFIG_HOME=.../global-rehearsal/home/.config
+    env XDG_CACHE_HOME=.../global-rehearsal/home/.cache
+    env CARGO_HOME=.../global-rehearsal/home/.cargo
+    env RUSTUP_HOME=.../global-rehearsal/home/.rustup
+    ```
+
+4.  `lock --check --global`,
+    `update --check --global`,
+    `lock --global`
+    and `status --global` in the same home.
+    `sync` was not run.
+5.  `node compare.ts input/toolchain.lock.json home/.config/monochromatic-dev/toolchain/toolchain.lock.json`
+    (the script in `cutover-rehearsal/compare.ts`).
+
+Results:
+
+- First `update --global` (before any fix):
+  two lookups failed and no lock was written:
+  `github:lemonade-sdk/llamacpp-rocm` ("has no Linux asset")
+  and `deno` ("3 equally good assets for linux-arm64").
+  After the resolver fix and the `deno` hint the lock was written
+  (60 tools),
+  and the comparison showed `yt-dlp` and `tree-sitter` differences (see "Settled asset hints").
+- Final: `update --global` wrote 60 tools;
+  `lock --check --global`:
+  `toolchain lock is current: 60 tools, digest verified`;
+  `update --check --global`:
+  `0 tools would move; nothing was written or installed`;
+  `lock --global`:
+  `toolchain lock already current`.
+- `status --global` in the empty home:
+  `toolchain status: 60 of 60 tools drifted` and exit 1,
+  as expected for a home with nothing installed.
+- Versions: no version moved.
+  Two `version` strings changed spelling only:
+  `cargo:https://github.com/slint-ui/slint` from `ref:85e3eb76...` to `85e3eb76...`,
+  and `github:openinterpreter/openinterpreter` from `rust-v0.0.56` to `0.0.56`.
+  Every floating request resolved to today's lock version because the lock was rebuilt the same day;
+  a later `update --global` moves `latest` entries to whatever is newest then,
+  and `rust@nightly` to the then-current dated toolchain.
+- Lock shape changes:
+  `generatedFrom` is `toolchain.plan.jsonc`;
+  a top-level `digest` is added;
+  `request` is a string;
+  `manager` and `packageId` are dropped wherever the request names the package
+  (`rust` keeps both and the `git:` entry keeps `packageId`).
+- Artifact rows,
+  field by field against today's lock:
+  - added (5):
+    `bin` `linux-arm64-musl` and `linux-x64-musl`,
+    `go` `linux-arm64-musl` and `linux-x64-musl`
+    (the musl platforms reuse the glibc Go archive),
+    and `github:lemonade-sdk/llamacpp-rocm` `linux-x64-musl`;
+  - dropped (8):
+    `bin` `macos-arm64`,
+    `macos-x64`,
+    `windows-arm64` and `windows-x64`
+    (the Linux-only stopgap,
+    `doc/decision/mise-lock-linux-only-stopgap.md`),
+    and the four `yt-dlp` GitHub rows (the reroute to PyPI records no per-platform rows);
+    `tree-sitter` and `deno` keep all four rows,
+    and the llama.cpp ROCm and open-interpreter rows are the same files as today;
+  - changed (1):
+    `node` `linux-x64-musl` moves from `https://nodejs.org/dist/.../node-v26.13.0-linux-x64-musl.tar.gz`
+    to the unofficial-builds URL (`https://unofficial-builds.nodejs.org/download/release/...`),
+    the host `linux-arm64-musl` already used;
+  - no other row changed its URL or SHA-256.
+- Options and env:
+  `options` keys reorder for `mpm`'s `bootstrap` (no value changed);
+  `cargoGit` is replaced by the `git:` request;
+  `assetPattern` is renamed `asset`;
+  `deno` and `tree-sitter` gain `asset`;
+  `env` and `bins` of every tool are identical,
+  including `RUSTUP_TOOLCHAIN` and `packageId` for `rust` (both `{version}` in the plan).
+- Not rehearsed:
+  `sync` (no installs ran, by instruction),
+  and so the install-side behavior of the new `mpm-uvx` `yt-dlp`,
+  the bare-`.gz` `tree-sitter` unpack,
+  the `cargo-git` build of `slint-lsp`,
+  the `go-install` of `crush`,
+  and the `git` postinstall link.
 
 ### Global plan backup and conversion procedure
 
-For the owner to execute on their own machine,
-after the switch commit and after the repository `mpm-shadow sync` is verified.
-No step is automated and none was run.
+For the coordinator to run on the owner's machine,
+after the switch commit and after the repository's `mpm-shadow sync` is verified.
+Each step names the command;
+none has been run against the real directory.
 
-1.  Confirm nothing is mid-sync:
-    no `mpm-shadow` or old `sync.ts` process,
-    and `mpm-shadow status --global` is not being run by a worktree.
-2.  Back up beside the originals with owner-only permissions.
-    In the directory `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain`:
+Precondition on the binary:
+`MS` must be built from a revision that contains commit `7c7ca78478`
+(`fix(mpm-shadow)`: an `options.asset` glob lets a GPU build through).
+A binary without it fails step 4 and step 6 with
+`github:lemonade-sdk/llamacpp-rocm ... has no Linux asset`,
+and writes no lock.
+Merge that commit into `main`,
+then build `MS` with `mise run //package/mpm-shadow/cli:build` in a checkout of that revision
+(the `mpm-shadow` the repository's own sync installs is the published release in its lock,
+which does not contain the fix until a release is cut).
+In this procedure `D` is `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain`
+and `S` is a scratch directory `${HOME}/temp/agent/global-cutover` (create it with `mkdir --parents`, then `chmod 700`).
+`MS` is the repository's built `mpm-shadow`
+(`<repo>/.cache/toolchain-bin/mpm-shadow` after the switch's sync,
+or the binary built by `mise run //package/mpm-shadow/cli:build`).
+
+1.  Preconditions.
+    No `mpm-shadow` or old `sync.ts` process is running (`ps`);
+    the repository sync passed;
+    record the current `git` link target for the rollback:
+    `readlink "$HOME/.local/bin/git"`,
+    and `"$HOME/.local/bin/git" --version`.
+2.  Back up beside the originals, owner-only.
+    In `D`:
     `umask 077`,
-    then `cp --archive --no-clobber` each of `plan.tools.data.ts`,
+    then for each of `plan.tools.data.ts`,
     `plan.artifacts.data.ts`,
     `toolchain.lock.json`,
-    `mpm.packages.toml` and `mpm.managers.toml` to the same name plus `.pre-cutover`.
-    Then `chmod 0600` on the five copies,
-    `stat --format '%a %n'` to show the modes,
-    and `sha256sum` of each original and copy to show they match.
-    The original `plan.tools.data.ts` is already mode 0600 and the copy must stay 0600.
-3.  Dry-run the converter into a scratch path,
-    never into that directory:
-    `node convert.ts <global plan.tools.data.ts> ${HOME}/temp/agent/<scratch>/toolchain.plan.jsonc`,
-    open the output and check every `asset` value by hand against the release assets of its repository.
-4.  Write `toolchain.plan.jsonc` into the global directory with mode 0600 (`umask 077` first),
-    keeping the comments.
-5.  Rebuild the lock:
-    `mpm-shadow update --global`.
-    Compare with the backed-up lock using `node compare.ts toolchain.lock.json.pre-cutover toolchain.lock.json`
-    and read every version move and musl change,
-    as for the repository.
-6.  `mpm-shadow lock --check --global`,
-    then `mpm-shadow sync --global`,
-    then `mpm-shadow status --global`.
-7.  Verify the converted global sync:
-    `status --global` exits 0;
-    run each installed global tool's `--version` (for example `gh`,
+    `mpm.packages.toml`
+    and `mpm.managers.toml`:
+    `cp --archive --no-clobber <name> <name>.pre-cutover`.
+    Then `chmod 0600 *.pre-cutover`,
+    `stat --format '%a %n' *.pre-cutover` (all `600`),
+    and `sha256sum <name> <name>.pre-cutover` for each pair (the two hashes of a pair must match).
+    The original `plan.tools.data.ts` is mode 0600;
+    its copy must be too.
+3.  Convert into the scratch directory, never into `D`.
+    The converter is in the Appendix ("The global converter");
+    save it as `S/convert-global.ts`,
+    then `node S/convert-global.ts D/plan.tools.data.ts D/toolchain.lock.json S/toolchain.plan.jsonc`.
+    Expected output:
+    `wrote 60 tools`
+    and the five notes
+    (`tree-sitter`,
+    `github:lemonade-sdk/llamacpp-rocm`,
+    `yt-dlp` rerouted,
+    `deno`,
+    `github:openinterpreter/openinterpreter`).
+    A different count or a thrown error means the file changed since the rehearsal;
+    stop and read the error
+    (the converter refuses a new `assetPattern` without a mapping and a `github:` id that disagrees with the lock).
+    Diff against the rehearsal output:
+    `diff S/toolchain.plan.jsonc ${HOME}/temp/agent/fe-rust/global-rehearsal/output/toolchain.plan.jsonc`
+    should print nothing if the owner has not edited the plan since 2026-10-31.
+4.  Dry-run the lock in a disposable home first:
+    `mkdir --parents S/home/.config/monochromatic-dev/toolchain`,
+    copy `S/toolchain.plan.jsonc` into it,
+    and run `MS update --global` with `HOME`,
+    `XDG_CONFIG_HOME`,
+    `XDG_DATA_HOME`,
+    `XDG_CACHE_HOME`,
+    `CARGO_HOME` and `RUSTUP_HOME` under `S/home`
+    (`run-global.ts` in the Appendix does this and refuses real paths).
+    It needs a GitHub token in the environment (`GITHUB_TOKEN`) to avoid rate limits.
+    Compare:
+    `node compare.ts D/toolchain.lock.json S/home/.config/monochromatic-dev/toolchain/toolchain.lock.json`
+    (`compare.ts` is in the Appendix).
+    Expected: the diff of "Rehearsal", plus whatever upstream released since:
+    read every `version` line;
+    a `latest` entry moving is expected,
+    `bin`,
+    `mpm`,
+    `bun` and the `git:` revision must not move.
+5.  Install the plan:
+    `umask 077`,
+    `install -m 0600 S/toolchain.plan.jsonc D/toolchain.plan.jsonc`.
+    `D` now holds both formats;
+    the old files stay untouched.
+6.  Write the real lock:
+    `MS update --global`
+    (real environment).
+    It reads `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`
+    (the old lock is replaced; the `.pre-cutover` copy is the old one).
+    Export `GITHUB_TOKEN` first to avoid API rate limits.
+    It is not purely a lookup in the real environment:
+    when an npm or PyPI lookup fails for a tool that is in the lock but not installed,
+    plain `update` installs just the missing tools (and `node`,
+    `pnpm` or `uv` when they need them) and looks again once (README, "Network").
+    The rehearsal's disposable home had every lookup succeed, so no such install ran.
+    Then `MS lock --check --global` must print `toolchain lock is current: 60 tools, digest verified`.
+7.  `MS status --global`.
+    Entries installed by the old tool at the same version may still report drift;
+    cargo tools do until the first sync (each installs into its own cargo root).
+    Read the list; it is the sync's work list.
+8.  Sync, as a capped unit:
+    `systemd-run --user --unit=fe-global-sync --collect --property=MemoryMax=24G --property=CPUQuota=2400% --setenv=PATH="$PATH" MS sync --global`
+    (a real job may use most of the host, `FHU`).
+    A user service starts in the user manager's environment, not the shell's:
+    before starting it,
+    compare `systemctl --user show-environment` with `env` for `HOME`,
+    `XDG_CONFIG_HOME`,
+    `XDG_DATA_HOME`,
+    `XDG_CACHE_HOME`,
+    `CARGO_HOME`,
+    `RUSTUP_HOME` and `GITHUB_TOKEN`,
+    and pass every variable the shell sets with `--setenv=NAME=value` (print them first, as `run-global.ts` does);
+    otherwise the sync installs under default paths.
+    `PATH` must be passed too, for the tools the sync installs and runs.
+    Wait on the unit state with a deadline, read `journalctl --user --unit fe-global-sync`.
+    A failure of one tool is reported and does not undo the others;
+    stop at the first one that matters (`git`, `rust`, `node`, `uv`, `bin`) and use the rollback.
+9.  Verify:
+    `MS status --global` exits 0;
+    `"$HOME/.local/bin/git" --version` works and the link points at the exposure directory's wrapper (0.4.4 or newer);
+    `--version` for `gh`,
     `rg`,
     `go`,
-    `aws`);
-    check the `git` link in `$HOME/.local/bin` points at the wrapper 0.4.4 or newer.
-    On a failure at any step,
-    stop and leave the backups.
-8.  Only after step 7 passes,
+    `aws`,
+    `node`,
+    `rustc`,
+    `deno`,
+    `tree-sitter`,
+    `yt-dlp`,
+    `llama-server` and `interpreter`.
+    After the `yt-dlp` reroute,
+    check that `command -v yt-dlp` resolves and that `yt-dlp --version` prints `2026.10.26` or newer.
+10. Only after step 9 passes,
     delete the old `plan.tools.data.ts`,
     `plan.artifacts.data.ts`,
-    `mpm.packages.toml` and `mpm.managers.toml`
-    from the directory.
+    `mpm.packages.toml`
+    and `mpm.managers.toml` from `D` (`toolchain.lock.json` stays, now the new lock).
+    Search the owner's shell and tool configuration for references to the removed files before deleting
+    (`rg 'mpm\.(managers|packages)\.toml|plan\.(tools|artifacts)\.data' ~/.config ~/.bashrc ~/.profile` and the like,
+    skipping `D`).
     Keep the `.pre-cutover` copies until the owner chooses to remove them.
-    Rollback is:
-    copy the `.pre-cutover` files back over the originals,
-    and check out the commit before the switch for the old `sync.ts --global`.
+
+Files after the procedure,
+in `D`:
+`toolchain.plan.jsonc` (new, 0600),
+`toolchain.lock.json` (new content),
+five `.pre-cutover` backups (0600);
+removed:
+`plan.tools.data.ts`,
+`plan.artifacts.data.ts`,
+`mpm.packages.toml`,
+`mpm.managers.toml`.
+
+Rollback,
+at any step before 10:
+delete `D/toolchain.plan.jsonc`;
+`cp --archive D/toolchain.lock.json.pre-cutover D/toolchain.lock.json` (and the other four files if changed);
+if the sync ran, restore the `git` link with the target recorded in step 1
+(`ln --symbolic --force --no-dereference <target> "$HOME/.local/bin/git"`);
+check out the commit before the switch and run the old `sync.ts --global` to settle any tool the new sync replaced.
+After step 10,
+copy the four `.pre-cutover` files back over their names and do the same.
+The README says the first sync installs each cargo tool into its own root and leaves `$CARGO_HOME/bin` and
+`$CARGO_HOME/.crates.toml` as they were;
+that and the treatment of the old per-version install directories were not rehearsed here,
+so check `ls` of the install root before relying on a rollback leaving the old tools intact.
 
 ## Comparison with the TypeScript output
 
@@ -1198,16 +1547,18 @@ It writes nothing in the worktree and left no server running.
 - `package/vm-builder/cli` still depends on the old package and is not in the decision's switch list.
 - No per-user config for `file-enforcer user write` is committed;
   the Harper policy is written only after the owner creates it.
-- `file-enforcer check` has no per-rule scope,
-  so the committed-output gate in CI needs a `jq` filter on four rule ids.
+- `file-enforcer check --outputs committed` and `--outputs local` split the gate by `.gitignore` matching;
+  a tracked file that a pattern matches counts as local, which the last plain `check` of the CI list still covers.
 - The `.config/mise/conf.d/20-env.toml` content has no generator and must be written by hand if the decision's layout
   is chosen.
-- The machine-global plan was not read;
-  its `asset` values and any form this document did not anticipate are unrehearsed.
+- The machine-global plan was rehearsed on a copy; `sync --global` was not run,
+  so the install side of the rerouted `yt-dlp`, the bare `.gz` of `tree-sitter`, the `cargo-git` and `go-install`
+  routes and the `git` link is unrehearsed.
 - No output of the TypeScript tool is without an owner or an explicit "stops being generated" record.
 
 ## Appendix: the converter
 
+This converter is the repository one; the machine-global plan has another (next appendix).
 Scratch copies of the other scripts (`run.ts`,
 `compare.ts`,
 `map.ts`,
@@ -1355,4 +1706,368 @@ lines.push('  }', '}', '',);
 writeFileSync(outPath, lines.join('\n',),);
 console.log(`wrote ${ids.length} tools to ${outPath}`,);
 for (const note of notes) console.log(note,);
+```
+
+## Appendix: the global converter and its checks
+
+The machine-global plan has its own converter,
+because its data module exports `TOOLS`,
+keeps artifacts in the lock,
+and needs the settled `asset` hints and the `yt-dlp` reroute.
+Scratch copies are in `${HOME}/temp/agent/fe-rust/global-rehearsal/` (reboots wipe them),
+so the scripts are reproduced here.
+
+### convert-global.ts
+
+```ts
+// Global-scope converter: plan.tools.data.ts (export TOOLS) plus toolchain.lock.json to toolchain.plan.jsonc.
+// usage: node convert-global.ts <plan.tools.data.ts> <toolchain.lock.json> <out toolchain.plan.jsonc>
+// The lock is read only for the GitHub owner/repo and tag of downloaded tools (the old plan keeps artifacts elsewhere).
+// Rules: package/mpm-shadow/cli/README.md, "What the cutover converter must write".
+import { readFileSync, writeFileSync, } from 'node:fs';
+import { pathToFileURL, } from 'node:url';
+
+const [dataPath, lockPath, outPath,] = process.argv.slice(2,);
+if (dataPath === undefined || lockPath === undefined || outPath === undefined)
+  throw new Error('usage: convert-global.ts <plan.tools.data.ts> <toolchain.lock.json> <out>',);
+
+const source = readFileSync(dataPath, 'utf8',);
+const { TOOLS, } = await import(pathToFileURL(dataPath,).href,);
+const lock = JSON.parse(readFileSync(lockPath, 'utf8',),);
+
+// Comments: header block, those above or inside each object, and those after the array.
+const lines = source.split('\n',);
+const header: string[] = [];
+{
+  // The leading /** ... */ block becomes // lines.
+  if ((lines[0] ?? '').startsWith('/**',)) {
+    let i = 1;
+    while (i < lines.length && !(lines[i] ?? '').includes('*/',)) {
+      header.push((lines[i] ?? '').trim(),);
+      i += 1;
+    }
+  }
+}
+const comments = new Map<string, string[]>();
+{
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = /^\s+id: '([^']+)',$/u.exec(lines[i] ?? '',);
+    if (match === null) continue;
+    // Walk up to the object's opening brace (2-space indent).
+    let open = i;
+    while (open >= 0 && (lines[open] ?? '') !== '  {') open -= 1;
+    let close = i;
+    while (close < lines.length && (lines[close] ?? '') !== '  },') close += 1;
+    const block: string[] = [];
+    let j = open - 1;
+    while (j >= 0 && (lines[j] ?? '').trim().startsWith('//',)) {
+      block.unshift((lines[j] ?? '').trim(),);
+      j -= 1;
+    }
+    for (let k = open + 1; k < close; k += 1) {
+      const text = (lines[k] ?? '').trim();
+      if (text.startsWith('//',)) block.push(text,);
+    }
+    comments.set(match[1] as string, block,);
+  }
+}
+const tail: string[] = [];
+{
+  const end = lines.findIndex((line,) => line === '];');
+  for (const line of lines.slice(end + 1,)) {
+    if (line.trim() !== '') tail.push(line.trim(),);
+  }
+}
+
+// GitHub owner/repo and release tag of a downloaded tool, read from the lock's release URLs.
+function githubOrigin(id: string,): { repo: string; tag: string; } | undefined {
+  const rows = Object.values((lock.tools[id]?.artifacts ?? {}) as Record<string, { url: string; }>,);
+  for (const row of rows) {
+    const found = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/download\/([^/]+)\//u.exec(row.url,);
+    if (found !== null) return { repo: found[1] as string, tag: found[2] as string, };
+  }
+  return undefined;
+}
+
+// Drops nulls (the old data module wrote null for absent), recursively.
+function stripNulls(value: unknown,): unknown {
+  if (Array.isArray(value,)) return value.map(stripNulls,);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value,).filter(([, v,],) => v !== null).map(([k, v,],) => [k, stripNulls(v,),]),
+    );
+  }
+  return value;
+}
+
+// Hints settled from the real data (see the rehearsal write-up). Keyed by tool id.
+const ASSET_FOR_ID: Record<string, string> = {
+  // former assetPattern: 'llama-*-ubuntu-rocm-gfx110X-x64.zip'; the glob carries over unchanged.
+  'github:lemonade-sdk/llamacpp-rocm': 'llama-*-ubuntu-rocm-gfx110X-x64.zip',
+  // former assetPattern: '*open-interpreter-package*'; narrowed to the one archive format the lock records.
+  'github:openinterpreter/openinterpreter': 'open-interpreter-package-*.tar.gz',
+};
+// Hints the old plan never needed: the release ships three zip files per CPU (deno, denort, libdenort).
+// tree-sitter: keeps the bare .gz the old lock records (the resolver would otherwise prefer the tree-sitter-cli zip).
+const ASSET_ADDED: Record<string, string> = { deno: 'deno-*', 'tree-sitter': 'tree-sitter-linux-*.gz', };
+// Tools whose old origin the github: resolver cannot reproduce on linux-x64, moved to the package index with the same program.
+// yt-dlp: the old lock records the bare PyInstaller file yt-dlp_linux, which names no CPU and loses to its .zip twin.
+const REROUTE: Record<string, { request: string; route: string; note: string; }> = {
+  'yt-dlp': {
+    request: 'pipx:yt-dlp@latest',
+    route: 'mpm-uvx',
+    note: '// Converted: from the GitHub binary `yt-dlp_linux` to the PyPI package of the same program. The github: resolver needs a CPU in the asset name and `yt-dlp_linux` has none.',
+  },
+};
+const NOTE_FOR_ID: Record<string, string[]> = {
+  deno: ['// Converted: the release also ships `denort` and `libdenort` archives, so `options.asset` names the `deno-` ones.'],
+  'cargo:monochromatic-git-policy-cli': [
+    '// Converted: the `git` link goes in `$HOME/.local/bin` (the global scope default) and points at the exposed binary, not at the `latest` symlink named above.',
+  ],
+  'github:lemonade-sdk/llamacpp-rocm': [
+    '// Converted: `options.asset` is the former Mise `asset_pattern`, unchanged. Only a hinted glob may select a GPU (rocm) build.',
+  ],
+  'github:openinterpreter/openinterpreter': [
+    '// Converted: `options.asset` replaces the former `*open-interpreter-package*` match; the release also ships `.tar.zst` copies.',
+  ],
+};
+
+const notes: string[] = [];
+const out: Record<string, Record<string, unknown>> = {};
+
+for (const tool of TOOLS as readonly any[]) {
+  const id: string = tool.id;
+  const range: string = tool.request.pinned ?? tool.request.channel ?? 'latest';
+  let request: string;
+  const entry: Record<string, unknown> = {};
+  const options: Record<string, unknown> = { ...(stripNulls(tool.options,) as object), };
+  const env: Record<string, string> = { ...tool.env, };
+  let keepManager = false;
+  switch (tool.route) {
+    case 'cargo-binstall':
+      request = `cargo:${tool.packageId}@${range}`;
+      break;
+    case 'mpm-pnpm':
+      request = `npm:${tool.packageId}@${range}`;
+      break;
+    case 'mpm-uvx':
+      request = `pipx:${tool.packageId}@${range}`;
+      break;
+    case 'rustup-toolchain':
+      request = `rust@${range}`;
+      keepManager = true;
+      break;
+    case 'cargo-git': {
+      const revision = String(tool.request.pinned ?? '',).replace(/^ref:/u, '',);
+      request = `git:${tool.options.cargoGit.url}@${revision}`;
+      delete options.cargoGit;
+      entry.packageId = tool.packageId;
+      break;
+    }
+    case 'go-install':
+      request = `go:${tool.packageId}@${range}`;
+      break;
+    default: {
+      if (['node', 'zig', 'go', 'aws', 'rustup',].includes(id,)) request = `${id}@${range}`;
+      else {
+        const origin = githubOrigin(id,);
+        const fromId = id.startsWith('github:',) ? id.slice('github:'.length,) : undefined;
+        if (origin === undefined) throw new Error(`no GitHub origin in the lock for ${id}`,);
+        if (fromId !== undefined && fromId.toLowerCase() !== origin.repo.toLowerCase())
+          throw new Error(`${id}: id repo differs from lock repo ${origin.repo}`,);
+        let tag = 'latest';
+        if (tool.request.pinned !== undefined) {
+          const pinned: string = tool.request.pinned;
+          tag = origin.tag === pinned || origin.tag === `v${pinned}` ? pinned : origin.tag;
+        }
+        request = `github:${origin.repo}@${tag}`;
+      }
+    }
+  }
+  entry.request = request;
+  entry.route = tool.route;
+  if (id in REROUTE) {
+    entry.request = REROUTE[id]!.request;
+    entry.route = REROUTE[id]!.route;
+    notes.push(`${id}: rerouted ${request} (${tool.route}) => ${REROUTE[id]!.request} (${REROUTE[id]!.route})`,);
+  }
+  if (keepManager) {
+    entry.manager = tool.manager;
+    entry.packageId = '{version}';
+  }
+  entry.bins = tool.bins;
+  if (tool.os !== null && tool.os !== undefined) entry.os = tool.os;
+  if ('assetPattern' in options) {
+    const mapped = ASSET_FOR_ID[id];
+    if (mapped === undefined) throw new Error(`${id}: assetPattern has no settled mapping`,);
+    options.asset = mapped;
+    delete options.assetPattern;
+    notes.push(`${id}: assetPattern ${tool.options.assetPattern} => asset ${mapped}`,);
+  }
+  if (id in ASSET_ADDED) {
+    options.asset = ASSET_ADDED[id];
+    notes.push(`${id}: no old hint => asset ${ASSET_ADDED[id]}`,);
+  }
+  if (id === 'rust') env.RUSTUP_TOOLCHAIN = '{version}';
+  if (Object.keys(options,).length > 0) entry.options = options;
+  if (Object.keys(env,).length > 0) entry.env = env;
+  out[id] = entry;
+}
+
+const outLines: string[] = [
+  '// toolchain.plan.jsonc (machine-global): the toolchain plan. People edit this file; mpm-shadow writes toolchain.lock.json from it.',
+  '// Converted from plan.tools.data.ts by the one-off cutover converter. Header of the old data module:',
+  ...header.filter((line,) => line !== '').map((line,) => `// ${line}`),
+  '{',
+  '  "schemaVersion": 1,',
+  '  "tools": {',
+];
+const ids = Object.keys(out,);
+ids.forEach((id, index,) => {
+  for (const comment of comments.get(id,) ?? []) outLines.push(`    ${comment}`,);
+  for (const comment of NOTE_FOR_ID[id] ?? []) outLines.push(`    ${comment}`,);
+  if (id in REROUTE) outLines.push(`    ${REROUTE[id]!.note}`,);
+  if (id === 'tree-sitter') outLines.push('    // Converted: `options.asset` keeps the bare `.gz` asset; the release also ships a `tree-sitter-cli` zip the resolver would prefer.',);
+  const body = JSON.stringify(out[id], null, 2,).split('\n',).map((line, n,) => n === 0 ? line : `    ${line}`).join('\n',);
+  outLines.push(`    ${JSON.stringify(id,)}: ${body}${index === ids.length - 1 ? '' : ','}`,);
+},);
+for (const comment of tail) outLines.push(`    ${comment}`,);
+outLines.push('  }', '}', '',);
+writeFileSync(outPath, outLines.join('\n',), { mode: 0o600, },);
+console.log(`wrote ${ids.length} tools to ${outPath}`,);
+for (const note of notes) console.log(note,);
+```
+
+### run-global.ts
+
+Runs `mpm-shadow` in a disposable `HOME` and refuses any variable that resolves into the real home's
+`.config/monochromatic-dev`,
+`.local/share/monochromatic-dev`,
+`.cargo` or `.rustup`.
+
+```ts
+// Runs mpm-shadow --global in a disposable HOME. Prints the environment first and refuses any path into the real home's
+// .config/monochromatic-dev, .local/share/monochromatic-dev, .cargo or .rustup.
+// usage: node run-global.ts <binary> <home dir> <args...>
+import { spawnSync, } from 'node:child_process';
+import { homedir, } from 'node:os';
+import { realpathSync, } from 'node:fs';
+
+const [binary, home, ...args] = process.argv.slice(2,);
+if (binary === undefined || home === undefined) throw new Error('usage: run-global.ts <binary> <home> <args...>',);
+if (!home.includes('/temp/agent/',)) throw new Error(`refusing a HOME outside the rehearsal directory: ${home}`,);
+
+const realHome = realpathSync(homedir());
+const token = spawnSync('gh', ['auth', 'token',], { encoding: 'utf8', },).stdout.trim();
+const env: Record<string, string> = {
+  HOME: home,
+  PATH: '/usr/bin:/bin',
+  XDG_DATA_HOME: `${home}/.local/share`,
+  XDG_CONFIG_HOME: `${home}/.config`,
+  XDG_CACHE_HOME: `${home}/.cache`,
+  CARGO_HOME: `${home}/.cargo`,
+  RUSTUP_HOME: `${home}/.rustup`,
+};
+const guarded = [
+  `${realHome}/.config/monochromatic-dev`,
+  `${realHome}/.local/share/monochromatic-dev`,
+  `${realHome}/.cargo`,
+  `${realHome}/.rustup`,
+];
+for (const [key, value,] of Object.entries(env,)) {
+  console.log(`env ${key}=${value}`,);
+  if (key !== 'PATH' && guarded.some((path,) => value.startsWith(path,)))
+    throw new Error(`${key} resolves into the real home: ${value}`,);
+}
+if (realpathSync(home) === realHome) throw new Error('HOME is not a disposable subdirectory',);
+console.log(`GITHUB_TOKEN ${token === '' ? 'absent' : 'present (not printed)'}`,);
+console.log(`$ mpm-shadow ${args.join(' ',)}`,);
+
+const result = spawnSync(binary, args, {
+  cwd: home,
+  env: token === '' ? env : { ...env, GITHUB_TOKEN: token, },
+  encoding: 'utf8',
+  timeout: 1_500_000,
+},);
+process.stdout.write(result.stdout,);
+process.stderr.write(result.stderr,);
+console.log(`exit=${String(result.status,)}`,);
+```
+
+### compare.ts
+
+Compares two locks tool by tool,
+listing every version move and every artifact row added,
+dropped or changed.
+
+```ts
+// Compares today's toolchain.lock.json with the rehearsal lock, tool by tool and field by field.
+// usage: node compare.ts <old lock> <new lock>
+import { readFileSync, } from 'node:fs';
+
+const [oldPath, newPath,] = process.argv.slice(2,);
+if (oldPath === undefined || newPath === undefined) throw new Error('usage: compare.ts <old> <new>',);
+const oldLock = JSON.parse(readFileSync(oldPath, 'utf8',),);
+const newLock = JSON.parse(readFileSync(newPath, 'utf8',),);
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a,) === JSON.stringify(b,);
+
+console.log('top-level keys old:', Object.keys(oldLock,).join(','),);
+console.log('top-level keys new:', Object.keys(newLock,).join(','),);
+console.log('generatedFrom old/new:', oldLock.generatedFrom, '/', newLock.generatedFrom,);
+console.log('digest new:', newLock.digest,);
+
+const ids = new Set([...Object.keys(oldLock.tools,), ...Object.keys(newLock.tools,),],);
+const counts: Record<string, number> = {};
+const bump = (key: string,): void => {
+  counts[key] = (counts[key] ?? 0) + 1;
+};
+for (const id of [...ids,].sort()) {
+  const before = oldLock.tools[id];
+  const after = newLock.tools[id];
+  if (before === undefined) {
+    console.log(`NEW TOOL ${id}`,);
+    bump('new tool',);
+    continue;
+  }
+  if (after === undefined) {
+    console.log(`GONE TOOL ${id}`,);
+    bump('gone tool',);
+    continue;
+  }
+  const notes: string[] = [];
+  if (before.version !== after.version) notes.push(`version ${before.version} -> ${after.version}`,);
+  if (before.route !== after.route) notes.push(`route ${before.route} -> ${after.route}`,);
+  if (!same(before.bins, after.bins,)) notes.push(`bins ${JSON.stringify(before.bins,)} -> ${JSON.stringify(after.bins,)}`,);
+  if (!same(before.os, after.os,)) notes.push(`os ${JSON.stringify(before.os,)} -> ${JSON.stringify(after.os,)}`,);
+  if (!same(before.env, after.env,)) notes.push(`env ${JSON.stringify(before.env,)} -> ${JSON.stringify(after.env,)}`,);
+  if (!same(before.options, after.options,)) notes.push(`options ${JSON.stringify(before.options,)} -> ${JSON.stringify(after.options,)}`,);
+  if (before.manager !== after.manager) notes.push(`manager ${before.manager} -> ${after.manager}`,);
+  if (before.packageId !== after.packageId) notes.push(`packageId ${before.packageId} -> ${after.packageId}`,);
+  const platforms = new Set([...Object.keys(before.artifacts ?? {},), ...Object.keys(after.artifacts ?? {},),],);
+  for (const platform of [...platforms,].sort()) {
+    const a = before.artifacts?.[platform];
+    const b = after.artifacts?.[platform];
+    if (a === undefined) {
+      notes.push(`${platform}: row added (${b.url.split('/',).pop()})`,);
+      bump('row added',);
+    }
+    else if (b === undefined) {
+      notes.push(`${platform}: row dropped`,);
+      bump('row dropped',);
+    }
+    else if (a.url !== b.url || a.sha256 !== b.sha256) {
+      const nameA = a.url.split('/',).pop();
+      const nameB = b.url.split('/',).pop();
+      notes.push(`${platform}: ${nameA} -> ${nameB}${a.sha256 === b.sha256 ? '' : ' (sha256 differs)'}`,);
+      bump('row changed',);
+    }
+  }
+  if (notes.length > 0) {
+    bump('tools with differences',);
+    console.log(id,);
+    for (const note of notes) console.log(`    ${note}`,);
+  }
+}
+console.log('tools old/new:', Object.keys(oldLock.tools,).length, Object.keys(newLock.tools,).length,);
+console.log(JSON.stringify(counts,),);
 ```
