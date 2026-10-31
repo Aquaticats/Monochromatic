@@ -323,7 +323,7 @@
             },
             "lock": {
               "type": "string",
-              "description": "Repo-relative path of the data lock that pins `caniuse-lite`,\n`node-releases` and the Firefox ESR value."
+              "description": "Repo-relative path of the data lock that pins `caniuse-lite`, `node-releases` and the Firefox ESR value."
             },
             "environment": {
               "type": [
