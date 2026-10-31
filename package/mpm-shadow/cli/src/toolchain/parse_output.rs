@@ -4,7 +4,7 @@
 //!           --list`,
 //! `uv tool list`,
 //! `pnpm list --global --json`),
-//! and the version comparison `status` and `sync` use.
+//! and the version comparison `list` and `install` use.
 //! Why:
 //! Everything here is a pure function of text,
 //! so it is tested with captured and hostile output and no tool
@@ -141,7 +141,7 @@ fn base_name(path: &str) -> String {
 /// giving the
 ///           binary's file name to its version (`*` marker and `v` prefix removed).
 /// Why:
-/// `sync` and `status` ask `bin` what it installed;
+/// `install` and `list` ask `bin` what it installed;
 /// a row starting with whitespace or with fewer than three
 ///           columns is not a tool row.
 ///

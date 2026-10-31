@@ -4,12 +4,12 @@
 //! and the commands that read,
 //! check,
 //! install
-//!           and update what they describe (`lock`,
-//! `lock --check`,
-//! `sync`,
-//! `status`,
+//!           and update what they describe (`install --lockfile-only`,
+//! `install --lockfile-only --frozen-lockfile`,
+//! `install`,
+//! `list`,
 //! `update`,
-//! `bin-paths`).
+//! `bin`).
 //! Why:
 //! mpm-shadow owns the toolchain plan (`toolchain.plan.jsonc`,
 //! written by people) and the lock
@@ -28,7 +28,7 @@
 /// The plan and lock agreement validator and the offline projection.
 pub mod agree;
 
-/// `bin-paths`:
+/// `bin`:
 /// the program directories as JSON.
 pub mod bin_paths;
 
@@ -95,7 +95,7 @@ pub mod load;
 /// digest.
 pub mod lock;
 
-/// `lock` and `lock --check`.
+/// `install --lockfile-only` and `install --lockfile-only --frozen-lockfile`.
 pub mod lock_cmd;
 
 /// The shared data model and its JSON decoding.
@@ -138,14 +138,21 @@ pub mod runner;
 /// The repository and global scopes and their paths.
 pub mod scope;
 
-/// The `status` command.
+/// The `list` command.
 pub mod status_cmd;
 
-/// The `sync` command.
+/// The `install` command.
 pub mod sync;
+
+/// CI detection by the rules of `ci-info`,
+/// which pnpm uses.
+pub mod ci_detect;
 
 /// The `update` command.
 pub mod update;
+
+/// Which plan tools a named `update` resolves.
+pub mod update_select;
 
 /// The Android command-line tools and conda package resolvers.
 pub mod update_android_conda;
@@ -192,7 +199,7 @@ mod http_tests;
 #[cfg(test)]
 mod runner_tests;
 
-/// The unit tests of `status`.
+/// The unit tests of `list`.
 #[cfg(test)]
 mod status_tests;
 
@@ -213,12 +220,12 @@ mod lock_tests;
 #[cfg(test)]
 mod layout_tests;
 
-/// The unit tests of `bin-paths`.
+/// The unit tests of `bin`.
 #[cfg(test)]
 mod bin_paths_tests;
 
-/// The unit tests of `lock`,
-/// `lock --check` and publishing.
+/// The unit tests of `install --lockfile-only`,
+/// `install --lockfile-only --frozen-lockfile` and publishing.
 #[cfg(test)]
 mod lock_cmd_tests;
 
@@ -234,7 +241,7 @@ mod observe_tests;
 #[cfg(test)]
 mod install_tests;
 
-/// The unit tests of `sync`,
+/// The unit tests of `install`,
 /// the exposure directory and the postinstall steps.
 #[cfg(test)]
 mod sync_tests;
@@ -246,6 +253,14 @@ mod update_resolve_tests;
 /// The unit tests of `update`.
 #[cfg(test)]
 mod update_tests;
+
+/// The unit tests of the CI detection and of `install` resolving or refusing a plan that is ahead of the lock.
+#[cfg(test)]
+mod sync_resolve_tests;
+
+/// The unit tests of `update <tool>...`.
+#[cfg(test)]
+mod update_named_tests;
 
 /// The unit tests of the request text.
 #[cfg(test)]

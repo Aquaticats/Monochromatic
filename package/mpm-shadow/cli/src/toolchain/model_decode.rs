@@ -288,9 +288,9 @@ pub fn is_sha256_hex(text: &str) -> bool {
 /// `version`,
 /// `artifacts`.
 /// Why:
-/// The lock is read by `lock --check`,
-/// `sync`,
-/// `status` and `update`;
+/// The lock is read by `install --lockfile-only --frozen-lockfile`,
+/// `install`,
+/// `list` and `update`;
 /// a malformed entry stops them all with
 ///           the field named.
 ///

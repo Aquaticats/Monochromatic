@@ -1,7 +1,7 @@
 //! What:
 //! The one switch from a tool's route to the function that installs it.
 //! Why:
-//! `sync` calls `install_tool` for any tool;
+//! `install` calls `install_tool` for any tool;
 //! the match is exhaustive over `Route`,
 //! so a new route cannot be
 //!           added without deciding how it installs.

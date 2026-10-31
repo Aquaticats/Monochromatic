@@ -27,7 +27,7 @@ pub(crate) fn finish_install(root: &Path, crate_name: &str, version: &str, bins:
 /// The effect of a `cargo binstall --root <root> --version <version> <crate>` that succeeded,
 /// for `FakeRunner::on`.
 /// Why:
-/// Install tests prove where an install landed and what `status` reads back,
+/// Install tests prove where an install landed and what `list` reads back,
 /// without running cargo.
 pub(crate) fn fake_binstall(bins: &'static [&'static str]) -> Box<dyn Fn(&RunRequest)> {
     return Box::new(move |request: &RunRequest| {

@@ -2,17 +2,17 @@
 //! The one validator for "do the plan and the lock agree":
 //! it compares the plan's declarations with the
 //!           lock's,
-//! sorts every difference into what offline `lock` may fix and what needs `update`,
+//! sorts every difference into what offline `install --lockfile-only` may fix and what needs `update`,
 //! and checks the
 //!           lock's digest.
 //! Why:
-//! `lock`,
-//! `lock --check`,
-//! `sync`,
-//! `status` and `update` all need the same verdict,
+//! `install --lockfile-only`,
+//! `install --lockfile-only --frozen-lockfile`,
+//! `install`,
+//! `list` and `update` all need the same verdict,
 //! so they share this
 //!           module;
-//! `sync` and `status` refuse on any disagreement and name the command that resolves it.
+//! `install` and `list` refuse on any disagreement and name the command that resolves it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +36,7 @@ use super::plan::Plan;
 /// Each list is a different remedy:
 /// `added` and `resolution_edits` need `update`;
 /// `removed`,
-///           `projection_edits` and `order_differs` are fixed offline by `lock`;
+///           `projection_edits` and `order_differs` are fixed offline by `install --lockfile-only`;
 /// `digest_problem` needs the file
 ///           restored or deleted.
 ///
@@ -79,6 +79,38 @@ impl Disagreement {
         return !self.added.is_empty() || !self.resolution_edits.is_empty();
     }
 
+    /// The ids only `update` can resolve:
+    /// the tools the lock lacks and the tools with a resolution-affecting edit,
+    /// in plan order of discovery.
+    pub fn ids_needing_update(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.added.clone();
+        for (id, _) in &self.resolution_edits {
+            if !ids.contains(id) {
+                ids.push(id.clone());
+            }
+        }
+        return ids;
+    }
+
+    /// One sentence per difference that only the plan's declaration half causes
+    /// (removed tools,
+    /// install-shaping fields,
+    /// order),
+    /// the ones a non-frozen `install` writes into the lock itself.
+    pub fn offline_fixable_lines(&self) -> Vec<String> {
+        let mut lines: Vec<String> = Vec::new();
+        for id in &self.removed {
+            lines.push(format!("{id} is no longer in the plan"));
+        }
+        for (id, fields) in &self.projection_edits {
+            lines.push(format!("{id} now differs from the plan in: {}", fields.join(", ")));
+        }
+        if self.order_differs {
+            lines.push("the tools follow the plan's order".to_string());
+        }
+        return lines;
+    }
+
     /// What:
     /// One sentence per difference,
     /// each naming the tool and the field.
@@ -119,7 +151,7 @@ impl Disagreement {
 /// split into the ones that
 ///           change which version or artifacts are resolved (`resolution`) and the ones that only shape installs.
 /// Why:
-/// The split is the rule "offline `lock` rejects additions and resolution-affecting edits (pins,
+/// The split is the rule "offline `install --lockfile-only` rejects additions and resolution-affecting edits (pins,
 /// package id,
 ///           route,
 /// artifact selection,
@@ -208,10 +240,10 @@ fn plan_has(plan: &Plan, id: &str) -> bool {
 /// including a digest that does not match
 ///           the lock's contents.
 /// Why:
-/// This is the single verdict behind `lock --check`,
-/// `lock`,
-/// `sync`,
-/// `status` and `update`.
+/// This is the single verdict behind `install --lockfile-only --frozen-lockfile`,
+/// `install --lockfile-only`,
+/// `install`,
+/// `list` and `update`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -277,7 +309,7 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
 /// with the
 ///           plan's declaration and the version and artifacts the old lock already holds.
 /// Why:
-/// This is offline `lock`.
+/// This is offline `install --lockfile-only`.
 /// It is only defined when nothing needs resolving,
 /// so a tool the lock lacks or a
 ///           resolution-affecting edit is an error that names `update`.
@@ -291,7 +323,9 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
     for declaration in &plan.tools {
         let Some(locked) = lock.tool(&declaration.id) else {
             return Err(ToolchainError::drift(format!(
-                "{} is in the plan but not in the lock; run `mpm-shadow update` to resolve its version",
+                "{} is in the plan but not in the lock; run `mpm-shadow update {}` to resolve just that tool \
+                 (every other row keeps its version)",
+                declaration.id,
                 declaration.id
             )));
         };
@@ -300,9 +334,10 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
         if !resolution.is_empty() {
             return Err(ToolchainError::drift(format!(
                 "{} changed in the plan in a way that moves its version or artifacts ({}); \
-                 run `mpm-shadow update` to resolve it",
+                 run `mpm-shadow update {}` to resolve just that tool (every other row keeps its version)",
                 declaration.id,
-                resolution.join(", ")
+                resolution.join(", "),
+                declaration.id
             )));
         }
         tools.push(LockedTool {
@@ -315,26 +350,30 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
 }
 
 /// What:
-/// The error `sync` and `status` return when the plan and lock disagree:
+/// The error `install` and `list` return when the plan and lock disagree:
 /// every difference,
 /// and the command
 ///           that resolves it.
 /// Why:
 /// Acting on a lock that does not describe the plan would install the wrong tools,
 /// so these commands refuse
-///           and say which of `lock` or `update` fixes it.
+///           and say which of `install --lockfile-only` or `update` fixes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function refusal(disagreement: Disagreement): ToolchainError
 /// ```
 pub fn refusal(disagreement: &Disagreement) -> ToolchainError {
-    let remedy: &str = if disagreement.digest_problem.is_some() {
-        "restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`"
+    let remedy: String = if disagreement.digest_problem.is_some() {
+        "restore toolchain.lock.json from version control, or delete it and run `mpm-shadow update`".to_string()
     } else if disagreement.needs_update() {
-        "run `mpm-shadow update` (it needs the network)"
+        format!(
+            "run `mpm-shadow update {}` to resolve just those tools (it needs the network; every other row keeps its \
+             version), or `mpm-shadow update` to resolve every tool",
+            disagreement.ids_needing_update().join(" ")
+        )
     } else {
-        "run `mpm-shadow lock` (it works offline)"
+        "run `mpm-shadow install --lockfile-only --offline` (it works offline)".to_string()
     };
     let mut message: String = String::from("the toolchain plan and lock disagree:\n");
     for line in disagreement.describe() {
@@ -342,6 +381,6 @@ pub fn refusal(disagreement: &Disagreement) -> ToolchainError {
         message.push_str(&line);
         message.push('\n');
     }
-    message.push_str(remedy);
+    message.push_str(&remedy);
     return ToolchainError::drift(message);
 }
