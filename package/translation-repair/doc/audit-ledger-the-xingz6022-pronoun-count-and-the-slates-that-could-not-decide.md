@@ -394,12 +394,19 @@ from the re-check of rounds w381 and w383:
   which it reads as endorsing the standing,
   and ships the translate text only where `standingMayShip` is false.
   These cases passed on the code as it stood.
-  Each fails against a build with its own guard removed
+  Four guards were removed in one build
   (the default made false,
   the two-ballot threshold of `translateWinnerOf` lowered to one ballot,
   the death check of `presentTenseSwapOf` removed,
   and the skip made unconditional for an eligible standing),
-  and passes again once the guard is restored and the package rebuilt.
+  and the one-ballot,
+  endorsed-with-lane-texts and default cases failed against it,
+  as did the no-death cases once the names were declared.
+  Only the death check was then removed alone,
+  and the two no-death cases failed against that build too,
+  so the other three failures are attributed to their guard by the shape of each case and not by a build of their own.
+  Every guard was restored and the package rebuilt,
+  and the cases pass again.
 
 Cache versions:
 none moved.
@@ -492,6 +499,11 @@ the carve of the earlier counts.
   a `<div>` line of its own,
   said comparable because the grammar reads it as a block,
   and was replaced.
+  Both blind controls are on the original side.
+  No input tried made the page side blind (a page that opens `<blockquote>` and nothing else read as comparable,
+  because a page the strict grammar refuses is read again as plain markdown and refused only past the parse bound),
+  so the script would report `side: 'page'` if it occurred,
+  but that it can was not shown.
 - Stored artifacts,
   searched with `rg --count` over `artifacts/*.json` of every run folder under `~/temp/agent`:
   the finding `consolidate-unfloored` appears in none (no hit anywhere,

@@ -562,6 +562,10 @@ function artifactPolishOf(
 
  @returns What the slice ships
 
+ @throws Error when the settlement marks the translate lane winner as shipped and names no reason, which no stage
+ builds; the plain error carries a sentence naming the fault, where `nonNullishOrThrow` would say only that a value
+ was absent
+
  @example
  ```ts
  const shipped = shippedBy({ settlement, incumbentStandsIn: false, },);
@@ -624,6 +628,8 @@ function shippedBy(
  standing is text to write rather than nothing to change
 
  @returns Record for one consolidated slice
+
+ @throws Error when the settlement marks the translate lane winner as shipped and names no reason (see `shippedBy`)
 
  @example
  ```ts
