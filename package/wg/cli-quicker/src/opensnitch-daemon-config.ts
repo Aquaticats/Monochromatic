@@ -318,7 +318,8 @@ export async function resolveOpenSnitchRulesDirectory(): Promise<string> {
   const options = parseDaemonConfig({
     text: daemonText,
     path: daemonPath,
-  },).Rules;
+  },)
+    .Rules;
   if (isRecord(options,)
     && ((typeof options.Path) === 'string')
     && (options.Path !== '')) {

@@ -1,3 +1,9 @@
+import {
+  coversExposureLink,
+  coversInstallRoot,
+  coversRustTool,
+} from './opensnitch-toolchain-rule-coverage.ts';
+
 /**
  Name prefix of every daemon rule owned by wg-quicker's toolchain allowance.
 
@@ -22,7 +28,10 @@ export const TOOLCHAIN_RULE_DESCRIPTION_PREFIX = 'wg-quicker managed toolchain u
  Fedora Atomic keeps homes in `/var/home` and links `/home` to it,
  and OpenSnitch records whichever spelling the process path used.
  */
-export type PathAliasPair = readonly [string, string,];
+export type PathAliasPair = readonly [
+  string,
+  string,
+];
 
 /**
  One generated daemon rule before it is rendered as JSON.
@@ -43,6 +52,12 @@ export type ToolchainRuleSpec = {
    Anchored RE2 expression compared against `process.path`.
    */
   readonly pattern: string;
+
+  /**
+   Plain-string statement of the same coverage as {@link ToolchainRuleSpec.pattern},
+   so a differential test can compare the two and inspection needs no regular expression.
+   */
+  readonly covers: (path: string) => boolean;
 };
 
 /**
@@ -71,10 +86,31 @@ export type ToolchainRuleRoots = {
 };
 
 /**
+ Length of `YYYY-MM-DDTHH:mm:ss`,
+ the part of an ISO timestamp that precedes fractional seconds.
+ */
+const RFC3339_SECONDS_LENGTH = 'YYYY-MM-DDTHH:mm:ss'.length;
+
+/**
  Characters with meaning in RE2 syntax,
  each of which a literal path must escape.
  */
-const RE2_SPECIAL_CHARACTERS = new Set(['\\', '.', '+', '*', '?', '(', ')', '|', '[', ']', '{', '}', '^', '$',],);
+const RE2_SPECIAL_CHARACTERS = new Set([
+  '\\',
+  '.',
+  '+',
+  '*',
+  '?',
+  '(',
+  ')',
+  '|',
+  '[',
+  ']',
+  '{',
+  '}',
+  '^',
+  '$',
+],);
 
 /**
  Escapes text so an RE2 expression matches it literally.
@@ -111,14 +147,17 @@ export function escapeRe2Literal({ text, }: { readonly text: string; },): string
  */
 function trimTrailingSlashes({ path, }: { readonly path: string; },): string {
   /**
-   Index one past the last character that is not a slash.
+   Index of the last character that is not a slash,
+   or -1 for an empty or all-slash path.
    */
-  let end = path.length;
-  while ((end > 0) && (path[end - 1] === '/'))
-    end -= 1;
+  const lastKept = Array
+    .from(path,)
+    .findLastIndex(function isNotSlash(character,): boolean {
+      return character !== '/';
+    },);
   return path.slice(
     0,
-    end,
+    lastKept + 1,
   );
 }
 
@@ -160,7 +199,16 @@ export function pathSpellings(
    */
   const spellings: string[] = [trimmed,];
   for (const [first, second,] of aliasPairs) {
-    for (const [from, to,] of [[first, second,], [second, first,],] as const) {
+    for (const [from, to,] of [
+      [
+        first,
+        second,
+      ],
+      [
+        second,
+        first,
+      ],
+    ] as const) {
       if (trimmed.startsWith(`${from}/`,))
         spellings.push(`${to}${trimmed.slice(from.length,)}`,);
     }
@@ -220,7 +268,9 @@ export function toolchainRuleSpecs(
   /**
    Install-root expression, or absent when no data home exists.
    */
-  const installRoots: readonly ToolchainRuleSpec[] = roots.dataHomes.length === 0
+  const installRoots: readonly ToolchainRuleSpec[] = roots.dataHomes
+    .length
+    === 0
     ? []
     : [
       {
@@ -228,17 +278,26 @@ export function toolchainRuleSpecs(
         summary: 'binaries below monochromatic-dev/toolchain and monochromatic-dev/toolchain-global',
         pattern: `^${
           directoryAlternation({
-            directories: roots.dataHomes.map(function dataHomeRoot(dataHome,): string {
+            directories: roots.dataHomes
+              .map(function dataHomeRoot(dataHome,): string {
               return `${dataHome}/monochromatic-dev`;
             },),
           },)
         }/toolchain(?:-global)?/`,
+        covers: function coversPath(path,): boolean {
+          return coversInstallRoot({
+            path,
+            dataHomes: roots.dataHomes,
+          },);
+        },
       },
     ];
   /**
    Exposure-link expression, or absent when no checkout root exists.
    */
-  const exposureLinks: readonly ToolchainRuleSpec[] = roots.repositoryRoots.length === 0
+  const exposureLinks: readonly ToolchainRuleSpec[] = roots.repositoryRoots
+    .length
+    === 0
     ? []
     : [
       {
@@ -247,24 +306,37 @@ export function toolchainRuleSpecs(
         pattern: `^${
           directoryAlternation({ directories: roots.repositoryRoots, },)
         }/(?:\\.claude/worktrees/[^/]+/)?\\.cache/(?:toolchain-bin|toolchain-launchers)/[^/]+$`,
+        covers: function coversPath(path,): boolean {
+          return coversExposureLink({
+            path,
+            repositoryRoots: roots.repositoryRoots,
+          },);
+        },
       },
     ];
   /**
    Cargo-home alternative, or absent.
    */
-  const cargoBranch = roots.cargoHomes.length === 0
+  const cargoBranch = roots.cargoHomes
+    .length
+    === 0
     ? []
     : [`${directoryAlternation({ directories: roots.cargoHomes, },)}/bin/(?:cargo|cargo-binstall|rustup)`,];
   /**
    Rustup-home alternative, or absent.
    */
-  const rustupBranch = roots.rustupHomes.length === 0
+  const rustupBranch = roots.rustupHomes
+    .length
+    === 0
     ? []
     : [`${directoryAlternation({ directories: roots.rustupHomes, },)}/toolchains/[^/]+/bin/[^/]+`,];
   /**
    Both Rust alternatives joined into one expression.
    */
-  const rustBranches = [...cargoBranch, ...rustupBranch,];
+  const rustBranches = [
+    ...cargoBranch,
+    ...rustupBranch,
+  ];
   /**
    Rust-tool expression, or absent when neither home exists.
    */
@@ -275,9 +347,20 @@ export function toolchainRuleSpecs(
         name: `${TOOLCHAIN_RULE_NAME_PREFIX}rust-tools`,
         summary: 'cargo, cargo-binstall and rustup in the Cargo home bin, and every binary of each rustup toolchain',
         pattern: `^(?:${rustBranches.join('|',)})$`,
+        covers: function coversPath(path,): boolean {
+          return coversRustTool({
+            path,
+            cargoHomes: roots.cargoHomes,
+            rustupHomes: roots.rustupHomes,
+          },);
+        },
       },
     ];
-  return [...installRoots, ...exposureLinks, ...rustTools,];
+  return [
+    ...installRoots,
+    ...exposureLinks,
+    ...rustTools,
+  ];
 }
 
 /**
@@ -293,13 +376,13 @@ export function toolchainRuleSpecs(
  ```
  */
 export function rfc3339({ moment, }: { readonly moment: Date; },): string {
-  // `toISOString` always renders `YYYY-MM-DDTHH:mm:ss.sssZ`, so the first 19 characters end at the seconds.
+  // `toISOString` always renders `YYYY-MM-DDTHH:mm:ss.sssZ`, so the seconds end after a fixed-width prefix.
   return `${
     moment
       .toISOString()
       .slice(
         0,
-        19,
+        RFC3339_SECONDS_LENGTH,
       )
   }Z`;
 }
@@ -318,7 +401,7 @@ export type ToolchainRuleFile = {
     readonly operand: 'process.path';
     readonly data: string;
     readonly type: 'regexp';
-    readonly list: readonly [];
+    readonly list: readonly string[];
     readonly sensitive: true;
   };
   readonly enabled: true;

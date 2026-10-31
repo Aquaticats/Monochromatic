@@ -1,274 +1,37 @@
-import { constants, } from 'node:fs';
 import {
-  copyFile,
-  mkdir,
   open,
-  readdir,
-  readFile,
-  realpath,
   rm,
   writeFile,
 } from 'node:fs/promises';
-import {
-  dirname,
-  join,
-} from 'node:path';
-
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { join, } from 'node:path';
 
 import { OpenSnitchConfigError, } from './errors.ts';
 import {
-  type PathAliasPair,
-  pathSpellings,
+  isOwnedRule,
+  readRuleDirectory,
+  RULE_FILE_SUFFIX,
+} from './opensnitch-toolchain-rule-directory.ts';
+import {
   rfc3339,
-  TOOLCHAIN_RULE_DESCRIPTION_PREFIX,
-  TOOLCHAIN_RULE_NAME_PREFIX,
   toolchainRuleFile,
   type ToolchainRuleRoots,
-  type ToolchainRuleSpec,
   toolchainRuleSpecs,
 } from './opensnitch-toolchain-rule-patterns.ts';
 
-/**
- Module logger for toolchain daemon-rule maintenance.
- */
-const l = tagged({ tag: 'opensnitch-toolchain-rules', },);
-
-/**
- Rule files end with this suffix; the daemon ignores everything else in its rules directory.
- */
-const RULE_FILE_SUFFIX = '.json';
-
-/**
- Marker file at the repository root,
- used to find the checkout from the running bundle.
- */
-const REPOSITORY_MARKER = 'toolchain.lock.json';
-
-/**
- Path segment `git worktree` agents live under inside the main checkout.
- */
-const WORKTREE_SEGMENT = '/.claude/worktrees/';
-
-/**
- Reports whether an unknown failure carries a Node filesystem code.
-
- @param error - Caught value.
-
- @param code - Expected code such as `ENOENT`.
-
- @returns Whether the value is a Node error with that code.
-
- @example
- ```ts
- hasErrorCode({ error, code: 'ENOENT' });
- ```
- */
-function hasErrorCode({ error, code, }: { readonly error: unknown; readonly code: string; },): boolean {
-  return Error.isError(error,) && ((error as NodeJS.ErrnoException).code === code);
-}
-
-/**
- Reports whether a path exists without following a failure into the caller.
-
- @param path - Absolute path.
-
- @returns Resolved real path, or `undefined` when the path is absent.
-
- @example
- ```ts
- await realpathOrUndefined({ path: '/home' });
- ```
- */
-async function realpathOrUndefined({ path, }: { readonly path: string; },): Promise<string | undefined> {
-  try {
-    return await realpath(path,);
-  }
-  catch (error) {
-    if (hasErrorCode({ error, code: 'ENOENT', },) || hasErrorCode({ error, code: 'ENOTDIR', },))
-      return undefined;
-    throw new OpenSnitchConfigError(
-      `Cannot resolve ${path}`,
-      { cause: error, },
-    );
-  }
-}
-
-/**
- Discovers the prefix pairs that name one directory on this host.
-
- On Fedora Atomic `/home` links to `/var/home`;
- elsewhere the pair list is empty.
-
- @returns Alias pairs for the `/home` prefix.
-
- @example
- ```ts
- await homeAliasPairs(); // [['/home', '/var/home']] on Fedora Atomic
- ```
- */
-export async function homeAliasPairs(): Promise<readonly PathAliasPair[]> {
-  /**
-   Real location of `/home`.
-   */
-  const real = await realpathOrUndefined({ path: '/home', },);
-  if ((real === undefined) || (real === '/home'))
-    return [];
-  return [['/home', real,],];
-}
-
-/**
- Expands one directory into the spellings a process path may use: as given, real, and each alias.
-
- @param path - Absolute directory.
-
- @param aliasPairs - Host prefix aliases.
-
- @returns Distinct spellings,
- requested spelling first.
-
- @example
- ```ts
- await directorySpellings({ path: '/home/me', aliasPairs });
- ```
- */
-export async function directorySpellings(
-  {
-    path,
-    aliasPairs,
-  }: {
-    readonly path: string;
-    readonly aliasPairs: readonly PathAliasPair[];
-  },
-): Promise<readonly string[]> {
-  /**
-   Real path when the directory exists.
-   */
-  const real = await realpathOrUndefined({ path, },);
-  return [
-    ...new Set([
-      ...pathSpellings({ path, aliasPairs, },),
-      ...(real === undefined ? [] : pathSpellings({ path: real, aliasPairs, },)),
-    ],),
-  ];
-}
-
-/**
- Finds the main checkout containing a directory.
-
- Walks up from `start` to the nearest directory holding `toolchain.lock.json`,
- then drops a trailing `/.claude/worktrees/<id>` so a worktree run covers the main checkout and all its worktrees.
-
- @param start - Directory inside a checkout.
-
- @returns Main checkout root,
- or `undefined` when no ancestor is a checkout.
-
- @example
- ```ts
- await findRepositoryRoot({ start: import.meta.dirname });
- ```
- */
-export async function findRepositoryRoot(
-  { start, }: { readonly start: string; },
-): Promise<string | undefined> {
-  /**
-   Directory under inspection.
-   */
-  let directory = start;
-  for (;;) {
-    if (await realpathOrUndefined({ path: join(directory, REPOSITORY_MARKER,), },) !== undefined) {
-      /**
-       Index of the worktree segment when the checkout is a linked worktree.
-       */
-      const segment = directory.indexOf(WORKTREE_SEGMENT,);
-      return segment === -1
-        ? directory
-        : directory.slice(
-          0,
-          segment,
-        );
-    }
-    /**
-     Parent directory.
-     */
-    const parent = dirname(directory,);
-    if (parent === directory)
-      return undefined;
-    directory = parent;
-  }
-}
-
-/**
- Caller choices that move a covered directory away from its default.
- */
-export type ToolchainRootOptions = {
-  /**
-   Caller home,
-   the base of every default.
-   */
-  readonly home: string;
-
-  /**
-   XDG data home when not `<home>/.local/share`.
-   */
-  readonly dataHome?: string;
-
-  /**
-   Cargo home when not `<home>/.cargo`.
-   */
-  readonly cargoHome?: string;
-
-  /**
-   Rustup home when not `<home>/.rustup`.
-   */
-  readonly rustupHome?: string;
-
-  /**
-   Main checkout roots whose `.cache` holds exposure links.
-   */
-  readonly repositoryRoots: readonly string[];
-};
-
-/**
- Resolves every covered directory into all of its spellings.
-
- @param options - Home and overrides.
-
- @returns Roots for {@link toolchainRuleSpecs}.
-
- @example
- ```ts
- await resolveToolchainRuleRoots({ options: { home: '/home/me', repositoryRoots: [] } });
- ```
- */
-export async function resolveToolchainRuleRoots(
-  { options, }: { readonly options: ToolchainRootOptions; },
-): Promise<ToolchainRuleRoots> {
-  /**
-   Host prefix aliases applied to each directory.
-   */
-  const aliasPairs = await homeAliasPairs();
-  const [dataHomes, cargoHomes, rustupHomes,] = await Promise.all([
-    directorySpellings({ path: options.dataHome ?? join(options.home, '.local', 'share',), aliasPairs, },),
-    directorySpellings({ path: options.cargoHome ?? join(options.home, '.cargo',), aliasPairs, },),
-    directorySpellings({ path: options.rustupHome ?? join(options.home, '.rustup',), aliasPairs, },),
-  ],);
-  /**
-   Spellings of each requested checkout root.
-   */
-  const repositoryGroups = await Promise.all(options.repositoryRoots.map(
-    function spellRoot(path,): Promise<readonly string[]> {
-      return directorySpellings({ path, aliasPairs, },);
-    },
-  ),);
-  return {
-    dataHomes,
-    cargoHomes,
-    rustupHomes,
-    repositoryRoots: [...new Set(repositoryGroups.flat(),),],
-  };
-}
+export {
+  homeAliasPairs,
+  directorySpellings,
+  findRepositoryRoot,
+  REPOSITORY_ROOT_ABSENT,
+  resolveToolchainRuleRoots,
+  type ToolchainRootOptions,
+} from './opensnitch-toolchain-rule-roots.ts';
+export {
+  inspectToolchainRules,
+  removeSupersededRejects,
+  type SupersededRejectRule,
+  type ToolchainRulesInspection,
+} from './opensnitch-toolchain-rule-inspection.ts';
 
 /**
  Renders a rule file exactly as the daemon would save it.
@@ -293,149 +56,6 @@ function renderRuleText({ rule, }: { readonly rule: unknown; },): string {
 }
 
 /**
- Reports whether a value is a non-null object.
-
- @param value - Unknown JSON value.
-
- @returns Whether the value is record-like.
-
- @example
- ```ts
- isRecord({ name: 'x' });
- ```
- */
-function isRecord(value: unknown,): value is Readonly<Record<string, unknown>> {
-  if ((typeof value) !== 'object')
-    return false;
-  if (value === null)
-    return false;
-  return !Array.isArray(value,);
-}
-
-/**
- One rule file read from the rules directory.
- */
-type RuleDirectoryEntry = {
-  /**
-   File stem,
-   which the daemon uses to unload a deleted rule.
-   */
-  readonly stem: string;
-
-  /**
-   Absolute file path.
-   */
-  readonly path: string;
-
-  /**
-   Parsed JSON,
-   or `undefined` when unreadable or not an object.
-   */
-  readonly rule: Readonly<Record<string, unknown>> | undefined;
-
-  /**
-   Byte length of the file text,
-   zero when the file could not be read.
-   */
-  readonly size: number;
-};
-
-/**
- Reads every rule file in a directory.
-
- @param rulesDirectory - Daemon rules directory.
-
- @returns Entries sorted by file name,
- a malformed file carrying `rule: undefined`.
-
- @throws {@link OpenSnitchConfigError} when the directory cannot be listed.
-
- @example
- ```ts
- await readRuleDirectory({ rulesDirectory: '/etc/opensnitchd/rules' });
- ```
- */
-async function readRuleDirectory(
-  { rulesDirectory, }: { readonly rulesDirectory: string; },
-): Promise<readonly RuleDirectoryEntry[]> {
-  /**
-   Directory listing.
-   */
-  const names = await (async function listNames(): Promise<readonly string[]> {
-    try {
-      return await readdir(rulesDirectory,);
-    }
-    catch (error) {
-      throw new OpenSnitchConfigError(
-        `Cannot list OpenSnitch rules directory: ${rulesDirectory}`,
-        { cause: error, },
-      );
-    }
-  })();
-  return Promise.all(
-    names
-      .filter(function isRuleFile(name,): boolean {
-        return name.endsWith(RULE_FILE_SUFFIX,);
-      },)
-      .toSorted()
-      .map(async function readEntry(name,): Promise<RuleDirectoryEntry> {
-        /**
-         Absolute rule file path.
-         */
-        const path = join(rulesDirectory, name,);
-        /**
-         File stem the daemon derives the rule name from.
-         */
-        const stem = name.slice(
-          0,
-          -RULE_FILE_SUFFIX.length,
-        );
-        try {
-          /**
-           File text kept for its byte length.
-           */
-          const text = await readFile(path, 'utf8',);
-          /**
-           Parsed JSON value.
-           */
-          const parsed: unknown = JSON.parse(text,);
-          return {
-            stem,
-            path,
-            rule: isRecord(parsed,) ? parsed : undefined,
-            size: Buffer.byteLength(text, 'utf8',),
-          };
-        }
-        catch (error) {
-          l.warn(`Cannot read rule ${path}: ${String(error,)}`,);
-          return { stem, path, rule: undefined, size: 0, };
-        }
-      },),
-  );
-}
-
-/**
- Reports whether a rule file was written by this allowance.
-
- @param entry - Rule file.
-
- @returns Whether name prefix and description prefix both match.
-
- @example
- ```ts
- isOwnedRule({ entry });
- ```
- */
-function isOwnedRule({ entry, }: { readonly entry: RuleDirectoryEntry; },): boolean {
-  if (entry.rule === undefined)
-    return false;
-  if (!entry.stem.startsWith(TOOLCHAIN_RULE_NAME_PREFIX,))
-    return false;
-  return ((typeof entry.rule.description) === 'string')
-    && (entry.rule.description as string).startsWith(TOOLCHAIN_RULE_DESCRIPTION_PREFIX,);
-}
-
-/**
  Writes a rule through the file descriptor the daemon's watcher sees as `Write`.
 
  OpenSnitch 1.8 reloads a rule only on a filesystem `Write` event and unloads one only on `Remove`
@@ -450,11 +70,11 @@ function isOwnedRule({ entry, }: { readonly entry: RuleDirectoryEntry; },): bool
  @param text - Complete rule JSON.
 
  @param existingSize - Byte length of an existing file,
- or `undefined` for a new file.
+ absent for a new file.
 
  @example
  ```ts
- await writeRuleInPlace({ path, text, existingSize: undefined });
+ await writeRuleInPlace({ path, text });
  ```
  */
 async function writeRuleInPlace(
@@ -465,7 +85,7 @@ async function writeRuleInPlace(
   }: {
     readonly path: string;
     readonly text: string;
-    readonly existingSize: number | undefined;
+    readonly existingSize?: number;
   },
 ): Promise<void> {
   if (existingSize === undefined) {
@@ -483,13 +103,22 @@ async function writeRuleInPlace(
    Replacement bytes padded to at least the old length.
    */
   const payload = Buffer.from(
-    text.padEnd(existingSize, ' ',),
+    text.padEnd(
+      existingSize,
+      ' ',
+    ),
     'utf8',
   );
+  /**
+   Watched inode held open for the positional write.
+   */
   await using handle = await open(
     path,
     'r+',
   );
+  /**
+   Positional write result used to reject a partial rule.
+   */
   const { bytesWritten, } = await handle.write(
     payload,
     0,
@@ -522,22 +151,54 @@ export type ApplyToolchainRulesReport = {
 };
 
 /**
- Reads the creation time an existing owned rule carries.
+ Copies a rule without its `created` and `updated` fields.
 
- @param entry - Existing rule file.
+ @param rule - Rule object.
 
- @returns Creation timestamp,
- or `undefined` when absent.
+ @returns Remaining fields in their original order.
 
  @example
  ```ts
- existingCreated({ entry });
+ withoutTimestamps({ rule });
  ```
  */
-function existingCreated({ entry, }: { readonly entry: RuleDirectoryEntry | undefined; },): string | undefined {
-  if (entry?.rule === undefined)
-    return undefined;
-  return (typeof entry.rule.created) === 'string' ? entry.rule.created as string : undefined;
+function withoutTimestamps(
+  { rule, }: { readonly rule: Readonly<Record<string, unknown>>; },
+): Readonly<Record<string, unknown>> {
+  return Object.fromEntries(
+    Object
+      .entries(rule,)
+      .filter(function isContent([key,],): boolean {
+        return (key !== 'created') && (key !== 'updated');
+      },),
+  );
+}
+
+/**
+ Compares a stored rule with its replacement ignoring the timestamps.
+
+ @param stored - Rule read from disk.
+
+ @param desired - Rule this run would write.
+
+ @returns Whether every other field is identical.
+
+ @example
+ ```ts
+ sameRuleContent({ stored, desired });
+ ```
+ */
+function sameRuleContent(
+  {
+    stored,
+    desired,
+  }: {
+    readonly stored: Readonly<Record<string, unknown>>;
+    readonly desired: Readonly<Record<string, unknown>>;
+  },
+): boolean {
+  return JSON.stringify(withoutTimestamps({ rule: stored, },),)
+    === JSON.stringify(withoutTimestamps({ rule: desired, },),);
 }
 
 /**
@@ -573,56 +234,67 @@ export async function applyToolchainRules(
   },
 ): Promise<ApplyToolchainRulesReport> {
   /**
-   Specs this run installs.
-   */
-  const specs = toolchainRuleSpecs({ roots, },);
-  /**
    Files already in the directory.
    */
   const entries = await readRuleDirectory({ rulesDirectory, },);
+  /**
+   Timestamp text for every write of this run.
+   */
+  const stamp = rfc3339({ moment: now, },);
+  /**
+   Names written as new files.
+   */
   const created: string[] = [];
+  /**
+   Names rewritten in place.
+   */
   const updated: string[] = [];
+  /**
+   Names already current.
+   */
   const unchanged: string[] = [];
-  for (const spec of specs) {
+  for (const spec of toolchainRuleSpecs({ roots, },)) {
     /**
      Existing file for this spec.
      */
     const existing = entries.find(function sameStem(entry,): boolean {
       return entry.stem === spec.name;
     },);
-    if ((existing !== undefined) && !isOwnedRule({ entry: existing, },)) {
+    if ((existing !== undefined) && (!isOwnedRule({ entry: existing, },))) {
       throw new OpenSnitchConfigError(
         `A rule named ${spec.name} exists at ${existing.path} but was not written by wg-quicker; `
           + 'move it aside before applying the toolchain allowance.',
       );
     }
     /**
-     Timestamp text for this write.
+     Creation time kept from an existing owned rule.
      */
-    const stamp = rfc3339({ moment: now, },);
+    const storedCreated = existing?.rule
+      ?.created;
     /**
-     Rule keeping the original creation time.
+     Rule this run installs.
      */
     const rule = toolchainRuleFile({
       spec,
-      created: existingCreated({ entry: existing, },) ?? stamp,
+      created: (typeof storedCreated) === 'string' ? storedCreated : stamp,
       updated: stamp,
     },);
-    if (existing?.rule !== undefined) {
-      /**
-       Stored rule compared without its timestamps.
-       */
-      const { created: _created, updated: _updated, ...stored } = existing.rule;
-      const { created: _newCreated, updated: _newUpdated, ...desired } = rule;
-      if (JSON.stringify(stored,) === JSON.stringify(desired,)) {
-        unchanged.push(spec.name,);
-        continue;
-      }
+    if ((existing?.rule !== undefined) && sameRuleContent({
+      stored: existing.rule,
+      desired: rule,
+    },)) {
+      unchanged.push(spec.name,);
+      continue;
     }
+    // Writes run in order so a failure leaves earlier rules whole and later rules untouched.
+    // oxlint-disable-next-line eslint/no-await-in-loop -- Each rule file is written and synced before the next begins.
     await writeRuleInPlace({
-      path: join(rulesDirectory, `${spec.name}${RULE_FILE_SUFFIX}`,),
+      path: join(
+        rulesDirectory,
+        `${spec.name}${RULE_FILE_SUFFIX}`,
+      ),
       text: renderRuleText({ rule, },),
-      existingSize: existing?.size,
+      ...(existing === undefined ? {} : { existingSize: existing.size, }),
     },);
     (existing === undefined ? created : updated).push(spec.name,);
   }
@@ -656,277 +328,10 @@ export async function removeToolchainRules(
       return isOwnedRule({ entry, },);
     },
   );
-  for (const entry of owned)
-    await rm(entry.path,);
+  await Promise.all(owned.map(function removeEntry(entry,): Promise<void> {
+    return rm(entry.path,);
+  },),);
   return owned.map(function stemOf(entry,): string {
     return entry.stem;
   },);
-}
-
-/**
- A rule that blocks traffic from a path the allowance covers.
- */
-export type SupersededRejectRule = {
-  /**
-   Rule name,
-   equal to the file stem.
-   */
-  readonly name: string;
-
-  /**
-   Rule file path.
-   */
-  readonly path: string;
-
-  /**
-   The covered path the rule compares.
-   */
-  readonly processPath: string;
-
-  /**
-   Name of the allowance rule that covers `processPath`.
-   */
-  readonly coveredBy: string;
-};
-
-/**
- Reports whether a rule is an enabled reject or deny that compares one exact process path.
-
- @param rule - Parsed rule.
-
- @returns The compared path,
- or `undefined` when the rule has another shape.
-
- @example
- ```ts
- exactBlockedPath({ rule });
- ```
- */
-function exactBlockedPath(
-  { rule, }: { readonly rule: Readonly<Record<string, unknown>>; },
-): string | undefined {
-  if (rule.enabled !== true)
-    return undefined;
-  if ((rule.action !== 'reject') && (rule.action !== 'deny'))
-    return undefined;
-  const { operator, } = rule;
-  if (!isRecord(operator,))
-    return undefined;
-  if ((operator.type !== 'simple') || (operator.operand !== 'process.path'))
-    return undefined;
-  return (typeof operator.data) === 'string' ? operator.data as string : undefined;
-}
-
-/**
- A rule sorted before the allowance that could still win over it.
- */
-export type EarlierWinningRule = {
-  /**
-   Rule name.
-   */
-  readonly name: string;
-
-  /**
-   Why the daemon would stop at it first.
-   */
-  readonly reason: 'precedence' | 'reject' | 'deny';
-};
-
-/**
- What the allowance and the surrounding rules look like on disk.
- */
-export type ToolchainRulesInspection = {
-  /**
-   Owned rule names present.
-   */
-  readonly present: readonly string[];
-
-  /**
-   Rule names this run would install that are absent.
-   */
-  readonly missing: readonly string[];
-
-  /**
-   Auto-saved reject or deny rules for covered paths,
-   which the allowance already overrides.
-   */
-  readonly superseded: readonly SupersededRejectRule[];
-
-  /**
-   Rules sorting before the allowance that are not allow rules without precedence.
-   */
-  readonly earlierWinners: readonly EarlierWinningRule[];
-
-  /**
-   Rule files that could not be parsed.
-   */
-  readonly unreadable: readonly string[];
-};
-
-/**
- Reports the allowance's state without changing any file.
-
- @param rulesDirectory - Daemon rules directory.
-
- @param roots - Spellings of each covered directory.
-
- @returns Present,
- missing,
- superseded,
- and earlier-winning rules.
-
- @example
- ```ts
- await inspectToolchainRules({ rulesDirectory, roots });
- ```
- */
-export async function inspectToolchainRules(
-  {
-    rulesDirectory,
-    roots,
-  }: {
-    readonly rulesDirectory: string;
-    readonly roots: ToolchainRuleRoots;
-  },
-): Promise<ToolchainRulesInspection> {
-  /**
-   Specs this run would install.
-   */
-  const specs = toolchainRuleSpecs({ roots, },);
-  /**
-   Compiled specs paired with their expressions.
-   */
-  const compiled = specs.map(function compile(spec,): { readonly spec: ToolchainRuleSpec; readonly expression: RegExp; } {
-    return { spec, expression: new RegExp(spec.pattern,), };
-  },);
-  /**
-   Files in the directory.
-   */
-  const entries = await readRuleDirectory({ rulesDirectory, },);
-  /**
-   Entries that are not this allowance's own.
-   */
-  const foreign = entries.filter(function notOwned(entry,): boolean {
-    return !isOwnedRule({ entry, },);
-  },);
-  const superseded: SupersededRejectRule[] = [];
-  const earlierWinners: EarlierWinningRule[] = [];
-  for (const entry of foreign) {
-    if (entry.rule === undefined)
-      continue;
-    /**
-     Compared path of a reject or deny rule on one exact path.
-     */
-    const blockedPath = exactBlockedPath({ rule: entry.rule, },);
-    if (blockedPath !== undefined) {
-      /**
-       Allowance rule whose expression matches the blocked path.
-       */
-      const covering = compiled.find(function covers({ expression, },): boolean {
-        return expression.test(blockedPath,);
-      },);
-      if (covering !== undefined) {
-        superseded.push({
-          name: entry.stem,
-          path: entry.path,
-          processPath: blockedPath,
-          coveredBy: covering.spec.name,
-        },);
-      }
-    }
-    if ((entry.rule.enabled !== true) || (entry.stem >= TOOLCHAIN_RULE_NAME_PREFIX))
-      continue;
-    if (entry.rule.action === 'reject')
-      earlierWinners.push({ name: entry.stem, reason: 'reject', },);
-    else if (entry.rule.action === 'deny')
-      earlierWinners.push({ name: entry.stem, reason: 'deny', },);
-    else if (entry.rule.precedence === true)
-      earlierWinners.push({ name: entry.stem, reason: 'precedence', },);
-  }
-  /**
-   Owned names present on disk.
-   */
-  const present = entries
-    .filter(function owns(entry,): boolean {
-      return isOwnedRule({ entry, },);
-    },)
-    .map(function stemOf(entry,): string {
-      return entry.stem;
-    },);
-  return {
-    present,
-    missing: specs
-      .map(function nameOf(spec,): string {
-        return spec.name;
-      },)
-      .filter(function absent(name,): boolean {
-        return !present.includes(name,);
-      },),
-    superseded,
-    earlierWinners,
-    unreadable: entries
-      .filter(function unparsed(entry,): boolean {
-        return entry.rule === undefined;
-      },)
-      .map(function pathOf(entry,): string {
-        return entry.path;
-      },),
-  };
-}
-
-/**
- Removes the auto-saved reject and deny rules for covered paths after backing each up.
-
- A removal needs no rename out of the rules directory: the daemon unloads a rule on a `Remove` event,
- so the file is copied to the backup directory first and then unlinked.
-
- @param rulesDirectory - Daemon rules directory.
-
- @param roots - Spellings of each covered directory.
-
- @param backupDirectory - Directory receiving a copy of each removed file.
-
- @param dryRun - Whether to list without copying or removing.
-
- @returns The rules removed,
- or that would be removed in a dry run.
-
- @example
- ```ts
- await removeSupersededRejects({ rulesDirectory, roots, backupDirectory, dryRun: true });
- ```
- */
-export async function removeSupersededRejects(
-  {
-    rulesDirectory,
-    roots,
-    backupDirectory,
-    dryRun,
-  }: {
-    readonly rulesDirectory: string;
-    readonly roots: ToolchainRuleRoots;
-    readonly backupDirectory: string;
-    readonly dryRun: boolean;
-  },
-): Promise<readonly SupersededRejectRule[]> {
-  const { superseded, } = await inspectToolchainRules({ rulesDirectory, roots, },);
-  if (dryRun || (superseded.length === 0))
-    return superseded;
-  await mkdir(
-    backupDirectory,
-    {
-      recursive: true,
-      mode: 0o700,
-    },
-  );
-  for (const rule of superseded) {
-    await copyFile(
-      rule.path,
-      join(backupDirectory, `${rule.name}${RULE_FILE_SUFFIX}`,),
-      // Fail rather than overwrite a backup from an earlier run.
-      constants.COPYFILE_EXCL,
-    );
-    await rm(rule.path,);
-  }
-  return superseded;
 }
