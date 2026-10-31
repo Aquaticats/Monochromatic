@@ -236,7 +236,15 @@ and accepted with this record:
   So a sync never installs a repository-published tool older than one already installed,
   and installing a newer one removes the older;
   a tree whose lock pins an older version runs the newer one,
-  and `status` counts installed-newer-than-locked as satisfied for these tools.
+  and `status` counts installed-newer-than-locked as satisfied for these tools,
+  with a warning every time it happens
+  ("and this should have a warning whenever it happens",
+  user):
+  each sync,
+  status,
+  and other toolchain command that resolves such a tool for that tree names the tool,
+  the locked and the used version,
+  and that the newer one runs because older repository tools are never kept.
   This relies on each release reading its predecessors' configuration,
   as wrapper 0.4.4 reads the string `rulesFile` of 0.4.0
   (`rules_file_takes_a_path_or_an_array_of_entries` in
