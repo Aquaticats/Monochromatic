@@ -16,7 +16,8 @@ and a request that names no seat re-asked on a guess of its role (B1081).
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 The re-check of this work on 2026-10-31 is filed in
-[the reach of the re-ask and the repair of another model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md).
+[the reach of the re-ask and the repair of
+another model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md).
 
 ## B1072: a reply that ran away reasoning was re-asked of the same model on another route, and ran away again
 
@@ -808,6 +809,9 @@ and not only from the bench constants:
   `artifact/src/page-title-lexicon-stage.ts`,
   and the probes that seat the whole roster (`bench/src/corpus-run/translate-probe-run.ts`,
   `bench/src/corpus-run/window-trial-slice.ts` and `run/src/judge-fidelity.ts`).
+  Note of 2026-10-31 (B1143 and B1141):
+  the translate probe's chair is the `editor` role,
+  and every one of these probes is a measurement that re-asks the measured model itself and never another.
 - `reader`:
   the picture re-ask,
   which names it itself.
@@ -823,6 +827,12 @@ the judges of a slate are `wide-judge` in the translate lane and the repair lane
 and `late-judge` in the consolidation,
 so `decideBestCandidate`,
 `judgeTranslateSlate` and `runRefineStage` (as `judgeRole`) take it as a required parameter.
+Note of 2026-10-31 (B1143):
+the slates of the editors,
+the refiners,
+the polish and the translate lane are the `select-judge` role
+and the consolidation slate the `slate-judge` role,
+not the wide and late judges named here.
 
 Tests:
 the per-package case files `reask-role.unit.test.ts` read the source text of each caller with
@@ -837,8 +847,9 @@ and the real gather is driven only where an existing harness reaches it
 and `stage-windowed-rounds-seat` in the stage package).
 `translate-floor/src/reask-role.unit.test.ts` was a text check of the seat alone
 and drives the repair with a scripted client since B1106.
-The editors and the refiners stand in `roster`,
-as the list of roles in this entry has it;
+The editors and the refiners stood in `roster`,
+as the list of roles in this entry had it,
+and are the `editor` and `refiner` roles since B1100;
 the roles are a reading of the bench derivation and not a decision of their own,
 and stay open to the owner's veto.
 

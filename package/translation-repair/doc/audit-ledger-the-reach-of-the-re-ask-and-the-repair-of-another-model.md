@@ -2,7 +2,8 @@
 
 The owner's answers and the lead's rulings of 2026-10-31 on the re-check of the re-ask of another model
 ([Audit ledger:
-reasoning runaways and the re-ask of another model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)):
+reasoning runaways and the re-ask of another
+model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)):
 the pool of each role (B1100),
 how rarely another model is asked (B1101),
 a revision by another model recorded as its own candidate (B1102),
@@ -13,6 +14,11 @@ the reader of the role a call names (B1106),
 the checker that wrote the text it checks (B1107),
 the figures that ledger quoted that were stale (B1108),
 and what stays open (B1109).
+
+The second re-check of 2026-10-31 (UTC) is filed in
+[the measured model,
+the author and the order of the re-ask](audit-ledger-the-measured-model-the-author-and-the-order-of-the-re-ask.md)
+(B1140 to B1153).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -141,9 +147,15 @@ Where another model is asked:
   so the models of the order that are not on the bench (the Claude card is never asked).
 - The picture readers of a small bench:
   a picture read by two readers leaves the other models that read pictures and are not held out of the reader role.
+  A real pass seats every model that reads a picture,
+  so this is a path of commands that seat fewer readers (B1149).
 - Translate repair:
   the authors that were heard are the bench and the translators the cards allow are the pool,
   so the translators that wrote no candidate for the slice.
+
+No other model is asked in a bench command or in the lane of the editor calibration:
+their runaway is re-asked of the measured model itself (B1141,
+B1149).
 
 Where none is asked,
 and the fall back to the model that ran away is the ordinary path:
@@ -166,11 +178,15 @@ The exception is a seat the run withheld from the bench of a reading (`judgeSeat
 the gather's bench excludes it and the pool does not,
 so it is asked.
 How often that happens in a pass was not counted.
+B1143 corrected this on 2026-10-31:
+the pool leaves out the models the run withholds at seating time,
+so the exception no longer holds for them.
 
 The cost of the narrow reach:
 on the benches in the second list a reasoning runaway is re-asked of the same model on another provider,
 nudged,
-which B1072 found repeats the runaway in 6 of 7 direct DeepSeek calls.
+which B1072 found preceded six of the seven direct DeepSeek calls that ran to the cap
+(B1149 corrects the "6 of 7" this entry first wrote).
 The owner accepted that;
 the census order (B1075) matters only on the benches in the first list.
 
@@ -432,6 +448,9 @@ so an answer recorded as a checker's voice never comes from a model that wrote t
 The voice does not carry which model answered into `wroteTheText`;
 if a later seating puts a checker-order model among the editors,
 the pin fails and the voice has to carry `answeredBy` into that computation.
+B1142 turned this around on 2026-10-31:
+the voice carries its answerer into that computation,
+and the pin is a second layer.
 
 Cache versions:
 none moves.
@@ -485,7 +504,9 @@ for the lead and the owner.
   "your" becomes the article;
   other second-person words stay (`you`),
   and the guard that each finding speaks of the text and not to its author is a gap.
+  Closed by B1145.
 - The model that answered a checker's runaway is not carried into `wroteTheText` (B1107).
+  Closed by B1142.
 - A model that took a runaway seat of the produce gather is in the shared record for the repair,
   and a model another step of the question asked outside both is not.
 - The reading of how often another model is asked (B1101) is from the benches and not counted in a pass.

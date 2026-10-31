@@ -690,6 +690,23 @@ named for that subject and listed here.
   the checker that wrote the text it checks (B1107),
   the figures that ledger quoted that were stale (B1108),
   and what stays open (B1109).
+- [Audit ledger: the measured model,
+  the author and the order of the re-ask](audit-ledger-the-measured-model-the-author-and-the-order-of-the-re-ask.md):
+  The second re-check of 2026-10-31 and the rulings that followed it:
+  the gate (B1140),
+  a measurement that re-asks the model it measures (B1141),
+  the model that answered for a seat as the author of its text (B1142),
+  the holds a run decides when it seats a role (B1143),
+  the order of the stand-ins by role standing (B1144),
+  the second-person words reaching the other translator (B1145),
+  the findings that name the answerer (B1146),
+  the bench of the repair (B1147),
+  the benches derived from the pools (B1148),
+  the statements of that record that were stale (B1149),
+  the gaps of the role reader (B1150),
+  the drift tests that read a build (B1151),
+  a comment about a refusal (B1152),
+  and what stays open with the slips (B1153).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
@@ -751,7 +768,8 @@ named for that subject and listed here.
 - [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md):
   The index of the seven files that record the owner's rulings of 2026-10-25 on `XingZ6021`,
   the tallies that asked for a summed weight and decided nothing (B900),
-  and the rounds of re-checks that followed, to the scan that reads "that" only before a noun it knows (B952).
+  and the rounds of re-checks that followed,
+  to the scan that reads "that" only before a noun it knows (B952).
 - [Audit ledger: the two-ballot translate text
   and the lead's adoptions of 2026-10-29](audit-ledger-the-two-ballot-translate-text.md):
   The owner's "Ship the two-ballot text" after the corpus pass `XingZ6022`:
