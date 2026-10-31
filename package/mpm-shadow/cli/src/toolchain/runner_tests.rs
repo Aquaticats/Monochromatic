@@ -1,4 +1,7 @@
-//! Unit tests of the program-start seam: the real runner on harmless programs, the toolchain environment, and the
+//! Unit tests of the program-start seam:
+//! the real runner on harmless programs,
+//! the toolchain environment,
+//! and the
 //! recording fake.
 
 use std::collections::BTreeMap;

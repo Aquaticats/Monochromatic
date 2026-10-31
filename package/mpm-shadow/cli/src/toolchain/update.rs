@@ -1,8 +1,19 @@
-//! What:     `update` and `update --check`: resolve every tool of the plan to a version and artifacts, then write the
-//!           whole lock (or, with `--check`, only report what would move).
-//! Why:      `update` is the one command that writes resolved values. It writes only through the revision-checked
-//!           publish, never installs anything with `--check`, and, when an npm or PyPI lookup fails for a tool that is
-//!           locked but missing from the machine, syncs just the missing tools and retries each lookup once.
+//! What:
+//! `update` and `update --check`:
+//! resolve every tool of the plan to a version and artifacts,
+//! then write the
+//!           whole lock (or,
+//! with `--check`,
+//! only report what would move).
+//! Why:
+//! `update` is the one command that writes resolved values.
+//! It writes only through the revision-checked
+//!           publish,
+//! never installs anything with `--check`,
+//! and,
+//! when an npm or PyPI lookup fails for a tool that is
+//!           locked but missing from the machine,
+//! syncs just the missing tools and retries each lookup once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,18 +22,31 @@
 //! export function formatUpdateReport(report: UpdateReport): string
 //! ```
 
+/// Imports what this module uses from `super::agree`.
 use super::agree::{compare, refusal};
+/// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
+/// Imports what this module uses from `super::load`.
 use super::load::{Loaded, load};
+/// Imports what this module uses from `super::lock`.
 use super::lock::{Lock, render_lock};
+/// Imports what this module uses from `super::model`.
 use super::model::{Declaration, LockedTool, Route, expand_version};
+/// Imports `observe_tool` from `super::observe`.
 use super::observe::observe_tool;
+/// Imports `publish_lock` from `super::publish`.
 use super::publish::publish_lock;
+/// Imports `Runner` from `super::runner`.
 use super::runner::Runner;
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
+/// Imports `sync_tools` from `super::sync`.
 use super::sync::sync_tools;
+/// Imports what this module uses from `super::update_resolve`.
 use super::update_resolve::{Resolution, ResolveError, resolve_tool};
 
 /// What happened to one tool.
@@ -37,26 +61,32 @@ pub enum OutcomeKind {
         /// The version found.
         new_version: String,
     },
-    /// The tool was not in the lock; this is its first resolution.
+    /// The tool was not in the lock;
+    /// this is its first resolution.
     Added {
         /// The version found.
         version: String,
     },
     /// The tool is pinned and the lock already holds that pin.
     Pinned,
-    /// No resolver exists for the tool yet; its lock entry is kept as it is.
+    /// No resolver exists for the tool yet;
+    /// its lock entry is kept as it is.
     Skipped {
-        /// Why, naming the tool and route.
+        /// Why,
+        /// naming the tool and route.
         reason: String,
     },
-    /// The lookup failed; nothing is written.
+    /// The lookup failed;
+    /// nothing is written.
     Failed {
-        /// Why, naming the URL or the field.
+        /// Why,
+        /// naming the URL or the field.
         reason: String,
     },
 }
 
-/// One line of the report: a tool and what happened.
+/// One line of the report:
+/// a tool and what happened.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Outcome {
     /// Tool id.
@@ -68,7 +98,8 @@ pub struct Outcome {
 /// What `update` did.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct UpdateReport {
-    /// One outcome per plan tool, in plan order.
+    /// One outcome per plan tool,
+    /// in plan order.
     pub outcomes: Vec<Outcome>,
     /// Whether `toolchain.lock.json` was written.
     pub wrote: bool,
@@ -76,6 +107,7 @@ pub struct UpdateReport {
     pub synced: Vec<String>,
 }
 
+/// The methods of `UpdateReport`.
 impl UpdateReport {
     /// Whether any lookup failed.
     pub fn has_failures(&self) -> bool {
@@ -93,7 +125,10 @@ impl UpdateReport {
 
 /// An outcome together with the resolution it produced (kept for the lock the update builds).
 struct Resolved {
+    /// What happened.
     outcome: Outcome,
+    /// What to lock,
+    /// when there is something.
     resolution: Option<Resolution>,
 }
 
@@ -110,10 +145,15 @@ fn resolution_changed(declaration: &Declaration, locked: &LockedTool) -> bool {
         || expanded.options.bootstrap != locked.declaration.options.bootstrap;
 }
 
-/// What:     Resolves one plan tool into an outcome (and the resolution to lock when there is one).
-/// Why:      A resolver that does not exist yet is not a failure for a tool whose entry is already in the lock and whose
-///           resolution-affecting fields did not change: the entry is kept and reported. For a new tool or a changed
-///           pin it is a failure, because there is nothing to keep.
+/// What:
+/// Resolves one plan tool into an outcome (and the resolution to lock when there is one).
+/// Why:
+/// A resolver that does not exist yet is not a failure for a tool whose entry is already in the lock and whose
+///           resolution-affecting fields did not change:
+/// the entry is kept and reported.
+/// For a new tool or a changed
+///           pin it is a failure,
+/// because there is nothing to keep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,7 +187,8 @@ fn resolve_one(ctx: &Context, declaration: &Declaration, current: Option<&Locked
     }
 }
 
-/// The tools an npm or PyPI tool needs installed first, by route.
+/// The tools an npm or PyPI tool needs installed first,
+/// by route.
 fn prerequisites(route: Route) -> &'static [&'static str] {
     return match route {
         Route::MpmPnpm => &["node", "pnpm"],
@@ -156,10 +197,15 @@ fn prerequisites(route: Route) -> &'static [&'static str] {
     };
 }
 
-/// What:     Runs `update` (or `update --check`) in a scope.
-/// Why:      With `check` set nothing is installed and nothing is written. Otherwise a failed npm or PyPI lookup for a
-///           tool that is locked but not installed triggers one sync of just those tools (and what they need), then one
-///           retry of each such lookup; a second failure stays a failure naming the tool.
+/// What:
+/// Runs `update` (or `update --check`) in a scope.
+/// Why:
+/// With `check` set nothing is installed and nothing is written.
+/// Otherwise a failed npm or PyPI lookup for a
+///           tool that is locked but not installed triggers one sync of just those tools (and what they need),
+/// then one
+///           retry of each such lookup;
+/// a second failure stays a failure naming the tool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -216,10 +262,20 @@ pub fn run_update(
     return Ok(report);
 }
 
-/// What:     The auto-sync-and-retry rule: for each failed npm or PyPI lookup of a tool that is in the lock and not
-///           installed, install just those tools (with what they need), then look each one up again once.
-/// Why:      Written to the user's answer "Require sync first, and auto-sync on such failures and retry." A tool that is
-///           installed, or not in the lock, is never synced, and a second failure is final.
+/// What:
+/// The auto-sync-and-retry rule:
+/// for each failed npm or PyPI lookup of a tool that is in the lock and not
+///           installed,
+/// install just those tools (with what they need),
+/// then look each one up again once.
+/// Why:
+/// Written to the user's answer "Require sync first,
+/// and auto-sync on such failures and retry."
+/// A tool that is
+///           installed,
+/// or not in the lock,
+/// is never synced,
+/// and a second failure is final.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -267,7 +323,8 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
     }
 }
 
-/// The text `update` prints: one line per tool and a summary.
+/// The text `update` prints:
+/// one line per tool and a summary.
 pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
     let mut text: String = String::new();
     for id in &report.synced {

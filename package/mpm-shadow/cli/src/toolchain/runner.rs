@@ -1,7 +1,19 @@
-//! What:     The seam through which every command starts another program (`cargo`, `rustup`, `uv`, `pnpm`, `bin`,
-//!           `tar`, `unzip`, `gh`): a `Runner` trait, the real implementation on `std::process::Command`, and the
+//! What:
+//! The seam through which every command starts another program (`cargo`,
+//! `rustup`,
+//! `uv`,
+//! `pnpm`,
+//! `bin`,
+//!           `tar`,
+//! `unzip`,
+//! `gh`):
+//! a `Runner` trait,
+//! the real implementation on `std::process::Command`,
+//! and the
 //!           environment those programs are given.
-//! Why:      Tests pass a recording fake, so a provider's tests assert the exact arguments it builds without
+//! Why:
+//! Tests pass a recording fake,
+//! so a provider's tests assert the exact arguments it builds without
 //!           installing anything or touching the real host.
 //!
 //! In TS you'd write (pseudocode):
@@ -12,16 +24,28 @@
 //! export interface Runner { run(request: RunRequest): RunOutcome }
 //! ```
 
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
+/// Imports what this module uses from `std::process`.
 use std::process::{Command, Stdio};
 
+/// Imports `manager_native_bin_dirs` from `super::layout`.
 use super::layout::manager_native_bin_dirs;
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
-/// What:     One program start: the program (a name looked up on `PATH`, or a path), its arguments, an optional full
+/// What:
+/// One program start:
+/// the program (a name looked up on `PATH`,
+/// or a path),
+/// its arguments,
+/// an optional full
 ///           environment and an optional working directory.
-/// Why:      A plain value, so a fake can record it and a test can compare it.
+/// Why:
+/// A plain value,
+/// so a fake can record it and a test can compare it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -31,14 +55,19 @@ use super::scope::{EnvMap, Scope};
 pub struct RunRequest {
     /// The program name or path.
     pub command: String,
-    /// The arguments, one per element, never split by a shell.
+    /// The arguments,
+    /// one per element,
+    /// never split by a shell.
     pub args: Vec<String>,
-    /// The complete environment of the child; `None` means it inherits this process's.
+    /// The complete environment of the child;
+    /// `None` means it inherits this process's.
     pub env: Option<BTreeMap<String, String>>,
-    /// The working directory; `None` means this process's.
+    /// The working directory;
+    /// `None` means this process's.
     pub cwd: Option<PathBuf>,
 }
 
+/// The methods of `RunRequest`.
 impl RunRequest {
     /// A request with the process's own environment and working directory.
     pub fn new(command: &str, args: &[&str]) -> RunRequest {
@@ -62,7 +91,8 @@ impl RunRequest {
         return self;
     }
 
-    /// The request as one line (`cargo binstall --no-confirm ...`), for logs and test assertions.
+    /// The request as one line (`cargo binstall --no-confirm ...`),
+    /// for logs and test assertions.
     pub fn line(&self) -> String {
         let mut line: String = self.command.clone();
         for argument in &self.args {
@@ -73,25 +103,31 @@ impl RunRequest {
     }
 }
 
-/// What a finished program printed and how it ended; a program that could not start has code 1 and the reason in
-/// `stderr`, so callers handle one shape.
+/// What a finished program printed and how it ended;
+/// a program that could not start has code 1 and the reason in
+/// `stderr`,
+/// so callers handle one shape.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunOutcome {
     /// Standard output as text (invalid UTF-8 replaced).
     pub stdout: String,
     /// Standard error as text.
     pub stderr: String,
-    /// The exit code; 1 when the program could not start or was killed by a signal.
+    /// The exit code;
+    /// 1 when the program could not start or was killed by a signal.
     pub code: i32,
 }
 
+/// The methods of `RunOutcome`.
 impl RunOutcome {
     /// Whether the program exited with code 0.
     pub fn succeeded(&self) -> bool {
         return self.code == 0;
     }
 
-    /// Standard error if it printed any, otherwise standard output: the text to show when a command failed.
+    /// Standard error if it printed any,
+    /// otherwise standard output:
+    /// the text to show when a command failed.
     pub fn failure_text(&self) -> String {
         if self.stderr.trim().is_empty() {
             return self.stdout.trim().to_string();
@@ -100,8 +136,12 @@ impl RunOutcome {
     }
 }
 
-/// What:     The seam: something that can start a program and report what it did.
-/// Why:      `&self` and not `&mut self` so one runner is shared by every provider; the fake records through interior
+/// What:
+/// The seam:
+/// something that can start a program and report what it did.
+/// Why:
+/// `&self` and not `&mut self` so one runner is shared by every provider;
+/// the fake records through interior
 ///           mutability.
 ///
 /// In TS you'd write (pseudocode):
@@ -109,15 +149,19 @@ impl RunOutcome {
 /// interface Runner { run(request: RunRequest): RunOutcome }
 /// ```
 pub trait Runner {
-    /// Starts the program, waits for it and reports the outcome.
+    /// Starts the program,
+    /// waits for it and reports the outcome.
     fn run(&self, request: &RunRequest) -> RunOutcome;
 }
 
-/// The real runner: `std::process::Command` with captured output and no standard input.
+/// The real runner:
+/// `std::process::Command` with captured output and no standard input.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProcessRunner;
 
+/// Implements `Runner` for `ProcessRunner`.
 impl Runner for ProcessRunner {
+    /// Starts the program with captured output.
     fn run(&self, request: &RunRequest) -> RunOutcome {
         let mut command: Command = Command::new(&request.command);
         command.args(&request.args);
@@ -144,10 +188,21 @@ impl Runner for ProcessRunner {
     }
 }
 
-/// What:     The environment tool installs run with: the whole given environment, `HOME` set to the scope's home, and
-///           `PATH` led by the scope's exposure, toolchain, cargo, uv, pnpm and npm bin directories.
-/// Why:      `cargo binstall`, `pnpm add --global` and `uv tool install` find each other and the freshly installed
-///           tools through `PATH`, and must write into the scope's home.
+/// What:
+/// The environment tool installs run with:
+/// the whole given environment,
+/// `HOME` set to the scope's home,
+/// and
+///           `PATH` led by the scope's exposure,
+/// toolchain,
+/// cargo,
+/// uv,
+/// pnpm and npm bin directories.
+/// Why:
+/// `cargo binstall`,
+/// `pnpm add --global` and `uv tool install` find each other and the freshly installed
+///           tools through `PATH`,
+/// and must write into the scope's home.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

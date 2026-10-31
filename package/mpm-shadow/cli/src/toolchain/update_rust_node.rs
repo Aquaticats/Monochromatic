@@ -1,6 +1,12 @@
-//! What:     Two native lookups: the Rust channel manifests on `static.rust-lang.org` (the nightly date, or a stable
+//! What:
+//! Two native lookups:
+//! the Rust channel manifests on `static.rust-lang.org` (the nightly date,
+//! or a stable
 //!           channel's version) and the Node.js release index and checksum files on `nodejs.org`.
-//! Why:      Neither goes through a package manager: Rust channels install by their dated name, and Node's archives
+//! Why:
+//! Neither goes through a package manager:
+//! Rust channels install by their dated name,
+//! and Node's archives
 //!           are locked by the SHA-256 rows of its `SHASUMS256.txt`.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,14 +17,20 @@
 //! export function parseShasums(text: string): Map<string, string>
 //! ```
 
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports what this module uses from `super::model`.
 use super::model::{Artifact, Declaration, LockedTool, Request, is_sha256_hex};
+/// Imports what this module uses from `super::update_resolve`.
 use super::update_resolve::{Resolution, ResolveError, get_json, get_text, not_implemented, text_at};
 
-/// The value of the first `key = "value"` line in a TOML text, or `None`.
+/// The value of the first `key = "value"` line in a TOML text,
+/// or `None`.
 fn first_assignment(text: &str, key: &str) -> Option<String> {
     for line in text.lines() {
         let trimmed: &str = line.trim();
@@ -38,7 +50,8 @@ fn first_assignment(text: &str, key: &str) -> Option<String> {
     return None;
 }
 
-/// The `version` assigned on the line after the `[pkg.rust]` header, or `None`.
+/// The `version` assigned on the line after the `[pkg.rust]` header,
+/// or `None`.
 fn pkg_rust_version(text: &str) -> Option<String> {
     let lines: Vec<&str> = text.lines().collect();
     for (index, line) in lines.iter().enumerate() {
@@ -52,9 +65,15 @@ fn pkg_rust_version(text: &str) -> Option<String> {
     return None;
 }
 
-/// What:     The Rust channel's current release: `nightly-<date>` for the nightly channel, the version's first word
+/// What:
+/// The Rust channel's current release:
+/// `nightly-<date>` for the nightly channel,
+/// the version's first word
 ///           (`1.90.0`) for any other channel.
-/// Why:      Nightlies install by their dated name, so the lock holds the date, not a version number.
+/// Why:
+/// Nightlies install by their dated name,
+/// so the lock holds the date,
+/// not a version number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,9 +104,12 @@ pub fn resolve_rust(ctx: &Context, declaration: &Declaration) -> Result<Resoluti
     };
 }
 
-/// What:     Reads a `SHASUMS256.txt`: lines of `<64 hex>  <file name>` (a `*` before the name marks binary mode) into
+/// What:
+/// Reads a `SHASUMS256.txt`:
+/// lines of `<64 hex>  <file name>` (a `*` before the name marks binary mode) into
 ///           file name to digest.
-/// Why:      Lines that are not a digest followed by a name are ignored rather than trusted.
+/// Why:
+/// Lines that are not a digest followed by a name are ignored rather than trusted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -124,9 +146,15 @@ fn is_stable_tag(tag: &str) -> bool {
 /// The hosts whose `SHASUMS256.txt` cover the official and the musl builds.
 const SUMS_HOSTS: [&str; 2] = ["https://nodejs.org/dist", "https://unofficial-builds.nodejs.org/download/release"];
 
-/// What:     The newest stable Node.js release and its archives: the platforms and file-name shapes come from the old
-///           lock rows (with the old version replaced), the digests from the release's `SHASUMS256.txt` files.
-/// Why:      Nothing here is guessed: an archive with no checksum row fails the lookup, naming the file.
+/// What:
+/// The newest stable Node.js release and its archives:
+/// the platforms and file-name shapes come from the old
+///           lock rows (with the old version replaced),
+/// the digests from the release's `SHASUMS256.txt` files.
+/// Why:
+/// Nothing here is guessed:
+/// an archive with no checksum row fails the lookup,
+/// naming the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

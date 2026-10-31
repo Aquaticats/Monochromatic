@@ -1,5 +1,8 @@
-//! Unit tests of the network seam: redirect resolution, the https-only rule and diagnostics of the real client (against
-//! loopback only), and the fake used by every other test.
+//! Unit tests of the network seam:
+//! redirect resolution,
+//! the https-only rule and diagnostics of the real client (against
+//! loopback only),
+//! and the fake used by every other test.
 
 use super::fakes::FakeHttp;
 use super::hash::sha256_hex;

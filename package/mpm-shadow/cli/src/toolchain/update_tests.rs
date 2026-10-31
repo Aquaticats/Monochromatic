@@ -1,4 +1,6 @@
-//! Unit tests of the resolvers and of `update`, against a table-driven fake network and a recording fake runner. No
+//! Unit tests of the resolvers and of `update`,
+//! against a table-driven fake network and a recording fake runner.
+//! No
 //! test reaches a registry or starts a package manager.
 
 use std::fs;
@@ -25,7 +27,8 @@ const PYPI_URL: &str = "https://pypi.org/pypi/slopo/json";
 const CRATES_URL: &str = "https://crates.io/api/v1/crates/fd-find";
 const RUST_URL: &str = "https://static.rust-lang.org/dist/channel-rust-nightly.toml";
 
-/// A plan of four tools resolved by registries and the Rust manifest, with `{version}` placeholders for the toolchain.
+/// A plan of four tools resolved by registries and the Rust manifest,
+/// with `{version}` placeholders for the toolchain.
 const REGISTRY_PLAN: &str = r#"{
   "schemaVersion": 1,
   "tools": {
@@ -653,7 +656,8 @@ fn check_never_installs_even_when_a_lookup_fails() {
     assert_eq!(http.requests().iter().filter(|url| return url.as_str() == NPM_URL).count(), 1);
 }
 
-/// An `HttpGet` that rewrites the plan file the first time it is asked for anything, as a person editing the plan
+/// An `HttpGet` that rewrites the plan file the first time it is asked for anything,
+/// as a person editing the plan
 /// while an update waits on the network would.
 struct EditingHttp<'a> {
     inner: &'a FakeHttp,

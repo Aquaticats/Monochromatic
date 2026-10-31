@@ -1,4 +1,6 @@
-//! Unit tests of `lock`, `lock --check` and the publish rules (revisions and the scope's OS lock), all in disposable
+//! Unit tests of `lock`,
+//! `lock --check` and the publish rules (revisions and the scope's OS lock),
+//! all in disposable
 //! scopes.
 
 use std::fs;

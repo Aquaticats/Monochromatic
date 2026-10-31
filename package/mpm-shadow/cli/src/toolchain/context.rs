@@ -1,7 +1,16 @@
-//! What:     The bundle every provider, observer and resolver receives: the scope, the environment, the program runner,
-//!           the HTTP client, the host description and the locked tools.
-//! Why:      One value carries every seam, so a test builds a context from fakes and a disposable scope and no
-//!           function reaches for the real process, network or home directory on its own.
+//! What:
+//! The bundle every provider,
+//! observer and resolver receives:
+//! the scope,
+//! the environment,
+//! the program runner,
+//!           the HTTP client,
+//! the host description and the locked tools.
+//! Why:
+//! One value carries every seam,
+//! so a test builds a context from fakes and a disposable scope and no
+//!           function reaches for the real process,
+//! network or home directory on its own.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,18 +18,30 @@
 //! export type Context = { scope: Scope; env: EnvMap; runner: Runner; http: HttpGet; host: Host; tools: LockedTool[] };
 //! ```
 
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
+/// Imports what this module uses from `super::layout`.
 use super::layout::{current_family, current_platform_id, find_tool_bin};
+/// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, OsFamily};
+/// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest, Runner, toolchain_path_env};
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
-/// What:     The machine the commands run on, as the lock names it: the platform id (`linux-x64`) and the OS family.
-/// Why:      Injected so tests exercise `linux-arm64-musl` or `macos-arm64` on any host.
+/// What:
+/// The machine the commands run on,
+/// as the lock names it:
+/// the platform id (`linux-x64`) and the OS family.
+/// Why:
+/// Injected so tests exercise `linux-arm64-musl` or `macos-arm64` on any host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,10 +51,12 @@ use super::scope::{EnvMap, Scope};
 pub struct Host {
     /// The key of the host's artifact row in the lock.
     pub platform: String,
-    /// The OS family, or `None` for a family the plan cannot name.
+    /// The OS family,
+    /// or `None` for a family the plan cannot name.
     pub family: Option<OsFamily>,
 }
 
+/// The methods of `Host`.
 impl Host {
     /// The running machine.
     pub fn current() -> Host {
@@ -41,7 +64,11 @@ impl Host {
     }
 }
 
-/// Everything a provider, observer or resolver needs; borrowed, never owned, so building one is free.
+/// Everything a provider,
+/// observer or resolver needs;
+/// borrowed,
+/// never owned,
+/// so building one is free.
 #[derive(Clone, Copy)]
 pub struct Context<'a> {
     /// The scope (paths).
@@ -58,8 +85,10 @@ pub struct Context<'a> {
     pub tools: &'a [LockedTool],
 }
 
+/// The methods of `Context<'_>`.
 impl Context<'_> {
-    /// The locked tool with this id, or an error naming the id.
+    /// The locked tool with this id,
+    /// or an error naming the id.
     pub fn tool(&self, id: &str) -> Result<&LockedTool, ToolchainError> {
         return match self.tools.iter().find(|tool| return tool.declaration.id == id) {
             Some(found) => Ok(found),
@@ -67,7 +96,9 @@ impl Context<'_> {
         };
     }
 
-    /// The executable `name` of the tool `tool_id`, searched where that tool's route installs it, or `None`.
+    /// The executable `name` of the tool `tool_id`,
+    /// searched where that tool's route installs it,
+    /// or `None`.
     pub fn find_bin_of(&self, tool_id: &str, name: &str, extra_dirs: &[PathBuf]) -> Option<PathBuf> {
         let tool: &LockedTool = self.tool(tool_id).ok()?;
         return find_tool_bin(tool, name, self.scope, self.env, extra_dirs);
@@ -88,9 +119,14 @@ impl Context<'_> {
         return self.runner.run(request);
     }
 
-    /// What:     The GitHub token for API calls and `bin` downloads: `GITHUB_TOKEN`, else the output of
-    ///           `gh auth token`, else `None`.
-    /// Why:      Unauthenticated GitHub API calls run out of quota in the middle of a sync or an update.
+    /// What:
+    /// The GitHub token for API calls and `bin` downloads:
+    /// `GITHUB_TOKEN`,
+    /// else the output of
+    ///           `gh auth token`,
+    /// else `None`.
+    /// Why:
+    /// Unauthenticated GitHub API calls run out of quota in the middle of a sync or an update.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

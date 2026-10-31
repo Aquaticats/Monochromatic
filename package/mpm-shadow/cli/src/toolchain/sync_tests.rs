@@ -1,5 +1,8 @@
-//! Unit tests of `sync`, the exposure directory and the postinstall steps, against the fake runner and a disposable
-//! scope: the tests assert the exact program lines started and that unchanged tools are left alone.
+//! Unit tests of `sync`,
+//! the exposure directory and the postinstall steps,
+//! against the fake runner and a disposable
+//! scope:
+//! the tests assert the exact program lines started and that unchanged tools are left alone.
 
 use std::fs;
 
@@ -12,7 +15,8 @@ use super::layout::tool_install_dir;
 use super::model::{Postinstall, PostinstallRun};
 use super::sync::{format_sync_report, replacement_warning, run_sync, sync_order, sync_tools};
 
-/// Keeps only the named tools and makes `cargo-binstall` a cargo crate, so the scenario needs no `bin` CLI.
+/// Keeps only the named tools and makes `cargo-binstall` a cargo crate,
+/// so the scenario needs no `bin` CLI.
 fn keep_only(rig: &mut Rig, ids: &[&str]) {
     rig.lock.tools.retain(|tool| return ids.contains(&tool.declaration.id.as_str()));
     for tool in &mut rig.lock.tools {

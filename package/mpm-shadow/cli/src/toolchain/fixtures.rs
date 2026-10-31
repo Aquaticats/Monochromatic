@@ -1,6 +1,10 @@
-//! What:     A small plan and the lock it implies, shaped like the repository's real ones (a subset covering the routes
-//!           the repository uses), for the unit tests of every toolchain module.
-//! Why:      Tests need realistic input without reading the repository's real files or touching a real toolchain.
+//! What:
+//! A small plan and the lock it implies,
+//! shaped like the repository's real ones (a subset covering the routes
+//!           the repository uses),
+//! for the unit tests of every toolchain module.
+//! Why:
+//! Tests need realistic input without reading the repository's real files or touching a real toolchain.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,12 +13,17 @@
 //! export function sampleLock(): Lock { ... }
 //! ```
 
+/// Imports what this module uses from `super::lock`.
 use super::lock::{Lock, render_lock};
+/// Imports what this module uses from `super::model`.
 use super::model::{Artifact, LockedTool};
+/// Imports what this module uses from `super::plan`.
 use super::plan::{Plan, parse_plan};
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, repo_scope};
 
-/// The sample plan, with comments and trailing commas the way people write it.
+/// The sample plan,
+/// with comments and trailing commas the way people write it.
 pub(crate) const SAMPLE_PLAN: &str = r#"{
   "schemaVersion": 1,
   "tools": {
@@ -123,7 +132,10 @@ pub(crate) fn sample_version(id: &str) -> String {
     };
 }
 
-/// The lock the sample plan implies: the plan's declarations, `sample_version` versions, and one artifact row for the
+/// The lock the sample plan implies:
+/// the plan's declarations,
+/// `sample_version` versions,
+/// and one artifact row for the
 /// archive and bin-sourced tools.
 pub(crate) fn sample_lock() -> Lock {
     let plan: Plan = sample_plan();
@@ -149,8 +161,11 @@ pub(crate) fn sample_lock() -> Lock {
     return Lock { tools };
 }
 
-/// A disposable repository scope on disk: the sample plan and the rendered sample lock written under a fresh
-/// directory, with a fake home inside it. The returned guard removes everything when dropped.
+/// A disposable repository scope on disk:
+/// the sample plan and the rendered sample lock written under a fresh
+/// directory,
+/// with a fake home inside it.
+/// The returned guard removes everything when dropped.
 pub(crate) fn sample_scope_on_disk() -> (tempfile::TempDir, Scope, EnvMap) {
     let directory = crate::test_scratch::scratch();
     let home = directory.path().join("home");

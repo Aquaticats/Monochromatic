@@ -1,6 +1,13 @@
-//! What:     The `status` command: refuse when the plan and lock disagree, otherwise compare what is installed with
-//!           the lock, one line per tool, and report whether anything drifted.
-//! Why:      `status` is the read-only half of `sync`; it never installs and never touches the network.
+//! What:
+//! The `status` command:
+//! refuse when the plan and lock disagree,
+//! otherwise compare what is installed with
+//!           the lock,
+//! one line per tool,
+//! and report whether anything drifted.
+//! Why:
+//! `status` is the read-only half of `sync`;
+//! it never installs and never touches the network.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,14 +15,23 @@
 //! export function runStatus(scope: Scope, env: EnvMap, runner: Runner, host: Host): { text: string; drifted: boolean }
 //! ```
 
+/// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `NoNetwork` from `super::http`.
 use super::http::NoNetwork;
+/// Imports `load_agreeing` from `super::load`.
 use super::load::load_agreeing;
+/// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
+/// Imports what this module uses from `super::observe`.
 use super::observe::{format_status, observe_all};
+/// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
+/// Imports `Runner` from `super::runner`.
 use super::runner::Runner;
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
 /// The text to print and whether any tool drifted (the exit code is 1 when it did).
@@ -27,8 +43,12 @@ pub struct StatusReport {
     pub drifted: bool,
 }
 
-/// What:     Runs `status` in a scope.
-/// Why:      The runner and host are parameters so tests observe a fake machine; the network is closed, since
+/// What:
+/// Runs `status` in a scope.
+/// Why:
+/// The runner and host are parameters so tests observe a fake machine;
+/// the network is closed,
+/// since
 ///           observing installed tools needs none.
 ///
 /// In TS you'd write (pseudocode):

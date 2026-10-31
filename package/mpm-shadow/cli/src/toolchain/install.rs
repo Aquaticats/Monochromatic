@@ -1,5 +1,9 @@
-//! What:     The one switch from a tool's route to the function that installs it.
-//! Why:      `sync` calls `install_tool` for any tool; the match is exhaustive over `Route`, so a new route cannot be
+//! What:
+//! The one switch from a tool's route to the function that installs it.
+//! Why:
+//! `sync` calls `install_tool` for any tool;
+//! the match is exhaustive over `Route`,
+//! so a new route cannot be
 //!           added without deciding how it installs.
 //!
 //! In TS you'd write (pseudocode):
@@ -8,17 +12,29 @@
 //! export function installTool(ctx: Context, tool: LockedTool): void
 //! ```
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `install_archive` from `super::install_archive`.
 use super::install_archive::install_archive;
+/// Imports `install_bin_sourced` from `super::install_bin`.
 use super::install_bin::install_bin_sourced;
+/// Imports what this module uses from `super::install_cargo`.
 use super::install_cargo::{install_cargo_binstall, install_cargo_git};
+/// Imports what this module uses from `super::install_managers`.
 use super::install_managers::{install_go_install, install_mpm_pnpm, install_mpm_uvx};
+/// Imports what this module uses from `super::install_rust_android`.
 use super::install_rust_android::{install_android_sdk, install_rust_components, install_rust_toolchain};
+/// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Route};
 
-/// What:     Installs one tool by its route, then (for a Rust toolchain) its components and targets.
-/// Why:      The components step follows every route that carries `rustComponents` or `rustTargets`, as the
+/// What:
+/// Installs one tool by its route,
+/// then (for a Rust toolchain) its components and targets.
+/// Why:
+/// The components step follows every route that carries `rustComponents` or `rustTargets`,
+/// as the
 ///           TypeScript sync did.
 ///
 /// In TS you'd write (pseudocode):

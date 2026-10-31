@@ -1,6 +1,12 @@
-//! What:     The command-line surface of the toolchain half: the `clap` description of `lock`, `bin-paths` (and the
-//!           verbs added with them), and the function that runs one of them and turns its result into an exit code.
-//! Why:      `cli.rs` keeps the older `prune` command and delegates every toolchain verb here, so the toolchain code
+//! What:
+//! The command-line surface of the toolchain half:
+//! the `clap` description of `lock`,
+//! `bin-paths` (and the
+//!           verbs added with them),
+//! and the function that runs one of them and turns its result into an exit code.
+//! Why:
+//! `cli.rs` keeps the older `prune` command and delegates every toolchain verb here,
+//! so the toolchain code
 //!           and its grammar live together.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,21 +19,34 @@
 /// Imports the `clap` types for describing arguments and reading what was typed.
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports what this module uses from `super::bin_paths`.
 use super::bin_paths::{bin_paths_output, render_bin_paths};
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `Host` from `super::context`.
 use super::context::Host;
+/// Imports `connect_or_explain` from `super::http`.
 use super::http::connect_or_explain;
+/// Imports what this module uses from `super::lock_cmd`.
 use super::lock_cmd::{LockMode, run_lock};
+/// Imports `read_plan` from `super::plan`.
 use super::plan::read_plan;
+/// Imports `ProcessRunner` from `super::runner`.
 use super::runner::ProcessRunner;
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, resolve_scope};
+/// Imports `run_status` from `super::status_cmd`.
 use super::status_cmd::run_status;
+/// Imports what this module uses from `super::sync`.
 use super::sync::{format_sync_report, run_sync};
+/// Imports what this module uses from `super::update`.
 use super::update::{format_update_report, run_update};
 
-/// The `--global` flag every toolchain verb accepts: act on the machine-global plan and lock.
+/// The `--global` flag every toolchain verb accepts:
+/// act on the machine-global plan and lock.
 fn global_flag() -> Arg {
     return Arg::new("global")
         .long("global")
@@ -35,8 +54,11 @@ fn global_flag() -> Arg {
         .help("Act on the machine-global toolchain (the plan and lock under the per-user config directory)");
 }
 
-/// What:     The toolchain subcommands for `mpm-shadow --help`.
-/// Why:      Each verb is a plain `clap` command; the grammar is data the tests can inspect.
+/// What:
+/// The toolchain subcommands for `mpm-shadow --help`.
+/// Why:
+/// Each verb is a plain `clap` command;
+/// the grammar is data the tests can inspect.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,9 +118,12 @@ fn start_directory() -> PathBuf {
     return std::env::current_dir().unwrap_or_else(|_| return PathBuf::from("."));
 }
 
-/// What:     Runs the toolchain verb `name` with the arguments `matches`, or returns `None` when `name` is not one of
+/// What:
+/// Runs the toolchain verb `name` with the arguments `matches`,
+/// or returns `None` when `name` is not one of
 ///           this module's verbs.
-/// Why:      `cli.rs` asks this first and falls back to its own `prune`.
+/// Why:
+/// `cli.rs` asks this first and falls back to its own `prune`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

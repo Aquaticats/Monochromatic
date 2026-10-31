@@ -1,8 +1,17 @@
-//! What:     The three package registries: npm (`registry.npmjs.org`), PyPI (`pypi.org`) and crates.io, each asked
+//! What:
+//! The three package registries:
+//! npm (`registry.npmjs.org`),
+//! PyPI (`pypi.org`) and crates.io,
+//! each asked
 //!           directly over HTTPS for a package's newest version.
-//! Why:      The decision record fixes npm and PyPI lookups to go to their registries directly, never through
-//!           `mpm outdated` (probe 3: mpm drops failed managers with exit 0). The package name is checked before it is
-//!           put in a URL, so a plan entry cannot redirect the lookup.
+//! Why:
+//! The decision record fixes npm and PyPI lookups to go to their registries directly,
+//! never through
+//!           `mpm outdated` (probe 3:
+//! mpm drops failed managers with exit 0).
+//! The package name is checked before it is
+//!           put in a URL,
+//! so a plan entry cannot redirect the lookup.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,18 +21,30 @@
 //! export function resolveCrate(ctx: Context, declaration: Declaration): Resolution
 //! ```
 
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports what this module uses from `super::model`.
 use super::model::{Artifact, Declaration, LockedTool, Request};
+/// Imports what this module uses from `super::update_resolve`.
 use super::update_resolve::{Resolution, ResolveError, get_json, text_at};
 
 /// The platforms a wheel is recorded for when the lock holds no row yet (the Linux-only stopgap of the repository).
 const WHEEL_PLATFORMS: [&str; 4] = ["linux-arm64", "linux-arm64-musl", "linux-x64", "linux-x64-musl"];
 
-/// What:     A package name made safe to put in a registry URL path: letters, digits and `. _ - @ /` only, with `/`
-///           (npm scopes) written `%2F`; anything else is refused.
-/// Why:      A `?`, `#`, space or `..` in a name would change what the request asks for.
+/// What:
+/// A package name made safe to put in a registry URL path:
+/// letters,
+/// digits and `. _ - @ /` only,
+/// with `/`
+///           (npm scopes) written `%2F`;
+/// anything else is refused.
+/// Why:
+/// A `?`,
+/// `#`,
+/// space or `..` in a name would change what the request asks for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -37,7 +58,9 @@ pub fn registry_path_name(name: &str) -> Result<String, ResolveError> {
     return Ok(name.replace('/', "%2F"));
 }
 
-/// npm: `GET https://registry.npmjs.org/<name>` with the abbreviated-document `Accept` header, then `dist-tags.<tag>`
+/// npm:
+/// `GET https://registry.npmjs.org/<name>` with the abbreviated-document `Accept` header,
+/// then `dist-tags.<tag>`
 /// where the tag is the request's channel or `latest`.
 pub fn resolve_npm(ctx: &Context, declaration: &Declaration) -> Result<Resolution, ResolveError> {
     let name: String = package_name_of(declaration, "npm:");
@@ -54,7 +77,9 @@ pub fn resolve_npm(ctx: &Context, declaration: &Declaration) -> Result<Resolutio
     };
 }
 
-/// crates.io: `GET https://crates.io/api/v1/crates/<name>`, then `crate.max_stable_version`.
+/// crates.io:
+/// `GET https://crates.io/api/v1/crates/<name>`,
+/// then `crate.max_stable_version`.
 pub fn resolve_crate(ctx: &Context, declaration: &Declaration) -> Result<Resolution, ResolveError> {
     let name: String = package_name_of(declaration, "cargo:");
     let url: String = format!("https://crates.io/api/v1/crates/{}", registry_path_name(&name)?);
@@ -65,7 +90,10 @@ pub fn resolve_crate(ctx: &Context, declaration: &Declaration) -> Result<Resolut
     };
 }
 
-/// PyPI: `GET https://pypi.org/pypi/<name>/json`, then `info.version`; a wheel bootstrap also records the wheel's URL
+/// PyPI:
+/// `GET https://pypi.org/pypi/<name>/json`,
+/// then `info.version`;
+/// a wheel bootstrap also records the wheel's URL
 /// and SHA-256 from the same document's `urls`.
 pub fn resolve_pypi(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
     let name: String = package_name_of(declaration, "pipx:");
@@ -78,7 +106,9 @@ pub fn resolve_pypi(ctx: &Context, declaration: &Declaration, current: Option<&L
     return Ok(Resolution { version: version.to_string(), artifacts });
 }
 
-/// PyPI at one exact version: `GET https://pypi.org/pypi/<name>/<version>/json`, for a newly pinned PyPI tool.
+/// PyPI at one exact version:
+/// `GET https://pypi.org/pypi/<name>/<version>/json`,
+/// for a newly pinned PyPI tool.
 pub fn resolve_pypi_version(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>, version: &str) -> Result<Resolution, ResolveError> {
     let name: String = package_name_of(declaration, "pipx:");
     let url: String = format!("https://pypi.org/pypi/{}/{}/json", registry_path_name(&name)?, registry_path_name(version)?);
@@ -87,7 +117,8 @@ pub fn resolve_pypi_version(ctx: &Context, declaration: &Declaration, current: O
     return Ok(Resolution { version: version.to_string(), artifacts });
 }
 
-/// The wheel artifact rows for a wheel bootstrap (none for any other PyPI tool): the release's pure-Python wheel,
+/// The wheel artifact rows for a wheel bootstrap (none for any other PyPI tool):
+/// the release's pure-Python wheel,
 /// recorded for the platforms the old lock row names (or the Linux platforms when there is none).
 fn wheel_rows(declaration: &Declaration, current: Option<&LockedTool>, document: &Value, url: &str) -> Result<Vec<(String, Artifact)>, ResolveError> {
     let is_wheel: bool = declaration.options.bootstrap.as_ref().is_some_and(|bootstrap| return bootstrap.distribution == "wheel");
@@ -120,7 +151,9 @@ fn wheel_rows(declaration: &Declaration, current: Option<&LockedTool>, document:
     return Err(ResolveError::Failed(format!("{url}: no pure-Python wheel (py3-none-any) is published for {}", declaration.id)));
 }
 
-/// The package name of a manager route: the declared package id, or the tool id without its `prefix`.
+/// The package name of a manager route:
+/// the declared package id,
+/// or the tool id without its `prefix`.
 fn package_name_of(declaration: &Declaration, prefix: &str) -> String {
     if let Some(package_id) = &declaration.package_id {
         return package_id.clone();

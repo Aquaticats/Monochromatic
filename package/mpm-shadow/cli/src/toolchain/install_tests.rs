@@ -1,5 +1,8 @@
-//! Unit tests of every installer. Each runs against the fake runner and fake network inside a disposable scope, and
-//! asserts the exact program lines that were started; nothing here installs anything.
+//! Unit tests of every installer.
+//! Each runs against the fake runner and fake network inside a disposable scope,
+//! and
+//! asserts the exact program lines that were started;
+//! nothing here installs anything.
 
 use flate2::Compression;
 use flate2::write::GzEncoder;

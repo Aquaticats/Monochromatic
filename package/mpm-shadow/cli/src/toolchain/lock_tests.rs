@@ -1,4 +1,6 @@
-//! Unit tests of the lock file (render, parse, digest) and of the plan and lock agreement validator.
+//! Unit tests of the lock file (render,
+//! parse,
+//! digest) and of the plan and lock agreement validator.
 
 use serde_json::Value;
 

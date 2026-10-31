@@ -1,9 +1,18 @@
-//! What:     Publishing a new `toolchain.lock.json` safely: record the revisions (content hashes) of the plan and the
-//!           lock when they are read, then, holding an exclusive OS lock for the scope, read them again and publish only
+//! What:
+//! Publishing a new `toolchain.lock.json` safely:
+//! record the revisions (content hashes) of the plan and the
+//!           lock when they are read,
+//! then,
+//! holding an exclusive OS lock for the scope,
+//! read them again and publish only
 //!           if neither changed.
-//! Why:      `update` can run for minutes on the network while a person edits the plan or another mpm-shadow rewrites
-//!           the lock. Writing over either would lose work, so a changed revision refuses the publish and names the
-//!           file; the OS lock makes the re-read and the write one step as far as other mpm-shadow runs can tell.
+//! Why:
+//! `update` can run for minutes on the network while a person edits the plan or another mpm-shadow rewrites
+//!           the lock.
+//! Writing over either would lose work,
+//! so a changed revision refuses the publish and names the
+//!           file;
+//! the OS lock makes the re-read and the write one step as far as other mpm-shadow runs can tell.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,25 +21,40 @@
 //! export function publishLock(scope: Scope, expected: Revisions, text: string): void  // throws when a revision moved
 //! ```
 
+/// Imports what this module uses from `std::fs`.
 use std::fs::{self, File, OpenOptions};
+/// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
+/// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
-/// What:     The content hash of one file, or `None` when the file does not exist.
-/// Why:      A revision is "what the bytes were when I read them"; comparing two revisions says whether anyone wrote
-///           the file in between, whatever tool they used.
+/// What:
+/// The content hash of one file,
+/// or `None` when the file does not exist.
+/// Why:
+/// A revision is "what the bytes were when I read them";
+/// comparing two revisions says whether anyone wrote
+///           the file in between,
+/// whatever tool they used.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Revision = string | undefined;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Revision(pub Option<String>);
+pub struct Revision(
+    /// The SHA-256 of the file's bytes as lowercase hex,
+    /// or `None` when the file does not exist.
+    pub Option<String>,
+);
 
-/// The revisions of the plan and the lock, read together.
+/// The revisions of the plan and the lock,
+/// read together.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Revisions {
     /// Revision of `toolchain.plan.jsonc`.
@@ -39,7 +63,9 @@ pub struct Revisions {
     pub lock: Revision,
 }
 
-/// The bytes of a file, or `None` when it does not exist; any other read failure is an error naming the path.
+/// The bytes of a file,
+/// or `None` when it does not exist;
+/// any other read failure is an error naming the path.
 pub fn read_optional(path: &Path) -> Result<Option<Vec<u8>>, ToolchainError> {
     return match fs::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
@@ -63,8 +89,13 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
     return Ok(Revisions { plan: revision_of(&plan), lock: revision_of(&lock) });
 }
 
-/// What:     The exclusive OS lock for one scope, held for as long as the value lives.
-/// Why:      Dropping the value closes the file, which releases the lock, so an early return or a panic cannot leave
+/// What:
+/// The exclusive OS lock for one scope,
+/// held for as long as the value lives.
+/// Why:
+/// Dropping the value closes the file,
+/// which releases the lock,
+/// so an early return or a panic cannot leave
 ///           the scope locked.
 ///
 /// In TS you'd write (pseudocode):
@@ -73,7 +104,8 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 /// ```
 #[derive(Debug)]
 pub struct Guard {
-    /// The open file that holds the lock; kept only so it stays open.
+    /// The open file that holds the lock;
+    /// kept only so it stays open.
     _file: File,
 }
 
@@ -90,7 +122,8 @@ fn open_guard_file(path: &Path) -> Result<File, ToolchainError> {
     };
 }
 
-/// Takes the scope's exclusive lock, waiting until another mpm-shadow run releases it.
+/// Takes the scope's exclusive lock,
+/// waiting until another mpm-shadow run releases it.
 pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
     let file: File = open_guard_file(&scope.guard_file)?;
     if let Err(error) = file.lock() {
@@ -102,7 +135,8 @@ pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
     return Ok(Guard { _file: file });
 }
 
-/// Takes the scope's exclusive lock without waiting; `None` when another run holds it.
+/// Takes the scope's exclusive lock without waiting;
+/// `None` when another run holds it.
 pub fn try_acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
     let file: File = open_guard_file(&scope.guard_file)?;
     return match file.try_lock() {
@@ -115,7 +149,8 @@ pub fn try_acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError>
     };
 }
 
-/// The name of the file revision `kind` came from, for the refusal message.
+/// The name of the file revision `kind` came from,
+/// for the refusal message.
 fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec<String> {
     let mut moved: Vec<String> = Vec::new();
     if expected.plan != observed.plan {
@@ -127,8 +162,13 @@ fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec
     return moved;
 }
 
-/// What:     Writes `text` to a temporary file beside `target`, then renames it over `target`.
-/// Why:      A reader (a `jq` in CI, another mpm-shadow) sees the old file or the new one, never half of it.
+/// What:
+/// Writes `text` to a temporary file beside `target`,
+/// then renames it over `target`.
+/// Why:
+/// A reader (a `jq` in CI,
+/// another mpm-shadow) sees the old file or the new one,
+/// never half of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -149,9 +189,16 @@ pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError>
     return Ok(());
 }
 
-/// What:     Publishes `text` as the new lock if the plan and lock still have the revisions `expected`.
-/// Why:      This is the one write path of the lock. It takes the scope lock, re-reads both revisions, refuses when
-///           either moved, and writes atomically; nothing else in the crate writes `toolchain.lock.json`.
+/// What:
+/// Publishes `text` as the new lock if the plan and lock still have the revisions `expected`.
+/// Why:
+/// This is the one write path of the lock.
+/// It takes the scope lock,
+/// re-reads both revisions,
+/// refuses when
+///           either moved,
+/// and writes atomically;
+/// nothing else in the crate writes `toolchain.lock.json`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

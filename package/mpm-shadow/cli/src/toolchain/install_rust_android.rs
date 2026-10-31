@@ -1,7 +1,13 @@
-//! What:     The `rustup-toolchain` route (`rustup toolchain install --no-self-update <channel>`, then components and
-//!           targets) and the `android-sdk` route (command-line tools from a verified zip, then `sdkmanager` packages).
-//! Why:      Rust channels install directly from the lock: mpm honours a rustup version only because the package id is
-//!           the channel, and the prototype showed the direct call produces the same toolchain list.
+//! What:
+//! The `rustup-toolchain` route (`rustup toolchain install --no-self-update <channel>`,
+//! then components and
+//!           targets) and the `android-sdk` route (command-line tools from a verified zip,
+//! then `sdkmanager` packages).
+//! Why:
+//! Rust channels install directly from the lock:
+//! mpm honours a rustup version only because the package id is
+//!           the channel,
+//! and the prototype showed the direct call produces the same toolchain list.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,15 +17,24 @@
 //! export function installAndroidSdk(ctx: Context, tool: LockedTool): void
 //! ```
 
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `safe_file_name` from `super::install_archive`.
 use super::install_archive::safe_file_name;
+/// Imports what this module uses from `super::install_support`.
 use super::install_support::{artifact_for_host, download_verified, extract_archive, run_checked};
+/// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
+/// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
+/// Imports `RunRequest` from `super::runner`.
 use super::runner::RunRequest;
 
 /// `rustup toolchain install --no-self-update <package id, or the locked version>`.
@@ -30,9 +45,13 @@ pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), To
     return Ok(());
 }
 
-/// What:     `rustup component add <name> --toolchain <version>` for each declared component, then `rustup target add
+/// What:
+/// `rustup component add <name> --toolchain <version>` for each declared component,
+/// then `rustup target add
 ///           <triple> --toolchain <version>` for each declared target.
-/// Why:      The toolchain install above brings the default profile; the plan names the extras.
+/// Why:
+/// The toolchain install above brings the default profile;
+/// the plan names the extras.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,9 +69,12 @@ pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), T
     return Ok(());
 }
 
-/// What:     Installs the Android command-line tools from the locked zip into `<install dir>/cmdline-tools/<version>`
+/// What:
+/// Installs the Android command-line tools from the locked zip into `<install dir>/cmdline-tools/<version>`
 ///           and runs `android sdk install <packages>` with `ANDROID_HOME` and `ANDROID_SDK_ROOT` set.
-/// Why:      The zip unpacks a top-level `cmdline-tools` directory; `sdkmanager` insists on finding itself at
+/// Why:
+/// The zip unpacks a top-level `cmdline-tools` directory;
+/// `sdkmanager` insists on finding itself at
 ///           `cmdline-tools/<version>/bin`.
 ///
 /// In TS you'd write (pseudocode):

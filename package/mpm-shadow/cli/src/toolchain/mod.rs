@@ -1,7 +1,21 @@
-//! What:     The toolchain half of `mpm-shadow`: the plan and lock files, and the commands that read, check, install
-//!           and update what they describe (`lock`, `lock --check`, `sync`, `status`, `update`, `bin-paths`).
-//! Why:      mpm-shadow owns the toolchain plan (`toolchain.plan.jsonc`, written by people) and the lock
-//!           (`toolchain.lock.json`, written only here), so the modules live together under one directory.
+//! What:
+//! The toolchain half of `mpm-shadow`:
+//! the plan and lock files,
+//! and the commands that read,
+//! check,
+//! install
+//!           and update what they describe (`lock`,
+//! `lock --check`,
+//! `sync`,
+//! `status`,
+//! `update`,
+//! `bin-paths`).
+//! Why:
+//! mpm-shadow owns the toolchain plan (`toolchain.plan.jsonc`,
+//! written by people) and the lock
+//!           (`toolchain.lock.json`,
+//! written only here),
+//! so the modules live together under one directory.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,19 +28,22 @@
 /// The plan and lock agreement validator and the offline projection.
 pub mod agree;
 
-/// `bin-paths`: the program directories as JSON.
+/// `bin-paths`:
+/// the program directories as JSON.
 pub mod bin_paths;
 
 /// The command-line grammar and dispatch of the toolchain verbs.
 pub mod commands;
 
-/// The bundle of seams every provider, observer and resolver receives.
+/// The bundle of seams every provider,
+/// observer and resolver receives.
 pub mod context;
 
 /// The error type and its exit codes.
 pub mod error;
 
-/// The exposure directory, postinstall links and postinstall commands.
+/// The exposure directory,
+/// postinstall links and postinstall commands.
 pub mod exposure;
 
 /// SHA-256 helpers.
@@ -47,13 +64,15 @@ pub mod install_bin;
 /// The cargo routes.
 pub mod install_cargo;
 
-/// The routes through pnpm, uv and go.
+/// The routes through pnpm,
+/// uv and go.
 pub mod install_managers;
 
 /// The Rust toolchain and Android SDK routes.
 pub mod install_rust_android;
 
-/// Downloads, extraction and links shared by the installers.
+/// Downloads,
+/// extraction and links shared by the installers.
 pub mod install_support;
 
 /// Where tools install and how their binaries are found.
@@ -62,7 +81,11 @@ pub mod layout;
 /// Reading a scope's plan and lock together.
 pub mod load;
 
-/// The lock file: build, render, parse, digest.
+/// The lock file:
+/// build,
+/// render,
+/// parse,
+/// digest.
 pub mod lock;
 
 /// `lock` and `lock --check`.
@@ -71,16 +94,29 @@ pub mod lock_cmd;
 /// The shared data model and its JSON decoding.
 pub mod model;
 
-/// What is installed now, per route, and the status report.
+/// Decoding the plan and lock JSON into the model.
+pub mod model_decode;
+
+/// The checks the decoders share.
+pub mod model_decode_support;
+
+/// Encoding the model back to JSON in the lock's key order.
+pub mod model_encode;
+
+/// What is installed now,
+/// per route,
+/// and the status report.
 pub mod observe;
 
-/// Readers for the text other tools print, and the version comparison.
+/// Readers for the text other tools print,
+/// and the version comparison.
 pub mod parse_output;
 
 /// The plan file reader.
 pub mod plan;
 
-/// Revisions, the scope's OS lock and the atomic publish of the lock.
+/// Revisions,
+/// the scope's OS lock and the atomic publish of the lock.
 pub mod publish;
 
 /// The seam for starting programs.
@@ -101,10 +137,12 @@ pub mod update;
 /// The GitHub release resolver.
 pub mod update_github;
 
-/// The npm, PyPI and crates.io resolvers.
+/// The npm,
+/// PyPI and crates.io resolvers.
 pub mod update_registry;
 
-/// The resolver types, fetch helpers and the route switch.
+/// The resolver types,
+/// fetch helpers and the route switch.
 pub mod update_resolve;
 
 /// The Rust channel and Node.js resolvers.
@@ -138,7 +176,8 @@ mod plan_tests;
 #[cfg(test)]
 mod lock_tests;
 
-/// The unit tests of scopes, layout and the binary search.
+/// The unit tests of scopes,
+/// layout and the binary search.
 #[cfg(test)]
 mod layout_tests;
 
@@ -146,7 +185,8 @@ mod layout_tests;
 #[cfg(test)]
 mod bin_paths_tests;
 
-/// The unit tests of `lock`, `lock --check` and publishing.
+/// The unit tests of `lock`,
+/// `lock --check` and publishing.
 #[cfg(test)]
 mod lock_cmd_tests;
 
@@ -162,7 +202,8 @@ mod observe_tests;
 #[cfg(test)]
 mod install_tests;
 
-/// The unit tests of `sync`, the exposure directory and the postinstall steps.
+/// The unit tests of `sync`,
+/// the exposure directory and the postinstall steps.
 #[cfg(test)]
 mod sync_tests;
 

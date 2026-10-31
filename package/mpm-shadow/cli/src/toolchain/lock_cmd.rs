@@ -1,8 +1,18 @@
-//! What:     The `lock` command (offline: rewrite the lock's declaration fields from the plan, keeping every resolved
-//!           version and artifact) and `lock --check` (the toolchain drift gate: write nothing, fail on any difference).
-//! Why:      People edit the plan; `lock` brings the committed lock up to date without the network, and CI runs
-//!           `lock --check` beside `file-enforcer check` so a plan edit without a lock refresh, or a hand edit of a
-//!           resolved version, fails the build.
+//! What:
+//! The `lock` command (offline:
+//! rewrite the lock's declaration fields from the plan,
+//! keeping every resolved
+//!           version and artifact) and `lock --check` (the toolchain drift gate:
+//! write nothing,
+//! fail on any difference).
+//! Why:
+//! People edit the plan;
+//! `lock` brings the committed lock up to date without the network,
+//! and CI runs
+//!           `lock --check` beside `file-enforcer check` so a plan edit without a lock refresh,
+//! or a hand edit of a
+//!           resolved version,
+//! fails the build.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,17 +21,31 @@
 //! export function runLock(scope: Scope, mode: LockMode): string  // throws ToolchainError
 //! ```
 
+/// Imports what this module uses from `super::agree`.
 use super::agree::{compare, project, refusal};
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::load`.
 use super::load::{Loaded, load};
+/// Imports what this module uses from `super::lock`.
 use super::lock::{Lock, parse_lock, render_lock};
+/// Imports `publish_lock` from `super::publish`.
 use super::publish::publish_lock;
+/// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
-/// What:     What `lock` does with the files: only `Check`, rewrite (`Write`), or rewrite a lock that has no digest yet
+/// What:
+/// What `lock` does with the files:
+/// only `Check`,
+/// rewrite (`Write`),
+/// or rewrite a lock that has no digest yet
 ///           (`Adopt`).
-/// Why:      `Adopt` is the one-time conversion of a lock the TypeScript tool wrote: its versions and artifacts are
-///           taken as they are and the digest is added. It is a separate, explicit mode because accepting a
+/// Why:
+/// `Adopt` is the one-time conversion of a lock the TypeScript tool wrote:
+/// its versions and artifacts are
+///           taken as they are and the digest is added.
+/// It is a separate,
+/// explicit mode because accepting a
 ///           digest-less lock silently would let a hand edit launder itself by deleting the digest.
 ///
 /// In TS you'd write (pseudocode):
@@ -30,16 +54,24 @@ use super::scope::Scope;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LockMode {
-    /// `lock --check`: write nothing, fail on any difference.
+    /// `lock --check`:
+    /// write nothing,
+    /// fail on any difference.
     Check,
-    /// `lock`: project the plan onto the lock and write it.
+    /// `lock`:
+    /// project the plan onto the lock and write it.
     Write,
-    /// `lock --adopt`: like `Write`, for a lock without a digest.
+    /// `lock --adopt`:
+    /// like `Write`,
+    /// for a lock without a digest.
     Adopt,
 }
 
-/// What:     Runs `lock` in one of its modes in one scope and returns the line to print on success.
-/// Why:      All modes load the same files and use the same validator; only the last step differs (write or not).
+/// What:
+/// Runs `lock` in one of its modes in one scope and returns the line to print on success.
+/// Why:
+/// All modes load the same files and use the same validator;
+/// only the last step differs (write or not).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

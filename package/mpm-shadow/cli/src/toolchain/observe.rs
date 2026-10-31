@@ -1,6 +1,13 @@
-//! What:     What is installed right now, per route: one observer for each way a tool gets installed, each returning
-//!           the installed version or `None`, and `status`'s report built from them.
-//! Why:      `status` compares the observation with the lock; `sync` uses the same observation to skip tools that
+//! What:
+//! What is installed right now,
+//! per route:
+//! one observer for each way a tool gets installed,
+//! each returning
+//!           the installed version or `None`,
+//! and `status`'s report built from them.
+//! Why:
+//! `status` compares the observation with the lock;
+//! `sync` uses the same observation to skip tools that
 //!           already match and `update` uses it to find npm and PyPI tools that are not installed.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,25 +17,37 @@
 //! export function observeAll(ctx: Context, tools: LockedTool[]): Observation[]
 //! ```
 
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports what this module uses from `super::layout`.
 use super::layout::{applies_to_family, tool_install_dir};
+/// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Route};
+/// Imports what this module uses from `super::parse_output`.
 use super::parse_output::{
     global_pnpm_versions, parse_bin_list, parse_cargo_binstall_list, parse_uv_tool_list, version_matches,
 };
+/// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
 
-/// The first word of a line (up to the first whitespace), or the empty text.
+/// The first word of a line (up to the first whitespace),
+/// or the empty text.
 fn first_word(line: &str) -> &str {
     return line.split_whitespace().next().unwrap_or("");
 }
 
-/// What:     The package key under `uv tool list`: the package id (or tool id) with `-` turned into `_`.
-/// Why:      `parse_uv_tool_list` keys its map the same way.
+/// What:
+/// The package key under `uv tool list`:
+/// the package id (or tool id) with `-` turned into `_`.
+/// Why:
+/// `parse_uv_tool_list` keys its map the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,12 +57,15 @@ fn uv_key(tool: &LockedTool) -> String {
     return tool.declaration.package_id.clone().unwrap_or_else(|| return tool.declaration.id.clone()).replace('-', "_");
 }
 
-/// The package or crate name a manager route installs: the package id, or the tool id when none is declared.
+/// The package or crate name a manager route installs:
+/// the package id,
+/// or the tool id when none is declared.
 pub fn package_name(tool: &LockedTool) -> String {
     return tool.declaration.package_id.clone().unwrap_or_else(|| return tool.declaration.id.clone());
 }
 
-/// `bin list`, for the bin-sourced route.
+/// `bin list`,
+/// for the bin-sourced route.
 fn observe_bin_sourced(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let cli: PathBuf = ctx.find_bin_of("bin", "bin", &[])?;
     let mut env = ctx.path_env();
@@ -58,13 +80,15 @@ fn observe_bin_sourced(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return None;
 }
 
-/// `cargo binstall --list`, for the cargo-binstall route.
+/// `cargo binstall --list`,
+/// for the cargo-binstall route.
 fn observe_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let outcome: RunOutcome = ctx.run(&ctx.request("cargo", &["binstall", "--list"]));
     return parse_cargo_binstall_list(&outcome.stdout).get(&package_name(tool)).cloned();
 }
 
-/// `pnpm list --global --depth=0 --json`, for the mpm-pnpm route.
+/// `pnpm list --global --depth=0 --json`,
+/// for the mpm-pnpm route.
 fn observe_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let pnpm: PathBuf = ctx.find_bin_of("pnpm", "pnpm", &[])?;
     let outcome: RunOutcome = ctx.run(&ctx.request(&pnpm.to_string_lossy(), &["list", "--global", "--depth=0", "--json"]));
@@ -76,14 +100,17 @@ fn observe_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return global_pnpm_versions(&parsed).get(&package_name(tool)).cloned();
 }
 
-/// `uv tool list`, for the mpm-uvx route.
+/// `uv tool list`,
+/// for the mpm-uvx route.
 fn observe_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let uv: PathBuf = ctx.find_bin_of("uv", "uv", &[])?;
     let outcome: RunOutcome = ctx.run(&ctx.request(&uv.to_string_lossy(), &["tool", "list"]));
     return parse_uv_tool_list(&outcome.stdout).get(&uv_key(tool)).cloned();
 }
 
-/// `rustup toolchain list`, for the rustup-toolchain route: the listed toolchain whose name starts with the version.
+/// `rustup toolchain list`,
+/// for the rustup-toolchain route:
+/// the listed toolchain whose name starts with the version.
 fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let outcome: RunOutcome = ctx.run(&ctx.request("rustup", &["toolchain", "list"]));
     for line in outcome.stdout.lines() {
@@ -95,7 +122,8 @@ fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> 
     return None;
 }
 
-/// The Android command-line tools directory for the locked version, for the android-sdk route.
+/// The Android command-line tools directory for the locked version,
+/// for the android-sdk route.
 fn observe_android_sdk(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let install: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
     if install.join("cmdline-tools").join(&tool.version).exists() {
@@ -104,8 +132,13 @@ fn observe_android_sdk(ctx: &Context, tool: &LockedTool) -> Option<String> {
     return None;
 }
 
-/// The tool's own install directory, for routes that leave no record elsewhere (archive, cargo-git, go-install):
-/// the locked version when its directory exists, otherwise the first other version directory, otherwise `None`.
+/// The tool's own install directory,
+/// for routes that leave no record elsewhere (archive,
+/// cargo-git,
+/// go-install):
+/// the locked version when its directory exists,
+/// otherwise the first other version directory,
+/// otherwise `None`.
 fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let tool_root: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, "");
     let entries = fs::read_dir(&tool_root).ok()?;
@@ -123,8 +156,13 @@ fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String>
     return names.into_iter().next();
 }
 
-/// What:     The installed version of one tool, by its route, or `None` when it is not installed.
-/// Why:      Each route leaves its record somewhere different; this is the one switch over them.
+/// What:
+/// The installed version of one tool,
+/// by its route,
+/// or `None` when it is not installed.
+/// Why:
+/// Each route leaves its record somewhere different;
+/// this is the one switch over them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -144,21 +182,28 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
     }
 }
 
-/// One line of the status report: the tool, the locked version, the installed version (if any) and whether they match.
+/// One line of the status report:
+/// the tool,
+/// the locked version,
+/// the installed version (if any) and whether they match.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Observation {
     /// Tool id.
     pub id: String,
     /// The version the lock pins.
     pub locked: String,
-    /// The installed version, or `None` when the tool is not installed.
+    /// The installed version,
+    /// or `None` when the tool is not installed.
     pub observed: Option<String>,
     /// Whether the installed version matches the locked one.
     pub in_sync: bool,
 }
 
-/// What:     Observes every tool that applies to this host, in lock order.
-/// Why:      A tool limited to another OS family would otherwise report permanent drift.
+/// What:
+/// Observes every tool that applies to this host,
+/// in lock order.
+/// Why:
+/// A tool limited to another OS family would otherwise report permanent drift.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,8 +222,12 @@ pub fn observe_all(ctx: &Context, tools: &[LockedTool]) -> Vec<Observation> {
     return observations;
 }
 
-/// What:     The text `status` prints: one line per tool (`ok` or `drift`) and a summary line.
-/// Why:      Same wording as the TypeScript command, so scripts reading it keep working.
+/// What:
+/// The text `status` prints:
+/// one line per tool (`ok` or `drift`) and a summary line.
+/// Why:
+/// Same wording as the TypeScript command,
+/// so scripts reading it keep working.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

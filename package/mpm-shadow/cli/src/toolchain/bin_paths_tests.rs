@@ -1,4 +1,6 @@
-//! Unit tests of `bin-paths`: the output shape the IDE launcher pins, built from a disposable scope.
+//! Unit tests of `bin-paths`:
+//! the output shape the IDE launcher pins,
+//! built from a disposable scope.
 
 use serde_json::Value;
 use std::fs;

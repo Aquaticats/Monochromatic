@@ -1,6 +1,13 @@
-//! What:     Readers for the text other tools print about what they have installed (`bin list`, `cargo binstall
-//!           --list`, `uv tool list`, `pnpm list --global --json`), and the version comparison `status` and `sync` use.
-//! Why:      Everything here is a pure function of text, so it is tested with captured and hostile output and no tool
+//! What:
+//! Readers for the text other tools print about what they have installed (`bin list`,
+//! `cargo binstall
+//!           --list`,
+//! `uv tool list`,
+//! `pnpm list --global --json`),
+//! and the version comparison `status` and `sync` use.
+//! Why:
+//! Everything here is a pure function of text,
+//! so it is tested with captured and hostile output and no tool
 //!           is started.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,7 +20,9 @@
 //! export function versionMatches(observed: string, locked: string): boolean
 //! ```
 
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
 
 /// The characters a release tag's name prefix may hold before its `-v<digit>` (`bun-v1.3.14`).
@@ -21,9 +30,15 @@ fn is_tag_prefix_character(character: char) -> bool {
     return character.is_ascii_alphanumeric() || character == '.' || character == '_' || character == '-';
 }
 
-/// What:     A version without the name prefix or `v` a release tag carries: `bun-v1.3.14` and `v1.3.14` both give
-///           `1.3.14`; `nightly-2026-10-21` stays as it is.
-/// Why:      The `bin` registry records release tags, the lock records bare versions; they must compare equal.
+/// What:
+/// A version without the name prefix or `v` a release tag carries:
+/// `bun-v1.3.14` and `v1.3.14` both give
+///           `1.3.14`;
+/// `nightly-2026-10-21` stays as it is.
+/// Why:
+/// The `bin` registry records release tags,
+/// the lock records bare versions;
+/// they must compare equal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,9 +68,13 @@ pub fn normalize_version(version: &str) -> String {
     return version.to_string();
 }
 
-/// What:     Whether an observed version is the locked one: equal after `normalize_version`, or one is the other
+/// What:
+/// Whether an observed version is the locked one:
+/// equal after `normalize_version`,
+/// or one is the other
 ///           followed by `-` and a suffix (`nightly-2026-10-21-x86_64-unknown-linux-gnu` matches `nightly-2026-10-21`).
-/// Why:      Toolchains report platform suffixes the lock does not carry.
+/// Why:
+/// Toolchains report platform suffixes the lock does not carry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,7 +88,8 @@ pub fn version_matches(observed: &str, locked: &str) -> bool {
         || normalized_locked.starts_with(&format!("{normalized_observed}-"));
 }
 
-/// The version text without a leading `v` (`v1.2.3` gives `1.2.3`; a bare `v` stays).
+/// The version text without a leading `v` (`v1.2.3` gives `1.2.3`;
+/// a bare `v` stays).
 fn without_version_prefix(word: &str) -> String {
     if word.len() > 1 && word.starts_with('v') {
         return word[1..].to_string();
@@ -77,12 +97,15 @@ fn without_version_prefix(word: &str) -> String {
     return word.to_string();
 }
 
-/// Splits text into rows at `\n`, `\r`, U+2028 and U+2029.
+/// Splits text into rows at `\n`,
+/// `\r`,
+/// U+2028 and U+2029.
 fn split_rows(text: &str) -> Vec<&str> {
     return text.split(['\n', '\r', '\u{2028}', '\u{2029}']).collect();
 }
 
-/// The columns of a row: the pieces separated by two or more whitespace characters.
+/// The columns of a row:
+/// the pieces separated by two or more whitespace characters.
 fn split_columns(row: &str) -> Vec<String> {
     let mut columns: Vec<String> = Vec::new();
     let mut current: String = String::new();
@@ -106,14 +129,20 @@ fn split_columns(row: &str) -> Vec<String> {
     return columns;
 }
 
-/// The final path segment, accepting `/` and `\` as separators.
+/// The final path segment,
+/// accepting `/` and `\` as separators.
 fn base_name(path: &str) -> String {
     return path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
 }
 
-/// What:     Parses `bin list`: rows of `path  version  url  status` separated by two or more spaces, giving the
+/// What:
+/// Parses `bin list`:
+/// rows of `path  version  url  status` separated by two or more spaces,
+/// giving the
 ///           binary's file name to its version (`*` marker and `v` prefix removed).
-/// Why:      `sync` and `status` ask `bin` what it installed; a row starting with whitespace or with fewer than three
+/// Why:
+/// `sync` and `status` ask `bin` what it installed;
+/// a row starting with whitespace or with fewer than three
 ///           columns is not a tool row.
 ///
 /// In TS you'd write (pseudocode):
@@ -140,9 +169,12 @@ pub fn parse_bin_list(output: &str) -> BTreeMap<String, String> {
     return versions;
 }
 
-/// What:     Parses `cargo binstall --list`: rows of `crate  cargo-version  binstall-version  source` giving the crate
+/// What:
+/// Parses `cargo binstall --list`:
+/// rows of `crate  cargo-version  binstall-version  source` giving the crate
 ///           to its installed version (the binstall column unless it prints `-`).
-/// Why:      The `Package` header and `Total:` footer are not crates.
+/// Why:
+/// The `Package` header and `Total:` footer are not crates.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -164,9 +196,14 @@ pub fn parse_cargo_binstall_list(output: &str) -> BTreeMap<String, String> {
     return versions;
 }
 
-/// What:     Parses `uv tool list`: `name vX.Y.Z` rows (indented `- bin` rows are skipped), keyed by the name with `-`
+/// What:
+/// Parses `uv tool list`:
+/// `name vX.Y.Z` rows (indented `- bin` rows are skipped),
+/// keyed by the name with `-`
 ///           turned into `_` so a package id matches however uv spells it.
-/// Why:      uv normalizes package names; the lookup normalizes the same way.
+/// Why:
+/// uv normalizes package names;
+/// the lookup normalizes the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,9 +226,12 @@ pub fn parse_uv_tool_list(output: &str) -> BTreeMap<String, String> {
     return versions;
 }
 
-/// What:     Reads the output of `pnpm list --global --depth=0 --json` (an object or a list of objects with a
+/// What:
+/// Reads the output of `pnpm list --global --depth=0 --json` (an object or a list of objects with a
 ///           `dependencies` object) into package name to installed version.
-/// Why:      The shape differs between pnpm releases; both are accepted and anything else is simply empty.
+/// Why:
+/// The shape differs between pnpm releases;
+/// both are accepted and anything else is simply empty.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

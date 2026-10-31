@@ -1,7 +1,14 @@
-//! What:     The small file and process helpers every installer shares: a download checked against the lock's SHA-256,
-//!           archive extraction, restoring execute bits, an atomic symlink, and the failure message for a program that
+//! What:
+//! The small file and process helpers every installer shares:
+//! a download checked against the lock's SHA-256,
+//!           archive extraction,
+//! restoring execute bits,
+//! an atomic symlink,
+//! and the failure message for a program that
 //!           exited non-zero.
-//! Why:      Each helper has one behaviour the installers rely on, and one place to test it.
+//! Why:
+//! Each helper has one behaviour the installers rely on,
+//! and one place to test it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,13 +19,20 @@
 //! export function atomicSymlink(linkPath: string, target: string): void
 //! ```
 
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `DEFAULT_MAX_DOWNLOAD_BYTES` from `super::http`.
 use super::http::DEFAULT_MAX_DOWNLOAD_BYTES;
+/// Imports what this module uses from `super::model`.
 use super::model::{Artifact, LockedTool};
+/// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
 
 /// How many levels below the install directory `restore_exec_bits` looks for the launchers.
@@ -27,8 +41,12 @@ const EXEC_SCAN_MAX_DEPTH: usize = 3;
 /// The archive file-name endings `tar` or `unzip` can unpack.
 pub const ARCHIVE_SUFFIXES: [&str; 6] = [".tar.gz", ".tgz", ".tar.xz", ".tar.bz2", ".tar", ".zip"];
 
-/// What:     The artifact row of the host's platform for a tool, or an error naming the tool and the platform.
-/// Why:      A lock without a row for this platform cannot install the tool here; the message says so rather than
+/// What:
+/// The artifact row of the host's platform for a tool,
+/// or an error naming the tool and the platform.
+/// Why:
+/// A lock without a row for this platform cannot install the tool here;
+/// the message says so rather than
 ///           failing later on an empty URL.
 ///
 /// In TS you'd write (pseudocode):
@@ -48,8 +66,14 @@ pub fn artifact_for_host<'a>(tool: &'a LockedTool, platform: &str) -> Result<&'a
     )));
 }
 
-/// What:     The error text for a program that failed: what was being done, for which tool, and what the program said.
-/// Why:      Every installer reports failures the same way, so a person reading the sync report always sees the tool and
+/// What:
+/// The error text for a program that failed:
+/// what was being done,
+/// for which tool,
+/// and what the program said.
+/// Why:
+/// Every installer reports failures the same way,
+/// so a person reading the sync report always sees the tool and
 ///           the tool's own message.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,9 +93,16 @@ pub fn run_checked(ctx: &Context, request: &RunRequest, what: &str, tool_id: &st
     return Ok(outcome);
 }
 
-/// What:     Downloads `url` to `target`, refusing the file unless its SHA-256 equals `sha256` (the value in the lock).
-/// Why:      This is the verification step of the bootstrap and of every archive install: the bytes are written beside
-///           the target, hashed while they stream in, compared with the lock, and renamed into place only on a match,
+/// What:
+/// Downloads `url` to `target`,
+/// refusing the file unless its SHA-256 equals `sha256` (the value in the lock).
+/// Why:
+/// This is the verification step of the bootstrap and of every archive install:
+/// the bytes are written beside
+///           the target,
+/// hashed while they stream in,
+/// compared with the lock,
+/// and renamed into place only on a match,
 ///           so an unverified file never sits at the target path.
 ///
 /// In TS you'd write (pseudocode):
@@ -103,9 +134,14 @@ pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) 
     return Ok(target.to_path_buf());
 }
 
-/// What:     Unpacks an archive into `into` with the system's `unzip` (for `.zip`) or `tar` (everything else; `tar`
-///           detects gzip, xz and bzip2 itself).
-/// Why:      No zip or xz decoder crate is approved, and these tools exist on every machine the toolchain targets.
+/// What:
+/// Unpacks an archive into `into` with the system's `unzip` (for `.zip`) or `tar` (everything else;
+/// `tar`
+///           detects gzip,
+/// xz and bzip2 itself).
+/// Why:
+/// No zip or xz decoder crate is approved,
+/// and these tools exist on every machine the toolchain targets.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,10 +166,12 @@ pub fn extract_archive(ctx: &Context, archive: &Path, into: &Path) -> Result<(),
     return Ok(());
 }
 
-/// Marks a file executable (mode 0755 on Unix; nothing to do elsewhere).
+/// Marks a file executable (mode 0755 on Unix;
+/// nothing to do elsewhere).
 pub fn make_executable(path: &Path) -> Result<(), ToolchainError> {
     #[cfg(unix)]
     {
+        /// Imports `PermissionsExt` from `std::os::unix::fs`.
         use std::os::unix::fs::PermissionsExt;
         if let Err(error) = fs::set_permissions(path, fs::Permissions::from_mode(0o755)) {
             return Err(ToolchainError::failure(format!("cannot mark {} executable: {error}", path.display())));
@@ -146,9 +184,11 @@ pub fn make_executable(path: &Path) -> Result<(), ToolchainError> {
     return Ok(());
 }
 
-/// What:     Marks the files named in `names` executable anywhere within `EXEC_SCAN_MAX_DEPTH` levels below `root`;
+/// What:
+/// Marks the files named in `names` executable anywhere within `EXEC_SCAN_MAX_DEPTH` levels below `root`;
 ///           returns the names it fixed.
-/// Why:      Some archives (zip files above all) unpack launchers without their execute bit.
+/// Why:
+/// Some archives (zip files above all) unpack launchers without their execute bit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,9 +221,13 @@ pub fn restore_exec_bits(root: &Path, names: &[String]) -> Vec<String> {
     return fixed;
 }
 
-/// What:     Creates (or replaces) the symlink `link_path` pointing at `target`: the link is made under a temporary
-///           name in the same directory and renamed over the final name, so readers see the old link or the new one.
-/// Why:      The exposure directory is on `PATH` while a sync rewrites it.
+/// What:
+/// Creates (or replaces) the symlink `link_path` pointing at `target`:
+/// the link is made under a temporary
+///           name in the same directory and renamed over the final name,
+/// so readers see the old link or the new one.
+/// Why:
+/// The exposure directory is on `PATH` while a sync rewrites it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

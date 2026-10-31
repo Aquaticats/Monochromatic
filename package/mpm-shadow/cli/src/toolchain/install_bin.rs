@@ -1,7 +1,16 @@
-//! What:     The `bin-sourced` route: install a tool from a GitHub release with the `bin` CLI, after seeding `bin`'s
+//! What:
+//! The `bin-sourced` route:
+//! install a tool from a GitHub release with the `bin` CLI,
+//! after seeding `bin`'s
 //!           configuration so it downloads into the toolchain's own bin directory.
-//! Why:      Most single-binary tools (ripgrep, dprint, caddy, zizmor) come this way; the release tag is derived from
-//!           the locked artifact URL, so the lock stays the only record of what is installed.
+//! Why:
+//! Most single-binary tools (ripgrep,
+//! dprint,
+//! caddy,
+//! zizmor) come this way;
+//! the release tag is derived from
+//!           the locked artifact URL,
+//! so the lock stays the only record of what is installed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,22 +20,33 @@
 //! export function installBinSourced(ctx: Context, tool: LockedTool): void
 //! ```
 
+/// Imports what this module uses from `serde_json`.
 use serde_json::{Map, Value};
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::install_support`.
 use super::install_support::{artifact_for_host, failed_step};
+/// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
+/// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
 
 /// The prefix of every artifact URL this route accepts.
 const GITHUB_PREFIX: &str = "https://github.com/";
 
-/// What:     The release page URL (`https://github.com/<owner>/<repo>/releases/tag/<tag>`) for a locked asset URL of
+/// What:
+/// The release page URL (`https://github.com/<owner>/<repo>/releases/tag/<tag>`) for a locked asset URL of
 ///           the form `https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>`.
-/// Why:      `bin install` takes the release page, not the asset.
+/// Why:
+/// `bin install` takes the release page,
+/// not the asset.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -53,8 +73,11 @@ pub fn release_tag_url(artifact_url: &str) -> Result<String, ToolchainError> {
     return Ok(format!("{GITHUB_PREFIX}{owner}/{repo}/releases/tag/{}", percent_decode(tag)));
 }
 
-/// What:     Decodes `%XX` escapes (`%2B` to `+`); a malformed escape is kept as written.
-/// Why:      A tag such as `jdk-21.0.13+9` appears escaped in download URLs and plain on its release page.
+/// What:
+/// Decodes `%XX` escapes (`%2B` to `+`);
+/// a malformed escape is kept as written.
+/// Why:
+/// A tag such as `jdk-21.0.13+9` appears escaped in download URLs and plain on its release page.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,7 +102,8 @@ pub fn percent_decode(text: &str) -> String {
     return String::from_utf8_lossy(&decoded).to_string();
 }
 
-/// The value of one hex digit, or `None`.
+/// The value of one hex digit,
+/// or `None`.
 fn hex_value(byte: u8) -> Option<u8> {
     return match byte {
         b'0'..=b'9' => Some(byte - b'0'),
@@ -89,9 +113,13 @@ fn hex_value(byte: u8) -> Option<u8> {
     };
 }
 
-/// What:     Writes `bin`'s configuration file so downloads land in `download_dir`, keeping every other setting the
+/// What:
+/// Writes `bin`'s configuration file so downloads land in `download_dir`,
+/// keeping every other setting the
 ///           file already holds (a malformed file is replaced).
-/// Why:      `bin` reads `BIN_CONFIG`; pointing its `default_path` at the toolchain's bin directory keeps its downloads
+/// Why:
+/// `bin` reads `BIN_CONFIG`;
+/// pointing its `default_path` at the toolchain's bin directory keeps its downloads
 ///           out of the user's own `bin` setup.
 ///
 /// In TS you'd write (pseudocode):
@@ -127,7 +155,10 @@ pub fn seed_bin_config(download_dir: &Path, config_path: &Path) -> Result<(), To
     return Ok(());
 }
 
-/// The `--name` patterns tried in order for one binary: nested in the asset, directly in it, then the asset with the
+/// The `--name` patterns tried in order for one binary:
+/// nested in the asset,
+/// directly in it,
+/// then the asset with the
 /// binary as the path.
 fn name_attempts(asset: &str, name: &str) -> Vec<Vec<String>> {
     return vec![
@@ -137,9 +168,16 @@ fn name_attempts(asset: &str, name: &str) -> Vec<Vec<String>> {
     ];
 }
 
-/// What:     Installs one bin-sourced tool: for each declared bin that is not an alias, `bin install --force <release
-///           page> --name <pattern>`, trying the three patterns in order.
-/// Why:      Aliases (`bunx` for `bun`) are links, not downloads, so only primaries are installed.
+/// What:
+/// Installs one bin-sourced tool:
+/// for each declared bin that is not an alias,
+/// `bin install --force <release
+///           page> --name <pattern>`,
+/// trying the three patterns in order.
+/// Why:
+/// Aliases (`bunx` for `bun`) are links,
+/// not downloads,
+/// so only primaries are installed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

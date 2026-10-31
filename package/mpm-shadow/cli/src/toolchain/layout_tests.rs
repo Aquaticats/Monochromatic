@@ -1,4 +1,6 @@
-//! Unit tests of the scopes, the install layout and the binary search, all against injected environments and
+//! Unit tests of the scopes,
+//! the install layout and the binary search,
+//! all against injected environments and
 //! disposable directories.
 
 use std::fs;

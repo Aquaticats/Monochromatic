@@ -1,6 +1,15 @@
-//! What:     The `archive` route: download the artifact of the host's platform, verify its SHA-256 against the lock,
+//! What:
+//! The `archive` route:
+//! download the artifact of the host's platform,
+//! verify its SHA-256 against the lock,
 //!           and unpack it (or copy the single file) into the tool's install directory.
-//! Why:      Node, uv, cmake, zig, the JDK and `bin` itself come this way; the hash check is what makes the bootstrap
+//! Why:
+//! Node,
+//! uv,
+//! cmake,
+//! zig,
+//! the JDK and `bin` itself come this way;
+//! the hash check is what makes the bootstrap
 //!           of a prebuilt `mpm-shadow` archive safe to run.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,22 +18,41 @@
 //! export function installArchive(ctx: Context, tool: LockedTool): void
 //! ```
 
+/// Imports `GzDecoder` from `flate2::read`.
 use flate2::read::GzDecoder;
+/// Imports what this module uses from `std::fs`.
 use std::fs::{self, File};
+/// Imports `io` from `std`.
 use std::io;
+/// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::install_support`.
 use super::install_support::{
     ARCHIVE_SUFFIXES, artifact_for_host, download_verified, extract_archive, make_executable, restore_exec_bits,
 };
+/// Imports what this module uses from `super::layout`.
 use super::layout::{install_dir_name, tool_install_dir};
+/// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 
-/// What:     The last path segment of a URL (query and fragment removed) made safe as a file name: characters outside
-///           letters, digits, `.`, `_`, `-` are replaced, and an empty segment, `.` or `..` becomes `download`.
-/// Why:      The name is joined onto a local directory, so a hostile URL must not be able to name a parent directory.
+/// What:
+/// The last path segment of a URL (query and fragment removed) made safe as a file name:
+/// characters outside
+///           letters,
+/// digits,
+/// `.`,
+/// `_`,
+/// `-` are replaced,
+/// and an empty segment,
+/// `.` or `..` becomes `download`.
+/// Why:
+/// The name is joined onto a local directory,
+/// so a hostile URL must not be able to name a parent directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -57,8 +85,11 @@ fn gunzip_to(source: &Path, target: &Path) -> Result<(), ToolchainError> {
     return Ok(());
 }
 
-/// What:     Installs one archive-route tool.
-/// Why:      A URL ending in an archive suffix is unpacked and its launchers get their execute bits back; any other
+/// What:
+/// Installs one archive-route tool.
+/// Why:
+/// A URL ending in an archive suffix is unpacked and its launchers get their execute bits back;
+/// any other
 ///           URL is a single binary (gunzipped when it ends in `.gz`) saved under the tool's first bin name.
 ///
 /// In TS you'd write (pseudocode):

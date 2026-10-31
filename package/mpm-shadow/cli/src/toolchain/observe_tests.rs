@@ -1,5 +1,8 @@
-//! Unit tests of the per-route observers and the status report, against a recording fake runner and a disposable
-//! scope. Every test also asserts what was started, which proves nothing reached the real host.
+//! Unit tests of the per-route observers and the status report,
+//! against a recording fake runner and a disposable
+//! scope.
+//! Every test also asserts what was started,
+//! which proves nothing reached the real host.
 
 use std::fs;
 

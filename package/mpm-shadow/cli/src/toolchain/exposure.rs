@@ -1,7 +1,15 @@
-//! What:     The exposure directory (a farm of symlinks, one per declared binary, that the scope puts first on
-//!           `PATH`), the postinstall links (`mpm-shadow` linked as `mpm`), and the postinstall commands.
-//! Why:      Installers put binaries wherever their package manager decides; the farm gives every declared name one
-//!           stable place, and `bin-paths` reports it to the IDE.
+//! What:
+//! The exposure directory (a farm of symlinks,
+//! one per declared binary,
+//! that the scope puts first on
+//!           `PATH`),
+//! the postinstall links (`mpm-shadow` linked as `mpm`),
+//! and the postinstall commands.
+//! Why:
+//! Installers put binaries wherever their package manager decides;
+//! the farm gives every declared name one
+//!           stable place,
+//! and `bin-paths` reports it to the IDE.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,19 +20,30 @@
 //! export function unresolvableBins(scope: Scope, tools: LockedTool[]): string[]
 //! ```
 
+/// Imports `BTreeMap` from `std::collections`.
 use std::collections::BTreeMap;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
+/// Imports `find_tool_bin` from `super::layout`.
 use super::layout::find_tool_bin;
+/// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Postinstall};
+/// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
+/// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
-/// The result of rebuilding the farm: the names now linked and the names whose program was not found.
+/// The result of rebuilding the farm:
+/// the names now linked and the names whose program was not found.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExposureReport {
     /// Names linked in the exposure directory.
@@ -33,15 +52,23 @@ pub struct ExposureReport {
     pub missing: Vec<String>,
 }
 
-/// The directories searched in addition to a route's own: the scope's bin directory.
+/// The directories searched in addition to a route's own:
+/// the scope's bin directory.
 fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
     return vec![ctx.scope.toolchain_bin_dir.clone()];
 }
 
-/// What:     Links every declared bin of `tools` in the exposure directory: the program is searched under its route's
-///           directories, aliases link their primary's program.
-/// Why:      Called after the installers ran, so freshly installed programs are found; a name with no program stays
-///           missing and is reported, never linked to nothing.
+/// What:
+/// Links every declared bin of `tools` in the exposure directory:
+/// the program is searched under its route's
+///           directories,
+/// aliases link their primary's program.
+/// Why:
+/// Called after the installers ran,
+/// so freshly installed programs are found;
+/// a name with no program stays
+///           missing and is reported,
+/// never linked to nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -72,7 +99,10 @@ pub fn rebuild_exposure(ctx: &Context, tools: &[&LockedTool]) -> Result<Exposure
     return Ok(report);
 }
 
-/// The directory a postinstall link goes in: the link's own `linkDir` (absolute, or relative to the scope root), or the
+/// The directory a postinstall link goes in:
+/// the link's own `linkDir` (absolute,
+/// or relative to the scope root),
+/// or the
 /// scope's link directory.
 fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
     return match link_dir {
@@ -84,8 +114,11 @@ fn link_directory(scope: &Scope, link_dir: &Option<String>) -> PathBuf {
     };
 }
 
-/// What:     Makes each postinstall link of `tools`: `<link dir>/<link name>` pointing at the tool's `sourceBin`.
-/// Why:      This is how `mpm-shadow` becomes `mpm` in a directory that comes first on `PATH`.
+/// What:
+/// Makes each postinstall link of `tools`:
+/// `<link dir>/<link name>` pointing at the tool's `sourceBin`.
+/// Why:
+/// This is how `mpm-shadow` becomes `mpm` in a directory that comes first on `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,18 +140,24 @@ pub fn run_postinstall_links(ctx: &Context, tools: &[&LockedTool]) -> Result<Vec
     return Ok(created);
 }
 
-/// The postinstall commands' outcome: tool ids that succeeded, and tool id with the failure text for those that did not.
+/// The postinstall commands' outcome:
+/// tool ids that succeeded,
+/// and tool id with the failure text for those that did not.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct CommandReport {
     /// Tools whose command exited 0.
     pub succeeded: Vec<String>,
-    /// Tools whose command failed, with what it printed.
+    /// Tools whose command failed,
+    /// with what it printed.
     pub failed: Vec<(String, String)>,
 }
 
-/// What:     Runs each postinstall command of `tools` from the scope root, with the exposure and toolchain bin
+/// What:
+/// Runs each postinstall command of `tools` from the scope root,
+/// with the exposure and toolchain bin
 ///           directories first on `PATH`.
-/// Why:      A command such as `search-shadow link` decides its own links from the tools it finds on `PATH`.
+/// Why:
+/// A command such as `search-shadow link` decides its own links from the tools it finds on `PATH`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

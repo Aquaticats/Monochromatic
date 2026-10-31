@@ -1,8 +1,16 @@
-//! What:     The GitHub release lookup for `bin-sourced` and GitHub-hosted `archive` tools: find the newest release of
-//!           the repository the lock's artifact URLs name, derive the version from its tag, and map each platform's
+//! What:
+//! The GitHub release lookup for `bin-sourced` and GitHub-hosted `archive` tools:
+//! find the newest release of
+//!           the repository the lock's artifact URLs name,
+//! derive the version from its tag,
+//! and map each platform's
 //!           asset by replacing the old version in the old file name.
-//! Why:      These tools carry no registry of their own; the lock already names their repository, tag shape and file
-//!           names, so the update follows that shape and takes each file's SHA-256 from the release asset's `digest`
+//! Why:
+//! These tools carry no registry of their own;
+//! the lock already names their repository,
+//! tag shape and file
+//!           names,
+//! so the update follows that shape and takes each file's SHA-256 from the release asset's `digest`
 //!           (hashing the download only when GitHub gives none).
 //!
 //! In TS you'd write (pseudocode):
@@ -13,17 +21,26 @@
 //! export function globMatches(pattern: string, name: string): boolean
 //! ```
 
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `DEFAULT_MAX_DOWNLOAD_BYTES` from `super::http`.
 use super::http::DEFAULT_MAX_DOWNLOAD_BYTES;
+/// Imports `percent_decode` from `super::install_bin`.
 use super::install_bin::percent_decode;
+/// Imports what this module uses from `super::model`.
 use super::model::{Artifact, Declaration, LockedTool};
+/// Imports what this module uses from `super::update_resolve`.
 use super::update_resolve::{Resolution, ResolveError, get_json, not_implemented, text_at};
 
-/// The repository (`owner/repo`) and the tag of a release-download URL, or `None` for any other URL.
+/// The repository (`owner/repo`) and the tag of a release-download URL,
+/// or `None` for any other URL.
 pub fn parse_release_download(url: &str) -> Option<(String, String)> {
     let rest: &str = url.strip_prefix("https://github.com/")?;
     let segments: Vec<&str> = rest.split('/').collect();
@@ -33,9 +50,16 @@ pub fn parse_release_download(url: &str) -> Option<(String, String)> {
     return Some((format!("{}/{}", segments[0], segments[1]), percent_decode(segments[4])));
 }
 
-/// What:     The version a new tag stands for, given how the old tag related to the old version: the old tag's prefix
-///           (`v`, `bun-v`, nothing) is removed from the new tag.
-/// Why:      Tags are `v1.2.3` for one repository and `bun-v1.2.3` for another; the old pair shows the shape.
+/// What:
+/// The version a new tag stands for,
+/// given how the old tag related to the old version:
+/// the old tag's prefix
+///           (`v`,
+/// `bun-v`,
+/// nothing) is removed from the new tag.
+/// Why:
+/// Tags are `v1.2.3` for one repository and `bun-v1.2.3` for another;
+/// the old pair shows the shape.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,9 +78,12 @@ pub fn version_from_tag(old_tag: &str, old_version: &str, new_tag: &str) -> Resu
     };
 }
 
-/// What:     Whether `name` matches `pattern`, where `*` matches any run of characters (including none) and every other
+/// What:
+/// Whether `name` matches `pattern`,
+/// where `*` matches any run of characters (including none) and every other
 ///           character matches itself.
-/// Why:      The `assetPattern` option selects among several assets of one release.
+/// Why:
+/// The `assetPattern` option selects among several assets of one release.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -82,7 +109,9 @@ pub fn glob_matches(pattern: &str, name: &str) -> bool {
     return cursor <= name.len() - last.len();
 }
 
-/// The headers for api.github.com: JSON, the API version and the token when there is one.
+/// The headers for api.github.com:
+/// JSON,
+/// the API version and the token when there is one.
 fn api_headers(ctx: &Context) -> Vec<(String, String)> {
     let mut headers: Vec<(String, String)> = vec![
         ("accept".to_string(), "application/vnd.github+json".to_string()),
@@ -94,7 +123,9 @@ fn api_headers(ctx: &Context) -> Vec<(String, String)> {
     return headers;
 }
 
-/// The latest release object of a repository: `releases/latest`, or the first of `releases?per_page=1` when the
+/// The latest release object of a repository:
+/// `releases/latest`,
+/// or the first of `releases?per_page=1` when the
 /// repository publishes only prereleases.
 fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
     let headers: Vec<(String, String)> = api_headers(ctx);
@@ -110,7 +141,9 @@ fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
     };
 }
 
-/// SHA-256 of a release asset: the `digest` GitHub reports, or the hash of the downloaded file.
+/// SHA-256 of a release asset:
+/// the `digest` GitHub reports,
+/// or the hash of the downloaded file.
 fn asset_digest(ctx: &Context, asset: &Value, name: &str, url: &str) -> Result<String, ResolveError> {
     if let Some(digest) = asset.get("digest").and_then(Value::as_str) {
         return Ok(digest.strip_prefix("sha256:").unwrap_or(digest).to_string());
@@ -125,9 +158,15 @@ fn asset_digest(ctx: &Context, asset: &Value, name: &str, url: &str) -> Result<S
     };
 }
 
-/// What:     Resolves the newest release of a GitHub-hosted tool.
-/// Why:      Needs the old rows: they name the repository, the tag shape and the platforms. A tool with no row yet has
-///           nothing to derive them from, which is reported as not implemented rather than guessed.
+/// What:
+/// Resolves the newest release of a GitHub-hosted tool.
+/// Why:
+/// Needs the old rows:
+/// they name the repository,
+/// the tag shape and the platforms.
+/// A tool with no row yet has
+///           nothing to derive them from,
+/// which is reported as not implemented rather than guessed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

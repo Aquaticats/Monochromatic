@@ -1,7 +1,13 @@
-//! What:     Reading `toolchain.plan.jsonc`: the hand-written file where people declare which tools the toolchain
-//!           holds, with comments explaining each pin.
-//! Why:      The file is JSONC (comments and trailing commas allowed), so it is parsed with the repository's own
-//!           `monochromatic-jsonc-edit` crate and converted to plain JSON values, then decoded once by `model.rs`.
+//! What:
+//! Reading `toolchain.plan.jsonc`:
+//! the hand-written file where people declare which tools the toolchain
+//!           holds,
+//! with comments explaining each pin.
+//! Why:
+//! The file is JSONC (comments and trailing commas allowed),
+//! so it is parsed with the repository's own
+//!           `monochromatic-jsonc-edit` crate and converted to plain JSON values,
+//! then decoded once by `model.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,8 +19,11 @@
 /// Imports the JSON value types (see `model.rs`).
 use serde_json::{Map, Value};
 
-/// What:     Imports the JSONC parser and the model types from the repository's `monochromatic-jsonc-edit` crate.
-/// Why:      Comments are data to this parser, so a commented plan parses where `serde_json` would reject it.
+/// What:
+/// Imports the JSONC parser and the model types from the repository's `monochromatic-jsonc-edit` crate.
+/// Why:
+/// Comments are data to this parser,
+/// so a commented plan parses where `serde_json` would reject it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -22,18 +31,27 @@ use serde_json::{Map, Value};
 /// ```
 use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, parse_jsonc, units_to_string};
 
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `Path` from `std::path`.
 use std::path::Path;
 
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::model`.
 use super::model::{Declaration, decode_plan_entry};
 
-/// The deepest nesting accepted in a plan or lock value; a real file nests four levels, so this only stops hostile
+/// The deepest nesting accepted in a plan or lock value;
+/// a real file nests four levels,
+/// so this only stops hostile
 /// input from deepening the recursive conversion below.
 const MAX_DEPTH: usize = 32;
 
-/// What:     The plan: its tools in the order they were written (the sync order and the lock order follow it).
-/// Why:      A `Vec` and not a map because order is part of the data.
+/// What:
+/// The plan:
+/// its tools in the order they were written (the sync order and the lock order follow it).
+/// Why:
+/// A `Vec` and not a map because order is part of the data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -41,12 +59,18 @@ const MAX_DEPTH: usize = 32;
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Plan {
-    /// Declarations in written order, ids unique.
+    /// Declarations in written order,
+    /// ids unique.
     pub tools: Vec<Declaration>,
 }
 
-/// What:     Converts a parsed JSONC value into a plain JSON `Value`, dropping comments and rejecting duplicate keys.
-/// Why:      Two entries with one key would silently collapse in a map; for a plan that means a tool vanishing, so
+/// What:
+/// Converts a parsed JSONC value into a plain JSON `Value`,
+/// dropping comments and rejecting duplicate keys.
+/// Why:
+/// Two entries with one key would silently collapse in a map;
+/// for a plan that means a tool vanishing,
+/// so
 ///           the conversion refuses it and names the key.
 ///
 /// In TS you'd write (pseudocode):
@@ -97,8 +121,11 @@ fn to_json(value: &JsoncValue, path: &str, depth: usize) -> Result<Value, String
     }
 }
 
-/// What:     Parses JSONC text into a JSON `Value`.
-/// Why:      `label` is the file name shown in the diagnostic, so a person knows which file to open.
+/// What:
+/// Parses JSONC text into a JSON `Value`.
+/// Why:
+/// `label` is the file name shown in the diagnostic,
+/// so a person knows which file to open.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,8 +142,13 @@ pub fn jsonc_to_value(source: &str, label: &str) -> Result<Value, ToolchainError
     };
 }
 
-/// What:     Decodes plan text (`{"schemaVersion": 1, "tools": {"<id>": {...}}}`) into a `Plan`.
-/// Why:      Every command starts from the plan; the checks here (known fields, unique ids, each bin name declared
+/// What:
+/// Decodes plan text (`{"schemaVersion": 1, "tools": {"<id>": {...}}}`) into a `Plan`.
+/// Why:
+/// Every command starts from the plan;
+/// the checks here (known fields,
+/// unique ids,
+/// each bin name declared
 ///           once) make a later stage's assumptions true.
 ///
 /// In TS you'd write (pseudocode):
@@ -165,8 +197,11 @@ pub fn parse_plan(source: &str, label: &str) -> Result<Plan, ToolchainError> {
     return Ok(Plan { tools });
 }
 
-/// What:     Reads and decodes the plan file at `path`.
-/// Why:      A missing file is a configuration error naming the path, not a panic.
+/// What:
+/// Reads and decodes the plan file at `path`.
+/// Why:
+/// A missing file is a configuration error naming the path,
+/// not a panic.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

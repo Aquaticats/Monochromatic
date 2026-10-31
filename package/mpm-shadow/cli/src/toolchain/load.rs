@@ -1,7 +1,13 @@
-//! What:     Reading a scope's plan and lock together, once, so the revisions recorded for the later publish describe
-//!           exactly the bytes that were parsed; plus the stricter read `sync` and `status` use, which refuses when the
+//! What:
+//! Reading a scope's plan and lock together,
+//! once,
+//! so the revisions recorded for the later publish describe
+//!           exactly the bytes that were parsed;
+//! plus the stricter read `sync` and `status` use,
+//! which refuses when the
 //!           plan and lock disagree.
-//! Why:      Parsing a second read of a file would let a concurrent write slip between the revision and the contents.
+//! Why:
+//! Parsing a second read of a file would let a concurrent write slip between the revision and the contents.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,16 +16,27 @@
 //! export function loadAgreeing(scope: Scope): { plan: Plan; lock: Lock }  // throws when they disagree
 //! ```
 
+/// Imports what this module uses from `super::agree`.
 use super::agree::{compare, refusal};
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::lock`.
 use super::lock::{Lock, ParsedLock, parse_lock};
+/// Imports what this module uses from `super::plan`.
 use super::plan::{Plan, parse_plan};
+/// Imports what this module uses from `super::publish`.
 use super::publish::{Revisions, read_optional, revision_of};
+/// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 
-/// What:     The parsed plan, the parsed lock when the file exists, the lock's exact text, and the revisions of both
+/// What:
+/// The parsed plan,
+/// the parsed lock when the file exists,
+/// the lock's exact text,
+/// and the revisions of both
 ///           files as read.
-/// Why:      One struct carries everything a mutating command needs to later call `publish_lock`.
+/// Why:
+/// One struct carries everything a mutating command needs to later call `publish_lock`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,9 +46,11 @@ use super::scope::Scope;
 pub struct Loaded {
     /// The decoded plan.
     pub plan: Plan,
-    /// The decoded lock, or `None` when the file does not exist.
+    /// The decoded lock,
+    /// or `None` when the file does not exist.
     pub lock: Option<ParsedLock>,
-    /// The lock file's text as read, for "already current" comparisons.
+    /// The lock file's text as read,
+    /// for "already current" comparisons.
     pub lock_text: Option<String>,
     /// The revisions of the plan and lock bytes that were parsed.
     pub revisions: Revisions,
@@ -70,9 +89,16 @@ pub fn load(scope: &Scope) -> Result<Loaded, ToolchainError> {
     return Ok(Loaded { plan, lock, lock_text, revisions });
 }
 
-/// What:     The plan and the lock for a command that acts on installed tools (`sync`, `status`): both must exist, the
-///           digest must match, and they must agree on every field.
-/// Why:      Installing from a lock that does not describe the plan would install the wrong tools, so the command
+/// What:
+/// The plan and the lock for a command that acts on installed tools (`sync`,
+/// `status`):
+/// both must exist,
+/// the
+///           digest must match,
+/// and they must agree on every field.
+/// Why:
+/// Installing from a lock that does not describe the plan would install the wrong tools,
+/// so the command
 ///           refuses and names `mpm-shadow lock` or `mpm-shadow update`.
 ///
 /// In TS you'd write (pseudocode):

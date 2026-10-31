@@ -1,8 +1,19 @@
-//! What:     Finding a tool's version and artifacts: the shared types and fetch helpers, and the one switch from a tool's
+//! What:
+//! Finding a tool's version and artifacts:
+//! the shared types and fetch helpers,
+//! and the one switch from a tool's
 //!           request and route to the resolver that answers it.
-//! Why:      Every npm and PyPI version, first or later, comes from `registry.npmjs.org` and `pypi.org` directly; crates
-//!           come from `crates.io`, Rust channels from `static.rust-lang.org`, Node from `nodejs.org`, GitHub-hosted
-//!           tools from the GitHub API. A resolver that is not written yet says so by tool and route instead of
+//! Why:
+//! Every npm and PyPI version,
+//! first or later,
+//! comes from `registry.npmjs.org` and `pypi.org` directly;
+//! crates
+//!           come from `crates.io`,
+//! Rust channels from `static.rust-lang.org`,
+//! Node from `nodejs.org`,
+//! GitHub-hosted
+//!           tools from the GitHub API.
+//! A resolver that is not written yet says so by tool and route instead of
 //!           guessing.
 //!
 //! In TS you'd write (pseudocode):
@@ -13,23 +24,32 @@
 //! export function resolveTool(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
 //! ```
 
+/// Imports `Value` from `serde_json`.
 use serde_json::Value;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports what this module uses from `super::model`.
 use super::model::{Artifact, Declaration, LockedTool, Request, Route};
 
-/// What a resolver found: the version to lock and the artifact rows (empty for tools installed by name and version).
+/// What a resolver found:
+/// the version to lock and the artifact rows (empty for tools installed by name and version).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Resolution {
     /// The resolved version.
     pub version: String,
-    /// Platform id to artifact, in the order they are written.
+    /// Platform id to artifact,
+    /// in the order they are written.
     pub artifacts: Vec<(String, Artifact)>,
 }
 
-/// What:     Why a resolver gave no answer: `NotImplemented` (no resolver exists for this tool yet) or `Failed` (the
+/// What:
+/// Why a resolver gave no answer:
+/// `NotImplemented` (no resolver exists for this tool yet) or `Failed` (the
 ///           lookup was made and went wrong).
-/// Why:      `update` keeps the old lock entry for a not-implemented tool that already has one and reports it, but a
+/// Why:
+/// `update` keeps the old lock entry for a not-implemented tool that already has one and reports it,
+/// but a
 ///           failed lookup stops the whole update before anything is written.
 ///
 /// In TS you'd write (pseudocode):
@@ -38,12 +58,23 @@ pub struct Resolution {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ResolveError {
-    /// No resolver exists for this tool; the text names the tool and route.
-    NotImplemented(String),
-    /// The lookup failed; the text names the URL or the field.
-    Failed(String),
+    /// No resolver exists for this tool;
+    /// the text names the tool and route.
+    NotImplemented(
+        /// The tool,
+        /// its route and what is missing.
+        String,
+    ),
+    /// The lookup failed;
+    /// the text names the URL or the field.
+    Failed(
+        /// What went wrong,
+        /// naming the URL or the field.
+        String,
+    ),
 }
 
+/// The methods of `ResolveError`.
 impl ResolveError {
     /// The message to show.
     pub fn message(&self) -> &str {
@@ -53,7 +84,8 @@ impl ResolveError {
     }
 }
 
-/// GETs `url` and returns the body text, or a `Failed` error naming the URL (and the status for a non-2xx answer).
+/// GETs `url` and returns the body text,
+/// or a `Failed` error naming the URL (and the status for a non-2xx answer).
 pub fn get_text(ctx: &Context, url: &str, headers: &[(String, String)]) -> Result<String, ResolveError> {
     let response = match ctx.http.get(url, headers, super::http::DEFAULT_MAX_GET_BYTES) {
         Ok(answered) => answered,
@@ -65,7 +97,8 @@ pub fn get_text(ctx: &Context, url: &str, headers: &[(String, String)]) -> Resul
     return Ok(response.text());
 }
 
-/// GETs `url` and parses the body as JSON, or a `Failed` error naming the URL.
+/// GETs `url` and parses the body as JSON,
+/// or a `Failed` error naming the URL.
 pub fn get_json(ctx: &Context, url: &str, headers: &[(String, String)]) -> Result<Value, ResolveError> {
     let text: String = get_text(ctx, url, headers)?;
     return match serde_json::from_str(&text) {
@@ -74,7 +107,8 @@ pub fn get_json(ctx: &Context, url: &str, headers: &[(String, String)]) -> Resul
     };
 }
 
-/// The string at `path` inside `value` (`["dist-tags", "latest"]`), or `None`.
+/// The string at `path` inside `value` (`["dist-tags", "latest"]`),
+/// or `None`.
 pub fn text_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
     let mut cursor: &Value = value;
     for key in path {
@@ -83,7 +117,8 @@ pub fn text_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
     return cursor.as_str().filter(|text| return !text.is_empty());
 }
 
-/// The "no resolver yet" error for a tool, naming its id and route.
+/// The "no resolver yet" error for a tool,
+/// naming its id and route.
 pub fn not_implemented(declaration: &Declaration, what: &str) -> ResolveError {
     return ResolveError::NotImplemented(format!(
         "{} (route {}): {what} is not implemented in mpm-shadow update yet",
@@ -92,9 +127,13 @@ pub fn not_implemented(declaration: &Declaration, what: &str) -> ResolveError {
     ));
 }
 
-/// What:     Resolves one tool.
-/// Why:      The request decides the shape: a pinned request resolves exactly that version (and needs no lookup when the
-///           lock already holds it), anything else asks the tool's source for the newest version or channel head.
+/// What:
+/// Resolves one tool.
+/// Why:
+/// The request decides the shape:
+/// a pinned request resolves exactly that version (and needs no lookup when the
+///           lock already holds it),
+/// anything else asks the tool's source for the newest version or channel head.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -130,10 +169,19 @@ pub fn resolve_tool(ctx: &Context, declaration: &Declaration, current: Option<&L
     }
 }
 
-/// What:     Resolves a pinned request: the lock's own entry when it already holds that pin, otherwise the pinned
+/// What:
+/// Resolves a pinned request:
+/// the lock's own entry when it already holds that pin,
+/// otherwise the pinned
 ///           version with the artifacts its source gives.
-/// Why:      A pin never moves by itself; only a changed pin in the plan needs resolving, and only for routes that
-///           install by name and version (npm, PyPI, crates, Rust channels) or from a wheel.
+/// Why:
+/// A pin never moves by itself;
+/// only a changed pin in the plan needs resolving,
+/// and only for routes that
+///           install by name and version (npm,
+/// PyPI,
+/// crates,
+/// Rust channels) or from a wheel.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

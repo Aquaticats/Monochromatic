@@ -1,4 +1,6 @@
-//! Unit tests of `status`: it refuses when the plan and lock disagree (starting nothing), and otherwise reports what a
+//! Unit tests of `status`:
+//! it refuses when the plan and lock disagree (starting nothing),
+//! and otherwise reports what a
 //! fake machine holds.
 
 use std::fs;

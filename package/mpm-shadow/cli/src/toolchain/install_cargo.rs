@@ -1,7 +1,12 @@
-//! What:     The two cargo routes: `cargo-binstall` (`cargo binstall --no-confirm --version <locked> <crate>`) and
+//! What:
+//! The two cargo routes:
+//! `cargo-binstall` (`cargo binstall --no-confirm --version <locked> <crate>`) and
 //!           `cargo-git` (`cargo install --git <url> --rev <rev> --root <install dir> <package>`).
-//! Why:      The version always comes from the lock, so a crate is installed at exactly the locked version and never
-//!           through mpm, which drops pinned versions for cargo.
+//! Why:
+//! The version always comes from the lock,
+//! so a crate is installed at exactly the locked version and never
+//!           through mpm,
+//! which drops pinned versions for cargo.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,18 +15,28 @@
 //! export function installCargoGit(ctx: Context, tool: LockedTool): void
 //! ```
 
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `run_checked` from `super::install_support`.
 use super::install_support::run_checked;
+/// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
+/// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Request};
+/// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
+/// Imports `RunRequest` from `super::runner`.
 use super::runner::RunRequest;
 
-/// Installs one crate with `cargo binstall`, passing the GitHub token when one is available.
+/// Installs one crate with `cargo binstall`,
+/// passing the GitHub token when one is available.
 pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let mut args: Vec<String> = vec!["binstall".to_string(), "--no-confirm".to_string(), "--version".to_string(), tool.version.clone()];
     for feature in tool.declaration.options.cargo_features.clone().unwrap_or_default() {
@@ -37,8 +52,11 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
     return Ok(());
 }
 
-/// What:     Installs one crate from a git source at a pinned revision into the tool's own install directory.
-/// Why:      The revision rides in the pinned request as `ref:<rev>` (or bare); without a pinned request the locked
+/// What:
+/// Installs one crate from a git source at a pinned revision into the tool's own install directory.
+/// Why:
+/// The revision rides in the pinned request as `ref:<rev>` (or bare);
+/// without a pinned request the locked
 ///           version is used as the revision.
 ///
 /// In TS you'd write (pseudocode):

@@ -1,8 +1,16 @@
-//! What:     The routes that install through another package manager: `mpm-pnpm` (`pnpm add --global`), `mpm-uvx`
-//!           (`uv tool install`, from a verified wheel for the `mpm` bootstrap) and `go-install` (`go install` into a
+//! What:
+//! The routes that install through another package manager:
+//! `mpm-pnpm` (`pnpm add --global`),
+//! `mpm-uvx`
+//!           (`uv tool install`,
+//! from a verified wheel for the `mpm` bootstrap) and `go-install` (`go install` into a
 //!           scoped `GOBIN`).
-//! Why:      Despite the `mpm-` in two route names, nothing here runs mpm: mpm 8.2.0 drops the pinned version for pnpm
-//!           (probe 1b), so each manager is called directly with the locked version.
+//! Why:
+//! Despite the `mpm-` in two route names,
+//! nothing here runs mpm:
+//! mpm 8.2.0 drops the pinned version for pnpm
+//!           (probe 1b),
+//! so each manager is called directly with the locked version.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,23 +20,36 @@
 //! export function installGoInstall(ctx: Context, tool: LockedTool): void
 //! ```
 
+/// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `Context` from `super::context`.
 use super::context::Context;
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::install_support`.
 use super::install_support::{artifact_for_host, download_verified, run_checked};
+/// Imports `tool_install_dir` from `super::layout`.
 use super::layout::tool_install_dir;
+/// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
+/// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
+/// Imports `RunRequest` from `super::runner`.
 use super::runner::RunRequest;
 
-/// The directories added to the search for the prerequisite tool (`pnpm`, `uv`, `go`): the scope's bin directory.
+/// The directories added to the search for the prerequisite tool (`pnpm`,
+/// `uv`,
+/// `go`):
+/// the scope's bin directory.
 fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
     return vec![ctx.scope.toolchain_bin_dir.clone()];
 }
 
-/// The path of a prerequisite tool's program, or an error saying which stage must run first.
+/// The path of a prerequisite tool's program,
+/// or an error saying which stage must run first.
 fn prerequisite(ctx: &Context, tool_id: &str) -> Result<PathBuf, ToolchainError> {
     return match ctx.find_bin_of(tool_id, tool_id, &extra_dirs(ctx)) {
         Some(found) => Ok(found),
@@ -57,9 +78,11 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
     return Ok(());
 }
 
-/// What:     `uv tool install --force` of a verified wheel (when the plan marks the tool a wheel bootstrap) or of
+/// What:
+/// `uv tool install --force` of a verified wheel (when the plan marks the tool a wheel bootstrap) or of
 ///           `<package>==<locked version>`.
-/// Why:      The wheel route is how `mpm` itself is installed from the lock's SHA-256 before anything else can verify.
+/// Why:
+/// The wheel route is how `mpm` itself is installed from the lock's SHA-256 before anything else can verify.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,10 +1,23 @@
-//! What:     `mpm-shadow bin-paths`: prints, as JSON, the directories that hold the toolchain's programs and the
+//! What:
+//! `mpm-shadow bin-paths`:
+//! prints,
+//! as JSON,
+//! the directories that hold the toolchain's programs and the
 //!           exposed link of every declared binary that currently resolves.
-//! Why:      The IDE launcher runs it in a sandbox (no network, project read-only, cleared environment) to find the
-//!           tools; it reads only the plan and the file system, never the lock, the network or a package manager.
+//! Why:
+//! The IDE launcher runs it in a sandbox (no network,
+//! project read-only,
+//! cleared environment) to find the
+//!           tools;
+//! it reads only the plan and the file system,
+//! never the lock,
+//! the network or a package manager.
 //!
-//! The output shape is the one `package/ide/app/src/language/toolchain/parse.rs` pins: `exposureDir` (relative to the
-//! worktree), `pathDirs` (absolute, existing directories) and `bins` (name to absolute link path).
+//! The output shape is the one `package/ide/app/src/language/toolchain/parse.rs` pins:
+//! `exposureDir` (relative to the
+//! worktree),
+//! `pathDirs` (absolute,
+//! existing directories) and `bins` (name to absolute link path).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,17 +25,27 @@
 //! export function binPathsOutput(plan: Plan, scope: Scope, env: EnvMap): { exposureDir: string; pathDirs: string[]; bins: Record<string, string> }
 //! ```
 
+/// Imports what this module uses from `serde_json`.
 use serde_json::{Map, Value};
+/// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `manager_native_bin_dirs` from `super::layout`.
 use super::layout::manager_native_bin_dirs;
+/// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
+/// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
-/// What:     Builds the `bin-paths` document.
-/// Why:      A binary name declared twice is refused (the link farm could hold only one of them); a declared name
-///           appears in `bins` only when its link exists, and a directory appears in `pathDirs` only when it exists.
+/// What:
+/// Builds the `bin-paths` document.
+/// Why:
+/// A binary name declared twice is refused (the link farm could hold only one of them);
+/// a declared name
+///           appears in `bins` only when its link exists,
+/// and a directory appears in `pathDirs` only when it exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +83,8 @@ pub fn bin_paths_output(plan: &Plan, scope: &Scope, env: &EnvMap) -> Result<Valu
     return Ok(Value::Object(document));
 }
 
-/// The document as pretty JSON with two-space indentation and a trailing newline, as the TypeScript command printed it.
+/// The document as pretty JSON with two-space indentation and a trailing newline,
+/// as the TypeScript command printed it.
 pub fn render_bin_paths(document: &Value) -> String {
     let mut text: String = match serde_json::to_string_pretty(document) {
         Ok(pretty) => pretty,

@@ -1,11 +1,16 @@
-//! End-to-end tests of the toolchain verbs of the built `mpm-shadow` binary, run against a disposable worktree and a
-//! disposable home. Nothing here reads or writes the real `~/.config`, `~/.local` or `~/.cargo`.
+//! End-to-end tests of the toolchain verbs of the built `mpm-shadow` binary,
+//! run against a disposable worktree and a
+//! disposable home.
+//! Nothing here reads or writes the real `~/.config`,
+//! `~/.local` or `~/.cargo`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// The plan the tests write: two tools, one with a pinned version so no network is needed.
+/// The plan the tests write:
+/// two tools,
+/// one with a pinned version so no network is needed.
 const PLAN: &str = r#"{
   // Two tools: a pinned archive and a binstall crate.
   "schemaVersion": 1,
@@ -16,7 +21,8 @@ const PLAN: &str = r#"{
 }
 "#;
 
-/// A lock without a digest, as the TypeScript tool wrote it.
+/// A lock without a digest,
+/// as the TypeScript tool wrote it.
 const OLD_LOCK: &str = r#"{
   "schemaVersion": 1,
   "generatedFrom": "package/file-enforcer/core/src/toolchain/plan.ts",

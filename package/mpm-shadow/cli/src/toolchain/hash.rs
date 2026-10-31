@@ -1,6 +1,12 @@
-//! What:     SHA-256 as lowercase hex, for bytes in memory and for files.
-//! Why:      The lock's digest, a downloaded archive's check against the lock, and the plan and lock revisions all
-//!           use the same hash, so one place holds the formatting.
+//! What:
+//! SHA-256 as lowercase hex,
+//! for bytes in memory and for files.
+//! Why:
+//! The lock's digest,
+//! a downloaded archive's check against the lock,
+//! and the plan and lock revisions all
+//!           use the same hash,
+//! so one place holds the formatting.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,8 +14,12 @@
 //! export const sha256Hex = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 //! ```
 
-/// What:     Imports the `Digest` trait (the `new`, `update`, `finalize` methods) and the SHA-256 type from `sha2`.
-/// Why:      The trait must be in scope for the methods to be callable.
+/// What:
+/// Imports the `Digest` trait (the `new`,
+/// `update`,
+/// `finalize` methods) and the SHA-256 type from `sha2`.
+/// Why:
+/// The trait must be in scope for the methods to be callable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -17,15 +27,23 @@
 /// ```
 use sha2::{Digest, Sha256};
 
+/// Imports `File` from `std::fs`.
 use std::fs::File;
+/// Imports `Read` from `std::io`.
 use std::io::Read;
+/// Imports `Path` from `std::path`.
 use std::path::Path;
 
-/// The size of the buffer a file is hashed through, in bytes.
+/// The size of the buffer a file is hashed through,
+/// in bytes.
 const READ_CHUNK_BYTES: usize = 64 * 1024;
 
-/// What:     Turns a digest (raw bytes) into lowercase hex text, two characters per byte.
-/// Why:      The lock stores hex, as `sha256sum` prints it.
+/// What:
+/// Turns a digest (raw bytes) into lowercase hex text,
+/// two characters per byte.
+/// Why:
+/// The lock stores hex,
+/// as `sha256sum` prints it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,8 +63,12 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     return hex_of_digest(digest.as_slice());
 }
 
-/// What:     SHA-256 of the file at `path`, read in chunks so a large archive never sits in memory whole.
-/// Why:      Archives are tens of megabytes; the check runs before anything is extracted.
+/// What:
+/// SHA-256 of the file at `path`,
+/// read in chunks so a large archive never sits in memory whole.
+/// Why:
+/// Archives are tens of megabytes;
+/// the check runs before anything is extracted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

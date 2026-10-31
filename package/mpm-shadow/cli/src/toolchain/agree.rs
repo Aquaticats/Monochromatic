@@ -1,8 +1,18 @@
-//! What:     The one validator for "do the plan and the lock agree": it compares the plan's declarations with the
-//!           lock's, sorts every difference into what offline `lock` may fix and what needs `update`, and checks the
+//! What:
+//! The one validator for "do the plan and the lock agree":
+//! it compares the plan's declarations with the
+//!           lock's,
+//! sorts every difference into what offline `lock` may fix and what needs `update`,
+//! and checks the
 //!           lock's digest.
-//! Why:      `lock`, `lock --check`, `sync`, `status` and `update` all need the same verdict, so they share this
-//!           module; `sync` and `status` refuse on any disagreement and name the command that resolves it.
+//! Why:
+//! `lock`,
+//! `lock --check`,
+//! `sync`,
+//! `status` and `update` all need the same verdict,
+//! so they share this
+//!           module;
+//! `sync` and `status` refuse on any disagreement and name the command that resolves it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,14 +21,23 @@
 //! export function project(plan: Plan, lock: Lock): Lock { ... }   // offline, resolution kept
 //! ```
 
+/// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports what this module uses from `super::lock`.
 use super::lock::{Lock, ParsedLock, lock_digest};
+/// Imports what this module uses from `super::model`.
 use super::model::{Declaration, LockedTool, expand_version};
+/// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
 
-/// What:     Everything that differs between a plan and a lock.
-/// Why:      Each list is a different remedy: `added` and `resolution_edits` need `update`; `removed`,
-///           `projection_edits` and `order_differs` are fixed offline by `lock`; `digest_problem` needs the file
+/// What:
+/// Everything that differs between a plan and a lock.
+/// Why:
+/// Each list is a different remedy:
+/// `added` and `resolution_edits` need `update`;
+/// `removed`,
+///           `projection_edits` and `order_differs` are fixed offline by `lock`;
+/// `digest_problem` needs the file
 ///           restored or deleted.
 ///
 /// In TS you'd write (pseudocode):
@@ -38,10 +57,12 @@ pub struct Disagreement {
     pub projection_edits: Vec<(String, Vec<String>)>,
     /// Whether the lock lists its tools in a different order than the plan.
     pub order_differs: bool,
-    /// Why the lock's digest does not match its contents, or `None` when it does.
+    /// Why the lock's digest does not match its contents,
+    /// or `None` when it does.
     pub digest_problem: Option<String>,
 }
 
+/// The methods of `Disagreement`.
 impl Disagreement {
     /// Whether the plan and the lock agree completely.
     pub fn is_empty(&self) -> bool {
@@ -58,8 +79,12 @@ impl Disagreement {
         return !self.added.is_empty() || !self.resolution_edits.is_empty();
     }
 
-    /// What:     One sentence per difference, each naming the tool and the field.
-    /// Why:      The text goes straight to the person, who must know which file to open.
+    /// What:
+    /// One sentence per difference,
+    /// each naming the tool and the field.
+    /// Why:
+    /// The text goes straight to the person,
+    /// who must know which file to open.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -89,11 +114,26 @@ impl Disagreement {
     }
 }
 
-/// What:     The names of the declaration fields that differ between `plan` and `locked`, split into the ones that
+/// What:
+/// The names of the declaration fields that differ between `plan` and `locked`,
+/// split into the ones that
 ///           change which version or artifacts are resolved (`resolution`) and the ones that only shape installs.
-/// Why:      The split is the rule "offline `lock` rejects additions and resolution-affecting edits (pins, package id,
-///           route, artifact selection, platforms)": request, route, manager, packageId, os, assetPattern, cargoGit
-///           and bootstrap are resolution-affecting; bins, env and the remaining options are not.
+/// Why:
+/// The split is the rule "offline `lock` rejects additions and resolution-affecting edits (pins,
+/// package id,
+///           route,
+/// artifact selection,
+/// platforms)":
+/// request,
+/// route,
+/// manager,
+/// packageId,
+/// os,
+/// assetPattern,
+/// cargoGit
+///           and bootstrap are resolution-affecting;
+/// bins,
+/// env and the remaining options are not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -156,9 +196,15 @@ fn changed_fields(plan: &Declaration, locked: &Declaration) -> (Vec<String>, Vec
     return (resolution, projection);
 }
 
-/// What:     Compares a plan with a parsed lock and returns every difference, including a digest that does not match
+/// What:
+/// Compares a plan with a parsed lock and returns every difference,
+/// including a digest that does not match
 ///           the lock's contents.
-/// Why:      This is the single verdict behind `lock --check`, `lock`, `sync`, `status` and `update`.
+/// Why:
+/// This is the single verdict behind `lock --check`,
+/// `lock`,
+/// `sync`,
+/// `status` and `update`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -218,9 +264,15 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
     return result;
 }
 
-/// What:     Builds the lock the plan implies without touching the network: every plan tool in plan order, with the
+/// What:
+/// Builds the lock the plan implies without touching the network:
+/// every plan tool in plan order,
+/// with the
 ///           plan's declaration and the version and artifacts the old lock already holds.
-/// Why:      This is offline `lock`. It is only defined when nothing needs resolving, so a tool the lock lacks or a
+/// Why:
+/// This is offline `lock`.
+/// It is only defined when nothing needs resolving,
+/// so a tool the lock lacks or a
 ///           resolution-affecting edit is an error that names `update`.
 ///
 /// In TS you'd write (pseudocode):
@@ -255,9 +307,14 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
     return Ok(Lock { tools });
 }
 
-/// What:     The error `sync` and `status` return when the plan and lock disagree: every difference, and the command
+/// What:
+/// The error `sync` and `status` return when the plan and lock disagree:
+/// every difference,
+/// and the command
 ///           that resolves it.
-/// Why:      Acting on a lock that does not describe the plan would install the wrong tools, so these commands refuse
+/// Why:
+/// Acting on a lock that does not describe the plan would install the wrong tools,
+/// so these commands refuse
 ///           and say which of `lock` or `update` fixes it.
 ///
 /// In TS you'd write (pseudocode):
