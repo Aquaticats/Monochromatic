@@ -20,11 +20,7 @@ import {
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
 import {
-  isDecisionSeat,
-  MODEL_CARDS,
-  ROSTER_MODEL_IDS,
-} from '@monochromatic-dev/translation-repair-shared-contract';
-import {
+  alternateModelsFor,
   type ChatJsonOutcome,
   type ChatJsonRequest,
   type ChatTextReply,
@@ -38,8 +34,13 @@ import {
 } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
 import { quotingFailure, } from '@monochromatic-dev/translation-repair-test-fixture/ts/quoting-failure.test-fixture.ts';
 import {
+  SEAT_BEDROCK_ONLY_TEXT,
+  SEAT_BEDROCK_ONLY_VISION_UNSEATED,
   SEAT_HYPER_OPENROUTER_UNMEASURED,
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_TEXT_BEDROCK,
+  SEAT_OPENROUTER_ONLY,
+  SEAT_OPENROUTER_ONLY_CHECKER,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -111,22 +112,18 @@ const NUDGE_CONTENT = 'Your previous reply could not be used: it was not the JSO
   + 'Answer the same question again, replying with ONLY that JSON object, nothing before or after it.';
 
 /**
- Roster seats a reasoning runaway may be re-asked of, in roster order: no decision-only seat, and none on the Claude
- route, whose key is metered ("be careful what you use").
+ The models a reasoning runaway of `deepseek-v4.1-flash` is re-asked of when its request names no seat, in the order
+ they are tried.
 
- @param modelId - model that ran away, left out
-
- @returns Seats in roster order
+ @returns Models in the census order, without the ones a roster-wide seat holds out
 
  @example
  ```ts
- const seats = alternatesOf({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },);
+ const tried = triedForDeepseek();
  ```
  */
-function alternatesOf({ modelId, }: { readonly modelId: string; },): readonly string[] {
-  return ROSTER_MODEL_IDS.filter(function other(seat,): boolean {
-    return (seat !== modelId) && (!isDecisionSeat({ modelId: seat, },)) && (MODEL_CARDS[seat].anthropic === undefined);
-  },);
+function triedForDeepseek(): readonly string[] {
+  return alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).alternates;
 }
 
 await describe({
@@ -366,9 +363,9 @@ await describe({
     },),
 
     it({
-      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL, not of the same one on another route: the first reply ended '
-        + 'in a length stop with no content, so the nudged ask names the first roster model that is not it, carries '
-        + 'no provider hint, and ends in the nudge',
+      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL WITH THE PLAIN QUESTION, not of the same one on another route: '
+        + 'the first reply ended in a length stop with no content, so the ask names the model with the lowest share of '
+        + 'runaways, carries no provider hint and no nudge (the owner\'s answer of 2026-10-30, "Plain question")',
       fn: async () => {
         /**
          Calls the re-ask received.
@@ -386,11 +383,8 @@ await describe({
         expect(asks,).toEqual([
           {
             ...RUNAWAY_REQUEST,
-            modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
-            messages: [
-              { role: 'user', content: 'the sheet', },
-              { role: 'user', content: NUDGE_CONTENT, },
-            ],
+            modelId: SEAT_HYPER_TEXT_BEDROCK,
+            messages: [{ role: 'user', content: 'the sheet', },],
           },
         ],);
         expect(asks[0]?.otherThan,).toBeUndefined();
@@ -398,14 +392,14 @@ await describe({
     },),
 
     it({
-      name: 'CHOOSES THE FIRST ROSTER MODEL THAT IS NOT THE ONE THAT RAN AWAY, skipping a decision-only seat and the '
-        + 'Claude route, for the first and the second seat of the roster alike',
+      name: 'CHOOSES THE MODEL WITH THE LOWEST SHARE OF RUNAWAYS THAT IS NOT THE ONE THAT RAN AWAY, skipping a '
+        + 'decision-only seat and the Claude route, and the first model of the order for the one that stands in it',
       fn: async () => {
         /**
          Model each runaway's re-ask was addressed to, by the model that ran away.
          */
         const chosen: (readonly [string, string])[] = [];
-        for (const ranAway of [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_HYPER_OPENROUTER_UNMEASURED, 'claude-haiku-5-5',] as const) {
+        for (const ranAway of [SEAT_HYPER_TEXT_BEDROCK, SEAT_HYPER_OPENROUTER_UNMEASURED, 'claude-haiku-5-5',] as const) {
           /**
            What this runaway's re-ask was asked.
            */
@@ -426,12 +420,12 @@ await describe({
             .join(' ',),],);
         }
         expect(chosen,).toEqual([
-          [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
-          [SEAT_HYPER_OPENROUTER_UNMEASURED, SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
-          ['claude-haiku-5-5', SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
+          [SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,],
+          [SEAT_HYPER_OPENROUTER_UNMEASURED, SEAT_HYPER_TEXT_BEDROCK,],
+          ['claude-haiku-5-5', SEAT_HYPER_TEXT_BEDROCK,],
         ],);
-        expect(alternatesOf({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).includes('typesafe/jev-1.13',),).toBe(false,);
-        expect(alternatesOf({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).includes('claude-haiku-5-5',),).toBe(false,);
+        expect(triedForDeepseek().includes('typesafe/jev-1.13',),).toBe(false,);
+        expect(triedForDeepseek().includes('claude-haiku-5-5',),).toBe(false,);
       },
     },),
 
@@ -491,7 +485,7 @@ await describe({
           first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
           ask: async (nudged,) => {
             askedOf.push(nudged.modelId,);
-            if (nudged.modelId === SEAT_HYPER_OPENROUTER_VISION_EDITOR) {
+            if (nudged.modelId === SEAT_HYPER_TEXT_BEDROCK) {
               throw new NoProviderForModelError({
                 modelId: nudged.modelId,
                 reason: 'every provider serving this model is out of budget',
@@ -501,13 +495,14 @@ await describe({
           },
         },);
         expect(outcome.kind,).toBe('ok',);
-        expect(askedOf,).toEqual([SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
+        expect(askedOf,).toEqual([SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,],);
       },
     },),
 
     it({
       name: 'FALLS BACK TO THE RUNAWAY ITSELF ON ANOTHER PROVIDER, saying so on a warning, when no other model can take '
-        + 'the re-ask: it is the only model left, so the re-ask is what it was before',
+        + 'the re-ask: it is the only model left, so the re-ask is what it was before, and the nudge rides on that ask '
+        + 'alone while every other model got the plain question',
       fn: async () => {
         /**
          Calls the re-ask received.
@@ -534,12 +529,17 @@ await describe({
         /**
          Models other than the runaway that were tried first.
          */
-        const tried = alternatesOf({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },);
+        const tried = triedForDeepseek();
         expect(asks.map(function modelOf(request,) {
           return request.modelId;
         },),).toEqual([...tried, SEAT_HYPER_OPENROUTER_UNMEASURED,],);
         expect(asks.at(-1,)?.otherThan,).toBe('neuralwatt',);
         expect(asks.at(-1,)?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
+        // THE NUDGE IS ON THE FALL BACK ALONE: every other model was asked the question as it stood.
+        for (const plain of asks.slice(0, -1,)) {
+          expect(plain.messages,).toEqual([{ role: 'user', content: 'the sheet', },],);
+          expect(plain.otherThan,).toBeUndefined();
+        }
         expect(warned,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: no other model `
             + `could take the re-ask of a reasoning runaway (${String(tried.length,)} tried); re-asking `
@@ -549,8 +549,8 @@ await describe({
     },),
 
     it({
-      name: 'LOGS A RE-ASK MOVED OFF THE RUNAWAY with the model, the reason and the model chosen, and the answer under '
-        + 'the model that gave it',
+      name: 'LOGS A RE-ASK MOVED OFF THE RUNAWAY with the model, the reason, the model chosen and each model left out '
+        + 'with why, and the answer under the model that gave it',
       fn: async () => {
         const { logged, } = await infoLinesDuring({
           run: async () =>
@@ -562,8 +562,11 @@ await describe({
         },);
         expect(logged,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: reasoning runaway `
-            + `on neuralwatt (a length stop with no content); re-asking ${SEAT_HYPER_OPENROUTER_VISION_EDITOR} instead, nudged`,
-          `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_VISION_EDITOR}: synthetic answered usably on the re-ask`,
+            + `on neuralwatt (a length stop with no content); re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question; `
+            + `left out: ${SEAT_SYNTHETIC_TEXT_EVERYWHERE} (held out of the roster role by owner-culled), `
+            + `${SEAT_BEDROCK_ONLY_VISION_UNSEATED} (held out of the roster role by judge-unmeasured), `
+            + `${SEAT_OPENROUTER_ONLY_CHECKER} (held out of the roster role by judge-unmeasured)`,
+          `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_TEXT_BEDROCK}: synthetic answered usably on the re-ask`,
         ],);
       },
     },),
@@ -603,9 +606,102 @@ await describe({
             servedBy: 'hyper',
             kind: 'schema-mismatch',
             rawText: '{"spot":3}',
-            cause: `content parsed as JSON but failed the caller schema guard; asked of ${SEAT_HYPER_OPENROUTER_VISION_EDITOR}`,
+            cause: `content parsed as JSON but failed the caller schema guard; asked of ${SEAT_HYPER_TEXT_BEDROCK}`,
+            askedModelId: SEAT_HYPER_TEXT_BEDROCK,
           },
         },);
+      },
+    },),
+
+    it({
+      name: 'SKIPS A MODEL THE ROLE HOLDS OUT: for a wide judge the models the card drops from the wide seats are never '
+        + 'asked, though every model before them had no provider, and the fall back to the runaway follows',
+      fn: async () => {
+        /**
+         Models asked, in order.
+         */
+        const askedOf: string[] = [];
+        await reaskElsewhereNudged({
+          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'wide-judge', bench: [], }, },
+          first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+          ask: async (nudged,) => {
+            askedOf.push(nudged.modelId,);
+            if (nudged.modelId !== SEAT_HYPER_OPENROUTER_UNMEASURED) {
+              throw new NoProviderForModelError({ modelId: nudged.modelId, reason: 'fixture', },);
+            }
+            return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+          },
+        },);
+        expect(askedOf.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,),).toBe(false,);
+        expect(askedOf.includes(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,),).toBe(false,);
+        expect(askedOf.at(-1,),).toBe(SEAT_HYPER_OPENROUTER_UNMEASURED,);
+        expect(askedOf.length,).toBe(
+          alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'wide-judge', },).alternates.length + 1,
+        );
+      },
+    },),
+
+    it({
+      name: 'SKIPS A MODEL ON THE BENCH OF THE QUESTION and names it in the log with why, so the answer recorded as the '
+        + 'runaway\'s voice is never a second voice of a model already seated',
+      fn: async () => {
+        /**
+         Models asked, in order.
+         */
+        const askedOf: string[] = [];
+        const { logged, } = await infoLinesDuring({
+          run: async () =>
+            reaskElsewhereNudged({
+              request: {
+                ...RUNAWAY_REQUEST,
+                reaskSeat: { role: 'roster', bench: [SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,], },
+              },
+              first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+              ask: async (nudged,) => {
+                askedOf.push(nudged.modelId,);
+                return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+              },
+            },),
+        },);
+        expect(askedOf,).toEqual([SEAT_OPENROUTER_ONLY,],);
+        expect(logged[0],).toContain(`${SEAT_HYPER_TEXT_BEDROCK} (seated on the bench of this question)`,);
+        expect(logged[0],).toContain(`${SEAT_BEDROCK_ONLY_TEXT} (seated on the bench of this question)`,);
+        expect(logged[0],).toContain(`re-asking ${SEAT_OPENROUTER_ONLY} instead, plain question`,);
+      },
+    },),
+
+    it({
+      name: 'FALLS BACK TO THE RUNAWAY WITH THE WARNING when the bench holds every model that could take the re-ask: '
+        + 'no other model is asked, and the one ask is the runaway\'s own, nudged, on another provider',
+      fn: async () => {
+        /**
+         Calls the re-ask received.
+         */
+        const asks: ChatTextRequest[] = [];
+        const { result, warned, } = await warnLinesDuring({
+          run: async () =>
+            reaskElsewhereNudged({
+              request: {
+                ...RUNAWAY_REQUEST,
+                reaskSeat: { role: 'roster', bench: triedForDeepseek(), },
+              },
+              first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+              ask: async (nudged,) => {
+                asks.push(nudged,);
+                return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+              },
+            },),
+        },);
+        expect(result.kind,).toBe('ok',);
+        expect(asks.map(function askOf(request,) {
+          return [request.modelId, request.otherThan,];
+        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, 'neuralwatt',],],);
+        expect(asks[0]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
+        expect(warned,).toEqual([
+          `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: no other model `
+            + 'could take the re-ask of a reasoning runaway (0 tried); re-asking '
+            + `${SEAT_HYPER_OPENROUTER_UNMEASURED} on another provider, as before`,
+        ],);
       },
     },),
 

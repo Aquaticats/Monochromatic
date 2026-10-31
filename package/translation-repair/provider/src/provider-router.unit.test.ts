@@ -30,7 +30,7 @@ import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-tes
 import {
   SEAT_HYPER_ONLY,
   SEAT_HYPER_OPENROUTER_UNMEASURED,
-  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_TEXT_BEDROCK,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -1388,8 +1388,8 @@ await describe({
 
     it({
       name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through its own chatJson: the length stop with no content '
-        + 'on Synthetic is re-asked of the next roster model on the provider its own routing picks, not of the '
-        + 'same model on Hyper',
+        + 'on Synthetic is re-asked, with the plain question, of the model with the lowest share of runaways on the '
+        + 'provider its own routing picks, not of the same model on Hyper',
       fn: async () => {
         /**
          Provider and model of each call, in call order.
@@ -1426,7 +1426,7 @@ await describe({
 
         expect(asked,).toEqual([
           ['synthetic', SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
-          ['hyper', SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
+          ['hyper', SEAT_HYPER_TEXT_BEDROCK,],
         ],);
         expect(outcome.kind === 'ok' ? outcome.value : undefined,).toEqual({ spot: 'radiator', },);
       },
