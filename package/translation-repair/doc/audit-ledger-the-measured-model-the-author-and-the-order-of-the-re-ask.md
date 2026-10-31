@@ -421,10 +421,16 @@ for the readers,
 the models that read no picture),
 so each list has one source with the pool a re-ask draws from.
 The alias `UNMEASURED_UNTIL_SEATED` is gone,
-and the hold sets whose comments carry the history of a seat are exported
-(`WIDE_SEAT_DROPPED`,
+and the five hold sets whose documentation carried the history of a seat
+(`WRITER_UNMEASURED`,
+`TRANSLATOR_DROPPED`,
+`WIDE_SEAT_DROPPED`,
 `LATE_JUDGE_DROPPED`,
-`READER_UNMEASURED`).
+`READER_UNMEASURED`)
+are comments now and no longer code,
+since nothing but that documentation named them once the benches came from the pools
+(the dead-code scan found all five).
+The history is kept word for word under the name of its hold.
 The holds of the editors and the refiners are the row of the writers,
 those of the select seats the wide row and those of the slate seats the late row,
 so a hold added to one is added to its twin.
@@ -513,21 +519,28 @@ with three of its four cases failing against the reader of `be93348926`).
 Cache versions:
 none moves.
 
-## B1151: the drift tests read a build that `test:unit` does not make
+## B1151: the drift tests read a build that `test:unit` does not make, and may not read source instead
 
 Status:
-fixed on 2026-10-31 (UTC) in `2cf8691409`.
+answered on 2026-10-31 (UTC);
+`2cf8691409` changed the two tests to import source and `7749a15d76` reverts that.
 Two drift tests imported `dist/final/node/index.mjs` of the run and bench packages:
 `run/src/corpus-run/seat-role-pool.unit.test.ts` and `bench/src/corpus-run/editor-lane-pool.unit.test.ts`.
 The root `test:unit` task (`mise.toml`) runs the test files without building,
 and only a package's `buildAndTest` task builds first,
 so a drift test that read the build compared the source with whatever build was left.
-Both now import the source files.
-The tests of the shared contract,
-the provider and the like still import their own build,
-as every package's unit tests do;
-a stale build there is a risk of the harness and not of a drift test,
-and stays open (B1153).
+`2cf8691409` made both import the source files,
+and the oxlint rule `test-import/require-eventual-artifact` rejects a test that imports package source
+(`doc/planning/oxlint-test-import-eventual-artifact.md`),
+so both import the build again;
+loosening the rule needs the owner's approval and none was asked.
+The run case also imports the shared contract by its package name and not its `/ts` subpath,
+since the identity of the checker order needs the one build that the run build and the test both read.
+So `test:unit` does not build,
+and a drift test reads the last build until `buildAndTest` builds again.
+The suites of this round ran after every package was rebuilt in dependency order.
+What would remove the risk is a `test:unit` that depends on the build of its package,
+and that stays open for the lead (B1153).
 
 Cache versions:
 none moves.
@@ -560,10 +573,20 @@ for the lead and the owner.
 - A model asked outside the gather and the repair for the same question is still in neither record (B1109).
 - The reading of how often another model is asked (B1101) is from the benches and not counted in a pass.
 - The tests of the packages that import their own build can read a stale one (B1151).
+- A `test:unit` that builds its package first would remove the stale-build risk of B1151.
 - Gates:
-  every package suite the changes reach ran once,
-  and the whole source-scan suite once at the end;
-  the results are in the lead's report of this round and not in this record.
+  every package suite the changes reach ran once after the dists were rebuilt,
+  and the files that failed were rerun alone;
+  the first full runs found five failing cases in four files
+  (the lines that list the models left out in the provider and stage tests,
+  the claims test,
+  and the consistency cache version with its key),
+  and the first oxlint runs found findings in twelve packages.
+  The whole source-scan suite ran once at the end;
+  it found four modules with no test of their own,
+  five unreached constants,
+  a blankness test and a function example,
+  which the last commits of the round clear.
 - Slips in this round's commit messages:
   `5b97f0b90a` says 19 launches and 28 calls where the scan reads 20 files and about 25 calls;
   `9484424f35` says 7 failing cases where 6 failed;
@@ -572,6 +595,8 @@ for the lead and the owner.
   has 416;
   `92b8756112` says "1 new,
   3 changed" for 3 files in all;
+  `2cf8691409` says the drift tests read source,
+  which the lint rule forbids and `7749a15d76` reverts (B1151);
   `594d9d1262` carries stray backslash-escaped quotes;
   `ef4161e1d2` takes "failed at its second case" from the brief;
   the five findings of B1145 were reworded before their test was written,
