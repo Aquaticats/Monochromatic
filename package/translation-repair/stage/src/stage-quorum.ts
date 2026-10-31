@@ -39,7 +39,10 @@ import {
   RUN_SEATS,
   type SeatTally,
 } from './seat-tally.ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 //region Stage quorum
 // A stage that loses voices retries exactly the lost ones on fresh
@@ -161,6 +164,10 @@ type RoundsOutcome<ValueT,> = {
  prompt's own, which a launch pins in its `StageSettings` so that the seats
  asked move with no sheet text (`rotatedBench`); absent in production
 
+ @param role - role the stage's seats stand in, which the re-ask of a reasoning runaway reads to leave out the models
+ their cards hold out of it (ledger B1074); the roster-wide role where a caller names none, which honours only the holds
+ that empty every bench
+
  @returns Heard voices plus quorum verdict and degradation findings
 
  @throws {@link StageRosterRepeatError} when the roster seats one model more
@@ -192,6 +199,7 @@ export async function gatherStageVoices<ValueT,>(
     benchStart,
     decision,
     seatTally = RUN_SEATS,
+    role = 'roster',
   }: ForeignBorrowed<{
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
@@ -209,6 +217,7 @@ export async function gatherStageVoices<ValueT,>(
     readonly benchStart?: number;
     readonly decision?: StageDecision;
     readonly seatTally?: SeatTally;
+    readonly role?: SeatRole;
   }>,
 ): Promise<StageGather<ValueT>> {
   /**
@@ -320,6 +329,12 @@ export async function gatherStageVoices<ValueT,>(
     const unreadableSeats = new Map<RosterModelId, UnreadableCause>();
 
     /**
+     For a seat whose answer ran away and whose re-ask went to another model, that model, so the recovery round asks
+     the next one.
+     */
+    const askedInstead = new Map<RosterModelId, RosterModelId>();
+
+    /**
      Everything a round needs except who to ask, how many to wait for and its
      reserve.
 
@@ -341,6 +356,12 @@ export async function gatherStageVoices<ValueT,>(
       graceMs,
       // Conditional spread keeps the question absent instead of undefined.
       ...((decision === undefined) ? {} : { decision, }),
+      // THE BENCH IS THE WHOLE ROSTER THE STAGE NAMED, withheld seats included: a model seated on the question is never
+      // asked for the voice of another seat of it (ledger B1076).
+      reaskSeat: {
+        role,
+        bench: modelIds,
+      },
     };
 
     /**
@@ -432,6 +453,7 @@ export async function gatherStageVoices<ValueT,>(
               .value,
           },);
           unreadableSeats.delete(outcome.modelId,);
+          askedInstead.delete(outcome.modelId,);
           continue;
         }
         stillLost.push(outcome.modelId,);
@@ -446,6 +468,17 @@ export async function gatherStageVoices<ValueT,>(
             outcome.voice
               .unreadable,
           );
+          /**
+           Model the seat's latest answer was re-asked of, when it was another than the seat's own.
+           */
+          const { askedInstead: askedOf, } = outcome.voice;
+          if (askedOf === undefined)
+            askedInstead.delete(outcome.modelId,);
+          else
+            askedInstead.set(
+              outcome.modelId,
+              askedOf,
+            );
         }
       }
       // A SEAT THE ROUTER REFUSED IS NOT RE-ASKED. Nothing changes between
@@ -490,6 +523,7 @@ export async function gatherStageVoices<ValueT,>(
         roundRequest,
         unreadable,
         causeOf: unreadableSeats,
+        askedInstead,
       },);
       for (const outcome of recovered) {
         if (outcome.voice

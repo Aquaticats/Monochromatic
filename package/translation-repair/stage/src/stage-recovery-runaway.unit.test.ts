@@ -325,7 +325,7 @@ await describe({
           return line.startsWith('warn ',) && line.includes('no other model could take the re-ask',);
         },),).toEqual([
           `warn [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: no other model could take the re-ask of a `
-          + `reasoning runaway (${String(takers.length,)} tried); re-asking ${RUNAWAY_SEAT}, nudged`,
+            + `reasoning runaway (${String(takers.length,)} tried); re-asking ${RUNAWAY_SEAT}, nudged`,
         ],);
       },
     },),
@@ -371,11 +371,11 @@ await describe({
         },),).toEqual([
           'warn [runRecoveryRound] gate: recovery round for 1 unreadable answer (1 runaway)',
           `info [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: reasoning runaway (a length stop with no content); `
-          + `re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question; left out: `
-          + 'hf:openai/gpt-oss-120b (held out of the roster role by owner-culled), '
-          + `${SEAT_HYPER_VISION} (seated on the bench of this question), `
-          + 'google.gemma-4-31b (held out of the roster role by judge-unmeasured), '
-          + 'xiaomi/mimo-v2.6-flash (held out of the roster role by judge-unmeasured)',
+            + `re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question; left out: `
+            + 'hf:openai/gpt-oss-120b (held out of the roster role by owner-culled), '
+            + `${SEAT_HYPER_VISION} (seated on the bench of this question), `
+            + 'google.gemma-4-31b (held out of the roster role by judge-unmeasured), '
+            + 'xiaomi/mimo-v2.6-flash (held out of the roster role by judge-unmeasured)',
           'info [runRecoveryRound] gate: recovery round heard 1 of 1 re-asked voice',
         ],);
       },

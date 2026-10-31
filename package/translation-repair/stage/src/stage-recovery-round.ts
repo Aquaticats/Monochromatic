@@ -1,6 +1,14 @@
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import {
+  alternateModelsFor,
+  describeLeftOut,
+  type ReaskSeat,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   RECOVERY_NUDGES,
@@ -53,9 +61,178 @@ export type SharedRoundRequest<ValueT,> = Omit<
   'heardNeeded' | 'modelIds' | 'reserve'
   >;
 
+// A SEAT WHOSE ANSWER RAN AWAY IS ASKED OF ANOTHER MODEL (ledger B1073, B1074, the
+// owner's answer of 2026-10-30, "Everywhere (Recommended)"). A reply that ended in a
+// length stop with no content is a model that spent its whole completion cap
+// thinking, and this round used to ask the seat's own model a third time: in
+// `XingZ6020` slice 92 the round's ask was the third runaway of one model for one
+// question, and the next round's re-ask the fourth. The round now asks the models
+// `alternateModelsFor` lists, in the order of their share of runaways, with the
+// plain question ("Plain question (Recommended)") and records the answer as the
+// seat's voice. It leaves out the models the seat's role is held out of, the
+// models seated on the question (the lead's adoption of 2026-10-30) and the model
+// an earlier re-ask for the seat already went to, whose claimed reply the
+// uniqueness wrapper would otherwise replay as a second voice. Only where no
+// model is left is the seat's own model asked, under the `cut-short` nudge as
+// before, on a warning.
+
+/**
+ Asks a seat whose answer ran away of another model, once, and records the answer as the seat's voice.
+
+ @param roundRequest - what every round of the gather sends, prompt and bench included
+
+ @param seat - seat whose answer ran away
+
+ @param askedInstead - model an earlier re-ask for the seat already went to, when it went to another model
+
+ @param l - logger of the recovery round
+
+ @returns The seat's outcome: the first reachable model's answer, or the seat's own model's under the cut-short nudge
+ where no other model could take the re-ask
+
+ @throws Whatever the round of the model asked throws, which is the caller's own abort, a request the route refused as
+ malformed, or the router's every-provider-dry refusal
+
+ @example
+ ```ts
+ const outcome = await recoverRunaway({ roundRequest, seat, l, },);
+ ```
+ */
+async function recoverRunaway<ValueT,>(
+  {
+    roundRequest,
+    seat,
+    askedInstead,
+    l,
+  }: ForeignBorrowed<{
+    readonly roundRequest: SharedRoundRequest<ValueT>;
+    readonly seat: RosterModelId;
+    readonly askedInstead?: RosterModelId;
+    readonly l: Logger;
+  }>,
+): Promise<RoundOutcome<ValueT>> {
+  /**
+   Logger pre-tagged with this function's name.
+   */
+  const rl = tagged({
+    tag: recoverRunaway.name,
+    l,
+  },);
+
+  /**
+   The seat the gather named, or the roster-wide role and an empty bench where it named none.
+   */
+  const named: ReaskSeat = roundRequest.reaskSeat ?? {
+    role: 'roster',
+    bench: [],
+  };
+
+  /**
+   Role and bench of the gather.
+   */
+  const {
+    role,
+    bench,
+  } = named;
+
+  /**
+   The bench with the seat on it, which an ask of another model carries so that model's own runaway is not re-asked of
+   the seat that began this one.
+   */
+  const benchWithSeat: readonly RosterModelId[] = bench.includes(seat,)
+    ? bench
+    : [
+      ...bench,
+      seat,
+    ];
+
+  /**
+   Models to ask in the order of their share of runaways, and the ones left out of the seat's role, the bench or an
+   earlier ask.
+   */
+  const {
+    alternates,
+    leftOut,
+  } = alternateModelsFor({
+    modelId: seat,
+    role,
+    bench,
+    askedAlready: (askedInstead === undefined) ? [] : [askedInstead,],
+  },);
+  for (const alternate of alternates) {
+    rl.info(
+      `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); `
+        + `re-asking ${alternate} instead, plain question; left out: ${describeLeftOut({ leftOut, },)}`,
+    );
+
+    /* oxlint-disable no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
+    /**
+     The other model's round, asked the question as it stood.
+     */
+    const askedRound = await runGatherRound<ValueT>({
+      ...roundRequest,
+      l: rl,
+      modelIds: [alternate,],
+      heardNeeded: 0,
+      reaskSeat: {
+        role,
+        bench: benchWithSeat,
+      },
+    },);
+    /* oxlint-enable no-await-in-loop */
+
+    /**
+     The one outcome that round returned.
+     */
+    const asked = askedRound.at(0,);
+    if (asked === undefined)
+      throw new Error(`unreachable: the round that asked ${alternate} returned no outcome`,);
+
+    /**
+     What came back from the other model.
+     */
+    const { voice, } = asked;
+    if ((!voice.heard) && voice.unreachable) {
+      rl.debug(`${roundRequest.stage}: ${seat}: ${alternate} cannot take the re-ask, no provider serves it with budget`,);
+      continue;
+    }
+    return {
+      modelId: seat,
+      voice,
+    };
+  }
+  rl.warn(
+    `${roundRequest.stage}: ${seat}: no other model could take the re-ask of a reasoning runaway `
+      + `(${String(alternates.length,)} tried); re-asking ${seat}, nudged`,
+  );
+
+  /**
+   The seat's own model's round, nudged as the cut-short wording has it.
+   */
+  const ownRound = await runGatherRound<ValueT>({
+    ...roundRequest,
+    l: rl,
+    messages: [
+      ...roundRequest.messages,
+      RECOVERY_NUDGES.runaway,
+    ],
+    modelIds: [seat,],
+    heardNeeded: 0,
+  },);
+
+  /**
+   The one outcome that round returned.
+   */
+  const own = ownRound.at(0,);
+  if (own === undefined)
+    throw new Error(`unreachable: the round that asked ${seat} returned no outcome`,);
+  return own;
+}
+
 /**
  Re-asks, once, every seat whose answer arrived and could not be read, each
- under the nudge naming what happened to it.
+ under the nudge naming what happened to it, except a seat whose answer ran
+ away, which is asked of another model with the plain question.
 
  @param roundRequest - what every round of the gather sends, prompt included
 
@@ -64,6 +241,10 @@ export type SharedRoundRequest<ValueT,> = Omit<
 
  @param causeOf - why each of those seats' latest answer could not be read,
  which picks its nudge (ledger P10)
+
+ @param askedInstead - for a seat whose answer ran away and was already
+ re-asked of another model, that model, which the round leaves out; absent
+ where no seat was
 
  @returns One outcome per seat re-asked, grouped by cause in
  `UNREADABLE_CAUSES` order
@@ -78,10 +259,12 @@ export async function runRecoveryRound<ValueT,>(
     roundRequest,
     unreadable,
     causeOf,
+    askedInstead,
   }: ForeignBorrowed<{
     readonly roundRequest: SharedRoundRequest<ValueT>;
     readonly unreadable: readonly RosterModelId[];
     readonly causeOf: ReadonlyMap<RosterModelId, UnreadableCause>;
+    readonly askedInstead?: ReadonlyMap<RosterModelId, RosterModelId>;
   }>,
 ): Promise<readonly RoundOutcome<ValueT>[]> {
   /**
@@ -159,6 +342,23 @@ export async function runRecoveryRound<ValueT,>(
    resolves as soon as every ask settles.
    */
   const recovered = (await Promise.all(byCause.map(async function recoverGroup(group,) {
+    // A RUNAWAY IS ASKED OF ANOTHER MODEL, one seat at a time within the group's window, each seat's own models in turn.
+    if (group.cause === 'runaway') {
+      return await Promise.all(group.modelIds
+        .map(async function recoverSeat(seat,) {
+          /**
+           Model an earlier re-ask for this seat already went to, if one did.
+           */
+          const askedAlready = askedInstead?.get(seat,);
+          return await recoverRunaway<ValueT>({
+            roundRequest,
+            seat,
+            // Conditional spread keeps the model absent where no earlier re-ask went to another.
+            ...((askedAlready === undefined) ? {} : { askedInstead: askedAlready, }),
+            l: rl,
+          },);
+        },),);
+    }
     return await runGatherRound<ValueT>({
       ...roundRequest,
       l: rl,

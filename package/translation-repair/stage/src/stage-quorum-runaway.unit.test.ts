@@ -178,12 +178,12 @@ await describe({
         },).map(function summary(ask,) {
           return [ask.modelId, ask.contents,];
         },),).toEqual([[SEAT_HYPER_TEXT_BEDROCK, ['meow',],],],);
-        expect(gather.voices.map(function summary(voice,) {
-          return [voice.modelId, voice.value.meow,];
+        expect(gather.voices.map(function summary(voice,): string {
+          return `${voice.modelId} wrote by ${voice.value.meow}`;
         },).toSorted(),).toEqual([
-          [SEAT_HYPER_OPENROUTER_UNMEASURED, SEAT_HYPER_TEXT_BEDROCK,],
-          [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
-          [SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
+          `${SEAT_HYPER_OPENROUTER_UNMEASURED} wrote by ${SEAT_HYPER_TEXT_BEDROCK}`,
+          `${SEAT_HYPER_OPENROUTER_VISION_EDITOR} wrote by ${SEAT_HYPER_OPENROUTER_VISION_EDITOR}`,
+          `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} wrote by ${SEAT_SYNTHETIC_VISION_NO_OPENROUTER}`,
         ].toSorted(),);
         expect([...gather.unreadable,],).toEqual([],);
       },

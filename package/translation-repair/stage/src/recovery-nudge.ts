@@ -1,6 +1,9 @@
 import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
-import type { ChatJsonOutcome, } from '@monochromatic-dev/translation-repair-provider/ts';
+import {
+  type ChatJsonOutcome,
+  isReasoningRunaway,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 
 //region Recovery nudge
 // THE RECOVERY ROUND RE-ASKS AN ANSWER NOTHING COULD READ WITH A COMPLAINT
@@ -12,6 +15,13 @@ import type { ChatJsonOutcome, } from '@monochromatic-dev/translation-repair-pro
 // round told every such model its reply "did not match the required response
 // shape", which names a fault it did not make and says nothing of the one it
 // did. Every other unreadable answer arrived whole and missed the shape.
+//
+// A REPLY THAT STREAMED NO CONTENT AT ALL IS A RUNAWAY, since ledger B1074 (the
+// owner's answer of 2026-10-30, "Everywhere (Recommended)"): the model spent
+// its whole completion cap thinking, and asking the same weights again repeats
+// it. The round asks such a seat's question of another model with the plain
+// question (`stage-recovery-round.ts`) and nudges the seat's own model only
+// where no other model can take it, under the wording of `cut-short`.
 //
 // EACH WORDING IS A PROMPT OF ITS OWN. `promptUniqueClient` answers a model
 // and prompt it has seen from its claims, so both recovery wordings and the
@@ -27,10 +37,11 @@ import type { ChatJsonOutcome, } from '@monochromatic-dev/translation-repair-pro
  Every reason nothing could read an answer that arrived, in the order the
  recovery round asks them.
 
- `cut-short` is a reply the length limit stopped before it was complete
- (`truncated-completion` or `truncated-thinking`). `off-shape` is every other
- unreadable answer: one that did not parse, one the guard refused, or one
- that read as a refusal.
+ `runaway` is a reply the length limit stopped with no content at all (a
+ reasoning runaway). `cut-short` is every other reply the length limit stopped
+ before it was complete (`truncated-completion` that holds content, or
+ `truncated-thinking`). `off-shape` is every other unreadable answer: one that
+ did not parse, one the guard refused, or one that read as a refusal.
 
  @example
  ```ts
@@ -38,6 +49,7 @@ import type { ChatJsonOutcome, } from '@monochromatic-dev/translation-repair-pro
  ```
  */
 export const UNREADABLE_CAUSES = [
+  'runaway',
   'cut-short',
   'off-shape',
 ] as const;
@@ -90,12 +102,17 @@ export const CUT_SHORT_RECOVERY_NUDGE: ChatMessage = {
  Recovery wording for each cause, so the round asks each unreadable seat with
  the complaint that names what happened to it.
 
+ A runaway keeps the cut-short wording because it is the ask of the seat's own
+ model, made only where no other model can take the re-ask, and that ask was
+ worded so before a runaway was told apart: a payload stored for it replays.
+
  @example
  ```ts
  const nudge = RECOVERY_NUDGES['cut-short'];
  ```
  */
 export const RECOVERY_NUDGES: Readonly<Record<UnreadableCause, ChatMessage>> = {
+  runaway: CUT_SHORT_RECOVERY_NUDGE,
   'cut-short': CUT_SHORT_RECOVERY_NUDGE,
   'off-shape': OFF_SHAPE_RECOVERY_NUDGE,
 };
@@ -105,8 +122,8 @@ export const RECOVERY_NUDGES: Readonly<Record<UnreadableCause, ChatMessage>> = {
 
  @param outcome - non-ok exchange outcome
 
- @returns `cut-short` for a reply the length limit stopped, `off-shape` for
- any other
+ @returns `runaway` for a reply the length limit stopped with no content,
+ `cut-short` for any other reply the limit stopped, `off-shape` for any other
 
  @example
  ```ts
@@ -118,6 +135,8 @@ export function unreadableCauseOf(
     readonly outcome: Exclude<ChatJsonOutcome<unknown>, { readonly kind: 'ok'; }>;
   },
 ): UnreadableCause {
+  if (isReasoningRunaway({ outcome, },))
+    return 'runaway';
   if ((outcome.kind === 'schema-mismatch')
     && ((outcome.reason === 'truncated-completion') || (outcome.reason === 'truncated-thinking')))
     return 'cut-short';

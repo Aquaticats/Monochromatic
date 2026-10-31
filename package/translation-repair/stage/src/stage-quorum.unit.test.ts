@@ -929,9 +929,11 @@ await describe({
             request: ChatJsonRequest<ValueT>,
           ): Promise<ChatJsonOutcome<ValueT>> => {
             if (request.modelId === SEAT_SYNTHETIC_VISION_WITHHELD) {
+              // A CUT THAT HOLDS CONTENT, not a length stop with no content: that one is a reasoning runaway, which the
+              // recovery round asks of another model (`stage-quorum-runaway.unit.test.ts`), so it would not stay unreadable.
               return {
                 kind: 'schema-mismatch',
-                rawText: '',
+                rawText: '{"meow":',
                 reason: 'truncated-completion',
                 detail: 'provider reported a truncating completion (model stopped with finish_reason=length)',
               };
@@ -1441,9 +1443,10 @@ await describe({
             if (nudged)
               nudges[request.modelId] = JSON.stringify(request.messages.at(-1,)?.content ?? '',);
             if ((request.modelId === cutShort) && (!nudged)) {
+              // A CUT THAT HOLDS CONTENT: a length stop with no content is a runaway, asked of another model.
               return {
                 kind: 'schema-mismatch',
-                rawText: '',
+                rawText: '{"meow":',
                 reason: 'truncated-completion',
                 detail: 'provider reported a truncating completion',
               };
