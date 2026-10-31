@@ -1,6 +1,7 @@
 //! What:
 //! The rule that refuses a recursive `grep` (and `egrep` and `fgrep`)
-//! that would start from a repository root or the home directory or the filesystem root:
+//! that would start from a repository root,
+//! the home directory or the filesystem root:
 //! `-r` / `-R` / `--recursive` / `--dereference-recursive` / `-d recurse`
 //! with no file operand (which searches the current directory)
 //! or an operand that resolves to one of those places.
@@ -183,7 +184,8 @@ pub fn describe_grep(arguments: &[String]) -> GrepDescription {
 /// `pub fn grep_refusal(...) -> Option<String>` declares a public function returning `Some(message)` when the call
 /// must be refused and `None` when it may run.
 /// Why:
-/// The shim calls it for `grep` and `egrep` and `fgrep` before launching anything.
+/// The shim calls it for `grep`,
+/// `egrep` and `fgrep` before launching anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

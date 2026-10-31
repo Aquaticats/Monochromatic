@@ -1,6 +1,7 @@
 //! What:
 //! Fixed values shared by the shadow modules:
-//! the escape-hatch variable name and the exit codes and the names of the shadowed tools.
+//! the escape-hatch variable name,
+//! the exit codes and the names of the shadowed tools.
 //! Why:
 //! One place to read and change them,
 //! so no other file repeats a literal.

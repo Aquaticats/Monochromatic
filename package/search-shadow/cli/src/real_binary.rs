@@ -53,7 +53,8 @@ use std::path::{Path, PathBuf};
 /// What:
 /// `const EXECUTE_BITS: u32 = 0o111;` is a constant unsigned 32-bit integer (the siblings are `i32` / `u64`).
 /// The `0o` prefix writes the number in base 8,
-/// so `0o111` is the owner and group and other execute bits.
+/// so `0o111` is the owner,
+/// group and other execute bits.
 /// Why:
 /// A file counts as runnable if any of those three bits is set.
 /// It is `u32` because that is the type `.mode()` returns,
@@ -71,7 +72,8 @@ const EXECUTE_BITS: u32 = 0o111;
 /// I only look at it and I do not take it".
 /// `bool` is true or false.
 /// Why:
-/// The PATH search must ignore directories and missing files and files without an execute bit.
+/// The PATH search must ignore directories,
+/// missing files and files without an execute bit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

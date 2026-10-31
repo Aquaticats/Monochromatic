@@ -31,7 +31,8 @@ pub mod cli;
 pub mod announce;
 
 /// The fixed values:
-/// the escape-hatch variable and the exit codes and the shadowed names.
+/// the escape-hatch variable,
+/// the exit codes and the shadowed names.
 pub mod constants;
 
 /// The one place that replaces the running process with the real tool.
@@ -44,7 +45,8 @@ pub mod link;
 /// The rules that refuse `rg -r` and repository-wide unrestricted ripgrep walks.
 pub mod policy;
 
-/// The refusal rule for a recursive `grep` from a repository root or the home directory or `/`.
+/// The refusal rule for a recursive `grep` from a repository root,
+/// the home directory or `/`.
 pub mod policy_grep;
 
 /// The refusal rule for a `find` or `bfs` walk from those places without a small `-maxdepth`.
@@ -55,7 +57,9 @@ pub mod policy_find;
 pub mod priority;
 
 /// Where a tree walk would start:
-/// a repository root or the home directory or `/` or something bounded.
+/// a repository root,
+/// the home directory,
+/// `/` or something bounded.
 pub mod walk_target;
 
 /// The PATH lookup that finds the real tool while skipping the shadow itself.

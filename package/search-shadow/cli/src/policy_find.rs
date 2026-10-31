@@ -1,11 +1,12 @@
 //! What:
-//! The rule that refuses a `find` (and its clone `bfs`) that starts from a repository root
-//! or the home directory or the filesystem root,
+//! The rule that refuses a `find` (and its clone `bfs`) that starts from a repository root,
+//! the home directory or the filesystem root,
 //! with no `-maxdepth` of 3 or less.
 //! No start point means the current directory.
 //! Why:
 //! An unbounded walk of those places reads hundreds of thousands of files and stalls the NVMe for every session.
-//! A `-maxdepth` of 3 or a narrower start directory or `rg --files PATH` does the same job bounded.
+//! A `-maxdepth` of 3,
+//! a narrower start directory or `rg --files PATH` does the same job bounded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

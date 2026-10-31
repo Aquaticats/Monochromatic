@@ -440,7 +440,8 @@ pub struct Invocation {
     pub arguments: Vec<String>,
     /// Whether the escape-hatch variable is set to `1`.
     pub allow_wide: bool,
-    /// Whether standard input is a pipe or file or socket (so a search may read it and walk nothing).
+    /// Whether standard input is a pipe,
+    /// file or socket (so a search may read it and walk nothing).
     pub stdin_has_data: bool,
     /// The directory the tool will run in.
     pub working_directory: PathBuf,
@@ -453,7 +454,9 @@ pub struct Invocation {
 /// `&Invocation` lends the record without giving it away.
 /// Why:
 /// It picks the policy by tool name:
-/// `rg` or the `grep` family or `find` and its clone `bfs`.
+/// `rg`,
+/// the `grep` family,
+/// or `find` and its clone `bfs`.
 /// Every other shadowed tool is only slowed down.
 ///
 /// In TS you'd write (pseudocode):

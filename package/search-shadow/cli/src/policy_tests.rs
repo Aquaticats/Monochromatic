@@ -3,7 +3,8 @@
 //! Why:
 //! The parser reads another tool's argument grammar,
 //! so each flag family needs a case that proves the boundary:
-//! what is a wide walk and what names a path and what only prints information.
+//! what is a wide walk,
+//! what names a path and what only prints information.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -73,7 +74,8 @@ fn a_plain_search_is_not_wide_and_names_no_path() {
 }
 
 /// The short `-r` is ripgrep's `--replace`.
-/// It must be detected alone and with an attached value and inside clusters.
+/// It must be detected alone,
+/// with an attached value and inside clusters.
 #[test]
 fn the_short_r_flag_is_detected_alone_attached_and_in_clusters() {
     assert!(walk(&["-r", "X", "foo"]).short_replace);
@@ -95,7 +97,8 @@ fn lookalikes_of_the_short_r_flag_are_not_flags() {
     assert!(!walk(&["-i", "foo"]).short_replace);
 }
 
-/// The ban applies to rg only and has no escape hatch or repository root or path condition.
+/// The ban applies to rg only and has no escape hatch,
+/// repository root or path condition.
 #[test]
 fn refuses_the_short_r_flag_for_rg_everywhere() {
     let message = rg_refusal("rg", &texts(&["-rl", "foo"]), false, false, false, "/anywhere");
@@ -168,7 +171,8 @@ fn everything_after_a_double_dash_is_positional() {
     assert_eq!(description.path_count, 1);
 }
 
-/// Help and version and list flags only print,
+/// Help,
+/// version and list flags only print,
 /// so they have nothing to refuse.
 #[test]
 fn information_flags_are_informational() {
@@ -180,7 +184,11 @@ fn information_flags_are_informational() {
 }
 
 /// The refusal fires only for the exact combination:
-/// rg and wide and no path and repository root and no piped input.
+/// rg,
+/// wide,
+/// no path,
+/// repository root,
+/// no piped input.
 #[test]
 fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
     let message = rg_refusal("rg", &texts(&["--hidden", "foo"]), false, true, false, "/repo");

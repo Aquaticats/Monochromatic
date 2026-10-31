@@ -3,7 +3,9 @@
 //! Why:
 //! Both rules read another tool's argument grammar and decide on real directories,
 //! so each boundary needs a case:
-//! what recurses and what names a path and what bounds a `find` and which places count as wide.
+//! what recurses,
+//! what names a path,
+//! what bounds a `find` and which places count as wide.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -164,7 +166,8 @@ fn find_max_depth_takes_the_smallest_numeric_value() {
     assert_eq!(find_max_depth(&texts(&["."])), None);
 }
 
-/// A find from a repository root or home or `/` with no small depth limit is refused.
+/// A find from a repository root,
+/// home or `/` with no small depth limit is refused.
 #[test]
 fn find_refuses_unbounded_walks_from_wide_places() {
     let root = repository();
@@ -184,7 +187,9 @@ fn find_refuses_unbounded_walks_from_wide_places() {
     assert!(find_refusal("find", &texts(&[".", "-maxdepth", "9"]), false, root.path(), home.path()).is_some());
 }
 
-/// A bounded depth or a narrower start or a non-root directory or the escape hatch all pass.
+/// A bounded depth,
+/// a narrower start,
+/// a non-root directory and the escape hatch all pass.
 #[test]
 fn find_lets_bounded_walks_through() {
     let root = repository();

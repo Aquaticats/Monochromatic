@@ -21,7 +21,8 @@
 /// `use std::env;` imports the module for the process environment
 /// (variables / arguments / the working directory).
 /// Why:
-/// We read PATH and the escape-hatch variable and the working directory.
+/// We read PATH,
+/// the escape-hatch variable and the working directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

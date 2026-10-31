@@ -1,8 +1,8 @@
 //! What:
 //! The one place that replaces the running process with the real tool.
 //! Why:
-//! Replacing (instead of starting a child and waiting) keeps the real tool's exit code
-//! and signals and terminal behavior exactly as they are
+//! Replacing (instead of starting a child and waiting) keeps the real tool's exit code,
+//! signals and terminal behavior exactly as they are
 //! and leaves no extra process behind,
 //! so the shadow adds almost no latency.
 //!

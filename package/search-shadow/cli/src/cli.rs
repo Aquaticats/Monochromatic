@@ -1,6 +1,7 @@
 //! What:
 //! The `search-shadow` command itself (the non-shadow mode):
-//! `--help` and `--version` and the `link` subcommand,
+//! `--help`,
+//! `--version` and the `link` subcommand,
 //! with the grammar owned by `clap`.
 //! Why:
 //! Users need a way to create the shadow links and to read what the tool does.

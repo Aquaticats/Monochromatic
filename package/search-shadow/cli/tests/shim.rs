@@ -112,7 +112,9 @@ fn make_world() -> (tempfile::TempDir, String) {
 
 /// What:
 /// `fn run_rg(...) -> Output` declares a helper that runs the shadow link
-/// with the given arguments and working directory and PATH and extra environment,
+/// with the given arguments,
+/// working directory,
+/// PATH and extra environment,
 /// with standard input attached to nothing.
 /// Why:
 /// Standard input must not be a pipe,

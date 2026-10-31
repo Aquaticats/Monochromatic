@@ -1,6 +1,8 @@
 //! What:
 //! Classifies the directory a tree walk would start from:
-//! a repository root or the home directory or the whole filesystem or something bounded.
+//! a repository root,
+//! the home directory,
+//! the whole filesystem or something bounded.
 //! Why:
 //! `grep -r` and `find` are refused only when they would start from one of the three wide places,
 //! so the policies for both tools share this one question.

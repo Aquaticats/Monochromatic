@@ -53,7 +53,8 @@ use crate::real_binary::find_in_path;
 
 /// What:
 /// `pub struct LinkReport { ... }` declares a record with three lists:
-/// the links made and the names skipped because no real tool exists and the stale links removed.
+/// the links made,
+/// the names skipped because no real tool exists and the stale links removed.
 /// `Vec<PathBuf>` is an owned growable list of owned paths.
 /// `#[derive(Debug, PartialEq)]` generates printing and `==` for the tests.
 /// Why:

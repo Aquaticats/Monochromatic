@@ -17,7 +17,8 @@ set directly with the `ioprio_set` system call)
 and replaces itself with the real tool,
 which keeps the priority.
 So it adds no process.
-Exit codes and signals and terminal behavior are kept.
+Exit codes,
+signals and terminal behavior are kept.
 Started as `search-shadow`,
 it offers the `link` command and the `--help` and `--version` flags.
 The last two say plainly that it is a shadow and list the tools it shadows.
@@ -196,6 +197,7 @@ mise run //package/search-shadow/cli:lint
 mise run //package/search-shadow/cli:lint:clippy
 mise run //package/search-shadow/cli:test
 # Installs the tools this host lacks inside a podman container (no network at run time, 2 GiB, 2 CPUs) and checks
-# every shadow against its real tool (a lone --version must equal the real tool's output plus the one announcement line).
+# every shadow against its real tool
+# (a lone --version must equal the real tool's output plus the one announcement line).
 mise run //package/search-shadow/cli:test:container
 ```

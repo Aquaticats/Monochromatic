@@ -111,7 +111,8 @@ fn skips_a_link_that_resolves_to_the_shadow() {
     assert_eq!(found, Some(real_directory.path().join("rg")));
 }
 
-/// Empty entries and missing directories and directories named like the tool must not stop the search.
+/// Empty entries,
+/// missing directories and directories named like the tool must not stop the search.
 #[test]
 fn ignores_empty_entries_missing_directories_and_directories_named_like_the_tool() {
     let trap = crate::test_scratch::scratch();
