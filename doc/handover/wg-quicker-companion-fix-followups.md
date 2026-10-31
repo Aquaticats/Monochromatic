@@ -74,15 +74,27 @@ unrelated to the resolver change).
    The incident record in
    `doc/troubleshooting/wg-quicker-exempt-companion-pre-move-paths.md`
    is the durable home of that lesson.
-1. Re-running `wg-quicker up fr-par-fr1` against the real config,
-   pending the user's choice in this session's question.
-   Nothing on the host was mutated by the fix work;
-   the tunnel state is whatever the user last left.
+
+## Tunnel run result
+
+The maintainer authorized the run and `wg-quicker up fr-par-fr1` succeeded on
+2026-10-31:
+interface `fr-par-fr1` is UP with `172.17.170.170/32`,
+`sudo wg show fr-par-fr1 latest-handshakes` records a peer handshake,
+`/run/wg-quicker` holds the bypass state,
+the watcher sidecar,
+and the OpenSnitch interface state,
+and `wg-quicker` reports the managed OpenSnitch rules it installed in
+`/etc/opensnitchd/system-fw.json`.
+The same benign ASN and DNS skip warnings as the failing run appear,
+with no `BypassRouteError`.
+Recovery if the tunnel must come down:
+`wg-quicker down fr-par-fr1`.
 
 ## How to respond
 
 The `RNL` proposal is closed (declined);
 do not edit `AGENTS.md` for it.
-The tunnel run decision sits in
-[Follow-ups left open](#follow-ups-left-open),
-with `wg-quicker down fr-par-fr1` as the recovery if activation fails midway.
+The tunnel run is done and recorded in
+[Tunnel run result](#tunnel-run-result),
+with `wg-quicker down fr-par-fr1` as the recovery if it must come down.
