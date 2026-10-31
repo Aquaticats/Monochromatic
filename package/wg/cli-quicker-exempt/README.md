@@ -14,17 +14,8 @@ This loader applies that mark to sockets created in Ghostty,
  Interpreter,
  and Qure cgroups without enumerating their destination IPs.
 
-It also marks the toolchain updates slice,
- `app-monochromatic\x2dupdates.slice`,
- so toolchain sync and update runs and everything they start use the physical route.
-The slice name is a contract with the TypeScript and Rust toolchain entry points,
- which re-run themselves in a `systemd-run --user --scope` below it.
-The `app-` prefix puts the slice directly under `app.slice`,
- the only directory the watcher scans and watches,
- and `\x2d` is the escaped literal dash.
-A cgroup program applies to every descendant cgroup,
- so the watcher attaches the slice once and each per-run scope inherits the mark.
-`list-targets` lists the slice while it exists.
+It also moves update traffic out of the tunnel by process.
+See [Update traffic policy](#update-traffic-policy).
 
 ## How it works
 
@@ -88,6 +79,137 @@ wg-quicker-exempt attach 100 \
 Root or equivalent BPF,
  network-administration,
  and cgroup attach capabilities are required.
+
+## Update traffic policy
+
+The wg packages decide alone that update traffic leaves outside the tunnel;
+the toolchain places nothing and knows nothing about it.
+The user's words,
+verbatim:
+
+> mpm-shadow should never determine itself goes through clearnet.
+> Our wg set of pkgs should determine that!
+
+> Anyone using our wg set of tools should be warned on start and the behavior shouldn't have a toggle.
+> It should always enforce our policies,
+> even clearnet.
+
+This watcher enforces two of the three methods the user chose;
+the update-host list is enforced by `wg-quicker`'s route watcher
+(see the [wg-quicker README](../cli-quicker/README.md#update-traffic-policy)).
+
+- The process watch:
+  A process that is an update entry point is moved into `app-monochromatic\x2dupdates.slice`.
+  The list lives in `src/update_entry_points.rs`:
+  `mise run` of the fetching tasks (`toolchain:sync`,
+  `update`,
+  `install`,
+  `outdated`,
+  their `:global` forms,
+  and the aliases `bootstrap` and `prepare:android`),
+  `mpm-shadow install`,
+  `i`,
+  `update` and `outdated` with or without `-g`,
+  the `mpm` shadow,
+  and `node` running the toolchain `sync.ts` or `update.ts`.
+  Tests check the list against the generated `mise.toml` and the `mpm-shadow` command grammar,
+  and fail when a fetching task or verb is missing.
+- The toolchain paths:
+  An executable under the watched user's `.local/share/monochromatic-dev/toolchain/` or `toolchain-global/`
+  is moved the same way.
+  The home comes from the system user database for the watched uid,
+  in the spelling the user database gives and its resolved spelling.
+  A custom `XDG_DATA_HOME` is not seen by the root watcher.
+
+The slice is marked by the same cgroup programs as the application cgroups,
+and a cgroup program applies to every descendant cgroup,
+so a scope the user's manager creates below the slice inherits the mark.
+The `app-` prefix makes systemd nest the slice directly under `app.slice`,
+where the watcher scans and watches,
+and `\x2d` is the escaped literal dash.
+The watcher creates the slice itself before it first scans.
+
+### Detecting a start
+
+The watcher subscribes to the kernel's process-event connector
+(netlink `NETLINK_CONNECTOR`,
+`CN_IDX_PROC`,
+`PROC_CN_MCAST_LISTEN`)
+and reacts to `PROC_EVENT_EXEC`,
+which arrives with the exec itself.
+Alternatives were weaker:
+polling `/proc` alone misses short processes and reacts late;
+fanotify on executables sees opens,
+not process starts;
+a BPF tracepoint needs a second BPF loader and a verifier-tested program the watcher does not otherwise carry.
+The connector needs no new dependency and the root watcher already holds the privilege.
+Layout constants come from `linux/connector.h` and `linux/cn_proc.h`,
+checked with a C program against the target kernel headers
+(`nlmsghdr` 16 bytes,
+`cn_msg` 20,
+`proc_event` 40,
+exec data at 16).
+Only datagrams from netlink port 0,
+the kernel,
+are trusted.
+Delivery is lossy when the watcher falls behind:
+an overrun is reported and every process is rescanned,
+and a full scan also runs every two seconds as the backstop.
+
+### Moving a process
+
+The watcher does not write `cgroup.procs`.
+It asks the user's systemd manager to adopt the pids
+(`StartTransientUnit` with `PIDs` and `Slice` through `busctl`,
+run as the watched user through `setpriv` when the watcher is root).
+systemd's cgroup delegation document states the single-writer rule:
+each cgroup has one writer,
+and a writer that ignores it leaves software fighting over ownership.
+A direct write would put processes into a cgroup the manager never created,
+which it would not garbage-collect and whose pid-to-unit map would go stale.
+The manager creates a scope per adoption and removes it when the processes exit.
+The `busctl` client is used instead of hand-written D-Bus wire code in a root process.
+
+The matched process moves together with its live descendants of the same user.
+The pid start time is checked again before the request,
+so a reused pid is not moved.
+After the manager accepts the job,
+the watcher waits up to two seconds until `/proc/<pid>/cgroup` names the slice.
+
+The manager can only move processes inside its own subtree,
+`user@<uid>.service`.
+A process in a login session scope (`session-N.scope` under `user-<uid>.slice`),
+or the main process of a service,
+is not moved,
+and the report says so by name.
+
+### Warned on start, loud on failure
+
+The watcher prints the policy notice when it starts,
+into its log,
+and `watch-start` prints it too.
+A line that starts with `wg-quicker-exempt: POLICY NOT IN FORCE` names the process-watch policy and what failed:
+the slice cannot be created,
+the process-event subscription failed (entry points are then found only by the periodic scan),
+events were dropped,
+reading events failed,
+a matched process is outside the user manager's subtree,
+or the adoption failed.
+A failing BPF attach or socket-marking rescan is reported under the socket-marking policy.
+No failure invents a fallback route.
+
+### Verification
+
+`mise run //package/wg/cli-quicker-exempt:test:unit` runs matcher,
+policy,
+adoption and connector tests on fake procfs trees and byte fixtures.
+Two ignored tests need a live kernel and user manager:
+the first starts a child and receives its exec event,
+the second adopts a sleeping child into a throwaway slice through the real manager.
+Run them with `cargo nextest run --run-ignored only`.
+Neither needs root on a kernel that allows the connector to unprivileged users.
+Root's use of `setpriv` is not covered by a test,
+because dropping to another user needs root.
 
 ## Persistence and replacement
 

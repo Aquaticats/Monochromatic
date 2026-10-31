@@ -386,42 +386,10 @@ Watcher state validates PID,
 process start time,
 and complete command before shutdown.
 
-The watcher also attaches the toolchain updates slice,
+The watcher also moves update entry points into the toolchain updates slice,
 `app-monochromatic\x2dupdates.slice`,
-so the toolchain's sync and update runs and every child they start (cargo-binstall,
-cargo,
-rustup,
-uv,
-pnpm,
-node fetch,
-curl) take the physical route instead of the tunnel.
-`mise run toolchain:sync`,
-`toolchain:update`,
-`toolchain:sync:global`,
-`toolchain:update:global` and `mpm-shadow install`, `update` and `outdated` re-execute themselves through
-`systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
-after a silent probe proves a user manager accepts the scope.
-They stay in place,
-with a logged reason,
-on another platform,
-in a container or any host without a user manager,
-under `MONOCHROMATIC_TOOLCHAIN_CLEARNET=off`,
-and when already inside the slice.
-The `app-` prefix matters:
-systemd nests the slice directly under `app.slice`,
-the only directory the watcher scans and watches,
-and `\x2d` keeps the name one hierarchy level.
-Cgroup programs apply to descendant cgroups,
-so each per-run scope inherits the mark with no attach of its own.
-A slice stays active after its last scope exits,
-so the attachment survives between runs.
-Without a tunnel nothing marks the slice and the traffic takes the default route anyway.
-When the slice does not yet exist,
-the silent probe creates it and the real run starts only after the probe's process has ended.
-That interval is the margin the watcher's inotify event has to attach the new slice;
-nothing confirms the attachment,
-so a watcher that is slower than the probe leaves the first sockets of that one run unmarked.
-Later runs find the slice already attached.
+and marks that slice.
+See [Update traffic policy](#update-traffic-policy).
 
 On `up`,
  application bypass routing:
@@ -468,6 +436,136 @@ not every route carrying protocol `201`.
 It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
+
+## Update traffic policy
+
+The wg packages alone decide that update traffic leaves outside the tunnel.
+The toolchain (`package/file-enforcer` and `package/mpm-shadow`) knows nothing about the tunnel and never places itself.
+The user's words,
+verbatim:
+
+> mpm-shadow should never determine itself goes through clearnet.
+> Our wg set of pkgs should determine that!
+
+> Anyone using our wg set of tools should be warned on start and the behavior shouldn't have a toggle.
+> It should always enforce our policies,
+> even clearnet.
+
+The first words of the user's second note explain why the start notice is loud:
+
+> this case was exceptionally bad,
+> because it would have had privacy implications and outright break people living in exceptionally ridiculous networking environments.
+> Imagine somewhere where if some people detect you're accessing crates.io you're paid a visit.
+
+### Three methods, one union
+
+Any match means clearnet.
+Every method is always on:
+there is no setting,
+flag,
+environment variable,
+or config key that disables any of them,
+and a test fails if one appears in either wg package.
+
+1. The process watch:
+   `wg-quicker-exempt`'s root watcher moves a process that is an update entry point into the exempt slice,
+   so it and its later children inherit the socket mark.
+   The entry points are `mise run` of a toolchain task that fetches,
+   `mpm-shadow install`,
+   `update` and `outdated` with or without `-g`,
+   the `mpm` shadow,
+   and the TypeScript toolchain `sync.ts` and `update.ts`.
+2. The update hosts:
+   Traffic to the hosts in `src/update-hosts.data.ts` bypasses the tunnel for every program,
+   browsers included.
+   The list holds every host named by `toolchain.lock.json`,
+   the toolchain resolvers and `mpm-shadow`'s network client,
+   and the redirect hosts the plan never names:
+   `objects.githubusercontent.com`,
+   `release-assets.githubusercontent.com`,
+   `index.crates.io` and `static.crates.io`.
+   A test scans those sources and fails when a host appears there that the list lacks.
+3. The toolchain paths:
+   A process whose executable is under `<data home>/monochromatic-dev/toolchain/` or `toolchain-global/`
+   is moved like the first method.
+   Every `node`,
+   `uv`,
+   `pnpm` and `cargo-binstall` tool installed there qualifies,
+   so while a tunnel with `ExemptMark` is up,
+   all of the repository's node tooling runs outside it.
+   This is the user's choice,
+   not a side effect.
+
+### How update hosts are routed
+
+For each address of each listed host,
+the route watcher adds `ip rule add to <address> table <bypass table> pref <bypass preference> protocol 201`.
+The bypass table already carries copies of the physical defaults,
+so the rule sends every packet to that address along the physical route,
+whatever process sent it.
+The rules are owned by the lifecycle:
+`down` lists the rules with protocol `201`,
+the claimed table,
+the claimed preference and a destination selector,
+and deletes exactly those.
+No rule is installed for a loopback,
+private,
+link-local,
+shared,
+multicast or reserved address,
+so a hostile or broken DNS answer cannot route local traffic through the bypass table;
+a refused answer is reported.
+
+Refresh follows the DNS answers.
+The watcher resolves every host through the system resolver path,
+asking for both address families with their TTLs,
+adds new addresses at once,
+and sleeps for the smallest TTL clamped between 30 seconds and 15 minutes.
+An address leaves the rules only after it was absent from two consecutive refreshes,
+because round-robin DNS and CDNs drop an address from one answer and return it in the next.
+The first refresh runs during `up`,
+so the rules exist before traffic flows.
+
+### Warned on every start, loud when not in force
+
+Every `up` with `ExemptMark` prints a notice on standard error and in the log that names exactly which traffic leaves
+outside the tunnel:
+the update entry points,
+the toolchain install roots,
+and every update host.
+It also says why:
+the repository keeps toolchain updates on the physical network.
+`wg-quicker-exempt` prints its part of the notice when its watcher starts,
+into its log.
+
+Nothing degrades silently.
+A report that starts with `POLICY NOT IN FORCE` names the policy that cannot be enforced and what that leaves:
+
+- a start without `ExemptMark` names both policies,
+  because the bypass table that carries them does not exist and update traffic uses the tunnel;
+- a DNS failure,
+  a refused answer,
+  or a failed `ip rule` command names the update-host policy and the affected hosts or addresses;
+- a failed slice creation,
+  process-event subscription,
+  dropped events,
+  unmovable process,
+  failed adoption,
+  or failed BPF attach names the process-watch policy or the socket-marking policy.
+
+No failure installs a different route on its own:
+the traffic that the failed policy covers stays in the tunnel.
+
+### Boundaries
+
+- A CDN may hand a program an address that differs from the one the watcher resolved.
+  Both use the same resolver path and cache,
+  but nothing guarantees equal answers.
+- The destination rule also carries every other site on a shared address,
+  not only the update host.
+- Sockets a process opened before it was moved keep the tunnel route.
+- Only processes inside the user's systemd manager subtree can be moved.
+  See the [wg-quicker-exempt README](../cli-quicker-exempt/README.md#update-traffic-policy).
 
 ## Development
 
