@@ -127,7 +127,8 @@ function writersRecordOf(
     voices: voices.map(function voiceOf(voice,): ConsistencyWriterVoice {
       return {
         ...seatFieldsOf({ voice, },),
-        translation: voice.value.translation,
+        translation: voice.value
+          .translation,
       };
     },),
     findings,

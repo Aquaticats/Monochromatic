@@ -48,22 +48,58 @@ export type RoleStanding = {
  const editors = ROLE_STANDINGS.editor;
  ```
  */
-export const ROLE_STANDINGS: Readonly<Partial<Record<SeatRole, readonly RoleStanding[]>>> = {
+export const ROLE_STANDINGS: Readonly<Record<'editor' | 'refiner', readonly RoleStanding[]>> = {
   editor: [
-    { modelId: 'hf:zai-org/GLM-5.3-Flash', share: 32.2, },
-    { modelId: 'glm-5.3', share: 21.4, },
-    { modelId: 'hf:Qwen/Qwen3.8-27B', share: 17.3, },
-    { modelId: 'hf:moonshotai/Kimi-K3', share: 14.2, },
-    { modelId: 'minimax-m3', share: 8.4, },
-    { modelId: 'gemma-4-26b-a4b-it', share: 7.0, },
+    {
+      modelId: 'hf:zai-org/GLM-5.3-Flash',
+      share: 32.2,
+    },
+    {
+      modelId: 'glm-5.3',
+      share: 21.4,
+    },
+    {
+      modelId: 'hf:Qwen/Qwen3.8-27B',
+      share: 17.3,
+    },
+    {
+      modelId: 'hf:moonshotai/Kimi-K3',
+      share: 14.2,
+    },
+    {
+      modelId: 'minimax-m3',
+      share: 8.4,
+    },
+    {
+      modelId: 'gemma-4-26b-a4b-it',
+      share: 7,
+    },
   ],
   refiner: [
-    { modelId: 'hf:zai-org/GLM-5.3-Flash', share: 32.5, },
-    { modelId: 'glm-5.3', share: 12.1, },
-    { modelId: 'minimax-m3', share: 9.7, },
-    { modelId: 'hf:moonshotai/Kimi-K3', share: 7.8, },
-    { modelId: 'hf:Qwen/Qwen3.8-27B', share: 7.7, },
-    { modelId: 'gemma-4-26b-a4b-it', share: 3.4, },
+    {
+      modelId: 'hf:zai-org/GLM-5.3-Flash',
+      share: 32.5,
+    },
+    {
+      modelId: 'glm-5.3',
+      share: 12.1,
+    },
+    {
+      modelId: 'minimax-m3',
+      share: 9.7,
+    },
+    {
+      modelId: 'hf:moonshotai/Kimi-K3',
+      share: 7.8,
+    },
+    {
+      modelId: 'hf:Qwen/Qwen3.8-27B',
+      share: 7.7,
+    },
+    {
+      modelId: 'gemma-4-26b-a4b-it',
+      share: 3.4,
+    },
   ],
 };
 
@@ -91,7 +127,7 @@ export function standingOrderOf(
     readonly modelIds: readonly RosterModelId[];
   },
 ): readonly RosterModelId[] {
-  return (ROLE_STANDINGS[role] ?? [])
+  return ((role === 'editor') || (role === 'refiner') ? ROLE_STANDINGS[role] : [])
     .filter(function isAmong(row,): boolean {
       return modelIds.includes(row.modelId,);
     },)

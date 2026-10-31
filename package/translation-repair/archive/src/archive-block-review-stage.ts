@@ -9,6 +9,7 @@ import { archiveReplyVerdict, } from './archive-reply-verdict.ts';
 import { recordArchiveBlockNaturalness, } from './archive-block-naturalness.ts';
 import { compositeOfDisjointRevisions, } from './archive-composite-revision.ts';
 import { voicesAsRead, } from './archive-voices-as-read.ts';
+import type { ArchiveBlockReviewOutcome, } from './archive-block-review-outcome.ts';
 import { replacementCandidates, } from './archive-replacement-candidates.ts';
 import {
   archiveBlockSelectionEvidence,
@@ -43,25 +44,6 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  Evidence marker assigning distinct prior-decline selection responsibility.
  */
 const PRIOR_CORRECTION_DECLINE = 'archive correction slate declined';
-
-/**
- Settled review of one unclaimed archive block.
- */
-export type ArchiveBlockReviewOutcome = {
-  /**
-   Whether exact archived text stands or a different replacement was selected.
-   */
-  readonly kind: 'retained' | 'revised';
-  /**
-   Original or selected replacement text.
-   */
-  readonly text: string;
-  /**
-   Review and selection evidence.
-   */
-  readonly findings: readonly string[];
-};
-
 
 /**
  Reviews one archive-only block once and selects a correction when any voice rejects it.

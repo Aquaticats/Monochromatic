@@ -374,7 +374,13 @@ await describe({
             expect(result.voices.map(function seatAndAnswerer(voice,): string {
               return `${voice.seat}${(voice.answeredBy === undefined) ? '' : ` answered by ${voice.answeredBy}`}`;
             },),).toEqual([`${BENCH[0]} answered by ${answerer}`, BENCH[1], BENCH[2],],);
-            expect(JSON.parse(persisted[0]?.serialized ?? 'null',).voices[0].answeredBy,).toBe(answerer,);
+            /**
+             The first persisted record as stored, read for the key this case pins.
+             */
+            const stored = JSON.parse(persisted[0]?.serialized ?? 'null',) as {
+              readonly voices: readonly { readonly answeredBy?: string; }[];
+            };
+            expect(stored.voices[0]?.answeredBy,).toBe(answerer,);
           },
         },),
 

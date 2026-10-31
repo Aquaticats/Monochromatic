@@ -44,6 +44,27 @@ import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixtur
 const READERS: readonly RosterModelId[] = [SEAT_SYNTHETIC_VISION_WITHHELD, SEAT_HYPER_VISION,];
 
 /**
+ Orders two asks, each a model and a hint, by the model and then the hint.
+
+ @param left - first ask
+
+ @param right - second ask
+
+ @returns Negative where the first sorts first
+
+ @example
+ ```ts
+ const sorted = asks.toSorted(byAsk);
+ ```
+ */
+function byAsk(
+  left: readonly string[],
+  right: readonly string[],
+): number {
+  return left.join('\u0000',).localeCompare(right.join('\u0000',),);
+}
+
+/**
  Reply the completion cap ended while the model was still reasoning.
  */
 const CUT: ChatTextReply = { text: '', finishReason: 'length', servedBy: 'neuralwatt', };
@@ -153,12 +174,12 @@ await describe({
         expect(asks.filter(function isRetake(ask,): boolean {
           return !READERS.includes(ask[0],);
         },),).toEqual([],);
-        expect(asks.toSorted(),).toEqual([
+        expect(asks.toSorted(byAsk,),).toEqual([
           [SEAT_HYPER_VISION, 'neuralwatt',],
           [SEAT_HYPER_VISION, 'no hint',],
           [SEAT_SYNTHETIC_VISION_WITHHELD, 'neuralwatt',],
           [SEAT_SYNTHETIC_VISION_WITHHELD, 'no hint',],
-        ].toSorted(),);
+        ].toSorted(byAsk,),);
       },
     },),
 

@@ -170,6 +170,45 @@ Do not rewrite for style, and do not translate anything you were not given.
 Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...", "translatorNote": "..."}. Use an empty string for "translation" unless the resolution is "revised". No prose, no code fences, no commentary.`;
 
 /**
+ Whether a character belongs to a word as the pattern `\b` reads it: an ASCII letter, digit or underscore.
+
+ @param character - one character
+
+ @returns True for an ASCII letter, digit or underscore
+
+ @example
+ ```ts
+ const inWord = isWordCharacter({ character: 'y', },); // true
+ ```
+ */
+function isWordCharacter({ character, }: { readonly character: string; },): boolean {
+  return ((character >= 'a') && (character <= 'z'))
+    || ((character >= 'A') && (character <= 'Z'))
+    || ((character >= '0') && (character <= '9'))
+    || (character === '_');
+}
+
+/**
+ Makes the one word that addresses the author the article, and leaves any other word as it is.
+
+ @param word - unquoted word, possibly empty
+
+ @returns `The` for `Your`, `the` for `your`, the word otherwise
+
+ @example
+ ```ts
+ const article = articleForWord({ word: 'Your', },); // 'The'
+ ```
+ */
+function articleForWord({ word, }: { readonly word: string; },): string {
+  if (word === 'Your')
+    return 'The';
+  if (word === 'your')
+    return 'the';
+  return word;
+}
+
+/**
  Makes the possessive that addresses the author ("Your translation") the article, outside quotations only.
 
  A QUOTATION IN A FINDING IS THE MODEL'S OWN TEXT (or the page's), set in double quotes or backticks, and is never
@@ -188,26 +227,54 @@ Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...
  ```
  */
 function articleForPossessive({ finding, }: { readonly finding: string; },): string {
-  // The capture group keeps each quotation as an odd piece, so the unquoted pieces are the even ones.
-  return finding
-    .split(/("[^"]*"|`[^`]*`)/u,)
-    .map(function swapped(
-      piece,
-      at,
-    ): string {
-      return ((at % 2) === 1)
-        ? piece
-        : piece
-          .replaceAll(
-          /\bYour\b/gu,
-          'The',
-          )
-          .replaceAll(
-          /\byour\b/gu,
-          'the',
-          );
-    },)
-    .join('',);
+  // ONE LINEAR PASS, NO REGEX: a quotation is copied as it stands, and an unquoted word is read whole and swapped when it
+  // is the possessive. A quote mark with no closing mark after it opens no quotation, as it opened none for the pattern
+  // this replaces.
+  /**
+   Pieces of the result, joined at the end.
+   */
+  const pieces: string[] = [];
+  /**
+   Letters of the unquoted word being read.
+   */
+  const word: string[] = [];
+  /**
+   Mark that closes the quotation being copied; empty outside one.
+   */
+  const quotation = { closer: '', };
+  /**
+   Marks that have no closing mark left in the text, so they open nothing.
+   */
+  const unclosed = new Set<string>();
+  for (const [at, character,] of finding.split('',)
+    .entries()) {
+    if (quotation.closer !== '') {
+      pieces.push(character,);
+      if (character === quotation.closer)
+        quotation.closer = '';
+      continue;
+    }
+    if (isWordCharacter({ character, },)) {
+      word.push(character,);
+      continue;
+    }
+    pieces.push(
+      articleForWord({ word: word.join('',), },),
+      character,
+    );
+    word.length = 0;
+    if (((character === '"') || (character === '`')) && (!unclosed.has(character,))) {
+      if (finding.includes(
+        character,
+        at + 1,
+      ))
+        quotation.closer = character;
+      else
+        unclosed.add(character,);
+    }
+  }
+  pieces.push(articleForWord({ word: word.join('',), },),);
+  return pieces.join('',);
 }
 
 /**

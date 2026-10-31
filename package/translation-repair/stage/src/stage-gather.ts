@@ -44,7 +44,10 @@ export type HeardVoice<ValueT,> = {
  const seat = seatOfVoice({ voice, },);
  ```
  */
-export function seatOfVoice({ voice, }: { readonly voice: { readonly modelId: RosterModelId; readonly seat?: RosterModelId; }; },): RosterModelId {
+export function seatOfVoice({ voice, }: { readonly voice: {
+  readonly modelId: RosterModelId;
+  readonly seat?: RosterModelId
+}; },): RosterModelId {
   return voice.seat ?? voice.modelId;
 }
 

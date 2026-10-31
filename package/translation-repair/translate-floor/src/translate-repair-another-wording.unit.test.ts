@@ -41,7 +41,74 @@ function turnFor({ findings, }: { readonly findings: readonly string[]; },): str
     priorTranslation: 'The cat naps.',
     findings,
   },).at(-1,);
-  return (typeof last?.content === 'string') ? last.content : '';
+  return ((typeof last?.content) === 'string') ? last.content : '';
+}
+
+/**
+ Cuts the quotations (double quotes and backticks) out of a text.
+
+ @param text - text to read
+
+ @returns The text outside its quotations
+
+ @example
+ ```ts
+ // yields 'a  b'
+ const outside = outsideQuotations({ text: 'a "cat" b', },);
+ ```
+ */
+function outsideQuotations({ text, }: { readonly text: string; },): string {
+  return text
+    .split('"',)
+    .filter(function isOutsideDouble(
+      _piece,
+      at,
+    ): boolean {
+      return (at % 2) === 0;
+    },)
+    .join(' ',)
+    .split('`',)
+    .filter(function isOutsideTicks(
+      _piece,
+      at,
+    ): boolean {
+      return (at % 2) === 0;
+    },)
+    .join(' ',);
+}
+
+/**
+ Cuts a text into its lower-case words of ASCII letters.
+
+ @param text - text to read
+
+ @returns The words, in order
+
+ @example
+ ```ts
+ // yields ['your', 'cat']
+ const words = wordsOf({ text: 'Your cat.', },);
+ ```
+ */
+function wordsOf({ text, }: { readonly text: string; },): readonly string[] {
+  /**
+   Words read so far.
+   */
+  const words: string[] = [];
+  /**
+   Letters of the word being read.
+   */
+  const letters: string[] = [];
+  for (const character of `${text.toLowerCase()} `) {
+    if ((character >= 'a') && (character <= 'z')) {
+      letters.push(character,);
+      continue;
+    }
+    if (letters.length > 0)
+      words.push(letters.join('',),);
+    letters.length = 0;
+  }
+  return words;
 }
 
 await describe({
@@ -72,21 +139,23 @@ await describe({
          */
         const findings = [
           'This slice is LINE-STRUCTURED: every line stands as its own unit, so the rendering owes one line per line of the '
-          + 'ORIGINAL and may never merge two into one. The rendering carries 1 line of content where the ORIGINAL has 2. Put '
-          + 'back the line breaks that were merged, keeping the wording as it stands.',
+            + 'ORIGINAL and may never merge two into one. The rendering carries 1 line of content where the ORIGINAL has 2. Put '
+            + 'back the line breaks that were merged, keeping the wording as it stands.',
           'The EXISTING TRANSLATION carries the block holding it as 1 line. The rendering carries 2. Drop the second rendering '
-          + 'of the pair, keeping the wording used elsewhere.',
+            + 'of the pair, keeping the wording used elsewhere.',
           'The link text for https://cat.example names 猫, whom this page\'s front matter declares "Mittens", but the link '
-          + 'text "Cat" does not carry "Mittens". Keep the rest of the title as it was rendered.',
+            + 'text "Cat" does not carry "Mittens". Keep the rest of the title as it was rendered.',
           'Your translation carries the sheet\'s own "ORIGINAL" block, which is evidence shown to the translator and never '
-          + 'part of the passage.',
+            + 'part of the passage.',
         ];
         const text = turnFor({ findings, },);
         /**
          The findings as the turn lists them, below the heading.
          */
         const listed = text.slice(text.indexOf('FINDINGS',),);
-        expect(listed.replaceAll(/"[^"]*"|`[^`]*`/gu, '',),).not.toMatch(/\b(?:you|your|yours)\b/iu,);
+        expect(wordsOf({ text: outsideQuotations({ text: listed, },), },).filter(function isSecondPerson(word,): boolean {
+          return (word === 'you') || (word === 'your') || (word === 'yours');
+        },),).toEqual([],);
       },
     },),
 

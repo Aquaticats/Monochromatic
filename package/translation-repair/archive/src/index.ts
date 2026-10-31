@@ -26,10 +26,8 @@ export {
   isArchiveSourceQuoteAnchored,
   isVerifiableEditorialArchiveBlock,
 } from './archive-block-evidence.ts';
-export {
-  type ArchiveBlockReviewOutcome,
-  runArchiveBlockReviewStage,
-} from './archive-block-review-stage.ts';
+export type { ArchiveBlockReviewOutcome, } from './archive-block-review-outcome.ts';
+export { runArchiveBlockReviewStage, } from './archive-block-review-stage.ts';
 export {
   archiveReplyVerdict,
   type ArchiveReplyVerdict,

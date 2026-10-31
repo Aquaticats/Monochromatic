@@ -67,8 +67,14 @@ type StoredGather = {
  ```
  */
 export function seatFieldsOf(
-  { voice, }: { readonly voice: { readonly modelId: RosterModelId; readonly seat?: RosterModelId; }; },
-): { readonly seat: RosterModelId; readonly answeredBy?: RosterModelId; } {
+  { voice, }: { readonly voice: {
+    readonly modelId: RosterModelId;
+    readonly seat?: RosterModelId
+  }; },
+): {
+  readonly seat: RosterModelId;
+  readonly answeredBy?: RosterModelId
+} {
   return {
     seat: seatOfVoice({ voice, },),
     // Conditional spread keeps the model absent where the seat's own model answered.

@@ -466,7 +466,11 @@ export async function gatherStageVoices<ValueT,>(
       for (const outcome of outcomes) {
         if (outcome.voice
           .heard) {
-          collected.push(heardVoiceOf({ outcome, stage, l, },),);
+          collected.push(heardVoiceOf({
+            outcome,
+            stage,
+            l,
+          },),);
           unreadableSeats.delete(outcome.modelId,);
           askedInstead.delete(outcome.modelId,);
           continue;
@@ -543,7 +547,11 @@ export async function gatherStageVoices<ValueT,>(
       for (const outcome of recovered) {
         if (outcome.voice
           .heard) {
-          collected.push(heardVoiceOf({ outcome, stage, l, },),);
+          collected.push(heardVoiceOf({
+            outcome,
+            stage,
+            l,
+          },),);
           unreadableSeats.delete(outcome.modelId,);
         }
       }

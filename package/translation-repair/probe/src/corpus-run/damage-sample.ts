@@ -46,7 +46,10 @@ async function sampleOverTheEnvironment(): Promise<void> {
     // resolved and placed; the pool took it from its own location until
     // 2026-10-10.
     repository: import.meta.dirname,
-    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
+    stageSettings: readStageSettings({
+      env: process.env,
+      reask: 'measured-model',
+    },),
   },);
 }
 

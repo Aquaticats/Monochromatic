@@ -24,7 +24,9 @@ import type { RoundOutcome, } from './stage-round.ts';
 export function answererOf<ValueT,>({ outcome, }: { readonly outcome: RoundOutcome<ValueT>; },): RosterModelId {
   return outcome.voice
     .heard
-    ? (outcome.voice.answeredBy ?? outcome.modelId)
+    ? (outcome.voice
+      .answeredBy
+      ?? outcome.modelId)
     : outcome.modelId;
 }
 

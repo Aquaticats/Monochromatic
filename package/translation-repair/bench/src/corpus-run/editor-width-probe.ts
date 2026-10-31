@@ -52,7 +52,10 @@ async function main({ line, }: { readonly line: CommandLineOf<'editor-width-prob
     runSlice: runWidthSlice,
     writeReport: writeWidthReport,
     runsDir: await resolveRunsDir(),
-    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
+    stageSettings: readStageSettings({
+      env: process.env,
+      reask: 'measured-model',
+    },),
   },);
 }
 

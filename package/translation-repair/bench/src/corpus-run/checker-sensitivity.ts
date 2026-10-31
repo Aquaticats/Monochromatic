@@ -38,7 +38,10 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 function main(): Promise<void> {
   return runCheckerSensitivity({
     newClient: createProbeRunClient,
-    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
+    stageSettings: readStageSettings({
+      env: process.env,
+      reask: 'measured-model',
+    },),
   },);
 }
 

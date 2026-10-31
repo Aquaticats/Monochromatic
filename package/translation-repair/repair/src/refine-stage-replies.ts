@@ -422,7 +422,10 @@ export function applyReply(
  const ordered = inRosterOrder({ replies, roster: refinerModelIds, },);
  ```
  */
-export function inRosterOrder<ReplyT extends { readonly modelId: RosterModelId; readonly seat?: RosterModelId; },>(
+export function inRosterOrder<ReplyT extends {
+  readonly modelId: RosterModelId;
+  readonly seat?: RosterModelId
+},>(
   {
     replies,
     roster,

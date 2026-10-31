@@ -150,9 +150,9 @@ function namedUnderKey(
    @returns True when its first token is the key
    */
   function isKey(property: readonly Token[],): boolean {
-    return property[0]
+    return (property[0]
       ?.text
-      === key
+      === key)
       || isComputedKey(property,);
   }
 
