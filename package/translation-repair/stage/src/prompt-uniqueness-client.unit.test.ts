@@ -359,7 +359,9 @@ await describe({
           },
         };
         const client = promptUniqueClient({ inner, },);
-        const outcome = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
+        // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079).
+        const seated = { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', bench: [], }, } as const;
+        const outcome = await client.chatJson(seated,);
         expect(outcome.kind,).toBe('ok',);
         expect(asked,).toHaveLength(2,);
         expect(asked[1]?.modelId,).not.toBe(REQUEST.modelId,);
@@ -373,7 +375,7 @@ await describe({
         );
 
         // Asked again, both answers come from the claims.
-        const again = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
+        const again = await client.chatJson(seated,);
         expect(again.kind,).toBe('ok',);
         expect(asked,).toHaveLength(2,);
       },

@@ -188,7 +188,9 @@ type RunawayRun = {
 async function recoverRunaway(
   {
     noProvider,
-    reaskSeat,
+    // A ROUND NAMES ITS SEAT (ledger B1079): the roster-wide role with no bench is what the cases that care about
+    // neither the role nor the bench were written under.
+    reaskSeat = { role: 'roster', bench: [], },
     askedInstead,
   }: {
     readonly noProvider: readonly RosterModelId[];
@@ -223,7 +225,7 @@ async function recoverRunaway(
       stage: 'gate',
       l: levelCapturingLogger({ lines, },),
       graceMs: HANG_STOP_MS,
-      ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+      reaskSeat,
     },
     unreadable: [RUNAWAY_SEAT,],
     causeOf: new Map<RosterModelId, UnreadableCause>([[RUNAWAY_SEAT, 'runaway',],],),

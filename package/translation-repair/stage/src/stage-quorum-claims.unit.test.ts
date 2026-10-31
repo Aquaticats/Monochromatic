@@ -51,7 +51,10 @@ const BENCH: readonly RosterModelId[] = [
 /**
  Seats whose first ask ends in a length stop with no content.
  */
-const RUNAWAYS: readonly RosterModelId[] = [SEAT_HYPER_OPENROUTER_UNMEASURED, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,];
+const RUNAWAYS: ReadonlySet<RosterModelId> = new Set([
+  SEAT_HYPER_OPENROUTER_UNMEASURED,
+  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+],);
 
 /**
  One ask the scripted client saw.
@@ -121,7 +124,7 @@ async function gatherWithRunaways(
         },),
         ...((request.reaskSeat === undefined) ? {} : { reaskSeat: request.reaskSeat, }),
       },);
-      if (RUNAWAYS.includes(request.modelId,) && (!ranAway.has(request.modelId,))) {
+      if (RUNAWAYS.has(request.modelId,) && (!ranAway.has(request.modelId,))) {
         ranAway.add(request.modelId,);
         return {
           kind: 'schema-mismatch',
@@ -269,8 +272,8 @@ await describe({
           return line.startsWith('warn [runRecoveryRound]',) && line.includes('no other model could take the re-ask',);
         },),).toEqual([
           `warn [runRecoveryRound] [recoverRunaway] panel: ${SEAT_SYNTHETIC_VISION_NO_OPENROUTER}: no other model `
-          + `could take the re-ask of a reasoning runaway (0 tried); re-asking ${SEAT_SYNTHETIC_VISION_NO_OPENROUTER}, `
-          + 'nudged',
+            + `could take the re-ask of a reasoning runaway (0 tried); re-asking ${SEAT_SYNTHETIC_VISION_NO_OPENROUTER}, `
+            + 'nudged',
         ],);
       },
     },),

@@ -212,6 +212,7 @@ async function runBench(
     stage: 'meow',
     l,
     graceMs,
+    role: 'roster',
     ...((fanOut === undefined) ? {} : { fanOut, }),
     ...((quorumOver === undefined) ? {} : { quorumOver, }),
     ...((maxAnswerChars === undefined) ? {} : { maxAnswerChars, }),

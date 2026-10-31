@@ -309,6 +309,7 @@ await describe({
         } = refusedFirstBench();
         /** Gather under test. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: scriptedClient({
             roles,
             calls,
@@ -359,6 +360,7 @@ await describe({
         } = refusedFirstBench();
         /** Outcomes under test. */
         const { outcomes, } = await runWindowedRounds({
+          role: 'roster',
           client: scriptedClient({
             roles,
             calls,
@@ -412,6 +414,7 @@ await describe({
           [SEAT_SYNTHETIC_TEXT_EVERYWHERE, 'fast',],
         ],);
         await runWindowedRounds({
+          role: 'roster',
           client: scriptedClient({
             roles,
             calls,
@@ -446,6 +449,7 @@ await describe({
         } = quorumOfLiveSeatsBench();
         /** Gather under test. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: scriptedClient({
             roles,
             calls,
@@ -485,6 +489,7 @@ await describe({
         } = quorumOfLiveSeatsBench();
         /** Rounds under test. */
         const rounds = await runWindowedRounds({
+          role: 'roster',
           client: scriptedClient({
             roles,
             calls,
@@ -522,6 +527,7 @@ await describe({
         const { roles, } = quorumOfLiveSeatsBench();
         /** Rounds under test. */
         const rounds = await runWindowedRounds({
+          role: 'roster',
           client: scriptedClient({
             roles,
             calls,

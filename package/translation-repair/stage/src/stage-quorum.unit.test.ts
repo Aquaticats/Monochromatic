@@ -514,6 +514,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather over a fully healthy roster. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({ failuresByModel: {}, calls, },),
           modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_SYNTHETIC_VISION_WITHHELD,],
           messages: [{ role: 'user', content: 'meow', },],
@@ -541,6 +542,7 @@ await describe({
         /** What the gather rejected with. */
         const refusal = await rejectionOf(async function gatherOverRepeatedSeat(): Promise<unknown> {
           return gatherStageVoices({
+            role: 'roster',
             client: flakyClient({ failuresByModel: {}, calls, },),
             modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
             messages: [{ role: 'user', content: 'meow', },],
@@ -571,6 +573,7 @@ await describe({
         /** What the gather rejected with. */
         const refusal = await rejectionOf(async function gatherOverRepeatedSeats(): Promise<unknown> {
           return gatherStageVoices({
+            role: 'roster',
             client: flakyClient({ failuresByModel: {}, calls: {}, },),
             modelIds: [
               SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
@@ -608,6 +611,7 @@ await describe({
       fn: async () => {
         /** Gather where one seat is refused by the router and one fails on a wet provider. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: dryBenchClient({
             drySeats: [SEAT_HYPER_ONLY,],
             failingSeat: SEAT_SYNTHETIC_VISION_WITHHELD,
@@ -641,6 +645,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather on a Bedrock-alone bench: seven seats refused, four answering. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: dryBenchClient({
             drySeats: [...DRY_SEVEN,],
             failingSeat: 'nobody',
@@ -684,6 +689,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather over ten seats, of which four answer and the rest fail in transport. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: answeringBenchClient({
             answeringSeats: [
               SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -734,6 +740,7 @@ await describe({
         ): Promise<{ readonly quorum: number; readonly findings: readonly string[]; }> {
           /** The round over the bench. */
           const gather = await gatherStageVoices({
+            role: 'roster',
             client: dryBenchClient({
               drySeats: [...drySeats,],
               failingSeat: 'nobody',
@@ -777,6 +784,7 @@ await describe({
       fn: async () => {
         /** Gather where every seat is refused. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: dryBenchClient({
             drySeats: [SEAT_HYPER_ONLY, SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_SYNTHETIC_VISION_WITHHELD,],
             failingSeat: 'nobody',
@@ -806,6 +814,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather where two of three answer immediately and one never does. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: { [SEAT_SYNTHETIC_VISION_WITHHELD]: 99, },
             calls,
@@ -890,6 +899,7 @@ await describe({
         };
 
         const gather = await gatherStageVoices({
+          role: 'roster',
           client,
           modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_SYNTHETIC_VISION_WITHHELD,],
           messages: [{ role: 'user', content: 'meow', },],
@@ -955,6 +965,7 @@ await describe({
           },
         };
         const gather = await gatherStageVoices({
+          role: 'roster',
           client,
           modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_SYNTHETIC_VISION_WITHHELD,],
           messages: [{ role: 'user', content: 'meow', },],
@@ -979,6 +990,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Four-model roster where exactly two never answer. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: {
               [SEAT_SYNTHETIC_VISION_WITHHELD]: 99,
@@ -1037,6 +1049,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather where one model of three never answers. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: { [SEAT_SYNTHETIC_VISION_WITHHELD]: 99, },
             calls,
@@ -1065,6 +1078,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather over a fully healthy roster. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({ failuresByModel: {}, calls, },),
           modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER, SEAT_SYNTHETIC_VISION_WITHHELD,],
           messages: [{ role: 'user', content: 'meow', },],
@@ -1087,6 +1101,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Four-model roster where only one ever answers. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: {
               [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: 99,
@@ -1134,6 +1149,7 @@ await describe({
         ];
         /** Gather recovering the milestone-two weather pattern. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: Object.fromEntries(
               roster.slice(1,).map(function toFailure(modelId,) {
@@ -1191,6 +1207,7 @@ await describe({
         ];
         /** Gather over the healthy roster. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({ failuresByModel: {}, calls, },),
           modelIds: roster,
           messages: [{ role: 'user', content: 'meow', },],
@@ -1228,6 +1245,7 @@ await describe({
         ];
         /** Gather over the healthy roster, the rotation pinned at the third seat. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({ failuresByModel: {}, calls, },),
           modelIds: roster,
           messages: [{ role: 'user', content: 'a prompt whose own rotation is somewhere else', },],
@@ -1252,6 +1270,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Roster where only one of three ever answers. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: {
               [SEAT_SYNTHETIC_VISION_NO_OPENROUTER]: 99,
@@ -1290,6 +1309,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Gather where one voice never answers at all. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: { [SEAT_SYNTHETIC_VISION_WITHHELD]: 99, },
             calls,
@@ -1325,6 +1345,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Two answer at once, and the third writes one unusable answer first. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: { [SEAT_SYNTHETIC_VISION_WITHHELD]: 1, },
             calls,
@@ -1401,6 +1422,7 @@ await describe({
         };
         /** Gather over the three seats. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client,
           modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, recovering, silent,],
           messages: [{ role: 'user', content: 'meow', },],
@@ -1475,6 +1497,7 @@ await describe({
         };
         /** Gather over the three seats. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client,
           modelIds: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, cutShort, offShape,],
           messages: [{ role: 'user', content: 'meow', },],
@@ -1512,6 +1535,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Two answer at once, and the third never delivers anything. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: silentClient({
             silentModel: SEAT_SYNTHETIC_VISION_WITHHELD,
             calls,
@@ -1549,6 +1573,7 @@ await describe({
 
         /** Two answer at once; the third answers unusably, then hangs. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: stallingClient({
             stallingModel: SEAT_SYNTHETIC_VISION_WITHHELD,
             calls,
@@ -1586,6 +1611,7 @@ await describe({
         const calls: Record<string, number> = {};
         /** Editor-style gather over a roster of one. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: flakyClient({
             failuresByModel: { [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: 2, },
             calls,
@@ -1622,6 +1648,7 @@ await describe({
 
         /** Gather where one model never answers on its own. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: hangingClient({
             hangingModelId: SEAT_SYNTHETIC_VISION_WITHHELD,
             cut,
@@ -1666,6 +1693,7 @@ await describe({
 
         /** Gather where the third voice is late but well inside the window. */
         const gather = await gatherStageVoices({
+          role: 'roster',
           client: hangingClient({
             hangingModelId: SEAT_SYNTHETIC_VISION_WITHHELD,
             cut,

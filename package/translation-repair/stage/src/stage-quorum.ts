@@ -2,9 +2,10 @@ import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import type {
-  JsonSchemaResponseFormat,
-  ModelClient,
+import {
+  createReaskClaims,
+  type JsonSchemaResponseFormat,
+  type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
@@ -165,8 +166,8 @@ type RoundsOutcome<ValueT,> = {
  asked move with no sheet text (`rotatedBench`); absent in production
 
  @param role - role the stage's seats stand in, which the re-ask of a reasoning runaway reads to leave out the models
- their cards hold out of it (ledger B1074); the roster-wide role where a caller names none, which honours only the holds
- that empty every bench
+ their cards hold out of it (ledger B1074); required, since a caller that left it out was asked as the roster-wide
+ role and so re-asked a runaway of exactly the models its card drops from the seat (ledger B1079)
 
  @returns Heard voices plus quorum verdict and degradation findings
 
@@ -199,7 +200,7 @@ export async function gatherStageVoices<ValueT,>(
     benchStart,
     decision,
     seatTally = RUN_SEATS,
-    role = 'roster',
+    role,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
@@ -217,7 +218,7 @@ export async function gatherStageVoices<ValueT,>(
     readonly benchStart?: number;
     readonly decision?: StageDecision;
     readonly seatTally?: SeatTally;
-    readonly role?: SeatRole;
+    readonly role: SeatRole;
   }>,
 ): Promise<StageGather<ValueT>> {
   /**
@@ -357,10 +358,12 @@ export async function gatherStageVoices<ValueT,>(
       // Conditional spread keeps the question absent instead of undefined.
       ...((decision === undefined) ? {} : { decision, }),
       // THE BENCH IS THE WHOLE ROSTER THE STAGE NAMED, withheld seats included: a model seated on the question is never
-      // asked for the voice of another seat of it (ledger B1076).
+      // asked for the voice of another seat of it (ledger B1076). THE SEATS SHARE ONE RECORD OF THE MODELS ASKED, made
+      // here for this question alone, so a model one seat took is not taken for another (ledger B1080).
       reaskSeat: {
         role,
         bench: modelIds,
+        claims: createReaskClaims(),
       },
     };
 

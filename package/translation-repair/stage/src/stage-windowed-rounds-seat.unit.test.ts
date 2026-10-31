@@ -54,11 +54,11 @@ const BENCH: readonly RosterModelId[] = [
  const seats = await seatsOfAsks();
  ```
  */
-async function seatsOfAsks(): Promise<readonly (ReaskSeat | undefined)[]> {
+async function seatsOfAsks(): Promise<readonly ReaskSeat[]> {
   /**
-   Seat each ask carried.
+   Seat each ask carried; an ask that carried none adds nothing, so a missing seat shows as a short list.
    */
-  const seats: (ReaskSeat | undefined)[] = [];
+  const seats: ReaskSeat[] = [];
 
   /**
    Client whose every seat answers.
@@ -70,7 +70,8 @@ async function seatsOfAsks(): Promise<readonly (ReaskSeat | undefined)[]> {
     chatJson: async <ValueT,>(
       request: ChatJsonRequest<ValueT>,
     ): Promise<ChatJsonOutcome<ValueT>> => {
-      seats.push(request.reaskSeat,);
+      if (request.reaskSeat !== undefined)
+        seats.push(request.reaskSeat,);
 
       /**
        Scripted payload for the answering call.
@@ -116,8 +117,8 @@ await describe({
         const seats = await seatsOfAsks();
         expect(seats,).toHaveLength(BENCH.length,);
         for (const seat of seats) {
-          expect(seat?.role,).toBe('late-judge',);
-          expect(seat?.bench,).toEqual(BENCH,);
+          expect(seat.role,).toBe('late-judge',);
+          expect(seat.bench,).toEqual(BENCH,);
         }
       },
     },),
@@ -127,10 +128,11 @@ await describe({
         + 'taken again by another',
       fn: async () => {
         const seats = await seatsOfAsks();
+        expect(seats,).toHaveLength(BENCH.length,);
         const [first,] = seats;
         expect(first?.claims === undefined,).toBe(false,);
         for (const seat of seats) {
-          expect(seat?.claims === first?.claims,).toBe(true,);
+          expect(seat.claims === first?.claims,).toBe(true,);
         }
       },
     },),

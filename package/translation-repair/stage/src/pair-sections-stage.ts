@@ -291,6 +291,8 @@ export async function pairSectionsWithRoster(
     validate: isSectionPairingWire,
     stage: 'section-pairing',
     l: pl,
+    // PAIRING IS ASKED OF THE RUN ROSTER and nothing narrower (`seats.roster`, the preparation round).
+    role: 'roster',
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
     graceMs: stageSettings

@@ -78,7 +78,7 @@ type SeenAsk = {
  ```
  */
 async function gatherWithARunaway(
-  { role, }: { readonly role?: 'wide-judge'; },
+  { role, }: { readonly role: 'roster' | 'wide-judge'; },
 ) {
   /**
    Asks the client saw.
@@ -141,7 +141,7 @@ async function gatherWithARunaway(
       l: levelCapturingLogger({ lines: [], },),
       graceMs: HANG_STOP_MS,
       fanOut: 'whole-bench',
-      ...((role === undefined) ? {} : { role, }),
+      role,
     },),
   };
 }
@@ -151,16 +151,16 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'NAMES ITS BENCH AND ITS ROLE ON EVERY ASK of the first round, the roster-wide role where the caller names '
-        + 'none, so the re-ask of a runaway can leave the bench out and honour the holds of the role',
+      name: 'NAMES ITS BENCH AND THE ROLE THE CALLER GAVE ON EVERY ASK of the first round, so the re-ask of a runaway can '
+        + 'leave the bench out and honour the holds of the role',
       fn: async () => {
-        const named = await gatherWithARunaway({ role: 'wide-judge', },);
-        for (const ask of named.seen.slice(0, BENCH.length,)) {
-          expect(ask.reaskSeat,).toEqual({ role: 'wide-judge', bench: BENCH, },);
-        }
-        const unnamed = await gatherWithARunaway({},);
-        for (const ask of unnamed.seen.slice(0, BENCH.length,)) {
-          expect(ask.reaskSeat,).toEqual({ role: 'roster', bench: BENCH, },);
+        for (const role of ['wide-judge', 'roster',] as const) {
+          // oxlint-disable-next-line no-await-in-loop -- one gather at a time, so each role's asks stay apart
+          const named = await gatherWithARunaway({ role, },);
+          for (const ask of named.seen.slice(0, BENCH.length,)) {
+            expect(ask.reaskSeat?.role,).toBe(role,);
+            expect(ask.reaskSeat?.bench,).toEqual(BENCH,);
+          }
         }
       },
     },),

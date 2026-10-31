@@ -9,6 +9,8 @@ import {
   alternateModelsFor,
   describeLeftOut,
   type ReaskSeat,
+  takenFor,
+  takeFor,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
@@ -59,8 +61,19 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  */
 export type SharedRoundRequest<ValueT,> = Omit<
   Parameters<typeof runGatherRound<ValueT>>[0],
-  'heardNeeded' | 'modelIds' | 'reserve'
-  >;
+  'heardNeeded' | 'modelIds' | 'reserve' | 'reaskSeat'
+  > & NamedSeat;
+
+/**
+ The seat of a gather, required of the part of a round request the recovery round reads, so it never asks a runaway
+ seat of a model on a guess about its role (ledger B1079).
+ */
+type NamedSeat = {
+  /**
+   Role, bench and shared record of the gather.
+   */
+  readonly reaskSeat: ReaskSeat;
+};
 
 // A SEAT WHOSE ANSWER RAN AWAY IS ASKED OF ANOTHER MODEL (ledger B1073, B1074, the
 // owner's answer of 2026-10-30, "Everywhere (Recommended)"). A reply that ended in a
@@ -73,9 +86,12 @@ export type SharedRoundRequest<ValueT,> = Omit<
 // seat's voice. It leaves out the models the seat's role is held out of, the
 // models seated on the question (the lead's adoption of 2026-10-30) and the model
 // an earlier re-ask for the seat already went to, whose claimed reply the
-// uniqueness wrapper would otherwise replay as a second voice. Only where no
-// model is left is the seat's own model asked, under the `cut-short` nudge as
-// before, on a warning.
+// uniqueness wrapper would otherwise replay as a second voice. It also leaves out
+// the models asked for the other seats of the gather, which the seats share one
+// record of and take from before they ask (`ReaskSeat.claims`, ledger B1080): the
+// seats of this round run together, so two that ran away would each take the first
+// model left. Only where no model is left is the seat's own model asked, under the
+// `cut-short` nudge as before, on a warning.
 
 /**
  Asks a seat whose answer ran away of another model, once, and records the answer as the seat's voice.
@@ -121,12 +137,9 @@ async function recoverRunaway<ValueT,>(
   },);
 
   /**
-   The seat the gather named, or the roster-wide role and an empty bench where it named none.
+   The seat the gather named: its role, its bench and the record its seats share.
    */
-  const named: ReaskSeat = roundRequest.reaskSeat ?? {
-    role: 'roster',
-    bench: [],
-  };
+  const named: ReaskSeat = roundRequest.reaskSeat;
 
   /**
    Role and bench of the gather.
@@ -159,8 +172,18 @@ async function recoverRunaway<ValueT,>(
     role,
     bench,
     askedAlready: (askedInstead === undefined) ? [] : [askedInstead,],
+    askedForOtherSeats: takenFor({ seat: named, },),
   },);
   for (const alternate of alternates) {
+    // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts` in the provider): another runaway seat of
+    // this gather whose function ran first may have taken this model since the list was made (ledger B1080).
+    if (!takeFor({
+      seat: named,
+      modelId: alternate,
+    },)) {
+      rl.info(`${roundRequest.stage}: ${seat}: ${alternate} was asked for another seat of this question since the list was made`,);
+      continue;
+    }
     rl.info(
       `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); `
         + `re-asking ${alternate} instead, plain question; left out: ${describeLeftOut({ leftOut, },)}`,
@@ -176,7 +199,7 @@ async function recoverRunaway<ValueT,>(
       modelIds: [alternate,],
       heardNeeded: 0,
       reaskSeat: {
-        role,
+        ...named,
         bench: benchWithSeat,
       },
     },);
