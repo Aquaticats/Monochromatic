@@ -325,6 +325,29 @@ and syncing alone changes the pin to `=6.3.1`
 and fixes nothing,
 because 6.3.1 is not in the registry either.
 
+### Applied on this host (2026-10-30)
+
+The owner authorized the recommended order ("I run sync + warm").
+`mise run toolchain:status` first listed four drifted tools:
+`cargo-dylint` and `dylint-link` (locked 6.3.1,
+observed 6.3.0),
+`monochromatic-git-policy-cli` (locked 0.4.2,
+observed 0.4.0),
+and `wrangler` (locked 4.156.0,
+observed 4.155.0).
+`mise run toolchain:sync`,
+run as the capped unit `fe-toolchain-sync`,
+reported "4 installed, 59 unchanged, 0 failed" in 36 s.
+The warm command in "Verified workarounds" then compiled `dylint_driver v6.3.1` and the driver crate in 58.3 s
+with the toolchain-exposed cargo (`.cache/toolchain-bin/cargo`),
+and checked `monochromatic-xml-edit` with exit 0.
+Afterwards the ordinary offline `monochromatic-lint package/xml-edit/core-rust package/dependency-catalog/core-native`
+ran `rust/avoidable-closure` on both crates:
+no finding in `xml-edit/core-rust`,
+and 15 findings in `dependency-catalog/core-native` that had been hidden by this failure
+(fixed separately in that crate).
+The durable option B is being built in `package/linter/monochromatic-lint`.
+
 ## Options for a durable fix
 
 Ranking:
