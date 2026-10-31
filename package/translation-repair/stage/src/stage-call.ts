@@ -66,6 +66,12 @@ export type StageVoice<ValueT,> =
      Validated reply value.
      */
     readonly value: ValueT;
+
+    /**
+     Model that gave the reply, set only where the re-ask of a reasoning runaway went to another model than the one
+     asked (ledger B1100); absent when the model asked answered.
+     */
+    readonly answeredBy?: RosterModelId;
   }
     | {
     /**
@@ -471,6 +477,8 @@ export async function attemptStageCall<ValueT,>(
     return {
       heard: true,
       value: outcome.value,
+      // Conditional spread keeps the model absent where the model asked answered.
+      ...((outcome.answeredBy === undefined) ? {} : { answeredBy: outcome.answeredBy, }),
     };
   }
   catch (error) {

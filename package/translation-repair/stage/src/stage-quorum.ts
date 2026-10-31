@@ -6,6 +6,7 @@ import {
   createReaskClaims,
   type JsonSchemaResponseFormat,
   type ModelClient,
+  type ReaskClaims,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
@@ -169,6 +170,10 @@ type RoundsOutcome<ValueT,> = {
  their cards hold out of it (ledger B1074); required, since a caller that left it out was asked as the roster-wide
  role and so re-asked a runaway of exactly the models its card drops from the seat (ledger B1079)
 
+ @param reaskClaims - record of the models asked for the seats of this question, handed in by a caller that goes on to
+ ask more seats of the same question (the repair of an invalid candidate) so that one model gives at most one voice
+ across both steps (ledger B1100); absent, the gather makes a record for its own seats
+
  @returns Heard voices plus quorum verdict and degradation findings
 
  @throws {@link StageRosterRepeatError} when the roster seats one model more
@@ -201,6 +206,7 @@ export async function gatherStageVoices<ValueT,>(
     decision,
     seatTally = RUN_SEATS,
     role,
+    reaskClaims,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
@@ -219,6 +225,7 @@ export async function gatherStageVoices<ValueT,>(
     readonly decision?: StageDecision;
     readonly seatTally?: SeatTally;
     readonly role: SeatRole;
+    readonly reaskClaims?: ReaskClaims;
   }>,
 ): Promise<StageGather<ValueT>> {
   /**
@@ -363,7 +370,7 @@ export async function gatherStageVoices<ValueT,>(
       reaskSeat: {
         role,
         bench: modelIds,
-        claims: createReaskClaims(),
+        claims: reaskClaims ?? createReaskClaims(),
       },
     };
 
