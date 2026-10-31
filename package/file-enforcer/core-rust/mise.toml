@@ -1,0 +1,43 @@
+[tasks.build]
+description = "Build the monochromatic-file-enforcer library in release mode"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Build the monochromatic-file-enforcer library in debug mode"
+run = "cargo build"
+
+[tasks.lint]
+description = "cargo check (no codegen)"
+run = "cargo check"
+
+[tasks."lint:types"]
+description = "Type-level gate for this crate: cargo check plus clippy with warnings denied"
+run = ["cargo check", "cargo clippy --all-targets -- -D warnings"]
+
+[tasks."lint:clippy"]
+description = "Run clippy over the lib and tests with warnings denied"
+run = "cargo clippy --all-targets -- -D warnings"
+
+[tasks."format:clippy"]
+description = "Apply clippy's machine-applicable suggestions in place"
+run = "cargo clippy --fix --allow-dirty --allow-staged"
+
+[tasks.test]
+description = "cargo nextest run"
+run = "cargo nextest run"
+
+[tasks."schema:write"]
+description = "Rewrite the committed file-enforcer.schema.json from the config types"
+run = "cargo run --example write-schema --quiet"
+
+[tasks.package]
+description = "Build and verify the crates.io package tarball"
+run = "cargo package"
+
+[tasks."publish:dry-run"]
+description = "Package and verify, then abort before uploading to crates.io"
+run = "cargo publish --dry-run"
+
+[tasks.publish]
+description = "Fallback local publish. Canonical path is .github/workflows/cargo-publish.yml (OIDC Trusted Publishing); the very first version of a crate must be published once with a personal API token (doc/runbook/publish-crate-first-time.md)."
+run = "cargo publish"
