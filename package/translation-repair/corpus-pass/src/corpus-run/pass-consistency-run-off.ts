@@ -203,6 +203,8 @@ export async function askRunOff(
   } = await gatherThroughCache({
     client,
     modelIds,
+    // THE BENCH IS THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models from (ledger B1100).
+    role: 'late-judge',
     messages,
     signal,
     exchangeTimeoutMs,

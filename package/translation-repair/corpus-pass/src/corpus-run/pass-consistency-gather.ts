@@ -16,7 +16,10 @@ import {
   type HeardVoice,
   type StageRosterRepeatError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { ConsistencyCacheValue, } from './pass-consistency-cache.ts';
 
 //region Pass consistency gather
@@ -102,6 +105,9 @@ export function recordFits(
 
  @param modelIds - bench asked, in roster order
 
+ @param role - role of that bench, which the re-ask of a reasoning runaway reads to ask a model the role may take; the
+ caller names it, since it knows the bench it hands in (ledger B1100)
+
  @param messages - sheet every seat reads
 
  @param signal - entry deadline and caller abort
@@ -134,13 +140,14 @@ export function recordFits(
 
  @example
  ```ts
- const { record, resumed, } = await gatherThroughCache({ client, modelIds, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage, graceMs, cache, key, readStored, recordOf, l, },);
+ const { record, resumed, } = await gatherThroughCache({ client, modelIds, role, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage, graceMs, cache, key, readStored, recordOf, l, },);
  ```
  */
 export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
   {
     client,
     modelIds,
+    role,
     messages,
     signal,
     exchangeTimeoutMs,
@@ -157,6 +164,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
   }: {
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
+    readonly role: SeatRole;
     readonly messages: readonly ChatMessage[];
     readonly signal: AbortSignal;
     readonly exchangeTimeoutMs: number;
@@ -239,9 +247,8 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     responseFormat,
     validate,
     stage,
-    // THE CONSISTENCY OF A PAGE IS ASKED OF THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models
-    // from.
-    role: 'late-judge',
+    // THE ROLE IS THE CALLER'S, which knows the bench it hands in (ledger B1100).
+    role,
     l: gl,
     graceMs,
   },);
