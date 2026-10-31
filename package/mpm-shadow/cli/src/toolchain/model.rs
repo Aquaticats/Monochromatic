@@ -210,6 +210,11 @@ pub struct Options {
     pub cargo_features: Option<Vec<String>>,
     /// Release-asset glob that picks one asset when a repository's asset names are ambiguous.
     pub asset: Option<String>,
+    /// Tag prefix that selects one program's releases in a repository that tags several programs
+    /// (`github:` requests only):
+    /// the newest non-prerelease release whose tag starts with it,
+    /// the version being the rest of the tag.
+    pub tag_prefix: Option<String>,
     /// Packages whose install scripts `pnpm add --global` may run.
     pub allow_builds: Option<Vec<String>>,
     /// `sdkmanager` packages (part of the lock's frozen surface).

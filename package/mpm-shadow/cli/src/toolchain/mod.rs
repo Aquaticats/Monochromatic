@@ -249,6 +249,9 @@ mod sync_tests;
 /// The unit tests of every resolver.
 #[cfg(test)]
 mod update_resolve_tests;
+/// The unit tests of the `github:` resolver's `tagPrefix` option.
+#[cfg(test)]
+mod update_github_prefix_tests;
 
 /// The unit tests of `update`.
 #[cfg(test)]

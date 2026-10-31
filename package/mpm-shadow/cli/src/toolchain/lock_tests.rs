@@ -151,6 +151,7 @@ fn every_resolution_affecting_field_is_rejected_offline() {
         ("manager", |lock| lock.tools[6].declaration.manager = Some("other".to_string())),
         ("os", |lock| lock.tools[7].declaration.os = None),
         ("options.asset", |lock| lock.tools[1].declaration.options.asset = Some("*.tgz".to_string())),
+        ("options.tagPrefix", |lock| lock.tools[1].declaration.options.tag_prefix = Some("tool-v".to_string())),
     ];
     for (field, edit) in edits {
         let mut lock = sample_lock();

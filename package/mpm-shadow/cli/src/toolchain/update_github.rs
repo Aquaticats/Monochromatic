@@ -122,6 +122,86 @@ pub fn asset_digest(ctx: &Context, asset: &Value, url: &str) -> Result<String, R
     return hash_download(ctx, url);
 }
 
+/// How many pages of 100 releases the prefix search reads before it gives up.
+const PREFIX_SEARCH_PAGES: u32 = 10;
+
+/// What:
+/// The newest release that is neither a draft nor a prerelease and whose tag starts with `prefix`
+/// and continues with a version (a digit,
+/// or `v` and a digit).
+/// Why:
+/// One repository can tag the releases of several programs;
+/// the list is newest first,
+/// so the first match is the newest release of the program the prefix names.
+/// A repository whose last 1000 releases hold none is an error that names the prefix.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function latestReleaseWithPrefix(ctx: Context, repo: string, prefix: string): Release
+/// ```
+fn latest_release_with_prefix(ctx: &Context, repo: &str, prefix: &str) -> Result<Value, ResolveError> {
+    let headers: Vec<(String, String)> = api_headers(ctx);
+    for page in 1..=PREFIX_SEARCH_PAGES {
+        let url: String = format!("https://api.github.com/repos/{repo}/releases?per_page=100&page={page}");
+        let list: Value = get_json(ctx, &url, &headers)?;
+        let Some(releases) = list.as_array() else {
+            return Err(ResolveError::Failed(format!("{url}: the answer is not a list of releases")));
+        };
+        for release in releases {
+            let skipped: bool = release.get("draft").and_then(Value::as_bool).unwrap_or(false)
+                || release.get("prerelease").and_then(Value::as_bool).unwrap_or(false);
+            let Some(tag) = text_at(release, &["tag_name"]) else {
+                continue;
+            };
+            if !skipped && version_after_prefix(tag, prefix).is_some() {
+                return Ok(release.clone());
+            }
+        }
+        if releases.len() < 100 {
+            break;
+        }
+    }
+    return Err(ResolveError::Failed(format!(
+        "github.com/{repo} has no release (neither draft nor prerelease) whose tag starts with {prefix:?} and continues with a version"
+    )));
+}
+
+/// What:
+/// The part of `tag` after `prefix` when it starts a version (a digit,
+/// or `v` and a digit).
+/// Why:
+/// The prefix must not match a longer program name that shares it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function versionAfterPrefix(tag: string, prefix: string): string | undefined
+/// ```
+fn version_after_prefix<'a>(tag: &'a str, prefix: &str) -> Option<&'a str> {
+    let rest: &str = tag.strip_prefix(prefix)?;
+    let bytes: &[u8] = rest.as_bytes();
+    let starts_version: bool = bytes.first().is_some_and(u8::is_ascii_digit)
+        || (bytes.first() == Some(&b'v') && bytes.get(1).is_some_and(u8::is_ascii_digit));
+    if starts_version {
+        return Some(rest);
+    }
+    return None;
+}
+
+/// The release of a wanted version of the program a prefix names:
+/// the prefix and the range as written,
+/// then the prefix and `v` and the range (unless the prefix already ends in `v`).
+fn release_of_prefixed_range(ctx: &Context, repo: &str, prefix: &str, range: &str) -> Result<Value, ResolveError> {
+    return match release_by_tag(ctx, repo, &format!("{prefix}{range}")) {
+        Ok(release) => Ok(release),
+        // A prefix that already ends in `v` has spelled the `v` out.
+        Err(first) if prefix.ends_with('v') => Err(first),
+        Err(first) => match release_by_tag(ctx, repo, &format!("{prefix}v{range}")) {
+            Ok(release) => Ok(release),
+            Err(_) => Err(first),
+        },
+    };
+}
+
 /// The release of a wanted tag:
 /// the range as written,
 /// then with a `v` in front (people write `0.64.3` for the tag `v0.64.3`).
@@ -151,9 +231,12 @@ pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, want
     if repo.split('/').count() != 2 || repo.contains(char::is_whitespace) || repo.contains("..") {
         return Err(ResolveError::Failed(format!("{repo:?} is not a GitHub repository (write github:<owner>/<repo>)")));
     }
-    let release: Value = match wanted {
-        Some(range) => release_of_range(ctx, repo, range)?,
-        None => latest_release(ctx, repo)?,
+    let tag_prefix: Option<&str> = declaration.options.tag_prefix.as_deref();
+    let release: Value = match (tag_prefix, wanted) {
+        (Some(start), Some(range)) => release_of_prefixed_range(ctx, repo, start, range)?,
+        (Some(start), None) => latest_release_with_prefix(ctx, repo, start)?,
+        (None, Some(range)) => release_of_range(ctx, repo, range)?,
+        (None, None) => latest_release(ctx, repo)?,
     };
     let Some(tag) = text_at(&release, &["tag_name"]) else {
         return Err(ResolveError::Failed(format!("github.com/{repo} reports no release tag")));
@@ -175,5 +258,13 @@ pub fn resolve_github(ctx: &Context, declaration: &Declaration, repo: &str, want
     if artifacts.is_empty() {
         return Err(ResolveError::Failed(format!("github.com/{repo} {tag} has no Linux asset (platforms looked for: {})", missing.join(", "))));
     }
-    return Ok(Resolution { version: normalize_version(tag), artifacts });
+    let after_prefix: Option<&str> = match tag_prefix {
+        Some(start) => version_after_prefix(tag, start),
+        None => None,
+    };
+    let version: String = match after_prefix {
+        Some(rest) => normalize_version(rest),
+        None => normalize_version(tag),
+    };
+    return Ok(Resolution { version, artifacts });
 }

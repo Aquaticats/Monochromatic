@@ -91,6 +91,11 @@ fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
     return Err(format!("{path} must hold a link or a run"));
 }
 
+/// Whether a character may stand in the start of a release tag.
+fn is_tag_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-');
+}
+
 /// The options object at `path`.
 fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
     let map = as_object(value, path)?;
@@ -101,6 +106,7 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
             "rustTargets",
             "cargoFeatures",
             "asset",
+            "tagPrefix",
             "allowBuilds",
             "androidPackages",
             "postinstall",
@@ -121,6 +127,14 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
     }
     if let Some(pattern) = map.get("asset") {
         options.asset = Some(as_nonempty_text(pattern, &format!("{path}.asset"))?);
+    }
+    if let Some(prefix) = map.get("tagPrefix") {
+        let prefix_path: String = format!("{path}.tagPrefix");
+        let text: String = as_nonempty_text(prefix, &prefix_path)?;
+        if !text.chars().all(is_tag_character) {
+            return Err(format!("{prefix_path}: {text:?} may hold only letters, digits, '.', '_' and '-' (it is the start of a release tag)"));
+        }
+        options.tag_prefix = Some(text);
     }
     if let Some(list) = map.get("allowBuilds") {
         options.allow_builds = Some(as_text_list(list, &format!("{path}.allowBuilds"))?);
