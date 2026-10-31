@@ -1,3 +1,4 @@
+import { recordOver, } from './model-card-derive.ts';
 import type { SeatHold, } from './model-card.ts';
 import { MODEL_CARDS, } from './model-cards.ts';
 import type { RosterModelId, } from './roster-id.ts';
@@ -9,7 +10,7 @@ import type { RosterModelId, } from './roster-id.ts';
 // another model must not seat that model in a role its card holds it out of, so the re-ask needs the role of the seat
 // it stands in. No request carried one, so `ChatTextRequest.reaskSeat` carries it now.
 //
-// THE TABLE BELOW IS THE BENCH DERIVATION'S, ROLE BY ROLE, READ ON 2026-10-30 (`run-config.ts`):
+// `SEAT_ROLE_HOLDS` IS THE BENCH DERIVATION'S, ROLE BY ROLE, READ ON 2026-10-30 (`run-config.ts`):
 //
 // - `RUN_ROSTER` drops `judge-unmeasured` and `owner-culled`, and every bench but the checkers and the picture
 //   readers derives from it.
@@ -57,14 +58,9 @@ export const SEAT_ROLES = [
 export type SeatRole = typeof SEAT_ROLES[number];
 
 /**
- The holds each role honours, in the order a model is checked against them.
-
- @example
- ```ts
- const honoured = SEAT_ROLE_HOLDS.reader;
- ```
+ The holds each role honours, in the order a model is checked against them, written once per role.
  */
-export const SEAT_ROLE_HOLDS: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
+const HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
   roster: [
     'owner-culled',
     'judge-unmeasured',
@@ -96,6 +92,22 @@ export const SEAT_ROLE_HOLDS: Readonly<Record<SeatRole, readonly SeatHold[]>> = 
   ],
   checker: ['owner-culled',],
 };
+
+/**
+ The holds each role honours, in the order a model is checked against them, built over the list of roles so the record
+ carries exactly those roles and fails at import where a role is listed twice.
+
+ @example
+ ```ts
+ const honoured = SEAT_ROLE_HOLDS.reader;
+ ```
+ */
+export const SEAT_ROLE_HOLDS: Readonly<Record<SeatRole, readonly SeatHold[]>> = recordOver({
+  keys: SEAT_ROLES,
+  of: function honouredBy(role,): readonly SeatHold[] {
+    return HOLDS_OF_ROLE[role];
+  },
+},);
 
 /**
  The holds of a model's card that keep it out of a role.
