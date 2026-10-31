@@ -24,9 +24,8 @@ const { values: options, } = parseArgs({
  */
 const rootDir = options.root ?? REPOSITORY_ROOT;
 
-if (options.check === true)
-  await checkPnprConfig({ rootDir, },);
-else
-  await generatePnprConfig({ rootDir, },);
+await (options.check === true
+  ? checkPnprConfig({ rootDir, },)
+  : generatePnprConfig({ rootDir, },));
 
 //endregion Run

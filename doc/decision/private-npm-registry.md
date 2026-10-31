@@ -77,7 +77,8 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 
 - Every workspace package except those under `package/test-fixture/`,
    private ones included.
-   Selection lives in `generatePnprConfig` in `file-enforcer.config.ts`;
+   Selection lives in `generatePnprConfig` in `file-enforcer.config.ts`
+   (moved 2026-10-30 to `package/config/pnpr/src/generated-config-selection.ts`, which the root file now calls);
    the publish workflow reads the generated name list instead of re-deriving it.
 - A package publishes only if its manifest still declares `exports`,
    `main`,
@@ -211,7 +212,9 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
 ### Configuration and deployment
 
 - file-enforcer generates the pnpr config,
-   including the package-name list and the exclusion list.
+   including the package-name list and the exclusion list
+   (since 2026-10-30 the generator and its check live in `package/config/pnpr`,
+   per `doc/decision/file-enforcer-rust-rewrite.md`, "Elsewhere").
 - The deployment lives in `package/config/pnpr/`
    and Coolify redeploys it on push through a GitHub App source,
    limited by Watch Paths to `config.yaml`,

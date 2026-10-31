@@ -30,6 +30,16 @@ import { readWorkspaceEntries, } from './registry-read.ts';
 const moduleLogger = tagged({ tag: 'pnpr-config', },);
 
 /**
+ Sentinel for a config file that does not exist.
+ */
+const CONFIG_FILE_ABSENT: unique symbol = Symbol('pnpr config file does not exist',);
+
+/**
+ Sentinel for a config text that has no readable OIDC trust list.
+ */
+const TRUST_LIST_UNREADABLE: unique symbol = Symbol('pnpr config has no readable trust list',);
+
+/**
  The config text the current workspace renders, with the package selection behind it.
  */
 export type RenderedPnprConfig = {
@@ -168,21 +178,23 @@ export async function renderPnprConfigForWorkspace(
 }
 
 /**
- Reads a file, mapping absence to `undefined`.
+ Reads a file, mapping absence to a sentinel.
 
  @param path - Absolute file path.
 
- @returns File text, or `undefined` when the file does not exist.
+ @returns File text, or the absence sentinel when the file does not exist.
 
  @throws Error for any read failure other than absence.
 
  @example
  ```ts
  await readTextIfPresent({ path: '/absent' });
- // => undefined
+ // => CONFIG_FILE_ABSENT
  ```
  */
-async function readTextIfPresent({ path, }: { readonly path: string; },): Promise<string | undefined> {
+async function readTextIfPresent(
+  { path, }: { readonly path: string; },
+): Promise<string | typeof CONFIG_FILE_ABSENT> {
   /**
    Function-scoped logger for the absence branch.
    */
@@ -200,7 +212,7 @@ async function readTextIfPresent({ path, }: { readonly path: string; },): Promis
     if ((Error.isError(error,)) && ('code' in error)
       && (error.code === 'ENOENT')) {
       logger.debug(`${path} does not exist: ${String(error,)}`,);
-      return undefined;
+      return CONFIG_FILE_ABSENT;
     }
     throw error;
   }
@@ -238,6 +250,9 @@ export async function generatePnprConfig(
     tag: generatePnprConfig.name,
     l: moduleLogger,
   },);
+  /**
+   Config text the workspace renders.
+   */
   const { content, } = await renderPnprConfigForWorkspace({
     rootDir,
     excludedPackages,
@@ -271,15 +286,17 @@ export async function generatePnprConfig(
 
  @param configText - Contents of a pnpr config file.
 
- @returns Names in config order, or `undefined` when the text has no readable OIDC workload.
+ @returns Names in config order, or the unreadable sentinel when the text has no readable OIDC workload.
 
  @example
  ```ts
  readTrustedNames({ configText: 'not a config' });
- // => undefined
+ // => TRUST_LIST_UNREADABLE
  ```
  */
-function readTrustedNames({ configText, }: { readonly configText: string; },): readonly string[] | undefined {
+function readTrustedNames(
+  { configText, }: { readonly configText: string; },
+): readonly string[] | typeof TRUST_LIST_UNREADABLE {
   /**
    Function-scoped logger for the unreadable-config branch.
    */
@@ -294,7 +311,7 @@ function readTrustedNames({ configText, }: { readonly configText: string; },): r
   catch (error) {
     if (error instanceof PnprConfigShapeError) {
       logger.debug(`trust list unreadable: ${error.message}`,);
-      return undefined;
+      return TRUST_LIST_UNREADABLE;
     }
     throw error;
   }
@@ -360,12 +377,18 @@ export function describeFirstDifference(
    */
   const actualLines = actual.split('\n',);
   /**
+   Index of the first expected line that the actual text lacks or changes; -1 when the actual text only adds lines.
+   */
+  const firstUnequalIndex = expectedLines.findIndex(function isUnequal(
+    line,
+    lineIndex,
+  ) {
+    return line !== actualLines[lineIndex];
+  },);
+  /**
    Index of the first line present in only one text or unequal in both.
    */
-  let index = 0;
-  while ((index < expectedLines.length) && (index < actualLines.length)
-    && (expectedLines[index] === actualLines[index]))
-    index += 1;
+  const index = firstUnequalIndex === (-1) ? expectedLines.length : firstUnequalIndex;
   return `The first difference is on line ${index + 1}: expected ${
     quoteLineAt({
       lines: expectedLines,
@@ -384,7 +407,7 @@ export function describeFirstDifference(
 
  @param expected - Text the generator renders.
 
- @param actual - Text the file holds, absent when the file does not exist.
+ @param actual - Text the file holds.
 
  @param listsDiffer - Whether the package lists differ, so the first differing line is only a pointer.
 
@@ -394,8 +417,8 @@ export function describeFirstDifference(
 
  @example
  ```ts
- describeDrift({ expected: 'a', actual: undefined, listsDiffer: false, listUnreadable: true });
- // => 'The file does not exist.'
+ describeDrift({ expected: 'a', actual: 'b', listsDiffer: false, listUnreadable: true });
+ // => 'The file has no readable OIDC trust list, so its packages cannot be compared. The first difference is on line 1: expected "a", found "b".'
  ```
  */
 export function describeDrift(
@@ -406,13 +429,11 @@ export function describeDrift(
     listUnreadable,
   }: {
     readonly expected: string;
-    readonly actual: string | undefined;
+    readonly actual: string;
     readonly listsDiffer: boolean;
     readonly listUnreadable: boolean;
   },
 ): string {
-  if (actual === undefined)
-    return 'The file does not exist.';
   /**
    First differing line, in plain words.
    */
@@ -459,6 +480,9 @@ export async function checkPnprConfig(
     tag: checkPnprConfig.name,
     l: moduleLogger,
   },);
+  /**
+   Config text and package selection the workspace renders.
+   */
   const {
     content,
     publishedNames,
@@ -467,25 +491,37 @@ export async function checkPnprConfig(
     excludedPackages,
   },);
   /**
-   Text of the checked-in file, absent when the file does not exist.
+   Text of the checked-in file, or the absence sentinel when the file does not exist.
    */
-  const actual = await readTextIfPresent({ path: join(
-    rootDir,
-    PNPR_CONFIG_PATH,
-  ), },);
+  const actual = await readTextIfPresent({
+    path: join(
+      rootDir,
+      PNPR_CONFIG_PATH,
+    ),
+  },);
   if (actual === content) {
     logger.info(`${PNPR_CONFIG_PATH} matches the generator`,);
     return;
   }
+  if (actual === CONFIG_FILE_ABSENT) {
+    throw new PnprConfigDriftError({
+      configPath: PNPR_CONFIG_PATH,
+      missingPackages: publishedNames,
+      unexpectedPackages: [],
+      detail: 'The file does not exist.',
+    },);
+  }
 
   /**
-   Names the file trusts, absent when the file is missing or unreadable.
+   Names the file trusts, or the unreadable sentinel when the file has no trust list.
    */
-  const trustedNames = actual === undefined ? undefined : readTrustedNames({ configText: actual, },);
+  const trustedNames = readTrustedNames({ configText: actual, },);
   /**
    Names in the file, for set arithmetic.
    */
-  const trustedSet: ReadonlySet<string> = new Set(trustedNames ?? [],);
+  const trustedSet: ReadonlySet<string> = trustedNames === TRUST_LIST_UNREADABLE
+    ? new Set<string>()
+    : new Set(trustedNames,);
   /**
    Names the generator renders, for set arithmetic.
    */
@@ -499,9 +535,10 @@ export async function checkPnprConfig(
   /**
    Names the file trusts that the generator does not render.
    */
-  const unexpectedPackages = [...trustedSet,].filter(function isUnexpected(name,) {
-    return !publishedSet.has(name,);
-  },)
+  const unexpectedPackages = [...trustedSet,]
+    .filter(function isUnexpected(name,) {
+      return !publishedSet.has(name,);
+    },)
     .toSorted();
   throw new PnprConfigDriftError({
     configPath: PNPR_CONFIG_PATH,
@@ -511,7 +548,7 @@ export async function checkPnprConfig(
       expected: content,
       actual,
       listsDiffer: (missingPackages.length + unexpectedPackages.length) > 0,
-      listUnreadable: trustedNames === undefined,
+      listUnreadable: trustedNames === TRUST_LIST_UNREADABLE,
     },),
   },);
 }

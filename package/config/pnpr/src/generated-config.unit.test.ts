@@ -53,6 +53,7 @@ const GENERATOR_CLI = join(import.meta.dirname, 'generate-config.ts',);
  Workspace package fixtures: directory and manifest.
  */
 type FixturePackage = {
+  readonly name: string;
   readonly directory: string;
   readonly manifest: Readonly<Record<string, unknown>>;
 };
@@ -63,6 +64,7 @@ type FixturePackage = {
 const EXCLUDED_FIXTURE_PACKAGES: readonly FixturePackage[] = Object.keys(PNPR_EXCLUDED_PACKAGES,)
   .map(function toFixture(name,): FixturePackage {
     return {
+      name,
       directory: `package/fixture-excluded/${name.slice('@monochromatic-dev/'.length,)}`,
       manifest: {
         name,
@@ -76,6 +78,7 @@ const EXCLUDED_FIXTURE_PACKAGES: readonly FixturePackage[] = Object.keys(PNPR_EX
  Publishable fixture package whose name sorts last.
  */
 const PUBLISHED_Z: FixturePackage = {
+  name: '@monochromatic-dev/z-pkg',
   directory: 'package/fixture/z',
   manifest: {
     name: '@monochromatic-dev/z-pkg',
@@ -88,6 +91,7 @@ const PUBLISHED_Z: FixturePackage = {
  Publishable fixture package whose name sorts first.
  */
 const PUBLISHED_A: FixturePackage = {
+  name: '@monochromatic-dev/a-pkg',
   directory: 'package/fixture/a',
   manifest: {
     name: '@monochromatic-dev/a-pkg',
@@ -124,6 +128,48 @@ async function writeWorkspace(
 }
 
 /**
+ Disposable fixture workspace; removed on scope exit.
+ */
+type DisposableWorkspace = {
+  readonly rootDir: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Creates a fresh fixture workspace holding the exclusion packages plus the given ones.
+
+ @param packages - Fixture packages to write.
+
+ @returns Handle to use with `await using`.
+
+ @example
+ ```ts
+ await using workspace = await makeWorkspace({ packages: [PUBLISHED_A] });
+ ```
+ */
+async function makeWorkspace(
+  { packages, }: { readonly packages: readonly FixturePackage[]; },
+): Promise<DisposableWorkspace> {
+  const rootDir = await mkdtemp(join(scratchRoot(), 'pnpr-config-test-',),);
+  await writeWorkspace({
+    rootDir,
+    packages: [
+      ...EXCLUDED_FIXTURE_PACKAGES,
+      ...packages,
+    ],
+  },);
+  return {
+    rootDir,
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(rootDir, {
+        recursive: true,
+        force: true,
+      },);
+    },
+  };
+}
+
+/**
  Runs a body inside a fresh disposable workspace and removes it afterwards.
 
  @param packages - Fixture packages to write before the body runs.
@@ -144,23 +190,8 @@ async function withWorkspace(
     readonly body: (rootDir: string,) => Promise<void>;
   },
 ): Promise<void> {
-  const rootDir = await mkdtemp(join(scratchRoot(), 'pnpr-config-test-',),);
-  try {
-    await writeWorkspace({
-      rootDir,
-      packages: [
-        ...EXCLUDED_FIXTURE_PACKAGES,
-        ...packages,
-      ],
-    },);
-    await body(rootDir,);
-  }
-  finally {
-    await rm(rootDir, {
-      recursive: true,
-      force: true,
-    },);
-  }
+  await using workspace = await makeWorkspace({ packages, },);
+  await body(workspace.rootDir,);
 }
 
 /**
@@ -418,12 +449,12 @@ await describe({
             const names = selectPnprPublishedNames({
               workspacePackages: [
                 {
-                  name: PUBLISHED_Z.manifest.name as string,
+                  name: PUBLISHED_Z.name,
                   directory: PUBLISHED_Z.directory,
                   manifest: PUBLISHED_Z.manifest,
                 },
                 {
-                  name: PUBLISHED_A.manifest.name as string,
+                  name: PUBLISHED_A.name,
                   directory: PUBLISHED_A.directory,
                   manifest: PUBLISHED_A.manifest,
                 },
@@ -514,7 +545,7 @@ await describe({
             },);
             expect(text,).toContain('# Published package count: 2\n# Reviewed exclusions:\n#   @monochromatic-dev/skipped: cannot build\n',);
             expect(text,).toContain("          packages:\n            - '@monochromatic-dev/a-pkg'\n            - '@monochromatic-dev/z-pkg'\n\nui:\n",);
-            expect(text,).toContain('secret: ${PNPR_SECRET}\n',);
+            expect(text,).toContain(`secret: \${PNPR_SECRET}\n`,);
             expect(text.endsWith('  level: info\n',),).toBe(true,);
           },
         },),
@@ -589,17 +620,6 @@ await describe({
     describe({
       name: describeDrift.name,
       children: [
-        it({
-          name: 'reports an absent file',
-          fn: async () => {
-            expect(describeDrift({
-              expected: 'a',
-              actual: undefined,
-              listsDiffer: false,
-              listUnreadable: true,
-            },),).toBe('The file does not exist.',);
-          },
-        },),
         it({
           name: 'reports an unreadable trust list',
           fn: async () => {

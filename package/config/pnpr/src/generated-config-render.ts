@@ -45,6 +45,9 @@ export function renderPnprConfig(
     .map(function toComment([
       name,
       reason,
+    ]: readonly [
+      string,
+      string
     ],) {
       if (reason.includes('\n',) || reason.includes('\r',))
         throw new Error(`pnpr config: exclusion reason for ${name} must be one line`,);
