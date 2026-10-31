@@ -9,9 +9,10 @@
 //! export function sampleLock(): Lock { ... }
 //! ```
 
-use super::lock::Lock;
+use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool};
 use super::plan::{Plan, parse_plan};
+use super::scope::{EnvMap, Scope, repo_scope};
 
 /// The sample plan, with comments and trailing commas the way people write it.
 pub(crate) const SAMPLE_PLAN: &str = r#"{
@@ -146,4 +147,19 @@ pub(crate) fn sample_lock() -> Lock {
         tools.push(LockedTool { declaration, version, artifacts });
     }
     return Lock { tools };
+}
+
+/// A disposable repository scope on disk: the sample plan and the rendered sample lock written under a fresh
+/// directory, with a fake home inside it. The returned guard removes everything when dropped.
+pub(crate) fn sample_scope_on_disk() -> (tempfile::TempDir, Scope, EnvMap) {
+    let directory = crate::test_scratch::scratch();
+    let home = directory.path().join("home");
+    let root = directory.path().join("work");
+    std::fs::create_dir_all(&home).expect("make the home");
+    std::fs::create_dir_all(&root).expect("make the worktree");
+    let env = EnvMap::from_pairs(&[("HOME", home.to_str().expect("utf-8"))]);
+    let scope = repo_scope(&root, &env).expect("a scope");
+    std::fs::write(&scope.plan_file, SAMPLE_PLAN).expect("write the plan");
+    std::fs::write(&scope.lock_file, render_lock(&sample_lock())).expect("write the lock");
+    return (directory, scope, env);
 }

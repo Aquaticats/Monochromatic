@@ -25,6 +25,7 @@ use std::env;
 use crate::cargo_home::cargo_home;
 use crate::constants::USAGE_EXIT_CODE;
 use crate::prune::prune_stale_own_crates;
+use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
 
 /// What:     `pub fn build_command() -> Command` declares a public function returning the grammar description.
 /// Why:      Both the real run and the tests need the grammar.
@@ -54,11 +55,12 @@ pub fn build_command() -> Command {
     // return new Command('mpm-shadow').version(pkg.version).addCommand(prune);
     // ```
     return Command::new("mpm-shadow")
-        .about("Runs the real mpm, then deletes the superseded cached versions of this repository's own crates. Invoked as mpm it acts as mpm's shadow.")
+        .about("Owns the toolchain plan and lock (lock, sync, status, update, bin-paths) and shadows mpm: invoked as mpm it runs the real mpm, then deletes the superseded cached versions of this repository's own crates.")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(prune_command);
+        .subcommand(prune_command)
+        .subcommands(toolchain_subcommands());
 }
 
 /// What:     `pub fn run_cli(arguments: Vec<String>) -> i32` declares a public function taking the command-line texts
@@ -84,6 +86,12 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
     // ```
     if let Some(("prune", _)) = matches.subcommand() {
         return prune_now();
+    }
+    // Every other verb is a toolchain verb; `dispatch` answers `None` for a name it does not own.
+    if let Some((name, verb_matches)) = matches.subcommand()
+        && let Some(exit_code) = dispatch(name, verb_matches)
+    {
+        return exit_code;
     }
     return USAGE_EXIT_CODE;
 }
