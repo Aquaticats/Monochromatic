@@ -25,6 +25,7 @@ use std::env;
 use crate::cargo_home::cargo_home;
 use crate::constants::USAGE_EXIT_CODE;
 use crate::prune::prune_stale_own_crates;
+/// Imports the toolchain verbs' grammar and dispatch.
 use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
 
 /// What:     `pub fn build_command() -> Command` declares a public function returning the grammar description.
