@@ -224,9 +224,58 @@ with `ASK` and `PIN` as positive controls:
 `BRQ` and `BQW` have no hits;
 `OWR` is already reserved in an appendix.
 
-## Open in round 3
+## Decided in round 3 (2026-10-31)
 
-- Which wording resolves the length conflict.
-- Which `AGENTS.md` sections hold the two rules.
-- Whether the brief rule also forbids requirements that contradict a recorded decision.
-- The two codes.
+### Ownership rule text
+
+The user said "Tunnel leaks" is too specific,
+then chose the general severity sentence "Leaks can endanger people or break networks"
+over "Exposure leaks" (recommended),
+the same with "their networks",
+and "Privacy leaks".
+Measured at 192 characters:
+
+```text
+OWK:
+ Designing,
+ briefing,
+ merging:
+ keep a concern in the owner the user or a recorded decision names (none:
+ ask);
+ others never detect,
+ choose,
+ or adapt.
+Leaks can endanger people or break networks.
+```
+
+### Placement
+
+The user chose option A:
+the ownership rule goes at the end of "Architecture decisions",
+the section `ORG` reserves for rules spanning several moments,
+and the brief rule goes in a new top-level section "Before briefing an agent"
+directly after "Before responding to the user".
+
+### No contradiction clause
+
+The user chose to leave the brief rule without a clause forbidding requirements that contradict each other;
+quoting already puts the recorded decision's words in front of coordinator and worker.
+Brief rule text,
+184 characters:
+
+```text
+Briefs carry as requirements only the user's words and recorded decisions,
+ quoted with source;
+ derivations and own ideas are suggestions;
+ ask before an inference becomes a requirement.
+```
+
+### Ownership code
+
+The user chose `OWK` ("owner keeps") over `OWG`.
+
+## Open in round 4
+
+- The brief rule's code (`BRQ` or `BQW`).
+- Whether `NLD` (subagent briefs quote the synthetic-load ban) moves into the new section.
+- Confirmation of shared understanding after a separate reviewer re-reviews the design.
