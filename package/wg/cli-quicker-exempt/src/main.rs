@@ -13,6 +13,8 @@
 ///  Interpreter,
 ///  and Qure cgroup targets.
 mod application_targets;
+/// Reads the resource limits a moved process must keep.
+mod inherited_limits;
 /// Reads facts about one process from a procfs tree.
 mod process_info;
 /// Runs a command line client as the watched user.
@@ -66,6 +68,9 @@ mod update_routing_tests;
 /// Unit tests for the words and outcomes of the policy.
 #[cfg(test)]
 mod update_report_tests;
+/// Unit tests for the inherited resource limits.
+#[cfg(test)]
+mod inherited_limits_tests;
 /// Unit tests for the relay of startup failures.
 #[cfg(test)]
 mod application_watch_service_tests;

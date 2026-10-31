@@ -49,6 +49,7 @@ fn the_start_notice_names_the_traffic_and_the_absence_of_a_switch() {
         "any executable named mpm",
         "inside a home directory the user can write",
         "another pid namespace",
+        "keep the CPU, memory and task limits",
         "whole address",
         "shared CDN address",
     ] {
@@ -102,4 +103,5 @@ fn only_adoptions_and_problems_are_logged() {
     let failed = describe_outcome(&problems[1]).expect("reported");
     assert!(failed.contains("attempt 2"));
     assert!(failed.contains("next attempt in 2s"));
+    assert!(failed.contains("limits of its old cgroup are never dropped"));
 }

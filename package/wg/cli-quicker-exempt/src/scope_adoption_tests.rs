@@ -2,6 +2,8 @@
 //! the confirmation and failure paths against a fake client,
 //! and the real manager in an ignored test.
 
+/// The limits a scope carries.
+use crate::inherited_limits::InheritedLimits;
 /// Adoption under test.
 use crate::scope_adoption::{adopt_arguments, ensure_slice_arguments, AdoptError, AdoptRequest, Adopter, BusctlAdopter};
 /// The client the adopter runs.
@@ -20,7 +22,7 @@ const SLICE: &str = "app-monochromatic\\x2dupdates.slice";
 /// the slice and every pid in the `au` array.
 #[test]
 fn the_adoption_arguments_follow_busctl_syntax() {
-    let arguments = adopt_arguments("wg-quicker-update-10.scope", SLICE, &[10, 11]);
+    let arguments = adopt_arguments("wg-quicker-update-10.scope", SLICE, &[10, 11], &InheritedLimits::default());
     assert_eq!(
         arguments,
         [
@@ -48,6 +50,18 @@ fn the_adoption_arguments_follow_busctl_syntax() {
             "0",
         ]
     );
+}
+
+/// The limits of the cgroup the process left become typed properties of the scope,
+/// and the property count covers them.
+#[test]
+fn the_limits_become_scope_properties() {
+    let limits = InheritedLimits { cpu_quota_per_sec_usec: Some(8_000_000), memory_max: Some(1_073_741_824), ..InheritedLimits::default() };
+    let arguments = adopt_arguments("wg-quicker-update-10.scope", SLICE, &[10], &limits);
+    assert_eq!(arguments[9], "5");
+    assert!(arguments.windows(3).any(|window| return window == ["CPUQuotaPerSecUSec", "t", "8000000"]));
+    assert!(arguments.windows(3).any(|window| return window == ["MemoryMax", "t", "1073741824"]));
+    assert_eq!(arguments.last().map(String::as_str), Some("0"));
 }
 
 /// The slice call has one property and no auxiliary units.
@@ -118,10 +132,10 @@ fn own_ids() -> (u32, u32) {
     return unsafe { (libc::getuid(), libc::getgid()) };
 }
 
-/// Builds a request for the given pids.
-fn request(pids: &[i32]) -> AdoptRequest<'_> {
+/// Builds a request for pid 77 with the given limits.
+fn request<'a>(limits: &'a InheritedLimits, pids: &'a [i32]) -> AdoptRequest<'a> {
     let (uid, gid) = own_ids();
-    return AdoptRequest { pids, uid, gid, slice: SLICE };
+    return AdoptRequest { pids, uid, gid, slice: SLICE, limits };
 }
 
 /// Runs the client against the user's bus path and confirms the move.
@@ -129,10 +143,12 @@ fn request(pids: &[i32]) -> AdoptRequest<'_> {
 fn a_successful_adoption_runs_busctl_with_the_user_bus_and_confirms_the_move() {
     let (adopter, log, _cgroup) = adopter_with("ok", &Behavior { move_pid: true, remove_process: false, code: 0 });
     let (uid, _gid) = own_ids();
-    adopter.adopt(&request(&[77])).expect("the move is confirmed");
+    let limits = InheritedLimits { memory_max: Some(4096), ..InheritedLimits::default() };
+    adopter.adopt(&request(&limits, &[77])).expect("the move is confirmed");
     let recorded = std::fs::read_to_string(log).expect("read the log");
     assert!(recorded.contains("StartTransientUnit"));
     assert!(recorded.contains("wg-quicker-update-77.scope"));
+    assert!(recorded.contains("MemoryMax\nt\n4096"));
     assert!(recorded.contains(&format!("env=/run/user/{uid}")));
 }
 
@@ -140,7 +156,7 @@ fn a_successful_adoption_runs_busctl_with_the_user_bus_and_confirms_the_move() {
 #[test]
 fn an_unconfirmed_move_is_an_error() {
     let (adopter, _log, _cgroup) = adopter_with("unmoved", &Behavior { move_pid: false, remove_process: false, code: 0 });
-    let error = adopter.adopt(&request(&[77])).expect_err("not moved");
+    let error = adopter.adopt(&request(&InheritedLimits::default(), &[77])).expect_err("not moved");
     assert!(matches!(&error, AdoptError::Failed(text) if text.contains("is not in")), "{error}");
 }
 
@@ -149,16 +165,16 @@ fn an_unconfirmed_move_is_an_error() {
 #[test]
 fn a_failing_client_is_an_error_naming_its_message() {
     let (adopter, _log, _cgroup) = adopter_with("fails", &Behavior { move_pid: false, remove_process: false, code: 1 });
-    let error = adopter.adopt(&request(&[77])).expect_err("client fails");
+    let error = adopter.adopt(&request(&InheritedLimits::default(), &[77])).expect_err("client fails");
     assert!(matches!(&error, AdoptError::Failed(text) if text.contains("boom")), "{error}");
-    assert!(matches!(adopter.adopt(&request(&[])), Err(AdoptError::Failed(_))));
+    assert!(matches!(adopter.adopt(&request(&InheritedLimits::default(), &[])), Err(AdoptError::Failed(_))));
 }
 
 /// A process that exits while the manager call fails is a vanish and not a failure.
 #[test]
 fn a_process_that_exits_during_a_failed_call_is_vanished() {
     let (adopter, _log, _cgroup) = adopter_with("gone-failed", &Behavior { move_pid: false, remove_process: true, code: 1 });
-    assert_eq!(adopter.adopt(&request(&[77])), Err(AdoptError::Vanished));
+    assert_eq!(adopter.adopt(&request(&InheritedLimits::default(), &[77])), Err(AdoptError::Vanished));
 }
 
 /// A process that exits after the manager accepted the job is noticed at once,
@@ -168,7 +184,7 @@ fn a_process_that_exits_after_an_accepted_call_is_vanished_without_waiting() {
     let (adopter, _log, _cgroup) = adopter_with("gone-ok", &Behavior { move_pid: false, remove_process: true, code: 0 });
     let slow = BusctlAdopter { confirmation_timeout: Duration::from_secs(20), ..adopter };
     let started = Instant::now();
-    assert_eq!(slow.adopt(&request(&[77])), Err(AdoptError::Vanished));
+    assert_eq!(slow.adopt(&request(&InheritedLimits::default(), &[77])), Err(AdoptError::Vanished));
     assert!(started.elapsed() < Duration::from_secs(5), "the confirmation waited for its timeout");
 }
 
@@ -180,7 +196,7 @@ fn a_hung_client_is_a_timeout_failure() {
     let sleeper = adopter.client.program.clone();
     std::fs::write(&sleeper, "#!/bin/sh\nexec /usr/bin/sleep 30\n").expect("rewrite the fake");
     let hung = BusctlAdopter { client: UserClient { program: sleeper, timeout: Duration::from_millis(200) }, ..adopter };
-    let error = hung.adopt(&request(&[77])).expect_err("the client hangs");
+    let error = hung.adopt(&request(&InheritedLimits::default(), &[77])).expect_err("the client hangs");
     assert!(matches!(error, AdoptError::TimedOut(_)), "{error}");
 }
 
@@ -193,7 +209,7 @@ fn a_missing_client_is_an_error() {
         proc_root: PathBuf::from("/proc"),
         confirmation_timeout: Duration::from_millis(10),
     };
-    assert!(matches!(adopter.adopt(&request(&[1])), Err(AdoptError::Failed(_))));
+    assert!(matches!(adopter.adopt(&request(&InheritedLimits::default(), &[1])), Err(AdoptError::Failed(_))));
 }
 
 /// An existing slice directory needs no call.
@@ -207,7 +223,8 @@ fn an_existing_slice_is_not_requested_again() {
     assert!(adopter.ensure_slice(uid, gid, SLICE, &directory.join("absent")).is_err());
 }
 
-/// Adopts a real sleeping child into a throwaway slice through the user's own manager.
+/// Adopts a real sleeping child into a throwaway slice through the user's own manager,
+/// with a memory limit that the new scope must report.
 /// It needs a user manager and its bus.
 #[test]
 #[ignore = "needs the user systemd manager"]
@@ -215,13 +232,22 @@ fn the_real_manager_adopts_a_sleeping_child() {
     let mut child = std::process::Command::new("/usr/bin/sleep").arg("30").spawn().expect("start the child");
     let pid = i32::try_from(child.id()).expect("pid fits");
     let slice = "app-wgtest\\x2dadopt.slice";
+    let limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), ..InheritedLimits::default() };
     let started = Instant::now();
     let (uid, gid) = own_ids();
-    let result = BusctlAdopter::new().adopt(&AdoptRequest { pids: &[pid], uid, gid, slice });
+    let result = BusctlAdopter::new().adopt(&AdoptRequest { pids: &[pid], uid, gid, slice, limits: &limits });
     let elapsed = started.elapsed();
+    let shown = std::process::Command::new("systemctl")
+        .args(["--user", "show", &format!("wg-quicker-update-{pid}.scope"), "--property=MemoryMax,CPUQuotaPerSecUSec,TasksMax"])
+        .output()
+        .expect("ask the manager");
     let _killed = child.kill();
     let _reaped = child.wait();
     let _stopped = std::process::Command::new("systemctl").args(["--user", "stop", slice]).status();
     result.expect("the manager adopts the child");
-    println!("adoption took {elapsed:?}");
+    let text = String::from_utf8_lossy(&shown.stdout).into_owned();
+    println!("adoption took {elapsed:?}: {text}");
+    assert!(text.contains("MemoryMax=1073741824"), "{text}");
+    assert!(text.contains("CPUQuotaPerSecUSec=2s"), "{text}");
+    assert!(text.contains("TasksMax=64"), "{text}");
 }

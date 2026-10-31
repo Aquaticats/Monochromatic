@@ -301,6 +301,7 @@ pub fn run_application_watch_child(
         gid: account.gid,
         install_roots: install_root_list,
         proc_root: PathBuf::from("/proc"),
+        cgroup_root: PathBuf::from("/sys/fs/cgroup"),
         adopter: Box::new(BusctlAdopter::new()),
     });
     let mut watch = prepare_application_watch(roots, mark, routing, RuntimeReporter::new(uid, account.gid))?;

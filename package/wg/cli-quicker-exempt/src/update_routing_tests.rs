@@ -6,6 +6,8 @@
 
 /// The slice name.
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
+/// The limits a scope carries.
+use crate::inherited_limits::InheritedLimits;
 /// Seam implemented by the scripted fake.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
 /// Install roots of the fixture user and the match reasons.
@@ -42,6 +44,8 @@ struct Recorded {
     pids: Vec<i32>,
     /// Group id passed for the privilege drop.
     gid: u32,
+    /// Limits the scope should carry.
+    limits: InheritedLimits,
 }
 
 /// Records adoptions and answers from a script,
@@ -62,7 +66,7 @@ impl Adopter for ScriptedAdopter {
 
     /// Records the request and answers from the script.
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
-        self.requests.borrow_mut().push(Recorded { pids: request.pids.to_vec(), gid: request.gid });
+        self.requests.borrow_mut().push(Recorded { pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
         return self.script.borrow_mut().pop_front().unwrap_or(Ok(()));
     }
 }
@@ -73,6 +77,8 @@ impl Adopter for ScriptedAdopter {
 struct Fixture {
     /// Fake procfs root.
     proc_root: PathBuf,
+    /// Fake cgroup filesystem root.
+    cgroup_root: PathBuf,
     /// Recording of adoption requests.
     requests: Rc<RefCell<Vec<Recorded>>>,
     /// Engine under test.
@@ -84,7 +90,9 @@ fn fixture(name: &str, script: Vec<Result<(), AdoptError>>) -> Fixture {
     let base = crate::test_scratch::scratch_root().join(format!("wg-quicker-routing-{name}-{}", std::process::id()));
     let _removed = std::fs::remove_dir_all(&base);
     let proc_root = base.join("proc");
+    let cgroup_root = base.join("cgroup");
     std::fs::create_dir_all(&proc_root).expect("make the fake procfs");
+    std::fs::create_dir_all(&cgroup_root).expect("make the fake cgroup tree");
     let requests = Rc::new(RefCell::new(Vec::new()));
     let adopter = ScriptedAdopter { requests: Rc::clone(&requests), script: RefCell::new(script.into()) };
     let routing = UpdateRouting::new(RoutingSetup {
@@ -92,9 +100,10 @@ fn fixture(name: &str, script: Vec<Result<(), AdoptError>>) -> Fixture {
         gid: USER_GID,
         install_roots: install_roots(Path::new("/home/tester"), Some(Path::new("/var/home/tester"))),
         proc_root: proc_root.clone(),
+        cgroup_root: cgroup_root.clone(),
         adopter: Box::new(adopter),
     });
-    return Fixture { proc_root, requests, routing };
+    return Fixture { proc_root, cgroup_root, requests, routing };
 }
 
 /// Describes one fake process.
@@ -254,6 +263,7 @@ fn a_process_in_another_pid_namespace_is_reported_and_not_moved() {
         gid: USER_GID,
         install_roots: vec![],
         proc_root: fixture.proc_root.clone(),
+        cgroup_root: fixture.cgroup_root.clone(),
         adopter: Box::new(ScriptedAdopter { requests: Rc::clone(&fixture.requests), script: RefCell::new(VecDeque::new()) }),
     });
     make_process(&fixture.proc_root, &Fake { namespace: Some("pid:[4026533586]"), ..mise(40) });
@@ -414,4 +424,25 @@ fn a_rescan_finds_missed_processes_and_forgets_exited_ones() {
     make_process(&fixture.proc_root, &Fake { start: 200, ..mise(60) });
     assert!(matches!(fixture.routing.consider(60), Outcome::Adopted { .. }));
     assert_eq!(fixture.requests.borrow().len(), 2);
+}
+
+/// The scope carries the limits of the cgroup the process leaves,
+/// and a limit that cannot be read stops the move.
+#[test]
+fn the_moved_scope_carries_the_origin_limits() {
+    let mut fixture = fixture("limits", vec![]);
+    make_process(&fixture.proc_root, &mise(80));
+    let origin = fixture.cgroup_root.join(SCOPE.trim_start_matches('/'));
+    std::fs::create_dir_all(&origin).expect("make the origin cgroup");
+    std::fs::write(origin.join("cpu.max"), "800000 100000\n").expect("write cpu.max");
+    std::fs::write(origin.join("memory.max"), "2147483648\n").expect("write memory.max");
+    assert!(matches!(fixture.routing.consider(80), Outcome::Adopted { .. }));
+    let limits = fixture.requests.borrow()[0].limits.clone();
+    assert_eq!(limits.cpu_quota_per_sec_usec, Some(8_000_000));
+    assert_eq!(limits.memory_max, Some(2_147_483_648));
+    make_process(&fixture.proc_root, &mise(81));
+    std::fs::write(origin.join("memory.high"), "plenty\n").expect("garble a limit");
+    let refused = fixture.routing.consider(81);
+    assert!(matches!(&refused, Outcome::Failed { error, .. } if error.contains("never moved without them")), "{refused:?}");
+    assert_eq!(fixture.requests.borrow().len(), 1, "nothing was moved without its limits");
 }

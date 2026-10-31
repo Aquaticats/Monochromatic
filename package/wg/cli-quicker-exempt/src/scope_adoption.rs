@@ -8,7 +8,11 @@
 //! The manager can only move processes inside its own subtree,
 //! `user@<uid>.service`,
 //! so other processes are reported and left where they are.
+//! The new scope carries the resource limits of the cgroup the process left,
+//! so the move never loosens a CPU or memory cap.
 
+/// The limits the scope carries.
+use crate::inherited_limits::InheritedLimits;
 /// The client run as the user.
 use crate::user_client::{ClientError, UserClient};
 /// Syscall and process failures.
@@ -34,6 +38,9 @@ pub struct AdoptRequest<'a> {
     pub gid: u32,
     /// Slice that receives the scope.
     pub slice: &'a str,
+    /// Limits the scope carries,
+    /// read from the cgroup the processes leave.
+    pub limits: &'a InheritedLimits,
 }
 
 /// Why an adoption did not happen.
@@ -94,8 +101,10 @@ pub fn ensure_slice_arguments(slice: &str) -> Vec<String> {
     ];
 }
 
-/// Builds the `busctl` arguments for `StartTransientUnit` of a scope that adopts `pids`.
-pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32]) -> Vec<String> {
+/// Builds the `busctl` arguments for `StartTransientUnit` of a scope that adopts `pids`
+/// and carries `limits`.
+pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits) -> Vec<String> {
+    let limit_properties = limits.properties();
     let mut arguments: Vec<String> = vec![
         "--user".to_string(),
         "call".to_string(),
@@ -106,7 +115,7 @@ pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32]) -> Vec<Strin
         "ssa(sv)a(sa(sv))".to_string(),
         scope_name.to_string(),
         "fail".to_string(),
-        "3".to_string(),
+        (3 + limit_properties.len()).to_string(),
         "Slice".to_string(),
         "s".to_string(),
         slice.to_string(),
@@ -120,6 +129,11 @@ pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32]) -> Vec<Strin
     arguments.push("Description".to_string());
     arguments.push("s".to_string());
     arguments.push("wg-quicker update traffic that bypasses the tunnel".to_string());
+    for (name, value) in limit_properties {
+        arguments.push(name.to_string());
+        arguments.push("t".to_string());
+        arguments.push(value.to_string());
+    }
     arguments.push("0".to_string());
     return arguments;
 }
@@ -198,12 +212,14 @@ impl Adopter for BusctlAdopter {
     }
 
     /// Requests a scope that adopts the pids and waits until the first pid is in the slice.
+    /// A failure is never retried without the limits,
+    /// because a process that kept its place keeps its caps and one moved without them would lose them.
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
         let Some(first) = request.pids.first() else {
             return Err(AdoptError::Failed("no pid to adopt".to_string()));
         };
         let scope_name = format!("wg-quicker-update-{first}.scope");
-        let arguments = adopt_arguments(&scope_name, request.slice, request.pids);
+        let arguments = adopt_arguments(&scope_name, request.slice, request.pids, request.limits);
         match self.client.run(request.uid, request.gid, &arguments) {
             Ok(()) => {}
             Err(ClientError::TimedOut(text)) => return Err(AdoptError::TimedOut(text)),
