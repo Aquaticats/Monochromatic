@@ -423,3 +423,42 @@ fn an_atomic_symlink_replaces_an_existing_link_and_leaves_no_temporary_name() {
     let names: Vec<String> = fs::read_dir(&directory).expect("list").flatten().map(|entry| return entry.file_name().to_string_lossy().to_string()).collect();
     assert_eq!(names, vec!["name".to_string()]);
 }
+
+#[test]
+fn a_conda_package_is_opened_with_unzip_and_its_payload_unpacked_with_tar_zstd() {
+    let mut rig = Rig::new();
+    let body = b"conda package bytes";
+    let url = "https://conda.anaconda.org/conda-forge/linux-64/bubblewrap-0.13.1-h0_0.conda";
+    rig.http.serve(url, body);
+    set_artifact(&mut rig, "uv", url, &sha256_hex(body));
+    rig.lock.tools[1].declaration.bins = vec!["bwrap".to_string()];
+    rig.runner.on(
+        "unzip",
+        Box::new(|request| {
+            let staging = std::path::Path::new(request.args.last().expect("unzip -d <dir>"));
+            fs::write(staging.join("info-bubblewrap.tar.zst"), "").expect("write the info member");
+            fs::write(staging.join("pkg-bubblewrap.tar.zst"), "").expect("write the payload member");
+        }),
+    );
+    install_tool(&rig.context(), &rig.tool("uv")).expect("installed");
+    let install_dir = tool_install_dir(&rig.scope.toolchain_root, "uv", "1.2.3");
+    let lines = rig.runner.lines();
+    assert!(lines[0].starts_with("unzip -q -o "), "{lines:?}");
+    assert_eq!(
+        lines[1],
+        format!("tar --extract --zstd --file {}/.conda-staging/pkg-bubblewrap.tar.zst --directory {}", install_dir.display(), install_dir.display())
+    );
+    assert!(!install_dir.join(".conda-staging").exists(), "the staging directory is removed");
+    assert!(!install_dir.join("bubblewrap-0.13.1-h0_0.conda").exists(), "the .conda file is not copied in as the program");
+}
+
+#[test]
+fn a_conda_package_without_a_payload_member_is_refused() {
+    let mut rig = Rig::new();
+    let body = b"conda package bytes";
+    let url = "https://conda.anaconda.org/conda-forge/linux-64/x-1-h0_0.conda";
+    rig.http.serve(url, body);
+    set_artifact(&mut rig, "uv", url, &sha256_hex(body));
+    let error = install_tool(&rig.context(), &rig.tool("uv")).expect_err("no payload");
+    assert!(error.message.contains("holds no pkg-*.tar.zst payload"), "{error}");
+}

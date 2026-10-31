@@ -35,8 +35,13 @@ const EXCLUDED_ENDINGS: [&str; 26] = [
 /// Name fragments that mark a build the toolchain does not want:
 /// debug symbols,
 /// baseline CPU builds,
-/// sources and documentation.
-const EXCLUDED_FRAGMENTS: [&str; 12] = ["baseline", "debug", "symbols", "-src", "_src", "source", "docs", "completion", "provenance", "checksums", "profile", "sbom"];
+/// sources and documentation,
+/// bundles with extras,
+/// and GPU-accelerated builds.
+const EXCLUDED_FRAGMENTS: [&str; 20] = [
+    "baseline", "debug", "symbols", "-src", "_src", "source", "docs", "completion", "provenance", "checksums", "profile", "sbom", ".full.", "vulkan", "rocm", "cuda",
+    "openvino", "sycl", "opencl", "-hip",
+];
 
 /// Name fragments of operating systems and CPUs other than the platforms looked for.
 const FOREIGN_FRAGMENTS: [&str; 22] = [
