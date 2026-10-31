@@ -236,8 +236,13 @@ Nothing here edits `AGENTS.md` before the user accepts.
 
 ## Commits and next action
 
-This audit lands as `docs(audit)`.
-Next action is the user's adoption decision on `doc/planning/agents-md-machine-contract.md`.
-After acceptance the landing edits are `AGENTS.md`,
-file-enforcer `CLAUDE.md` regeneration,
-and the quote-site indents.
+This audit landed as commit `77a538d810`.
+The 2026-10-31 question adopted only the `AGENTS.md:673` repair
+(landed as commit `caf7665d40`,
+issue #1820),
+settled the `RLM` boundary as at most 200 characters counting the code prefix,
+and moved the `RLM` and `GRM` wordings to issues #1821 and #1822
+instead of direct edits.
+Next action:
+land #1821 and #1822 when accepted,
+then indent the quote sites counted in "The cross-file namespace".
