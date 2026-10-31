@@ -77,25 +77,36 @@ function swapInTarball({ packageName, tarballPrefix, }: { packageName: string; t
 }
 
 /**
+ Whether a Node.js version has no semver pre-release part (no dash once any `+build` suffix is removed).
+
+ @param version - a version from node-releases.
+ */
+function isStable(version: string,): boolean {
+  return !(version.split('+')[0] ?? '').includes('-',);
+}
+
+/**
  Ask the real package about one case, following the repository's call path.
 
  @param browserslist - the loaded package function.
  @param testCase - config text and optional Node.js version override.
+ @param dropNodePrereleases - when true, pre-release Node.js versions are removed from `browserslist.nodeVersions`
+ first, which is the Rust crate's deliberate divergence (see doc/troubleshooting/browserslist-node-major-prerelease.md).
  @returns the sorted target list, or the error message the package threw.
  */
 function ask(
-  { browserslist, testCase, }: {
+  { browserslist, testCase, dropNodePrereleases, }: {
     browserslist: ((queries: readonly string[], options: object,) => string[]) & {
       parseConfig: (text: string,) => { defaults: string[]; };
       nodeVersions: string[];
     };
     testCase: Case;
+    dropNodePrereleases: boolean;
   },
 ): Answer {
   const originalNodeVersions = browserslist.nodeVersions;
-  if (testCase.nodeVersions !== undefined) {
-    browserslist.nodeVersions = [...testCase.nodeVersions,];
-  }
+  const startingVersions = testCase.nodeVersions ?? originalNodeVersions;
+  browserslist.nodeVersions = dropNodePrereleases ? startingVersions.filter(isStable,) : [...startingVersions,];
   try {
     const config = browserslist.parseConfig(testCase.config,);
     return { result: browserslist(config.defaults, { path: false, stats: {}, },), };
@@ -126,6 +137,10 @@ const output = {
   caniuseLite: versionOf('caniuse-lite',),
   nodeReleases: versionOf('node-releases',),
   npmFirefoxEsr: (browserslist(['Firefox ESR',], { path: false, stats: {}, },) as string[])[0],
-  cases: input.cases.map((testCase,) => ({ ...testCase, npm: ask({ browserslist, testCase, },), })),
+  cases: input.cases.map((testCase,) => ({
+    ...testCase,
+    npm: ask({ browserslist, testCase, dropNodePrereleases: false, },),
+    npmPrereleaseFiltered: ask({ browserslist, testCase, dropNodePrereleases: true, },),
+  })),
 };
 writeFileSync(`${WORK_DIRECTORY}/out.json`, `${JSON.stringify(output, null, 2,)}\n`,);

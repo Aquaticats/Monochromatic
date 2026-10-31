@@ -6,7 +6,7 @@
   "firefoxEsr": "153.6.0esr",
   "lockVersion": 1,
   "node-releases": {
-    "integrity": "sha512-5NUN6QCxNFrS9oEA9RPS+d0AP+ooGBzzovY2JhIpDRHacPvOhHjXjUsUMX9qp4nLHZ+5jVgXB2jj/P4arGOE/g==",
-    "version": "2.0.61"
+    "integrity": "sha512-A0Eq+qVDQI97IbAD6g/HriIuv256el9N8EwF4+xqJ49pwrdRYpdCSmLk0sO4I3fnS6hpYE5v22B73Bk+WArEoQ==",
+    "version": "2.0.62"
   }
 }
