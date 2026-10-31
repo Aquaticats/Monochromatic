@@ -12,6 +12,7 @@ import type {
   ArtifactConsistencyRepeat,
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { askCarryChoice, } from './pass-consistency-carry-ask.ts';
+import { voiceModelOf, } from './pass-consistency-gather.ts';
 import {
   editsOf,
   partlyCarriedFindingOf,
@@ -311,16 +312,14 @@ export async function choose(
       return {
         label,
         candidates,
+        // THE BALLOTS NAME THE MODEL THAT CAST THEM (ledger B1142, B1160): the one asked in place of a runaway seat where there
+        // was one, as the ballots of a group's first round are recorded.
         ballots: asked.voices
-          .map(function recordedBallot({
-            seat,
-            reason,
-            choice: chose,
-          },) {
+          .map(function recordedBallot(voice,) {
             return {
-              seat,
-              reason,
-              choice: chose,
+              seat: voiceModelOf({ voice, },),
+              reason: voice.reason,
+              choice: voice.choice,
             };
           },),
         usable: firstUsable,
@@ -329,15 +328,11 @@ export async function choose(
           runOff: {
             finalists,
             ballots: runOffAsked.voices
-              .map(function recordedRunOffBallot({
-                seat,
-                reason,
-                choice: chose,
-              },) {
+              .map(function recordedRunOffBallot(voice,) {
                 return {
-                  seat,
-                  reason,
-                  choice: chose,
+                  seat: voiceModelOf({ voice, },),
+                  reason: voice.reason,
+                  choice: voice.choice,
                 };
               },),
             usable: runOffCounted?.usable ?? 0,

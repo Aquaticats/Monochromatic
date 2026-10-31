@@ -160,6 +160,7 @@ export {
 export {
   gatherThroughCache,
   recordFits,
+  voiceModelOf,
 } from './corpus-run/pass-consistency-gather.ts';
 export { groupLine, } from './corpus-run/pass-consistency-group-line.ts';
 export {

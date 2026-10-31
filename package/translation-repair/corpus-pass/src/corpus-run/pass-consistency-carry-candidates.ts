@@ -257,7 +257,8 @@ function keptWordsLost(
  for the block and charged to no writer. What a reply raises after that is the
  reply's own, and is recorded for its seat alone.
 
- @param voices - writers' replies with their seats, in roster order
+ @param voices - writers' replies with their seats, in roster order, and the model that wrote the paragraph where it was
+ another model than the seat's, asked in place of a runaway seat (ledger B1142)
 
  @param english - receiving places' slice English
 
@@ -313,6 +314,7 @@ export function writtenParagraphsOf(
 ): {
   readonly written: readonly {
     readonly seat: string;
+    readonly answeredBy?: string;
     readonly text: string;
   }[];
   readonly findings: readonly string[];
@@ -348,14 +350,21 @@ export function writtenParagraphsOf(
    */
   const judged = voices.map(function judgeOne({
     seat,
+    answeredBy,
     translation,
   },): {
     readonly kept: readonly {
       readonly seat: string;
+      readonly answeredBy?: string;
       readonly text: string
     }[];
     readonly finding: readonly string[];
   } {
+    /**
+     The seat, and the model that wrote the paragraph for it where another did, as a finding or a warning names them
+     (ledger B1146, B1160).
+     */
+    const named = (answeredBy === undefined) ? seat : `${seat} -> ${answeredBy}`;
     try {
       /**
        The paragraph as it would ship.
@@ -375,10 +384,10 @@ export function writtenParagraphsOf(
         definitions,
       },);
       if (lost.length > 0) {
-        wl.warn(`withheld ${seat} from the bench: its paragraph no longer holds the words of another place that must stay`,);
+        wl.warn(`withheld ${named} from the bench: its paragraph no longer holds the words of another place that must stay`,);
         return {
           kept: [],
-          finding: [`consistency-candidate-refused (${seat}): the paragraph no longer holds the words of another place that must stay as they are`,],
+          finding: [`consistency-candidate-refused (${named}): the paragraph no longer holds the words of another place that must stay as they are`,],
         };
       }
       /**
@@ -390,10 +399,10 @@ export function writtenParagraphsOf(
         crossing,
       },);
       if (edgeLost.length > 0) {
-        wl.warn(`withheld ${seat} from the bench: its paragraph no longer holds, at the edge of the block, the words of a place that runs over it`,);
+        wl.warn(`withheld ${named} from the bench: its paragraph no longer holds, at the edge of the block, the words of a place that runs over it`,);
         return {
           kept: [],
-          finding: [`consistency-candidate-refused (${seat}): the paragraph no longer holds, at the edge of the block, the words of a place that runs over it and must stay as they are`,],
+          finding: [`consistency-candidate-refused (${named}): the paragraph no longer holds, at the edge of the block, the words of a place that runs over it and must stay as they are`,],
         };
       }
       /**
@@ -415,22 +424,24 @@ export function writtenParagraphsOf(
         return {
           kept: [{
             seat,
+            // Conditional spread keeps the model absent where the seat's own model wrote the paragraph.
+            ...((answeredBy === undefined) ? {} : { answeredBy, }),
             text,
           },],
           finding: [],
         };
       }
-      wl.warn(`withheld ${seat} from the bench: the floors refuse its paragraph: ${refusal}`,);
+      wl.warn(`withheld ${named} from the bench: the floors refuse its paragraph: ${refusal}`,);
       return {
         kept: [],
-        finding: [`consistency-candidate-refused (${seat}): ${refusal}`,],
+        finding: [`consistency-candidate-refused (${named}): ${refusal}`,],
       };
     }
     catch (error) {
-      wl.warn(`withheld ${seat} from the bench: its paragraph could not be read (${exchangeFailureLogText({ error, },)})`,);
+      wl.warn(`withheld ${named} from the bench: its paragraph could not be read (${exchangeFailureLogText({ error, },)})`,);
       return {
         kept: [],
-        finding: [`consistency-candidate-unreadable (${seat})`,],
+        finding: [`consistency-candidate-unreadable (${named})`,],
       };
     }
   },);

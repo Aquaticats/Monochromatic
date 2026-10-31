@@ -32,6 +32,7 @@ import {
   gatherThroughCache,
   recordFits,
   storedChoices,
+  voiceModelOf,
 } from '../../dist/final/node/index.mjs';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
@@ -397,6 +398,21 @@ await describe({
                 modelIds: BENCH,
               },),
             ],).toEqual([true, true, false, false,],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: voiceModelOf.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'NAMES THE MODEL THAT ANSWERED FOR A SEAT WHERE ANOTHER DID, and the seat itself where it answered (ledger B1160)',
+          fn: async () => {
+            expect([
+              voiceModelOf({ voice: { seat: SEAT_HYPER_ONLY, answeredBy: SEAT_BEDROCK_ONLY_TEXT, }, },),
+              voiceModelOf({ voice: { seat: SEAT_HYPER_ONLY, }, },),
+            ],).toEqual([SEAT_BEDROCK_ONLY_TEXT, SEAT_HYPER_ONLY,],);
           },
         },),
       ],

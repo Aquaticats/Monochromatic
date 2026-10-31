@@ -30,7 +30,7 @@ type CarryOfferDraft = {
   readonly kind: 'current' | 'splice' | 'writer';
 
   /**
-   Seats whose reply was exactly this text or its layout.
+   Models whose reply was exactly this text or its layout, each the model that wrote it and not the seat it answered for.
    */
   readonly writers: readonly string[];
 
@@ -71,7 +71,8 @@ export type CarryOffer = CarryOfferDraft & {
  @param splice - paragraph with the chosen words moved in by code, as a
  list of zero or one: none where that is not possible or a floor refused it
 
- @param written - each writer's paragraph that passed the floors, in roster order
+ @param written - each writer's paragraph that passed the floors, in roster order, with the seat it was written for and,
+ where the seat's reasoning ran away and another model answered, that model
 
  @param lineStructured - whether the line-structure rule governs the slice
 
@@ -93,6 +94,7 @@ export function carryOffersOf(
     readonly splice: readonly string[];
     readonly written: readonly {
       readonly seat: string;
+      readonly answeredBy?: string;
       readonly text: string;
     }[];
     readonly lineStructured: boolean;
@@ -120,11 +122,14 @@ export function carryOffersOf(
     ...spliced,
     ...written.map(function draftOf({
       seat,
+      answeredBy,
       text,
     },): CarryOfferDraft {
       return {
         kind: 'writer',
-        writers: [seat,],
+        // THE WRITER IS THE MODEL THAT WROTE THE PARAGRAPH (ledger B1142, B1160): the one asked in place of a runaway seat
+        // where there was one, else the seat itself.
+        writers: [answeredBy ?? seat,],
         text,
       };
     },),

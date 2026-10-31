@@ -338,7 +338,8 @@ export type ArtifactConsistencyUnplaced = {
  */
 export type ArtifactConsistencyBallot = {
   /**
-   Seat that answered.
+   Model that cast the ballot: the one asked in place of a runaway seat where there was one, else the seat itself (ledger
+   B1142, B1160). The key keeps its name, which the reader requires.
    */
   readonly seat: string;
 
@@ -389,7 +390,8 @@ export type ArtifactConsistencyBallot = {
  */
 export type ArtifactConsistencyChoiceBallot = {
   /**
-   Seat that answered.
+   Model that cast the ballot: the one asked in place of a runaway seat where there was one, else the seat itself (ledger
+   B1142, B1160). The key keeps its name, which the reader requires.
    */
   readonly seat: string;
 
@@ -474,8 +476,9 @@ export type ArtifactConsistencyCandidate = {
   readonly kind: ConsistencyCandidateKind;
 
   /**
-   Seats whose reply was exactly this text, which is none for a splice no
-   writer wrote and for a current text no writer returned.
+   Models whose reply was exactly this text, each the model that wrote it (the one asked in place of a runaway seat
+   where there was one, else the seat itself; ledger B1142, B1160), which is none for a splice no writer wrote and for a
+   current text no writer returned.
    */
   readonly writers: readonly string[];
 

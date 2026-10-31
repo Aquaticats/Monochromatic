@@ -14,6 +14,7 @@ import type {
   ConsistencyOccurrenceOutcome,
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import type { ConsistencyAsked, } from './pass-consistency-ask.ts';
+import { voiceModelOf, } from './pass-consistency-gather.ts';
 import {
   afterRunOff,
   chosenPlaceOf,
@@ -56,7 +57,7 @@ function recordedBallot(
 ): ArtifactConsistencyBallot {
   // THE ARTIFACT NAMES THE MODEL THAT CAST THE BALLOT (ledger B1142): the one asked in place of a runaway seat, where one was.
   return {
-    seat: voice.answeredBy ?? voice.seat,
+    seat: voiceModelOf({ voice, },),
     reason: voice.reason,
     quotes: voice.quotes
       .map(function recordedQuote(quote,): ArtifactConsistencyBallot['quotes'][number] {

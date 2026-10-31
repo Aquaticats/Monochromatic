@@ -438,6 +438,7 @@ export async function writtenOffers(
 ): Promise<{
   readonly written: readonly {
     readonly seat: string;
+    readonly answeredBy?: string;
     readonly text: string;
   }[];
   readonly findings: readonly string[];

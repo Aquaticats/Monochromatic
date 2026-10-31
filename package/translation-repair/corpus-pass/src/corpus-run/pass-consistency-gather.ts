@@ -83,6 +83,29 @@ export function seatFieldsOf(
 }
 
 /**
+ The model that gave a stored voice: the one asked in place of a runaway seat where there was one, else the seat itself.
+ What the artifact records of a ballot or a writer, and what a finding names, is this model and not the seat (ledger
+ B1142, B1160).
+
+ @param voice - stored voice of a gather
+
+ @returns Model that answered
+
+ @example
+ ```ts
+ const model = voiceModelOf({ voice: { seat: 'glm-5.3', answeredBy: 'gemma-4-26b-a4b-it', }, },);
+ ```
+ */
+export function voiceModelOf(
+  { voice, }: { readonly voice: {
+    readonly seat: string;
+    readonly answeredBy?: string
+  }; },
+): string {
+  return voice.answeredBy ?? voice.seat;
+}
+
+/**
  Whether the voices of a stored gather are ones a fresh gather over this bench
  could have heard: each from a seat of the bench and each seat once, which
  also bounds them by the bench's size.

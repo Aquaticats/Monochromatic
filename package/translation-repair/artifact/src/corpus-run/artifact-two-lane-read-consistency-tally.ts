@@ -8,9 +8,10 @@ import type { ArtifactConsistencyGroup, } from './artifact-two-lane-consistency.
 // the carry's recount read these two questions one way.
 
 /**
- Checks that no seat spoke twice in a gather.
+ Checks that no seat spoke twice in a gather. A ballot's `seat` is the model that cast it (ledger B1142, B1160), and one
+ model gives one voice to a question, so the check holds whether a record names the seat or the answerer.
 
- @param seats - seat of each ballot, in the order the ballots are recorded
+ @param seats - model of each ballot, in the order the ballots are recorded
 
  @param path - where the ballots sit, for the parse error
 
