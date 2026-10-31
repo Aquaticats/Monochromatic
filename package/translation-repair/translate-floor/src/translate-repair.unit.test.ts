@@ -37,6 +37,7 @@ import {
   reuseTwinOrBuy,
   type TwinMemo,
 } from '@monochromatic-dev/translation-repair-stage';
+import { createReaskClaims, } from '@monochromatic-dev/translation-repair-provider';
 import {
   buildTranslateCandidates,
   FloorGroundDisagreementError,
@@ -239,6 +240,8 @@ async function runRepair(
     pageText,
     ...((syntax === undefined) ? {} : { syntax, }),
     priorMessages: PRIOR_MESSAGES,
+    role: 'translator',
+    reaskClaims: createReaskClaims(),
     signal: new AbortController().signal,
     perCallTimeoutMs: HANG_STOP_MS,
     l: (said === undefined) ? l : capturingLogger({ messages: said, },),
@@ -838,6 +841,98 @@ await describe({
         },);
         expect(repaired.voices[0]?.value.translation,).toBe(GOOD_TEXT,);
         expect(repaired.findings,).toContain(`translate-repair-revised (${TRANSLATOR})`,);
+      },
+    },),
+
+    it({
+      name: 'RECORDS A REVISION BY ANOTHER MODEL AS THAT MODEL\'S OWN CANDIDATE, under its own model id, and keeps the '
+        + 'author\'s original beside it: the runaway author\'s text is not replaced by a text it did not write',
+      fn: async () => {
+        /**
+         Model the re-ask of the runaway went to.
+         */
+        const other = SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
+        const claims = createReaskClaims();
+        const repaired = await repairInvalidCandidates({
+          client: {
+            chatText: async () => {
+              throw new Error('chatText unused',);
+            },
+            chatJson: async <ValueT,>(): Promise<ChatJsonOutcome<ValueT>> => ({
+              kind: 'ok',
+              value: { resolution: 'revised', translation: GOOD_TEXT, translatorNote: 'restored the heading', } as ValueT,
+              rawText: '{}',
+              answeredBy: other,
+            }),
+            quotas: async () => {
+              throw new Error('quotas unused',);
+            },
+          },
+          voices: [{ modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },],
+          sourceText: SOURCE_TEXT,
+          incumbentText: '',
+          priorMessages: PRIOR_MESSAGES,
+          role: 'translator',
+          reaskClaims: claims,
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          l,
+        },);
+        expect(repaired.voices,).toEqual([
+          { modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },
+          { modelId: other, value: { translation: GOOD_TEXT, }, },
+        ],);
+        expect(repaired.findings,).toContain(`translate-repair-revised-by-another (${TRANSLATOR} -> ${other})`,);
+      },
+    },),
+
+    it({
+      name: 'HANDS THE RE-ASK ITS ROLE, THE SHARED RECORD AND A CONVERSATION THAT DOES NOT CALL THE TEXT THE ASKED '
+        + 'MODEL\'S OWN: the translation is named as another translator\'s, with no "your" and no turn of its own',
+      fn: async () => {
+        /**
+         Seat the follow-up call carried.
+         */
+        let seat: ChatJsonRequest<unknown>['reaskSeat'];
+        const claims = createReaskClaims();
+        await repairInvalidCandidates({
+          client: {
+            chatText: async () => {
+              throw new Error('chatText unused',);
+            },
+            chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+              seat = request.reaskSeat;
+              return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
+            },
+            quotas: async () => {
+              throw new Error('quotas unused',);
+            },
+          },
+          voices: [{ modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },],
+          sourceText: SOURCE_TEXT,
+          incumbentText: '',
+          priorMessages: PRIOR_MESSAGES,
+          role: 'writer',
+          reaskClaims: claims,
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          l,
+        },);
+        expect(seat?.role,).toBe('writer',);
+        expect(seat?.claims,).toBe(claims,);
+        expect(seat?.bench,).toEqual([TRANSLATOR,],);
+        /**
+         What another model is asked in place of the author's own conversation.
+         */
+        const text = (seat?.otherModelMessages ?? []).map(function textOf(message,): string {
+          return messageText({ message, },);
+        },).join('\n',);
+        expect(text.includes(MERGED_TEXT,),).toBe(true,);
+        expect(text.toLowerCase().includes('your',),).toBe(false,);
+        expect(text.includes('another translator',),).toBe(true,);
+        expect((seat?.otherModelMessages ?? []).some(function isTurnOfItsOwn(message,): boolean {
+          return message.role === 'assistant';
+        },),).toBe(false,);
       },
     },),
 
