@@ -395,6 +395,8 @@ export async function runFidelityTrial(
     client,
     candidates,
     judgeModelIds,
+    // THE PROBE SEATS ROSTER MODELS BEFORE ANY ROLE HOLDS THEM, so it asks in the roster role.
+    role: 'roster',
     task: TRANSLATE_SELECTION_TASK,
     // THE UNGOVERNED SHEET, named explicitly rather than taken by default.
     // The judge-quality bench measured whether these judges can tell a
