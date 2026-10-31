@@ -1,7 +1,10 @@
 import { recordOver, } from './model-card-derive.ts';
 import type { SeatHold, } from './model-card.ts';
 import { MODEL_CARDS, } from './model-cards.ts';
-import type { RosterModelId, } from './roster-id.ts';
+import {
+  ROSTER_MODEL_IDS,
+  type RosterModelId,
+} from './roster-id.ts';
 
 //region Seat role
 // A HOLD NAMES A ROLE, AND A RE-ASK ASKS A MODEL OF A ROLE (ledger B1074, the owner's answer of 2026-10-30,
@@ -20,6 +23,14 @@ import type { RosterModelId, } from './roster-id.ts';
 // - `RUN_READER_MODELS` drops `reader-unmeasured` and `owner-culled` only ("Gemma 4 31B already reads without
 //   judging"), so a model the judge probe withheld can still read.
 // - The checker bench is a static order that only the cull empties.
+// - The editors and the refiners are hand-picked benches of the writers: the editor calibration seats the roster's
+//   writers in both chairs (`editor-calibrate-lane.ts`), so their pool is the writers' (ledger B1100).
+//
+// A ROLE ALSO HAS A POOL (ledger B1100, the lead's ruling of 2026-10-31): the models a re-ask of that role may ask. A
+// re-ask of the checker seat asks only a model the checker benchmark measured in, and no hold of a card says so, since
+// the cards carry no measurement of that role: the pool of the checker role is the measured order itself, which lives
+// here ({@link MEASURED_CHECKER_ORDER}) and which `run-config.ts` takes its `RUN_CHECKER_ORDER` from, so the bench
+// and the re-ask read one list. Every other role's pool is the roster less the models its holds keep out.
 //
 // HOLDS OF A ROUTE ARE NOT HERE: `openrouter-dropped`, `openrouter-withheld`, `synthetic-withheld` and
 // `hyper-slow-select` keep a model off a provider or off the select seats while one provider serves it, which the
@@ -29,8 +40,9 @@ import type { RosterModelId, } from './roster-id.ts';
 /**
  Every role a re-ask can be asked in, widest first.
 
- `roster` is the role of a seat whose bench is the run roster and nothing narrower (pairing, admission, editor and
- refiner seats). No caller leaves its role out (ledger B1079).
+ `roster` is the role of a seat whose bench is the run roster and nothing narrower (pairing and admission seats).
+ `editor` and `refiner` are the hand-picked benches of the repair lane, whose pool is the writers the editor calibration
+ seats in those chairs (ledger B1100). No caller leaves its role out (ledger B1079).
 
  @example
  ```ts
@@ -45,6 +57,8 @@ export const SEAT_ROLES = [
   'late-judge',
   'reader',
   'checker',
+  'editor',
+  'refiner',
 ] as const;
 
 /**
@@ -91,6 +105,16 @@ const HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
     'reader-unmeasured',
   ],
   checker: ['owner-culled',],
+  editor: [
+    'owner-culled',
+    'judge-unmeasured',
+    'writer-unmeasured',
+  ],
+  refiner: [
+    'owner-culled',
+    'judge-unmeasured',
+    'writer-unmeasured',
+  ],
 };
 
 /**
@@ -140,6 +164,58 @@ export function holdsKeepingOutOf(
   return SEAT_ROLE_HOLDS[role]
     .filter(function carried(hold,): boolean {
       return holds.includes(hold,);
+    },);
+}
+
+/**
+ Checkers in the order the checker benchmark of 2026-09-27 ranks them, which `run-config.ts` seats its bench from and
+ the re-ask of a checker reads its pool from (ledger B1100). The benchmark, why each model is in or out of the order
+ and what changed on 2026-10-29 are on `RUN_CHECKER_ORDER` in the run package, which names this list.
+
+ @example
+ ```ts
+ const first = MEASURED_CHECKER_ORDER[0];
+ ```
+ */
+export const MEASURED_CHECKER_ORDER: readonly RosterModelId[] = [
+  'xiaomi/mimo-v2.6-flash',
+  'hf:moonshotai/Kimi-K3',
+  // HAIKU 5.5 JOINED THE ORDER AT THE OWNER'S "Haiku wide" (2026-10-22), UNMEASURED AS A CHECKER, behind the three the
+  // benchmark ranks and in front of the two it ranks lowest, so that it filled the bench only when a provider serving one
+  // of those three was dry. The order lost its first seat on 2026-10-29, so it now holds the third place of the static
+  // bench of three: the Claude key serves a checker round in every reading in which it is wet, and when it is dry the
+  // next seat a wet provider serves takes the place. It sends no effort; the effort bench decides that.
+  'claude-haiku-5-5',
+  'google.gemma-4-31b',
+  'inception/mercury-2.5',
+];
+
+/**
+ The models a re-ask of a seat in a role may ask, in roster order (the measured order for the checker role): the models
+ no hold of the role keeps out, and for the checker role only those the checker benchmark measured in.
+
+ It is the pool the run's benches of that role are drawn from, not the bench: the re-ask leaves out the bench, the
+ model that ran away and the other seats' asks itself (ledger B1100). A pool is a reading of the bench derivation in
+ `run-config.ts`, and `seat-role-pool.unit.test.ts` in the run package fails if the two drift apart.
+
+ @param role - role of the seat that ran away
+
+ @returns Models the role may take, which include decision-only seats and Claude cards that the re-ask itself never asks
+
+ @example
+ ```ts
+ const pool = rolePoolOf({ role: 'checker', },);
+ ```
+ */
+export function rolePoolOf({ role, }: { readonly role: SeatRole; },): readonly RosterModelId[] {
+  return (role === 'checker' ? MEASURED_CHECKER_ORDER : ROSTER_MODEL_IDS)
+    .filter(function heldOutOfNothing(modelId,): boolean {
+      return holdsKeepingOutOf({
+        modelId,
+        role,
+      },)
+        .length
+        === 0;
     },);
 }
 
