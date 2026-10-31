@@ -169,6 +169,11 @@ mod kinds_tests;
 #[path = "run_tests.rs"]
 mod run_tests;
 
+/// Tests for the failure and edge branches of a run.
+#[cfg(test)]
+#[path = "run_failure_tests.rs"]
+mod run_failure_tests;
+
 /// The `module` module.
 #[cfg(test)]
 #[path = "schema_tests.rs"]
