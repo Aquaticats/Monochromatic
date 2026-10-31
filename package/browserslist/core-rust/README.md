@@ -45,6 +45,8 @@ CR line endings,
 and every other browserslist query family.
 Only the count 1 is supported,
 so browserslist's `last 0` and large-count quirks are unreachable.
+Node.js pre-releases are not an unsupported form:
+they are filtered out of the data (see "Deliberate differences from npm browserslist").
 
 `not dead` evaluates browserslist's own `dead` expansion (`Baidu >= 0`,
 `ie <= 11`,
@@ -54,10 +56,35 @@ so browserslist's `last 0` and large-count quirks are unreachable.
 `samsung 4`) against the locked data and subtracts it from everything selected before it.
 As in browserslist,
 it is an error as the first query:
-``Write any browsers query (for instance, `defaults`) before `not dead` ``.
+`` Write any browsers query (for instance, `defaults`) before `not dead` ``.
 
 The output is sorted and deduplicated exactly as browserslist does it (names ascending,
 versions descending).
+
+## Deliberate differences from npm browserslist
+
+Two results differ from npm browserslist 4.29.5 on purpose,
+and both are named exceptions in the conformance test.
+
+### Firefox ESR
+
+The ESR entry is `firefox <major>` from the Mozilla product-details value pinned in the lock,
+where npm hard-codes a constant.
+
+### Node.js pre-releases
+
+Pre-release Node.js versions (any version with a semver pre-release part,
+such as `27.0.0-alpha.0.0.0`)
+are dropped from the node-releases data before `last 1 node major versions` is evaluated.
+npm browserslist with node-releases 2.0.62 resolves that query to only `node 27.0.0-alpha.0.0.0`,
+hiding every `26.x` release;
+this crate resolves it to the `26.x` list.
+The user chose this on 2026-10-30 ("filter pre-releases anyway").
+The source trace,
+the reproduction and the tradeoff are in
+`doc/troubleshooting/browserslist-node-major-prerelease.md`.
+A stable release is unaffected:
+only a dash in the version (after removing any `+build` suffix) marks a pre-release.
 
 ## Library API
 
@@ -161,8 +188,10 @@ in file order.
   Node.js version variants,
   and representative
   refusals.
-  The Firefox ESR entry is compared against the locked Mozilla value,
-  not npm's constant.
+  The reference for the Firefox ESR entry is the locked Mozilla value,
+  not npm's constant,
+  and the reference for the Node.js entries is npm run on pre-release-free Node.js data.
+  The cases where that differs from plain npm are checked to differ only in the pre-release node entries.
 - `mise run //package/browserslist/core-rust:test:live` runs the opt-in live test against the real registry and Mozilla.
 - `mise run //package/browserslist/core-rust:conformance:regenerate` rebuilds `fixtures/data` and
   `conformance/expected.json` from the locked data with a bounded `podman` container (`--memory=2g --cpus=2`).

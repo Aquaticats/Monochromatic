@@ -87,32 +87,54 @@ fn node_major(version: &str) -> Outcome<u64> {
 }
 
 /// What:
+///  Whether a Node.js version carries a semver pre-release part,
+/// such as `27.0.0-alpha.0.0.0`:
+/// a dash in the version once any `+build` suffix is removed.
+/// Why:
+///  The user's decision drops pre-release Node.js versions before `last 1 node major versions` is evaluated.
+///  See `doc/troubleshooting/browserslist-node-major-prerelease.md`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const hasPrerelease = (version: string) => version.split('+')[0].includes('-');
+/// ```
+pub fn has_prerelease(version: &str) -> bool {
+    let without_build = version.split('+').next().unwrap_or("");
+    return without_build.contains('-');
+}
+
+/// What:
 ///  `last 1 node major versions`:
-/// every release whose major equals the newest major,
+/// every stable release whose major equals the newest stable major,
 /// in file order,
-///  or the whole list when that newest major is 0.
+///  or the whole stable list when that newest major is 0.
 /// Why:
 ///  browserslist's `getMajorVersions` walks the file from the end and keeps releases until the major drops below
 ///  the minimum;
 /// its `!minimum` test makes a minimum of 0 return everything.
+///  Pre-release versions are dropped first,
+/// which npm browserslist does not do:
+/// with `27.0.0-alpha.0.0.0` listed it selects only that alpha.
 /// Gotcha:
 ///  The result is every `26.x.y`,
 /// not only the newest release.
+///  This is a deliberate divergence from npm browserslist 4.29.5.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function lastNodeMajor(data: BrowserData): string[]; // 'node ' + version for each kept release
+/// function lastNodeMajor(data: BrowserData): string[]; // 'node ' + version for each kept stable release
 /// ```
 pub fn last_node_major(data: &BrowserData) -> Outcome<Vec<String>> {
-    let Some(newest) = data.node_versions.last() else {
+    let stable: Vec<&String> = data.node_versions.iter().filter(|version| return !has_prerelease(version)).collect();
+    let Some(newest) = stable.last() else {
         return Ok(Vec::new());
     };
     let minimum = node_major(newest)?;
     let mut kept: Vec<&String> = Vec::new();
     if minimum == 0 {
-        kept.extend(data.node_versions.iter());
+        kept.extend(stable.iter());
     } else {
-        for version in data.node_versions.iter().rev() {
+        for version in stable.iter().rev() {
             if node_major(version)? < minimum {
                 break;
             }
