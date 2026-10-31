@@ -762,6 +762,52 @@ await describe({
     },),
 
     it({
+      name: 'ASKS ANOTHER MODEL THE CONVERSATION THE SEAT NAMES FOR IT and names that model on the usable answer, while '
+        + 'the fall back to the runaway keeps the question as it stood with the nudge',
+      fn: async () => {
+        /**
+         Conversation a seat hands to a model other than the one asked, in place of the question as it stood.
+         */
+        const otherModelMessages = [{ role: 'user', content: 'the sheet, as another model is asked it', },] as const;
+
+        /**
+         Requests the re-ask received.
+         */
+        const asks: ChatTextRequest[] = [];
+        const other = await reaskElsewhereNudged({
+          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', bench: [], otherModelMessages, }, },
+          first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+          ask: async (nudged,) => {
+            asks.push(nudged,);
+            return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+          },
+        },);
+        expect(asks[0]?.modelId,).toBe(SEAT_HYPER_TEXT_BEDROCK,);
+        expect(asks[0]?.messages,).toEqual(otherModelMessages,);
+        expect(other.kind === 'ok' ? other.answeredBy : undefined,).toBe(SEAT_HYPER_TEXT_BEDROCK,);
+
+        /**
+         Requests of the fall back, in which every other model has no provider.
+         */
+        const fallbackAsks: ChatTextRequest[] = [];
+        const own = await reaskElsewhereNudged({
+          request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', bench: triedForDeepseek(), otherModelMessages, }, },
+          first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+          ask: async (nudged,) => {
+            fallbackAsks.push(nudged,);
+            return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+          },
+        },);
+        expect(fallbackAsks.length,).toBe(1,);
+        expect(fallbackAsks[0]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
+        expect(fallbackAsks[0]?.messages.some(function isOthers(message,): boolean {
+          return message.content === 'the sheet, as another model is asked it';
+        },),).toBe(false,);
+        expect(own.kind === 'ok' ? own.answeredBy : 'not ok',).toBeUndefined();
+      },
+    },),
+
+    it({
       name: 'THROWS THE DRY REFUSAL a re-ask of another model meets, since every provider reading dry ends the run, '
         + 'where an exchange failure is kept as a warning and the first answer stands',
       fn: async () => {
