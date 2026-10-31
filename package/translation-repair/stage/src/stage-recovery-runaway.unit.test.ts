@@ -402,12 +402,13 @@ await describe({
         },),).toEqual([
           'warn [runRecoveryRound] gate: recovery round for 1 unreadable answer (1 runaway)',
           `info [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: reasoning runaway (a length stop with no content); `
-            + 'left out: hf:openai/gpt-oss-120b (held out of the roster role by owner-culled), '
+            + 'left out: hf:Qwen/Qwen3.8-27B (held out of the roster role by hyper-slow), '
+            + 'hf:openai/gpt-oss-120b (held out of the roster role by owner-culled), '
             + `${SEAT_HYPER_VISION} (seated on the bench of this question), `
             + 'google.gemma-4-31b (held out of the roster role by judge-unmeasured), '
             + 'xiaomi/mimo-v2.6-flash (held out of the roster role by judge-unmeasured); to ask in turn: '
             + 'gemma-4-26b-a4b-it, google.gemma-4-e2b, inception/mercury-2.5, hf:moonshotai/Kimi-K3, glm-5.3, '
-            + 'hf:Qwen/Qwen3.8-27B, hf:zai-org/GLM-5.3-Flash',
+            + 'hf:zai-org/GLM-5.3-Flash',
           `info [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, `
             + 'plain question',
           'info [runRecoveryRound] gate: recovery round heard 1 of 1 re-asked voice',

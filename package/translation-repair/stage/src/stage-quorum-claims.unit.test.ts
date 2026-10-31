@@ -26,7 +26,10 @@ import {
   type ReaskClaims,
   type ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
-import { gatherStageVoices, } from '../dist/final/node/index.mjs';
+import {
+  gatherStageVoices,
+  seatOfVoice,
+} from '../dist/final/node/index.mjs';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   SEAT_HYPER_OPENROUTER_UNMEASURED,
@@ -248,8 +251,13 @@ await describe({
         },).map(function modelOf(ask,) {
           return ask.modelId;
         },),).toEqual([firstTakes, secondTakes,],);
+        // THE VOICE NAMES THE MODEL THAT ANSWERED (ledger B1142) and the seat it answered for apart, so a seat re-asked of
+        // another model reads as that seat's voice written by that model.
+        expect(gather.voices.every(function namesItsAuthor(voice,): boolean {
+          return voice.modelId === voice.value.meow;
+        },),).toBe(true,);
         expect(gather.voices.map(function summary(voice,): string {
-          return `${voice.modelId} wrote by ${voice.value.meow}`;
+          return `${seatOfVoice({ voice, },)} wrote by ${voice.value.meow}`;
         },).toSorted(),).toEqual([
           `${SEAT_HYPER_OPENROUTER_UNMEASURED} wrote by ${firstTakes}`,
           `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} wrote by ${secondTakes}`,

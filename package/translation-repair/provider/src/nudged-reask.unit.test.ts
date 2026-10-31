@@ -570,8 +570,8 @@ await describe({
         },);
         expect(logged,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: reasoning runaway `
-            + `on neuralwatt (a length stop with no content); left out: ${SEAT_SYNTHETIC_TEXT_EVERYWHERE} (held out of the `
-            + `roster role by owner-culled), ${SEAT_BEDROCK_ONLY_VISION_UNSEATED} (held out of the roster role by `
+            + `on neuralwatt (a length stop with no content); left out: hf:Qwen/Qwen3.8-27B (held out of the roster `
+            + `role by hyper-slow), ${SEAT_SYNTHETIC_TEXT_EVERYWHERE} (held out of the roster role by owner-culled), ${SEAT_BEDROCK_ONLY_VISION_UNSEATED} (held out of the roster role by `
             + `judge-unmeasured), ${SEAT_OPENROUTER_ONLY_CHECKER} (held out of the roster role by judge-unmeasured); to ask `
             + `in turn: ${triedForDeepseek().join(', ',)}`,
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: re-asking `
