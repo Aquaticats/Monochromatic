@@ -64,11 +64,11 @@ fn forward_target_naming_this_executable_stops() {
         )];
         assert_eq!(
             plan_invocation(
-                text(&["--version"]).as_slice(),
+                text(&["--html-path"]).as_slice(),
                 environment.as_slice(),
                 &resolution
             ),
-            forward(text(&["--version"])),
+            forward(text(&["--html-path"])),
             "{target:?}"
         );
     }

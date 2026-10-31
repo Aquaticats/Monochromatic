@@ -30,6 +30,10 @@ mod fixture_guard;
 #[path = "binary_forwarding_tests.rs"]
 mod forwarding;
 
+/// The lines added after Git's answer to `--version`, `-v`, `--help` and `-h`.
+#[path = "binary_announced_tests.rs"]
+mod announced;
+
 /// Wrapper self-exclusion and recursion prevention on PATH.
 #[path = "binary_resolution_tests.rs"]
 mod resolution;

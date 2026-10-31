@@ -108,6 +108,7 @@ pub(super) fn stopped(action: Action) -> String {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
     }
 }
 
@@ -146,20 +147,21 @@ fn assert_coordinated_add(action: Action, arguments: &[OsString], warnings: &str
 /// The final-newline warning of `git add` about `file`.
 const FILE_WARNING: &str = "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\",\"policyId\":\"final-newline\",\"severity\":\"warn\",\"code\":\"final-newline/noncanonical-final-newline\",\"message\":\"Non-empty text file must end with exactly one LF byte.\",\"hint\":\"Hint: if you are committing or checking this file, edit it so it ends with exactly one newline, then stage it again.\",\"path\":\"file\",\"fix\":\"none\"}\n";
 
-/// Native queries,
+/// Native queries other than version and help (those are in `entry_announced_tests.rs`),
 ///  option errors and a bare `git` are forwarded exactly as written.
 #[test]
 fn invocations_git_answers_itself_are_forwarded_unchanged() {
     let root: PathBuf = fixture("entry-forward");
     let resolution: ResolutionInputs = inputs(root.as_path());
     for arguments in [
-        vec!["--version"],
+        vec!["--exec-path"],
+        vec!["--html-path"],
         vec!["--no-such-global-option", "commit"],
         vec!["-C"],
         vec![],
         vec!["--no-pager"],
         // The namespace word after a query is an ordinary argument.
-        vec!["--help", "cli-git"],
+        vec!["--man-path", "cli-git"],
     ] {
         assert_eq!(
             plan_invocation(text(arguments.as_slice()).as_slice(), &[], &resolution),
@@ -235,6 +237,7 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
         }
     }
     remove(root.as_path());
@@ -288,6 +291,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
     }
     // The global prefix reaches the direct command: it selects the repository whose file is read.
     resolution.path = OsString::from("/usr/bin");
@@ -315,6 +319,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -538,11 +543,11 @@ fn the_opt_out_and_short_circuit_forms_are_not_settled() {
     }
     assert_eq!(
         plan_invocation(
-            in_directory(linked.as_path(), &["--version"]).as_slice(),
+            in_directory(linked.as_path(), &["--exec-path"]).as_slice(),
             &[],
             &resolution
         ),
-        forward(in_directory(linked.as_path(), &["--version"]))
+        forward(in_directory(linked.as_path(), &["--exec-path"]))
     );
     remove(root.as_path());
 }

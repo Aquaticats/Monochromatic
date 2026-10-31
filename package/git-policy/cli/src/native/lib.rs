@@ -15,6 +15,10 @@
 ///  or print and exit.
 pub mod action;
 
+/// The four top-level spellings after which the wrapper announces itself,
+///  and the text it prints once Git has answered.
+pub mod announced_query;
+
 /// Variables added to every real-Git child:
 ///  lock PID injection and the forward-target marker.
 pub mod child_environment;

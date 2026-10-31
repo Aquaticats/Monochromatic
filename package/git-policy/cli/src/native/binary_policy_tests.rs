@@ -90,8 +90,8 @@ fn read_only_commands_start_at_most_the_location_query() {
     )
     .expect("legacy");
     // Commands exempt from require-root: the forwarded command is the only Git process.
+    // The announced query is checked on its own below: its output is Git's plus the wrapper's banner.
     for arguments in [
-        vec!["--version"],
         vec!["version"],
         vec!["--exec-path"],
         vec!["help", "--no-such-option"],
@@ -113,6 +113,20 @@ fn read_only_commands_start_at_most_the_location_query() {
             "{arguments:?}"
         );
     }
+    // The announced query starts Git exactly once as well; the caller sees Git's output, then the banner.
+    let (announced, announced_log) = run_counted(&fixture, repo.as_path(), &["--version"]);
+    assert_eq!(announced_log, "--version\n");
+    let mut expected_stdout: Vec<u8> = observe(direct(&fixture).current_dir(&repo).arg("--version"), b"").stdout;
+    expected_stdout.extend_from_slice(
+        format!(
+            "monochromatic-git-policy-cli {}, shadowing git at {}\n",
+            env!("CARGO_PKG_VERSION"),
+            fixture.root.join("shim/git").display()
+        )
+        .as_bytes(),
+    );
+    assert_eq!(announced.stdout, expected_stdout);
+    assert_eq!(announced.code, Some(0));
     // Other read-only commands: one question about the location, then the forwarded command.
     for (arguments, forwarded) in [
         (vec!["log", "--oneline"], "log --oneline"),
@@ -258,7 +272,7 @@ fn inspection_commands_never_read_configuration() {
         vec!["rev-parse", "--show-toplevel"],
         vec!["branch", "--list"],
         vec!["tag", "--list"],
-        vec!["--version"],
+        vec!["--html-path"],
     ] {
         let through_wrapper: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         let through_git: Observed = observe(
@@ -270,6 +284,13 @@ fn inspection_commands_never_read_configuration() {
         assert_eq!(through_git.code, Some(0), "{arguments:?}");
         assert_eq!(through_wrapper, through_git, "{arguments:?}");
     }
+    // The announced query reads no configuration either: Git's line comes first, the banner is the only addition.
+    let version: Observed = run_wrapped(&fixture, repo.as_path(), &["--version"]);
+    let version_through_git: Observed = observe(direct(&fixture).current_dir(&repo).arg("--version"), b"");
+    assert_eq!(version.code, Some(0));
+    assert_eq!(version.stderr, version_through_git.stderr);
+    assert!(version.stdout.starts_with(version_through_git.stdout.as_slice()));
+    assert!(version.stdout.ends_with(b", shadowing git at /usr/bin/git\n"));
     remove(&fixture);
 }
 

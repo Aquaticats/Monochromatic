@@ -19,6 +19,8 @@ pub enum GlobalOutcome {
     /// A subcommand starts at prefix_len.
     Command,
     /// Git prints help/version/path/command inventory without executing a repository command.
+    ///  `--version`, `-v`, `--help` and `-h` run Git as a child and add the wrapper's text after Git's answer
+    ///  (see `announced_query`); every other query is forwarded by replacing the process.
     Query,
     /// A value-taking global option has no following token;
     ///  Git must render its own error.
