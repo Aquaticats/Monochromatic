@@ -30,7 +30,7 @@ import type { RosterModelId, } from './roster-id.ts';
  Every role a re-ask can be asked in, widest first.
 
  `roster` is the role of a seat whose bench is the run roster and nothing narrower (pairing, admission, editor and
- refiner seats, and any caller that names no role).
+ refiner seats). No caller leaves its role out (ledger B1079).
 
  @example
  ```ts
