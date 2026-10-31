@@ -3,13 +3,12 @@ name = "monochromatic-browserslist"
 version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["parser-implementations", "development-tools"]
+documentation = "https://docs.rs/monochromatic-browserslist"
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/browserslist/core-rust"
 include = [
   "src/**/*.rs",
-  "tests/*.rs",
   "fixtures/**",
-  "conformance/*.json",
   "Cargo.toml",
   "Cargo.lock",
   "README.md",

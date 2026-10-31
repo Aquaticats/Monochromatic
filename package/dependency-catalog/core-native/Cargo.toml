@@ -3,6 +3,7 @@ name = "monochromatic-dependency-catalog"
 version = "0.1.0"
 authors = ["Aquaticat"]
 categories = ["development-tools", "parser-implementations"]
+documentation = "https://docs.rs/monochromatic-dependency-catalog"
 include = [
   "src/**/*.rs",
   "Cargo.toml",

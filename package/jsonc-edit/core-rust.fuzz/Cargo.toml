@@ -25,7 +25,7 @@ libfuzzer-sys = { workspace = true, features = ["arbitrary-derive"] }
 
 [dependencies.monochromatic-jsonc-edit]
 path = "../core-rust"
-version = "=0.1.1"
+version = "=0.1.2"
 
 # Library target hosting the shared generator, invariants and address picker used by every
 # fuzz target via `use jsonc_edit_fuzz::...;`. Cargo would auto-detect `src/lib.rs`; it is
