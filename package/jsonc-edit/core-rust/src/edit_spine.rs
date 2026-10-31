@@ -221,7 +221,9 @@ pub(crate) fn descend<'a>(
             (JsoncKind::Record { entries }, JsoncPathSegment::Key { key }) => {
                 match find_entry_index(entries, key) {
                     Some(index) => {
-                        let child = entries.get(index).ok_or_else(|| return not_found(full_path))?;
+                        let Some(child) = entries.get(index) else {
+                            return Err(not_found(full_path));
+                        };
                         levels.push(SpineLevel::Record {
                             entries: entries.clone(),
                             index: Some(index),
@@ -247,7 +249,9 @@ pub(crate) fn descend<'a>(
             (JsoncKind::Array { elements }, JsoncPathSegment::Index { index }) => {
                 let position = *index;
                 if position < elements.len() {
-                    let child = elements.get(position).ok_or_else(|| return not_found(full_path))?;
+                    let Some(child) = elements.get(position) else {
+                        return Err(not_found(full_path));
+                    };
                     levels.push(SpineLevel::Array {
                         elements: elements.clone(),
                         index: Some(position),
@@ -362,30 +366,45 @@ pub(crate) fn set_value(
 }
 
 /// What:
-///      Return a new document with the addressed value transformed in place.
+///      The node with its kind kept and its comment replaced.
+/// Why:
+///       A comment edit changes one field of one node,
+///  and a named function carries the new comment as a parameter.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function withComment(node: JsoncValue, comment: JsoncComment | undefined): JsoncValue;
+/// ```
+fn with_comment(node: &JsoncValue, comment: Option<JsoncComment>) -> JsoncValue {
+    return JsoncValue { kind: node.kind.clone(), comment };
+}
+
+/// What:
+///      Return a new document whose addressed value carries the given comment.
 /// Why:
 ///       Comment edits change one field of one node and must not insert missing structure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function replaceAt(root, path, transform: (node) => node): JsoncValue;
+/// function setCommentAt(root, path, comment): JsoncValue;
 /// ```
 ///
 /// # Errors
 /// Returns the missing address when a step names nothing,
 ///  or a shape failure when a step does not fit.
-pub(crate) fn replace_at(
+pub(crate) fn set_comment_at(
     root: &JsoncValue,
     path: &[JsoncPathSegment],
-    full_path: &[JsoncPathSegment],
-    transform: impl FnOnce(&JsoncValue) -> JsoncValue,
+    comment: Option<JsoncComment>,
 ) -> Result<JsoncValue, JsoncEditError> {
     if path.is_empty() {
-        return Ok(transform(root));
+        return Ok(with_comment(root, comment));
     }
-    let (levels, target) = descend(root, path, full_path, false)?;
-    let addressed = target.ok_or_else(|| return not_found(full_path))?;
-    return Ok(rebuild(levels, transform(addressed)));
+    let (levels, target) = descend(root, path, path, false)?;
+    let Some(addressed) = target else {
+        return Err(not_found(path));
+    };
+    return Ok(rebuild(levels, with_comment(addressed, comment)));
 }
 
 /// What:
@@ -408,19 +427,22 @@ pub(crate) fn delete_value(
     root: &JsoncValue,
     path: &[JsoncPathSegment],
 ) -> Result<JsoncValue, JsoncEditError> {
-    let (last, parent_path) = path.split_last().ok_or_else(|| {
-        return type_error(String::from("jsonc delete: cannot delete the document root"));
-    })?;
+    let Some((last, parent_path)) = path.split_last() else {
+        return Err(type_error(String::from("jsonc delete: cannot delete the document root")));
+    };
     let (levels, target) = descend(root, parent_path, path, false)?;
-    let parent = target.ok_or_else(|| return not_found(path))?;
+    let Some(parent) = target else {
+        return Err(not_found(path));
+    };
     let rebuilt = match (&parent.kind, last) {
         (JsoncKind::Record { entries }, JsoncPathSegment::Key { key }) => {
             let wanted = key_units(key);
-            let kept: Vec<JsoncEntry> = entries
-                .iter()
-                .filter(|entry| return entry.key.units != wanted)
-                .cloned()
-                .collect();
+            let mut kept: Vec<JsoncEntry> = Vec::new();
+            for entry in entries {
+                if entry.key.units != wanted {
+                    kept.push(entry.clone());
+                }
+            }
             JsoncValue { kind: JsoncKind::Record { entries: kept }, comment: parent.comment.clone() }
         }
         (JsoncKind::Array { elements }, JsoncPathSegment::Index { index }) => {
@@ -428,12 +450,12 @@ pub(crate) fn delete_value(
             if position >= elements.len() {
                 return Err(not_found(path));
             }
-            let kept: Vec<JsoncValue> = elements
-                .iter()
-                .enumerate()
-                .filter(|(offset, _)| return *offset != position)
-                .map(|(_, element)| return element.clone())
-                .collect();
+            let mut kept: Vec<JsoncValue> = Vec::new();
+            for (offset, element) in elements.iter().enumerate() {
+                if offset != position {
+                    kept.push(element.clone());
+                }
+            }
             JsoncValue { kind: JsoncKind::Array { elements: kept }, comment: parent.comment.clone() }
         }
         (JsoncKind::Record { .. }, JsoncPathSegment::Index { index }) => {
@@ -468,18 +490,22 @@ pub(crate) fn set_key_comment(
     path: &[JsoncPathSegment],
     comment: Option<JsoncComment>,
 ) -> Result<JsoncValue, JsoncEditError> {
-    let (last, parent_path) = path.split_last().ok_or_else(|| {
-        return type_error(String::from("jsonc key comment: empty path has no key"));
-    })?;
+    let Some((last, parent_path)) = path.split_last() else {
+        return Err(type_error(String::from("jsonc key comment: empty path has no key")));
+    };
     let JsoncPathSegment::Key { key } = last else {
         return Err(type_error(String::from("jsonc key comment: final segment is not a key")));
     };
     let (levels, target) = descend(root, parent_path, path, false)?;
-    let parent = target.ok_or_else(|| return not_found(path))?;
+    let Some(parent) = target else {
+        return Err(not_found(path));
+    };
     let JsoncKind::Record { entries } = &parent.kind else {
         return Err(not_found(path));
     };
-    let index = find_entry_index(entries, key).ok_or_else(|| return not_found(path))?;
+    let Some(index) = find_entry_index(entries, key) else {
+        return Err(not_found(path));
+    };
     let mut rebuilt: Vec<JsoncEntry> = Vec::with_capacity(entries.len());
     for (position, entry) in entries.iter().enumerate() {
         if position == index {
