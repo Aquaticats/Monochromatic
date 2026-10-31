@@ -77,6 +77,22 @@ await describe({
     },),
 
     it({
+      name: 'REFUSES A CALLEE THE SOURCE NEVER NAMES, so a test that names the wrong function fails and does not read as '
+        + 'a file with no call',
+      fn: async () => {
+        const source = [
+          'await runWindowedRounds({',
+          '  role: \'roster\',',
+          '},);',
+        ].join('\n',);
+        expect(function readsTheWrongCallee() {
+          rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },);
+        },).toThrow('never names gatherStageVoices',);
+        expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['roster',],);
+      },
+    },),
+
+    it({
       name: 'SEES A SPREAD AFTER THE ROLE, which can replace it, and a role that comes after a spread as the role named',
       fn: async () => {
         const source = [
