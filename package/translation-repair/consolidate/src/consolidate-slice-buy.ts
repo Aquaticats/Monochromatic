@@ -13,7 +13,10 @@ import {
   type ConsolidationSubject,
   settleConsolidation,
 } from './consolidate-settle.ts';
-import { presentTenseSwapOf, } from './consolidate-tense-swap.ts';
+import {
+  presentTenseSwapOf,
+  type TenseSwap,
+} from './consolidate-tense-swap.ts';
 import type { ConsolidateSubject, } from './consolidate-wire.ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
@@ -85,27 +88,6 @@ type ConsolidationBuyInput = {
 };
 // Fresh model work for one consolidation question. Resume, twin reuse, cache
 // eligibility and ordered document aggregation remain driver responsibilities.
-
-/**
- Whether the tense detector overrules an eligible standing the contest did not endorse in favour of the translate
- lane's two-ballot text, which reads the texts and so is asked only where the answer is used.
-
- @param input - what the swap reads, as `presentTenseSwapOf` takes it
-
- @returns Whether the translate lane's text would ship over the standing
-
- @example
- ```ts
- const fires = tenseSwapFires({ standingEligible: true, standingMayShip: false, standingText, laneTexts, translateWinnerBallots: 2, subject, },);
- ```
- */
-function tenseSwapFires(input: Parameters<typeof presentTenseSwapOf>[0],): boolean {
-  /**
-   What the detector made of the standing and the translate text.
-   */
-  const { kind, } = presentTenseSwapOf(input,);
-  return kind === 'swaps';
-}
 
 /**
  Buys and settles one third-rendering slate, or settles without asking
@@ -306,25 +288,46 @@ async function buyConsolidationAttempt(
     ballots: translateWinnerBallots,
   },);
   /**
+   Whether the tense detector's answer decides anything here: the bench is short, the translate winner is offered, and
+   the rule passed the standing. Otherwise nobody reads either text.
+   */
+  const swapDecides = benchShort
+    && (translateWinner.kind === 'offered')
+    && standingEligible;
+  /**
+   What the tense detector made of the standing and the translate text, read once here and handed to the settlement
+   that ships the swap, so that settlement does not read both texts again. Empty where its answer decides nothing.
+   */
+  const swapReading: { readonly tenseSwap?: TenseSwap; } = swapDecides
+    ? {
+      tenseSwap: presentTenseSwapOf({
+        standingEligible,
+        standingMayShip,
+        standingText,
+        laneTexts,
+        translateWinnerBallots,
+        subject,
+      },),
+    }
+    : {};
+  /**
+   The detector's reading, absent where it decides nothing.
+   */
+  const { tenseSwap, } = swapReading;
+  /**
    Whether the translate winner ships here with no slate bought: over a refused standing, or over an unendorsed one the
    tense detector overrules, read as the settlement reads it.
    */
   const winnerShipsUnasked = benchShort
     && (translateWinner.kind === 'offered')
-    && ((!standingEligible) || tenseSwapFires({
-      standingEligible,
-      standingMayShip,
-      standingText,
-      laneTexts,
-      translateWinnerBallots,
-      subject,
-    },));
+    && ((!standingEligible) || (tenseSwap?.kind === 'swaps'));
   if (winnerShipsUnasked) {
     /**
      The translate winner shipped on the incumbent-only exit, before the mark.
      */
     const shipped = await settleConsolidation({
       ...question,
+      ...swapReading,
       voices: [],
       validity: [],
       producedFindings: [

@@ -72,7 +72,9 @@ const FLAGGED_TRANSLATE = 'Mittens was a tabby with a white chin. She naps on th
 const QUOTED_STANDING = 'The vet said, “Mittens is a tabby with a white chin.” Then she left.';
 
 /**
- The words of the quoted standing with the marks taken away, the control that the quotation is what keeps it unflagged.
+ The words of the quoted standing with the marks taken away. They are flagged, so this arm is what fails on code with no
+ swap, and the quoted arm beside it passes on that code too; together they show the quotation is what keeps the swap
+ from firing.
  */
 const UNQUOTED_STANDING = 'The vet said, Mittens is a tabby with a white chin. Then she left.';
 
@@ -571,7 +573,7 @@ await describe({
         },),
         it({
           name: 'DOES NOT FIRE ON QUOTED WORDS: present tense inside quoted speech is not flagged, and the same '
-            + 'words unquoted are (the control that the swap reads the detector)',
+            + 'words unquoted are (the unquoted arm fails on code with no swap; the quoted arm passes on it)',
           fn: async () => {
             const quoted = await settleOver({
               standing: QUOTED_STANDING,

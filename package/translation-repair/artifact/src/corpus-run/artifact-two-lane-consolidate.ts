@@ -582,11 +582,20 @@ function shippedBy(
       text: settlement.text,
     };
   if (settlement.translateWinnerShipped === true) {
+    // THE REASON IS NEVER GUESSED: both places that mark a winner shipped set its reason with the mark, and a settlement
+    // is never stored (`consolidationWorthResuming`), so none comes from before the reason existed. A guessed reason
+    // would put a false one in the record, so a mark with none is a fault in the stage and stops here.
+    if (settlement.translateWinnerReason === undefined) {
+      throw new Error(
+        'the settlement marks the translate lane winner as shipped but names no reason, and the artifact records '
+          + 'why a winner shipped (a standing the rule refused, or an unendorsed standing the tense detector flagged); '
+          + 'the stage sets the reason with the mark, so a settlement without one did not come from the stage',
+      );
+    }
     return {
       kind: 'translate-winner',
       text: settlement.text,
-      // A WINNER SETTLED BEFORE THE SWAP EXISTED was always the one that replaced a refused standing.
-      reason: settlement.translateWinnerReason ?? 'refused-standing',
+      reason: settlement.translateWinnerReason,
     };
   }
   if (settlement.archiveKept === true) {

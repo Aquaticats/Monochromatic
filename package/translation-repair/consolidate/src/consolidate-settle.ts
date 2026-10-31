@@ -28,6 +28,7 @@ import {
 } from './consolidate-settle-unseated.ts';
 import { judgeConsolidationSlate, } from './consolidate-settle-judge.ts';
 import { settleKeptStanding, } from './consolidate-settle-kept.ts';
+import type { TenseSwap, } from './consolidate-tense-swap.ts';
 import { applyFinalPolish, } from './consolidation-polish-apply.ts';
 import type {
   ConsolidationPolish,
@@ -453,6 +454,10 @@ export type ConsolidationSettlement = {
  @param slateReachable - slate judges a wet provider would serve, absent where the caller did not count; fewer than the
  ballots a winner needs settle that shipment without buying a slate
 
+ @param tenseSwap - what the tense detector already made of this question's standing and offered translate text, read by
+ the purchase to pick its exit; absent where nobody read it, and then read here, so the texts are parsed once on the
+ swap path
+
  @param signal - cancellation for the whole settlement
 
  @param perCallTimeoutMs - bound on any single exchange
@@ -491,6 +496,7 @@ export async function settleConsolidation(
     runoffOverStanding = false,
     translateWinnerBallots = 0,
     slateReachable,
+    tenseSwap,
     signal,
     perCallTimeoutMs,
     l,
@@ -514,6 +520,7 @@ export async function settleConsolidation(
     readonly runoffOverStanding?: boolean;
     readonly translateWinnerBallots?: number;
     readonly slateReachable?: number;
+    readonly tenseSwap?: TenseSwap;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -650,6 +657,7 @@ export async function settleConsolidation(
     laneTexts,
     translateWinnerBallots,
     ...((slateReachable === undefined) ? {} : { slateReachable, }),
+    ...((tenseSwap === undefined) ? {} : { tenseSwap, }),
     standingText,
     floor,
     verdicts,

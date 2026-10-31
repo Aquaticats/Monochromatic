@@ -99,7 +99,13 @@ function isTranslateWinnerReason(value: unknown,): value is TranslateWinnerReaso
 /**
  @internal
 
- Reads what one slice contributes to the document.
+ Reads what one slice contributes to the document, and refuses a shipped kind that disagrees with the slice's terminal.
+
+ THE TERMINAL IS CHECKED AGAINST THE KIND because the shipped field alone decides what reaches the reader, and a record
+ that contradicted its own terminal would be believed. A slice whose terminal says a consolidation won but whose kind
+ says unchanged would silently drop a passage somebody settled on; text under a terminal that settled on no change
+ would ship a passage nobody settled on. Refusing both at read keeps the page assembled from a record the stage could
+ have written.
 
  @param value - shipped field as the slice carries it
 

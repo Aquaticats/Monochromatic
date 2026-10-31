@@ -17,6 +17,7 @@ import type { ProposalVerdict, } from './consolidate-settle-context.ts';
 import {
   presentTenseSwapOf,
   shipTranslateWinnerOverPresentTense,
+  type TenseSwap,
 } from './consolidate-tense-swap.ts';
 import type { SlateFloor, } from './consolidate-validity-floor.ts';
 
@@ -146,6 +147,9 @@ export type BeforeSlateExit =
 
  @param slateReachable - slate judges a wet provider would serve, absent where the caller did not count
 
+ @param tenseSwap - what the detector already made of this standing and winner, which the purchase read to pick its
+ exit; absent where nobody read it, and then read here. Reading it twice parsed both texts twice on the swap path.
+
  @param standingText - wording in place when the stage began, the refused standing here
 
  @param floor - what the validity floor made of the slate
@@ -174,6 +178,7 @@ export function shipWinnerBeforeSlate(
     laneTexts,
     translateWinnerBallots,
     slateReachable,
+    tenseSwap,
     standingText,
     floor,
     verdicts,
@@ -187,6 +192,7 @@ export function shipWinnerBeforeSlate(
     readonly laneTexts: readonly LaneText[];
     readonly translateWinnerBallots: number;
     readonly slateReachable?: number;
+    readonly tenseSwap?: TenseSwap;
     readonly standingText: string;
     readonly floor: SlateFloor;
     readonly verdicts: readonly ProposalVerdict[];
@@ -225,9 +231,9 @@ export function shipWinnerBeforeSlate(
   // the contest's endorsement and the standing's pass of the rule are what it ships on, and nothing else overrules them.
   if (standingEligible) {
     /**
-     What the detector makes of the standing and the winner.
+     What the detector makes of the standing and the winner, as the purchase already read it where it did.
      */
-    const swap = presentTenseSwapOf({
+    const swap = tenseSwap ?? presentTenseSwapOf({
       standingEligible,
       standingMayShip,
       standingText,
