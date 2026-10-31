@@ -142,7 +142,7 @@ not its own lock's.
   the links are per tree,
   but they all point at the one `~/.cargo/bin` file.
 
-## Structural fix (proposal)
+## Structural fix (chosen 2026-10-31, before the file-enforcer cutover)
 
 `cargo binstall --help` (1.26.1) offers per-install locations:
 `--install-path <PATH>` ("Install prebuilt binaries in a custom location")
@@ -151,9 +151,10 @@ Installing each `cargo-binstall`-route tool under a version-keyed directory in t
 (for example `<toolchain root>/cargo/<crate>/<version>`)
 and linking each tree's `.cache/toolchain-bin` to its own lock's version would let trees with different locks coexist,
 as the other routes under `/home/user/.local/share/monochromatic-dev/toolchain` already do.
-Not yet prototyped;
 `mpm-shadow` owns the toolchain after the file-enforcer cutover,
-so the change belongs in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs`.
+so the change belongs in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs`;
+the owner chose to make it before the cutover,
+and the decision record `doc/decision/file-enforcer-rust-rewrite.md` ("Toolchain (mpm-shadow)") carries it.
 
 ## Upstream filing decision
 

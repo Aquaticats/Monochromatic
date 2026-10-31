@@ -220,6 +220,16 @@ and accepted with this record:
 - Bootstrap:
   a prebuilt `mpm-shadow` archive with its SHA-256 in the lock,
   or `cargo install monochromatic-mpm-shadow` after a verified rustup install.
+- cargo-binstall tools install under a version-keyed directory in the toolchain root
+  (for example `<toolchain root>/cargo/<crate>/<version>`),
+  never the shared `$CARGO_HOME/bin`,
+  and each tree links its own lock's version,
+  so trees with different locks cannot overwrite each other's tools.
+  Decided 2026-10-31 after a sync in a worktree with an older lock replaced the git wrapper for every checkout
+  ([`doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`](../troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md));
+  the user chose "Fix in mpm-shadow before cutover"
+  over fixing it after cutover or keeping the shared install.
+  Versions no lock names need a cleanup step.
 - file-enforcer has no toolchain role.
 
 ### Elsewhere
