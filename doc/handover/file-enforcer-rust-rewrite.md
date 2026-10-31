@@ -316,6 +316,19 @@ each finished branch is reviewed and merged into `main`):
   the agent's broader proposals (system updates,
   general pnpm installs,
   checkout build outputs) were not asked for.
+- Corrected 2026-10-31,
+  user:
+  "mpm-shadow should never determine itself goes through clearnet. Our wg set of pkgs should determine that!"
+  The self-placement above (TypeScript sync/update and mpm-shadow re-executing into the slice) is wrong and is being removed;
+  the wg packages detect update traffic alone,
+  by the union of all three methods the user chose:
+  a process watch that moves update entry points into the exempt slice,
+  an update-host list routed around the tunnel for every program,
+  and processes whose executable sits under the toolchain install roots.
+  The wg agent rebuilds it;
+  mpm-shadow 0.2.1 (approved) is held until the self-placement is gone from mpm-shadow,
+  so it never ships.
+  The OpenSnitch rules stay.
 - Released 2026-10-31:
   `monochromatic-search-shadow` 0.2.1 (run `41174514524`)
   after two CI fixes to its exact `--version` checks (`6a2d944949`,
