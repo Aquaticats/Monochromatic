@@ -1,0 +1,52 @@
+/**
+ Tests for the role each asking of a bench names in this package (ledger B1079).
+
+ A RUNAWAY IS RE-ASKED OF A MODEL ITS CARD DOES NOT HOLD OUT OF THE ROLE ("Honour holds (Recommended)", 2026-10-30), so
+ every call that asks a bench names the role of that bench: the consolidation writers are the writer role, and the gate
+ and the polish gate are asked of the late judges.
+
+ @module
+ */
+
+import { readFile, } from 'node:fs/promises';
+
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+import { rolesNamedAtCalls, } from '@monochromatic-dev/translation-repair-test-fixture/ts/reask-role-call.test-fixture.ts';
+
+//region Consolidate role tests
+
+await describe({
+  name: 'the role the consolidation names',
+  concurrency: 1,
+  children: [
+    it({
+      name: 'NAMES THE WRITER ROLE where the writers are asked for a consolidation',
+      fn: async () => {
+        const source = await readFile(new URL('./consolidate-produce.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['writer',],);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE LATE-JUDGE ROLE where the gate is asked',
+      fn: async () => {
+        const source = await readFile(new URL('./consolidate-gate-stage.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['late-judge',],);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE LATE-JUDGE ROLE where the polish gate is asked',
+      fn: async () => {
+        const source = await readFile(new URL('./consolidation-polish-gate-stage.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['late-judge',],);
+      },
+    },),
+  ],
+},);
+
+//endregion Consolidate role tests
