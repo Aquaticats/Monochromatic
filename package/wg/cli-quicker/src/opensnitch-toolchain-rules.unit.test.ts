@@ -14,7 +14,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { resolveOpenSnitchRulesDirectory, } from '../dist/final/node/opensnitch-daemon-config.mjs';
-import { parseOpenSnitchRulesArgs, } from '../dist/final/node/opensnitch-rules-command.mjs';
+import {
+  assertHomeBelongsToCaller,
+  parseOpenSnitchRulesArgs,
+} from '../dist/final/node/opensnitch-rules-command.mjs';
 import { TOOLCHAIN_RULE_NAME_PREFIX, } from '../dist/final/node/opensnitch-toolchain-rule-patterns.mjs';
 import {
   applyToolchainRules,
@@ -573,6 +576,77 @@ await describe({
           'Rules.Path must be an absolute path',
         );
         expect(restore,).toBeDefined();
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: assertHomeBelongsToCaller.name,
+  children: [
+    it({
+      name: 'refuses root running for a sudo caller whose home this is not, unless every home is explicit',
+      fn: async () => {
+        /**
+         Failure text of `sudo` started by uid 1000 with root's home.
+         */
+        const refused = (() => {
+          try {
+            assertHomeBelongsToCaller({
+              home: '/root',
+              homeOwnerUid: 0,
+              effectiveUid: 0,
+              sudoUid: '1000',
+              explicitHomes: false,
+            },);
+          }
+          catch (error) {
+            return String(error,);
+          }
+          return '';
+        })();
+        expect(refused,).toContain('HOME is /root, owned by uid 0, but sudo was started by uid 1000',);
+        expect(refused,).toContain('as that user',);
+        expect(() =>
+          assertHomeBelongsToCaller({
+            home: '/root',
+            homeOwnerUid: 0,
+            effectiveUid: 0,
+            sudoUid: '1000',
+            explicitHomes: true,
+          },)
+        ).not.toThrow();
+      },
+    },),
+    it({
+      name: 'accepts the caller home, a non-root run and a root run without sudo',
+      fn: async () => {
+        expect(() =>
+          assertHomeBelongsToCaller({
+            home: '/home/me',
+            homeOwnerUid: 1_000,
+            effectiveUid: 0,
+            sudoUid: '1000',
+            explicitHomes: false,
+          },)
+        ).not.toThrow();
+        expect(() =>
+          assertHomeBelongsToCaller({
+            home: '/home/me',
+            homeOwnerUid: 1_000,
+            effectiveUid: 1_000,
+            sudoUid: '2000',
+            explicitHomes: false,
+          },)
+        ).not.toThrow();
+        expect(() =>
+          assertHomeBelongsToCaller({
+            home: '/root',
+            homeOwnerUid: 0,
+            effectiveUid: 0,
+            explicitHomes: false,
+          },)
+        ).not.toThrow();
       },
     },),
   ],

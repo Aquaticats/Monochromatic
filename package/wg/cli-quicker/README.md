@@ -207,6 +207,10 @@ Pass `--data-home`,
 `--rustup-home` or `--repository-root` when a directory is not at its default,
 because `sudo` resets `XDG_DATA_HOME`,
 `CARGO_HOME` and `RUSTUP_HOME`.
+Run the command as the user:
+a direct `sudo wg-quicker opensnitch-rules ...` carries no caller context and leaves root's `HOME`,
+so the command refuses unless all three homes are passed.
+Read the patterns that `apply` prints and confirm they name your home.
 Without `--repository-root` the checkout is the nearest ancestor of the running bundle holding `toolchain.lock.json`,
 with a trailing `/.claude/worktrees/<id>` dropped.
 

@@ -49,7 +49,7 @@ const QURE_SERVICE_PREFIX: &str = "app-qure@";
 ///  and the watcher would never see it.
 /// `\x2d` is the escaped literal dash,
 ///  so the name is one hierarchy level and not `app-monochromatic.slice`.
-/// The TypeScript toolchain entry points spell the same name when they re-run themselves inside it.
+/// The TypeScript and Rust toolchain entry points spell the same name when they re-run themselves inside it.
 pub const TOOLCHAIN_UPDATES_SLICE: &str = "app-monochromatic\\x2dupdates.slice";
 
 /// Roots make process and cgroup discovery testable without real host state.

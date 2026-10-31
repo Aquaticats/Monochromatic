@@ -1,3 +1,4 @@
+import { stat, } from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import {
   dirname,
@@ -250,6 +251,58 @@ export function parseOpenSnitchRulesArgs({ argv, }: { readonly argv: readonly st
 }
 
 /**
+ Refuses to derive the covered directories from a home that is not the sudo caller's.
+
+ A direct `sudo wg-quicker opensnitch-rules ...` carries no caller context,
+ so `HOME` is root's and the rules would silently cover `/root/.local/share/...` instead of the user's directories.
+ Running `wg-quicker opensnitch-rules ...` as the user avoids that,
+ because the self-elevation carries the caller's home across `sudo`.
+
+ @param home - Home directory the defaults come from.
+
+ @param homeOwnerUid - Owner of that directory.
+
+ @param effectiveUid - Effective UID of this process.
+
+ @param sudoUid - `SUDO_UID` when sudo started this process.
+
+ @param explicitHomes - Whether the data, Cargo and rustup homes were all given on the command line.
+
+ @throws {@link CliUsageError} when root runs on behalf of a sudo caller whose home this is not.
+
+ @example
+ ```ts
+ assertHomeBelongsToCaller({ home: '/root', homeOwnerUid: 0, effectiveUid: 0, sudoUid: '1000', explicitHomes: false });
+ ```
+ */
+export function assertHomeBelongsToCaller(
+  {
+    home,
+    homeOwnerUid,
+    effectiveUid,
+    sudoUid,
+    explicitHomes,
+  }: {
+    readonly home: string;
+    readonly homeOwnerUid: number;
+    readonly effectiveUid: number;
+    readonly sudoUid?: string;
+    readonly explicitHomes: boolean;
+  },
+): void {
+  if ((effectiveUid !== 0) || explicitHomes
+    || (sudoUid === undefined))
+    return;
+  if (Number(sudoUid,) === homeOwnerUid)
+    return;
+  throw new CliUsageError(
+    `HOME is ${home}, owned by uid ${String(homeOwnerUid,)}, but sudo was started by uid ${sudoUid}. `
+      + 'Run `wg-quicker opensnitch-rules ...` as that user so it carries the caller home across sudo, '
+      + 'or pass --data-home, --cargo-home and --rustup-home.',
+  );
+}
+
+/**
  Writes one line of command output to standard output.
 
  @param line - Text without a newline.
@@ -376,13 +429,28 @@ export async function runOpenSnitchRulesCommand({ argv, }: { readonly argv: read
     .length
     > 0 ? args.repositoryRoots : await bundleRepositoryRoots();
   /**
+   Home directory every default is derived from.
+   */
+  const home = process.env
+    .HOME
+    ?? homedir();
+  assertHomeBelongsToCaller({
+    home,
+    homeOwnerUid: (await stat(home,)).uid,
+    effectiveUid: process.geteuid?.() ?? 0,
+    explicitHomes: (args.dataHome !== undefined) && (args.cargoHome !== undefined)
+      && (args.rustupHome !== undefined),
+    ...(process.env
+      .SUDO_UID
+      === undefined ? {} : { sudoUid: process.env
+        .SUDO_UID, }),
+  },);
+  /**
    Spellings of every covered directory.
    */
   const roots = await resolveToolchainRuleRoots({
     options: {
-      home: process.env
-        .HOME
-        ?? homedir(),
+      home,
       repositoryRoots,
       ...(args.dataHome === undefined ? {} : { dataHome: args.dataHome, }),
       ...(args.cargoHome === undefined ? {} : { cargoHome: args.cargoHome, }),
