@@ -1,5 +1,5 @@
 //! Reading what the toolchain lookup prints:
-//!  the pinned `bin-paths` JSON on standard output,
+//!  the pinned `bin` JSON on standard output,
 //!  and its messages on standard error.
 //!
 //! Everything here is a pure function of text,
@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 pub const MESSAGE_LIMIT: usize = 1000;
 
 /// What:
-///  The tool directories in the output of the toolchain's `bin-paths` entry point:
+///  The tool directories in the output of `mpm-shadow bin --json`:
 ///  the `pathDirs` of the pinned answer,
 ///  kept only when absolute and an existing directory,
 ///  first occurrence only.

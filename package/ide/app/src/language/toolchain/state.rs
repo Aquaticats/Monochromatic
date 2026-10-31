@@ -48,7 +48,7 @@ impl Failed {
     ///  printed before the lookup ran.
     /// Why:
     ///  Bubblewrap starts every message with `bwrap:`,
-    ///  and the lookup's own messages start with `node`,
+    ///  and the lookup's own messages start with the quoted command,
     ///  so the first word tells whose message it is.
     ///  The reader is then not sent to the toolchain for a fault it never saw.
     ///
@@ -78,8 +78,7 @@ pub enum ToolchainState {
     /// The setup never runs the lookup.
     Disabled,
     /// The toolchain does not apply:
-    /// no node program to ask with,
-    /// no toolchain entry point for the project,
+    /// no toolchain plan for the project,
     /// or no sandbox.
     ///  The plain `PATH` lookup stays as it was.
     Unused(
@@ -132,7 +131,7 @@ impl ToolchainState {
     ///  The notice must say what happened,
     /// quote the lookup,
     /// and say what the user does:
-    ///  the application runs the entry point and never repairs the toolchain,
+    ///  the application runs the lookup and never repairs the toolchain,
     ///  so the remedy names the command the user runs.
     ///  The remedy stands before the lookup's own words:
     ///  the display keeps only the first dozen lines,
@@ -165,8 +164,8 @@ impl ToolchainState {
                 root.display()
             ),
             format!(
-                "Fix what the lookup reports (run `node {}` at the worktree root in a terminal to see it yourself), then display a file again.",
-                super::ENTRY_POINT
+                "Fix what the lookup reports (run `{}` at the worktree root in a terminal to see it yourself; a worktree whose toolchain is not installed needs `mise run toolchain:install` first), then display a file again.",
+                super::COMMAND_LINE
             ),
             format!("the toolchain lookup said: {}", failed.message),
         ];

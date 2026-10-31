@@ -1125,14 +1125,14 @@ with the reaping and with the fixed 50 ms pause it replaced;
 
 ### Servers from the toolchain
 
-When the project folder sits in a worktree that carries the toolchain's `bin-paths` entry point at or above it,
-the language servers are looked up in the tool directories that entry point prints
+When the project folder sits in a worktree that carries a `toolchain.plan.jsonc` at or above it,
+the language servers are looked up in the tool directories that the worktree's `mpm-shadow` prints
 and started from there;
 a folder without one keeps the plain `PATH` lookup.
 The desktop launcher's `PATH` is a snapshot of the login session:
 it holds neither the machine's toolchain root nor the worktree's tool directory,
 and a leftover mise shim run inside the sandbox stops with "No version is set for shim".
-The entry-point path is published (`doc/planning/mpm-toolchain-migration.md`) and named in the code;
+The plan file name and the program path are published (`package/mpm-shadow/cli/README.md`) and named in the code;
 no tool list and no server name is.
 `src/language/toolchain.rs` has the decision,
 `src/language/toolchain/command.rs` the sandboxed run,
@@ -1142,14 +1142,17 @@ and `src/language/config/tools.rs` the registry's use of the answer.
 
 #### What is asked, once per registry build
 
-The lookup runs `node package/file-enforcer/core/src/toolchain/bin-paths.ts`,
-the worktree's own copy of the published entry point,
+The lookup runs `mpm-shadow bin --json` by the explicit path `.cache/toolchain-bin/mpm-shadow` of the worktree,
 named by absolute path and run in the opened folder
 (never with the folder as an argument,
 so a name that starts with a dash cannot become an option).
-A folder is a toolchain project when that entry point exists at it or at the closest directory above it;
+The path is the exposure link of the plan's `mpm-shadow` and is never canonicalized:
+the launcher behind it learns the tree from the path it was started under.
+A folder is a toolchain project when `toolchain.plan.jsonc` exists at it or at the closest directory above it;
 a folder without one is never asked about.
-The entry point prints the pinned answer of `doc/planning/mpm-toolchain-migration.md`:
+A worktree that has the plan but no `mpm-shadow` link yet (nothing installed)
+is a failed lookup whose notice names `mise run toolchain:install`.
+The program prints the pinned answer of `package/mpm-shadow/cli/README.md`:
 the worktree's exposure directory,
 the `PATH` directories,
 and one absolute path per linked binary.
@@ -1159,12 +1162,8 @@ so the directory search reaches each one.
 The whole pinned shape is checked:
 an answer of another shape fails the lookup instead of being half-read.
 
-Node itself is found as `node` under the machine's toolchain root
-(`${XDG_DATA_HOME:-$HOME/.local/share}/monochromatic-dev/toolchain/bin`),
-where `mise run toolchain:install` links the installed binaries,
-else `node` in the application's `PATH`;
-a leftover mise shim is never run.
-Without one the folder is not a toolchain project as far as the application can tell.
+No program of the machine is looked up for the lookup itself:
+`mise run toolchain:install` links `mpm-shadow` into the worktree, and that link is the only program run.
 
 The answer is kept for the session.
 It is asked again only when it may have changed:
@@ -1181,9 +1180,9 @@ so a hung lookup never blocks the window.
 A located tool is project code (its link target can be anything the worktree names),
 and running it (a `--version` probe,
 a shim) would execute that code to answer a question about paths.
-The lookup therefore reads only the entry point's JSON;
-the servers are the only programs this module starts.
-That is also why the entry point runs through `confine_with`,
+The lookup therefore reads only the JSON that `mpm-shadow bin --json` prints;
+the servers and that one program are the only programs this module starts.
+That is also why the lookup runs through `confine_with`,
 the function every server goes through:
 bubblewrap,
 no network,
@@ -1195,7 +1194,7 @@ a cleared environment plus only the place-name variables (`HOME`,
 and a private `/tmp`.
 No credential,
 no `NODE_OPTIONS`,
-and no npm setting of the application can reach the run.
+and no setting of the application beyond those place names can reach the run.
 The application never runs `mise exec`,
 `mise install`,
 or `mise trust`.
@@ -1226,9 +1225,9 @@ leftover shims are skipped,
 and every file with servers gets this in its language support notice:
 that the toolchain lookup could not be used for the folder,
 the remedy,
-and the lookup's own message (without node's version footer).
-The remedy names the command the user runs
-(`node package/file-enforcer/core/src/toolchain/bin-paths.ts` at the worktree root);
+and the lookup's own message.
+The remedy names the commands the user runs
+(`mpm-shadow bin --json` at the worktree root, and `mise run toolchain:install` when nothing is installed yet);
 the application never repairs the toolchain.
 A lookup that does not finish in 10 seconds is stopped and reported the same way.
 A sandbox that cannot be set up is not a lookup failure:
@@ -1266,8 +1265,8 @@ a Node server (`bash-language-server`) answers a hover,
 a binary server (`taplo`) and the Markdown server (`marksman`,
 which also answers a hover on a wiki link) start,
 a lookup that fails gives the notice,
-a folder without the entry point keeps "was not found on PATH" for a server nobody installed,
-a hung entry point is stopped at 10 seconds,
+a folder without a plan keeps "was not found on PATH" for a server nobody installed,
+a hung lookup program is stopped at 10 seconds,
 no process remains,
 and every project tree is the same before and after
 (a control proves the comparison sees a created file).

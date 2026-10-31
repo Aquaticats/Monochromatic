@@ -34,14 +34,14 @@ pub(crate) fn scratch() -> std::io::Result<tempfile::TempDir> {
 }
 
 /// The name of the first thing found at or above `directory` that tests on a disposable folder assume is absent:
-///  a `.git` entry (work-tree discovery), the toolchain entry point script (`language::toolchain::ENTRY_POINT`), or the
+///  a `.git` entry (work-tree discovery), the toolchain plan file (`language::toolchain::PLAN_FILE`), or the
 ///  TypeScript launcher (`language::config::typescript::LAUNCHER`).
 /// The two paths are repeated here because the native test binary has no `language` module to import them from.
 fn assumed_absent_above(directory: &Path) -> Option<String> {
     for ancestor in directory.ancestors() {
         for marker in [
             ".git",
-            "package/file-enforcer/core/src/toolchain/bin-paths.ts",
+            "toolchain.plan.jsonc",
             "node_modules/typescript/bin/tsc",
         ] {
             let found: PathBuf = ancestor.join(marker);

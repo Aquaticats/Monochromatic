@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// Real toolchain worktrees against the production setup: servers found through the bin-paths lookup and started
+// Real toolchain worktrees against the production setup: servers found through the `mpm-shadow bin --json` lookup and started
 // confined, a lookup that fails and falls back to PATH with the notice, a folder without the toolchain that keeps the
-// PATH lookup and its message, a hung entry point that is stopped, and project trees compared before and after every
-// run. Everything runs on disposable worktrees below the private agent scratch root. The tools are the ones this
-// worktree's `mise run toolchain:sync` provisioned (read with the same bin-paths entry point the IDE uses); nothing is
-// installed, trusted, or written into a project, and no server touches this repository.
+// PATH lookup and its message, a worktree whose toolchain is not installed, a hung lookup program that is stopped, and
+// project trees compared before and after every run. Everything runs on disposable worktrees below the private agent
+// scratch root. The tools are the ones this worktree's `mise run toolchain:install` provisioned (read with the same
+// `mpm-shadow bin --json` lookup the IDE uses); nothing is installed, trusted, or written into a project, and no server
+// touches this repository.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
@@ -33,26 +34,22 @@ const offsetOf = ({ text, needle, within = 0 }: { text: string; needle: string; 
   return [...text.slice(0, index)].length + within;
 };
 
-// The published entry point and the pinned answer of the repository: where its provisioned tools are. This file
-// lives at package/ide/app/bin, so the repository root is four directories up. The entry point prints only
-// when the path node runs it by is its own real path (its main guard compares the two), so every script path here is
-// canonical.
+// The worktree's own `mpm-shadow` link and the pinned answer of the repository: where its provisioned tools are. This
+// file lives at package/ide/app/bin, so the repository root is four directories up. The lookup is run by the link path
+// itself, as the IDE does, because the launcher behind the link learns the tree from the path it was started under.
 const repoRoot = resolve(dirname(import.meta.filename), '../../../..');
-const entryGiven = join(repoRoot, 'package/file-enforcer/core/src/toolchain/bin-paths.ts');
-if (!existsSync(entryGiven)) throw new Error('This check needs the toolchain entry point at ' + entryGiven);
-const entryPoint = realpathSync(entryGiven);
-// The entry point imports its sibling modules, so a fixture worktree copies the whole toolchain source directory.
-const toolchainSources = dirname(entryPoint);
-const lockText = readFileSync(join(repoRoot, 'toolchain.lock.json'), 'utf8');
-const answerOf = (script: string): { exposureDir: string; pathDirs: string[]; bins: Record<string, string> } => {
-  const run = spawnSync('node', [script], { encoding: 'utf8', cwd: resolve('.') });
-  if (run.status !== 0) throw new Error('the bin-paths lookup failed: ' + (run.stderr || run.stdout));
+const programGiven = join(repoRoot, '.cache/toolchain-bin/mpm-shadow');
+if (!existsSync(programGiven)) throw new Error('This check needs the installed mpm-shadow link at ' + programGiven + '; run `mise run toolchain:install` first');
+const planText = readFileSync(join(repoRoot, 'toolchain.plan.jsonc'), 'utf8');
+const answerOf = (program: string): { exposureDir: string; pathDirs: string[]; bins: Record<string, string> } => {
+  const run = spawnSync(program, ['bin', '--json'], { encoding: 'utf8', cwd: repoRoot });
+  if (run.status !== 0) throw new Error('the bin lookup failed: ' + (run.stderr || run.stdout));
   return JSON.parse(run.stdout);
 };
-const provisioned = answerOf(entryPoint).bins;
+const provisioned = answerOf(programGiven).bins;
 const wanted = ['node', 'taplo', 'marksman', 'bash-language-server'];
 for (const name of wanted) {
-  if (!provisioned[name]) throw new Error('the provisioned toolchain has no ' + name + '; run `mise run toolchain:sync` first; this check never installs anything');
+  if (!provisioned[name]) throw new Error('the provisioned toolchain has no ' + name + '; run `mise run toolchain:install` first; this check never installs anything');
 }
 
 // What the desktop launcher has: the PATH line of the systemd user session, read for that line only.
@@ -78,15 +75,19 @@ const script = [
 const notes = ['# Notes', '', 'See [[other]] and [the other note](other.md).', ''].join('\n');
 const dataToml = ['[package]', 'name = "example"', 'version = "0.1.0"', ''].join('\n');
 
-// A disposable toolchain worktree: the published entry-point sources, the pinned lock, and the tool links of one
-// exposure directory, plus the sample files the servers need.
-const worktree = ({ root, tools = wanted, lock = lockText, entry }: { root: string; tools?: string[]; lock?: string; entry?: string }): void => {
-  cpSync(toolchainSources, join(root, 'package/file-enforcer/core/src/toolchain'), { recursive: true });
-  // A damaged entry point replaces the copied one.
-  if (entry !== undefined) write({ root, relative: 'package/file-enforcer/core/src/toolchain/bin-paths.ts', text: entry });
-  write({ root, relative: 'toolchain.lock.json', text: lock });
+// A disposable toolchain worktree: the plan, the `mpm-shadow` link (or a fixture program in its place), and the tool
+// links of one exposure directory, plus the sample files the servers need.
+const worktree = ({ root, tools = wanted, program }: { root: string; tools?: string[]; program?: { text: string } | null }): void => {
+  write({ root, relative: 'toolchain.plan.jsonc', text: planText });
   mkdirSync(join(root, '.cache/toolchain-bin'), { recursive: true });
   for (const name of tools) symlinkSync(provisioned[name], join(root, '.cache/toolchain-bin', name));
+  const link = join(root, '.cache/toolchain-bin/mpm-shadow');
+  if (program === undefined) symlinkSync(programGiven, link);
+  else if (program !== null) {
+    // A fixture program replaces the real one: it fails or hangs the way a damaged toolchain would.
+    writeFileSync(link, program.text);
+    chmodSync(link, 0o755);
+  }
   write({ root, relative: 'run.sh', text: script });
   write({ root, relative: 'data.toml', text: dataToml });
   write({ root, relative: 'notes.md', text: notes });
@@ -96,11 +97,14 @@ const worktree = ({ root, tools = wanted, lock = lockText, entry }: { root: stri
 };
 const withToolchain = join(base, 'toolchain-project');
 worktree({ root: withToolchain });
-// A worktree whose entry point copy is damaged: node fails and the notice quotes the lookup.
+// A worktree whose lookup program is damaged: it fails and the notice quotes the lookup.
 const broken = join(base, 'broken-project');
-worktree({ root: broken, entry: 'this is not the entry point\n' });
+worktree({ root: broken, program: { text: '#!/bin/sh\necho "mpm-shadow: toolchain.lock.json is unreadable" >&2\nexit 1\n' } });
 const hung = join(base, 'hung-project');
-worktree({ root: hung, entry: 'setTimeout(() => {}, 600_000);\n' });
+worktree({ root: hung, program: { text: '#!/bin/sh\nexec sleep 600\n' } });
+// A worktree that has the plan and no mpm-shadow link: nothing is installed yet.
+const uninstalled = join(base, 'uninstalled-project');
+worktree({ root: uninstalled, program: null });
 write({ root: outside, relative: 'a.lua', text: 'local value = 1\nprint(value)\n' });
 
 interface PlanStep {
@@ -163,6 +167,17 @@ const cases: LookupCase[] = [
     ] }),
   },
   {
+    name: 'uninstalled-project',
+    root: uninstalled,
+    path: sessionPath,
+    plan: plan({ root: uninstalled, steps: [
+      { label: 'open', do: 'open', file: 'run.sh' },
+      { label: 'sleep', do: 'sleep', milliseconds: 1500 },
+      { label: 'notice', do: 'diagnostics', minimum: 1, maximum: 100, seconds: 30 },
+      { label: 'close', do: 'close' },
+    ] }),
+  },
+  {
     name: 'folder-without-toolchain',
     root: outside,
     path: sessionPath,
@@ -174,7 +189,7 @@ const cases: LookupCase[] = [
     ] }),
   },
   {
-    name: 'hung-entry-point',
+    name: 'hung-lookup-program',
     root: hung,
     path: sessionPath,
     plan: plan({ root: hung, steps: [
@@ -285,16 +300,20 @@ for (const item of cases) {
   }
   if (item.name === 'broken-project') {
     checks.push(['the notice quotes the lookup', notice.includes('the toolchain lookup said:')]);
-    checks.push(['the notice names the entry point the user runs', notice.includes('node package/file-enforcer/core/src/toolchain/bin-paths.ts')]);
+    checks.push(['the notice names the lookup the user runs', notice.includes('mpm-shadow bin --json')]);
     checks.push(['the server falls back to PATH and its shim is not started', /bash-language-server is not available: the program 'bash-language-server' for bash-language-server was not found on PATH/.test(notice)]);
+  }
+  if (item.name === 'uninstalled-project') {
+    checks.push(['the notice says the toolchain is not installed and names the install task', notice.includes('mise run toolchain:install')]);
+    checks.push(['the server falls back to PATH', /bash-language-server is not available/.test(notice)]);
   }
   if (item.name === 'folder-without-toolchain') {
     checks.push(['the notice keeps the PATH message', /lua-language-server is not available: the program 'lua-language-server' for lua-language-server was not found on PATH\./.test(notice)]);
     checks.push(['the toolchain is not mentioned', !/toolchain/i.test(notice)]);
     checks.push(['the lookup was not asked to provide anything', !/the toolchain provides tool directories/.test(stderr)]);
   }
-  if (item.name === 'hung-entry-point') {
-    checks.push(['the hung entry point was stopped at the time limit', notice.includes('did not finish within 10 s and was stopped')]);
+  if (item.name === 'hung-lookup-program') {
+    checks.push(['the hung lookup program was stopped at the time limit', notice.includes('did not finish within 10 s and was stopped')]);
     checks.push(['the whole run stayed near the limit', seconds < 40]);
   }
   checks.push(['the project tree is unchanged', unchanged(tree)]);
@@ -312,7 +331,7 @@ write({ root: control, relative: 'scratch-note.txt', text: '# written by the con
 const controlTree = difference({ before: controlBefore, after: snapshot(control) });
 report({ name: 'control: the tree comparison sees a created file', passed: controlTree.added.includes('scratch-note.txt') });
 rmSync(control, { recursive: true, force: true });
-report({ name: 'no scratch note exists in any project', passed: [withToolchain, broken, hung, outside].every(root => !existsSync(join(root, 'scratch-note.txt'))) });
+report({ name: 'no scratch note exists in any project', passed: [withToolchain, broken, hung, uninstalled, outside].every(root => !existsSync(join(root, 'scratch-note.txt'))) });
 
 writeFileSync(join(results, 'results.json'), JSON.stringify(summary, null, 2));
 console.log('Language toolchain inspection ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));

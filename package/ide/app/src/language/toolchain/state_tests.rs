@@ -55,7 +55,7 @@ fn a_failure_is_named_quoted_and_left_to_the_user_to_fix() {
         "{paragraphs:?}"
     );
     assert!(
-        paragraphs[1].contains("node package/file-enforcer/core/src/toolchain/bin-paths.ts"),
+        paragraphs[1].contains("mpm-shadow bin --json"),
         "{paragraphs:?}"
     );
     assert!(
@@ -75,7 +75,7 @@ fn a_failure_is_named_quoted_and_left_to_the_user_to_fix() {
 #[test]
 fn a_failure_that_stopped_the_run_points_at_the_run() {
     let state = ToolchainState::Failed(Failed {
-        message: "`node package/file-enforcer/core/src/toolchain/bin-paths.ts` did not finish within 10 s and was stopped"
+        message: "`mpm-shadow bin --json` did not finish within 10 s and was stopped"
             .to_string(),
     });
     let paragraphs = state.advisory(Path::new("/work/project"));
@@ -84,7 +84,7 @@ fn a_failure_that_stopped_the_run_points_at_the_run() {
         paragraphs[2].contains("did not finish within 10 s"),
         "{paragraphs:?}"
     );
-    assert!(paragraphs[1].contains("bin-paths.ts"), "{paragraphs:?}");
+    assert!(paragraphs[1].contains("bin --json"), "{paragraphs:?}");
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn a_sandbox_that_stopped_before_the_lookup_is_not_blamed_on_the_toolchain() {
     assert!(
         !paragraphs
             .iter()
-            .any(|paragraph| return paragraph.contains("bin-paths.ts")
+            .any(|paragraph| return paragraph.contains("bin --json")
                 || paragraph.contains("toolchain lookup said")),
         "the notice blamed the toolchain for a sandbox that stopped: {paragraphs:?}"
     );
@@ -132,7 +132,7 @@ fn only_a_message_that_begins_with_bubblewraps_prefix_is_the_sandbox() {
             false,
         ),
         (
-            "`node package/file-enforcer/core/src/toolchain/bin-paths.ts` did not finish within 10 s and was stopped",
+            "`mpm-shadow bin --json` did not finish within 10 s and was stopped",
             false,
         ),
         ("node: the word bwrap: appears later", false),
@@ -149,7 +149,7 @@ fn no_notice_is_given_when_the_lookup_worked_or_did_not_apply() {
     for state in [
         provided(),
         ToolchainState::Disabled,
-        ToolchainState::Unused("no node program was found".to_string()),
+        ToolchainState::Unused("the project has no toolchain plan".to_string()),
     ] {
         assert!(state.advisory(Path::new("/work/project")).is_empty());
     }

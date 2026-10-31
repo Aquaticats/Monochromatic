@@ -3,8 +3,8 @@
 //!  and the retry rule.
 
 use super::{
-    ENTRY_POINT, Failed, Provided, RETRY_AFTER, Runner, TIME_LIMIT, ToolchainRequest,
-    ToolchainState,
+    ARGUMENTS, COMMAND_LINE, Failed, PLAN_FILE, PROGRAM, Provided, RETRY_AFTER, Runner, TIME_LIMIT,
+    ToolchainRequest, ToolchainState,
     command::{Completed, Invocation, RunFailure},
     due, entry_point, resolve_disabled, resolve_with,
 };
@@ -52,11 +52,12 @@ impl Runner for Double {
 }
 
 /// A disposable worktree:
-///  `root` with the published entry point in it.
+///  `root` with a plan file and an installed `mpm-shadow` link in it.
 fn worktree(root: &Path) -> PathBuf {
-    let script = root.join(ENTRY_POINT);
-    fs::create_dir_all(script.parent().expect("parent")).expect("directory");
-    fs::write(&script, "// fixture entry point\n").expect("entry point");
+    let program = root.join(PROGRAM);
+    fs::create_dir_all(program.parent().expect("parent")).expect("directory");
+    fs::write(&program, "fixture mpm-shadow\n").expect("program");
+    fs::write(root.join(PLAN_FILE), "{}\n").expect("plan");
     return root.to_path_buf();
 }
 
@@ -74,14 +75,16 @@ fn answer(dirs: &[&str], bins: &[(&str, &str)]) -> String {
     );
 }
 
-/// The path the lookup runs the entry point by:
-///  its canonical path,
-///  which is what the entry point compares its own to.
-fn script_of(root: &Path) -> String {
-    return std::fs::canonicalize(root.join(ENTRY_POINT))
-        .expect("canonical entry point")
-        .to_string_lossy()
-        .into_owned();
+/// The path the lookup runs the program by:
+///  the worktree's own link path,
+///  which the launcher behind the link reads the tree from.
+fn program_of(root: &Path) -> PathBuf {
+    return root.join(PROGRAM);
+}
+
+/// The two arguments of the lookup.
+fn lookup_arguments() -> Vec<String> {
+    return ARGUMENTS.iter().map(|argument| return (*argument).to_string()).collect();
 }
 
 /// Run resolution and return the state with every invocation and limit the double saw.
@@ -126,7 +129,8 @@ fn a_project_in_a_toolchain_worktree_gets_the_directories_the_lookup_prints() {
     assert_eq!(provided.warnings, "a warning about the machine");
     assert_eq!(seen.len(), 1);
     let (invocation, limit) = &seen[0];
-    assert_eq!(invocation.arguments, [script_of(&root)]);
+    assert_eq!(invocation.program, program_of(&root));
+    assert_eq!(invocation.arguments, lookup_arguments());
     assert_eq!(invocation.directory, root);
     assert!(
         *limit <= TIME_LIMIT && *limit > TIME_LIMIT - Duration::from_secs(2),
@@ -135,7 +139,7 @@ fn a_project_in_a_toolchain_worktree_gets_the_directories_the_lookup_prints() {
 }
 
 #[test]
-fn the_lookup_is_only_given_the_entry_point_path_and_never_a_tool_or_an_option() {
+fn the_lookup_is_only_the_worktrees_mpm_shadow_asked_for_its_bin_document() {
     let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let (state, seen) = resolve(&root, done(&answer(&[], &[]), ""));
@@ -143,20 +147,21 @@ fn the_lookup_is_only_given_the_entry_point_path_and_never_a_tool_or_an_option()
     let (invocation, _) = &seen[0];
     assert_eq!(
         invocation.arguments,
-        [script_of(&root)],
-        "the lookup must be asked only for the entry point"
+        ["bin", "--json"],
+        "the lookup must be asked only for the bin document"
     );
-    assert!(invocation.arguments[0].starts_with('/'), "{invocation:?}");
+    assert_eq!(invocation.program, program_of(&root));
+    assert!(invocation.program.is_absolute(), "{invocation:?}");
 }
 
 #[test]
-fn a_folder_below_the_worktree_root_is_served_by_the_worktrees_entry_point() {
+fn a_folder_below_the_worktree_root_is_served_by_the_worktrees_program() {
     let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let folder = base.path().join("package/ide/app");
     let found = entry_point(&folder).expect("entry point");
     assert_eq!(found.worktree_root, root);
-    assert_eq!(found.script, root.join(ENTRY_POINT));
+    assert_eq!(found.program, root.join(PROGRAM));
     let (state, _) = resolve(&folder, done(&answer(&[], &[]), ""));
     assert!(matches!(state, ToolchainState::Provided(_)), "{state:?}");
 }
@@ -170,17 +175,17 @@ fn a_project_with_a_dashed_name_is_only_the_working_directory() {
     assert!(matches!(state, ToolchainState::Provided(_)), "{state:?}");
     let (invocation, _) = &seen[0];
     assert_eq!(invocation.directory, folder);
-    assert_eq!(invocation.arguments.len(), 1, "{invocation:?}");
-    assert!(invocation.arguments[0].starts_with('/'), "{invocation:?}");
+    assert_eq!(invocation.arguments, lookup_arguments());
+    assert!(invocation.program.is_absolute(), "{invocation:?}");
 }
 
 #[test]
-fn a_project_without_the_entry_point_is_not_a_toolchain_project() {
+fn a_project_without_a_plan_is_not_a_toolchain_project() {
     let base = crate::test_scratch::scratch().expect("directory");
     let root = base.path().to_path_buf();
     let (state, seen) = resolve(
         &root,
-        exited("the lookup must not be run for a project without an entry point"),
+        exited("the lookup must not be run for a project without a plan"),
     );
     assert!(matches!(state, ToolchainState::Unused(_)), "{state:?}");
     assert!(!state.serves_project());
@@ -225,13 +230,10 @@ fn an_answer_of_another_shape_fails_instead_of_guessing() {
 }
 
 #[test]
-fn a_failed_run_quotes_the_lookup_and_drops_the_node_version_footer() {
+fn a_failed_run_quotes_the_lookup() {
     let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
-    let stderr = "file:///work/project/package/file-enforcer/core/src/toolchain/bin-paths.ts:3
-Error: toolchain.lock.json is unreadable
-    at readLock (file:///work/project/package/file-enforcer/core/src/toolchain/bin-paths.ts:3:9)
-Node.js v26.12.0
+    let stderr = "mpm-shadow: toolchain.lock.json is unreadable
 ";
     let (state, _) = resolve(&root, exited(stderr));
     let ToolchainState::Failed(Failed { message }) = state else {
@@ -241,7 +243,6 @@ Node.js v26.12.0
         message.contains("toolchain.lock.json is unreadable"),
         "{message}"
     );
-    assert!(!message.contains("Node.js v"), "{message}");
 }
 
 #[test]
@@ -255,7 +256,7 @@ fn a_failure_without_a_message_still_says_what_ended() {
     assert!(
         failed
             .message
-            .contains("`node package/file-enforcer/core/src/toolchain/bin-paths.ts` ended with exit status: 1"),
+            .contains("`mpm-shadow bin --json` ended with exit status: 1"),
         "{}",
         failed.message
     );
@@ -272,7 +273,7 @@ fn a_run_that_timed_out_or_could_not_start_fails_and_a_refused_sandbox_does_not(
     };
     assert_eq!(
         failed.message,
-        "`node package/file-enforcer/core/src/toolchain/bin-paths.ts` did not finish within 10 s and was stopped"
+        "`mpm-shadow bin --json` did not finish within 10 s and was stopped"
     );
     let (refused, seen) = resolve(
         &root,
@@ -285,6 +286,38 @@ fn a_run_that_timed_out_or_could_not_start_fails_and_a_refused_sandbox_does_not(
         ToolchainState::Unused("bubblewrap is not installed".to_string())
     );
     assert_eq!(seen.len(), 1);
+}
+
+#[test]
+fn a_worktree_without_the_installed_program_fails_with_the_install_remedy_and_runs_nothing() {
+    let base = crate::test_scratch::scratch().expect("directory");
+    fs::write(base.path().join(PLAN_FILE), "{}\n").expect("plan");
+    let (state, seen) = resolve(&base.path().to_path_buf(), exited("must not run"));
+    let ToolchainState::Failed(failed) = &state else {
+        panic!("not failed: {state:?}");
+    };
+    assert!(
+        failed.message.starts_with(&format!("`{COMMAND_LINE}` cannot run: ")),
+        "{}",
+        failed.message
+    );
+    assert!(failed.message.contains(PROGRAM), "{}", failed.message);
+    assert!(state.serves_project());
+    assert!(seen.is_empty(), "the lookup ran without a program");
+    let remedy = state.advisory(base.path()).join("\n");
+    assert!(remedy.contains("mise run toolchain:install"), "{remedy}");
+}
+
+#[test]
+fn a_dangling_program_link_counts_as_not_installed() {
+    let base = crate::test_scratch::scratch().expect("directory");
+    fs::write(base.path().join(PLAN_FILE), "{}\n").expect("plan");
+    let link = base.path().join(PROGRAM);
+    fs::create_dir_all(link.parent().expect("parent")).expect("directory");
+    std::os::unix::fs::symlink(base.path().join("gone"), &link).expect("link");
+    let (state, seen) = resolve(&base.path().to_path_buf(), exited("must not run"));
+    assert!(matches!(state, ToolchainState::Failed(_)), "{state:?}");
+    assert!(seen.is_empty());
 }
 
 #[test]

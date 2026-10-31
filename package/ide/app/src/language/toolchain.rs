@@ -1,8 +1,7 @@
 //! Servers that the project's toolchain provides.
 //!
-//! When the opened folder sits in a worktree that carries the toolchain's
-//! `bin-paths` entry point at or above it,
-//! the tools that entry point lists are where the language servers are looked up
+//! When the opened folder sits in a worktree that carries a `toolchain.plan.jsonc` at or above it,
+//! the tools that the worktree's `mpm-shadow` lists are where the language servers are looked up
 //! (before the application's `PATH`),
 //! and their
 //! directories are on the `PATH` the confined server gets,
@@ -12,9 +11,10 @@
 //! The lookup is asked once per registry build,
 //! never per server,
 //! and only for what it resolves:
-//! `node package/file-enforcer/core/src/toolchain/bin-paths.ts`,
-//! the published bin-paths interface
-//! (`doc/planning/mpm-toolchain-migration.md`).
+//! `mpm-shadow bin --json`,
+//! run by the explicit path `.cache/toolchain-bin/mpm-shadow` of the worktree,
+//! the published bin interface
+//! (`package/mpm-shadow/cli/README.md`).
 //! It runs in the servers' sandbox
 //! (`command.rs`),
 //! with a time
@@ -23,6 +23,8 @@
 //! It never runs a located tool
 //! (that would execute project code to answer a question about paths)
 //! and never installs or repairs anything.
+//! A worktree whose plan exists but whose `mpm-shadow` link does not (nothing installed yet)
+//! is a failed lookup with a notice that names `mise run toolchain:install`.
 
 /// The lookup's command line,
 ///  the sandbox,
@@ -58,11 +60,23 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// The toolchain's published lookup entry point,
+/// The file that makes a directory a toolchain worktree,
 ///  relative to a worktree root.
-///  Pinned by `doc/planning/mpm-toolchain-migration.md`,
-///  which names the command consumers run.
-pub const ENTRY_POINT: &str = "package/file-enforcer/core/src/toolchain/bin-paths.ts";
+pub const PLAN_FILE: &str = "toolchain.plan.jsonc";
+
+/// The program that answers the lookup,
+///  relative to a worktree root:
+///  the exposure link of the plan's `mpm-shadow`,
+///  named explicitly because no `PATH` of the application holds it.
+pub const PROGRAM: &str = ".cache/toolchain-bin/mpm-shadow";
+
+/// The lookup's arguments after the program name:
+///  the IDE launcher document of `mpm-shadow`.
+pub const ARGUMENTS: [&str; 2] = ["bin", "--json"];
+
+/// The lookup as a person types it,
+///  for messages.
+pub const COMMAND_LINE: &str = "mpm-shadow bin --json";
 
 /// Longest time the lookup run may take.
 ///  Chosen,
@@ -134,10 +148,8 @@ pub trait Runner {
 }
 
 /// The runner of the production policy:
-///  the node program run in the sandbox.
+///  the worktree's `mpm-shadow` run in the sandbox.
 struct ConfinedRunner<'a> {
-    /// The node program found on the machine.
-    program: &'a Path,
     /// The project whose toolchain is asked about.
     request: &'a ToolchainRequest,
 }
@@ -150,35 +162,35 @@ impl Runner for ConfinedRunner<'_> {
         invocation: &command::Invocation,
         limit: Duration,
     ) -> Result<command::Completed, command::RunFailure> {
-        return command::run_confined(self.program, invocation, self.request, limit, BUBBLEWRAP);
+        return command::run_confined(invocation, self.request, limit, BUBBLEWRAP);
     }
 }
 
 /// What:
-///  The entry point of the worktree that contains a project root.
+///  The toolchain program of the worktree that contains a project root.
 /// Why:
-///  The entry point is published at one path in a toolchain worktree,
+///  The plan file marks one directory as a toolchain worktree,
 ///  and a folder opened below the worktree root is served by the same worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type EntryPoint = { worktreeRoot: string; script: string };
+/// type EntryPoint = { worktreeRoot: string; program: string };
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EntryPoint {
-    /// The worktree root the entry point belongs to.
+    /// The worktree root the plan file belongs to.
     pub worktree_root: PathBuf,
-    /// The entry point itself,
-    ///  an absolute path.
-    pub script: PathBuf,
+    /// The worktree's `mpm-shadow` link,
+    ///  an absolute path that may not exist yet.
+    pub program: PathBuf,
 }
 
 /// What:
-///  `ENTRY_POINT` at `root` or at the closest directory above it.
-///  `Option<EntryPoint>` is that worktree and script,
-///  or nothing when no ancestor carries the entry point.
+///  The toolchain worktree at `root` or at the closest directory above it.
+///  `Option<EntryPoint>` is that worktree and its program path,
+///  or nothing when no ancestor carries a `PLAN_FILE`.
 /// Why:
-///  A folder without the entry point has no toolchain this lookup can ask,
+///  A folder without a plan has no toolchain this lookup can ask,
 ///  and the walk stops at the file system root.
 ///
 /// In TS you'd write (pseudocode):
@@ -187,11 +199,10 @@ pub struct EntryPoint {
 /// ```
 pub fn entry_point(root: &Path) -> Option<EntryPoint> {
     for worktree in root.ancestors() {
-        let script = worktree.join(ENTRY_POINT);
-        if script.is_file() {
+        if worktree.join(PLAN_FILE).is_file() {
             return Some(EntryPoint {
                 worktree_root: worktree.to_path_buf(),
-                script,
+                program: worktree.join(PROGRAM),
             });
         }
     }
@@ -214,28 +225,18 @@ pub fn resolve_disabled(_request: &ToolchainRequest) -> ToolchainState {
 
 /// What:
 ///  The production policy:
-///  find node,
-/// run the entry point in the sandbox,
+///  run the worktree's `mpm-shadow` in the sandbox,
 /// and read what it says.
 /// Why:
-///  A missing node program is not a failure:
-///  the folder is then not a toolchain project as far as the application can tell.
+///  The program is found by the worktree's own path,
+///  so no program of the machine is looked up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const resolveConfined: ToolchainPolicy = request => resolveWith(request, findNode(), runConfined);
+/// const resolveConfined: ToolchainPolicy = request => resolveWith(request, runConfined);
 /// ```
 pub fn resolve_confined(request: &ToolchainRequest) -> ToolchainState {
-    let Some(program) = command::find_node() else {
-        tracing::debug!(
-            "no node program in the toolchain root or on PATH; servers are looked up on PATH"
-        );
-        return ToolchainState::Unused("no node program was found".to_string());
-    };
-    let runner = ConfinedRunner {
-        program: &program,
-        request,
-    };
+    let runner = ConfinedRunner { request };
     return resolve_with(request, &runner);
 }
 
@@ -253,7 +254,7 @@ fn failure(completed: &command::Completed) -> Failed {
     if message.is_empty() {
         return Failed {
             message: format!(
-                "`node {ENTRY_POINT}` ended with {} and printed no message",
+                "`{COMMAND_LINE}` ended with {} and printed no message",
                 completed.status
             ),
         };
@@ -266,9 +267,9 @@ fn failure(completed: &command::Completed) -> Failed {
 ///  `&dyn Runner` is a borrowed value that makes one run.
 /// Why:
 ///  The decision logic is the same for the sandboxed run and a test double:
-///  the entry point at or above the project root is what makes the folder a
+///  the plan file at or above the project root is what makes the folder a
 ///  toolchain project,
-///  and its answer is the tool directories.
+///  and the program's answer is the tool directories.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -280,17 +281,32 @@ pub fn resolve_with(request: &ToolchainRequest, runner: &dyn Runner) -> Toolchai
             root = %request.project_root.display(),
             "no toolchain entry point at or above the project; servers are looked up on PATH"
         );
-        return ToolchainState::Unused("the project has no toolchain entry point".to_string());
+        return ToolchainState::Unused("the project has no toolchain plan".to_string());
     };
     let started = Instant::now();
-    // The entry point is named by its real path,
-    //  so a project opened through a link runs the same file the entry point sees.
-    let script = match std::fs::canonicalize(&entry.script) {
-        Ok(real) => real,
-        Err(_) => entry.script.clone(),
-    };
+    // A plan without the program link means nothing is installed in this worktree yet;
+    //  a dangling link counts as missing.
+    if !entry.program.is_file() {
+        tracing::warn!(
+            program = %entry.program.display(),
+            "the worktree has a toolchain plan but no mpm-shadow link; the toolchain is not installed"
+        );
+        return ToolchainState::Failed(Failed {
+            message: format!(
+                "`{COMMAND_LINE}` cannot run: {} does not exist, so the toolchain is not installed in this worktree yet",
+                entry.program.display()
+            ),
+        });
+    }
+    // The program is named by the worktree's own link path,
+    //  never by the file behind it:
+    //  the launcher that the link reaches learns the tree from the path it was started under.
     let invocation = command::Invocation {
-        arguments: vec![script.to_string_lossy().into_owned()],
+        program: entry.program.clone(),
+        arguments: ARGUMENTS
+            .iter()
+            .map(|argument| return (*argument).to_string())
+            .collect(),
         directory: request.project_root.clone(),
     };
     let done = match runner.run(&invocation, TIME_LIMIT) {
@@ -302,7 +318,7 @@ pub fn resolve_with(request: &ToolchainRequest, runner: &dyn Runner) -> Toolchai
         Err(command::RunFailure::Failed(reason)) => {
             tracing::warn!(%reason, "the toolchain lookup could not serve the project");
             return ToolchainState::Failed(Failed {
-                message: format!("`node {ENTRY_POINT}` {reason}"),
+                message: format!("`{COMMAND_LINE}` {reason}"),
             });
         }
     };
