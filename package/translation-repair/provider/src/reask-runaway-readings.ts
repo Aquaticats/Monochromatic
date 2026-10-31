@@ -1,4 +1,7 @@
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import {
+  MIN_PROVIDER_CALLS,
+  type RosterModelId,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 //region Reasoning runaway readings
 // THE ORDER A REASONING RUNAWAY IS RE-ASKED IN (ledger B1075, the owner's answer of 2026-10-30, "Lowest runaway
@@ -25,21 +28,11 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 //   B1071 counted under the DeepSeek seat; 53,706 calls on ids no card names are in no row.
 // - Claude cards are not here (the Claude route is never a re-ask target), nor is the decision-only seat.
 //
-// A MODEL WITH FEWER THAN `MIN_CALLS_TO_MEASURE` CALLS, OR NO ROW, IS PLACED AFTER EVERY MEASURED MODEL, in roster
+// A MODEL WITH FEWER THAN `MIN_PROVIDER_CALLS` CALLS, OR NO ROW, IS PLACED AFTER EVERY MEASURED MODEL, in roster
 // order. The figure is the completion-cap rule's own floor (`completion-cap.ts`: a provider needs 100 calls before
 // its percentile is read). A share read from fewer calls says less than any measured share, so it is not allowed to
 // outrank one; and no measured model is made to wait behind one whose runaways are not known. A model enters the
 // table when a census gives it 100 calls since the caps.
-
-/**
- Calls a model needs since the caps before its share of runaways is read.
-
- @example
- ```ts
- const measured = reading.calls >= MIN_CALLS_TO_MEASURE;
- ```
- */
-export const MIN_CALLS_TO_MEASURE = 100;
 
 /**
  One model's calls since the caps, pooled over providers, and how many of them ran to the cap with no content.
@@ -175,7 +168,7 @@ export function runawayShareOf(
   const reading = readings.find(function isModel(row,): boolean {
     return row.modelId === modelId;
   },);
-  if ((reading === undefined) || (reading.calls < MIN_CALLS_TO_MEASURE))
+  if ((reading === undefined) || (reading.calls < MIN_PROVIDER_CALLS))
     return 'unmeasured';
   return reading.runaways / reading.calls;
 }

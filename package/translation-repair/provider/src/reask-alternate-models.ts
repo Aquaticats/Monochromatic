@@ -2,6 +2,7 @@ import {
   holdsKeepingOutOf,
   isDecisionSeat,
   MODEL_CARDS,
+  rolePoolOf,
   ROSTER_MODEL_IDS,
   type RosterModelId,
   type SeatRole,
@@ -23,9 +24,12 @@ import {
 // ORDER: THE LOWEST SHARE OF RUNAWAYS FIRST ("Lowest runaway share (Recommended)"). `reask-runaway-readings.ts`
 // holds the census the order rests on, the way a model with too few calls is placed, and why.
 //
-// ROLE: A MODEL ITS CARD HOLDS OUT OF THE SEAT'S ROLE IS NOT ASKED ("Honour holds (Recommended)"). A hold names the
-// roles it empties (`seat-role.ts` in the shared contract), and the seat that ran away says which role it stands in
-// (`ChatTextRequest.reaskSeat`).
+// ROLE: A MODEL OUTSIDE THE POOL OF THE SEAT'S ROLE IS NOT ASKED ("Honour holds (Recommended)"). A hold names the
+// roles it empties, and the seat that ran away says which role it stands in (`ChatTextRequest.reaskSeat`). The pool of
+// a role is read in the shared contract (`rolePoolOf` in `seat-role.ts`): the roster less the models the role's holds
+// keep out, and for the checker role only the models the checker benchmark measured in, the list the run seats its
+// checkers from (ledger B1100, the lead's ruling of 2026-10-31). A model the measurements put out of a role is never its
+// alternate.
 //
 // BENCH: A MODEL SEATED ON THE QUESTION IS NOT ASKED (the lead's adoption of 2026-10-30 from "one judge alone never
 // decides", 2026-10-25, "Two judges must name it", 2026-10-25, and `roster-id.ts` on one model in two seats). The
@@ -94,29 +98,33 @@ export type AlternateModels = {
 
  @param role - role of the seat that ran away
 
+ @param pool - models the role may take
+
  @param bench - models seated on the question
 
  @param askedAlready - models already asked for this seat
 
  @param askedForOtherSeats - models already asked for other seats of the question
 
- @returns Reasons, in the order bench, earlier ask, ask for another seat, holds; empty where the model may be asked
+ @returns Reasons, in the order bench, earlier ask, ask for another seat, pool; empty where the model may be asked
 
  @example
  ```ts
- const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', bench: [], askedAlready: [], askedForOtherSeats: [], },);
+ const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', pool: [], bench: [], askedAlready: [], askedForOtherSeats: [], },);
  ```
  */
 function reasonsToLeaveOut(
   {
     candidate,
     role,
+    pool,
     bench,
     askedAlready,
     askedForOtherSeats,
   }: {
     readonly candidate: RosterModelId;
     readonly role: SeatRole;
+    readonly pool: readonly RosterModelId[];
     readonly bench: readonly RosterModelId[];
     readonly askedAlready: readonly RosterModelId[];
     readonly askedForOtherSeats: readonly RosterModelId[];
@@ -133,8 +141,41 @@ function reasonsToLeaveOut(
     ...(bench.includes(candidate,) ? ['seated on the bench of this question',] : []),
     ...(askedAlready.includes(candidate,) ? ['already asked for this seat',] : []),
     ...(askedForOtherSeats.includes(candidate,) ? ['already asked for another seat of this question',] : []),
-    ...((holds.length === 0) ? [] : [`held out of the ${role} role by ${holds.join(' and ',)}`,]),
+    ...(pool.includes(candidate,) ? [] : [
+      outOfPoolReason({
+        role,
+        holds,
+      },),
+    ]),
   ];
+}
+
+/**
+ Why a model outside the pool of a role is not asked.
+
+ @param role - role of the seat that ran away
+
+ @param holds - holds of the model's card that the role honours
+
+ @returns The holds when the role honours any, else that the role's measured list does not name the model
+
+ @example
+ ```ts
+ const why = outOfPoolReason({ role: 'checker', holds: [], },);
+ ```
+ */
+function outOfPoolReason(
+  {
+    role,
+    holds,
+  }: {
+    readonly role: SeatRole;
+    readonly holds: readonly string[];
+  },
+): string {
+  return (holds.length === 0)
+    ? `not on the measured list of the ${role} role`
+    : `held out of the ${role} role by ${holds.join(' and ',)}`;
 }
 
 /**
@@ -211,7 +252,7 @@ function orderedByRunawayShare(
  @param readings - census table the order is read from
 
  @returns Chat models other than it that its seat's role may take, that are not on the metered Claude route and not on
- the bench, ordered by share of runaways; empty only where the roster, the holds and the bench leave no model
+ the bench, ordered by share of runaways; empty only where the pool, the bench and the earlier asks leave no model
 
  @example
  ```ts
@@ -247,6 +288,11 @@ export function alternateModelsFor(
   },);
 
   /**
+   Models the role may take, which the candidates must be among.
+   */
+  const pool = rolePoolOf({ role, },);
+
+  /**
    Each candidate beside the reasons it cannot be asked.
    */
   const judged = candidates.map(function judge(candidate,): LeftOutModel & { readonly reasons: readonly string[]; } {
@@ -256,6 +302,7 @@ export function alternateModelsFor(
     const reasons = reasonsToLeaveOut({
       candidate,
       role,
+      pool,
       bench,
       askedAlready,
       askedForOtherSeats,

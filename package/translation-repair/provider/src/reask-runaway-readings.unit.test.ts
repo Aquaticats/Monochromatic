@@ -1,7 +1,7 @@
 /**
  Tests for the census readings a reasoning runaway's re-ask is ordered by (ledger B1075).
 
- A SHARE IS READ ONLY FROM A MEASURED MODEL: one with a row and at least `MIN_CALLS_TO_MEASURE` calls since the caps.
+ A SHARE IS READ ONLY FROM A MEASURED MODEL: one with a row and at least `MIN_PROVIDER_CALLS` calls since the caps.
  Every other model is `unmeasured` and is placed after the measured ones by `alternateModelsFor`.
 
  @module
@@ -12,10 +12,12 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { ROSTER_MODEL_IDS, } from '@monochromatic-dev/translation-repair-shared-contract';
+import {
+  MIN_PROVIDER_CALLS,
+  ROSTER_MODEL_IDS,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 
 import {
-  MIN_CALLS_TO_MEASURE,
   RUNAWAY_READINGS,
   runawayShareOf,
 } from '../dist/final/node/index.mjs';
@@ -41,11 +43,11 @@ await describe({
         expect(runawayShareOf({ modelId: 'claude-haiku-5-5', },),).toBe('unmeasured',);
         expect(runawayShareOf({
           modelId: 'minimax-m3',
-          readings: [{ modelId: 'minimax-m3', calls: MIN_CALLS_TO_MEASURE - 1, runaways: 0, },],
+          readings: [{ modelId: 'minimax-m3', calls: MIN_PROVIDER_CALLS - 1, runaways: 0, },],
         },),).toBe('unmeasured',);
         expect(runawayShareOf({
           modelId: 'minimax-m3',
-          readings: [{ modelId: 'minimax-m3', calls: MIN_CALLS_TO_MEASURE, runaways: 5, },],
+          readings: [{ modelId: 'minimax-m3', calls: MIN_PROVIDER_CALLS, runaways: 5, },],
         },),).toBe(0.05,);
       },
     },),

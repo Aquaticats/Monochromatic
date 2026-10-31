@@ -283,6 +283,12 @@ export async function reaskElsewhereNudged<ValueT,>(
       bench: reaskSeat.bench,
       askedForOtherSeats: takenFor({ seat: reaskSeat, },),
     },);
+    // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines
+    // of the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).
+    ol.info(
+      `${request.modelId}: reasoning runaway on ${avoid} (a length stop with no content); `
+        + `left out: ${describeLeftOut({ leftOut, },)}; to ask in turn: ${alternates.length === 0 ? 'none' : alternates.join(', ',)}`,
+    );
     for (const modelId of alternates) {
       // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts`): another seat of the question that
       // ran away at the same time may have taken this model since the list was made.
@@ -293,10 +299,7 @@ export async function reaskElsewhereNudged<ValueT,>(
         ol.info(`${request.modelId}: ${modelId} was asked for another seat of this question since the list was made`,);
         continue;
       }
-      ol.info(
-        `${request.modelId}: reasoning runaway on ${avoid} (a length stop with no content); `
-          + `re-asking ${modelId} instead, plain question; left out: ${describeLeftOut({ leftOut, },)}`,
-      );
+      ol.info(`${request.modelId}: re-asking ${modelId} instead, plain question`,);
       try {
         return {
           modelId,

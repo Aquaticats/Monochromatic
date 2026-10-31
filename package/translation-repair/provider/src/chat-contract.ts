@@ -259,7 +259,9 @@ export type ChatTextRequest = {
   /**
    The seat this exchange answers for, set by a caller that knows it, so the re-ask of a reasoning runaway asks a model
    that the seat's role may take and that is not on the bench of the question (ledger B1074, B1076).
-   Absent for a caller that names none, which is the roster-wide role with an empty bench.
+   Absent for a caller that names none, and then no other model is asked: the re-ask of a reasoning runaway has no role
+   to read the pool of, so it asks the model that ran away again on another provider, nudged, on a warning (ledger
+   B1081, B1100).
    Not part of the prompt identity, and no client puts it on the wire.
    */
   readonly reaskSeat?: ReaskSeat;

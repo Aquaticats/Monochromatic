@@ -26,7 +26,6 @@ export {
   takeFor,
 } from './reask-claims.ts';
 export {
-  MIN_CALLS_TO_MEASURE,
   RUNAWAY_READINGS,
   type RunawayReading,
   runawayShareOf,
