@@ -72,10 +72,10 @@
       "rules": [{ "kind": "rust-catalog", "id": "c", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"] }],
     },
     "browserslist minimal": {
-      "rules": [{ "kind": "browserslist", "id": "b", "source": ".browserslistrc", "output": "o.json" }],
+      "rules": [{ "kind": "browserslist", "id": "b", "source": ".browserslistrc", "output": "o.json", "lock": "lock.json" }],
     },
     "browserslist with environment": {
-      "rules": [{ "kind": "browserslist", "id": "b", "source": "q", "output": "o.json", "environment": "production" }],
+      "rules": [{ "kind": "browserslist", "id": "b", "source": "q", "output": "o.json", "lock": "lock.json", "environment": "production" }],
     },
     "several kinds in order": {
       "rules": [
@@ -142,7 +142,8 @@
     "toml-keys blocks missing": { "rules": [{ "kind": "toml-keys", "id": "t", "manifests": [], "edits": [] }] },
     "mise-path-list directories missing": { "rules": [{ "kind": "mise-path-list", "id": "b", "output": "o" }] },
     "rust-catalog catalog missing": { "rules": [{ "kind": "rust-catalog", "id": "c", "manifests": [] }] },
-    "browserslist source missing": { "rules": [{ "kind": "browserslist", "id": "b", "output": "o.json" }] },
+    "browserslist source missing": { "rules": [{ "kind": "browserslist", "id": "b", "output": "o.json", "lock": "lock.json" }] },
+    "browserslist lock missing": { "rules": [{ "kind": "browserslist", "id": "b", "source": "q", "output": "o.json" }] },
     "jetbrains-harper fields missing": { "rules": [{ "kind": "jetbrains-harper", "id": "h" }] },
   },
   "decoderStricter": {
