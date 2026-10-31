@@ -62,7 +62,8 @@ fn the_newest_matching_product_wins() {
     assert_eq!(only_intellij.as_deref(), Some(".config/JetBrains/IntelliJIdea2026.9/options"));
 }
 
-/// Equal versions are broken by the larger directory name; no match and no directory yield nothing.
+/// Equal versions are broken by the larger directory name;
+/// no match and no directory yield nothing.
 #[test]
 fn ties_and_absence_are_handled() {
     let dir = scratch_dir();

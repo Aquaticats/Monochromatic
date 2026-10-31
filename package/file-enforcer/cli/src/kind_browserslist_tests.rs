@@ -6,7 +6,8 @@
 //! so no test needs the network or the user cache;
 //! the production renderer is exercised by running the real binary.
 //!  The expected targets are what npm `browserslist` answered for the repository's `.browserslistrc`
-//!  (the crate's `conformance/expected.json`).
+//!  (the crate's `conformance/expected.json`,
+//! the pre-release-filtered answers).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +37,8 @@ use std::path::Path;
 /// Imports `Arc` from `std::sync`.
 use std::sync::Arc;
 
-/// The browserslist crate's directory, where the fixture data and the expected answers live.
+/// The browserslist crate's directory,
+/// where the fixture data and the expected answers live.
 fn crate_file(relative: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../browserslist/core-rust").join(relative);
     return std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
@@ -100,11 +102,23 @@ fn repository_query() -> String {
     return case["config"].as_str().expect("config text").to_string();
 }
 
-/// The exact text npm browserslist's targets render to: `JSON.stringify(targets, null, 2)` and a newline.
+/// The exact text npm browserslist's targets render to once pre-release Node.js versions are removed
+/// (the user's decision,
+/// recorded in the crate's conformance suite):
+/// `JSON.stringify(targets, null, 2)` and a newline.
+/// The Firefox ESR entry is the locked Mozilla value,
+/// not npm's constant.
 fn expected_output() -> String {
     let expected: serde_json::Value = serde_json::from_str(&crate_file("conformance/expected.json")).expect("expected.json parses");
-    let result = &expected["cases"][0]["npm"]["result"];
-    return format!("{}\n", serde_json::to_string_pretty(result).expect("the answer serializes"));
+    let lock = DataLock::from_json(&repository_lock()).expect("the committed lock parses");
+    let npm_esr = expected["npmFirefoxEsr"].as_str().expect("npm ESR entry");
+    let locked_entry = format!("firefox {}", lock.firefox_esr.split('.').next().expect("a major"));
+    let result = expected["cases"][0]["npmPrereleaseFiltered"]["result"].as_array().expect("an array");
+    let targets: Vec<serde_json::Value> = result
+        .iter()
+        .map(|entry| return if entry.as_str() == Some(npm_esr) { serde_json::Value::String(locked_entry.clone()) } else { entry.clone() })
+        .collect();
+    return format!("{}\n", serde_json::to_string_pretty(&targets).expect("the answer serializes"));
 }
 
 /// A missing output is drift,
@@ -156,7 +170,8 @@ fn the_output_follows_the_query_file() {
     assert!(targets[0].starts_with("chrome "), "{targets:?}");
 }
 
-/// A query the resolver does not implement fails the run, names the file and writes nothing.
+/// A query the resolver does not implement fails the run,
+/// names the file and writes nothing.
 #[test]
 fn an_unsupported_query_is_refused_with_not_implemented() {
     let dir = scratch_dir();

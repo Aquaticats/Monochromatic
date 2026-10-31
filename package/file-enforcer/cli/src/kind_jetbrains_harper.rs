@@ -8,7 +8,8 @@
 //! whose view root is the home directory,
 //! so every path it reads and writes is relative to the home directory
 //!  (`.config/JetBrains/<product>/options/...`).
-//!  Like the retired TypeScript policy it does nothing when the IDE, its settings files or the base Harper server
+//!  Like the retired TypeScript policy it does nothing when the IDE,
+//! its settings files or the base Harper server
 //! are absent,
 //! and says so in a warning.
 //!
@@ -25,7 +26,9 @@ use crate::jetbrains_discovery::{CONFIG_DIRECTORY, LANGUAGE_FILE, USER_FILE, lat
 /// Imports the JSON helpers from `crate::harper_json`.
 use crate::harper_json::{disable_linters, format_object, parse_object, scoped_config, union_excludes, with_schema_defaults};
 /// Imports the XML helpers from `crate::harper_xml`.
-use crate::harper_xml::{ScopedUserEntry, find_base_entry, find_entry, option_value, parse, upsert_language_entry, upsert_user_entry};
+use crate::harper_xml::{find_base_entry, find_entry, option_value, parse};
+/// Imports the entry edits from `crate::harper_xml_edit`.
+use crate::harper_xml_edit::{ScopedUserEntry, upsert_language_entry, upsert_user_entry};
 /// Imports `HarperScopedServer` from `monochromatic_file_enforcer::config_parts`.
 use monochromatic_file_enforcer::config_parts::HarperScopedServer;
 /// Imports `RuleConfig` from `monochromatic_file_enforcer::config_types`.
@@ -43,7 +46,8 @@ use monochromatic_file_enforcer::view::View;
 /// `Value` from `serde_json`.
 use serde_json::{Map, Value};
 
-/// The options the scoped servers copy from the base server, in output order.
+/// The options the scoped servers copy from the base server,
+/// in output order.
 const COPIED_OPTIONS: [&str; 7] = [
     "commandLine",
     "installAlreadyDone",
@@ -93,7 +97,9 @@ impl RuleBuilder for JetbrainsHarperBuilder {
 ///  A planned `jetbrains-harper` rule.
 /// Why:
 ///  Holds the policy:
-/// which IDE products, which linters are disabled on the base server, which files it ignores,
+/// which IDE products,
+/// which linters are disabled on the base server,
+/// which files it ignores,
 /// and which extra servers are scoped to named files.
 ///
 /// In TS you'd write (pseudocode):
@@ -191,7 +197,8 @@ impl JetbrainsHarperRule {
     }
 
     /// The language settings file after the policy:
-    /// the base entry patched, each scoped entry written.
+    /// the base entry patched,
+    /// each scoped entry written.
     fn updated_language(&self, settings: &SettingsFiles, key: &str) -> Result<String, Diagnostic> {
         let base = self.base_config(settings, key)?;
         let schema = self.schema_text(settings, key)?;
@@ -205,7 +212,8 @@ impl JetbrainsHarperRule {
     }
 
     /// The user-defined settings file after the policy:
-    /// each scoped entry written, with options copied from the base server's entry.
+    /// each scoped entry written,
+    /// with options copied from the base server's entry.
     fn updated_user(&self, settings: &SettingsFiles, key: &str) -> Result<String, Diagnostic> {
         let document = parse(&settings.user_path, &settings.user_text)?;
         let mut copied: Vec<(String, String)> = Vec::new();

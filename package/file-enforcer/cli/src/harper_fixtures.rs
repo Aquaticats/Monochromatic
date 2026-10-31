@@ -3,7 +3,9 @@
 //! Why:
 //!  The tests must never read the owner's real `~/.config/JetBrains` files;
 //! these mirror the shapes the IDE writes
-//!  (two-space indentation, embedded JSON in attributes, `&quot;` and `&#10;` references).
+//!  (two-space indentation,
+//! embedded JSON in attributes,
+//! `&quot;` and `&#10;` references).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +19,8 @@ pub const BASE_KEY: &str = "srv-1";
 pub const SCOPED_KEY: &str = "harper-ls-agents-claude-md";
 
 /// A `LanguageServersSettings.xml` holding the base server's configuration,
-/// with a user key, a user exclude pattern and a comment that must survive.
+/// with a user key,
+/// a user exclude pattern and a comment that must survive.
 pub const LANGUAGE_XML: &str = r#"<application>
   <component name="LanguageServerSettingsState">
     <state>

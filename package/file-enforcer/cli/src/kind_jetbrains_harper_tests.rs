@@ -50,7 +50,8 @@ fn run_user(home: &Path, mode: RunMode) -> (i32, Vec<Event>) {
     return run_config(home, POLICY_CONFIG, ConfigScope::User, mode, &registry());
 }
 
-/// Seed the newest product, an older product and a backup copy of the newest.
+/// Seed the newest product,
+/// an older product and a backup copy of the newest.
 fn seed_home(home: &Path) {
     let language_path = format!("{NEWEST}/LanguageServersSettings.xml");
     let user_path = format!("{NEWEST}/UserDefinedLanguageServerSettings.xml");
@@ -70,7 +71,9 @@ fn config_of(home: &Path, key: &str) -> serde_json::Map<String, Value> {
     return serde_json::from_str::<Value>(&json).expect("JSON").as_object().expect("object").clone();
 }
 
-/// Drift is reported, `write` applies the policy to the newest product only, and the result is stable.
+/// Drift is reported,
+/// `write` applies the policy to the newest product only,
+/// and the result is stable.
 #[test]
 fn drift_is_detected_and_write_applies_the_policy_to_the_newest_product() {
     let home = scratch_dir();
@@ -129,7 +132,8 @@ fn a_single_drifting_file_is_repaired_alone() {
     assert_eq!(read_text(home.path(), &format!("{NEWEST}/LanguageServersSettings.xml")), language_before);
 }
 
-/// A machine without the IDE, without the settings files or without the base server is skipped with a warning.
+/// A machine without the IDE,
+/// without the settings files or without the base server is skipped with a warning.
 #[test]
 fn absent_ide_files_or_server_are_skipped_with_a_warning() {
     let bare = scratch_dir();
@@ -147,7 +151,8 @@ fn absent_ide_files_or_server_are_skipped_with_a_warning() {
     assert_eq!(read_text(no_server.path(), &format!("{NEWEST}/LanguageServersSettings.xml")), LANGUAGE_XML, "nothing was written");
 }
 
-/// A newer product without settings files is a miss; the older product is not edited instead.
+/// A newer product without settings files is a miss;
+/// the older product is not edited instead.
 #[test]
 fn a_newer_product_without_files_is_not_replaced_by_an_older_one() {
     let home = scratch_dir();
@@ -158,7 +163,8 @@ fn a_newer_product_without_files_is_not_replaced_by_an_older_one() {
     assert_eq!(read_text(home.path(), &format!("{NEWEST}/LanguageServersSettings.xml")), LANGUAGE_XML);
 }
 
-/// Malformed XML, malformed embedded JSON and a missing language entry each fail the run and write nothing.
+/// Malformed XML,
+/// malformed embedded JSON and a missing language entry each fail the run and write nothing.
 #[test]
 fn malformed_settings_fail_the_run_and_write_nothing() {
     let broken_xml = scratch_dir();
@@ -178,7 +184,8 @@ fn malformed_settings_fail_the_run_and_write_nothing() {
     assert_eq!((entry_code, count_code(&entry_events, "harper-xml-invalid")), (1, 1), "{entry_events:?}");
 }
 
-/// The repository config refuses this kind: it belongs to the per-user config.
+/// The repository config refuses this kind:
+/// it belongs to the per-user config.
 #[test]
 fn the_repository_scope_refuses_the_kind() {
     let dir = scratch_dir();

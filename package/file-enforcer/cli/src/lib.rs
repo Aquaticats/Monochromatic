@@ -24,10 +24,12 @@ pub mod discover;
 /// Command dispatch.
 pub mod commands;
 
-/// The `rust-catalog` rule kind, over the dependency-catalog library.
+/// The `rust-catalog` rule kind,
+/// over the dependency-catalog library.
 pub mod kind_rust_catalog;
 
-/// The `browserslist` rule kind, over the in-repo browserslist crate.
+/// The `browserslist` rule kind,
+/// over the in-repo browserslist crate.
 pub mod kind_browserslist;
 
 /// Product directory discovery for the JetBrains rule.
@@ -39,7 +41,11 @@ pub mod harper_json;
 /// The XML half of the Harper policy.
 pub mod harper_xml;
 
-/// The `jetbrains-harper` rule kind, over the in-repo XML edit crate.
+/// Entry edits for the Harper policy.
+pub mod harper_xml_edit;
+
+/// The `jetbrains-harper` rule kind,
+/// over the in-repo XML edit crate.
 pub mod kind_jetbrains_harper;
 
 /// The registry the command line and its server use.

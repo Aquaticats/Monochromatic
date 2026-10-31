@@ -16,7 +16,9 @@
 /// Imports the fixtures.
 use crate::harper_fixtures::{BASE_KEY, LANGUAGE_XML, SCOPED_KEY, USER_XML};
 /// Imports the helpers under test.
-use crate::harper_xml::{ScopedUserEntry, find_base_entry, find_entry, option_value, parse, upsert_language_entry, upsert_user_entry};
+use crate::harper_xml::{find_base_entry, find_entry, option_value, parse};
+/// Imports the edits under test.
+use crate::harper_xml_edit::{ScopedUserEntry, upsert_language_entry, upsert_user_entry};
 
 /// The path the helpers name in diagnostics.
 const PATH: &str = "options/f.xml";
@@ -38,7 +40,8 @@ fn scoped<'a>(file_names: &'a [String], copied: &'a [(String, String)]) -> Scope
     return ScopedUserEntry { key: SCOPED_KEY, name: "Harper (docs)", language_id: "markdown", file_names, copied };
 }
 
-/// The base server is found by any one of its template id, its name or its command line,
+/// The base server is found by any one of its template id,
+/// its name or its command line,
 /// and never among the excluded ids.
 #[test]
 fn the_base_server_is_recognized_by_any_of_three_facts() {
@@ -85,7 +88,8 @@ fn a_conforming_language_entry_is_not_rewritten() {
     assert_eq!(upsert_language_entry(PATH, LANGUAGE_XML, BASE_KEY, &config, &schema).expect("kept"), LANGUAGE_XML);
 }
 
-/// Missing seed options are created, an absent entry is appended with all four options,
+/// Missing seed options are created,
+/// an absent entry is appended with all four options,
 /// and an entry without its options element is replaced.
 #[test]
 fn absent_options_and_entries_are_created() {
@@ -108,7 +112,9 @@ fn a_file_without_a_map_cannot_receive_an_entry() {
     assert_eq!(error.code, "harper-xml-invalid");
 }
 
-/// A scoped user-defined entry is appended with the copied options, its id, its name and its mapping.
+/// A scoped user-defined entry is appended with the copied options,
+/// its id,
+/// its name and its mapping.
 #[test]
 fn a_scoped_user_entry_is_appended_with_copied_options_and_mapping() {
     let files = owned(&["AGENTS.md", "CLAUDE.md"]);

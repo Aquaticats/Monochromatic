@@ -20,7 +20,8 @@ use monochromatic_file_enforcer::real_fs::EntryKind;
 /// Imports `View` from `monochromatic_file_enforcer::view`.
 use monochromatic_file_enforcer::view::View;
 
-/// The JetBrains configuration directory, relative to the home directory the per-user view is rooted at.
+/// The JetBrains configuration directory,
+/// relative to the home directory the per-user view is rooted at.
 pub const CONFIG_DIRECTORY: &str = ".config/JetBrains";
 
 /// The IDE's language server settings file name inside a product's `options` directory.

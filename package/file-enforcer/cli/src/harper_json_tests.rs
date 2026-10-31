@@ -32,7 +32,9 @@ fn keys(map: &Map<String, Value>) -> Vec<&str> {
     return map.keys().map(String::as_str).collect();
 }
 
-/// An object parses; an array, a scalar and broken text are refused with the file's path.
+/// An object parses;
+/// an array,
+/// a scalar and broken text are refused with the file's path.
 #[test]
 fn only_a_json_object_is_accepted() {
     assert_eq!(keys(&object("{\"a\": 1, \"b\": 2}")), vec!["a", "b"]);
@@ -44,7 +46,8 @@ fn only_a_json_object_is_accepted() {
     }
 }
 
-/// A new linter key is appended; an existing one keeps its position and becomes false.
+/// A new linter key is appended;
+/// an existing one keeps its position and becomes false.
 #[test]
 fn disabling_a_linter_keeps_positions() {
     let mut config = object("{\"harper-ls.linters.B\": true, \"other\": 1}");
@@ -54,7 +57,9 @@ fn disabling_a_linter_keeps_positions() {
     assert_eq!(config["harper-ls.linters.A"], Value::Bool(false));
 }
 
-/// The union keeps the user's strings first, drops non-strings and duplicates, and appends the additions.
+/// The union keeps the user's strings first,
+/// drops non-strings and duplicates,
+/// and appends the additions.
 #[test]
 fn the_exclude_union_keeps_user_strings_first() {
     let mut config = object("{\"harper-ls.excludePatterns\": [\"mine\", 3, \"**/AGENTS.md\", null, \"mine\"], \"z\": 0}");
@@ -64,7 +69,8 @@ fn the_exclude_union_keeps_user_strings_first() {
     assert_eq!(keys(&config), vec![EXCLUDE_KEY, "z"], "the key keeps its position");
 }
 
-/// The union creates the key when absent, and does nothing at all for an empty addition list.
+/// The union creates the key when absent,
+/// and does nothing at all for an empty addition list.
 #[test]
 fn the_exclude_union_creates_the_key_and_ignores_empty_additions() {
     let mut config = object("{}");
@@ -77,7 +83,9 @@ fn the_exclude_union_creates_the_key_and_ignores_empty_additions() {
     assert_eq!(not_an_array[EXCLUDE_KEY], Value::Array(vec![Value::String("a".to_string())]), "a non-array value is replaced");
 }
 
-/// A scoped configuration drops the exclude list, then switches its own linters off; the base is not changed.
+/// A scoped configuration drops the exclude list,
+/// then switches its own linters off;
+/// the base is not changed.
 #[test]
 fn a_scoped_config_drops_the_excludes_and_disables_its_linters() {
     let base = object("{\"harper-ls.linters.A\": false, \"harper-ls.excludePatterns\": [\"x\"], \"keep\": true}");
@@ -86,7 +94,8 @@ fn a_scoped_config_drops_the_excludes_and_disables_its_linters() {
     assert!(base.contains_key(EXCLUDE_KEY), "the base config is untouched");
 }
 
-/// The title-case default is added only where absent; other schema keys and an existing property survive.
+/// The title-case default is added only where absent;
+/// other schema keys and an existing property survive.
 #[test]
 fn schema_defaults_fill_only_what_is_absent() {
     let filled = with_schema_defaults(object("{\"properties\": {\"x\": {}}, \"title\": \"t\"}"));
@@ -102,7 +111,9 @@ fn schema_defaults_fill_only_what_is_absent() {
     assert!(created["properties"].as_object().expect("an object").contains_key(TITLE_CASE_PROPERTY));
 }
 
-/// Output uses two-space indentation, no trailing newline, and keeps non-ASCII text as is.
+/// Output uses two-space indentation,
+/// no trailing newline,
+/// and keeps non-ASCII text as is.
 #[test]
 fn output_matches_two_space_json_stringify() {
     let config = object("{\"a\": [\"é\", \"b\"], \"c\": {\"d\": false}, \"e\": []}");

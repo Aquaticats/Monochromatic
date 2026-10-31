@@ -95,20 +95,24 @@ fn composes_with_toml_keys_rules_that_run_before_it() {
     assert_eq!(clean_code, 0, "{clean:?}");
 }
 
-/// A catalog rule placed before a key rule that rewrites the same manifest fails the run,
-/// because it would have read the manifest before the key rule changed it.
+/// Both rules compose,
+/// so the engine accepts either order and the manifest ends the same;
+/// the repository config still lists the catalog rule last,
+/// where its input is final.
 #[test]
-fn running_before_a_toml_keys_rule_is_rejected() {
-    let config = r#"{"rules": [
-      {"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]},
-      {"kind": "toml-keys", "id": "base", "manifests": ["package/*/*/Cargo.toml"],
-       "edits": [{"guard": ["package"], "path": ["package", "edition"], "value": "2024"}], "blocks": []}
-    ]}"#;
-    let dir = scratch_dir();
-    write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
-    let (code, events) = run_repository(dir.path(), config, RunMode::Write);
-    assert_eq!(code, 1, "{events:?}");
-    assert_eq!(read_text(dir.path(), "package/cli/a/Cargo.toml"), LITERAL_CRATE, "a failing run writes nothing");
+fn either_order_with_a_toml_keys_rule_gives_the_same_manifest() {
+    let keys = r#"{"kind": "toml-keys", "id": "base", "manifests": ["package/*/*/Cargo.toml"],
+       "edits": [{"guard": ["package"], "path": ["package", "edition"], "value": "2024"}], "blocks": []}"#;
+    let catalog = r#"{"kind": "rust-catalog", "id": "catalog", "catalog": "rust-catalog.toml", "manifests": ["package/*/*/Cargo.toml"]}"#;
+    let mut results: Vec<String> = Vec::new();
+    for rules in [format!("{keys},{catalog}"), format!("{catalog},{keys}")] {
+        let dir = scratch_dir();
+        write_files(dir.path(), &[("rust-catalog.toml", EMPTY_CATALOG), ("package/cli/a/Cargo.toml", LITERAL_CRATE)]);
+        let (code, events) = run_repository(dir.path(), &format!("{{\"rules\": [{rules}]}}"), RunMode::Write);
+        assert_eq!(code, 0, "{events:?}");
+        results.push(read_text(dir.path(), "package/cli/a/Cargo.toml"));
+    }
+    assert_eq!(results[0], results[1]);
 }
 
 /// A missing catalog fails the run and names the file.
@@ -121,7 +125,8 @@ fn a_missing_catalog_is_a_failure() {
     assert_eq!(count_code(&events, "catalog-missing"), 1, "{events:?}");
 }
 
-/// A manifest that is not TOML fails the run and writes nothing, even for the healthy manifests.
+/// A manifest that is not TOML fails the run and writes nothing,
+/// even for the healthy manifests.
 #[test]
 fn an_invalid_manifest_fails_the_whole_run() {
     let dir = scratch_dir();

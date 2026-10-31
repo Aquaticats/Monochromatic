@@ -153,7 +153,8 @@ pub struct BrowserslistRule {
     /// Repo-relative data lock.
     pub lock: String,
     /// Config section to prefer;
-    /// recorded, and reported when resolution fails.
+    /// recorded,
+    /// and reported when resolution fails.
     pub environment: Option<String>,
     /// How targets are resolved.
     renderer: Arc<dyn TargetRenderer>,
