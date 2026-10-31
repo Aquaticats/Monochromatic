@@ -212,7 +212,14 @@ and accepted with this record:
   and auto-sync on such failures and retry.",
   user);
   `update --check` never installs.
-- `sync` and `status` refuse when plan and lock disagree;
+- `sync` resolves plan entries that are new or whose resolution-affecting fields changed,
+  writes only their lock rows,
+  then installs,
+  as a non-frozen `pnpm install` does;
+  in CI (the `CI` variable set) or with `--frozen-lock` it refuses instead and names `mpm-shadow update <ids>`
+  (amended 2026-10-31:
+  the user chose "pnpm-style: resolve, frozen in CI" over keeping the refusal);
+  `status` still refuses when plan and lock disagree;
   offline `lock` rejects resolution-affecting edits;
   rustup channels and cargo-binstall tools install directly from the lock;
   postinstall links and commands run in sync.
