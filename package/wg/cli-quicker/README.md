@@ -156,6 +156,118 @@ for source trace,
 warning scope,
 and disposable strict-deny verification.
 
+## OpenSnitch toolchain allowance
+
+OpenSnitch with an unattended prompt saves an exact-path `reject-always-simple-*` rule for any program that connects
+while nobody answers.
+A toolchain update then fails at the network level (`os error 103`) the first time a new version of
+`node`,
+`uv`,
+`pnpm`,
+`cargo-binstall`,
+or a rustup toolchain connects.
+`wg-quicker opensnitch-rules` installs rules that match the toolchain's directories by regular expression,
+so a new version needs no prompt and no new rule:
+
+```console
+wg-quicker opensnitch-rules apply
+wg-quicker opensnitch-rules status
+wg-quicker opensnitch-rules remove
+wg-quicker opensnitch-rules remove-superseded --dry-run
+```
+
+The command is independent of the tunnel and of `up` and `down`,
+because allow rules must outlive the tunnel.
+It relaunches itself through `sudo` like `up`,
+since the daemon's rule files are mode `0600` and root-owned.
+
+Three rules are written to the daemon's `Rules.Path` directory (`/etc/opensnitchd/rules` by default),
+each matching `process.path`:
+
+- `000-allow-monochromatic-toolchain-install-roots` covers everything below `monochromatic-dev/toolchain/` and
+  `monochromatic-dev/toolchain-global/` in the XDG data home,
+  where `mpm-shadow` and the TypeScript sync install every tool version.
+- `000-allow-monochromatic-toolchain-exposure-links` covers files directly in `.cache/toolchain-bin/` and
+  `.cache/toolchain-launchers/` of the checkout and of each `.claude/worktrees/<id>`.
+- `000-allow-monochromatic-toolchain-rust-tools` covers `cargo`,
+  `cargo-binstall` and `rustup` in the Cargo home `bin` directory,
+  and every binary in `<rustup home>/toolchains/<toolchain>/bin/`.
+
+Every expression is anchored,
+so a sibling such as `toolchain-evil/` or a root appearing in the middle of a path never matches.
+The home directory appears in each spelling a process path can take:
+as given,
+as `realpath` resolves it,
+and with `/home` and `/var/home` swapped when `/home` links to `/var/home`.
+No user name is written into the code;
+the home comes from `HOME`,
+which the privilege context carries across `sudo`.
+Pass `--data-home`,
+`--cargo-home`,
+`--rustup-home` or `--repository-root` when a directory is not at its default,
+because `sudo` resets `XDG_DATA_HOME`,
+`CARGO_HOME` and `RUSTUP_HOME`.
+Without `--repository-root` the checkout is the nearest ancestor of the running bundle holding `toolchain.lock.json`,
+with a trailing `/.claude/worktrees/<id>` dropped.
+
+### Why these rules win over an auto-saved reject
+
+OpenSnitch 1.8.0 selects a rule in `daemon/rule/loader.go`:
+`sortRules` sorts enabled rule names with a bytewise string sort,
+and `FindFirstMatch` walks that order,
+returns at once on a matching reject,
+deny or `precedence` rule,
+and otherwise returns the last matching rule.
+An allow rule without `precedence` therefore never beats a matching reject,
+whatever its name,
+and a precedence allow named after the reject loses to it.
+The generated rules set `"precedence": true` and start with `000-`,
+which sorts before the daemon's `reject-always-simple-*`,
+`deny-always-simple-*` and `allow-always-simple-*` names,
+so they are reached first and end the walk.
+A rule sorting before them that is a reject,
+deny or precedence rule would still win;
+`status` lists any such rule.
+The cost is that a destination-based deny rule no longer applies to these paths.
+
+The patterns set `"sensitive": true`,
+because the daemon lowercases the pattern of a case-insensitive rule before compiling it,
+which would turn `[A-Z]` or `\S` into a different expression.
+Patterns are RE2,
+with no lookaround or backreference.
+A pattern that fails to compile is logged as a warning and the rule is ignored,
+so grep `/var/log/opensnitchd.log` for `compil` after applying.
+
+### Live reload
+
+The daemon reloads a rule only on a filesystem `Write` event and unloads one only on `Remove`.
+A file renamed into place raises neither,
+so `apply` creates the final `<name>.json` and writes it in place.
+An existing file is rewritten at offset zero through the same inode and padded with spaces to its old length,
+so a shorter replacement never exposes a truncated document.
+The file name equals the rule name,
+which the daemon relies on to unload a deleted rule.
+Byte-identical files are left alone,
+and a same-named file that `wg-quicker` did not write stops the run.
+
+### Superseded reject rules
+
+`remove-superseded` finds enabled `reject` and `deny` rules that compare one exact `process.path` the allowance covers.
+Those rules are harmless once the allowance exists,
+so nothing removes them unless asked.
+With `--dry-run` it only lists them.
+Otherwise it copies each file to `--backup-directory` (default `rules-superseded-backup` beside the rules directory,
+outside the watched path),
+refuses to overwrite an earlier backup,
+and then unlinks the original so the daemon sees the `Remove`.
+Rules of type `list`,
+and rules comparing a regular expression,
+are never touched.
+
+See
+[OpenSnitch auto-reject troubleshooting](../../../doc/troubleshooting/opensnitch-1-8-auto-reject-blocks-toolchain-updates.md)
+for the source trace and the verification.
+
 ## Generate AllowedIPs from files
 
 A peer may replace literal `AllowedIPs` with `AllowedIPsFromFiles`:
@@ -269,6 +381,43 @@ applications already running during watcher startup are attached before readines
 Watcher state validates PID,
 process start time,
 and complete command before shutdown.
+
+The watcher also attaches the toolchain updates slice,
+`app-monochromatic\x2dupdates.slice`,
+so the toolchain's sync and update runs and every child they start (cargo-binstall,
+cargo,
+rustup,
+uv,
+pnpm,
+node fetch,
+curl) take the physical route instead of the tunnel.
+`mise run toolchain:sync`,
+`toolchain:update`,
+`toolchain:sync:global`,
+`toolchain:update:global` and `mpm-shadow sync` and `update` re-execute themselves through
+`systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
+after a silent probe proves a user manager accepts the scope.
+They stay in place,
+with a logged reason,
+on another platform,
+in a container or any host without a user manager,
+under `MONOCHROMATIC_TOOLCHAIN_CLEARNET=off`,
+and when already inside the slice.
+The `app-` prefix matters:
+systemd nests the slice directly under `app.slice`,
+the only directory the watcher scans and watches,
+and `\x2d` keeps the name one hierarchy level.
+Cgroup programs apply to descendant cgroups,
+so each per-run scope inherits the mark with no attach of its own.
+A slice stays active after its last scope exits,
+so the attachment survives between runs.
+Without a tunnel nothing marks the slice and the traffic takes the default route anyway.
+When the slice does not yet exist,
+the silent probe creates it and the real run starts only after the probe's process has ended.
+That interval is the margin the watcher's inotify event has to attach the new slice;
+nothing confirms the attachment,
+so a watcher that is slower than the probe leaves the first sockets of that one run unmarked.
+Later runs find the slice already attached.
 
 On `up`,
  application bypass routing:

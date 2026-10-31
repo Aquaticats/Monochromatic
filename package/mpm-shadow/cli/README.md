@@ -534,6 +534,26 @@ then looks each one up again once.
 A second failure is final and says the lookup was made twice.
 `update --check` never installs.
 
+### Clearnet updates slice
+
+`sync` and `update` fetch from the network,
+so each re-executes itself through
+`systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
+before it does any work.
+`wg-quicker-exempt` marks that slice while a WireGuard tunnel with `ExemptMark` is up,
+so the run and every child it starts take the physical route.
+A silent `systemd-run` probe comes first;
+`systemd-run` reports its own failures with the exit code a failing sync uses,
+so only a probe that succeeded lets the real run start.
+The run stays in place,
+with the default route,
+on another platform,
+without a user systemd manager socket,
+when `MONOCHROMATIC_TOOLCHAIN_IN_UPDATES_SLICE` is set,
+under `MONOCHROMATIC_TOOLCHAIN_CLEARNET=off`,
+and when its cgroup already contains the slice.
+The TypeScript `toolchain:sync` and `toolchain:update` entry points use the same slice name and the same two variables.
+
 ## Concurrency
 
 `lock` and `update` read the plan and lock,
