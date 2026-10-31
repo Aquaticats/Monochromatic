@@ -233,6 +233,15 @@ each finished branch is reviewed and merged into `main`):
   including the `asset` hints the synthetic rehearsal could not settle
   (`llamacpp-rocm`,
   `openinterpreter`).
+- Running 2026-10-31 (cutover pieces the inventory found unbuilt):
+  a real-global-plan conversion rehearsal on the copy;
+  `package/vm-builder/cli` gets its own process runner (inventory precondition 7);
+  `file-enforcer check` gains a committed-versus-local outputs selector,
+  replacing the inventory's `jq` stopgap for the four gitignored rules.
+  Still unbuilt after these:
+  CI and container delivery of the two binaries,
+  the `20-env.toml` move,
+  and the repository plan conversion in the switch commit.
 - Found 2026-10-31:
   the `timeout` on PATH is `~/.cargo/bin/timeout`,
   and `timeout 60 vibe --version` printed `timeout 0.1.0` instead of running `vibe`;
