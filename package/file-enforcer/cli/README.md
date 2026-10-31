@@ -37,7 +37,10 @@ so a plain `check` there exits 1 with a `drift-missing` line for each gitignored
 `all` is the default and changes nothing.
 The option takes exactly one value:
 `--outputs committed` and `--outputs=committed` are the same,
-a repeated `--outputs`, an unknown word and `--outputs` on `explain`, `watch` or the `user` commands are usage errors (exit 2).
+a repeated `--outputs`,
+an unknown word,
+and `--outputs` on `explain`,
+`watch` or the `user` commands are usage errors (exit 2).
 To cover both sides, omit the option.
 
 - The split is derived, not declared.
