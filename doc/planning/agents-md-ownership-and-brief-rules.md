@@ -274,8 +274,89 @@ Briefs carry as requirements only the user's words and recorded decisions,
 
 The user chose `OWK` ("owner keeps") over `OWG`.
 
-## Open in round 4
+## Decided in round 4 (2026-10-31)
 
-- The brief rule's code (`BRQ` or `BQW`).
-- Whether `NLD` (subagent briefs quote the synthetic-load ban) moves into the new section.
-- Confirmation of shared understanding after a separate reviewer re-reviews the design.
+The user chose `BRQ` ("brief requirements") over `BQW`,
+and left `NLD` in "Hazardous commands" beside the ban it quotes.
+
+### Separate review
+
+A separate reviewer agent re-read the design (as `RRG` requires before confirmation).
+Format checks found nothing:
+both rules within `RLM`,
+no code collisions,
+no dashes,
+placement consistent with `ORG`.
+It traced instance 1 to `OWK` and instance 2 to `BRQ`,
+and raised four findings the user then decided:
+
+- "Recorded decision" admits a decision an agent recorded itself:
+  `QGR` says "adopt + record unasked",
+  so a coordinator could adopt an owner or policy,
+  write it down,
+  and quote it back.
+  The user chose "Named or approved" for `OWK`
+  and "only what the user said or decided" for `BRQ`.
+  Decision docs the user accepted still count;
+  approving a release is not approving an ownership assignment.
+- `BRQ` dropped the round 2 words "suggestions the worker may revise";
+  the user restored them as "revisable suggestions".
+- The pin instance was a mid-task note,
+  which an agent could argue is not a brief;
+  the user added "Briefs and notes".
+- `OWK` read as "ask who owns every concern";
+  the user narrowed it to a "cross-component concern",
+  which drops "to it" after "adapt" to fit.
+
+The external model then found a policy relabelled as a suggestion
+("Suggest making every bypass opt-in") would pass both rules;
+the user chose to close that with a clause sending inferred requirements and policy back to the user first.
+
+### Final text
+
+`OWK`,
+197 characters,
+at the end of "Architecture decisions":
+
+```text
+OWK:
+ Designing,
+ briefing,
+ merging:
+ keep a cross-component concern in the owner the user named or approved (none:
+ ask);
+ others never detect,
+ choose,
+ or adapt.
+Leaks can endanger people or break networks.
+```
+
+`BRQ`,
+191 characters,
+in a new section "Before briefing an agent" after "Before responding to the user":
+
+```text
+BRQ:
+ Briefs and notes carry as requirements only what the user said or decided,
+ quoted with source;
+ derivations and own ideas are revisable suggestions;
+ inferred requirements or policy:
+ ask first.
+```
+
+### Implementation notes
+
+- `CLAUDE.md` regenerates through `mise run //:sync:files`,
+  which runs the whole TypeScript file-enforcer;
+  only `AGENTS.md` and `CLAUDE.md` go in the closing commit,
+  and any other drift is reported separately.
+  Running `node package/file-enforcer/core/src/cli.ts --help` also runs the full sync instead of printing help.
+- `forbidden-strings.append.local.txt` is gitignored (`.gitignore` pattern `*.local.*`),
+  so reserving `CWN` and `LKF` there is a local change that no commit carries.
+- The closing commit states that the wg policy is carried by the wg READMEs
+  on `worktree-agent-a6f97f5da6f22de4d`,
+  not by `AGENTS.md`.
+
+## Open
+
+- The user's confirmation of the final text and implementation plan.
