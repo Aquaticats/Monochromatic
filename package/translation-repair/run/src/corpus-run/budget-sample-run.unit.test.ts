@@ -39,7 +39,7 @@ import {
 } from '../../dist/final/node/index.mjs';
 import { capturingLoggerPair, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { captureCodedReport, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/report-run-capture.test-fixture.ts';
-import { lineOf, } from './command-line.test-fixture.ts';
+import { lineOf as commandLineOf, } from './command-line.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
@@ -353,7 +353,7 @@ await describe({
           sinon: ctx.sinon,
           run: async function reportsFolder(): Promise<number> {
             return await reportMeters({
-              line: lineOf({
+              line: commandLineOf({
                 command: 'meter-report',
                 typed: [runDir,],
               },),

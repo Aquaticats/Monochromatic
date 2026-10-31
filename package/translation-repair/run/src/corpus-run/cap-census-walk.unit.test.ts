@@ -247,7 +247,7 @@ await describe({
       },
     },),
     it({
-      name: 'GOES FOUR LEVELS DOWN A NAMED DIRECTORY and no further: a log in a directory at the fourth level is '
+      name: 'GOES SIX LEVELS DOWN A NAMED DIRECTORY and no further: a log in a directory at the sixth level is '
         + 'found, one a level below that is not',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'cap-census-walk-', },);
@@ -260,6 +260,8 @@ await describe({
           'a',
           'b',
           'c',
+          'd',
+          'e',
           'reached.log.jsonl',
         );
         await touch({ path: reached, },);
@@ -270,6 +272,8 @@ await describe({
             'b',
             'c',
             'd',
+            'e',
+            'f',
             'beyond.log.jsonl',
           ),
         },);

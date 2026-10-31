@@ -32,9 +32,11 @@ import {
 
 /**
  How deep below a named directory the walk goes: the run directories under the
- agent root sit one or two levels down.
+ agent root sit one or two levels down, and the records of a run sit two levels
+ below its folder (`log/<day>/`), so a day directory of a run two levels down is
+ the fourth level and the bound leaves a level to spare.
  */
-const MAX_DEPTH = 3;
+const MAX_DEPTH = 5;
 
 /**
  Directories that hold no run log and are large: caches, artifacts, payloads.

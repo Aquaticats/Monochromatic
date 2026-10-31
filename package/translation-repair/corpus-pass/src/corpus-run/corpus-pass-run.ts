@@ -1,3 +1,4 @@
+import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   contextRoot,
@@ -66,6 +67,11 @@ import {
 const republishLog = contextRoot({ tag: 'republish', },);
 
 /**
+ Logger the line saying why the pass stopped goes through.
+ */
+const passLog = contextRoot({ tag: 'corpus-pass', },);
+
+/**
  Runs one accumulation pass over the corpus, writing artifacts and TALLY lines.
  Performs model calls through the client it is handed unless `--plan` is on the
  command line, which verifies setup at zero quota and returns.
@@ -86,22 +92,9 @@ const republishLog = contextRoot({ tag: 'republish', },);
  */
 export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> {
   /**
-   Everything the pass reads from the process.
+   Runs directory this pass claims and keeps its records in.
    */
-  const {
-    line,
-    runsDir,
-    pinSetting,
-    hardCapMs,
-    spendCeilingUsd,
-    now,
-    wallClock: passClock = wallClockNow,
-  } = input;
-
-  /**
-   Corpus clone and commit this run reads.
-   */
-  const { pin, } = pinSetting;
+  const { runsDir, } = input;
 
   // FIRST OF ALL, before the lock, the guards, the START line and every provider: a stage schema the Claude route
   // cannot send is a fault in the code that no document causes, and each entry that reached its stage would otherwise
@@ -136,6 +129,46 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    Install of that log for every context root, put back when the pass returns.
    */
   using _recording = installRunLog({ log: runLog, },);
+
+  try {
+    await runPassRecorded({ input, },);
+  }
+  catch (error) {
+    // WHY THE PASS STOPPED IS PART OF ITS RECORD. The refusal reaches the console only after this scope has closed the
+    // run log, so it is written here, while the log stands, and then thrown on unchanged for the entry to state.
+    passLog.error(`the pass stopped: ${refusalText({ error, },)}`,);
+    throw error;
+  }
+}
+
+/**
+ Runs the pass once its runs directory is claimed and its records are open.
+
+ @param input - what the pass needs from the process that runs it
+
+ @example
+ ```ts
+ await runPassRecorded({ input, },);
+ ```
+ */
+async function runPassRecorded({ input, }: { readonly input: CorpusPassInput; },): Promise<void> {
+  /**
+   Everything the pass reads from the process.
+   */
+  const {
+    line,
+    runsDir,
+    pinSetting,
+    hardCapMs,
+    spendCeilingUsd,
+    now,
+    wallClock: passClock = wallClockNow,
+  } = input;
+
+  /**
+   Corpus clone and commit this run reads.
+   */
+  const { pin, } = pinSetting;
 
   /**
    Every path this pass reads and writes under its runs dir; the artifacts

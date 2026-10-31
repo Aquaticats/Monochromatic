@@ -291,7 +291,9 @@ export const ARTIFACT_SCHEMA_VERSION_V21 = 21;
 
  THE KEY `reason` OF `translate-winner` RODE INSIDE GENERATION TWENTY-TWO rather than minting twenty-three, on the
  evidence the cached-decisions rule asks for: no run began after the commit that set the number (`fdf3201f3f`, 14:30 UTC
- on 2026-10-29). The newest corpus-pass log in the agent runs directory, `corpus-pass-XingZ6022.log`, started at 07:49
+ on 2026-10-29). The newest corpus-pass log in the agent runs directory, `corpus-pass-XingZ6022.log` (a text capture of
+ the console, as every pass log was before 2026-10-31, when a pass began to keep its records in its run folder; its
+ name is left as it was), started at 07:49
  UTC on that day and was last written at 11:44 UTC, and no other top-level log in that directory written since holds a
  `START tip=` line. The tip it started on (`c6185d4086`) is an ancestor of `fdf3201f3f`. So no generation twenty-two
  file exists in which a `translate-winner` slice lacks the key, and the reader requires it.
