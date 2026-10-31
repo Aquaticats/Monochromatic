@@ -4,7 +4,8 @@
 
 use super::*;
 use crate::replay_patch::{PatchHunk, PatchLine, parse_indexed_patch, split_keeping_newlines};
-use crate::test_support::{fixture, git, git_output, remove, repository};
+use crate::test_support::{fixture, git, remove, repository};
+use super::test_support_batch::{ReverseCase, git_verdicts, patches_between_all};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -193,14 +194,17 @@ fn edit_lines(random: &mut Seeded, base: &[u8]) -> Vec<u8> {
 
 /// The strict check agrees with `git apply --reverse --check` on every seeded case,
 ///  and both outcomes occur, so the agreement is not vacuous.
+/// All cases share one repository and the patches come from one Git run, so the run starts Git a few times
+///  plus once per case for the oracle.
 #[test]
 fn strict_reverse_agrees_with_git_apply_on_seeded_cases() {
     let mut random: Seeded = Seeded {
         state: 0x9E37_79B9_7F4A_7C15,
     };
     let (mut applied, mut rejected): (usize, usize) = (0, 0);
-    let root: PathBuf = fixture("reverse-differential");
-    for case in 0..120 {
+    // `mut` lets each drawn case join the list in draw order.
+    let mut cases: Vec<ReverseCase> = Vec::new();
+    for number in 0..120 {
         let base: Vec<u8> = random_text(&mut random, 8);
         let landed: Vec<u8> = edit_lines(&mut random, &base);
         if landed == base {
@@ -211,29 +215,24 @@ fn strict_reverse_agrees_with_git_apply_on_seeded_cases() {
         } else {
             edit_lines(&mut random, &landed)
         };
-        let case_directory: PathBuf = root.join(format!("case-{case}"));
-        std::fs::create_dir(&case_directory).expect("case directory");
-        let patch: Vec<u8> = patch_between(case_directory.as_path(), &base, &landed, 3);
-        let files: BTreeMap<Vec<u8>, Vec<PatchHunk>> = parse_indexed_patch(&patch).expect("patch");
+        cases.push(ReverseCase { number, base, landed, prepared });
+    }
+    let root: PathBuf = fixture("reverse-differential");
+    let pairs: Vec<(&[u8], &[u8])> = cases.iter().map(|case| { return (case.base.as_slice(), case.landed.as_slice()); }).collect();
+    let patches: Vec<Vec<u8>> = patches_between_all(root.as_path(), &pairs, 3);
+    let verdicts: Vec<bool> = git_verdicts(root.as_path(), &cases, &patches);
+    for ((case, patch), git_says) in cases.iter().zip(&patches).zip(verdicts) {
+        let files: BTreeMap<Vec<u8>, Vec<PatchHunk>> = parse_indexed_patch(patch).expect("patch");
         let hunks: Vec<PatchHunk> = files.get(b"0".as_slice()).cloned().unwrap_or_default();
-        let ours: bool = reverse_applies(&hunks, &prepared);
-        std::fs::write(case_directory.join("0"), &prepared).expect("prepared entry");
-        let patch_path: PathBuf = case_directory.join("landed.patch");
-        std::fs::write(&patch_path, &patch).expect("patch file");
-        let patch_argument: String = patch_path.to_string_lossy().into_owned();
-        let git_says: bool = git_output(
-            case_directory.as_path(),
-            &["apply", "--reverse", "--check", patch_argument.as_str()],
-        )
-        .status
-        .success();
+        let ours: bool = reverse_applies(&hunks, &case.prepared);
         assert_eq!(
             ours,
             git_says,
-            "case {case}: base {:?} landed {:?} prepared {:?}",
-            String::from_utf8_lossy(&base),
-            String::from_utf8_lossy(&landed),
-            String::from_utf8_lossy(&prepared)
+            "case {}: base {:?} landed {:?} prepared {:?}",
+            case.number,
+            String::from_utf8_lossy(&case.base),
+            String::from_utf8_lossy(&case.landed),
+            String::from_utf8_lossy(&case.prepared)
         );
         if ours {
             applied += 1;
