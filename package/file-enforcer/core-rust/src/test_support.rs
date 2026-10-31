@@ -103,7 +103,7 @@ pub fn read_text(root: &Path, path: &str) -> String {
 pub fn run_config(root: &Path, config: &str, mode: RunMode) -> (i32, Vec<Event>) {
     let config_path = root.join("file-enforcer.config.jsonc");
     fs::write(&config_path, config).expect("the config is writable");
-    let request = RunRequest { root: root.to_path_buf(), config_path, scope: crate::config_decode::ConfigScope::Repository, mode };
+    let request = RunRequest { root: root.to_path_buf(), config_path, scope: crate::config_decode::ConfigScope::Repository, mode, outputs: crate::output_scope::OutputScope::All };
     let mut sink = CollectingSink::default();
     let code = run(&request, &RuleRegistry::with_defaults(), &mut sink);
     return (code, sink.events);

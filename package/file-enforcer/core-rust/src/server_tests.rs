@@ -247,3 +247,45 @@ fn an_unset_or_unusable_runtime_directory_falls_back_to_a_verified_owner_only_on
     let from_good = runtime_directory(Some(unusable.path().to_path_buf()), base.path()).expect("xdg");
     assert_eq!(from_good, unusable.path().join("file-enforcer"), "a usable XDG directory is used");
 }
+
+#[test]
+fn the_server_decodes_the_outputs_scope_and_refuses_an_unknown_one_or_one_on_the_per_user_server() {
+    let runtime = short_runtime_dir();
+    let dir = scratch_dir();
+    let config = r#"{"rules": [
+        {"kind": "concat", "id": "c", "output": "out.txt", "parts": ["x"]},
+        {"kind": "concat", "id": "l", "output": "out.local.txt", "parts": ["x"]}]}"#;
+    write_files(dir.path(), &[(".gitignore", "*.local.*\n"), ("file-enforcer.config.jsonc", config)]);
+    let server = TestServer::start(dir.path(), runtime.path(), Duration::from_secs(30));
+    let mut connection = connect(&server.client()).expect("the handshake succeeds");
+    let mut local_params = run_params(dir.path(), "check");
+    local_params["outputs"] = Value::from("local");
+    let mut local_sink = CollectingSink::default();
+    assert_eq!(connection.request("run", local_params, &mut local_sink), 1);
+    let mut paths: Vec<&Value> = Vec::new();
+    for event in &local_sink.events {
+        if event.event_type == "drift" {
+            paths.push(&event.fields["path"]);
+        }
+    }
+    assert_eq!(paths, ["out.local.txt"], "{:?}", local_sink.events);
+    let mut bogus_params = run_params(dir.path(), "check");
+    bogus_params["outputs"] = Value::from("bogus");
+    let mut bogus_sink = CollectingSink::default();
+    assert_eq!(connection.request("run", bogus_params, &mut bogus_sink), 1);
+    assert!(bogus_sink.events.iter().any(|event| return event.message.contains("unknown outputs scope")), "{:?}", bogus_sink.events);
+    drop(connection);
+    drop(server);
+    let user_runtime = short_runtime_dir();
+    let user_server = TestServer::start_scoped(dir.path(), user_runtime.path(), Duration::from_secs(30), ConfigScope::User);
+    let mut user_connection = connect(&user_server.client()).expect("the handshake succeeds");
+    let mut user_params = run_params(dir.path(), "check");
+    user_params["outputs"] = Value::from("committed");
+    let mut user_sink = CollectingSink::default();
+    assert_eq!(user_connection.request("run", user_params, &mut user_sink), 1);
+    assert!(
+        user_sink.events.iter().any(|event| return event.message.contains("per-user config has no committed and local outputs")),
+        "{:?}",
+        user_sink.events
+    );
+}

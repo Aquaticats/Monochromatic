@@ -389,6 +389,18 @@ pub mod plan;
 pub mod drift;
 
 /// What:
+///  `output_scope` splits drift into committed and local outputs by the repository's `.gitignore` files.
+/// Why:
+///  CI checks the committed outputs of a fresh checkout before anything is regenerated,
+/// and the gitignored ones only afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function selectDrifts(view: View, drifts: Drift[], scope: OutputScope): Drift[]
+/// ```
+pub mod output_scope;
+
+/// What:
 ///  `publish` applies drift to disk:
 /// write a hidden staging file,
 /// set its mode,
@@ -656,6 +668,19 @@ mod kinds_tests;
 #[cfg(test)]
 #[path = "run_tests.rs"]
 mod run_tests;
+
+/// What:
+///  Tests for the committed and local output split.
+/// Why:
+///  CI depends on each scope ignoring the other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './outputScope.test';
+/// ```
+#[cfg(test)]
+#[path = "output_scope_tests.rs"]
+mod output_scope_tests;
 
 /// What:
 ///  `run_failure_tests` checks the failure and edge branches of a run.

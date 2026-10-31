@@ -331,23 +331,28 @@ then local outputs separately"):
     every `LICENSES/`,
     every `Cargo.toml`,
     `rust-catalog.toml`).
-    So the committed-output gate needs a filter on the JSON lines.
-    This filter must print nothing:
+    So the committed-output gate uses the output scope of `check`:
+    `--outputs committed` reports only outputs that no `.gitignore` file matches and exits 0 here.
 
     ```sh
     # CI step sketch, not yet run in a workflow
-    file-enforcer check | jq -c 'select(.type=="drift"
-      and (.rule|IN("skills-claude","skills-factory","mise-bin-list","browserslist-targets")|not))'
+    file-enforcer check --outputs committed
     ```
 
-    The filter was run against the measured output and selected zero lines;
-    it has not been run inside a workflow.
-    There is no per-rule option on `check`,
-    so the list of local rule ids lives in the workflow.
+    The scope is derived from the repository's `.gitignore` files for each drifted path,
+    so no rule id appears in the workflow
+    (`package/file-enforcer/cli/README.md`, section "Committed and local outputs").
+    Measured on a `git archive HEAD` copy with a disposable home and runtime directory:
+    `check --outputs committed` exits 0 (`check-clean`),
+    and `check --outputs local` exits 1 with the same 26 `drift-missing` paths as the unscoped `check`.
 3.  `mpm-shadow lock --check` (offline,
     exits 1 on plan and lock disagreement or a digest mismatch).
 4.  `task-run prepare:pnpm` writes the local outputs,
-    then a second `file-enforcer check` over all rules must be clean.
+    then `file-enforcer check --outputs local` must be clean
+    (measured after `file-enforcer write --outputs local`: exit 0, none of the 26 paths reported),
+    and a last plain `file-enforcer check` over all rules must be clean too.
+    A rule error in a local rule (for example a failed browserslist fetch) still fails the committed step,
+    because the scope filters drift and never rule failures.
 5.  Replace the two `git diff --exit-code` steps at `.github/workflows/advisory-core.yml:92-105` ("Rust catalog drift")
     and `:107-118` ("pnpr config drift") with the checks of this list and
     `task-run //package/config/pnpr:check:config` (`package/config/pnpr/mise.toml:30`,
@@ -1542,8 +1547,8 @@ It writes nothing in the worktree and left no server running.
 - `package/vm-builder/cli` still depends on the old package and is not in the decision's switch list.
 - No per-user config for `file-enforcer user write` is committed;
   the Harper policy is written only after the owner creates it.
-- `file-enforcer check` has no per-rule scope,
-  so the committed-output gate in CI needs a `jq` filter on four rule ids.
+- `file-enforcer check --outputs committed` and `--outputs local` split the gate by `.gitignore` matching;
+  a tracked file that a pattern matches counts as local, which the last plain `check` of the CI list still covers.
 - The `.config/mise/conf.d/20-env.toml` content has no generator and must be written by hand if the decision's layout
   is chosen.
 - The machine-global plan was rehearsed on a copy; `sync --global` was not run,
