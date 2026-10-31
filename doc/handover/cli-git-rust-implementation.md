@@ -4645,3 +4645,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   five-line section after `git --help`.
 - `monochromatic-6e` was told. The agent worktree `.claude/worktrees/agent-a4ffc547354389095` can be removed (its work is
   on main as `567103bb3f`).
+
+## In progress: batching Git starts in the two replay unit tests (2026-10-31)
+
+- Worktree agent running (brief quotes the synthetic-load ban): `strict_reverse_agrees_with_git_apply_on_seeded_cases`
+  (about nine Git starts per case over 120 cases, the cause of the over-420-second hangs under the host stall) and
+  `shared_paths_list_the_paths_both_sides_changed`. Plan: one `git fast-import` for all cases' commits, few patch reads,
+  one `git apply --reverse --check` per case on at most four worker threads; same seeded inputs and assertions.
+- On its report: verify patch equality evidence and the guard failure, merge, run the container gate, then release with the
+  next wrapper fix (tests only, so a release is optional; fold into the next functional change).
