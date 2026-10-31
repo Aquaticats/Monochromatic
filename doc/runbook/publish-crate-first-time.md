@@ -674,10 +674,23 @@ that crates.io's index resolves the exact pins after the upload
 that the tests inside a `.crate` run
 (the tests and fixtures that read repository-root files are left out on purpose,
 and `src/` unit tests of the core and the cli that read repository files would fail outside the repository),
-that the release jobs run on GitHub's runners
-(`fec-build-binary` was never executed; its smoke-run comparison was only checked against the printed JSON line),
+that `fec-create-release` and the attestations work
+(a dry run skips them),
 and that `mpm`'s `cargo:` resolver installs the cli,
 which needs the published release.
+
+Proven on GitHub:
+the dispatched dry run `41167704851` (`monochromatic-file-enforcer-cli`, dry-run on, from the branch,
+2026-10-31) passed every `*-detect` job,
+`fec-release-state`
+and both `fec-build-binary` jobs (x86_64 on `ubuntu-24.04`, aarch64 on `ubuntu-24.04-arm`),
+including the smoke run and the archive verification,
+and skipped `fec-create-release`.
+`fec-publish-crate` ran, which shows the `needs:` gate accepts skipped prerequisites,
+and failed at `Build .crate package (verifies by compile)` with
+``no matching package named `monochromatic-browserslist` found``,
+the expected result while the libraries are not on crates.io.
+It should pass once steps 1 to 5 of `Owner steps in order` are done.
 
 ### monochromatic-xml-edit 0.1.0
 
