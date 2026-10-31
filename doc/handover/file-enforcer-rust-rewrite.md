@@ -133,7 +133,8 @@ each finished branch is reviewed and merged into `main`):
   on every run of such a tool in such a tree ("noisy is fine"):
   the mpm-shadow agent builds it as a launcher behind the exposed links,
   so it lands at cutover;
-  until then the TypeScript sync warns only from `toolchain:sync` and `toolchain:status`.
+  until then the TypeScript sync warns only from `toolchain:sync` and `toolchain:status`
+  (the user chose "Wait for the cutover" over releasing the launcher early).
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
