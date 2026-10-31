@@ -30,6 +30,16 @@ use crate::comment_merge::attach;
 /// ```
 use crate::scan::Scanner;
 /// What:
+///  Import the recorder type that a finished parse returns beside the tree.
+/// Why:
+///  `parse_document` hands the recorder back so the span-reporting entry point can collect it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { SpanRecorder } from './span';
+/// ```
+use crate::span::SpanRecorder;
+/// What:
 ///  Import JSON value,
 ///  key,
 ///  member,
@@ -388,10 +398,14 @@ fn begin_value(
     frames: &mut Vec<Frame>,
     delivered: &mut Option<JsoncValue>,
 ) -> Result<(), JsoncParseError> {
+    // The first byte of this value; its span starts here, before any consumption below.
+    let value_start = scanner.offset;
     if scanner.byte() == Some(b'{') || scanner.byte() == Some(b'[') {
         if frames.len() >= MAX_CONTAINERS {
             return Err(scanner.error("JSONC nesting too deep"));
         }
+        // The container's slot is reserved before its children, so spans stay in document pre-order.
+        scanner.spans.container_start(value_start);
         if scanner.consume(b'{') {
             frames.push(Frame::Record { entries: Vec::new(), leading, pending_key: None, phase: Phase::ItemOrClose });
         } else {
@@ -428,6 +442,8 @@ fn begin_value(
             return Err(scanner.error("expected JSONC value"));
         }
     };
+    // A scalar's span is complete the moment its token has been scanned.
+    scanner.spans.scalar(value_start, scanner.offset);
     // What: `Some` hands the completed scalar to the parent in the next loop pass.
     // Why: A scalar needs no container frame or recursive call.
     //
@@ -478,14 +494,34 @@ fn receive_child(scanner: &mut Scanner<'_>, frames: &mut [Frame], mut child: Jso
 /// # Errors
 /// Malformed syntax or a 513th open container returns a byte-positioned parse error.
 pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
-    // What: This mutable scanner borrows source and advances only through its own methods.
-    // Why: The resulting tree owns text it needs after parsing ends.
+    // What: `Scanner::new` builds a scanner whose span recorder is switched off.
+    // Why: A plain parse keeps its old cost; positions are opt-in through `parse_jsonc_with_spans`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const scanner = { source, offset: 0 };
+    // const [root] = parseDocument(new Scanner(source));
+    // return root;
     // ```
-    let mut scanner = Scanner::new(source);
+    let (root, _spans) = parse_document(Scanner::new(source))?;
+    return Ok(root);
+}
+
+/// What:
+///  Parse one document with a caller-built scanner and hand back the scanner's span recorder.
+///  The scanner moves in by value (TS: passing an object the callee may consume).
+/// Why:
+///  One parse loop serves `parse_jsonc` (recorder off) and `parse_jsonc_with_spans` (recorder on),
+///  so the two can never disagree about what a document means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseDocument(scanner: Scanner): [JsoncValue, SpanRecorder]
+/// ```
+///
+/// # Errors
+/// Malformed syntax or a 513th open container returns a byte-positioned parse error.
+pub fn parse_document<'a>(mut scanner: Scanner<'a>) -> Result<(JsoncValue, SpanRecorder<'a>), JsoncParseError> {
+    let source = scanner.source;
     // What: `?` returns a scanner error early; a successful result owns ordered comments.
     // Why: Malformed leading trivia cannot silently disappear.
     //
@@ -532,6 +568,7 @@ pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
             if scanner.byte() == Some(top.close_byte()) {
                 let closer = top.close_byte();
                 scanner.consume(closer);
+                scanner.spans.container_end(scanner.offset);
                 let Some(done) = frames.pop() else { unreachable!("close without frame"); };
                 delivered = Some(finish(done, Vec::new()));
                 continue;
@@ -542,6 +579,7 @@ pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
         if scanner.byte() == Some(top.close_byte()) {
             let closer = top.close_byte();
             scanner.consume(closer);
+            scanner.spans.container_end(scanner.offset);
             let Some(done) = frames.pop() else { unreachable!("close without frame"); };
             delivered = Some(finish(done, before));
             continue;
@@ -555,7 +593,9 @@ pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
         if scanner.byte() != Some(b'"') {
             return Err(scanner.error("expected double-quoted object key"));
         }
+        let key_start = scanner.offset;
         let (units, raw) = scanner.string()?;
+        scanner.spans.key(key_start, scanner.offset);
         let before_colon = scanner.trivia()?;
         if !scanner.consume(b':') {
             return Err(scanner.error("expected colon after JSONC key"));
@@ -574,5 +614,5 @@ pub fn parse_jsonc(source: &str) -> Result<JsoncValue, JsoncParseError> {
         return Err(scanner.error("unexpected content after JSONC root"));
     }
     root.comment = attach(root.comment, trailing);
-    return Ok(root);
+    return Ok((root, scanner.spans));
 }

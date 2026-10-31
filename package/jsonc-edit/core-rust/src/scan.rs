@@ -29,6 +29,17 @@ use crate::error::JsoncParseError;
 /// ```
 use crate::number::JsoncNumberIdentity;
 /// What:
+///  Import the recorder that collects value and key positions as the parser advances.
+/// Why:
+///  The scanner is the one value every parser step already receives, so it carries the recorder
+///  and the parser's function signatures stay unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { SpanRecorder } from './span';
+/// ```
+use crate::span::SpanRecorder;
+/// What:
 ///      Import the comment types the scanner returns for trivia.
 /// Why:
 ///       Comments are data in this crate,
@@ -62,6 +73,12 @@ pub struct Scanner<'a> {
     /// Why:
     ///  Errors and raw slices point directly at Rust UTF-8 input.
     pub offset: usize,
+    /// What:
+    ///  Collector of value and key positions;
+    ///  disabled for a plain parse.
+    /// Why:
+    ///  The parser reports each event to it and never reads it back until the parse ends.
+    pub spans: SpanRecorder<'a>,
 }
 
 /// What:
@@ -138,7 +155,21 @@ impl<'a> Scanner<'a> {
     /// function scanner(source: string): Scanner { return { source, offset: 0 }; }
     /// ```
     pub fn new(source: &'a str) -> Self {
-        return Self { source, offset: 0 };
+        return Self { source, offset: 0, spans: SpanRecorder::new(source, false) };
+    }
+
+    /// What:
+    ///  Create a scanner whose recorder keeps the position of every value and key it passes.
+    /// Why:
+    ///  Callers that report `line:col` need positions;
+    ///  everyone else uses [`Scanner::new`] and pays nothing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function scannerWithSpans(source: string): Scanner { return { source, offset: 0, spans: new SpanRecorder(source, true) }; }
+    /// ```
+    pub fn with_spans(source: &'a str) -> Self {
+        return Self { source, offset: 0, spans: SpanRecorder::new(source, true) };
     }
 
     /// What:
