@@ -248,6 +248,29 @@ or the adoption failed.
 A failing BPF attach or socket-marking rescan is reported under the socket-marking policy.
 No failure invents a fallback route.
 
+### Failures after startup
+
+The watcher runs detached,
+and its standard error is a log file nobody reads while working.
+A failure after startup is therefore delivered three ways:
+
+- the log file,
+  the watcher's standard error;
+- the system journal,
+  under the identifier `wg-quicker-exempt`,
+  at warning level (`journalctl -t wg-quicker-exempt`);
+- a desktop notification to the watched user through `org.freedesktop.Notifications`,
+  sent with `busctl` as that user,
+  limited to one notification per distinct failure every ten minutes
+  (two failures are the same when they differ only in digits such as pids),
+  so a failure that repeats on every scan cannot flood the desktop.
+
+A channel that fails is named in the log,
+and no channel failure changes routing.
+The loop ending on an error is reported the same way before the watcher exits,
+naming that neither the socket marking nor the process watch is enforced any more.
+Successful moves are logged to the file only.
+
 ### Verification
 
 `mise run //package/wg/cli-quicker-exempt:test:unit` runs matcher,
