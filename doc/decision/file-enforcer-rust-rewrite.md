@@ -275,7 +275,9 @@ and accepted with this record:
   so file-enforcer parses `.browserslistrc` itself
   (`oxc-browserslist` 5.0.1 screened as an alternative);
   `schemars` derive without serde `Deserialize` is unproven,
-  and the golden test's corpus check needs a JSON Schema validator crate not yet named;
+  and the golden test's corpus check needs a JSON Schema validator crate not yet named
+  (resolved 2026-10-30:
+  "I'm approving jsonschema as is.");
   `monochromatic-jsonc-edit` emits trailing commas,
   while the JetBrains files hold strict JSON.
   Resolved 2026-10-29 after the user asked whether strict JSON editing is built in or a de facto crate:
@@ -307,7 +309,30 @@ and accepted with this record:
   `not dead`)
   and fails with "not implemented" on every other query form and config feature.
   The specification is `doc/research/browserslist-subset-semantics.md`;
-  the data source and the Firefox ESR source are open questions to the user.
+  the user then decided its sources (2026-10-30):
+  - Data:
+    "Own registry fetch".
+    An update command downloads the `caniuse-lite` and `node-releases` tarballs from `registry.npmjs.org`
+    over the approved HTTP stack,
+    verifies npm's sha512 `dist.integrity`,
+    and pins versions and hashes in a committed lock;
+    writes stay offline and read the cached data.
+    The option stated that choosing it approves `flate2` and `tar`;
+    the user did not object,
+    so both are approved.
+  - Firefox ESR:
+    "Mozilla product-details",
+    chosen over reading browserslist's `FIREFOX_ESR_VERSION` constant.
+    The update command reads `FIREFOX_ESR` from `https://product-details.mozilla.org/1.0/firefox_versions.json`
+    (`"153.6.0esr"` on 2026-10-30,
+    whose major 153 equals browserslist 4.29.5's constant)
+    and pins it in the same lock;
+    a value not shaped `<major>.<minor>.<patch>esr` fails with a diagnostic.
+    When browserslist's constant lags Mozilla,
+    this output differs from npm `browserslist`;
+    that is accepted by this choice,
+    so the conformance test compares ESR against the locked Mozilla value,
+    not against npm.
   Evidence that led here:
   `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.
 - HTTP client,

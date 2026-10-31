@@ -63,7 +63,13 @@ with briefs saved at `${HOME}/temp/agent/fe-rust/brief-task-20.md` and `brief-ta
 - mpm-shadow (task 22),
   with the npm and PyPI registry lookups behind a seam until an HTTP client is chosen.
 
-Waiting on the user:
+Decided 2026-10-30 (recorded in the decision record):
+browserslist data by our own registry fetch with a lock (`flate2` and `tar` approved),
+Firefox ESR from Mozilla product-details,
+and `jsonschema` for the schema corpus check.
+The browserslist crate (task 28) is queued behind tasks 20 and 22
+and starts once `doc/research/browserslist-subset-semantics.md` lands.
+Previously waiting on the user:
 the browserslist data source,
 the Firefox ESR source,
 the HTTP stack is decided (`hyper`, `hyper-util`, `tokio`, `http-body-util`, `hyper-rustls`, all approved 2026-10-30),
