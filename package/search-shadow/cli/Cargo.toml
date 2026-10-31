@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-search-shadow"
-version = "0.2.0"
+version = "0.2.1"
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/search-shadow/cli"

@@ -43,6 +43,20 @@ fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
     return path;
 }
 
+/// Assert that standard output is Git 2.56.0's version line followed by exactly one banner line.
+fn assert_banner_follows_git_line(stdout: &[u8]) {
+    let text: String = String::from_utf8_lossy(stdout).into_owned();
+    let banner: &str = text
+        .strip_prefix("git version 2.56.0\n")
+        .expect("Git's version line comes first");
+    assert!(
+        banner.starts_with(concat!("monochromatic-git-policy-cli ", env!("CARGO_PKG_VERSION"), ", shadowing git at /")),
+        "{text}"
+    );
+    assert_eq!(banner.matches('\n').count(), 1, "{text}");
+    assert!(banner.ends_with('\n'), "{text}");
+}
+
 /// Place every form of "this wrapper" in the fixture:
 ///  hard link,
 ///  byte copies,
@@ -160,7 +174,7 @@ fn wrapper_never_selects_itself_or_a_copy_of_itself() {
         .arg("--version"),
         b"",
     );
-    assert_eq!(relative.stdout, b"git version 2.56.0\n");
+    assert_banner_follows_git_line(&relative.stdout);
     assert_eq!(relative.code, Some(0));
     remove(&fixture);
 }
@@ -214,7 +228,7 @@ fn typescript_wrapper_launcher_is_skipped() {
         .arg("--version"),
         b"",
     );
-    assert_eq!(observed.stdout, b"git version 2.56.0\n");
+    assert_banner_follows_git_line(&observed.stdout);
     assert_eq!(observed.code, Some(0));
     assert!(!fixture.root.join("shim/executed").exists());
     remove(&fixture);
@@ -237,10 +251,7 @@ fn different_wrapper_build_stops_instead_of_looping() {
         .env_clear()
         .env("PATH", "/usr/bin")
         .output();
-    assert_eq!(
-        ran.expect("modified build still runs").stdout,
-        b"git version 2.56.0\n"
-    );
+    assert_banner_follows_git_line(&ran.expect("modified build still runs").stdout);
     let observed: Observed = observe(
         bounded(
             &fixture,
@@ -289,7 +300,7 @@ fn different_wrapper_build_stops_instead_of_looping() {
         .arg("--version"),
         b"",
     );
-    assert_eq!(conventional.stdout, b"git version 2.56.0\n");
+    assert_banner_follows_git_line(&conventional.stdout);
     assert_eq!(conventional.code, Some(0));
     remove(&fixture);
 }

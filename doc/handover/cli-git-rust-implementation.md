@@ -4615,3 +4615,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   stay Git's. Reverses the byte-identical test, which is replaced by a pinned two-line test.
 - Mechanism: those Query invocations must run Git as a child (`run_real_git`) rather than replace the process, so the
   line can follow Git's output. Other Query forms (`--exec-path`, `--html-path` and so on) keep the exec replacement.
+
+## Wrapper identity merged, gate running (2026-10-31)
+
+- A worktree agent built it (`3673f10da8`, `cd2baf5fb6`); merged into main as `567103bb3f`. New `Action::ForwardAnnounced`, module
+  `announced_query.rs`; only `--version`, `-v`, `--help`, `-h` at the command position run Git as a child and append the
+  text when Git exits 0; every other query keeps the exec replacement. README has a "Version and help" section.
+- The agent ran targeted host tests only (guard tests shown to fail and restored). The authority container gate
+  (`native:test:container`) runs in unit `gpc-banner-gate`, log `~/temp/agent/gate/banner-gate.log`. Result pending.
+- Known behavior changes it reported: a signal sent to the wrapper alone no longer reaches Git on these four spellings;
+  a non-UTF-8 real Git path shows replacement characters in the banner; any script comparing `git --version` to a fixed
+  string through the wrapper sees a second line. The publish workflow's `gpc-build-binary` smoke step runs
+  `cli-git --help`, unaffected.
+- After a green gate: release 0.4.4 to 0.4.5 (`native:release`, `native:release:wait`), then `toolchain:update` (user
+  decision each time) and `toolchain:sync`, then tell `monochromatic-6e` the version. Remove the agent worktree
+  `.claude/worktrees/agent-a4ffc547354389095` once merged work is confirmed on main.

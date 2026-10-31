@@ -1,6 +1,8 @@
-//! What:     Unit tests of the PATH lookup in `real_binary.rs`.
-//! Why:      The lookup decides which program actually runs, so a wrong answer would either loop the shadow into itself
-//!           or run the wrong tool.
+//! What:
+//! Unit tests of the PATH lookup in `real_binary.rs`.
+//! Why:
+//! The lookup decides which program actually runs,
+//! so a wrong answer would either loop the shadow into itself or run the wrong tool.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,9 +10,11 @@
 //! describe('findInPath', () => { it('finds the first executable outside the skipped path', () => { ... }); });
 //! ```
 
-/// What:     `use crate::real_binary::find_in_path;` imports the function under test from this crate (`crate` means
-///           "the package I am in").
-/// Why:      The tests call it directly.
+/// What:
+/// `use crate::real_binary::find_in_path;` imports the function under test from this crate (`crate` means
+/// "the package I am in").
+/// Why:
+/// The tests call it directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -18,7 +22,7 @@
 /// ```
 use crate::real_binary::find_in_path;
 
-/// Imports the file-system module (write fixture files, set permissions, make symlinks).
+/// Imports the file-system module (write fixture files / set permissions / make symlinks).
 use std::fs;
 
 /// Imports the trait that adds `from_mode` to permissions (needed to mark a fixture file executable).
@@ -27,10 +31,13 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
-/// What:     `fn write_tool(directory: &Path, name: &str, mode: u32)` declares a helper that writes a one-line shell script
-///           named `name` in `directory` and sets its Unix permission bits to `mode` (`u32`: unsigned 32-bit integer,
-///           siblings `i32`/`u64`).
-/// Why:      Each test needs runnable and non-runnable fixture files.
+/// What:
+/// `fn write_tool(directory: &Path, name: &str, mode: u32)` declares a helper that writes a one-line shell script
+/// named `name` in `directory` and sets its Unix permission bits to `mode`
+/// (`u32` is an unsigned 32-bit integer;
+/// the siblings are `i32` / `u64`).
+/// Why:
+/// Each test needs runnable and non-runnable fixture files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,9 +52,11 @@ fn write_tool(directory: &Path, name: &str, mode: u32) {
     fs::set_permissions(directory.join(name), fs::Permissions::from_mode(mode)).expect("set the fixture mode");
 }
 
-/// What:     `#[test]` is an attribute marking the next function as a test case the test runner should run. The
-///           function takes nothing and passes if it does not panic.
-/// Why:      Rust's built-in test runner (here driven by nextest) discovers tests by this attribute.
+/// What:
+/// `#[test]` is an attribute marking the next function as a test case the test runner should run.
+/// The function takes nothing and passes if it does not panic.
+/// Why:
+/// Rust's built-in test runner (here driven by nextest) discovers tests by this attribute.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,7 +92,8 @@ fn skips_a_file_that_is_not_executable() {
     assert_eq!(found, Some(real.path().join("rg")));
 }
 
-/// A symlink that resolves to the skipped path (the shadow itself) must be passed over, which is what stops the loop.
+/// A symlink that resolves to the skipped path (the shadow itself) must be passed over,
+/// which is what stops the loop.
 #[test]
 fn skips_a_link_that_resolves_to_the_shadow() {
     let shadow_directory = crate::test_scratch::scratch();
@@ -101,7 +111,8 @@ fn skips_a_link_that_resolves_to_the_shadow() {
     assert_eq!(found, Some(real_directory.path().join("rg")));
 }
 
-/// Empty entries, missing directories and directories named like the tool must not stop the search.
+/// Empty entries,
+/// missing directories and directories named like the tool must not stop the search.
 #[test]
 fn ignores_empty_entries_missing_directories_and_directories_named_like_the_tool() {
     let trap = crate::test_scratch::scratch();
@@ -115,7 +126,8 @@ fn ignores_empty_entries_missing_directories_and_directories_named_like_the_tool
     assert_eq!(found, Some(real.path().join("rg")));
 }
 
-/// Nothing runnable on PATH gives `None`, which the shim reports as "not found".
+/// Nothing runnable on PATH gives `None`,
+/// which the shim reports as "not found".
 #[test]
 fn answers_none_when_no_directory_holds_the_tool() {
     let empty = crate::test_scratch::scratch();

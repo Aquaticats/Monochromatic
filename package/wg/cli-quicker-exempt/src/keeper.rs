@@ -64,6 +64,15 @@ fn read_message(output: &mut BufReader<ChildStdout>) -> io::Result<String> {
     return Ok(line.trim_end().to_owned());
 }
 
+/// Starts a new session in the forked child so the holder is isolated from the invoking terminal.
+fn start_new_session() -> io::Result<()> {
+    // SAFETY: `setsid` is async-signal-safe and touches only the child's session state.
+    if unsafe { libc::setsid() } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    return Ok(());
+}
+
 /// Starts candidate in a detached session and waits until all links exist.
 fn spawn_candidate(mark: u32, cgroup_dir: &Path) -> io::Result<Candidate> {
     let executable = std::env::current_exe()?;
@@ -77,16 +86,15 @@ fn spawn_candidate(mark: u32, cgroup_dir: &Path) -> io::Result<Candidate> {
         .stderr(Stdio::piped());
     // SAFETY: `setsid` is async-signal-safe and touches only child process session state.
     unsafe {
-        command.pre_exec(|| {
-            if libc::setsid() < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            return Ok(());
-        });
+        command.pre_exec(start_new_session);
     }
     let mut child = command.spawn()?;
-    let input = child.stdin.take().ok_or_else(|| return io::Error::other("keeper stdin pipe absent"))?;
-    let stdout = child.stdout.take().ok_or_else(|| return io::Error::other("keeper stdout pipe absent"))?;
+    let Some(input) = child.stdin.take() else {
+        return Err(io::Error::other("keeper stdin pipe absent"));
+    };
+    let Some(stdout) = child.stdout.take() else {
+        return Err(io::Error::other("keeper stdout pipe absent"));
+    };
     let mut output = BufReader::new(stdout);
     let ready_result = read_message(&mut output);
     let ready = match ready_result {
@@ -150,7 +158,9 @@ fn recover(cgroup_dir: &Path) -> io::Result<Option<KeeperProcess>> {
     let committed = commit_marker_exists(cgroup_dir, candidate)?;
     if candidate_live && committed {
         if active_live {
-            let active = state.active.ok_or_else(|| return io::Error::other("live active keeper absent"))?;
+            let Some(active) = state.active else {
+                return Err(io::Error::other("live active keeper absent"));
+            };
             stop_process(active, cgroup_dir)?;
         }
         write_state(cgroup_dir, &active_state(candidate))?;
@@ -162,7 +172,9 @@ fn recover(cgroup_dir: &Path) -> io::Result<Option<KeeperProcess>> {
     }
     remove_commit_marker(cgroup_dir, candidate)?;
     if active_live {
-        let active = state.active.ok_or_else(|| return io::Error::other("live active keeper absent"))?;
+        let Some(active) = state.active else {
+            return Err(io::Error::other("live active keeper absent"));
+        };
         write_state(cgroup_dir, &active_state(active))?;
         return Ok(Some(active));
     }

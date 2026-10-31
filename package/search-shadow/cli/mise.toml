@@ -77,11 +77,13 @@ for (const name of expectLinked) {
 }
 check('link: fdfind (absent) is skipped', !linkedNames.includes('fdfind'), linkRun.stdout)
 
-// Each shadow must run the right real tool with its arguments untouched: its --version output and exit code equal the real tool's.
-const same = 'PATH=/shadow-bin:$PATH NAME --version > /tmp/shadow.out 2>&1; echo "exit $?" >> /tmp/shadow.out; real=$(PATH=/usr/local/bin:/usr/bin:/bin:/root/.cargo/bin command -v NAME); "$real" --version > /tmp/real.out 2>&1; echo "exit $?" >> /tmp/real.out; cmp /tmp/shadow.out /tmp/real.out'
+// Each shadow must run the right real tool with its arguments untouched. A lone --version is the one announced case: the
+// shadow's stdout must be the real tool's stdout plus exactly one last line naming the shadow, the tool and the real path;
+// stderr and the exit code must equal the real tool's.
+const same = 'real=$(command -v NAME); PATH=/shadow-bin:$PATH NAME --version > /tmp/shadow.out 2> /tmp/shadow.err; shadow_code=$?; "$real" --version > /tmp/real.out 2> /tmp/real.err; real_code=$?; test "$shadow_code" = "$real_code" && cmp /tmp/shadow.err /tmp/real.err && head --lines=-1 /tmp/shadow.out | cmp - /tmp/real.out && tail --lines=1 /tmp/shadow.out | grep --extended-regexp --quiet "^search-shadow [0-9][^ ]*, shadowing NAME at $real$"'
 for (const name of linkedNames) {
   const result = inContainer(same.replaceAll('NAME', name))
-  check(`passthrough: ${name} --version equals the real tool's`, result.status === 0, result.stdout + result.stderr)
+  check(`passthrough: ${name} --version is the real tool's plus the one announcement line`, result.status === 0, result.stdout + result.stderr)
 }
 
 // The disk priority reaches the real process: a grep blocked on a FIFO and a find blocked in -exec both report best-effort level 7.

@@ -236,6 +236,40 @@ Configuration is data,
  so nothing needs approval.
 They print an explanation and change nothing.
 
+### Version and help
+
+The wrapper runs the real Git for the top-level `--version`, `-v`, `--help` and `-h`,
+ so Git's own output and exit status come first and are never changed.
+Only when Git exits with status 0 does the wrapper add plain text to standard output,
+ so a person can tell that a policy wrapper sits in front of Git.
+When Git exits with another status, or a signal ends it, nothing is added and the wrapper returns Git's status.
+Global options before the query, such as `git -C <directory> --version`, behave the same.
+A subcommand's own help, such as `git commit --help`, is untouched and so is every other query
+ (`--exec-path`, `--html-path`, `--man-path`, `--info-path`, `--list-cmds=<group>`):
+ the wrapper replaces itself with Git and their output is byte for byte Git's.
+
+`--version` and `-v` add exactly one line,
+ where `<version>` is this crate's version and `<path>` is the real Git the wrapper resolved:
+
+```text
+monochromatic-git-policy-cli <version>, shadowing git at <path>
+```
+
+`--help` and `-h` add a blank line and a short section:
+
+```text
+monochromatic-git-policy-cli <version> sits in front of this git
+It adds repository policies on commit, push and worktree commands,
+the `git cli-git` management command (`git cli-git --help`),
+and `git cli-git doctor`, which lists the traditional hooks a repository holds.
+real git: <path>
+```
+
+A script that compares the output of `git --version` with a fixed string should read the first line only,
+ or call the real Git by its path.
+The wrapper's own findings stay JSON lines as described under "Output and exit status";
+ this text appears only for these four spellings.
+
 ### Wrapper-only options
 
 A wrapper-only option is removed before Git sees the arguments and applies to that one invocation.

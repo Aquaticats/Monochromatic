@@ -9,8 +9,9 @@
  ```sh
  wg-quicker up mx-que-mx1
  wg-quicker down mx-que-mx1
+ wg-quicker opensnitch-rules apply
  ```
- 
+
  @module
  */
 
@@ -20,6 +21,7 @@ import { resolveApplicationExemptionCommand, } from './application-exemption-com
 import { loadConfig, } from './config.ts';
 import { CliUsageError, } from './errors.ts';
 import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
+import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
 import {
@@ -33,7 +35,12 @@ import {
 const l = tagged({ tag: 'wg-quicker', },);
 
 /**
- Recognized subcommands.
+ Subcommand maintaining the daemon rules that let toolchain update traffic through OpenSnitch.
+ */
+const OPENSNITCH_RULES_SUBCOMMAND = 'opensnitch-rules';
+
+/**
+ Recognized tunnel subcommands.
  */
 type Subcommand = 'up' | 'down';
 
@@ -93,6 +100,16 @@ async function main(): Promise<void> {
    Arguments after runtime and script path.
    */
   const processArguments = await restorePrivilegeContext();
+  if (processArguments[0] === OPENSNITCH_RULES_SUBCOMMAND) {
+    /**
+     Whether non-root process handed the rule maintenance to a sudo child.
+     */
+    const rulesDelegated = await relaunchWithRootIfNeeded();
+    if (!rulesDelegated) {
+      await runOpenSnitchRulesCommand({ argv: processArguments.slice(1,), },);
+    }
+    return;
+  }
   /**
    Parsed subcommand and config target.
    */
@@ -117,7 +134,7 @@ async function main(): Promise<void> {
   if (subcommand === 'up') {
     if (config.exemptMark === undefined) {
       l.warn(
-        `Config for ${target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. Add \`ExemptMark = ${String(RECOMMENDED_EXEMPT_MARK,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
+        `Config for ${target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. So will toolchain sync and update runs. Add \`ExemptMark = ${String(RECOMMENDED_EXEMPT_MARK,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
       );
     } else {
       /**

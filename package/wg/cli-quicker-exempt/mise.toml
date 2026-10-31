@@ -15,8 +15,8 @@ description = "Run clippy over the bin and tests"
 run = "cargo clippy --release --all-targets -- -D warnings"
 
 [tasks."test:unit"]
-description = "Run instruction and lifecycle unit tests"
-run = "cargo test"
+description = "Run instruction and lifecycle unit tests through nextest"
+run = "cargo nextest run"
 
 [tasks."test:functional:protocols"]
 description = "Run privileged disposable-cgroup protocol coverage without bpffs persistence"

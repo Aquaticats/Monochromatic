@@ -21,16 +21,16 @@ const KILL_WAIT: Duration = Duration::from_secs(5);
 /// Reads Linux process start-time field after safely skipping parenthesized command name.
 pub fn process_start_time(pid: i32) -> io::Result<u64> {
     let text = std::fs::read_to_string(format!("/proc/{pid}/stat"))?;
-    let command_end = text.rfind(')').ok_or_else(|| {
-        return io::Error::new(io::ErrorKind::InvalidData, "process stat lacks command terminator");
-    })?;
-    let tail = text.get(command_end + 1..).ok_or_else(|| {
-        return io::Error::new(io::ErrorKind::InvalidData, "process stat tail is absent");
-    })?;
+    let Some(command_end) = text.rfind(')') else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks command terminator"));
+    };
+    let Some(tail) = text.get(command_end + 1..) else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat tail is absent"));
+    };
     let fields: Vec<&str> = tail.split_whitespace().collect();
-    let start_time = fields.get(19).ok_or_else(|| {
-        return io::Error::new(io::ErrorKind::InvalidData, "process stat lacks start time");
-    })?;
+    let Some(start_time) = fields.get(19) else {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "process stat lacks start time"));
+    };
     return start_time.parse().map_err(io::Error::other);
 }
 
@@ -49,11 +49,16 @@ fn expected_command(
     ]);
 }
 
+/// Reports the NUL byte that separates command-line arguments.
+fn is_nul_byte(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
 /// Reads command-line arguments without interpreting path bytes as text.
 fn process_command(pid: i32) -> io::Result<Vec<Vec<u8>>> {
     let bytes = std::fs::read(format!("/proc/{pid}/cmdline"))?;
     let mut arguments: Vec<Vec<u8>> = bytes
-        .split(|byte| return *byte == 0)
+        .split(is_nul_byte)
         .map(<[u8]>::to_vec)
         .collect();
     if arguments.last().is_some_and(Vec::is_empty) {

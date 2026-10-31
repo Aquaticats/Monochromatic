@@ -134,8 +134,13 @@ pub fn top_level_request(arguments: &[OsString]) -> TopLevelRequest {
                 index += 1;
                 continue;
             }
+            // The word after a bare `--color` is its value only when it is one of the color names.
+            let next_word: Option<&str> = match arguments.get(index) {
+                Some(word) => word.to_str(),
+                None => None,
+            };
             if argument == "--color"
-                && let Some(next) = arguments.get(index).and_then(|value| return value.to_str())
+                && let Some(next) = next_word
                 && COLOR_VALUES.contains(&next)
             {
                 index += 1;

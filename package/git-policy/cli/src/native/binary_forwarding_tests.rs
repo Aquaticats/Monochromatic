@@ -52,9 +52,10 @@ fn text_arguments(values: &[&str]) -> Vec<OsString> {
     return result;
 }
 
-/// `git --version` through a `git`-named link is byte-identical to real Git 2.56.0.
+/// `git --version` through a `git`-named link prints real Git 2.56.0's line,
+///  then exactly one banner line naming the wrapper, its version and the Git it shadows.
 #[test]
-fn version_is_identical_to_native_git() {
+fn version_is_gits_line_followed_by_the_banner() {
     let fixture: Fixture = fixture("version");
     let (through_wrapper, through_git) = both(
         &fixture,
@@ -64,7 +65,42 @@ fn version_is_identical_to_native_git() {
     );
     assert_eq!(through_git.stdout, b"git version 2.56.0\n");
     assert_eq!(through_git.code, Some(0));
-    assert_eq!(through_wrapper, through_git);
+    let mut expected: Vec<u8> = through_git.stdout.clone();
+    expected.extend_from_slice(
+        format!(
+            "monochromatic-git-policy-cli {}, shadowing git at {REAL_GIT}\n",
+            env!("CARGO_PKG_VERSION")
+        )
+        .as_bytes(),
+    );
+    assert_eq!(through_wrapper.stdout, expected);
+    assert_eq!(through_wrapper.stderr, through_git.stderr);
+    assert_eq!(through_wrapper.code, through_git.code);
+    remove(&fixture);
+}
+
+/// The queries that are not announced stay byte-identical to real Git:
+///  stdout, stderr and exit code, with and without global options before them.
+#[test]
+fn path_queries_are_identical_to_native_git() {
+    let fixture: Fixture = fixture("path-queries");
+    for rest in [
+        vec!["--exec-path"],
+        vec!["--html-path"],
+        vec!["--man-path"],
+        vec!["--info-path"],
+        vec!["-C", "/", "--html-path"],
+    ] {
+        let (through_wrapper, through_git) = both(
+            &fixture,
+            fixture.root.as_path(),
+            text_arguments(rest.as_slice()).as_slice(),
+            b"",
+        );
+        assert_eq!(through_git.code, Some(0), "{rest:?}");
+        assert!(!through_git.stdout.is_empty(), "{rest:?}");
+        assert_eq!(through_wrapper, through_git, "{rest:?}");
+    }
     remove(&fixture);
 }
 

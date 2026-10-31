@@ -54,6 +54,8 @@ use super::status_cmd::run_status;
 use super::sync::{FrozenReason, LockPolicy, format_sync_report, locked_line, rewritten_line, run_lockfile_only, run_sync_with};
 /// Imports `is_ci` from `super::ci_detect`.
 use super::ci_detect::is_ci;
+/// Imports what this module uses from `super::updates_slice`.
+use super::updates_slice::{relaunch_into_updates_slice, verb_reaches_network};
 /// Imports what this module uses from `super::verify_archive`.
 use super::verify_archive::run_verify_archive;
 
@@ -252,6 +254,14 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             } else {
                 LockPolicy::Frozen(FrozenReason::Ci)
             };
+            // A frozen lock check and an offline lock write never fetch; every other `install` does,
+            // so those run inside the clearnet updates slice when one can be used.
+            let frozen_check: bool = matches!(policy, LockPolicy::Frozen(_)) && scope.lock_file.exists();
+            if verb_reaches_network("install", lockfile_only, offline, frozen_check)
+                && let Some(exit_code) = relaunch_into_updates_slice(&env)
+            {
+                return Some(exit_code);
+            }
             if lockfile_only {
                 // A frozen lock check writes nothing and needs no network.
                 if matches!(policy, LockPolicy::Frozen(_)) && scope.lock_file.exists() {
@@ -296,6 +306,10 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             });
         }
         "update" | "outdated" => {
+            // Both resolve versions over the network, so they run inside the clearnet updates slice when one can be used.
+            if let Some(exit_code) = relaunch_into_updates_slice(&env) {
+                return Some(exit_code);
+            }
             // pnpm outdated reports and exits 1 when anything is outdated; pnpm update writes.
             let check: bool = name == "outdated";
             let names: Vec<String> = match matches.get_many::<String>("tool") {

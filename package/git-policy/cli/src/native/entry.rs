@@ -17,6 +17,7 @@
 
 /// Import the sibling modules the decision combines.
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
+use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
 use super::lfs_pre_push::{hook_entry_arguments, run_hook_entry, uses_lfs, with_lfs_hook};
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
@@ -26,7 +27,7 @@ use super::child_environment::{
     FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
 };
 use super::effective_target::default_allowed_worktree_dirs;
-use super::forwarding::replace_process_with_real_git;
+use super::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
 use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use super::index_writer_commands::is_index_writer;
 use super::forwarded_command::{ResolvedCommand, creates_or_moves_worktrees, resolve_forwarded_command};
@@ -188,6 +189,23 @@ pub fn plan_invocation(
     };
     let overlay: Vec<(OsString, OsString)> =
         child_environment_overlay(environment, real_git.as_path());
+    // What: Top-level `--version`, `-v`, `--help` and `-h` run Git as a child and add the announcement.
+    // Why:  The layout is already known here, so every other invocation pays one enum comparison;
+    //       the other queries keep the exact process replacement below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const query = announcedQuery(args, layout); if (query) return { kind: 'forward-announced', ... };
+    // ```
+    if let Some(query) = announced_query(global_clean.as_slice(), &layout) {
+        return Action::ForwardAnnounced {
+            announcement: announcement(query, WRAPPER_VERSION, real_git.as_path()),
+            real_git,
+            arguments: global_clean,
+            overlay,
+            stderr: String::new(),
+        };
+    }
     let stripped: StrippedInvocation = strip_wrapper_controls(arguments);
     // The global options before the subcommand select the repository for every fact query.
     let facts: GitFacts = git_facts(
@@ -218,7 +236,7 @@ pub fn plan_invocation(
             arguments: forwarded,
             stderr,
         } => {
-            // The opt-out, Git's help and version forms, and the commands that need no repository
+            // The opt-out, Git's other query forms (`--exec-path` and so on), and the commands that need no repository
             // (`version`, `help`, `init`, `clone`, user-level `config`) never settle a copy.
             let copy_bypassed: bool = stripped.controls.skip_worktree_copy
                 || stripped.layout.outcome != GlobalOutcome::Command
@@ -312,6 +330,21 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             write_stream(&mut std::io::stderr(), stderr.as_str());
             return run_coordinated_action(&forward);
         }
+        Action::ForwardAnnounced {
+            real_git,
+            arguments: forwarded,
+            overlay,
+            announcement,
+            stderr,
+        } => {
+            write_stream(&mut std::io::stderr(), stderr.as_str());
+            return run_announced(
+                real_git.as_path(),
+                forwarded.as_slice(),
+                overlay.as_slice(),
+                announcement.as_str(),
+            );
+        }
         Action::ForwardSettled {
             real_git,
             arguments: forwarded,
@@ -340,6 +373,45 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             write_stream(&mut std::io::stdout(), stdout.as_str());
             write_stream(&mut std::io::stderr(), stderr.as_str());
             return code;
+        }
+    }
+}
+
+/// What:
+///  Run Git as a child for an announced query,
+///  print the announcement when Git exited with status 0,
+///  and return Git's status.
+/// Why:
+///   The child shares the caller's streams, so Git's own answer is untouched and comes first;
+///  the announcement follows it only when Git answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const outcome = await runRealGit(realGit, args, overlay); if (outcome.exited === 0) print(text); return exitCode(outcome);
+/// ```
+fn run_announced(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    text: &str,
+) -> i32 {
+    match run_real_git(real_git, arguments, overlay) {
+        Ok(outcome) => {
+            write_stream(&mut std::io::stdout(), printable_after(outcome, text));
+            return exit_code(outcome);
+        }
+        Err(error) => {
+            write_stream(
+                &mut std::io::stderr(),
+                format!(
+                    "cli-git: cannot start {}: {error}. Hint: if you moved or upgraded Git, check that the file exists and is executable with `ls -l {}`, \
+                     then reinstall Git or the wrapper; no Git command ran.\n",
+                    real_git.display(),
+                    real_git.display()
+                )
+                .as_str(),
+            );
+            return ENGINE_FAILURE_EXIT_CODE;
         }
     }
 }
@@ -405,7 +477,7 @@ fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
 ///  under the landing lock when it writes the real index,
 ///  and settled by the linked-worktree copy when it runs from a linked worktree or a bare repository
 ///  (or creates a worktree from a main checkout whose configuration names the rules file).
-///  `copy_bypassed` is true for the wrapper's opt-out and for Git's help and version forms.
+///  `copy_bypassed` is true for the wrapper's opt-out and for Git's query forms.
 /// Why:
 ///   Only these commands need the wrapper to outlive Git or to hold a lock around it;
 ///  everything else keeps the exact process replacement.
@@ -688,6 +760,12 @@ fn write_stream(stream: &mut dyn Write, text: &str) {
     // ```
     let _ = stream.write_all(text.as_bytes());
 }
+
+/// Plans of the announced queries,
+///  `--version`, `-v`, `--help` and `-h`, against the queries that stay exact.
+#[cfg(test)]
+#[path = "entry_announced_tests.rs"]
+mod announced_tests;
 
 /// Stop controls for a looping,
 ///  missing or uninterpretable real Git.

@@ -299,6 +299,40 @@ each finished branch is reviewed and merged into `main`):
   and the `mpm --version`/`--help` shadow notice.
   Every release the cutover needs now exists;
   the switch branch regenerates the repository lock with it.
+- Live 2026-10-31 (wg branch merged):
+  `wg-quicker opensnitch-rules apply` created `000-allow-monochromatic-toolchain-install-roots`,
+  `-exposure-links` and `-rust-tools` (precedence allows,
+  daemon reloaded each at 05:57:12 with no compile warning);
+  the exemption watcher was restarted on the new build (`watch-stop`/`watch-start fr-par-fr1 100 1000`),
+  it lists `app-monochromatic\x2dupdates.slice`,
+  and a request from that slice left via the direct address (`2607:f2c0:...`) while a normal one left via the tunnel (`2a02:6ea0:...`).
+  The TypeScript sync and update now re-exec into that slice;
+  mpm-shadow's slice re-exec (for `install`,
+  `update`,
+  `outdated`) is on `main` but not in the released 0.2.0.
+  Not done:
+  the two auto-saved rejects for the removed worktree `agent-a23c3740c67ba36d9`'s `target/debug` binaries stay
+  (harmless now that worktree is gone);
+  the agent's broader proposals (system updates,
+  general pnpm installs,
+  checkout build outputs) were not asked for.
+- Corrected 2026-10-31,
+  user:
+  "mpm-shadow should never determine itself goes through clearnet. Our wg set of pkgs should determine that!"
+  The self-placement above (TypeScript sync/update and mpm-shadow re-executing into the slice) is wrong and is being removed;
+  the wg packages detect update traffic alone,
+  by the union of all three methods the user chose:
+  a process watch that moves update entry points into the exempt slice,
+  an update-host list routed around the tunnel for every program,
+  and processes whose executable sits under the toolchain install roots.
+  The wg agent rebuilds it;
+  mpm-shadow 0.2.1 (approved) is held until the self-placement is gone from mpm-shadow,
+  so it never ships.
+  The OpenSnitch rules stay.
+- Released 2026-10-31:
+  `monochromatic-search-shadow` 0.2.1 (run `41174514524`)
+  after two CI fixes to its exact `--version` checks (`6a2d944949`,
+  `44bf57cc84`).
 - Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
   invoked under the shadowed name,
   a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
@@ -337,6 +371,14 @@ each finished branch is reviewed and merged into `main`):
   `fec-create-release` was skipped in run `41171845290`
   because its implicit `success()` sees the skipped library publish jobs upstream of `fec-publish-crate`;
   it now uses `!cancelled()` with explicit results.
+- Lesson 2026-10-31 (this session, owner annoyed):
+  the clearnet self-placement came from this session's own brief,
+  which suggested the toolchain re-execute itself into the slice,
+  though the request ("Make our wg auto make update traffics go through clearnet") named wg as the owner;
+  the merge review checked that it worked, not which component owned the decision.
+  Before briefing or merging a design,
+  check which component the request names as the owner,
+  and reject any design that makes another component aware of that concern.
 - Lesson 2026-10-31 (this session):
   run every step this session can run itself instead of handing it to the owner;
   the owner pointed out that `cargo logout` was such a step.

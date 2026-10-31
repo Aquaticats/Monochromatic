@@ -1,8 +1,13 @@
-//! What:     The rule that refuses a recursive `grep` (and `egrep`, `fgrep`) that would start from a repository root, the home
-//!           directory or the filesystem root: `-r`, `-R`, `--recursive`, `--dereference-recursive` or `-d recurse`, with no
-//!           file operand (which searches the current directory) or an operand that resolves to one of those places.
-//! Why:      Such a walk reads hundreds of thousands of files and stalls the NVMe for every session. A narrower directory, or
-//!           `rg PATTERN PATH`, does the same job bounded.
+//! What:
+//! The rule that refuses a recursive `grep` (and `egrep` and `fgrep`)
+//! that would start from a repository root,
+//! the home directory or the filesystem root:
+//! `-r` / `-R` / `--recursive` / `--dereference-recursive` / `-d recurse`
+//! with no file operand (which searches the current directory)
+//! or an operand that resolves to one of those places.
+//! Why:
+//! Such a walk reads hundreds of thousands of files and stalls the NVMe for every session.
+//! A narrower directory or `rg PATTERN PATH` does the same job bounded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,15 +15,22 @@
 //! export function grepRefusal(name, args, allowWide, workingDirectory, home): string | undefined { ... }
 //! ```
 
-/// Imports `Path`, the borrowed read-only path type.
+/// Imports `Path`,
+/// the borrowed read-only path type.
 use std::path::Path;
 
+/// Imports the escape-hatch variable name for the refusal message.
 use crate::constants::ALLOW_WIDE_VARIABLE;
+
+/// Imports the walk-start classifier and the words the refusal message uses for each case.
 use crate::walk_target::{WalkTarget, classify, phrase};
 
-/// What:     `const VALUE_SHORT_LETTERS: &str = "..."` is a constant text slice with grep's one-letter flags that take a
-///           value (`-A3`, `-e pattern`, `-d recurse`, `-m 5`).
-/// Why:      A value is not a pattern or a file operand, so the parser must skip it.
+/// What:
+/// `const VALUE_SHORT_LETTERS: &str = "..."` is a constant text slice with grep's one-letter flags that take a
+/// value (`-A3` / `-e pattern` / `-d recurse` / `-m 5`).
+/// Why:
+/// A value is not a pattern or a file operand,
+/// so the parser must skip it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,10 +57,14 @@ const VALUE_LONG_FLAGS: &[&str] = &[
     "--regexp",
 ];
 
-/// What:     `pub struct GrepDescription { ... }` declares a record with whether the call recurses and the file operands it
-///           names. `Vec<String>` is an owned growable list of owned texts (sibling: `&[String]` is a borrowed view).
-///           `#[derive(Debug, PartialEq)]` generates printing and `==` for the tests.
-/// Why:      The refusal needs both facts. `Vec` and not a borrow because the list is built by the parser.
+/// What:
+/// `pub struct GrepDescription { ... }` declares a record with whether the call recurses and the file operands it
+/// names.
+/// `Vec<String>` is an owned growable list of owned texts (the sibling `&[String]` is a borrowed view).
+/// `#[derive(Debug, PartialEq)]` generates printing and `==` for the tests.
+/// Why:
+/// The refusal needs both facts.
+/// It is `Vec` and not a borrow because the list is built by the parser.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,9 +78,11 @@ pub struct GrepDescription {
     pub operands: Vec<String>,
 }
 
-/// What:     `pub fn describe_grep(arguments: &[String]) -> GrepDescription` declares a public function that reads grep's
-///           argument grammar just enough to know whether it recurses and which operands it names.
-/// Why:      The refusal rule is stated in those two terms.
+/// What:
+/// `pub fn describe_grep(arguments: &[String]) -> GrepDescription` declares a public function that reads grep's
+/// argument grammar just enough to know whether it recurses and which operands it names.
+/// Why:
+/// The refusal rule is stated in those two terms.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,9 +180,12 @@ pub fn describe_grep(arguments: &[String]) -> GrepDescription {
     return GrepDescription { recursive, operands };
 }
 
-/// What:     `pub fn grep_refusal(...) -> Option<String>` declares a public function returning `Some(message)` when the call
-///           must be refused and `None` when it may run.
-/// Why:      The shim calls it for `grep`, `egrep` and `fgrep` before launching anything.
+/// What:
+/// `pub fn grep_refusal(...) -> Option<String>` declares a public function returning `Some(message)` when the call
+/// must be refused and `None` when it may run.
+/// Why:
+/// The shim calls it for `grep`,
+/// `egrep` and `fgrep` before launching anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

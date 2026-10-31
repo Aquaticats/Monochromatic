@@ -50,7 +50,10 @@ pub fn pin_object_invalid(path: String, source: io::Error) -> io::Error {
 
 /// Reports typed invalid pin boundary without locale-sensitive message inspection.
 pub fn is_pin_object_invalid(error: &io::Error) -> bool {
-    return error
-        .get_ref()
-        .is_some_and(|source| return source.downcast_ref::<PinObjectInvalidError>().is_some());
+    return error.get_ref().is_some_and(is_pin_object_invalid_source);
+}
+
+/// Reports whether a wrapped error source is the typed invalid-pin boundary.
+fn is_pin_object_invalid_source(source: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+    return source.downcast_ref::<PinObjectInvalidError>().is_some();
 }

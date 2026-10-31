@@ -1,8 +1,15 @@
-//! What:     The shadow mode: when the binary is started as `rg`, `grep` or `find`, it checks the policy, finds the real
-//!           tool on PATH, lowers its own disk priority to the lowest best-effort level, and replaces itself with the
-//!           real tool (which inherits that priority).
-//! Why:      Every search an agent or a script starts goes through here, so a broad search yields the disk to the
-//!           desktop instead of stalling it.
+//! What:
+//! The shadow mode:
+//! when the binary is started under a shadowed name (`rg` / `grep` / `find` and so on),
+//! it checks the policy,
+//! finds the real tool on PATH,
+//! lowers its own disk priority to the lowest best-effort level,
+//! and replaces itself with the real tool (which inherits that priority).
+//! A lone version or help flag instead runs the real tool as a child
+//! and then adds the shadow's own line or section (`announce.rs`).
+//! Why:
+//! Every search an agent or a script starts goes through here,
+//! so a broad search yields the disk to the desktop instead of stalling it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,9 +17,12 @@
 //! export function runShim(name: string, args: Buffer[]): number { ... }
 //! ```
 
-/// What:     `use std::env;` imports the module for the process environment (variables, arguments, the working
-///           directory).
-/// Why:      We read PATH, the escape-hatch variable and the working directory.
+/// What:
+/// `use std::env;` imports the module for the process environment
+/// (variables / arguments / the working directory).
+/// Why:
+/// We read PATH,
+/// the escape-hatch variable and the working directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,9 +36,11 @@ use std::ffi::OsString;
 /// Imports the file-system module for the symlink resolution and the stdin check.
 use std::fs;
 
-/// What:     `use std::os::unix::fs::FileTypeExt;` imports a trait that adds `.is_fifo()` and `.is_socket()` to file
-///           types.
-/// Why:      A pipe on stdin is a FIFO; the check needs to tell it from `/dev/null`.
+/// What:
+/// `use std::os::unix::fs::FileTypeExt;` imports a trait that adds `.is_fifo()` and `.is_socket()` to file types.
+/// Why:
+/// A pipe on stdin is a FIFO,
+/// and the check needs to tell it from `/dev/null`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,15 +51,32 @@ use std::os::unix::fs::FileTypeExt;
 /// Imports the owned path type.
 use std::path::PathBuf;
 
+/// Imports the check for a lone version or help flag and the runner that adds the shadow's text after it.
+use crate::announce::{announcement_for, run_announced};
+
+/// Imports the escape-hatch variable name and the exit codes the shim returns.
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, REFUSED_EXIT_CODE};
+
+/// Imports the function that replaces the process with the real tool.
 use crate::launch::replace_process;
+
+/// Imports the record every policy reads and the function that asks the policies for a refusal.
 use crate::policy::{Invocation, refusal_for};
+
+/// Imports the function that lowers the disk priority.
 use crate::priority::lower_disk_priority;
+
+/// Imports the PATH lookup that finds the real tool.
 use crate::real_binary::find_in_path;
 
-/// What:     `fn own_real_path() -> PathBuf` declares a private function returning an owned path.
-/// Why:      The PATH search skips every entry that resolves to this executable, so it needs this executable's final
-///           resolved path. Falls back to an empty path, which matches nothing, if the system cannot say.
+/// What:
+/// `fn own_real_path() -> PathBuf` declares a private function returning an owned path.
+/// Why:
+/// The PATH search skips every entry that resolves to this executable,
+/// so it needs this executable's final resolved path.
+/// Falls back to an empty path,
+/// which matches nothing,
+/// if the system cannot say.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +84,7 @@ use crate::real_binary::find_in_path;
 /// ```
 fn own_real_path() -> PathBuf {
     // What:     `if let Ok(executable) = env::current_exe()` runs the block when the system can name the running
-    //           executable; `Ok(x)` unwraps the success case of a `Result`.
+    // executable; `Ok(x)` unwraps the success case of a `Result`.
     // Why:      On Linux this is already the symlink target, never the `rg` link.
     //
     // In TS you'd write (pseudocode):
@@ -72,8 +101,12 @@ fn own_real_path() -> PathBuf {
     return PathBuf::new();
 }
 
-/// What:     `fn stdin_has_data() -> bool` declares a private function returning true or false.
-/// Why:      With piped input and no path, ripgrep reads the input and walks nothing, so the policy must not refuse.
+/// What:
+/// `fn stdin_has_data() -> bool` declares a private function returning true or false.
+/// Why:
+/// With piped input and no path,
+/// ripgrep reads the input and walks nothing,
+/// so the policy must not refuse.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,7 +114,7 @@ fn own_real_path() -> PathBuf {
 /// ```
 fn stdin_has_data() -> bool {
     // What:     `/proc/self/fd/0` is a Linux path that stands for whatever file descriptor 0 (stdin) is attached to;
-    //           `fs::metadata` follows it to the real object. `if let Ok(metadata)` runs the block on success.
+    // `fs::metadata` follows it to the real object. `if let Ok(metadata)` runs the block on success.
     // Why:      Reading the type avoids touching the stream. A closed stdin simply fails and counts as "no data".
     //
     // In TS you'd write (pseudocode):
@@ -95,11 +128,16 @@ fn stdin_has_data() -> bool {
     return false;
 }
 
-/// What:     `pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32` declares a public function. `Vec<OsString>`
-///           is an owned growable list of operating-system texts; the function takes ownership of it (siblings:
-///           `&[OsString]` would only borrow). It returns `i32`, the exit code.
-/// Why:      On success it never returns (the process is replaced by the real tool); a returned value is always a
-///           refusal or a failure. `Vec` and not a borrow because the arguments are moved into the launch list.
+/// What:
+/// `pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32` declares a public function.
+/// `Vec<OsString>` is an owned growable list of operating-system texts,
+/// and the function takes ownership of it (the sibling `&[OsString]` would only borrow).
+/// It returns `i32`,
+/// the exit code.
+/// Why:
+/// On success it never returns (the process is replaced by the real tool),
+/// so a returned value is always a refusal or a failure.
+/// `Vec` and not a borrow because the arguments are moved into the launch list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +145,7 @@ fn stdin_has_data() -> bool {
 /// ```
 pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     // What:     `env::var("PATH").unwrap_or_default()` reads the PATH variable. `env::var` returns a `Result`;
-    //           `.unwrap_or_default()` takes the success value or, on error, the empty text (the default for `String`).
+    // `.unwrap_or_default()` takes the success value or, on error, the empty text (the default for `String`).
     // Why:      A missing PATH simply means nothing will be found.
     //
     // In TS you'd write (pseudocode):
@@ -125,10 +163,10 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     }
 
     // What:     `Invocation { ... }` builds the record every policy reads. `.to_string()` makes an owned copy of the tool name;
-    //           `env::var("HOME").unwrap_or_default()` reads HOME as text (empty when unset) and `PathBuf::from(...)` turns
-    //           text into an owned path.
+    // `env::var("HOME").unwrap_or_default()` reads HOME as text (empty when unset) and `PathBuf::from(...)` turns
+    // text into an owned path.
     // Why:      One value carries the facts the policies need: the arguments, the escape hatch, the stdin kind, and where
-    //           the tool will run.
+    // the tool will run.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -144,7 +182,7 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     };
 
     // What:     `if let Some(message) = refusal_for(&invocation)` runs the block when a policy returned a refusal message.
-    //           `&invocation` lends the record; `eprintln!` prints a line to standard error (a macro, hence `!`).
+    // `&invocation` lends the record; `eprintln!` prints a line to standard error (a macro, hence `!`).
     // Why:      Tell the caller why the tool did not run, then stop with the refusal exit code.
     //
     // In TS you'd write (pseudocode):
@@ -158,8 +196,8 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
     }
 
     // What:     `find_in_path(...)` returns `Option<PathBuf>`; `&own_path` lends the shadow's own path to skip.
-    //           `.is_none()` asks whether it is the absent case; `.unwrap_or_default()` then takes the path out, and
-    //           substitutes an empty path only in the absent case, which the check above already returned from.
+    // `.is_none()` asks whether it is the absent case; `.unwrap_or_default()` then takes the path out, and
+    // substitutes an empty path only in the absent case, which the check above already returned from.
     // Why:      Report a missing real tool once, clearly, before going on.
     //
     // In TS you'd write (pseudocode):
@@ -179,13 +217,27 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
 
     // What:     `lower_disk_priority();` lowers this process's disk priority and ignores whether the kernel accepted it.
     // Why:      The real tool inherits the priority through the process replacement below. If the kernel refuses (an old
-    //           kernel, a sandbox), the search simply runs at normal priority, which is still correct.
+    // kernel, a sandbox), the search simply runs at normal priority, which is still correct.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // lowerDiskPriority(); // best effort, result ignored
     // ```
     lower_disk_priority();
+
+    // What:     `announcement_for(name, &arguments)` answers with `Some(kind)` only when the whole argument list is one
+    // version or help flag of this tool.
+    // Why:      Such a run starts the real tool as a child and then adds the shadow's own line or section (see
+    // `announce.rs`); every other run falls through to the process replacement below.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const kind = announcementFor(name, args);
+    // if (kind !== undefined) return runAnnounced(name, real, args, kind);
+    // ```
+    if let Some(announcement) = announcement_for(name, &arguments) {
+        return run_announced(name, &real, &arguments, announcement);
+    }
 
     // A returned value here means the launch failed; success replaced the process. `&real` and `&arguments` lend the
     // path and the argument list without giving them away.
