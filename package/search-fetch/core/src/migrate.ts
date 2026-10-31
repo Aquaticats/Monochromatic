@@ -100,9 +100,15 @@ async function runMigration(): Promise<void> {
    an ambient export, as the reader only fills keys absent from the environment.
    */
   const migrationEnv: NodeJS.ProcessEnv = Object.fromEntries(
-    Object.entries(process.env,)
-      .filter(function isNotMigratedKey([key,],) {
+    Object.keys(process.env,)
+      .filter(function isNotMigratedKey(key: string,) {
         return (key !== EXA_API_KEY_ENV) && (key !== LINKUP_API_KEY_ENV);
+      },)
+      .map(function toEnvironmentEntry(key: string,) {
+        return [
+          key,
+          process.env[key],
+        ] as const;
       },),
   );
   /**

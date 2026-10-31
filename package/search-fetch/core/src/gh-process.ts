@@ -47,9 +47,12 @@ const l = tagged({
 const GH_EXECUTABLE = 'gh';
 
 /**
- Default child deadline, matching the deadline this repository already gives GitHub CLI work.
+ Default child deadline in milliseconds, 30 s.
+
+ Chosen so one gh child plus the 30 s DeepSeek request bound leave a real 60 s
+ tail of the 120 s whole-call deadline for the Linkup and Exa fallback hops.
  */
-const GH_DEADLINE_MILLISECONDS = 60_000;
+const GH_DEADLINE_MILLISECONDS = 30_000;
 
 /**
  Default captured output ceiling in mebibytes.
@@ -617,5 +620,6 @@ function isRecord(value: unknown,): value is Record<string, unknown> {
 
 export {
   createGhCommandRunner,
+  GH_DEADLINE_MILLISECONDS,
   runGhCommand,
 };

@@ -23,7 +23,12 @@ import {
 
  @example
  ```ts
- const directory = await mkdtemp(join(await scratchParent(), 'work-',),);
+ const directory = await mkdtemp(
+   join(
+     await scratchParent(),
+     'work-',
+   ),
+ );
  ```
  */
 export async function scratchParent(): Promise<string> {
@@ -37,15 +42,36 @@ export async function scratchParent(): Promise<string> {
     join,
   },);
   /**
+   Cache root from `XDG_CACHE_HOME`, or the standard user cache directory.
+   */
+  const cacheRoot = process.env
+    .XDG_CACHE_HOME
+    ?? join(
+      homedir(),
+      '.cache',
+    );
+  /**
    Directory under which every monochromatic tool keeps its scratch.
    */
   const base = nodeModules === NO_NODE_MODULES_FOUND
-    ? join(process.env['XDG_CACHE_HOME'] ?? join(homedir(), '.cache',), 'monochromatic-dev',)
-    : join(nodeModules, '.monochromatic',);
+    ? join(
+      cacheRoot,
+      'monochromatic-dev',
+    )
+    : join(
+      nodeModules,
+      '.monochromatic',
+    );
   /**
    This tool's own scratch parent.
    */
-  const parent = join(base, 'search-fetch',);
-  await mkdir(parent, { recursive: true, },);
+  const parent = join(
+    base,
+    'search-fetch',
+  );
+  await mkdir(
+    parent,
+    { recursive: true, },
+  );
   return parent;
 }

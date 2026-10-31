@@ -13,6 +13,7 @@ on:
     - 'package/search-fetch/core/**'
     - 'package/search-fetch/mcp/**'
     - 'package/search-fetch/pi-plugin/**'
+    - 'package/search-fetch/cli/**'
     - '.github/workflows/env-local-json.yml'
     - 'task.ts'
     - 'pnpm-lock.yaml'
@@ -27,6 +28,7 @@ on:
     - 'package/search-fetch/core/**'
     - 'package/search-fetch/mcp/**'
     - 'package/search-fetch/pi-plugin/**'
+    - 'package/search-fetch/cli/**'
     - '.github/workflows/env-local-json.yml'
     - 'task.ts'
     - 'pnpm-lock.yaml'
@@ -72,6 +74,8 @@ jobs:
       run: task-run //package/search-fetch/mcp:buildAndTest
     - name: Pi extension verification
       run: task-run //package/search-fetch/pi-plugin:verify:extension
+    - name: CLI build and tests
+      run: task-run //package/search-fetch/cli:buildAndTest
 
   container:
     runs-on: ubuntu-latest

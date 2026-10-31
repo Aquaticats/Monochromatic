@@ -563,6 +563,15 @@ RT4:
  release notes,
  repository metadata.
 
+## Before briefing an agent
+
+BRQ:
+ Briefs and notes carry as requirements only what the user said or decided,
+ quoted with source;
+ derivations and own ideas are revisable suggestions;
+ inferred requirements or policy:
+ ask first.
+
 ## Before running a command
 
 ### Command execution conventions
@@ -719,7 +728,8 @@ NLG:
  busy loops,
  `--stress-count`,
  or repeated full test runs;
- cap the test's own container (`--cpus`, default 2) instead.
+ cap the test's own container (`--cpus`,
+default 2) instead.
 
 NLD:
  Every subagent brief quotes the synthetic-load ban;
@@ -1654,6 +1664,17 @@ OCG:
  sketch token encoding before asserting repeated,
  delimited,
  or variadic forms.
+
+OWK:
+ Designing,
+ briefing,
+ merging:
+ keep a cross-component concern in the owner the user named or approved (none:
+ ask);
+ others never detect,
+ choose,
+ or adapt.
+Leaks can endanger people or break networks.
 
 ## Agent skills
 
