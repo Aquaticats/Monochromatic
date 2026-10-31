@@ -137,10 +137,16 @@ fn a_server_ended_by_sigterm_also_leaves_a_socket_the_next_command_replaces() {
 #[test]
 fn the_harness_guard_stops_a_stray_server_with_sigterm_when_it_is_dropped() {
     let harness = Harness::new();
-    harness.write("file-enforcer.config.jsonc", CONFIG);
-    harness.write("AGENTS.md", "body\n");
+    // The worktree is a directory the harness does not own: a server also exits when its worktree is deleted,
+    // and deleting the harness's own worktree would end the server without the guard ever being needed.
+    let scratch = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target").join("test-scratch");
+    std::fs::create_dir_all(&scratch).expect("the scratch base");
+    let worktree = tempfile::TempDir::new_in(&scratch).expect("a scratch worktree");
+    std::fs::write(worktree.path().join("file-enforcer.config.jsonc"), CONFIG).expect("config");
+    std::fs::write(worktree.path().join("AGENTS.md"), "body\n").expect("input");
+    let config = worktree.path().join("file-enforcer.config.jsonc").display().to_string();
     // A long idle time means only the guard, not the server's own idle exit, can end it within the wait below.
-    let mut command = harness.command(&["check"]);
+    let mut command = harness.command(&["--config", &config, "check"]);
     command.env("FILE_ENFORCER_IDLE_SECONDS", "600");
     let output = command.output().expect("runs");
     assert_eq!(output.status.code(), Some(1));
