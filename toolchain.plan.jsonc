@@ -1,0 +1,714 @@
+// toolchain.plan.jsonc: the toolchain plan. People edit this file; mpm-shadow writes toolchain.lock.json from it.
+// Converted from the retired TypeScript plan (package/file-enforcer/core/src/toolchain/plan.tools.data.ts) by the cutover converter in doc/planning/file-enforcer-rust-cutover.md.
+{
+  "schemaVersion": 1,
+  "tools": {
+    "bin": {
+      "request": "github:marcosnils/bin@0.29.4",
+      "route": "archive",
+      "bins": [
+        "bin"
+      ],
+      "options": {
+        "bootstrap": {
+          "distribution": "standalone-binary"
+        }
+      }
+    },
+    "mpm": {
+      "request": "pipx:meta-package-manager@8.2.0",
+      "route": "mpm-uvx",
+      "bins": [
+        "mpm",
+        "meta-package-manager"
+      ],
+      "options": {
+        "bootstrap": {
+          "requiresTool": "uv",
+          "distribution": "wheel"
+        }
+      }
+    },
+    // Pinned to 1.3.14 because the Rust rewrite's robustness invites serious doubts.
+    "bun": {
+      "request": "github:oven-sh/bun@bun-v1.3.14",
+      "route": "bin-sourced",
+      "bins": [
+        "bun",
+        "bunx"
+      ],
+      "options": {
+        "binAliases": {
+          "bunx": "bun"
+        }
+      }
+    },
+    "pnpm": {
+      "request": "github:pnpm/pnpm@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "pn",
+        "pnpm",
+        "pnpx",
+        "pnx"
+      ],
+      "options": {
+        "binAliases": {
+          "pn": "pnpm",
+          "pnpx": "pnpm",
+          "pnx": "pnpm"
+        }
+      }
+    },
+    // aqua:sharkdp/fd broke in 2026-03-07; cargo-binstall is the fallback route.
+    "cargo:fd-find": {
+      "request": "cargo:fd-find@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "fd"
+      ]
+    },
+    "ripgrep": {
+      "request": "github:BurntSushi/ripgrep@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "rg"
+      ]
+    },
+    "cargo:fastmod": {
+      "request": "cargo:fastmod@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "fastmod"
+      ]
+    },
+    // Pinned to 0.13.2: the --fuzzing-workspace and libfuzzer-sys integration
+    // shifted across point releases; this is the verified rollout version.
+    "cargo:cargo-fuzz": {
+      "request": "cargo:cargo-fuzz@0.13.2",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-fuzz"
+      ]
+    },
+    // `bin/ocr` in the Mise tree is a stray link into a global npm package,
+    // not a Node binary; the exposure links only Node's own binaries.
+    "node": {
+      "request": "node@latest",
+      "route": "archive",
+      "bins": [
+        "node",
+        "npm",
+        "npx"
+      ]
+    },
+    "harper-cli": {
+      "request": "github:Automattic/harper@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "harper-cli"
+      ],
+      "options": {
+        "asset": "harper-cli-*"
+      }
+    },
+    "dprint": {
+      "request": "github:dprint/dprint@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "dprint"
+      ]
+    },
+    "uv": {
+      "request": "github:astral-sh/uv@latest",
+      "route": "archive",
+      "bins": [
+        "uv",
+        "uvx"
+      ]
+    },
+    "hyperfine": {
+      "request": "github:sharkdp/hyperfine@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "hyperfine"
+      ]
+    },
+    "caddy": {
+      "request": "github:caddyserver/caddy@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "caddy"
+      ]
+    },
+    "watchexec": {
+      "request": "github:watchexec/watchexec@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "watchexec"
+      ]
+    },
+    "sops": {
+      "request": "github:getsops/sops@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "sops"
+      ]
+    },
+    "age": {
+      "request": "github:FiloSottile/age@latest",
+      "route": "archive",
+      "bins": [
+        "age",
+        "age-inspect",
+        "age-keygen",
+        "age-plugin-batchpass",
+        "age-plugin-pq",
+        "age-plugin-tag",
+        "age-plugin-tagpq"
+      ]
+    },
+    // Floating nightly channel, resolved to the dated toolchain string; the pin
+    // rides in the MPM rustup package id because that adapter keeps only the id.
+    "rust": {
+      "request": "rust@nightly",
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "packageId": "{version}",
+      "bins": [
+        "cargo",
+        "cargo-clippy",
+        "cargo-fmt",
+        "clippy-driver",
+        "rust-gdb",
+        "rust-gdbgui",
+        "rust-lldb",
+        "rustc",
+        "rustdoc",
+        "rustfmt",
+        "rustup"
+      ],
+      "options": {
+        "rustComponents": [
+          "clippy",
+          "rust-src",
+          "llvm-tools",
+          "rustc-dev"
+        ],
+        "rustTargets": [
+          "aarch64-linux-android",
+          "x86_64-linux-android"
+        ]
+      },
+      "env": {
+        "RUSTUP_TOOLCHAIN": "{version}"
+      }
+    },
+    "cargo-binstall": {
+      "request": "github:cargo-bins/cargo-binstall@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "cargo-binstall"
+      ]
+    },
+    "cargo:timeout-cli": {
+      "request": "cargo:timeout-cli@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "timeout"
+      ]
+    },
+    "cargo:cargo-dylint": {
+      "request": "cargo:cargo-dylint@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-dylint"
+      ]
+    },
+    "cargo:dylint-link": {
+      "request": "cargo:dylint-link@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "dylint-link"
+      ]
+    },
+    "cargo:cargo-nextest": {
+      "request": "cargo:cargo-nextest@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-nextest"
+      ]
+    },
+    "cargo:cargo-about": {
+      "request": "cargo:cargo-about@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-about"
+      ]
+    },
+    "cargo:monochromatic-lint": {
+      "request": "cargo:monochromatic-lint@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "monochromatic-lint"
+      ]
+    },
+    // The postinstall links `cli-git-native` as `git` under `.cache/cli-git-bin`
+    // with a temporary name plus rename (doc/planning/cli-git-native-cutover.md).
+    "cargo:monochromatic-git-policy-cli": {
+      "request": "cargo:monochromatic-git-policy-cli@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "cli-git-native"
+      ],
+      "os": [
+        "linux"
+      ],
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "cli-git-native",
+            "linkName": "git",
+            "linkDir": ".cache/cli-git-bin"
+          }
+        }
+      }
+    },
+    // The postinstall runs `search-shadow link .cache/search-shadow-bin` after the exposure directory
+    // is rebuilt: the crate links itself under the name of every search, find and count tool whose real
+    // binary it finds on PATH (rg, grep, find, fd, du and others; the crate owns the list). That directory
+    // precedes `.cache/toolchain-bin` on PATH, so those tools in the mise environment run behind the
+    // shadow (doc/planning/agent-search-io-throttle.md). Linux only: the crate uses `ioprio_set` and `/proc`.
+    "cargo:monochromatic-search-shadow": {
+      "request": "cargo:monochromatic-search-shadow@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "search-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "run": {
+            "sourceBin": "search-shadow",
+            "args": [
+              "link",
+              ".cache/search-shadow-bin"
+            ]
+          }
+        }
+      }
+    },
+    // The postinstall links `mpm-shadow` as `mpm` under `.cache/mpm-shadow-bin`, the way `cli-git-native` is linked as
+    // `git`. That directory precedes `.cache/toolchain-bin` on PATH, so `mpm` in the mise environment runs the real mpm
+    // as a child and then deletes the superseded cached copies of the repository's own crates from cargo's registry
+    // (doc/decision/mpm-toolchain-adoption.md, section on pruning the repository's own crates). Linux only: the release
+    // archives are Linux builds.
+    "cargo:monochromatic-mpm-shadow": {
+      "request": "cargo:monochromatic-mpm-shadow@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "mpm-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "mpm-shadow",
+            "linkName": "mpm",
+            "linkDir": ".cache/mpm-shadow-bin"
+          }
+        }
+      }
+    },
+    // The repository's file generator and checker (package/file-enforcer/cli). `mise run sync:files`, the
+    // `prepare:pnpm` task and the CI drift gates run this binary; Linux only, like the release archives.
+    "cargo:monochromatic-file-enforcer-cli": {
+      "request": "cargo:monochromatic-file-enforcer-cli@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "file-enforcer"
+      ],
+      "os": [
+        "linux"
+      ]
+    },
+    "cargo:monochromatic-nested-wayland-session": {
+      "request": "cargo:monochromatic-nested-wayland-session@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "monochromatic-nested-wayland-session"
+      ]
+    },
+    "cmake": {
+      "request": "github:Kitware/CMake@latest",
+      "route": "archive",
+      "bins": [
+        "ccmake",
+        "cmake",
+        "cmake-gui",
+        "cpack",
+        "ctest"
+      ]
+    },
+    "cargo:apple-codesign": {
+      "request": "cargo:apple-codesign@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "rcodesign"
+      ]
+    },
+    // Pinned to 0.15.2 to match the terminal Containerfile's ZIG_VERSION
+    // (doc/decision/desktop-app-podman-build.md); bump both together.
+    "zig": {
+      "request": "zig@0.15.2",
+      "route": "archive",
+      "bins": [
+        "zig"
+      ]
+    },
+    "cargo:slint-lsp": {
+      "request": "cargo:slint-lsp@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "slint-lsp"
+      ]
+    },
+    "cargo:slint-viewer": {
+      "request": "cargo:slint-viewer@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "slint-viewer"
+      ]
+    },
+    // conda-forge artifact fetched directly: no MPM conda restore here, because
+    // the per-tool OS filter is unexpressible and conda itself is not provisioned.
+    "conda:bubblewrap": {
+      "request": "conda:bubblewrap@latest",
+      "route": "archive",
+      "bins": [
+        "bwrap"
+      ],
+      "os": [
+        "linux"
+      ]
+    },
+    "taplo": {
+      "request": "github:tamasfe/taplo@latest",
+      "route": "archive",
+      "bins": [
+        "taplo",
+        "taplo-linux-x86_64"
+      ],
+      "options": {
+        "binAliases": {
+          "taplo-linux-x86_64": "taplo"
+        }
+      }
+    },
+    "tombi": {
+      "request": "github:tombi-toml/tombi@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "tombi"
+      ],
+      "options": {
+        "asset": "tombi-cli-*"
+      }
+    },
+    "marksman": {
+      "request": "github:artempyanykh/marksman@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "marksman"
+      ]
+    },
+    "rumdl": {
+      "request": "github:rvben/rumdl@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "rumdl"
+      ]
+    },
+    "github:Feel-ix-343/markdown-oxide": {
+      "request": "github:Feel-ix-343/markdown-oxide@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "markdown-oxide"
+      ]
+    },
+    "zizmor": {
+      "request": "github:zizmorcore/zizmor@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "zizmor"
+      ]
+    },
+    "npm:yaml-language-server": {
+      "request": "npm:yaml-language-server@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "yaml-language-server"
+      ]
+    },
+    "npm:@actions/languageserver": {
+      "request": "npm:@actions/languageserver@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "actions-languageserver"
+      ]
+    },
+    "npm:@ansible/ansible-language-server": {
+      "request": "npm:@ansible/ansible-language-server@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "ansible-language-server"
+      ]
+    },
+    "npm:vscode-langservers-extracted": {
+      "request": "npm:vscode-langservers-extracted@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "vscode-css-language-server",
+        "vscode-eslint-language-server",
+        "vscode-html-language-server",
+        "vscode-json-language-server",
+        "vscode-markdown-language-server"
+      ]
+    },
+    "superhtml": {
+      "request": "github:kristoff-it/superhtml@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "superhtml"
+      ]
+    },
+    "npm:bash-language-server": {
+      "request": "npm:bash-language-server@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "bash-language-server"
+      ]
+    },
+    "npm:dockerfile-language-server-nodejs": {
+      "request": "npm:dockerfile-language-server-nodejs@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "docker-langserver"
+      ]
+    },
+    "npm:@microsoft/compose-language-service": {
+      "request": "npm:@microsoft/compose-language-service@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "docker-compose-langserver"
+      ]
+    },
+    "github:docker/docker-language-server": {
+      "request": "github:docker/docker-language-server@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "docker-language-server"
+      ]
+    },
+    // Pinned to b9829: llama.cpp tags before the Linux build finishes uploading,
+    // so a floating install can miss the ubuntu-x64 asset entirely.
+    "llama.cpp": {
+      "request": "github:ggml-org/llama.cpp@b9829",
+      "route": "archive",
+      "bins": [
+        "ggml-rpc-server",
+        "llama",
+        "llama-batched-bench",
+        "llama-bench",
+        "llama-cli",
+        "llama-completion",
+        "llama-debug-template-parser",
+        "llama-fit-params",
+        "llama-gemma3-cli",
+        "llama-gguf-split",
+        "llama-imatrix",
+        "llama-llava-cli",
+        "llama-minicpmv-cli",
+        "llama-mtmd-cli",
+        "llama-mtmd-debug",
+        "llama-perplexity",
+        "llama-quantize",
+        "llama-qwen2vl-cli",
+        "llama-results",
+        "llama-server",
+        "llama-template-analysis",
+        "llama-tokenize",
+        "llama-tts"
+      ]
+    },
+    "opentofu": {
+      "request": "github:opentofu/opentofu@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "tofu"
+      ]
+    },
+    "hcloud": {
+      "request": "github:hetznercloud/cli@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "hcloud"
+      ]
+    },
+    "npm:typescript-language-server": {
+      "request": "npm:typescript-language-server@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "typescript-language-server"
+      ]
+    },
+    "cargo:coreutils": {
+      "request": "cargo:coreutils@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "coreutils"
+      ],
+      "options": {
+        "cargoFeatures": [
+          "unix"
+        ]
+      }
+    },
+    "npm:socket": {
+      "request": "npm:socket@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "socket",
+        "socket-npm",
+        "socket-npx",
+        "socket-pnpm",
+        "socket-yarn"
+      ]
+    },
+    "npm:wrangler": {
+      "request": "npm:wrangler@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "cf-wrangler",
+        "wrangler",
+        "wrangler2"
+      ]
+    },
+    "npm:pagefind": {
+      "request": "npm:pagefind@latest",
+      "route": "mpm-pnpm",
+      "bins": [
+        "pagefind"
+      ]
+    },
+    "betterleaks": {
+      "request": "github:betterleaks/betterleaks@latest",
+      "route": "bin-sourced",
+      "bins": [
+        "betterleaks"
+      ]
+    },
+    // Temurin 21: AGP 9 / Gradle 9 need a JDK in the 17 to 21 range.
+    "java": {
+      "request": "java:temurin@21",
+      "route": "archive",
+      "bins": [
+        "jar",
+        "jarsigner",
+        "java",
+        "javac",
+        "javadoc",
+        "javap",
+        "jcmd",
+        "jconsole",
+        "jdb",
+        "jdeprscan",
+        "jdeps",
+        "jfr",
+        "jhsdb",
+        "jimage",
+        "jinfo",
+        "jlink",
+        "jmap",
+        "jmod",
+        "jpackage",
+        "jps",
+        "jrunscript",
+        "jshell",
+        "jstack",
+        "jstat",
+        "jstatd",
+        "jwebserver",
+        "keytool",
+        "rmiregistry",
+        "serialver"
+      ],
+      "env": {
+        "JAVA_HOME": "java/{version}"
+      }
+    },
+    // cmdline-tools from the locked archive; the SDK components below are the
+    // values `prepare:android` installed (compileSdk 37, NDK 29).
+    "android-sdk": {
+      "request": "android-sdk@latest",
+      "route": "android-sdk",
+      "bins": [
+        "android",
+        "apkanalyzer",
+        "avdmanager",
+        "d8",
+        "lint",
+        "profgen",
+        "r8",
+        "resourceshrinker",
+        "retrace",
+        "screenshot2",
+        "adb",
+        "etc1tool",
+        "fastboot",
+        "hprof-conv",
+        "make_f2fs",
+        "make_f2fs_casefold",
+        "mke2fs"
+      ],
+      "options": {
+        "androidPackages": [
+          "platforms/android-37.0",
+          "build-tools/37.0.0",
+          "ndk/29.0.13846066",
+          "platform-tools"
+        ]
+      },
+      "env": {
+        "ANDROID_HOME": "android-sdk/{version}",
+        "ANDROID_SDK_ROOT": "android-sdk/{version}"
+      }
+    },
+    "cargo:cargo-ndk": {
+      "request": "cargo:cargo-ndk@latest",
+      "route": "cargo-binstall",
+      "bins": [
+        "cargo-ndk",
+        "cargo-ndk-env",
+        "cargo-ndk-runner",
+        "cargo-ndk-test"
+      ]
+    },
+    // Installed through `uv tool install slopo==<locked>`: the uvx adapter (and
+    // this provider) honor `==` pins, unlike the pipx adapter.
+    "pipx:slopo": {
+      "request": "pipx:slopo@latest",
+      "route": "mpm-uvx",
+      "bins": [
+        "slopo"
+      ]
+    }
+  }
+}
