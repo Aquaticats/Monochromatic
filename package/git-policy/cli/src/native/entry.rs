@@ -47,7 +47,7 @@ use super::real_git::{ResolutionInputs, process_resolution_inputs, resolve_real_
 use super::real_git_candidate::same_file;
 use super::repository_facts::{GitFacts, RepositoryFacts, git_facts};
 use super::rule_require_root::{RequireRootDecision, decide_require_root};
-/// The variable that names the forbidden-strings rules file.
+/// The variable that names the forbidden-strings rules list.
 use super::scanner_selection::RULES_VARIABLE;
 use super::wrapped_command::{WrappedOutcome, run_wrapped_command};
 use super::wrapper_controls::{Controls, no_controls, strip_global_controls};
@@ -466,7 +466,7 @@ fn forward_action(
         },
     };
     let creates_or_moves: bool = creates_or_moves_worktrees(&command);
-    // Only a main checkout hands over the configured rules file; `copy_applies` limits it to a creating command.
+    // Only a main checkout hands over the configured rules files; `copy_applies` limits it to a creating command.
     let main_checkout_paths: Vec<String> = match (&location.identity, &loaded) {
         // Every configured file, required or optional: the copier skips a file Git does not ignore or that is absent.
         (WorktreeIdentity::MainWorktree { .. }, Some(found)) => found

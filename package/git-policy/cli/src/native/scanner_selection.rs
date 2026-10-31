@@ -1,5 +1,5 @@
 //! What:
-//!  Which rules file the scanner loads,
+//!  Which rules files the scanner loads,
 //!  and which candidates it is given.
 //! Why:
 //!  The scanner library filters nothing;
@@ -8,16 +8,16 @@
 //!  They are restated here once,
 //!  as pure
 //!      functions:
-//!  the rules-file precedence (`FORBIDDEN_STRINGS_RULES`,
-//!  else
+//!  the rules-file precedence (the configured `rulesFile` entries, then the
+//!      `FORBIDDEN_STRINGS_RULES` list, else
 //!      `forbidden-strings.local.txt` in the repository root) and the paths that hold
 //!      the rules themselves,
 //!  which would otherwise match their own content.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const rules = rulesSource(process.env.FORBIDDEN_STRINGS_RULES, repositoryRoot);
-//! // const eligible = candidates.filter(candidate => isScannable(candidate, rulesCandidatePath(rules.path, repositoryRoot)));
+//! // const rules = rulesSource(config.rulesFile, process.env.FORBIDDEN_STRINGS_RULES, repositoryRoot);
+//! // const eligible = candidates.filter(candidate => isScannable(candidate, rulesCandidatePaths(rules, repositoryRoot)));
 //! ```
 
 /// Import the candidate being judged and its change kinds.
@@ -49,7 +49,7 @@ use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
 /// What:
-///  The environment variable naming the runtime rules file.
+///  The environment variable naming the runtime rules list.
 ///       `&str` is a borrowed string compiled into the program.
 /// Why:
 ///   It is the standalone scanner's own variable,
