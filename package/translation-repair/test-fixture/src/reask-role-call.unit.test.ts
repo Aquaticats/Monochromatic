@@ -56,10 +56,12 @@ await describe({
     },),
 
     it({
-      name: 'REPORTS NONE FOR A CALL THAT NAMES NO ROLE, and skips an example written on one line and a declaration',
+      name: 'REPORTS NONE FOR A CALL THAT NAMES NO ROLE, and skips an example written in a comment and a declaration',
       fn: async () => {
         const source = [
+          '/**',
           ' const gather = await gatherStageVoices({ ..., role: \'checker\', },);',
+          ' */',
           'export async function gatherStageVoices({',
           '  role,',
           '},) {}',
@@ -68,6 +70,90 @@ await describe({
           '},);',
         ].join('\n',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['none',],);
+      },
+    },),
+
+    it({
+      name: 'SEES A SPREAD AFTER THE ROLE, which can replace it, and a role that comes after a spread as the role named',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices({',
+          '  role: \'wide-judge\',',
+          '  ...base,',
+          '},);',
+          'await gatherStageVoices({',
+          '  ...base,',
+          '  role: \'wide-judge\',',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual([
+          'wide-judge then a spread',
+          'wide-judge',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'SEES A DUPLICATE ROLE KEY, naming both values, since the later one wins',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices({',
+          '  role: \'wide-judge\',',
+          '  role: \'roster\',',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual([
+          'duplicate role: wide-judge, roster',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'READS CALLS WITHOUT AWAIT: a returned call, a call kept in a variable and a call on one line',
+      fn: async () => {
+        const source = [
+          'function a() {',
+          '  return gatherStageVoices({',
+          '    role: \'checker\',',
+          '  },);',
+          '}',
+          'const pending = gatherStageVoices({',
+          '  role: \'roster\',',
+          '},);',
+          'const quick = await gatherStageVoices({ client, role: \'writer\', },);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual([
+          'checker',
+          'roster',
+          'writer',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'REPORTS A CALL WHOSE ARGUMENT IS NOT AN OBJECT LITERAL, which can carry any role',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices(args,);',
+          'const other = gatherStageVoices(build({ role: \'checker\', },),);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual([
+          'not an object literal',
+          'not an object literal',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'READS ANOTHER KEY THAN role, as a stage that takes the role of its judges by judgeRole shows it',
+      fn: async () => {
+        const source = [
+          'await runRefineStage({',
+          '  role: \'refiner\',',
+          '  judgeRole: \'wide-judge\',',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['wide-judge',],);
       },
     },),
   ],
