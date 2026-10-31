@@ -8,8 +8,23 @@ export {
   responseFormatSpreadOf,
 } from './chat-json-outcome.ts';
 export { chatJsonThrough, } from './chat-json-through.ts';
-export { reaskElsewhereNudged, } from './nudged-reask.ts';
-export { alternateModelsFor, } from './reask-alternate-models.ts';
+export type { ReaskSeat, } from './chat-contract.ts';
+export {
+  isReasoningRunaway,
+  reaskElsewhereNudged,
+} from './nudged-reask.ts';
+export {
+  type AlternateModels,
+  alternateModelsFor,
+  describeLeftOut,
+  type LeftOutModel,
+} from './reask-alternate-models.ts';
+export {
+  MIN_CALLS_TO_MEASURE,
+  RUNAWAY_READINGS,
+  type RunawayReading,
+  runawayShareOf,
+} from './reask-runaway-readings.ts';
 export {
   type EnumCaseFold,
   type EnumCaseFolded,

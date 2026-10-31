@@ -9,6 +9,7 @@ import type { Decider, } from './decision-contract.ts';
 import type {
   ProviderName,
   RosterModelId,
+  SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type { QuotaSnapshot, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 
@@ -253,6 +254,34 @@ export type ChatTextRequest = {
    No client puts it on the wire.
    */
   readonly reuseScope?: string;
+
+  /**
+   The seat this exchange answers for, set by a caller that knows it, so the re-ask of a reasoning runaway asks a model
+   that the seat's role may take and that is not on the bench of the question (ledger B1074, B1076).
+   Absent for a caller that names none, which is the roster-wide role with an empty bench.
+   Not part of the prompt identity, and no client puts it on the wire.
+   */
+  readonly reaskSeat?: ReaskSeat;
+};
+
+/**
+ What a re-ask needs to know of the seat that ran away, beyond the question itself.
+
+ @example
+ ```ts
+ const seat: ReaskSeat = { role: 'wide-judge', bench: ['minimax-m3', 'gemma-4-26b-a4b-it',], };
+ ```
+ */
+export type ReaskSeat = {
+  /**
+   Role of the seat, which decides the holds of a card that keep a model from taking the re-ask.
+   */
+  readonly role: SeatRole;
+
+  /**
+   Every model seated on the question, whose answer recorded as the runaway's would count one model twice.
+   */
+  readonly bench: readonly RosterModelId[];
 };
 
 /**
@@ -364,6 +393,13 @@ export type ChatJsonReaskFailure = {
    the re-ask went to another model than the one that ran away (ledger B1072).
    */
   readonly cause: string;
+
+  /**
+   Model the re-ask was addressed to, set only where it was another model than the one that ran away (ledger B1072),
+   so a later re-ask for the same seat can leave that model out and ask the next, and not replay this one's claimed
+   reply as another voice.
+   */
+  readonly askedModelId?: RosterModelId;
 };
 
 /**

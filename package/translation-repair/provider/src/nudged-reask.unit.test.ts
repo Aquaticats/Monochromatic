@@ -19,6 +19,7 @@ import {
 
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   alternateModelsFor,
   type ChatJsonOutcome,
@@ -122,7 +123,7 @@ const NUDGE_CONTENT = 'Your previous reply could not be used: it was not the JSO
  const tried = triedForDeepseek();
  ```
  */
-function triedForDeepseek(): readonly string[] {
+function triedForDeepseek(): readonly RosterModelId[] {
   return alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).alternates;
 }
 

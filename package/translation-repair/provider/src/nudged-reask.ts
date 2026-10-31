@@ -18,7 +18,10 @@ import {
   readJsonOutcome,
   responseFormatSpreadOf,
 } from './chat-json-outcome.ts';
-import { alternateModelsFor, } from './reask-alternate-models.ts';
+import {
+  alternateModelsFor,
+  describeLeftOut,
+} from './reask-alternate-models.ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
   contextRoot,
@@ -35,20 +38,36 @@ import {
 // `chatText` and reads it itself, so the router's `chatJson` was never called.
 //
 // A REASONING RUNAWAY IS THE EXCEPTION (ledger B1072, the lead's decision of
-// 2026-10-29, open to the owner's veto). A reply that ended in a length stop
-// with no content spent its whole completion cap thinking, which is the model
-// and not the stack: 6 of the 7 direct DeepSeek calls that ran to the cap in
-// the runs of 2026-10-22 to 2026-10-24 were the re-ask of a NeuralWatt runaway
-// of the same model, and each ran away again. Such a reply is asked again of
-// ANOTHER MODEL (`reask-alternate-models.ts`), each in turn until one has a
-// provider with budget. Where none has, the model that ran away is the only
-// one left to ask, and the re-ask is what it was before, on another provider,
-// said on a warning. Every other reason a reply could not be used, a schema
-// mismatch that holds content, a cut answer, a refusal, is re-asked as before.
+// 2026-10-29, confirmed by the owner on 2026-10-30, "Everywhere (Recommended)").
+// A reply that ended in a length stop with no content spent its whole
+// completion cap thinking, which is the model and not the stack: 6 of the 7
+// direct DeepSeek calls that ran to the cap in the runs of 2026-10-22 to
+// 2026-10-24 were the re-ask of a NeuralWatt runaway of the same model, and each
+// ran away again. Such a reply is asked again of ANOTHER MODEL
+// (`reask-alternate-models.ts`: by the lowest share of runaways, without a model
+// its role is held out of and without a model on the bench), each in turn until
+// one has a provider with budget. Where none has, the model that ran away is the
+// only one left to ask, and the re-ask is what it was before, nudged, on another
+// provider, said on a warning. Every other reason a reply could not be used, a
+// schema mismatch that holds content, a cut answer, a refusal, is re-asked as
+// before.
 //
-// NUDGED, SO THE RE-ASK IS A NEW PROMPT. The uniqueness wrapper samples one
-// model and prompt once; the same bytes asked again would be the same sample
-// by that rule, and would come back from its cache in no time.
+// A DIFFERENT MODEL GETS THE PLAIN QUESTION ("Plain question (Recommended)",
+// 2026-10-30). The nudge says "Your previous reply could not be used", which the
+// other model never wrote, and a new model name already makes a new prompt for
+// the uniqueness wrapper. WHAT THAT DOES TO THE DIGESTS the payload store keys
+// on: the ask of model X is now `modelPromptDigest` of X and the original
+// messages, which is the digest of X's own first ask of that question. A stored
+// or claimed payload of that ask is replayed and X is not sampled again, so a
+// model asked the same question for two seats of one gather answers both with
+// one payload (`askedAlready`, and the bench, keep the stage from choosing it
+// twice for one seat). The nudged digest of the same-model fall back is
+// unchanged.
+//
+// NUDGED, ON THE FALL BACK TO THE SAME MODEL, SO THAT RE-ASK IS A NEW PROMPT.
+// The uniqueness wrapper samples one model and prompt once; the same bytes asked
+// again would be the same sample by that rule, and would come back from its
+// cache in no time.
 //
 // A WORDING OF ITS OWN, not either of the stage recovery round's
 // (`recovery-nudge.ts`). That round later re-asks every seat still unreadable
@@ -131,7 +150,7 @@ type ReaskAnswer = {
  const ranAway = isReasoningRunaway({ outcome, },);
  ```
  */
-function isReasoningRunaway<ValueT,>(
+export function isReasoningRunaway<ValueT,>(
   { outcome, }: { readonly outcome: ChatJsonOutcome<ValueT>; },
 ): boolean {
   return (outcome.kind === 'schema-mismatch')
@@ -204,15 +223,16 @@ export async function reaskElsewhereNudged<ValueT,>(
   const avoid: ProviderName = servedBy;
 
   /**
-   The conversation every re-ask carries: the question, then the nudge.
+   The conversation the same model's re-ask carries: the question, then the nudge.
    */
-  const messages = [
+  const nudgedMessages = [
     ...request.messages,
     CROSS_PROVIDER_NUDGE,
   ];
 
   /**
-   Asks the roster's other models in turn, the next only when the one before had no provider with budget.
+   Asks the roster's other models in turn, with the question as it stood, the next only when the one before had no
+   provider with budget.
 
    @returns Model that took it and its reply, or the sentinel where no other model could
 
@@ -228,13 +248,27 @@ export async function reaskElsewhereNudged<ValueT,>(
     },);
 
     /**
-     Models to try, in roster order.
+     Models to try in the order of their share of runaways, and the ones left out of the seat's role or bench.
      */
-    const others = alternateModelsFor({ modelId: request.modelId, },);
-    for (const modelId of others) {
+    const {
+      alternates,
+      leftOut,
+    } = alternateModelsFor({
+      modelId: request.modelId,
+      // Conditional spread keeps the seat's role and bench absent for a caller that names none.
+      ...((request.reaskSeat === undefined)
+        ? {}
+        : {
+          role: request.reaskSeat
+            .role,
+          bench: request.reaskSeat
+            .bench,
+        }),
+    },);
+    for (const modelId of alternates) {
       ol.info(
         `${request.modelId}: reasoning runaway on ${avoid} (a length stop with no content); `
-          + `re-asking ${modelId} instead, nudged`,
+          + `re-asking ${modelId} instead, plain question; left out: ${describeLeftOut({ leftOut, },)}`,
       );
       try {
         return {
@@ -243,7 +277,6 @@ export async function reaskElsewhereNudged<ValueT,>(
           reply: await ask({
             ...request,
             modelId,
-            messages,
           },),
         };
       }
@@ -254,7 +287,7 @@ export async function reaskElsewhereNudged<ValueT,>(
       }
     }
     ol.warn(
-      `${request.modelId}: no other model could take the re-ask of a reasoning runaway (${String(others.length,)} tried); `
+      `${request.modelId}: no other model could take the re-ask of a reasoning runaway (${String(alternates.length,)} tried); `
         + `re-asking ${request.modelId} on another provider, as before`,
     );
     return NO_OTHER_MODEL_TOOK_IT;
@@ -272,7 +305,7 @@ export async function reaskElsewhereNudged<ValueT,>(
       modelId: request.modelId,
       reply: await ask({
         ...request,
-        messages,
+        messages: nudgedMessages,
         otherThan: avoid,
       },),
     };
@@ -334,6 +367,8 @@ export async function reaskElsewhereNudged<ValueT,>(
         kind: second.kind,
         rawText: second.rawText,
         cause: (answered.modelId === request.modelId) ? whatFailed : `${whatFailed}; asked of ${answered.modelId}`,
+        // Conditional spread keeps the model absent where the re-ask went to the one that ran away.
+        ...((answered.modelId === request.modelId) ? {} : { askedModelId: answered.modelId, }),
       },
     };
   }
