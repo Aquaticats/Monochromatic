@@ -534,12 +534,20 @@ so 0.1.2 must be on crates.io before any of them publishes a new version.
    Expected outcome:
    `je-publish-crate` authenticates through Trusted Publishing and uploads 0.1.2,
    and `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit` lists `0.1.2`.
-   A dispatch from a branch works because the workflow file exists on the default branch;
-   Trusted Publishing matches the repository and workflow file name,
-   not the branch.
-   Merging the bump to `main` instead also publishes it,
-   but merge last (step 7),
-   so a merge that carries all five new crates before their publishers exist fails at authentication.
+   A dispatch from a branch is possible because the workflow file exists on the default branch.
+   A trusted publisher configuration has no branch field:
+   its fields are repository owner, repository name, workflow file name and environment
+   (RFC 3691, <https://raw.githubusercontent.com/rust-lang/rfcs/master/text/3691-trusted-publishing-cratesio.md>,
+   read 2026-10-31).
+   No run in this repository has authenticated from a branch other than `main`,
+   so confirm it here:
+   if the `Authenticate with crates.io (Trusted Publishing)` step fails, merge the bump to `main` instead,
+   which also publishes it.
+   The merge carries all five new crates, so do it in step 8 only after their publishers exist,
+   or accept one red `cargo-publish` run where the five new jobs fail at authentication and upload nothing.
+   Dispatch only after the review of `monochromatic-jsonc-edit` is final:
+   0.1.2 can never be republished,
+   so a later change to its source needs 0.1.3 and new pins.
 2. Create one token at <https://crates.io/settings/tokens> named `monochromatic-file-enforcer-bootstrap`,
    with the shortest expiry and the scopes `publish-new`,
    `publish-update` and `trusted-publishing`
