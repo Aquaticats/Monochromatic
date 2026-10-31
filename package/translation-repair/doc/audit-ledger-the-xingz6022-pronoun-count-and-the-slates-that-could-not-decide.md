@@ -281,6 +281,14 @@ After B1050 the purchase skipped the writers and the slate at one kind of slice:
 an eligible unendorsed standing on a short bench where the swap fires.
 Every other eligible unendorsed standing with lane texts on the offer was still bought,
 whatever the bench.
+The heading of this entry once ended "nothing overrules" to say which standings these were:
+the ones no swap overrules,
+because the detector does not flag the standing,
+flags the two-ballot translate text as well,
+or the translate lane holds no such text.
+Round w394 cut those words;
+they do not fit back,
+since the full heading is 122 columns and the limit is 120.
 Skipping the writers and the slate for all of them changes what is bought,
 and it changes an outcome in one case.
 Where a writer answered,
@@ -435,10 +443,14 @@ none moved.
   threshold or settlement rule of those stages changed,
   and the change only withholds a purchase.
 
-## B1130: two exits before the B1053 skip ask a slate: 5 slices bought one, none since generation 15
+## B1130: two exits before the B1053 skip ask a slate: at least 5 slices bought one, none since generation 15
 
 Status:
-recorded on 2026-10-31 (UTC) in round w385 and rewritten in round w394 the same day,
+recorded on 2026-10-31 (UTC) in round w385,
+rewritten in round w394 the same day,
+and amended in round w395 the same day (a route to the empty-standing exit that generation 15 does not close,
+stated under "The limit";
+the count of 5 given as a lower bound),
 measured keyless with no model call,
 no code changed.
 The first record counted the exits over the deterministic carve and found nothing.
@@ -495,8 +507,12 @@ The script is `~/temp/agent/tr-fan/w394-evidence/xing-carve.ts`.
 Measured on the stage's own recorded inputs:
 every `artifacts/*.json` under a run folder of `~/temp/agent` (292 artifacts,
 7,159 comparison rows;
-no folder was unreadable,
-and three `issue-authority-cache-*` files are fixtures with no comparison rows).
+three `issue-authority-cache-*` files are fixtures with no comparison rows,
+and four paths under `~/temp/agent` could not be entered (permission refused):
+three `pgvector-*` folders and `s2/ns/ov/work/work`.
+Their names are not those of a corpus-pass run,
+but that is read from the names and not from inside them,
+so an artifact held there would not be in these counts).
 The slice key is `sliceIndex`,
 or `chunkIndex` in the artifacts of schema 2 and 3;
 the re-check keyed on `sliceIndex` alone,
@@ -537,6 +553,23 @@ ballot reason or model text was printed.
   A short bench records fewer than 2 usable ballots,
   so none of the 5 was a short bench and the B1053 skip would not have applied to any of them.
   The script is `~/temp/agent/tr-fan/w394-evidence/five-slates-and-reasons.ts`.
+- The 5 is a lower bound:
+  it counts stored artifacts only.
+  `consolidate-slice-buy.ts:252-255` at `30f6056f76` names a slice outside it:
+  `XingZ623` slice 89 (2026-09-22),
+  the instance behind the comment that a lane text the rule admits still reaches the slate judges.
+  The `artifacts` folder of `~/temp/agent/XingZ623` is empty,
+  so the slice is in none of these counts,
+  and whether it bought a slate there was not read from the run's ledger.
+  126 run folders under `~/temp/agent` hold a `ledger` folder and no stored artifact
+  (`~/temp/agent/tr-fan/w394-evidence/recheck/recount.ts`,
+  last lines),
+  17 of them runs of `XingZ6*`,
+  `XingZ623` among them;
+  what their slices did is unmeasured.
+  The same holds for the 18 and the 5,867:
+  they are the stored artifacts' slices,
+  not every slice ever settled.
 - The other 13 settled with the terminal `no-standing-text` and a gate not asked:
   all in `xiept2-anchorfix-2026-08-24/XIEPT2.json`,
   schema 2,
@@ -544,7 +577,9 @@ ballot reason or model text was printed.
   a decline on an archive with no wording and no lane text offered.
   No slate was bought.
 
-Why no record of generation 15 or later reaches the empty-standing exit:
+Why no record of generation 15 or later reaches the empty-standing exit
+(for a slice that is not syntax-bearing;
+the route that argument misses is stated in "A route the argument misses"):
 - A slice has no archive wording exactly when `isInsertionChunk(slice.target)`
   (`artifact-two-lane-verify.ts:184`,
   `lane-slice-text.ts:457`),
@@ -583,7 +618,7 @@ The other 14 hold 24 such slices,
 every one with archive wording present and a declined contest.
 Their standing was empty by the rule of the day:
 `standingTextFor` returned the empty string for any declined contest until `94c2a92ded`
-(committed 2026-08-28 at 00:58:12 -04:00,
+(committed 2026-08-28 at 00:58:12 EDT,
 04:58:12 UTC),
 which made the archive wording the standing of a decline.
 All 15 artifacts are dated 2026-08-22 to 2026-08-27 (schema 2 to 4),
@@ -592,7 +627,40 @@ so the standing rebuilt for them in this entry is the standing of today's rule,
 which is not empty.
 A decline on archive wording that is present is no route to the exit since `94c2a92ded`;
 a decline on an absent archive was the other route,
-and generation 15 closed it.
+and generation 15 closed it for every slice that is not syntax-bearing.
+
+A route the argument misses:
+the closing argument for generation 15 assumes `soleLaneOf` answers for every slice with one applicable lane,
+and it does not.
+- `corpus-pass/src/lane-contest-driver.ts:277-285` at `30f6056f76` keeps a one-lane slice on the roster when it is
+  syntax-bearing (its index is in `frontMatterSlices`),
+  so the verdict is not `sole-lane` and the roster is asked.
+- `slice-reading/src/front-matter-slice.ts:99-109` at `30f6056f76` builds the slice of a metadata block with
+  `syntax: 'front-matter'`,
+  and,
+  when the original has front matter and the archive has none,
+  gives it an insertion target (`makeInsertionChunk`),
+  the shape of a slice with no archive wording.
+- A roster that declines such a slice leaves the archive wording,
+  which is empty,
+  as the standing.
+  The slice then reaches the empty-standing exit with no skip,
+  and its lane texts,
+  if any are on the offer,
+  go to the slate judges whatever the bench.
+  This is read from the two files and was not run on an input.
+- The route needs an original that opens with a front matter fence and an archive page that does not.
+  Counted keyless on the recorded inputs,
+  with the fence read as `^(BOM)?---` followed by a line break at the start of the original
+  (`~/temp/agent/tr-fan/w394-evidence/recheck/front-matter-absent.ts`,
+  re-run in round w395 with the same counts):
+  0 of 7,159 comparison rows are absent-archive rows with a fence-opening original,
+  and 0 of 92 pinned corpus entries have a fenced original and an unfenced archive.
+- Controls (`front-matter-control.ts` in the same folder):
+  48 recorded rows have a fence-opening original and 23 of them were settled,
+  so the fence test finds fences where they are;
+  92 of 92 pinned entries are fenced in both pages,
+  so the corpus holds no entry the route needs.
 
 Blind-floor reading,
 which stands:
@@ -648,26 +716,44 @@ and the front-matter syntax for a metadata slice) over the deterministic carve.
   the finding `consolidate-unfloored` appears in none
   (no hit anywhere,
   so no stored artifact is a positive control for it and the counts of this entry stand as the measure).
-  The search could not enter three unrelated `pgvector-*` folders (permission refused).
+  The search could not enter four paths (permission refused):
+  three `pgvector-*` folders and `s2/ns/ov/work/work`.
+  The counting scripts read `<run>/artifacts` of each folder directly under `~/temp/agent` and skip one where
+  `existsSync` answers false,
+  so they passed over the three `pgvector-*` folders without a message;
+  `s2/ns/ov/work/work` lies deeper than they read.
 
 The limit:
 the blind-floor exit is reached by no recorded slice (0 of 5,867).
 The empty-standing exit was reached by 18 recorded slices and bought slate judges at 5,
 all at schema 14 or before,
 and none on a short bench.
-Since generation 15 a slice with no archive wording reaches the consolidation only as a `sole-lane` slice standing on a
-non-empty translate text,
-so no input the stage builds reaches the exit,
-and a skip added there could be exercised by no such input.
+Since generation 15 a slice with no archive wording that is not syntax-bearing reaches the consolidation only as a
+`sole-lane` slice standing on a non-empty translate text.
+A syntax-bearing slice is the exception (see "A route the argument misses"):
+the code lets an original with front matter and an archive with none be contested on the roster,
+and a decline there leaves an empty standing at the exit with no skip.
+No recorded input is on that route (0 of 7,159 rows;
+0 of 92 pinned entries),
+and the sentence of round w394 that no input the stage builds reaches the exit is withdrawn:
+the stage can build one,
+and none has been recorded.
+A skip added there could be exercised by no recorded input,
+only by a constructed one.
 No skip is added,
-and the reason is those two counts (5 benches of 4 usable ballots;
-0 inputs since generation 15),
+and the reason is those counts (5 benches of 4 usable ballots,
+a lower bound;
+0 recorded inputs since generation 15),
 not a silence of the owner's answers:
 nothing in them settles that exit.
-If a change lets a slice with no archive wording be contested without a sole lane,
-or lets a contest back a lane whose text is empty,
-the exit is reached again on a bench that may be short,
-and the fix is the B1053 skip at that exit:
+The condition that reaches the exit again on a bench that may be short
+is a slice with no archive wording contested on the roster and declined,
+or a contest backing a lane whose text is empty.
+The front matter route meets the first of them already,
+so the reading is that the exit is open for an input that does not occur in the corpus pinned today,
+and the fix,
+when one occurs,
+is the B1053 skip at that exit:
 a settlement given no lane texts when fewer slate judges are reachable than a winner needs,
 red test first.
 
@@ -688,6 +774,7 @@ the changes of `bf9471f212` read a value once and throw on a shape no stage buil
 and the added cases are tests.
 Round w394 moved none either (B1131 changes the class of an error,
 not a record).
+Round w395 moved none either (it adds a unit test and rewords TSDoc and this ledger).
 `CONSOLIDATE_CACHE_VERSION` stays 43 and the artifact generation stays 22.
 
 ## B1131: a translate winner marked shipped with no reason threw a plain `Error`
@@ -696,6 +783,11 @@ Status:
 found by the re-check of round w385 and fixed in round w394 on 2026-10-31 (UTC),
 red case in `ef6127f415`,
 fix in `1c804db3d7`.
+Round w395 on the same day added the class's own unit test file (`5958c16e97`),
+reworded the sibling claim in its comments and linked the class in two `@throws` (`eacb4c712e`).
+The message of `eacb4c712e` says the region comment of the class went from 5 lines to 6;
+it went from 4 to 6,
+and the TSDoc went from 4 lines to 5.
 No owner question:
 the error rule asks for a named class,
 and the fault is a record no stage writes.
@@ -705,12 +797,18 @@ What was wrong:
 when a settlement marked the translate lane winner as shipped and named no reason
 (`bf9471f212`,
 2026-10-31 at 05:41:47 UTC).
-The package names a class for a record the stage could not have written
-(`UnknownArtifactGenerationError`,
+The package names a class for the records it refuses,
+and only one of its four siblings names the same kind of fault,
+a defect in the record itself that the stage could not have written:
 `ArtifactPreparationMismatchError`,
-`RoundsNotRecordedError`,
-`OffRosterModelError`),
-and the TSDoc of `shippedBy` argued against `nonNullishOrThrow` as if that were the rule.
+for a ledger that does not describe the preparation it is filed under.
+The other three name something else:
+`RoundsNotRecordedError` an earlier shape,
+`OffRosterModelError` an earlier seating that says nothing bad about the record,
+and `UnknownArtifactGenerationError` a generation the key table does not cover.
+The first record of this entry (round w394) put all four in one family of records the stage could not have written;
+round w395 corrected that here and in the comments of the class.
+The TSDoc of `shippedBy` argued against `nonNullishOrThrow` as if that were the rule.
 
 What changed:
 - `TranslateWinnerReasonMissingError`
@@ -771,6 +869,17 @@ B1050 is in
 B1052 and B1054 are in
 [Audit ledger: found while fixing, names, headings and math on the page][names-ledger].
 B1055 to B1059 and B1132 to B1139 are unused.
+
+The index entry of this file:
+`audit-ledger.md` lists this file with its link text broken over three lines,
+and the split stays.
+A reference link (`[text][ref]` with the target defined at the end of that file) was tried in round w395 and fails:
+`unlistedFileFindings` in `source-scan/src/doc-line-limit.unit.test.ts:298` looks for the literal `](file-name.md)`
+in the text of the index,
+and with the reference form the scan reported this file as part of `audit-ledger.md` whose text does not link it.
+The change was undone.
+The inline form on one line is 165 columns with the file's title as link text (the file name alone is 80),
+so the link text is broken over lines as the index entries of the other long titles are.
 
 [two-ballot-ledger]: audit-ledger-the-two-ballot-translate-text.md
 [names-ledger]: audit-ledger-found-while-fixing-page-names-headings-and-math.md
