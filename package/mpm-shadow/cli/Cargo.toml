@@ -61,7 +61,7 @@ hyper = { workspace = true, features = ["client", "http1"] }
 hyper-rustls = { workspace = true }
 hyper-util = { workspace = true, features = ["client-legacy", "http1", "tokio"] }
 # Reads `toolchain.plan.jsonc`: comments and trailing commas are data to this parser, not errors.
-monochromatic-jsonc-edit = { version = "=0.1.1", path = "../../jsonc-edit/core-rust" }
+monochromatic-jsonc-edit = { version = "=0.1.2", path = "../../jsonc-edit/core-rust" }
 # Strict JSON for `toolchain.lock.json` and the plan's decoded values; `preserve_order` keeps key order through
 # a read-modify-write, which the committed lock's diffs depend on.
 serde_json = { workspace = true, features = ["preserve_order"] }

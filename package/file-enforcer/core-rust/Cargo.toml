@@ -33,7 +33,7 @@ path = "src/lib.rs"
 
 [dependencies]
 # Reads `file-enforcer.config.jsonc` (and the per-user config) with comments intact; the decoder is hand-written over its value model.
-monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.1" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.2" }
 # Expands one glob segment at a time (`package/*/*/Cargo.toml`) without walking the whole tree.
 globset = { workspace = true }
 # Derives `file-enforcer.schema.json` from the config types; the types do not derive serde.
