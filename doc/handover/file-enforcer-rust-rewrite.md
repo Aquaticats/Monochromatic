@@ -28,7 +28,7 @@ Implementation is tracked in issue #1818.
   and extractions) stays under `${HOME}/temp/agent/`.
 - No code exists yet.
 
-## Update 2026-10-30:
+## Update 2026-10-30
 in-repo browserslist and parallel implementation
 
 The oxc look is done
@@ -72,13 +72,18 @@ and starts once `doc/research/browserslist-subset-semantics.md` lands.
 Previously waiting on the user:
 the browserslist data source,
 the Firefox ESR source,
-the HTTP stack is decided (`hyper`, `hyper-util`, `tokio`, `http-body-util`, `hyper-rustls`, all approved 2026-10-30),
+the HTTP stack is decided (`hyper`,
+`hyper-util`,
+`tokio`,
+`http-body-util`,
+`hyper-rustls`,
+all approved 2026-10-30),
 and the JSON Schema validator crate for the schema golden test.
 After those:
 the in-repo browserslist crate (task 28),
 then the cutover (task 25).
 
-## Superseded next action:
+## Superseded next action
 look at oxc-browserslist
 
 The user said the next step is to look at `oxc-browserslist`,
@@ -160,6 +165,33 @@ The user asked that grilling enumerate and pick every dependency first,
 now `GXD` in `AGENTS.md`,
 and that each broad vet check in with the user before enumerating candidates,
 now "Check in before broad discovery" in `.agents/skills/choosing-technology/SKILL.md`.
+
+## Update 2026-10-30
+task 20 built on branch `worktree-agent-a9e487e6d38ec954c`
+
+`package/file-enforcer/core-rust` (library) and `package/file-enforcer/cli` (binary `file-enforcer`) exist,
+with `file-enforcer.config.jsonc`,
+`file-enforcer.schema.json`,
+the content files under `.config/file-enforcer/`,
+and the schema mapping in `.idea/jsonSchemas.xml`.
+Run against a throwaway copy of the repository,
+the Rust tool reports zero drift for `CLAUDE.md`,
+`LICENSE`,
+every
+`LICENSES/` directory and all 26 `Cargo.toml` key sets,
+which the TypeScript tool wrote.
+The rule-kind interface for the seams (rust-catalog,
+browserslist,
+jetbrains-harper) is in
+[`package/file-enforcer/core-rust/README.md`](../../package/file-enforcer/core-rust/README.md);
+until their builders are registered those kinds warn with `kind-not-wired` and plan nothing.
+Not switched:
+no task,
+CI,
+Dockerfile or config uses the new binary.
+Next for this area:
+register the three builders when their crates land,
+then the cutover (task 25).
 
 ## How to respond
 
