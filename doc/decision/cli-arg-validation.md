@@ -2,269 +2,137 @@
 
 ## Status
 
-Accepted,
- 2026-05-18.
+Accepted, 2026-05-18.
+ Amended 2026-10-31:
+ the Optique valueparser layer is deprecated across the workspace,
+ and this decision now prescribes `node:util` `parseArgs`
+ plus Valibot schemas directly.
+ The 2026-05-18 Optique-era text and its adapter audit are preserved
+ under `Historical: the Optique-era decision`.
 
 ## Context
 
-Optique was adopted as the CLI argument parser before this document existed.
-The choice is recorded informally in `PHILOSOPHY.tool-choices.md:26`
-<!-- TODO: deprecate Optique --> (`@optique/core`,
-<!-- TODO: deprecate Optique --> `@optique/run`:
- npm `dev` tag for 1.
-x) but never had a dedicated
-decision doc covering value-level validation.
+When this decision first landed,
+ Optique was the incumbent CLI parser
+ and the question was only how far to take value-level validation.
+ Since then every Optique import in the workspace carries
+ `<!-- TODO: deprecate Optique -->`,
+ new CLIs adopted `node:util` `parseArgs` instead
+ (`package/crate-release/cli`,
+ `package/open-code-review-issue/cli`,
+ `package/mutation-test/cli-cargo-mutants`),
+ the catalog strips `argparse` globally,
+ and CAC was vetted and rejected for `cli-git`
+ (`doc/audit/tech-cli-git-parser-migration-to-cac-vet-2026-08-14-a48b54e2.md`).
+ The `search-fetch` CLI confirmed `parseArgs` as the parser for new work.
 
-Current state when this decision was made:
-
-- Three CLIs use Optique:
-  `package/fy/cli/`,
-   `package/mvm/cli/`,
-   `package/vmsync/cli/`.
-  <!-- TODO: deprecate Optique --> All three rely on `@optique/core/valueparser`'s built-in primitives
-  (`string({metavar})`,
-   <!-- TODO: deprecate Optique --> `integer()`) and `@optique/core/constructs`'
-  `map()` for shape transforms.
-- Three CLIs are not on Optique:
-  `package/git-policy/cli/`,
-   `package/rgffplay/cli/`,
-   `package/terminal-exec/cli/`.
-  They parse `process.argv` directly.
-   The reasons they are not on Optique
-  are project-specific and not recorded here;
-   this decision does not
-  speak to whether they should migrate.
-- No CLI currently performs shape-level validation beyond "is it a string"
-  or "is it an integer".
-   Memory strings like `2g`/`512m`,
-   CPU ranges,
-  URL formats,
-   picklist enums,
-   and file-path existence checks are all
-  unchecked at parse time.
-- Valibot is already in the workspace catalog
-  (`PHILOSOPHY.tool-choices.md:27`:
-   `valibot@>=1.4.0`,
-   Standard
-  Schema-compatible).
-   It is used in `package/pi-plugin/advisor/` and
-  `package/ssg/aquati.cat/`,
-   but never in a CLI package.
-
-<!-- TODO: deprecate Optique --> `@optique/valibot` is Optique's adapter that lets a Valibot schema act as
-an Optique `ValueParser`.
- Adopting it gives the CLIs access to the
-Valibot rule surface (`v.url`,
- `v.email`,
- `v.regex`,
- `v.minValue`,
-`v.maxValue`,
- `v.picklist`,
- custom `v.transform`) at parse time,
- with
-errors surfaced through Optique's standard error-rendering path.
+Valibot stays the workspace validation library
+ (`PHILOSOPHY.tool-choices.md`,
+ Standard Schema compatible),
+ and the search-fetch tool specs are already Valibot schemas,
+ so CLI inputs can validate against the exact same schemas the tools use.
 
 ## Decision
 
-<!-- TODO: deprecate Optique --> Use `@optique/valibot` **selectively**:
- reach for it only when a value
-parser needs validation beyond the type built-in primitives already
-provide.
- Default to the plain `string()` and `integer()` primitives from
-<!-- TODO: deprecate Optique --> `@optique/core/valueparser` for parsers that accept any well-typed value
-(names,
- freeform paths,
- generic identifiers).
+Parse with `node:util` `parseArgs`,
+ strict mode for closed flag grammars,
+ with a small hand-rolled dispatch where the grammar needs structure
+ `parseArgs` does not provide
+ (verb dispatch,
+ preserving a `--` boundary,
+ passthrough or exact-spelling contracts).
 
-Decision rule for new value parsers:
+Decision rule for value validation:
 
-- The parser is "any string" or "any integer":
-   use `string()` /
-  `integer()`.
-   No Valibot.
-- The parser has a shape constraint (regex,
-   range,
-   picklist,
-   URL,
-   email,
-  custom `transform` into a non-string type):
-   use
-  <!-- TODO: deprecate Optique --> `valibot(v.pipe(v.string(), ...))` from `@optique/valibot`.
-- The parser needs a non-string output type (number,
-   Date,
-   parsed
-  config):
-   use `valibot(v.pipe(v.string(), v.transform(...), ...))`.
-  CLI arguments are always strings on entry;
-   `v.transform()` is the
-  bridge.
+- The value is "any string" or "any integer":
+  no schema, accept the token as parsed.
+- The value has a shape constraint
+ (regex, range, picklist, URL, email, custom transform):
+  validate with a Valibot pipe such as `v.pipe(v.string(), ...)`.
+- A schema already exists for the input
+ (the search-fetch tool specs are the example):
+  reuse it rather than writing a second description of the same shape.
+  A strict flag grammar feeding a tolerant tool schema is intended:
+  the CLI rejects unknown flags,
+  the tool layer still warns and strips unknown keys.
+- The value needs a non-string output type (number, Date, parsed config):
+  bridge with `v.transform()`; CLI arguments are always strings on entry.
 
-Errors should use the `errors.valibotError` option to keep messages
-consistent with the surrounding CLI tone.
+Validation failures are usage errors
+ (exit `2`, per `doc/decision/cli-output-and-exit-codes.md`),
+ and the message lives in the thrown error (`PP6`),
+ not in a preceding console line.
 
-Async Valibot pipes (`v.pipeAsync`,
- `v.checkAsync`) are not supported by
-Optique's synchronous `ValueParser.parse()`.
- Async validation belongs
-after argument parsing,
- not inside it.
+Async Valibot pipes (`v.pipeAsync`, `v.checkAsync`) run after argument
+ parsing, never inside it;
+ `parseArgs` itself is synchronous and stays that way.
 
-Out-of-scope for this decision:
+Out of scope for this decision:
 
-- Migrating `cli-git`,
-   `cli-rgffplay`,
-   `cli-terminal-exec` to Optique.
-  Their direct-`argv` approach is a separate decision;
-   the reasons live
-  outside this document.
-- Rewriting existing `string()` and `integer()` parsers in `cli-fy`,
-  `cli-mvm`,
-   `cli-vmsync` to use `valibot(v.string())`.
-   The plain
-  primitives stay;
-   only new shape-constrained parsers reach for
-  <!-- TODO: deprecate Optique --> `@optique/valibot`.
+- Migrating the remaining Optique CLIs.
+  Each migration is its own change.
+- Reopening the parser choice for CLIs that hand-roll because their
+  grammar is genuinely partial or passthrough
+ (`package/terminal-exec/cli`,
+ `package/mutation-test/cli`).
 
 ## Rejected alternatives
 
-### Broad adoption: rewrite every value parser as a Valibot pipe
+### Broad adoption: wrap every value in a Valibot pipe
 
 Rejected.
- The bulk of current parsers accept "any string" (VM names,
-generic file paths,
- freeform identifiers).
- Wrapping them in
-`v.pipe(v.string())` adds three import lines and a wrapper call without
-introducing any new check the type system was not already enforcing.
-The churn touches three working CLIs for no behavioural payoff and
-risks regressions in the parser-combinator types
-(`Parser<TState, TResult, TValue>` is invariant in state;
- replacing the
-parser source changes inferred types across the discriminated union).
-Specific gate:
- violates `AGENTS.md` "Don't add features beyond what the
-task requires";
- the wrapper is overhead the parser does not need.
+ Parsers that accept "any string" (VM names, generic paths, freeform
+ identifiers) gain nothing from `v.pipe(v.string())` beyond import
+ churn. Reach for Valibot only where a shape constraint exists.
 
-### Status quo: keep ad-hoc `map()` validation when shape checks are needed
+### Ad-hoc `map()` validation when shape checks are needed
 
 Rejected.
- Hand-rolled validation inside `map()` callbacks duplicates
-work the workspace's chosen validation library (Valibot) already does,
-and forfeits Standard Schema interop.
- The repo picked Valibot
-specifically for Standard Schema compatibility
-(`PHILOSOPHY.tool-choices.md:27`);
- writing per-parser validation in
-`map()` blocks defeats that choice for CLI inputs while keeping it for
-every other validation surface.
- Specific gate:
- would require maintaining
-two parallel validation idioms (Valibot everywhere else,
- hand-rolled in
-CLIs) for the same constraint shapes.
+ Hand-rolled validation duplicates what the workspace's chosen
+ validation library does and forfeits Standard Schema interop,
+ leaving two parallel validation idioms for the same constraint shapes.
 
 ### Use `zod` instead of Valibot for the same role
 
 Rejected without separate vetting.
- The workspace has already chosen
-Valibot at the catalog level.
- Introducing a second validation library
-for one subsystem creates a long-term split where contributors must
-remember which library applies in which package.
- <!-- TODO: deprecate Optique --> The `@optique/zod`
-adapter exists,
- but the case for swapping the workspace's validation
-default is out of scope for this decision;
- it would require its own
-decision doc against `PHILOSOPHY.tool-choices.md:27`.
+ The workspace chose Valibot at the catalog level;
+ a second validation library for one subsystem splits contributor
+ attention. It would need its own decision doc.
 
-## Vendor and dependency notes
+## Historical: the Optique-era decision
 
-### <!-- TODO: deprecate Optique --> `@optique/valibot` audit
+What follows is the 2026-05-18 record, kept for its research and
+ reasoning. It describes a framework this workspace is deprecating;
+ do not read it as current guidance.
 
-Verified 2026-05-18 via `gh api repos/dahlia/optique`,
-<!-- TODO: deprecate Optique --> `https://registry.npmjs.org/@optique/valibot/latest`,
- and
-<!-- TODO: deprecate Optique --> `https://api.npmjs.org/downloads/point/last-week/@optique/valibot`:
+The Optique-era decision rule was:
+ use `@optique/valibot` selectively for shape-constrained value
+ parsers, default to the plain `string()` / `integer()` primitives
+ otherwise, and keep async validation out of the synchronous
+ `ValueParser.parse()`.
 
-- License:
-   MIT.
-- Maintainer:
-   Hong Minhee (`dahlia`);
-   single-maintainer
-  (3315 contributions vs second contributor's 2).
-   Same author as
-  LogTape and Fedify;
-   <!-- TODO: deprecate Optique --> bus factor identical to `@optique/core` (already
-  accepted).
-- Release:
-   1.1.0 at HEAD,
-   1.0.0 released 2026-04-14,
-   first npm publish
-  2025-08-19.
-- Weekly downloads:
-   <!-- TODO: deprecate Optique --> 3 078 (`@optique/valibot`) vs 15 832
-  <!-- TODO: deprecate Optique --> (`@optique/core`),
-   <!-- TODO: deprecate Optique --> 16 398 (`@optique/run`).
-   Adapter usage is roughly
-  1:5 against the core packages.
-- Unpacked size:
-   49 267 bytes.
-   Subpath-only `valibot` import surface;
-  `sideEffects: false` allows tree-shaking.
-- Peer dep:
-   `valibot ^1.2.0` per the published `package.json`.
-   The
-  README's "0.42.0 and above" claim is stale;
-   the published
-  `peerDependencies` field is authoritative.
-   The workspace catalog pins
-  `valibot@>=1.4.0`;
-   the constraint is satisfied.
-- Open security advisories:
-   none (`gh api .../security-advisories`
-  returned `[]`).
-- Open bug-labeled issues:
-   zero (11 closed).
-
-### Compatibility with the Node CLI baseline
-
-All Optique CLIs use `#!/usr/bin/env node`.
- <!-- TODO: deprecate Optique --> `@optique/valibot` declares
-engines `node>=20.0.0`,
- `bun>=1.2.0`,
- `deno>=2.3.0`.
- The workspace's Node
-version satisfies this.
- The adapter ships dual ESM/CJS exports;
- the
-Node ESM resolver picks the ESM entry.
-
-### Catalog management
-
-<!-- TODO: deprecate Optique --> Add `@optique/valibot` to `pnpm-workspace.yaml`'s `catalog:` block
-<!-- TODO: deprecate Optique --> alongside the existing `@optique/core` and `@optique/run` entries when
-the first CLI adopts it.
- Track its version on the same `dev` tag as the
-sibling Optique packages until they all move to a stable major.
+The 2026-05-18 audit of `@optique/valibot`
+ (via `gh api repos/dahlia/optique`, the npm registry, and npm
+ download counts):
+ MIT licensed,
+ single maintainer (Hong Minhee, 3315 contributions against the second
+ contributor's 2),
+ 1.1.0 at HEAD with 1.0.0 released 2026-04-14,
+ 3078 weekly downloads against 15832 for `@optique/core`,
+ 49267 bytes unpacked,
+ peer dependency `valibot ^1.2.0`
+ (the README's "0.42.0 and above" claim was stale),
+ no open security advisories,
+ zero open bug-labeled issues.
+ Engines `node>=20.0.0`, `bun>=1.2.0`, `deno>=2.3.0`;
+ dual ESM/CJS exports,
+ with the Node ESM resolver picking the ESM entry.
 
 ## When to revisit
 
-- If Hong Minhee's maintainership lapses (no commits for > 6 months),
-  re-audit the alternatives.
-   The realistic swap target inside the same
-  Valibot-compatible space is `@effect/cli` plus Effect's own validation
-  layer;
-   the cost is migrating away from Optique entirely,
-   not just the
-  adapter.
 - If a non-CLI subsystem proposes a Standard Schema-compatible
   validation library other than Valibot,
-   this decision needs renewal
-  alongside `PHILOSOPHY.tool-choices.md:27`.
-- If async value parsing becomes a hard requirement for a CLI input
-  (e.g. resolving DNS or checking a remote registry at parse time),
-  Optique cannot deliver it synchronously;
-   the validation must move
-  out of the parser into a post-parse step.
+  this decision renews alongside `PHILOSOPHY.tool-choices.md`.
+- If async validation at parse time becomes a hard requirement
+  (DNS resolution, remote registry lookups),
+  it belongs in a post-parse step regardless of parser choice.
