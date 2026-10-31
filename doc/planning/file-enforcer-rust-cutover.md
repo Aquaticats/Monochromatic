@@ -56,9 +56,13 @@ not of importance.
     Trusted Publishing.
 2.  A version bump of `monochromatic-mpm-shadow`.
     The merged crate still says `version = "0.1.1"` (`package/mpm-shadow/cli/Cargo.toml:3`),
-    which is the published 0.1.1 that has no `update`,
-    `lock` or `sync` commands;
-    a fresh build prints `mpm-shadow 0.1.1`.
+    which is the version crates.io has had since 2026-10-29T14:00Z
+    (`curl` of the crates API:
+    `max_version` 0.1.1,
+    versions 0.1.0 and 0.1.1 created 2026-10-29),
+    before the toolchain commands merged on 2026-10-30,
+    so the published 0.1.1 is the shadow-only build;
+    a fresh build of the merged crate prints `mpm-shadow 0.1.1`.
     The existing release jobs (`.github/workflows/cargo-publish.yml:1304` onward) publish on the version change.
 3.  First publication of the five new crates,
     by hand,
@@ -81,13 +85,15 @@ not of importance.
     or `cargo binstall` compiles it
     (`doc/troubleshooting/cargo-binstall-compiles-when-github-api-rate-limited.md`).
 4.  The version-keyed cargo-binstall installs in `mpm-shadow sync`.
-    The owner decided that mpm-shadow installs cargo-binstall tools under version-keyed directories in the toolchain root,
+    The owner decided that mpm-shadow installs cargo-binstall tools under version-keyed directories
+    in the toolchain root,
     never into the shared `~/.cargo/bin`,
-    with each worktree's tree linking its own lock's version
-    (decision record,
-    "Toolchain (mpm-shadow)";
-    reason:
-    `doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`).
+    with each worktree's tree linking its own lock's version.
+    The coordinator relayed this decision to this inventory;
+    the decision record's "Toolchain (mpm-shadow)" text and the cited reason,
+    `doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`,
+    are not in the tree at commit `9805cb3cb5` (`rg` finds neither),
+    so they are expected from the branch that carries them.
     Another agent is building it.
     The first `mpm-shadow sync` of the switch must leave `~/.cargo/bin` alone,
     because other worktrees still on the TypeScript toolchain link to the files there.
@@ -103,7 +109,8 @@ not of importance.
     Partial result now:
     see "Comparison with the TypeScript output".
 7.  `package/vm-builder/cli` has its private process runner.
-    It still imports `exec` from the old package at `package/vm-builder/cli/src/import.ts:9` and `src/build-and-import.ts:20`,
+    It still imports `exec` from the old package at `package/vm-builder/cli/src/import.ts:9`
+    and `package/vm-builder/cli/src/build-and-import.ts:20`,
     and depends on it at `package/vm-builder/cli/package.json:16`.
     The decision lists it under "Elsewhere",
     not in the switch commit's list,
@@ -419,11 +426,13 @@ The launcher runs `node package/file-enforcer/core/src/toolchain/bin-paths.ts` i
   `package/ide/app/src/language/toolchain_tests.rs:6,57,81,159,231,233,258,275`,
   `package/ide/app/src/language/notice_tests.rs:351,385`,
   `package/ide/app/src/language/toolchain/state_tests.rs:58,78,87,110,135`,
-  `package/ide/app/src/language/toolchain/parse_tests.rs:115,119` (a captured Node stack trace as the "unreadable" sample),
+  `package/ide/app/src/language/toolchain/parse_tests.rs:115,119` (a captured Node stack trace as the "unreadable"
+  sample),
   `package/ide/app/src/language/toolchain/command_tests.rs:19`,
   `package/ide/app/src/test_scratch.rs:44`.
 - `package/ide/app/bin/inspect-language-toolchain.ts:41,84,86,288`:
-  copies the TypeScript toolchain sources into a scratch worktree (`cpSync(toolchainSources, ...)`) and asserts the notice text;
+  copies the TypeScript toolchain sources into a scratch worktree (`cpSync(toolchainSources, ...)`) and asserts the
+  notice text;
   it must build a scratch worktree with a plan,
   a lock and the binary instead.
 - `package/ide/app/README.md:1128,1145,1231`:
@@ -452,7 +461,8 @@ none of them in a config:
 - `package/forbidden-strings/cli/README.md:174,184,188,190,194`.
 - `package/forbidden-strings/cli/mise.toml:115` (comment).
 - `package/git-policy/cli/README.md:448,510`.
-- `package/git-policy/cli.fuzz/seed/rules_file/repository-default:1` and `package/git-policy/cli.fuzz/src/configuration.rs:161`
+- `package/git-policy/cli.fuzz/seed/rules_file/repository-default:1` and
+  `package/git-policy/cli.fuzz/src/configuration.rs:161`
   (the fuzz seed and sample value `.cache/forbidden-strings.rules.txt`;
   a still-valid path string,
   so a cleanup,
@@ -499,7 +509,8 @@ Command:
 - The container runner that the decision moves to `package/test-harness/core-matrix` is already there
   (`package/test-harness/core-matrix/src/container.ts:354`,
   `runContainer`);
-  the old copy `package/file-enforcer/core/src/toolchain/container-runner.ts` has no consumer outside the deleted package.
+  the old copy `package/file-enforcer/core/src/toolchain/container-runner.ts` has no consumer outside the deleted
+  package.
 
 ### pnpr
 
@@ -581,7 +592,8 @@ Measured facts for the choice:
   `package/linter/kotlin/mise.toml:3`,
   `package/linter/kotlin/README.md:54`,
   `package/music-player/android-app/mise.toml:8,51`).
-- The package `mise.toml` files had their task headers normalized by the TypeScript tool (`file-enforcer.config.ts:671-682`,
+- The package `mise.toml` files had their task headers normalized by the TypeScript tool
+  (`file-enforcer.config.ts:671-682`,
   `MISE_MANIFEST_GLOBS`:
   `package/*/*/mise.toml` and three sibling globs).
   After the switch nobody normalizes them;
@@ -620,7 +632,8 @@ The file-enforcer schema mapping is already in place (`.idea/jsonSchemas.xml:6-2
   `:101` names `node package/file-enforcer/core/src/cli.ts --check`),
   `doc/runbook/release-the-music-player.md:61,63` (`buildCargoManifestPlan in file-enforcer.config.ts`,
   `node file-enforcer.config.ts`),
-  `doc/runbook/deploy-pnpr-registry.md:257` ("`config.yaml` changes only through `mise run sync:files`" becomes the pnpr task).
+  `doc/runbook/deploy-pnpr-registry.md:257` ("`config.yaml` changes only through `mise run sync:files`" becomes the
+  pnpr task).
 
 ### Amendments the decision lists under "Consequences"
 
@@ -772,12 +785,15 @@ and nothing yet installs the `file-enforcer` binary (open decision).
     or keep `mise.toml` as committed.
     Ranking:
     the decision's layout > keep as committed.
-    The decision's layout is what the owner accepted and it removes the 63 hand-frozen package `node_modules/.bin` entries from a committed file
+    The decision's layout is what the owner accepted and it removes the 63 hand-frozen package `node_modules/.bin`
+    entries from a committed file
     that the `[env]` comment itself calls install-state dependent (`mise.toml:1331-1347`);
-    keeping the committed file is a smaller diff and the only one that preserves `FORBIDDEN_STRINGS_RULES` where `ad9fe75d05` put it,
+    keeping the committed file is a smaller diff and the only one that preserves `FORBIDDEN_STRINGS_RULES` where
+    `ad9fe75d05` put it,
     but it leaves the same list in two places once `10-bin.local.toml` exists.
 2.  How CI and containers obtain `file-enforcer` and `mpm-shadow`.
-    Both cargo-binstall entries have `artifacts: {}` in the lock (`jq` shows an empty object for `cargo:monochromatic-mpm-shadow`),
+    Both cargo-binstall entries have `artifacts: {}` in the lock (`jq` shows an empty object for
+    `cargo:monochromatic-mpm-shadow`),
     so the `jq`,
     `curl`,
     `sha256sum` pattern of `task-cli-setup` and the `Dockerfile` has no row to read.
@@ -1001,7 +1017,8 @@ Results:
     and `bun` `linux-x64-baseline` and `linux-x64-musl-baseline` (the Linux-only stopgap,
     `doc/decision/mise-lock-linux-only-stopgap.md`);
   - `options` gains `asset` for `harper-cli` and `tombi` (as converted).
-- The handover's recorded rehearsal also listed `superhtml` 0.7.0 to 0.7.1 and `aws` 2.39.2 to 2.39.3 in the global lock;
+- The handover's recorded rehearsal also listed `superhtml` 0.7.0 to 0.7.1 and `aws` 2.39.2 to 2.39.3 in the global
+  lock;
   today's repository lock is already at `superhtml` 0.7.1,
   so no repository version moves on 2026-10-31.
 - Not rehearsed:
@@ -1019,7 +1036,8 @@ Source of the global entries:
 the real file `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts` was **not read**.
 A read of that directory was refused by the sandbox,
 and the task also forbids touching it.
-This section therefore rests on `doc/planning/mpm-global-toolchain-migration.md:80-260` and the README line that the global plan
+This section therefore rests on `doc/planning/mpm-global-toolchain-migration.md:80-260` and the README line that the
+global plan
 "also holds `go: go@latest`,
 `aws: aws@latest`,
 `rustup: rustup@latest` and `go:github.com/charmbracelet/crush@latest` on the `go-install` route".
@@ -1182,7 +1200,8 @@ It writes nothing in the worktree and left no server running.
   the Harper policy is written only after the owner creates it.
 - `file-enforcer check` has no per-rule scope,
   so the committed-output gate in CI needs a `jq` filter on four rule ids.
-- The `.config/mise/conf.d/20-env.toml` content has no generator and must be written by hand if the decision's layout is chosen.
+- The `.config/mise/conf.d/20-env.toml` content has no generator and must be written by hand if the decision's layout
+  is chosen.
 - The machine-global plan was not read;
   its `asset` values and any form this document did not anticipate are unrehearsed.
 - No output of the TypeScript tool is without an owner or an explicit "stops being generated" record.
