@@ -124,6 +124,7 @@ fn projection_failed(action: Action, trigger: &str, message: &str) {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
     }
 }
 
@@ -576,6 +577,7 @@ fn direct_commands_refuse_beside_registered_transactions() {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
     }
     remove(root.as_path());
 }
@@ -620,6 +622,7 @@ fn direct_commands_report_git_failures() {
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
         Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
+        Action::ForwardAnnounced { .. } => panic!("an announced query is not expected in this control"),
     }
     remove(root.as_path());
 }

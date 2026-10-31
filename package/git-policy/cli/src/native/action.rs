@@ -79,6 +79,7 @@ pub struct PushForward {
 /// Why:
 ///   The executable performs exactly one of these:
 ///  become Git,
+///  run Git and then add text,
 ///  or print and exit.
 ///
 /// In TS you'd write (pseudocode):
@@ -133,6 +134,21 @@ pub enum Action {
     ForwardPush {
         /// What the run and the integration need.
         forward: Box<PushForward>,
+        /// Warning events written to standard error before Git starts.
+        stderr: String,
+    },
+    /// Run Git as a child for a top-level `--version`, `-v`, `--help` or `-h`,
+    ///  and print the announcement after Git's own answer when Git exited with status 0.
+    ForwardAnnounced {
+        /// The selected real Git executable.
+        real_git: PathBuf,
+        /// The arguments Git receives.
+        arguments: Vec<OsString>,
+        /// Variables added to the inherited environment.
+        overlay: Vec<(OsString, OsString)>,
+        /// Complete text for standard output after Git's answer,
+        ///  already line-terminated.
+        announcement: String,
         /// Warning events written to standard error before Git starts.
         stderr: String,
     },
