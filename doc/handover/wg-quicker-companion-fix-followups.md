@@ -52,9 +52,12 @@ unrelated to the resolver change).
    and the sweep should prune around foreign-owned entries.
    Owning package:
    `package/logger/core`.
-1. AGENTS.md rename tightening,
-   pending the user's accept or veto in this session's question.
-   Proposed new rule next to `SGD`:
+1. AGENTS.md rename tightening was declined by the maintainer on 2026-10-31,
+   who chose to leave `AGENTS.md` unchanged.
+   The rejected `RNL` code is recorded in `forbidden-strings.append.local.txt`
+   (`local-045`) per the rejected-code convention,
+   so do not re-propose it under that label.
+   The declined proposal was a rule next to `SGD`:
 
    ```text
    RNL: Rename moves runtime path literals and layout constants with the
@@ -68,23 +71,30 @@ unrelated to the resolver change).
    and its promised follow-up verification never ran
    `//package/wg/cli-quicker:buildAndTest`,
    so the suite sat red from 2026-10-29 to `34df734099`.
-   Tag `RNL` is unique across `AGENTS.md`,
-   skills,
-   and package docs,
-   and absent from `forbidden-strings.append.txt` and
-   `forbidden-strings.append.local.txt`.
-   Applying it needs the `writing-for-agents` skill loaded.
-1. Re-running `wg-quicker up fr-par-fr1` against the real config,
-   pending the user's choice in this session's question.
-   Nothing on the host was mutated by the fix work;
-   the tunnel state is whatever the user last left.
+   The incident record in
+   `doc/troubleshooting/wg-quicker-exempt-companion-pre-move-paths.md`
+   is the durable home of that lesson.
+
+## Tunnel run result
+
+The maintainer authorized the run and `wg-quicker up fr-par-fr1` succeeded on
+2026-10-31:
+interface `fr-par-fr1` is UP with `172.17.170.170/32`,
+`sudo wg show fr-par-fr1 latest-handshakes` records a peer handshake,
+`/run/wg-quicker` holds the bypass state,
+the watcher sidecar,
+and the OpenSnitch interface state,
+and `wg-quicker` reports the managed OpenSnitch rules it installed in
+`/etc/opensnitchd/system-fw.json`.
+The same benign ASN and DNS skip warnings as the failing run appear,
+with no `BypassRouteError`.
+Recovery if the tunnel must come down:
+`wg-quicker down fr-par-fr1`.
 
 ## How to respond
 
-If the user accepts `RNL`,
-edit `AGENTS.md`,
-run the forbidden-strings check,
-and commit as `docs(AGENTS.md): ...`.
-If the user asks for the tunnel,
-run `wg-quicker up fr-par-fr1` from the repository root and report its output,
-with `wg-quicker down fr-par-fr1` as the recovery if activation fails midway.
+The `RNL` proposal is closed (declined);
+do not edit `AGENTS.md` for it.
+The tunnel run is done and recorded in
+[Tunnel run result](#tunnel-run-result),
+with `wg-quicker down fr-par-fr1` as the recovery if it must come down.

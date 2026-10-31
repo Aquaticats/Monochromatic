@@ -13,8 +13,8 @@
 //! ```
 
 use super::{
-    CARGO_VARIABLE, DYLINT_FLAGS, cargo_program, dependencies_missing, dylint_available,
-    run_dylint, rustc_dev_missing, rustc_dev_missing_in,
+    CARGO_VARIABLE, DYLINT_FLAGS, cargo_program, dependencies_missing, dylint_probe, run_dylint,
+    rustc_dev_missing, rustc_dev_missing_in,
 };
 use crate::{closure_probe::PackageSetup, closure_stub_support::scenario, test_fs::Fixture};
 use std::path::{Path, PathBuf};
@@ -29,24 +29,27 @@ fn the_variable_is_documented_and_the_default_is_cargo() {
     }
 }
 
-/// A working `cargo dylint --version` passes,
+/// A working `cargo dylint --version` passes and returns its line,
 /// a failing one and a missing program are reasons to skip.
 #[test]
 fn dylint_availability_has_three_outcomes() {
-    let working = scenario(&[]);
-    assert_eq!(dylint_available(&working.cargo), None);
+    let working = scenario(&[("dylint-version.stdout", "cargo-dylint 6.3.0\n")]);
+    assert_eq!(
+        dylint_probe(&working.cargo),
+        Ok(String::from("cargo-dylint 6.3.0\n"))
+    );
     assert_eq!(
         working.calls(),
         vec![String::from("dylint-version|dylint --version|")]
     );
     let broken = scenario(&[("dylint-version.status", "101")]);
     assert!(
-        dylint_available(&broken.cargo)
-            .expect("a reason")
+        dylint_probe(&broken.cargo)
+            .expect_err("a reason")
             .contains("cargo dylint --version")
     );
     let missing =
-        dylint_available(Path::new("/nonexistent/monochromatic-lint/cargo")).expect("a reason");
+        dylint_probe(Path::new("/nonexistent/monochromatic-lint/cargo")).expect_err("a reason");
     assert!(missing.contains("cargo does not run"), "{missing}");
 }
 

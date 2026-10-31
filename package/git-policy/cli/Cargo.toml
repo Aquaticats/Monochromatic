@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.4.3"
+version = "0.4.4"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -54,7 +54,7 @@ monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.
 # The repository's own scanner, linked in-process instead of spawned: `src/native/scanner_adapter.rs`
 # loads its rules once per invocation and scans candidate bytes through `Scanner::scan`.
 # Its catch boundaries need this crate's effective profile to unwind; `scanner_adapter.rs` refuses to build otherwise.
-forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.5.0" }
+forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.0" }
 # Lock and journal records are JSON that the incumbent writes with `JSON.stringify` and reads with `JSON.parse`;
 # both wrappers read each other's records (doc/handover/cli-git-native-transactions.md, "Dependencies").
 # The scanner already links this exact version, so it adds no package to the lockfile.
