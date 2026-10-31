@@ -363,6 +363,9 @@ await describe({
         const seated = { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', bench: [], }, } as const;
         const outcome = await client.chatJson(seated,);
         expect(outcome.kind,).toBe('ok',);
+        // THE MODEL THAT ANSWERED RIDES ON THE OUTCOME through the wrapper, so a caller can record its answer as its own
+        // (ledger B1102).
+        expect(outcome.kind === 'ok' ? outcome.answeredBy : 'not ok',).toBe(asked[1]?.modelId,);
         expect(asked,).toHaveLength(2,);
         expect(asked[1]?.modelId,).not.toBe(REQUEST.modelId,);
         expect(asked[1]?.otherThan,).toBeUndefined();
