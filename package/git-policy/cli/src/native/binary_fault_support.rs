@@ -27,7 +27,7 @@
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
 use super::commit::COMMIT_BOUND_SECONDS;
 use super::fork_failure::{strace_available, strace_program};
-use super::support::{Fixture, Observed, bounded_for, direct, fixture, git, repository, wrapper_first_path};
+use super::support::{Fixture, Observed, bounded_for, fixture, git, repository, wrapper_first_path};
 use std::ffi::OsStr;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -327,10 +327,13 @@ pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said:
         return Err(format!("{label}: git fsck: {}", String::from_utf8_lossy(&checked.stderr)));
     }
     std::fs::write(repo.join("b.txt"), b"two\n").expect("b");
-    let staged: Output = direct(fixture).current_dir(repo).args(["add", "--", "b.txt"]).output().expect("git add starts");
-    if !staged.status.success() {
+    // Through the wrapper, as a user stages: a lock a dead wrapper left for recovery is the wrapper's to retire, and
+    //  only a command it coordinates does that; real Git alone would refuse the stale lock.
+    let staged: Observed = run_commit(fixture, repo, &["add", "--", "b.txt"]);
+    if staged.code != Some(0) {
         return Err(format!(
-            "{label}: staging the next file failed after the first run: {}\nfirst run said: {said}\nleft in .git: {}",
+            "{label}: staging the next file failed after the first run, exit {:?}: {}\nfirst run said: {said}\nleft in .git: {}",
+            staged.code,
             String::from_utf8_lossy(&staged.stderr),
             names_in_git_directory(repo)
         ));
