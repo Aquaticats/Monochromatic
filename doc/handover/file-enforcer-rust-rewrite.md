@@ -53,21 +53,36 @@ each finished branch is reviewed and merged into `main`):
   CI advisory drift step `93a95f4259`);
   browserslist subset specification
   (`doc/research/browserslist-subset-semantics.md`,
-  `f1778271d5`).
-- Running:
-  XML edit crate (task 26),
-  dependency-catalog Rust library (task 21),
-  forbidden-strings and git-policy rules list with `?` (task 23),
+  `f1778271d5`);
+  dependency-catalog Rust library `package/dependency-catalog/core-native` (task 21,
+  merges `6aae0afe1c` and `b7798a4da5` for the closure fixes);
+  XML edit crate `package/xml-edit/core-rust` (task 26,
+  `032366654f`);
+  rules list with `?` (task 23,
+  `2ebe1dd93a`,
+  now owned by session monochromatic-7a);
+  in-repo browserslist `package/browserslist/core-rust` (task 28,
+  `c60687b1d8`);
   file-enforcer `core-rust` and `cli` (task 20,
-  brief `${HOME}/temp/agent/fe-rust/brief-task-20.md`),
-  mpm-shadow (task 22,
-  brief `${HOME}/temp/agent/fe-rust/brief-task-22.md`).
-- Queued for the next free slot:
-  the in-repo browserslist crate (task 28,
-  brief `${HOME}/temp/agent/fe-rust/brief-task-28.md`).
+  `71d0ad760b`);
+  mpm-shadow toolchain commands (task 22,
+  first pass);
+  the linter's Dylint driver skip (`package/linter/monochromatic-lint`,
+  after the owner-approved toolchain sync and driver warm on 2026-10-30).
+- Running (worktree agents):
+  wiring the `rust-catalog`,
+  `browserslist`,
+  and `jetbrains-harper` rule kinds plus moving the browserslist lock to the root;
+  hardening the core (jsonc-edit value spans for `file:line:col` decode errors,
+  the untested branches,
+  single-line schema descriptions);
+  browserslist Node pre-release filter plus its troubleshooting doc;
+  mpm-shadow second pass (origin in the plan request with a fully derived lock,
+  the unported resolvers,
+  the crate's lint debt).
 - Then:
-  wire the pieces into the file-enforcer engine,
-  then the cutover (task 25).
+  the cutover (task 25),
+  keeping the rules-file generator until monochromatic-7a reports the cli-git config switch.
 
 Decided 2026-10-30 and recorded in the decision record:
 the HTTP stack (`hyper`,
