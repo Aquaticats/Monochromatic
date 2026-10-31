@@ -1,6 +1,12 @@
-//! What:     Format-preserving edits of `rust-catalog.toml`: adopted entries, raised floors and pruned entries.
-//! Why:      Every edit goes through the parsed `toml_edit::DocumentMut`, so comments, spacing and key order outside
-//!           the edited entries come back byte for byte when the document is printed.
+//! What:
+//! Format-preserving edits of `rust-catalog.toml`:
+//! adopted entries,
+//! raised floors and pruned entries.
+//! Why:
+//! Every edit goes through the parsed `toml_edit::DocumentMut`,
+//! so comments,
+//! spacing and key order outside
+//! the edited entries come back byte for byte when the document is printed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,16 +14,23 @@
 //! export function catalogSplices(args: { source; located; additions; floorRaises; prunes }): Splice[]
 //! ```
 
+/// Imports `toml_edit::{DocumentMut, Item, Key, Table, TableLike, Value}`.
 use toml_edit::{DocumentMut, Item, Key, Table, TableLike, Value};
 
+/// Imports `crate::adopt::AdoptionPlan`.
 use crate::adopt::AdoptionPlan;
+/// Imports `crate::quote::quote`.
 use crate::quote::quote;
+/// Imports `crate::render::{parse_value, render_entry_value}`.
 use crate::render::{parse_value, render_entry_value};
+/// Imports `crate::types::Entry`.
 use crate::types::Entry;
 
-/// What:     `pub fn replace_string(value: &mut Value, text: &str)` swaps a string value for a new quoted string,
-///           keeping the old value's surrounding whitespace and trailing comment.
-/// Why:      Raising a floor must not move or drop the comment that follows it on the same line.
+/// What:
+/// `pub fn replace_string(value: &mut Value, text: &str)` swaps a string value for a new quoted string,
+/// keeping the old value's surrounding whitespace and trailing comment.
+/// Why:
+/// Raising a floor must not move or drop the comment that follows it on the same line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -30,7 +43,8 @@ pub fn replace_string(value: &mut Value, text: &str) {
     *value = replacement;
 }
 
-/// Raises the floor of one `[catalog]` entry, whether written as a string or as a table with `version`.
+/// Raises the floor of one `[catalog]` entry,
+/// whether written as a string or as a table with `version`.
 fn raise_floor(table: &mut dyn TableLike, name: &str, requirement: &str) {
     let Some(item) = table.get_mut(name) else {
         return;
@@ -54,7 +68,8 @@ fn raise_floor(table: &mut dyn TableLike, name: &str, requirement: &str) {
     }
 }
 
-/// Position after the last positioned table, so a table created now prints at the end of the file.
+/// Position after the last positioned table,
+/// so a table created now prints at the end of the file.
 pub fn end_position(document: &DocumentMut) -> isize {
     let mut last: isize = 0;
     let mut stack: Vec<&Table> = vec![document.as_table()];
@@ -71,7 +86,8 @@ pub fn end_position(document: &DocumentMut) -> isize {
     return last + 1;
 }
 
-/// Creates a missing `[catalog]` table at the end of the file, one blank line after the previous text.
+/// Creates a missing `[catalog]` table at the end of the file,
+/// one blank line after the previous text.
 fn ensure_catalog_table(document: &mut DocumentMut, source_ends_with_newline: bool, source_is_empty: bool) {
     if document.as_table().get("catalog").is_some() {
         return;
@@ -85,10 +101,16 @@ fn ensure_catalog_table(document: &mut DocumentMut, source_ends_with_newline: bo
     document.as_table_mut().insert("catalog", Item::Table(table));
 }
 
-/// What:     `fn insert_sorted(table: &mut Table, name: &str, value: Value)` inserts a new entry before the first
-///           existing entry whose name sorts after it (byte order), else after the last.
-/// Why:      The catalog is kept in name order; an entry's leading comment lives in its key's decor, so the new
-///           entry lands above that comment block, not between the comment and its entry.
+/// What:
+/// `fn insert_sorted(table: &mut Table, name: &str, value: Value)` inserts a new entry before the first
+/// existing entry whose name sorts after it (byte order),
+/// else after the last.
+/// Why:
+/// The catalog is kept in name order;
+/// an entry's leading comment lives in its key's decor,
+/// so the new
+/// entry lands above that comment block,
+/// not between the comment and its entry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,9 +137,13 @@ fn insert_sorted(table: &mut Table, name: &str, value: Value) {
     }
 }
 
-/// What:     `pub fn edit_catalog(...)` applies adoption (new entries, raised floors) and pruning to the catalog
-///           document, and returns the names it touched for the change report.
-/// Why:      `prunes` are paths such as `["catalog", "anyhow"]` or `["catalogs", "pinned", "salsa"]`.
+/// What:
+/// `pub fn edit_catalog(...)` applies adoption (new entries,
+/// raised floors) and pruning to the catalog
+/// document,
+/// and returns the names it touched for the change report.
+/// Why:
+/// `prunes` are paths such as `["catalog", "anyhow"]` or `["catalogs", "pinned", "salsa"]`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -146,7 +172,8 @@ pub fn edit_catalog(document: &mut DocumentMut, source: &str, plan: &AdoptionPla
     }
 }
 
-/// Additions in name order, the order TypeScript merged them at a shared insertion point.
+/// Additions in name order,
+/// the order TypeScript merged them at a shared insertion point.
 fn sorted_additions(additions: &[(String, Entry)]) -> Vec<(&str, &Entry)> {
     let mut sorted: Vec<(&str, &Entry)> = additions.iter().map(|pair| return (pair.0.as_str(), &pair.1)).collect();
     sorted.sort_by(|left: &(&str, &Entry), right: &(&str, &Entry)| return left.0.cmp(right.0));

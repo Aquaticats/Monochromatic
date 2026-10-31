@@ -1,7 +1,13 @@
-//! What:     Reading what the catalog sync needs from one crate manifest: its package identity, its named-catalog
-//!           selections, and every dependency use site.
-//! Why:      The parsed `DocumentMut` is kept inside `CrateInfo` so the edit step can change the same document
-//!           the read step classified, and `to_string()` then reproduces every untouched byte.
+//! What:
+//! Reading what the catalog sync needs from one crate manifest:
+//! its package identity,
+//! its named-catalog
+//! selections,
+//! and every dependency use site.
+//! Why:
+//! The parsed `DocumentMut` is kept inside `CrateInfo` so the edit step can change the same document
+//! the read step classified,
+//! and `to_string()` then reproduces every untouched byte.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,15 +16,24 @@
 //! export function readCrateInfo(args: { manifest: ManifestFile; issues: SyncIssue[] }): CrateInfo
 //! ```
 
+/// Imports `toml_edit::{DocumentMut, Item, TableLike}`.
 use toml_edit::{DocumentMut, Item, TableLike};
 
+/// Imports `crate::error::{Error, SyncIssue}`.
 use crate::error::{Error, SyncIssue};
+/// Imports `crate::site::UseSite`.
 use crate::site::UseSite;
+/// Imports `crate::site_classify::{classify_site, dependency_tables, table_at}`.
 use crate::site_classify::{classify_site, dependency_tables, table_at};
 
-/// What:     `pub struct ManifestFile { ... }` is one crate manifest as the caller read it from disk.
-/// Why:      `path` is the repository-relative, forward-slash path (`package/ide/app/Cargo.toml`); the library never
-///           opens it, it only derives the crate directory and names it in messages.
+/// What:
+/// `pub struct ManifestFile { ... }` is one crate manifest as the caller read it from disk.
+/// Why:
+/// `path` is the repository-relative,
+/// forward-slash path (`package/ide/app/Cargo.toml`);
+/// the library never
+/// opens it,
+/// it only derives the crate directory and names it in messages.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -32,8 +47,12 @@ pub struct ManifestFile {
     pub source: String,
 }
 
-/// What:     `pub struct CrateInfo { ... }` is one parsed manifest with its sites and selections.
-/// Why:      `document` is mutable on purpose: the sync edits it in place, and untouched parts keep their bytes.
+/// What:
+/// `pub struct CrateInfo { ... }` is one parsed manifest with its sites and selections.
+/// Why:
+/// `document` is mutable on purpose:
+/// the sync edits it in place,
+/// and untouched parts keep their bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,22 +62,29 @@ pub struct ManifestFile {
 pub struct CrateInfo {
     /// The manifest as read.
     pub manifest: ManifestFile,
-    /// The parsed, editable document.
+    /// The parsed,
+    /// editable document.
     pub document: DocumentMut,
-    /// Directory of the manifest, repository-relative.
+    /// Directory of the manifest,
+    /// repository-relative.
     pub crate_dir: String,
-    /// `package.name`, or empty.
+    /// `package.name`,
+    /// or empty.
     pub package_name: String,
-    /// `package.version`, or empty.
+    /// `package.version`,
+    /// or empty.
     pub package_version: String,
-    /// Dependency name to selected named catalog, in source order.
+    /// Dependency name to selected named catalog,
+    /// in source order.
     pub selections: Vec<(String, String)>,
     /// Every classified dependency use site.
     pub sites: Vec<UseSite>,
 }
 
+/// Methods of `CrateInfo`.
 impl CrateInfo {
-    /// The named catalog this crate selects for a dependency, if any.
+    /// The named catalog this crate selects for a dependency,
+    /// if any.
     pub fn selection(&self, name: &str) -> Option<&str> {
         for (key, catalog_name) in &self.selections {
             if key == name {
@@ -69,7 +95,8 @@ impl CrateInfo {
     }
 }
 
-/// Directory part of a forward-slash path (`a/b/Cargo.toml` gives `a/b`; a bare file name gives `.`).
+/// Directory part of a forward-slash path (`a/b/Cargo.toml` gives `a/b`;
+/// a bare file name gives `.`).
 pub fn posix_dirname(path: &str) -> String {
     return match path.rfind('/') {
         Some(0) => "/".to_string(),
@@ -78,7 +105,8 @@ pub fn posix_dirname(path: &str) -> String {
     };
 }
 
-/// Reads `[package.metadata.rust-catalog.catalogs]`, the crate's named-catalog selections.
+/// Reads `[package.metadata.rust-catalog.catalogs]`,
+/// the crate's named-catalog selections.
 fn read_selections(manifest_path: &str, root: &dyn TableLike, issues: &mut Vec<SyncIssue>) -> Vec<(String, String)> {
     let path: Vec<String> = ["package", "metadata", "rust-catalog", "catalogs"].iter().map(|part: &&str| return (*part).to_string()).collect();
     let mut selections: Vec<(String, String)> = Vec::new();
@@ -113,11 +141,15 @@ fn workspace_dependencies_is_hand_written(root: &dyn TableLike) -> bool {
     };
 }
 
-/// What:     `pub fn read_crate_info(manifest: &ManifestFile, issues: &mut Vec<SyncIssue>) -> Result<CrateInfo, Error>`
-///           parses one manifest and classifies its dependency entries. Invalid TOML is a hard `Error::Toml`;
-///           everything else becomes an issue so one run reports every problem.
-/// Why:      A hand-written inline or dotted `workspace.dependencies` is reported, because the sync only manages a
-///           standard `[workspace.dependencies]` table.
+/// What:
+/// `pub fn read_crate_info(manifest: &ManifestFile, issues: &mut Vec<SyncIssue>) -> Result<CrateInfo, Error>`
+/// parses one manifest and classifies its dependency entries.
+/// Invalid TOML is a hard `Error::Toml`;
+/// everything else becomes an issue so one run reports every problem.
+/// Why:
+/// A hand-written inline or dotted `workspace.dependencies` is reported,
+/// because the sync only manages a
+/// standard `[workspace.dependencies]` table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

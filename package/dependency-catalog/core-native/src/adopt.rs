@@ -1,6 +1,12 @@
-//! What:     Plans how literal versions left in manifests (for example by `cargo add`) join the default catalog.
-//! Why:      The result must not depend on the order crates are visited, so literals are grouped by dependency name
-//!           across every crate first; each group becomes one added entry, one raised floor, or a reported conflict.
+//! What:
+//! Plans how literal versions left in manifests (for example by `cargo add`) join the default catalog.
+//! Why:
+//! The result must not depend on the order crates are visited,
+//! so literals are grouped by dependency name
+//! across every crate first;
+//! each group becomes one added entry,
+//! one raised floor,
+//! or a reported conflict.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,17 +14,27 @@
 //! export function planAdoption(args: { document: RustCatalogDocument; sites: UseSite[]; selections: Selections; issues: SyncIssue[] }): AdoptionPlan
 //! ```
 
+/// Imports `crate::adopt_registry::plan_registry_group`.
 use crate::adopt_registry::plan_registry_group;
+/// Imports `crate::adopt_selected::check_selected_literals`.
 use crate::adopt_selected::check_selected_literals;
+/// Imports `crate::adopt_shared::same_entry`.
 use crate::adopt_shared::same_entry;
+/// Imports `crate::crate_info::CrateInfo`.
 use crate::crate_info::CrateInfo;
+/// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
+/// Imports `crate::site::{SiteKind, UseSite}`.
 use crate::site::{SiteKind, UseSite};
+/// Imports `crate::types::{CatalogDocument, Entry, EntryMap}`.
 use crate::types::{CatalogDocument, Entry, EntryMap};
 
-/// What:     `pub struct AdoptionPlan { ... }` lists the catalog changes adoption needs and the default catalog as it
-///           will read afterwards.
-/// Why:      Resolution uses `default_catalog` (so a just-adopted entry resolves), the editor uses the other two.
+/// What:
+/// `pub struct AdoptionPlan { ... }` lists the catalog changes adoption needs and the default catalog as it
+/// will read afterwards.
+/// Why:
+/// Resolution uses `default_catalog` (so a just-adopted entry resolves),
+/// the editor uses the other two.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,15 +42,18 @@ use crate::types::{CatalogDocument, Entry, EntryMap};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdoptionPlan {
-    /// New default entries, in discovery order.
+    /// New default entries,
+    /// in discovery order.
     pub additions: Vec<(String, Entry)>,
-    /// Existing default entries whose `>=` floor rises, with the new requirement text.
+    /// Existing default entries whose `>=` floor rises,
+    /// with the new requirement text.
     pub floor_raises: Vec<(String, String)>,
     /// The default catalog after adoption.
     pub default_catalog: EntryMap,
 }
 
-/// Plans one default-catalog group of git literals: every pin must agree with the others and the existing entry.
+/// Plans one default-catalog group of git literals:
+/// every pin must agree with the others and the existing entry.
 fn plan_git_group(name: &str, group: &[&UseSite], existing: Option<&Entry>, issues: &mut Vec<SyncIssue>) -> Option<Entry> {
     let first: &UseSite = group.first()?;
     let pin: &Entry = match existing {
@@ -62,7 +81,8 @@ fn plan_git_group(name: &str, group: &[&UseSite], existing: Option<&Entry>, issu
     return None;
 }
 
-/// Groups literal sites by dependency name in first-seen order; selected literals go to `selected` instead.
+/// Groups literal sites by dependency name in first-seen order;
+/// selected literals go to `selected` instead.
 fn group_literals<'a>(crates: &'a [CrateInfo], selected: &mut Vec<(&'a UseSite, &'a str)>) -> Vec<(&'a str, Vec<&'a UseSite>)> {
     let mut groups: Vec<(&'a str, Vec<&'a UseSite>)> = Vec::new();
     for info in crates {
@@ -89,10 +109,15 @@ fn group_literals<'a>(crates: &'a [CrateInfo], selected: &mut Vec<(&'a UseSite, 
     return groups;
 }
 
-/// What:     `pub fn plan_adoption(...) -> AdoptionPlan` plans adoption of every literal and returns the catalog
-///           changes it implies. Conflicts are pushed to `issues`.
-/// Why:      Git pins must agree; registry literals raise or create a `>=` floor; a git and a registry source for
-///           one name need separate catalogs.
+/// What:
+/// `pub fn plan_adoption(...) -> AdoptionPlan` plans adoption of every literal and returns the catalog
+/// changes it implies.
+/// Conflicts are pushed to `issues`.
+/// Why:
+/// Git pins must agree;
+/// registry literals raise or create a `>=` floor;
+/// a git and a registry source for
+/// one name need separate catalogs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

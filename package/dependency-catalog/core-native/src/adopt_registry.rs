@@ -1,6 +1,11 @@
-//! What:     Plans the default-catalog `>=` floor for one group of registry literals that share a dependency name.
-//! Why:      Literals are grouped by name across every crate first, so the result never depends on crate order: the
-//!           new floor is the highest base version, and it must satisfy every literal's own requirement.
+//! What:
+//! Plans the default-catalog `>=` floor for one group of registry literals that share a dependency name.
+//! Why:
+//! Literals are grouped by name across every crate first,
+//! so the result never depends on crate order:
+//! the
+//! new floor is the highest base version,
+//! and it must satisfy every literal's own requirement.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,25 +13,36 @@
 //! export function planRegistryGroup(args: { name: string; literals: UseSite[]; existing: Entry[]; issues: SyncIssue[] }): Entry[]
 //! ```
 
+/// Imports `std::cmp::Ordering`.
 use std::cmp::Ordering;
 
+/// Imports `crate::adopt_shared::named_catalog_remedy`.
 use crate::adopt_shared::named_catalog_remedy;
+/// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
+/// Imports `crate::quote::quote`.
 use crate::quote::quote;
+/// Imports `crate::requirement::{Operator, Requirement, satisfies, split_requirement}`.
 use crate::requirement::{Operator, Requirement, satisfies, split_requirement};
+/// Imports `crate::site::UseSite`.
 use crate::site::UseSite;
+/// Imports `crate::types::Entry`.
 use crate::types::Entry;
+/// Imports `crate::version::{ParsedVersion, compare_versions, format_version}`.
 use crate::version::{ParsedVersion, compare_versions, format_version};
 
-/// One candidate floor: the version text as written (keeping the author's precision) and its parse.
+/// One candidate floor:
+/// the version text as written (keeping the author's precision) and its parse.
 struct FloorCandidate {
-    /// Version text without its operator, such as `1.50` for `^1.50`.
+    /// Version text without its operator,
+    /// such as `1.50` for `^1.50`.
     text: String,
     /// Parsed form for comparison.
     parsed: ParsedVersion,
 }
 
-/// Version text of a requirement without its `>=`, `^` or `~` operator.
+/// Version text of a requirement without its `>=`,
+/// `^` or `~` operator.
 fn strip_operator(requirement: &str) -> String {
     let trimmed: &str = requirement.trim();
     for operator in [">=", "^", "~"] {
@@ -37,9 +53,13 @@ fn strip_operator(requirement: &str) -> String {
     return trimmed.to_string();
 }
 
-/// What:     `fn literal_candidates(...)` turns registry literals into candidate floors; exact pins and unreadable
-///           requirements become issues.
-/// Why:      An exact pin can never be a `>=` floor, so it must live in a named catalog.
+/// What:
+/// `fn literal_candidates(...)` turns registry literals into candidate floors;
+/// exact pins and unreadable
+/// requirements become issues.
+/// Why:
+/// An exact pin can never be a `>=` floor,
+/// so it must live in a named catalog.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,9 +93,14 @@ fn literal_candidates(literals: &[&UseSite], issues: &mut Vec<SyncIssue>) -> Vec
     return candidates;
 }
 
-/// What:     `pub fn plan_registry_group(...) -> Option<Entry>` plans one group: the entry the default catalog
-///           should hold, or `None` when the group conflicts (the reasons are in `issues`).
-/// Why:      `existing` is the current default entry, so a floor only ever rises.
+/// What:
+/// `pub fn plan_registry_group(...) -> Option<Entry>` plans one group:
+/// the entry the default catalog
+/// should hold,
+/// or `None` when the group conflicts (the reasons are in `issues`).
+/// Why:
+/// `existing` is the current default entry,
+/// so a floor only ever rises.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

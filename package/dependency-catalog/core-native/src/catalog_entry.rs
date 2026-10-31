@@ -1,6 +1,9 @@
-//! What:     Validation of one catalog table (`[catalog]` or `[catalogs.<name>]`) and its entries.
-//! Why:      The catalog gates CI and every crate manifest, so an invalid entry is reported (all of them at once)
-//!           rather than skipped.
+//! What:
+//! Validation of one catalog table (`[catalog]` or `[catalogs.<name>]`) and its entries.
+//! Why:
+//! The catalog gates CI and every crate manifest,
+//! so an invalid entry is reported (all of them at once)
+//! rather than skipped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,14 +11,20 @@
 //! export function parseCatalogTable(args: { location: string; value: unknown; bounded: boolean; issues: Issue[] }): Map<string, Entry>
 //! ```
 
+/// Imports `toml_edit::{Item, TableLike}`.
 use toml_edit::{Item, TableLike};
 
+/// Imports `crate::error::CatalogIssue`.
 use crate::error::CatalogIssue;
+/// Imports `crate::quote::quote`.
 use crate::quote::quote;
+/// Imports `crate::syntax::{is_bounded_requirement, is_crate_name, is_floor_requirement}`.
 use crate::syntax::{is_bounded_requirement, is_crate_name, is_floor_requirement};
+/// Imports `crate::types::{Entry, EntryMap}`.
 use crate::types::{Entry, EntryMap};
 
-/// Entry keys that belong at a crate's use site, each with the fix to tell the contributor.
+/// Entry keys that belong at a crate's use site,
+/// each with the fix to tell the contributor.
 const USE_SITE_KEYS: [(&str, &str); 7] = [
     (
         "features",
@@ -44,9 +53,14 @@ const FLOOR_REMEDY: &str = "write a `>=` floor such as `\">=1.0.104\"`; bounded 
 /// Fix text for a bounded rule violation in a named catalog.
 const BOUNDED_REMEDY: &str = "named catalogs hold bounded requirements such as `\"0.58\"`, `\"^0.58\"`, `\"~0.58.1\"`, or `\"=0.58.0\"`; a `>=` floor would be pulled to the newest release";
 
-/// What:     `pub fn describe_item(item: Option<&Item>) -> String` renders a value for a message the way
-///           `JSON.stringify` did: strings quoted, a missing value as `undefined`, anything else as its TOML text.
-/// Why:      Messages quote the offending value so the contributor can find it.
+/// What:
+/// `pub fn describe_item(item: Option<&Item>) -> String` renders a value for a message the way
+/// `JSON.stringify` did:
+/// strings quoted,
+/// a missing value as `undefined`,
+/// anything else as its TOML text.
+/// Why:
+/// Messages quote the offending value so the contributor can find it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +100,8 @@ fn non_empty_string(item: Option<&Item>) -> Option<&str> {
     };
 }
 
-/// The fix for a key that belongs at the use site, or `None` for any other key.
+/// The fix for a key that belongs at the use site,
+/// or `None` for any other key.
 fn use_site_remedy(key: &str) -> Option<&'static str> {
     for (candidate, remedy) in USE_SITE_KEYS {
         if candidate == key {
@@ -116,7 +131,8 @@ fn report_foreign_keys(location: &str, table: &dyn TableLike, issues: &mut Vec<C
     }
 }
 
-/// Validates a table-form entry; `None` when the table has problems (already pushed to `issues`).
+/// Validates a table-form entry;
+/// `None` when the table has problems (already pushed to `issues`).
 fn parse_table_entry(location: &str, table: &dyn TableLike, bounded: bool, issues: &mut Vec<CatalogIssue>) -> Option<Entry> {
     let issues_before: usize = issues.len();
     report_foreign_keys(location, table, issues);
@@ -200,7 +216,9 @@ fn parse_table_entry(location: &str, table: &dyn TableLike, bounded: bool, issue
     });
 }
 
-/// Validates one entry, pushing problems instead of failing; `None` when rejected.
+/// Validates one entry,
+/// pushing problems instead of failing;
+/// `None` when rejected.
 fn parse_entry(location: &str, name: &str, item: &Item, bounded: bool, issues: &mut Vec<CatalogIssue>) -> Option<Entry> {
     let valid_name: bool = is_crate_name(name);
     if !valid_name {
@@ -242,9 +260,13 @@ fn parse_entry(location: &str, name: &str, item: &Item, bounded: bool, issues: &
     return entry;
 }
 
-/// What:     `pub fn parse_catalog_table(...)` validates one catalog table into an ordered map. `item` is `None`
-///           when the file does not declare the table.
-/// Why:      The default catalog takes floors (`bounded` false), named catalogs take bounded requirements.
+/// What:
+/// `pub fn parse_catalog_table(...)` validates one catalog table into an ordered map.
+/// `item` is `None`
+/// when the file does not declare the table.
+/// Why:
+/// The default catalog takes floors (`bounded` false),
+/// named catalogs take bounded requirements.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

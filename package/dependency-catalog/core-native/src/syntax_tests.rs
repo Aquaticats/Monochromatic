@@ -1,5 +1,7 @@
-//! What:     Unit tests of the validators in `syntax.rs`.
-//! Why:      Every accepted and rejected shape the TypeScript tests covered stays covered here.
+//! What:
+//! Unit tests of the validators in `syntax.rs`.
+//! Why:
+//! Every accepted and rejected shape the TypeScript tests covered stays covered here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -7,11 +9,16 @@
 //! describe('syntax', () => { it('isCrateName', () => { ... }); });
 //! ```
 
+/// Imports `crate::syntax::{floor_version, is_bounded_requirement, is_crate_name, is_floor_requirement, is_version}`.
 use crate::syntax::{floor_version, is_bounded_requirement, is_crate_name, is_floor_requirement, is_version};
 
-/// What:     `fn all(validate: fn(&str) -> bool, inputs: &[&str], expected: bool) -> bool` checks one validator
-///           against a list. `fn(&str) -> bool` is a function pointer, like passing a TS function as a value.
-/// Why:      Each test states its accepted and rejected lists once.
+/// What:
+/// `fn all(validate: fn(&str) -> bool, inputs: &[&str], expected: bool) -> bool` checks one validator
+/// against a list.
+/// `fn(&str) -> bool` is a function pointer,
+/// like passing a TS function as a value.
+/// Why:
+/// Each test states its accepted and rejected lists once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,7 +33,10 @@ fn all(validate: fn(&str) -> bool, inputs: &[&str], expected: bool) -> bool {
     return true;
 }
 
-/// Crate names are 1 to 64 ASCII letters, digits, `-` or `_`, starting with a letter.
+/// Crate names are 1 to 64 ASCII letters,
+/// digits,
+/// `-` or `_`,
+/// starting with a letter.
 #[test]
 fn crate_names() {
     let long_ok: String = "a".repeat(64);
@@ -51,7 +61,8 @@ fn floor_requirements() {
     assert!(all(is_floor_requirement, &["1", ">1", ">=1, <2", ">=", "<=1", "*"], false));
 }
 
-/// Bounded requirements are caret, tilde or exact.
+/// Bounded requirements are caret,
+/// tilde or exact.
 #[test]
 fn bounded_requirements() {
     assert!(all(is_bounded_requirement, &["0.58", "^0.58", "~0.58.1", "=1.18.1"], true));

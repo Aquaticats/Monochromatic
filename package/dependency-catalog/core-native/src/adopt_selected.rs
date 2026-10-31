@@ -1,6 +1,9 @@
-//! What:     Checks literals whose crate selects a named catalog for that dependency.
-//! Why:      A selected literal is not adopted into the default catalog; it must be replaceable by the named entry,
-//!           or the sync would change what the crate resolves.
+//! What:
+//! Checks literals whose crate selects a named catalog for that dependency.
+//! Why:
+//! A selected literal is not adopted into the default catalog;
+//! it must be replaceable by the named entry,
+//! or the sync would change what the crate resolves.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,11 +11,17 @@
 //! export function checkSelectedLiterals(args: { document: RustCatalogDocument; sites: UseSite[]; selections: Selections; issues: SyncIssue[] }): void
 //! ```
 
+/// Imports `crate::adopt_shared::same_entry`.
 use crate::adopt_shared::same_entry;
+/// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
+/// Imports `crate::requirement::split_requirement`.
 use crate::requirement::split_requirement;
+/// Imports `crate::site::UseSite`.
 use crate::site::UseSite;
+/// Imports `crate::types::{CatalogDocument, Entry, EntryMap}`.
 use crate::types::{CatalogDocument, Entry, EntryMap};
+/// Imports `crate::version::format_version`.
 use crate::version::format_version;
 
 /// Whether the named entry can replace the literal.
@@ -27,9 +36,12 @@ fn compatible(entry: &Entry, literal: &Entry) -> bool {
     return same_entry(entry, literal);
 }
 
-/// What:     `pub fn check_selected_literals(...)` reports each selected literal the named entry cannot replace.
-///           `selected` pairs a site with the named catalog its crate chose.
-/// Why:      Missing entries and incompatible literals are issues, not silent rewrites.
+/// What:
+/// `pub fn check_selected_literals(...)` reports each selected literal the named entry cannot replace.
+/// `selected` pairs a site with the named catalog its crate chose.
+/// Why:
+/// Missing entries and incompatible literals are issues,
+/// not silent rewrites.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

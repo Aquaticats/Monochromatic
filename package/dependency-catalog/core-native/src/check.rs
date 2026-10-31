@@ -1,6 +1,11 @@
-//! What:     Check mode: which files differ from what the sync would write.
-//! Why:      CI and `file-enforcer check` must fail on drift without touching a file; this is the same sync with the
-//!           unchanged files filtered out, so check and write can never disagree.
+//! What:
+//! Check mode:
+//! which files differ from what the sync would write.
+//! Why:
+//! CI and `file-enforcer check` must fail on drift without touching a file;
+//! this is the same sync with the
+//! unchanged files filtered out,
+//! so check and write can never disagree.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,12 +13,18 @@
 //! export function checkRustCatalog(args: SyncInput): DriftReport
 //! ```
 
+/// Imports `crate::error::Error`.
 use crate::error::Error;
+/// Imports `crate::sync::{FileResult, SyncInput, SyncOutput, sync}`.
 use crate::sync::{FileResult, SyncInput, SyncOutput, sync};
 
-/// What:     `pub struct DriftReport { ... }` lists the files that differ from the sync's expected contents.
-/// Why:      `drifts` holds only drifting files, each with the `changes` that explain it; an empty list means the
-///           repository is in sync.
+/// What:
+/// `pub struct DriftReport { ... }` lists the files that differ from the sync's expected contents.
+/// Why:
+/// `drifts` holds only drifting files,
+/// each with the `changes` that explain it;
+/// an empty list means the
+/// repository is in sync.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -21,7 +32,9 @@ use crate::sync::{FileResult, SyncInput, SyncOutput, sync};
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriftReport {
-    /// Files whose expected text differs from their actual text: the catalog first, then manifests in input order.
+    /// Files whose expected text differs from their actual text:
+    /// the catalog first,
+    /// then manifests in input order.
     pub drifts: Vec<FileResult>,
     /// Crate directories whose generated `[workspace.dependencies]` table would change.
     pub affected_crates: Vec<String>,
@@ -29,6 +42,7 @@ pub struct DriftReport {
     pub warnings: Vec<String>,
 }
 
+/// Methods of `DriftReport`.
 impl DriftReport {
     /// Whether every file already holds its expected text.
     pub fn is_clean(&self) -> bool {
@@ -36,8 +50,11 @@ impl DriftReport {
     }
 }
 
-/// What:     `pub fn check(input: &SyncInput) -> Result<DriftReport, Error>` runs the sync and reports the drift.
-/// Why:      A catalog or manifest problem that stops the sync is an `Err`, exactly as in write mode.
+/// What:
+/// `pub fn check(input: &SyncInput) -> Result<DriftReport, Error>` runs the sync and reports the drift.
+/// Why:
+/// A catalog or manifest problem that stops the sync is an `Err`,
+/// exactly as in write mode.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

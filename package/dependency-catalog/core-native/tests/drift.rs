@@ -1,8 +1,15 @@
-//! What:     Drift reproduction: manifests as they were committed before the catalog floors were tightened, synced
-//!           against the catalog of that commit, must become exactly what the TypeScript file-enforcer wrote.
-//! Why:      The fixed-point test proves the library changes nothing when nothing should change; this proves it
-//!           makes the same changes as the TypeScript tool when something must. The fixtures are byte copies of
-//!           four real manifests (stale and TypeScript-regenerated) and the catalog they were synced against.
+//! What:
+//! Drift reproduction:
+//! manifests as they were committed before the catalog floors were tightened,
+//! synced
+//! against the catalog of that commit,
+//! must become exactly what the TypeScript file-enforcer wrote.
+//! Why:
+//! The fixed-point test proves the library changes nothing when nothing should change;
+//! this proves it
+//! makes the same changes as the TypeScript tool when something must.
+//! The fixtures are byte copies of
+//! four real manifests (stale and TypeScript-regenerated) and the catalog they were synced against.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,9 +17,11 @@
 //! expect(result.manifests.get(path)).toBe(typescriptOutput);
 //! ```
 
+/// Imports `monochromatic_dependency_catalog::{Change, ManifestFile, SyncInput, SyncOutput, check, sync}`.
 use monochromatic_dependency_catalog::{Change, ManifestFile, SyncInput, SyncOutput, check, sync};
 
-/// One real crate: its path and the stale and expected manifest texts.
+/// One real crate:
+/// its path and the stale and expected manifest texts.
 struct Fixture {
     /// Repository-relative manifest path.
     path: &'static str,
@@ -25,8 +34,10 @@ struct Fixture {
 /// The frozen catalog the fixtures were synced against.
 const CATALOG: &str = include_str!("fixtures/drift/catalog.toml");
 
-/// The four real crates; `desktop-app` depends on `truepeak-core` by path and carries `default-features = false`
-/// sites, git-free but feature-rich entries and target-specific tables.
+/// The four real crates;
+/// `desktop-app` depends on `truepeak-core` by path and carries `default-features = false`
+/// sites,
+/// git-free but feature-rich entries and target-specific tables.
 fn fixtures() -> [Fixture; 4] {
     return [
         Fixture {
@@ -54,8 +65,11 @@ fn fixtures() -> [Fixture; 4] {
 
 /// The frozen catalog narrowed to the four fixture crates.
 ///
-/// The full catalog holds entries only other crates use and has `catalogPrune = true`, so syncing four crates
-/// against it prunes the rest; that pruning is the only catalog change, and the narrowed text is the catalog the
+/// The full catalog holds entries only other crates use and has `catalogPrune = true`,
+/// so syncing four crates
+/// against it prunes the rest;
+/// that pruning is the only catalog change,
+/// and the narrowed text is the catalog the
 /// remaining tests use.
 fn narrowed_catalog() -> String {
     let manifests: Vec<ManifestFile> = stale_manifests();
@@ -84,7 +98,8 @@ fn stale_manifests() -> Vec<ManifestFile> {
     return manifests;
 }
 
-/// Every stale manifest becomes the TypeScript output, byte for byte.
+/// Every stale manifest becomes the TypeScript output,
+/// byte for byte.
 #[test]
 fn stale_manifests_become_the_typescript_output() {
     let catalog: String = narrowed_catalog();
@@ -101,7 +116,8 @@ fn stale_manifests_become_the_typescript_output() {
     }
 }
 
-/// Check mode names each drifting crate and why: the generated table was rewritten.
+/// Check mode names each drifting crate and why:
+/// the generated table was rewritten.
 #[test]
 fn check_mode_names_the_drifting_crates() {
     let catalog: String = narrowed_catalog();
@@ -121,7 +137,8 @@ fn check_mode_names_the_drifting_crates() {
     assert_eq!(report.affected_crates.len(), 4);
 }
 
-/// The expected manifests are a fixed point: syncing them again drifts nothing.
+/// The expected manifests are a fixed point:
+/// syncing them again drifts nothing.
 #[test]
 fn expected_manifests_are_a_fixed_point() {
     let mut manifests: Vec<ManifestFile> = Vec::new();

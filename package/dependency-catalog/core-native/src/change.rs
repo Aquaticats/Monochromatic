@@ -1,5 +1,12 @@
-//! What:     The change report: what a sync did (or, in check mode, would do) to each file.
-//! Why:      Check mode must name why a file drifts, not just that it does; the same records explain a write.
+//! What:
+//! The change report:
+//! what a sync did (or,
+//! in check mode,
+//! would do) to each file.
+//! Why:
+//! Check mode must name why a file drifts,
+//! not just that it does;
+//! the same records explain a write.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,11 +16,20 @@
 //!   | ...;
 //! ```
 
+/// Imports `std::fmt`.
 use std::fmt;
 
-/// What:     `pub enum Change { ... }` is one edit the sync makes to one file.
-/// Why:      The variants cover every edit kind: adoption (added entry, raised floor), pruning, rewriting a literal
-///           site, writing an internal path version, and the generated table.
+/// What:
+/// `pub enum Change { ... }` is one edit the sync makes to one file.
+/// Why:
+/// The variants cover every edit kind:
+/// adoption (added entry,
+/// raised floor),
+/// pruning,
+/// rewriting a literal
+/// site,
+/// writing an internal path version,
+/// and the generated table.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,7 +63,8 @@ pub enum Change {
     PathVersionWritten {
         /// Dotted location such as `dependencies.lib`.
         location: String,
-        /// The version written, including the leading `=`.
+        /// The version written,
+        /// including the leading `=`.
         version: String,
     },
     /// The generated `[workspace.dependencies]` table was created or its entries replaced.
@@ -56,6 +73,7 @@ pub enum Change {
     GeneratedTableRemoved,
 }
 
+/// Implements `fmt::Display` for `Change`.
 impl fmt::Display for Change {
     /// Prints one short human-readable line per change.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

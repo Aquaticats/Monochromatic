@@ -1,8 +1,17 @@
-//! What:     The pure sync of crate manifests with `rust-catalog.toml`: file contents in, expected file contents,
-//!           drift and warnings out.
-//! Why:      This is the library's whole public job. It reads nothing and writes nothing: the Rust file-enforcer
-//!           engine passes the catalog text and every manifest text, then writes (write mode) or diffs (check mode)
-//!           the returned contents. Every problem is collected first, so a failed sync changes nothing.
+//! What:
+//! The pure sync of crate manifests with `rust-catalog.toml`:
+//! file contents in,
+//! expected file contents,
+//! drift and warnings out.
+//! Why:
+//! This is the library's whole public job.
+//! It reads nothing and writes nothing:
+//! the Rust file-enforcer
+//! engine passes the catalog text and every manifest text,
+//! then writes (write mode) or diffs (check mode)
+//! the returned contents.
+//! Every problem is collected first,
+//! so a failed sync changes nothing.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,23 +19,39 @@
 //! export function syncRustCatalog(args: { catalogPath: string; catalogSource: string; manifests: ManifestFile[] }): SyncResult
 //! ```
 
+/// Imports `std::collections::HashMap`.
 use std::collections::HashMap;
 
+/// Imports `toml_edit::DocumentMut`.
 use toml_edit::DocumentMut;
 
+/// Imports `crate::adopt::{AdoptionPlan, plan_adoption}`.
 use crate::adopt::{AdoptionPlan, plan_adoption};
+/// Imports `crate::catalog::parse_catalog`.
 use crate::catalog::parse_catalog;
+/// Imports `crate::change::Change`.
 use crate::change::Change;
+/// Imports `crate::crate_info::{CrateInfo, ManifestFile, read_crate_info}`.
 use crate::crate_info::{CrateInfo, ManifestFile, read_crate_info};
+/// Imports `crate::edit_catalog::edit_catalog`.
 use crate::edit_catalog::edit_catalog;
+/// Imports `crate::edit_manifest::{TableChange, inherit_site, item_mut, set_path_version, sync_generated_table}`.
 use crate::edit_manifest::{TableChange, inherit_site, item_mut, set_path_version, sync_generated_table};
+/// Imports `crate::error::{Error, SyncIssue}`.
 use crate::error::{Error, SyncIssue};
+/// Imports `crate::resolve::{PendingEdit, Resolved, Usage, resolve_crate}`.
 use crate::resolve::{PendingEdit, Resolved, Usage, resolve_crate};
+/// Imports `crate::types::CatalogDocument`.
 use crate::types::CatalogDocument;
 
-/// What:     `pub struct SyncInput<'a> { ... }` is everything a sync reads. `'a` is a lifetime: it says the struct
-///           only borrows its text and slice from the caller and must not outlive them.
-/// Why:      Borrowing avoids copying every manifest; the caller keeps ownership of its buffers.
+/// What:
+/// `pub struct SyncInput<'a> { ... }` is everything a sync reads.
+/// `'a` is a lifetime:
+/// it says the struct
+/// only borrows its text and slice from the caller and must not outlive them.
+/// Why:
+/// Borrowing avoids copying every manifest;
+/// the caller keeps ownership of its buffers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -42,8 +67,11 @@ pub struct SyncInput<'a> {
     pub manifests: &'a [ManifestFile],
 }
 
-/// What:     `pub struct FileResult { ... }` is the expected state of one file.
-/// Why:      `changes` is empty exactly when `expected == actual`, so check mode can name why a file drifts.
+/// What:
+/// `pub struct FileResult { ... }` is the expected state of one file.
+/// Why:
+/// `changes` is empty exactly when `expected == actual`,
+/// so check mode can name why a file drifts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,6 +89,7 @@ pub struct FileResult {
     pub changes: Vec<Change>,
 }
 
+/// Methods of `FileResult`.
 impl FileResult {
     /// Whether the file differs from what the sync wants.
     pub fn drifts(&self) -> bool {
@@ -71,18 +100,23 @@ impl FileResult {
 /// The result of one sync pass.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncOutput {
-    /// `rust-catalog.toml` after adoption, floor raises and pruning.
+    /// `rust-catalog.toml` after adoption,
+    /// floor raises and pruning.
     pub catalog: FileResult,
-    /// Every manifest, in input order.
+    /// Every manifest,
+    /// in input order.
     pub manifests: Vec<FileResult>,
     /// Crate directories whose generated `[workspace.dependencies]` table changed.
     pub affected_crates: Vec<String>,
-    /// Non-fatal notes, such as entries no crate uses while `catalogPrune` is off.
+    /// Non-fatal notes,
+    /// such as entries no crate uses while `catalogPrune` is off.
     pub warnings: Vec<String>,
 }
 
+/// Methods of `SyncOutput`.
 impl SyncOutput {
-    /// Every file (catalog first, then manifests) whose expected text differs from its actual text.
+    /// Every file (catalog first,
+    /// then manifests) whose expected text differs from its actual text.
     pub fn drift(&self) -> Vec<&FileResult> {
         let mut drifting: Vec<&FileResult> = Vec::new();
         if self.catalog.drifts() {
@@ -107,12 +141,15 @@ impl SyncOutput {
     }
 }
 
-/// Dotted form of a prune path, such as `catalogs.pinned.salsa`.
+/// Dotted form of a prune path,
+/// such as `catalogs.pinned.salsa`.
 fn dotted(path: &[String]) -> String {
     return path.join(".");
 }
 
-/// Entry paths no crate uses: default-catalog names first, then each named catalog's names.
+/// Entry paths no crate uses:
+/// default-catalog names first,
+/// then each named catalog's names.
 fn unused_paths(document: &CatalogDocument, default_catalog: &crate::types::EntryMap, usage: &Usage) -> Vec<Vec<String>> {
     let mut unused: Vec<Vec<String>> = Vec::new();
     for (name, _) in default_catalog.iter() {
@@ -130,7 +167,8 @@ fn unused_paths(document: &CatalogDocument, default_catalog: &crate::types::Entr
     return unused;
 }
 
-/// Applies one crate's pending edits and generated table; returns the new text and the changes made.
+/// Applies one crate's pending edits and generated table;
+/// returns the new text and the changes made.
 fn apply_crate(info: &mut CrateInfo, resolved: &Resolved) -> (String, Vec<Change>) {
     let mut changes: Vec<Change> = Vec::new();
     for edit in &resolved.edits {
@@ -164,10 +202,16 @@ fn apply_crate(info: &mut CrateInfo, resolved: &Resolved) -> (String, Vec<Change
     return (info.document.to_string(), changes);
 }
 
-/// What:     `pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error>` brings every manifest and the catalog in
-///           line: adopts literal versions, resolves each crate's generated table and internal path versions, and
-///           finds unused entries.
-/// Why:      On `Err` nothing is partially applied: the caller has no new text to write.
+/// What:
+/// `pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error>` brings every manifest and the catalog in
+/// line:
+/// adopts literal versions,
+/// resolves each crate's generated table and internal path versions,
+/// and
+/// finds unused entries.
+/// Why:
+/// On `Err` nothing is partially applied:
+/// the caller has no new text to write.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

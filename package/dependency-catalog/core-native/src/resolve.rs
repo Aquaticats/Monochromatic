@@ -1,7 +1,13 @@
-//! What:     Resolving one crate: which catalog entry each of its dependencies uses, which edits its sites need, and
-//!           what its generated `[workspace.dependencies]` table must hold.
-//! Why:      Resolution only reads; it records the edits as plain data so every problem across every crate is
-//!           collected before any document is changed.
+//! What:
+//! Resolving one crate:
+//! which catalog entry each of its dependencies uses,
+//! which edits its sites need,
+//! and
+//! what its generated `[workspace.dependencies]` table must hold.
+//! Why:
+//! Resolution only reads;
+//! it records the edits as plain data so every problem across every crate is
+//! collected before any document is changed.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,18 +15,28 @@
 //! function resolveCrate(args: { info; defaultCatalog; namedCatalogs; internal; usage; issues }): { entries: Map<string, GeneratedEntry>; splices: Splice[] }
 //! ```
 
+/// Imports `std::collections::{HashMap, HashSet}`.
 use std::collections::{HashMap, HashSet};
 
+/// Imports `crate::crate_info::CrateInfo`.
 use crate::crate_info::CrateInfo;
+/// Imports `crate::default_features::generated_entries`.
 use crate::default_features::generated_entries;
+/// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
+/// Imports `crate::posix_path::join_normalized`.
 use crate::posix_path::join_normalized;
+/// Imports `crate::quote::quote`.
 use crate::quote::quote;
+/// Imports `crate::site::{GeneratedEntry, SiteKind, UseSite}`.
 use crate::site::{GeneratedEntry, SiteKind, UseSite};
+/// Imports `crate::types::{CatalogDocument, Entry, EntryMap}`.
 use crate::types::{CatalogDocument, Entry, EntryMap};
 
-/// What:     `pub enum PendingEdit { ... }` is one manifest edit decided during resolution and applied later.
-/// Why:      Keeping edits as data lets the sync apply nothing when any crate has a problem.
+/// What:
+/// `pub enum PendingEdit { ... }` is one manifest edit decided during resolution and applied later.
+/// Why:
+/// Keeping edits as data lets the sync apply nothing when any crate has a problem.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -50,7 +66,8 @@ pub enum PendingEdit {
     },
 }
 
-/// Which catalog entries any crate uses, to find unused ones.
+/// Which catalog entries any crate uses,
+/// to find unused ones.
 #[derive(Debug, Default)]
 pub struct Usage {
     /// Default-catalog names in use.
@@ -62,13 +79,15 @@ pub struct Usage {
 /// The outcome of resolving one crate.
 #[derive(Debug)]
 pub struct Resolved {
-    /// The crate's generated entries, in site order.
+    /// The crate's generated entries,
+    /// in site order.
     pub entries: Vec<(String, GeneratedEntry)>,
     /// Manifest edits to apply.
     pub edits: Vec<PendingEdit>,
 }
 
-/// Inserts or replaces a pair, keeping the first position of an existing name.
+/// Inserts or replaces a pair,
+/// keeping the first position of an existing name.
 fn upsert(pairs: &mut Vec<(String, Entry)>, name: &str, entry: Entry) {
     for pair in pairs.iter_mut() {
         if pair.0 == name {
@@ -79,7 +98,8 @@ fn upsert(pairs: &mut Vec<(String, Entry)>, name: &str, entry: Entry) {
     pairs.push((name.to_string(), entry));
 }
 
-/// Resolves a path site, pushing an edit or an issue.
+/// Resolves a path site,
+/// pushing an edit or an issue.
 fn resolve_path_site(info: &CrateInfo, site: &UseSite, internal: &HashMap<String, &CrateInfo>, edits: &mut Vec<PendingEdit>, issues: &mut Vec<SyncIssue>) {
     let target_dir: String = join_normalized(&info.crate_dir, &site.path);
     let target: Option<&&CrateInfo> = internal.get(&target_dir);
@@ -99,10 +119,15 @@ fn resolve_path_site(info: &CrateInfo, site: &UseSite, internal: &HashMap<String
     }
 }
 
-/// What:     `pub fn resolve_crate(...) -> Resolved` resolves one crate against the post-adoption default catalog
-///           and the named catalogs, recording usage and issues.
-/// Why:      A literal without an entry already failed adoption, which reported why; a second "missing entry" issue
-///           would blame crates that are not at fault.
+/// What:
+/// `pub fn resolve_crate(...) -> Resolved` resolves one crate against the post-adoption default catalog
+/// and the named catalogs,
+/// recording usage and issues.
+/// Why:
+/// A literal without an entry already failed adoption,
+/// which reported why;
+/// a second "missing entry" issue
+/// would blame crates that are not at fault.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

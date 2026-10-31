@@ -1,5 +1,9 @@
-//! What:     Test support: reads a repository tree's catalog and manifests the way the file-enforcer globs do.
-//! Why:      The library itself never touches the file system, so only tests need this.
+//! What:
+//! Test support:
+//! reads a repository tree's catalog and manifests the way the file-enforcer globs do.
+//! Why:
+//! The library itself never touches the file system,
+//! so only tests need this.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -7,17 +11,23 @@
 //! export async function readManifests(root: string): Promise<ManifestFile[]>
 //! ```
 
+/// Imports `std::fs`.
 use std::fs;
+/// Imports `std::path::{Path, PathBuf}`.
 use std::path::{Path, PathBuf};
 
+/// Imports `monochromatic_dependency_catalog::ManifestFile`.
 use monochromatic_dependency_catalog::ManifestFile;
 
-/// Repository root, three directories above this crate (`package/dependency-catalog/core-native`).
+/// Repository root,
+/// three directories above this crate (`package/dependency-catalog/core-native`).
 pub fn repository_root() -> PathBuf {
     return Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
 }
 
-/// Lists the sub-directories of `directory`, sorted by name; empty when it cannot be read.
+/// Lists the sub-directories of `directory`,
+/// sorted by name;
+/// empty when it cannot be read.
 fn sub_directories(directory: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let Ok(entries) = fs::read_dir(directory) else {
@@ -32,10 +42,14 @@ fn sub_directories(directory: &Path) -> Vec<PathBuf> {
     return found;
 }
 
-/// What:     `pub fn read_manifests(root: &Path) -> Vec<ManifestFile>` reads every first-party crate manifest the
-///           file-enforcer globs `package/*/*/Cargo.toml` and `package/*/*/*/Cargo.toml` match, sorted by path.
-/// Why:      The same bounded-depth discovery the TypeScript tool used; `node_modules` and `target` copies are
-///           skipped.
+/// What:
+/// `pub fn read_manifests(root: &Path) -> Vec<ManifestFile>` reads every first-party crate manifest the
+/// file-enforcer globs `package/*/*/Cargo.toml` and `package/*/*/*/Cargo.toml` match,
+/// sorted by path.
+/// Why:
+/// The same bounded-depth discovery the TypeScript tool used;
+/// `node_modules` and `target` copies are
+/// skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

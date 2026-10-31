@@ -1,11 +1,18 @@
-//! What:     The crate root of `monochromatic-dependency-catalog`: it lists the modules and re-exports the public API.
-//! Why:      The Rust file-enforcer engine links this library to render `rust-catalog.toml` into each Cargo
-//!           workspace root's `[workspace.dependencies]`. Every public function takes file contents and returns
-//!           file contents or drift; the library never touches the file system.
+//! What:
+//! The crate root of `monochromatic-dependency-catalog`:
+//! it lists the modules and re-exports the public API.
+//! Why:
+//! The Rust file-enforcer engine links this library to render `rust-catalog.toml` into each Cargo
+//! workspace root's `[workspace.dependencies]`.
+//! Every public function takes file contents and returns
+//! file contents or drift;
+//! the library never touches the file system.
 //!
 //! The public API is three pure functions:
-//! `parse_catalog` validates catalog text, `sync` returns the expected contents of the catalog and every manifest
-//! (write mode writes them), and `check` returns only the files that drift (check mode diffs them).
+//! `parse_catalog` validates catalog text,
+//! `sync` returns the expected contents of the catalog and every manifest
+//! (write mode writes them),
+//! and `check` returns only the files that drift (check mode diffs them).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -90,28 +97,41 @@ pub mod types;
 /// Version parsing and ordering.
 pub mod version;
 
+/// Imports `crate::catalog::parse_catalog`.
 pub use crate::catalog::parse_catalog;
+/// Imports `crate::change::Change`.
 pub use crate::change::Change;
+/// Imports `crate::check::{DriftReport, check}`.
 pub use crate::check::{DriftReport, check};
+/// Imports `crate::crate_info::ManifestFile`.
 pub use crate::crate_info::ManifestFile;
+/// Imports `crate::error::{CatalogIssue, Error, SyncIssue}`.
 pub use crate::error::{CatalogIssue, Error, SyncIssue};
+/// Imports `crate::sync::{FileResult, SyncInput, SyncOutput, sync}`.
 pub use crate::sync::{FileResult, SyncInput, SyncOutput, sync};
+/// Imports `crate::types::{CatalogDocument, Entry, EntryMap, Settings, TrustPolicy}`.
 pub use crate::types::{CatalogDocument, Entry, EntryMap, Settings, TrustPolicy};
 
+/// Unit tests of `catalog`.
 #[cfg(test)]
 mod catalog_tests;
 
+/// Unit tests of `requirement`.
 #[cfg(test)]
 mod requirement_tests;
 
+/// Unit tests of `syntax`.
 #[cfg(test)]
 mod syntax_tests;
 
+/// Unit tests of `sync issue`.
 #[cfg(test)]
 mod sync_issue_tests;
 
+/// Fixtures and runners shared by the sync test files.
 #[cfg(test)]
 mod sync_test_support;
 
+/// Unit tests of `sync`.
 #[cfg(test)]
 mod sync_tests;

@@ -1,6 +1,10 @@
-//! What:     Cargo version parsing, ordering and formatting for partial and full versions with prerelease labels.
-//! Why:      Adoption picks the highest literal version across crates and checks requirements against it, with no
-//!           semver crate available.
+//! What:
+//! Cargo version parsing,
+//! ordering and formatting for partial and full versions with prerelease labels.
+//! Why:
+//! Adoption picks the highest literal version across crates and checks requirements against it,
+//! with no
+//! semver crate available.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,14 +15,23 @@
 //! export function formatVersion(version: ParsedVersion): string
 //! ```
 
+/// Imports `std::cmp::Ordering`.
 use std::cmp::Ordering;
+/// Imports `std::fmt`.
 use std::fmt;
 
+/// Imports `crate::syntax::is_version`.
 use crate::syntax::is_version;
 
-/// What:     `pub const ABSENT_PART: i64 = -1;` marks a minor or patch part the text leaves out. `i64` is a signed
-///           64-bit integer (siblings: `u64` cannot hold `-1`, `i32` is narrower).
-/// Why:      Partial requirements keep their width (`1` is not `1.0.0`), which the caret and tilde bounds need.
+/// What:
+/// `pub const ABSENT_PART: i64 = -1;` marks a minor or patch part the text leaves out.
+/// `i64` is a signed
+/// 64-bit integer (siblings:
+/// `u64` cannot hold `-1`,
+/// `i32` is narrower).
+/// Why:
+/// Partial requirements keep their width (`1` is not `1.0.0`),
+/// which the caret and tilde bounds need.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,10 +39,17 @@ use crate::syntax::is_version;
 /// ```
 pub const ABSENT_PART: i64 = -1;
 
-/// What:     `pub struct ParsedVersion { ... }` declares a record with four public fields; `#[derive(...)]` asks the
-///           compiler to generate `Debug` printing, `Clone` (deep copy), `PartialEq`/`Eq` (`==`).
-/// Why:      Holds one parsed version; `i64` parts so `ABSENT_PART` fits, and `Vec<String>` (not `&str`) so the
-///           struct owns its labels and can outlive the input text.
+/// What:
+/// `pub struct ParsedVersion { ... }` declares a record with four public fields;
+/// `#[derive(...)]` asks the
+/// compiler to generate `Debug` printing,
+/// `Clone` (deep copy),
+/// `PartialEq`/`Eq` (`==`).
+/// Why:
+/// Holds one parsed version;
+/// `i64` parts so `ABSENT_PART` fits,
+/// and `Vec<String>` (not `&str`) so the
+/// struct owns its labels and can outlive the input text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -39,17 +59,22 @@ pub const ABSENT_PART: i64 = -1;
 pub struct ParsedVersion {
     /// Major part.
     pub major: i64,
-    /// Minor part, or `ABSENT_PART`.
+    /// Minor part,
+    /// or `ABSENT_PART`.
     pub minor: i64,
-    /// Patch part, or `ABSENT_PART`.
+    /// Patch part,
+    /// or `ABSENT_PART`.
     pub patch: i64,
-    /// Dot-separated prerelease identifiers; empty for a release.
+    /// Dot-separated prerelease identifiers;
+    /// empty for a release.
     pub prerelease: Vec<String>,
 }
 
-/// What:     `pub struct VersionError { ... }` is the failure value returned when text is not a Cargo version or
-///           requirement.
-/// Why:      Callers turn it into a diagnostic naming the offending requirement.
+/// What:
+/// `pub struct VersionError { ... }` is the failure value returned when text is not a Cargo version or
+/// requirement.
+/// Why:
+/// Callers turn it into a diagnostic naming the offending requirement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,6 +86,7 @@ pub struct VersionError {
     pub message: String,
 }
 
+/// Implements `fmt::Display` for `VersionError`.
 impl fmt::Display for VersionError {
     /// Prints the reason.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -68,9 +94,13 @@ impl fmt::Display for VersionError {
     }
 }
 
-/// What:     `pub fn parse_version(text: &str) -> Result<ParsedVersion, VersionError>` parses version text without an
-///           operator. `Result<T, E>` is Rust's "returns a value or an error" type (no exceptions).
-/// Why:      Fails with a `VersionError` for text `is_version` rejects, so callers can report instead of panicking.
+/// What:
+/// `pub fn parse_version(text: &str) -> Result<ParsedVersion, VersionError>` parses version text without an
+/// operator.
+/// `Result<T, E>` is Rust's "returns a value or an error" type (no exceptions).
+/// Why:
+/// Fails with a `VersionError` for text `is_version` rejects,
+/// so callers can report instead of panicking.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -114,10 +144,18 @@ fn is_numeric_identifier(identifier: &str) -> bool {
     return true;
 }
 
-/// What:     `fn compare_identifier(left: &str, right: &str) -> Ordering` orders two prerelease identifiers by semver
-///           precedence: numbers compare as numbers and sort before words; words compare as text.
-/// Why:      `Ordering` (Less, Equal, Greater) is Rust's comparison result, the counterpart of a negative, zero or
-///           positive number.
+/// What:
+/// `fn compare_identifier(left: &str, right: &str) -> Ordering` orders two prerelease identifiers by semver
+/// precedence:
+/// numbers compare as numbers and sort before words;
+/// words compare as text.
+/// Why:
+/// `Ordering` (Less,
+/// Equal,
+/// Greater) is Rust's comparison result,
+/// the counterpart of a negative,
+/// zero or
+/// positive number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,9 +178,11 @@ fn compare_identifier(left: &str, right: &str) -> Ordering {
     return left.cmp(right);
 }
 
-/// What:     `pub fn compare_versions(left: &ParsedVersion, right: &ParsedVersion) -> Ordering` orders two versions;
-///           absent parts count as 0 and build labels never reach this type.
-/// Why:      Adoption needs "the highest version" and the requirement check needs "at or above the floor".
+/// What:
+/// `pub fn compare_versions(left: &ParsedVersion, right: &ParsedVersion) -> Ordering` orders two versions;
+/// absent parts count as 0 and build labels never reach this type.
+/// Why:
+/// Adoption needs "the highest version" and the requirement check needs "at or above the floor".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -178,9 +218,12 @@ pub fn compare_versions(left: &ParsedVersion, right: &ParsedVersion) -> Ordering
     return left.prerelease.len().cmp(&right.prerelease.len());
 }
 
-/// What:     `pub fn format_version(version: &ParsedVersion) -> String` prints the full `major.minor.patch` core
-///           (absent parts as 0) plus `-prerelease` when present.
-/// Why:      The requirement check compares a full candidate version, so a floor like `0.4` becomes `0.4.0`.
+/// What:
+/// `pub fn format_version(version: &ParsedVersion) -> String` prints the full `major.minor.patch` core
+/// (absent parts as 0) plus `-prerelease` when present.
+/// Why:
+/// The requirement check compares a full candidate version,
+/// so a floor like `0.4` becomes `0.4.0`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

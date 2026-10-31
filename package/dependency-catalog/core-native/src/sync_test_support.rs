@@ -1,5 +1,7 @@
-//! What:     Fixtures and runners shared by the sync test files.
-//! Why:      Both the edit tests and the issue tests build the same manifests and run the same sync.
+//! What:
+//! Fixtures and runners shared by the sync test files.
+//! Why:
+//! Both the edit tests and the issue tests build the same manifests and run the same sync.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,8 +10,11 @@
 //! function crate(args: { dir: string; body: string[]; version?: string }): ManifestFile
 //! ```
 
+/// Imports `crate::crate_info::ManifestFile`.
 use crate::crate_info::ManifestFile;
+/// Imports `crate::error::Error`.
 use crate::error::Error;
+/// Imports `crate::sync::{SyncInput, SyncOutput, sync}`.
 use crate::sync::{SyncInput, SyncOutput, sync};
 
 /// Joins lines into file text with a trailing newline.
@@ -17,7 +22,10 @@ pub(crate) fn text(lines: &[&str]) -> String {
     return format!("{}\n", lines.join("\n"));
 }
 
-/// Builds a crate manifest fixture: `[package]`, the body, then an empty `[workspace]`.
+/// Builds a crate manifest fixture:
+/// `[package]`,
+/// the body,
+/// then an empty `[workspace]`.
 pub(crate) fn crate_with_version(dir: &str, body: &[&str], version: &str) -> ManifestFile {
     let name: &str = dir.rsplit('/').next().unwrap_or("x");
     let mut lines: Vec<String> = vec![

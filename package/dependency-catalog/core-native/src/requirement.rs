@@ -1,7 +1,14 @@
-//! What:     Single-comparator Cargo requirement splitting and matching: bare and `^` caret, `~` tilde, `=` exact and
-//!           `>=` floor, each on a partial or full version.
-//! Why:      Adoption must prove that a shared `>=` floor satisfies every literal a crate wrote, and that a named
-//!           catalog entry can replace a literal.
+//! What:
+//! Single-comparator Cargo requirement splitting and matching:
+//! bare and `^` caret,
+//! `~` tilde,
+//! `=` exact and
+//! `>=` floor,
+//! each on a partial or full version.
+//! Why:
+//! Adoption must prove that a shared `>=` floor satisfies every literal a crate wrote,
+//! and that a named
+//! catalog entry can replace a literal.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,13 +17,17 @@
 //! export function satisfies(args: { version: string; requirement: string }): boolean
 //! ```
 
+/// Imports `std::cmp::Ordering`.
 use std::cmp::Ordering;
 
+/// Imports `crate::version::{ABSENT_PART, ParsedVersion, VersionError, compare_versions, parse_version}`.
 use crate::version::{ABSENT_PART, ParsedVersion, VersionError, compare_versions, parse_version};
 
-/// What:     `pub enum Operator { ... }` declares a closed set of named choices (a TS string-literal union).
-///           `Copy` lets it be passed around by value without moving ownership.
-/// Why:      A requirement has exactly these four comparison shapes.
+/// What:
+/// `pub enum Operator { ... }` declares a closed set of named choices (a TS string-literal union).
+/// `Copy` lets it be passed around by value without moving ownership.
+/// Why:
+/// A requirement has exactly these four comparison shapes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,7 +37,8 @@ use crate::version::{ABSENT_PART, ParsedVersion, VersionError, compare_versions,
 pub enum Operator {
     /// `>=` floor.
     AtLeast,
-    /// `^` caret, also the meaning of a bare version.
+    /// `^` caret,
+    /// also the meaning of a bare version.
     Caret,
     /// `~` tilde.
     Tilde,
@@ -43,9 +55,14 @@ pub struct Requirement {
     pub version: ParsedVersion,
 }
 
-/// What:     `pub fn split_requirement(requirement: &str) -> Result<Requirement, VersionError>` splits text such as
-///           `>=1.0`, `^0.4`, `~1.2.3`, `=1.18.1` or bare `1` (a bare version means caret).
-/// Why:      Both adoption and the satisfaction check start from the operator and the version.
+/// What:
+/// `pub fn split_requirement(requirement: &str) -> Result<Requirement, VersionError>` splits text such as
+/// `>=1.0`,
+/// `^0.4`,
+/// `~1.2.3`,
+/// `=1.18.1` or bare `1` (a bare version means caret).
+/// Why:
+/// Both adoption and the satisfaction check start from the operator and the version.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,9 +100,13 @@ fn release_version(major: i64, minor: i64, patch: i64) -> ParsedVersion {
     };
 }
 
-/// What:     `fn upper_bound(operator: Operator, floor: &ParsedVersion) -> ParsedVersion` returns the smallest
-///           version a caret or tilde comparator excludes.
-/// Why:      `^0.4` allows `0.4.x` only, `^1.2` allows `1.x`; the satisfaction check needs the exclusive top.
+/// What:
+/// `fn upper_bound(operator: Operator, floor: &ParsedVersion) -> ParsedVersion` returns the smallest
+/// version a caret or tilde comparator excludes.
+/// Why:
+/// `^0.4` allows `0.4.x` only,
+/// `^1.2` allows `1.x`;
+/// the satisfaction check needs the exclusive top.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,10 +128,13 @@ fn upper_bound(operator: Operator, floor: &ParsedVersion) -> ParsedVersion {
     return release_version(0, 0, floor.patch + 1);
 }
 
-/// What:     `pub fn satisfies(version: &str, requirement: &str) -> Result<bool, VersionError>` says whether a full
-///           version satisfies a single-comparator requirement, by Cargo's documented rules (a prerelease only
-///           matches a comparator that names a prerelease of the same `major.minor.patch`).
-/// Why:      Adoption refuses to raise a shared floor above what a crate's own literal allows.
+/// What:
+/// `pub fn satisfies(version: &str, requirement: &str) -> Result<bool, VersionError>` says whether a full
+/// version satisfies a single-comparator requirement,
+/// by Cargo's documented rules (a prerelease only
+/// matches a comparator that names a prerelease of the same `major.minor.patch`).
+/// Why:
+/// Adoption refuses to raise a shared floor above what a crate's own literal allows.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

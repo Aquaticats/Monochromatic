@@ -1,15 +1,29 @@
-//! What:     Quoting text as a double-quoted string that is valid in both diagnostics and TOML basic strings.
-//! Why:      The TypeScript tool used `JSON.stringify` for both; this is the same escape set, so the rendered catalog
-//!           and the messages read the same, and TOML also forbids the raw DEL character, which is escaped here.
+//! What:
+//! Quoting text as a double-quoted string that is valid in both diagnostics and TOML basic strings.
+//! Why:
+//! The TypeScript tool used `JSON.stringify` for both;
+//! this is the same escape set,
+//! so the rendered catalog
+//! and the messages read the same,
+//! and TOML also forbids the raw DEL character,
+//! which is escaped here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! export function quote(value: string): string { return JSON.stringify(value); }
 //! ```
 
-/// What:     `pub fn quote(value: &str) -> String` returns `value` wrapped in `"` with `"`, `\`, control characters
-///           and DEL escaped (`\n`, `\t`, `\u001f` ...). Non-ASCII text stays as is.
-/// Why:      A git URL or a package name can hold any text; escaping at the final interpolation keeps the TOML valid.
+/// What:
+/// `pub fn quote(value: &str) -> String` returns `value` wrapped in `"` with `"`,
+/// `\`,
+/// control characters
+/// and DEL escaped (`\n`,
+/// `\t`,
+/// `\u001f` ...).
+/// Non-ASCII text stays as is.
+/// Why:
+/// A git URL or a package name can hold any text;
+/// escaping at the final interpolation keeps the TOML valid.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

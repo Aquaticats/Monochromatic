@@ -1,7 +1,13 @@
-//! What:     Unit tests of adoption and manifest editing in the pure sync, ported from the TypeScript
-//!           `sync.unit.test.ts`, plus the cases the Rust edit layer adds (dotted keys, creation and removal of the
-//!           generated table).
-//! Why:      Each adoption, resolution and edit behavior has a test that names it.
+//! What:
+//! Unit tests of adoption and manifest editing in the pure sync,
+//! ported from the TypeScript
+//! `sync.unit.test.ts`,
+//! plus the cases the Rust edit layer adds (dotted keys,
+//! creation and removal of the
+//! generated table).
+//! Why:
+//! Each adoption,
+//! resolution and edit behavior has a test that names it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,12 +15,17 @@
 //! describe('syncRustCatalog', () => { it('adopts literals across crates ...', () => { ... }); });
 //! ```
 
+/// Imports `crate::change::Change`.
 use crate::change::Change;
+/// Imports `crate::crate_info::ManifestFile`.
 use crate::crate_info::ManifestFile;
+/// Imports `crate::sync::{SyncInput, SyncOutput, sync}`.
 use crate::sync::{SyncInput, SyncOutput, sync};
+/// Imports `crate::sync_test_support::{crate_with_version, issues, krate, manifest_text, run_ok, text}`.
 use crate::sync_test_support::{crate_with_version, issues, krate, manifest_text, run_ok, text};
 
-/// Literals across crates become one floor, keeping use-site features and comments.
+/// Literals across crates become one floor,
+/// keeping use-site features and comments.
 #[test]
 fn adopts_literals_across_crates() {
     let output: SyncOutput = run_ok(

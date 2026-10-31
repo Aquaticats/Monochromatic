@@ -1,8 +1,14 @@
-//! What:     Format-preserving edits that bring one crate manifest in line with the catalog: literal use sites
-//!           become `workspace = true`, internal path dependencies get an exact `version`, and the generated
-//!           `[workspace.dependencies]` table holds exactly the resolved entries.
-//! Why:      All edits go through the parsed `toml_edit::DocumentMut`, so every byte outside the edited entries is
-//!           printed back unchanged.
+//! What:
+//! Format-preserving edits that bring one crate manifest in line with the catalog:
+//! literal use sites
+//! become `workspace = true`,
+//! internal path dependencies get an exact `version`,
+//! and the generated
+//! `[workspace.dependencies]` table holds exactly the resolved entries.
+//! Why:
+//! All edits go through the parsed `toml_edit::DocumentMut`,
+//! so every byte outside the edited entries is
+//! printed back unchanged.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -12,19 +18,28 @@
 //! export function generatedTableSplices(...): Splice[]
 //! ```
 
+/// Imports `toml_edit::{DocumentMut, InlineTable, Item, Key, RawString, Table, TableLike, Value}`.
 use toml_edit::{DocumentMut, InlineTable, Item, Key, RawString, Table, TableLike, Value};
 
+/// Imports `crate::edit_catalog::{end_position, replace_string}`.
 use crate::edit_catalog::{end_position, replace_string};
+/// Imports `crate::quote::quote`.
 use crate::quote::quote;
+/// Imports `crate::render::{GENERATED_TABLE_COMMENT, parse_value, render_generated_value}`.
 use crate::render::{GENERATED_TABLE_COMMENT, parse_value, render_generated_value};
+/// Imports `crate::site::GeneratedEntry`.
 use crate::site::GeneratedEntry;
 
 /// Keys a literal carries that move into the catalog when the site becomes `workspace = true`.
 const MOVED_KEYS: [&str; 4] = ["git", "package", "rev", "version"];
 
-/// What:     `pub fn item_mut<'a>(...)` walks a key path of tables and returns the entry named `name` in the last
-///           one, mutably.
-/// Why:      Sites are recorded as `(table path, name)`, and edits need the live item.
+/// What:
+/// `pub fn item_mut<'a>(...)` walks a key path of tables and returns the entry named `name` in the last
+/// one,
+/// mutably.
+/// Why:
+/// Sites are recorded as `(table path, name)`,
+/// and edits need the live item.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,17 +53,26 @@ pub fn item_mut<'a>(root: &'a mut dyn TableLike, table: &[String], name: &str) -
     return current.get_mut(name);
 }
 
-/// Text of an inline-table member without its surrounding whitespace, for example `features = ["derive"]`.
+/// Text of an inline-table member without its surrounding whitespace,
+/// for example `features = ["derive"]`.
 fn member_text(key: &Key, value: &Value) -> String {
     let mut bare: Value = value.clone();
     bare.decor_mut().clear();
     return format!("{} = {}", key.display_repr(), bare);
 }
 
-/// What:     `fn inherit_inline(table: &toml_edit::InlineTable) -> Value` builds `{ workspace = true, <kept members> }`
-///           from an inline-table dependency, dropping `git`, `package`, `rev` and `version`.
-/// Why:      The kept members (`features`, `optional`, `default-features`) are copied as text, so their own
-///           formatting survives.
+/// What:
+/// `fn inherit_inline(table: &toml_edit::InlineTable) -> Value` builds `{ workspace = true, <kept members> }`
+/// from an inline-table dependency,
+/// dropping `git`,
+/// `package`,
+/// `rev` and `version`.
+/// Why:
+/// The kept members (`features`,
+/// `optional`,
+/// `default-features`) are copied as text,
+/// so their own
+/// formatting survives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,7 +91,9 @@ fn inherit_inline(table: &toml_edit::InlineTable) -> Value {
     return parse_value(&format!("{{ {} }}", parts.join(", ")));
 }
 
-/// Rewrites a section-form or dotted dependency: the first moved key becomes `workspace = true` in place, later
+/// Rewrites a section-form or dotted dependency:
+/// the first moved key becomes `workspace = true` in place,
+/// later
 /// moved keys are dropped.
 fn inherit_table(table: &mut Table) {
     let names: Vec<String> = table.iter().map(|pair| return pair.0.to_string()).collect();
@@ -98,9 +124,14 @@ fn inherit_table(table: &mut Table) {
     }
 }
 
-/// What:     `pub fn inherit_site(item: &mut Item)` turns a literal dependency into `workspace = true`, keeping its
-///           `features`, `optional` and `default-features`.
-/// Why:      Once the version lives in the catalog, the use site only says what is crate-local.
+/// What:
+/// `pub fn inherit_site(item: &mut Item)` turns a literal dependency into `workspace = true`,
+/// keeping its
+/// `features`,
+/// `optional` and `default-features`.
+/// Why:
+/// Once the version lives in the catalog,
+/// the use site only says what is crate-local.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -126,9 +157,14 @@ pub fn inherit_site(item: &mut Item) {
     }
 }
 
-/// What:     `pub fn set_path_version(item: &mut Item, version: &str) -> bool` makes an internal path dependency
-///           carry `version = "=<version>"`, the counterpart of `workspace:*`. Returns whether anything changed.
-/// Why:      A dependency with no members at all is left alone, as the TypeScript tool did.
+/// What:
+/// `pub fn set_path_version(item: &mut Item, version: &str) -> bool` makes an internal path dependency
+/// carry `version = "=<version>"`,
+/// the counterpart of `workspace:*`.
+/// Returns whether anything changed.
+/// Why:
+/// A dependency with no members at all is left alone,
+/// as the TypeScript tool did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -162,10 +198,14 @@ pub fn set_path_version(item: &mut Item, version: &str) -> bool {
     return true;
 }
 
-/// What:     `fn append_inline_version(...)` adds `version = "<wanted>"` after the last member of an inline table
-///           so it prints as `, version = "=0.1.1" }`.
-/// Why:      The last member's trailing space (before `}`) moves to the new value; without that, `toml_edit` would
-///           print a stray space before the comma.
+/// What:
+/// `fn append_inline_version(...)` adds `version = "<wanted>"` after the last member of an inline table
+/// so it prints as `, version = "=0.1.1" }`.
+/// Why:
+/// The last member's trailing space (before `}`) moves to the new value;
+/// without that,
+/// `toml_edit` would
+/// print a stray space before the comma.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,7 +242,8 @@ fn generated_table(entries: &[(String, GeneratedEntry)]) -> Table {
     return table;
 }
 
-/// Printed form of a `[workspace.dependencies]` table without its leading comment, for comparison.
+/// Printed form of a `[workspace.dependencies]` table without its leading comment,
+/// for comparison.
 fn body_text(table: &Table) -> String {
     let mut copy: Table = table.clone();
     copy.decor_mut().clear();
@@ -225,10 +266,16 @@ pub enum TableChange {
     Removed,
 }
 
-/// What:     `pub fn sync_generated_table(...) -> TableChange` makes `[workspace.dependencies]` hold exactly
-///           `entries`, sorted by name. A table that already prints the same entries is left untouched (including a
-///           comment on its header line); a new table gets the generated-by comment above it.
-/// Why:      `source_ends_with_newline` decides the blank-line separator, as the TypeScript appender did.
+/// What:
+/// `pub fn sync_generated_table(...) -> TableChange` makes `[workspace.dependencies]` hold exactly
+/// `entries`,
+/// sorted by name.
+/// A table that already prints the same entries is left untouched (including a
+/// comment on its header line);
+/// a new table gets the generated-by comment above it.
+/// Why:
+/// `source_ends_with_newline` decides the blank-line separator,
+/// as the TypeScript appender did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

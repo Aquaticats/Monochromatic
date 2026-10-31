@@ -1,5 +1,10 @@
-//! What:     Unit tests of version parsing, ordering, formatting and requirement matching.
-//! Why:      Adoption's correctness rests on these; the cases are the TypeScript semver tests.
+//! What:
+//! Unit tests of version parsing,
+//! ordering,
+//! formatting and requirement matching.
+//! Why:
+//! Adoption's correctness rests on these;
+//! the cases are the TypeScript semver tests.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -7,9 +12,12 @@
 //! describe('semver', () => { it('parseVersion', () => { ... }); });
 //! ```
 
+/// Imports `std::cmp::Ordering`.
 use std::cmp::Ordering;
 
+/// Imports `crate::requirement::{Operator, satisfies, split_requirement}`.
 use crate::requirement::{Operator, satisfies, split_requirement};
+/// Imports `crate::version::{ParsedVersion, compare_versions, format_version, parse_version}`.
 use crate::version::{ParsedVersion, compare_versions, format_version, parse_version};
 
 /// Builds a `ParsedVersion` for assertions.
@@ -31,7 +39,8 @@ fn matches(requirement: &str, versions: &[&str]) -> Vec<bool> {
     return verdicts;
 }
 
-/// Parsing keeps partial widths and prerelease labels, and rejects non-versions.
+/// Parsing keeps partial widths and prerelease labels,
+/// and rejects non-versions.
 #[test]
 fn parse_version_shapes() {
     assert_eq!(parse_version("1.0.0-rc.1+b7"), Ok(parsed(1, 0, 0, &["rc", "1"])));
@@ -40,7 +49,8 @@ fn parse_version_shapes() {
     assert!(parse_version("1.x").is_err());
 }
 
-/// The semver specification's own prerelease ordering example, then releases.
+/// The semver specification's own prerelease ordering example,
+/// then releases.
 #[test]
 fn compare_versions_order() {
     let ascending: [&str; 12] = [
@@ -70,7 +80,8 @@ fn compare_versions_order() {
     assert_eq!(compare_versions(&short, &full), Ordering::Equal);
 }
 
-/// Splitting finds the operator, and a bare version means caret.
+/// Splitting finds the operator,
+/// and a bare version means caret.
 #[test]
 fn split_requirement_operators() {
     assert_eq!(split_requirement(">=1.0.104").map(|split| return split.operator), Ok(Operator::AtLeast));
@@ -81,7 +92,8 @@ fn split_requirement_operators() {
     assert!(split_requirement("*").is_err());
 }
 
-/// Caret requirements follow Cargo's rules for major, zero-major and zero-minor versions.
+/// Caret requirements follow Cargo's rules for major,
+/// zero-major and zero-minor versions.
 #[test]
 fn caret_requirements() {
     assert_eq!(matches("1", &["1.0.0", "1.99.0", "2.0.0", "0.9.0"]), vec![true, true, false, false]);
@@ -92,7 +104,8 @@ fn caret_requirements() {
     assert_eq!(matches("^0", &["0.9.0", "1.0.0"]), vec![true, false]);
 }
 
-/// Tilde, exact and floor requirements.
+/// Tilde,
+/// exact and floor requirements.
 #[test]
 fn tilde_exact_and_floor_requirements() {
     assert_eq!(matches("~1.2.3", &["1.2.9", "1.3.0"]), vec![true, false]);

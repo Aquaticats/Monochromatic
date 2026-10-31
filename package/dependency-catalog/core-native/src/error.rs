@@ -1,7 +1,13 @@
-//! What:     The error types: catalog validation problems, sync problems, and the one `Error` enum the public
-//!           functions return.
-//! Why:      Both validators collect every problem in one pass so a contributor fixes the whole file at once; the
-//!           messages match the TypeScript tool's text.
+//! What:
+//! The error types:
+//! catalog validation problems,
+//! sync problems,
+//! and the one `Error` enum the public
+//! functions return.
+//! Why:
+//! Both validators collect every problem in one pass so a contributor fixes the whole file at once;
+//! the
+//! messages match the TypeScript tool's text.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,10 +16,14 @@
 //! export class RustCatalogSyncError extends Error { issues: SyncIssue[] }
 //! ```
 
+/// Imports `std::fmt`.
 use std::fmt;
 
-/// What:     `pub struct CatalogIssue { ... }` is one validation problem in `rust-catalog.toml`.
-/// Why:      Names where it is, what is wrong and how to fix it.
+/// What:
+/// `pub struct CatalogIssue { ... }` is one validation problem in `rust-catalog.toml`.
+/// Why:
+/// Names where it is,
+/// what is wrong and how to fix it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,10 +39,12 @@ pub struct CatalogIssue {
     pub remedy: String,
 }
 
-/// One problem that stops a sync, naming the file and location.
+/// One problem that stops a sync,
+/// naming the file and location.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncIssue {
-    /// Manifest or catalog path, as passed in.
+    /// Manifest or catalog path,
+    /// as passed in.
     pub file: String,
     /// Dotted location inside the file.
     pub location: String,
@@ -42,8 +54,11 @@ pub struct SyncIssue {
     pub remedy: String,
 }
 
-/// What:     `pub enum Error { ... }` is every failure the public functions can return.
-/// Why:      One type lets callers use `?` across parse, sync and check.
+/// What:
+/// `pub enum Error { ... }` is every failure the public functions can return.
+/// Why:
+/// One type lets callers use `?` across parse,
+/// sync and check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -62,19 +77,25 @@ pub enum Error {
     Catalog {
         /// Catalog path for the message.
         source_path: String,
-        /// Every problem found, in source order.
+        /// Every problem found,
+        /// in source order.
         issues: Vec<CatalogIssue>,
     },
-    /// Manifests and the catalog cannot be brought in line without a human decision; nothing is changed.
+    /// Manifests and the catalog cannot be brought in line without a human decision;
+    /// nothing is changed.
     Sync {
-        /// Every problem found, in discovery order.
+        /// Every problem found,
+        /// in discovery order.
         issues: Vec<SyncIssue>,
     },
 }
 
+/// Implements `fmt::Display` for `Error`.
 impl fmt::Display for Error {
-    /// What:     Prints the same multi-line diagnostic the TypeScript tool printed.
-    /// Why:      Contributors and agents read these messages to fix the files.
+    /// What:
+    /// Prints the same multi-line diagnostic the TypeScript tool printed.
+    /// Why:
+    /// Contributors and agents read these messages to fix the files.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -115,4 +136,5 @@ impl fmt::Display for Error {
     }
 }
 
+/// Implements `std::error::Error` for `Error`.
 impl std::error::Error for Error {}

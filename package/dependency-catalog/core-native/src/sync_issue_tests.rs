@@ -1,6 +1,10 @@
-//! What:     Unit tests of pruning and of every issue the pure sync can report, ported from the TypeScript
-//!           `sync.unit.test.ts`.
-//! Why:      Every issue is asserted by file, location and order.
+//! What:
+//! Unit tests of pruning and of every issue the pure sync can report,
+//! ported from the TypeScript
+//! `sync.unit.test.ts`.
+//! Why:
+//! Every issue is asserted by file,
+//! location and order.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,13 +12,19 @@
 //! describe('syncRustCatalog', () => { it('adopts literals across crates ...', () => { ... }); });
 //! ```
 
+/// Imports `crate::change::Change`.
 use crate::change::Change;
+/// Imports `crate::crate_info::ManifestFile`.
 use crate::crate_info::ManifestFile;
+/// Imports `crate::error::Error`.
 use crate::error::Error;
+/// Imports `crate::sync::SyncOutput`.
 use crate::sync::SyncOutput;
+/// Imports `crate::sync_test_support::{issues, krate, manifest_text, run, run_ok, text}`.
 use crate::sync_test_support::{issues, krate, manifest_text, run, run_ok, text};
 
-/// Unused entries are pruned with their comments when `catalogPrune` is on, and warned about when it is off.
+/// Unused entries are pruned with their comments when `catalogPrune` is on,
+/// and warned about when it is off.
 #[test]
 fn prunes_or_warns_about_unused_entries() {
     let entries: [&str; 4] = ["[catalog]", "anyhow = \">=1\"", "# Rationale for gone.", "gone = \">=1\""];
@@ -61,7 +71,9 @@ fn refuses_exact_pins_and_incompatible_majors() {
     );
 }
 
-/// Missing entries, bad paths, stale selections and unsupported forms are reported together.
+/// Missing entries,
+/// bad paths,
+/// stale selections and unsupported forms are reported together.
 #[test]
 fn reports_every_problem_together() {
     let found: Vec<String> = issues(

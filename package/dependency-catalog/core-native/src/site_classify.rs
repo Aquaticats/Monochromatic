@@ -1,6 +1,13 @@
-//! What:     Finding and classifying every dependency use site in one crate manifest.
-//! Why:      The sync must know, for each dependency entry, whether it already uses the catalog, points at an
-//!           internal crate, or holds a literal to adopt; anything else is reported with the fix.
+//! What:
+//! Finding and classifying every dependency use site in one crate manifest.
+//! Why:
+//! The sync must know,
+//! for each dependency entry,
+//! whether it already uses the catalog,
+//! points at an
+//! internal crate,
+//! or holds a literal to adopt;
+//! anything else is reported with the fix.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,24 +16,34 @@
 //! export function classifySite(args: { manifestPath: string; table: string[]; name: string; value: unknown; issues: SyncIssue[] }): UseSite[]
 //! ```
 
+/// Imports `toml_edit::{Item, TableLike}`.
 use toml_edit::{Item, TableLike};
 
+/// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
+/// Imports `crate::site::{SiteKind, UseSite}`.
 use crate::site::{SiteKind, UseSite};
+/// Imports `crate::types::Entry`.
 use crate::types::Entry;
 
-/// Dependency table names Cargo reads, at top level and under `target.<cfg>`.
+/// Dependency table names Cargo reads,
+/// at top level and under `target.<cfg>`.
 const DEPENDENCY_TABLES: [&str; 3] = ["dependencies", "dev-dependencies", "build-dependencies"];
 
 /// Keys a `workspace = true` use site may carry beside it (Cargo's own rule).
 const INHERITED_SITE_KEYS: [&str; 4] = ["default-features", "features", "optional", "workspace"];
 
-/// Keys a literal or path use site may carry; the catalog moves or keeps each.
+/// Keys a literal or path use site may carry;
+/// the catalog moves or keeps each.
 const LITERAL_SITE_KEYS: [&str; 8] = ["default-features", "features", "git", "optional", "package", "path", "rev", "version"];
 
-/// What:     `pub fn dependency_tables(root: &dyn TableLike) -> Vec<Vec<String>>` lists every dependency table path
-///           present in a manifest, top-level first, then each `target.<cfg>` in source order.
-/// Why:      Cargo's reading order is the order diagnostics and edits follow.
+/// What:
+/// `pub fn dependency_tables(root: &dyn TableLike) -> Vec<Vec<String>>` lists every dependency table path
+/// present in a manifest,
+/// top-level first,
+/// then each `target.<cfg>` in source order.
+/// Why:
+/// Cargo's reading order is the order diagnostics and edits follow.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,7 +72,8 @@ pub fn dependency_tables(root: &dyn TableLike) -> Vec<Vec<String>> {
     return paths;
 }
 
-/// Resolves a key path to a table-like item, or `None` when any step is missing or not a table.
+/// Resolves a key path to a table-like item,
+/// or `None` when any step is missing or not a table.
 pub fn table_at<'a>(root: &'a dyn TableLike, path: &[String]) -> Option<&'a dyn TableLike> {
     let mut current: &'a dyn TableLike = root;
     for segment in path {
@@ -82,10 +100,19 @@ fn report(issues: &mut Vec<SyncIssue>, file: &str, location: &str, problem: Stri
     });
 }
 
-/// What:     `pub fn classify_site(...) -> Option<UseSite>` classifies one dependency entry, recording problems as
-///           issues. `None` means the entry cannot be handled (the reason is already in `issues`).
-/// Why:      The decision order matches the TypeScript classifier: string, `workspace = true`, unsupported keys,
-///           `path`, `git`, `version`.
+/// What:
+/// `pub fn classify_site(...) -> Option<UseSite>` classifies one dependency entry,
+/// recording problems as
+/// issues.
+/// `None` means the entry cannot be handled (the reason is already in `issues`).
+/// Why:
+/// The decision order matches the TypeScript classifier:
+/// string,
+/// `workspace = true`,
+/// unsupported keys,
+/// `path`,
+/// `git`,
+/// `version`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

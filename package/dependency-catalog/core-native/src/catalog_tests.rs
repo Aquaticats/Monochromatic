@@ -1,6 +1,10 @@
-//! What:     Unit tests of catalog parsing and validation, ported from the TypeScript `parse.unit.test.ts`.
-//! Why:      The Rust parser must accept and reject exactly what the TypeScript parser did, with the same issue
-//!           locations in the same order.
+//! What:
+//! Unit tests of catalog parsing and validation,
+//! ported from the TypeScript `parse.unit.test.ts`.
+//! Why:
+//! The Rust parser must accept and reject exactly what the TypeScript parser did,
+//! with the same issue
+//! locations in the same order.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,8 +12,11 @@
 //! describe('parseRustCatalog', () => { it('reads default floors ...', () => { ... }); });
 //! ```
 
+/// Imports `crate::catalog::parse_catalog`.
 use crate::catalog::parse_catalog;
+/// Imports `crate::error::Error`.
 use crate::error::Error;
+/// Imports `crate::types::{CatalogDocument, Entry, TrustPolicy}`.
 use crate::types::{CatalogDocument, Entry, TrustPolicy};
 
 /// Parses `lines` joined as a catalog file.
@@ -17,7 +24,9 @@ fn parse_lines(lines: &[&str]) -> Result<CatalogDocument, Error> {
     return parse_catalog(&lines.join("\n"), "rust-catalog.toml");
 }
 
-/// Parses `lines`, expecting a catalog error, and returns every issue location in order.
+/// Parses `lines`,
+/// expecting a catalog error,
+/// and returns every issue location in order.
 fn issue_locations(lines: &[&str]) -> Vec<String> {
     return match parse_lines(lines) {
         Err(Error::Catalog { issues, .. }) => issues.into_iter().map(|issue| return issue.location).collect(),
@@ -33,7 +42,8 @@ fn registry(version: &str) -> Entry {
     };
 }
 
-/// Default floors, renames and git pins are read in source order.
+/// Default floors,
+/// renames and git pins are read in source order.
 #[test]
 fn reads_default_entries_in_source_order() {
     let document: CatalogDocument = parse_lines(&[
@@ -97,7 +107,8 @@ fn applies_pnpm_defaults() {
     assert_eq!(settings.trust_policy_ignore_after, None);
 }
 
-/// An explicit `minimumReleaseAge` turns strict mode on, and every setting is read.
+/// An explicit `minimumReleaseAge` turns strict mode on,
+/// and every setting is read.
 #[test]
 fn reads_every_setting() {
     let document: CatalogDocument = parse_lines(&[
@@ -133,14 +144,16 @@ fn honours_explicit_strict_false() {
     assert!(!document.settings.minimum_release_age_strict);
 }
 
-/// A whole-number float counts as minutes, as it did in the TypeScript reader.
+/// A whole-number float counts as minutes,
+/// as it did in the TypeScript reader.
 #[test]
 fn accepts_whole_float_minutes() {
     let document: CatalogDocument = parse_lines(&["minimumReleaseAge = 60.0", "[catalog]"]).expect("valid catalog");
     assert_eq!(document.settings.minimum_release_age, 60);
 }
 
-/// Use-site keys in catalog entries are rejected, one issue per key.
+/// Use-site keys in catalog entries are rejected,
+/// one issue per key.
 #[test]
 fn rejects_use_site_keys() {
     assert_eq!(
@@ -184,7 +197,8 @@ fn rejects_malformed_git_entries() {
     );
 }
 
-/// Adversarial names, unknown keys and non-table values are rejected.
+/// Adversarial names,
+/// unknown keys and non-table values are rejected.
 #[test]
 fn rejects_adversarial_entries() {
     assert_eq!(
@@ -210,7 +224,8 @@ fn rejects_adversarial_entries() {
     );
 }
 
-/// Unknown top-level keys, `catalogs.default` and malformed tables are rejected.
+/// Unknown top-level keys,
+/// `catalogs.default` and malformed tables are rejected.
 #[test]
 fn rejects_unknown_top_level_and_malformed_tables() {
     assert_eq!(
@@ -242,7 +257,8 @@ fn rejects_malformed_settings() {
     );
 }
 
-/// Mixed-type lists, non-boolean prune switches and quoted minute counts are rejected.
+/// Mixed-type lists,
+/// non-boolean prune switches and quoted minute counts are rejected.
 #[test]
 fn rejects_mixed_lists_and_quoted_minutes() {
     assert_eq!(
@@ -256,13 +272,15 @@ fn rejects_mixed_lists_and_quoted_minutes() {
     );
 }
 
-/// Invalid TOML is reported as a TOML error, not a catalog error.
+/// Invalid TOML is reported as a TOML error,
+/// not a catalog error.
 #[test]
 fn reports_invalid_toml() {
     assert!(matches!(parse_lines(&["[catalog", "x = "]), Err(Error::Toml { .. })));
 }
 
-/// The message names each issue, its remedy and the decision record.
+/// The message names each issue,
+/// its remedy and the decision record.
 #[test]
 fn message_names_issue_remedy_and_decision_doc() {
     let error: Error = parse_lines(&["[catalog]", "tokio = { version = \">=1\", features = [\"rt\"] }"]).expect_err("invalid");

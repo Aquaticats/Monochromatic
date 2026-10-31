@@ -1,6 +1,11 @@
-//! What:     Parsing and validation of `rust-catalog.toml` text into a `CatalogDocument`.
-//! Why:      Unlike the pnpm workspace reader, which warns and skips, this parser fails closed: one invalid entry
-//!           returns an `Error::Catalog` naming every problem at once.
+//! What:
+//! Parsing and validation of `rust-catalog.toml` text into a `CatalogDocument`.
+//! Why:
+//! Unlike the pnpm workspace reader,
+//! which warns and skips,
+//! this parser fails closed:
+//! one invalid entry
+//! returns an `Error::Catalog` naming every problem at once.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,14 +13,20 @@
 //! export function parseRustCatalog(args: { source: string; sourcePath: string }): RustCatalogDocument // throws RustCatalogError
 //! ```
 
+/// Imports `toml_edit::{DocumentMut, Item, TableLike}`.
 use toml_edit::{DocumentMut, Item, TableLike};
 
+/// Imports `crate::catalog_entry::parse_catalog_table`.
 use crate::catalog_entry::parse_catalog_table;
+/// Imports `crate::catalog_settings::read_settings`.
 use crate::catalog_settings::read_settings;
+/// Imports `crate::error::{CatalogIssue, Error}`.
 use crate::error::{CatalogIssue, Error};
+/// Imports `crate::types::{CatalogDocument, EntryMap, Settings}`.
 use crate::types::{CatalogDocument, EntryMap, Settings};
 
-/// Top-level keys the catalog file may declare, in the order the error message lists them.
+/// Top-level keys the catalog file may declare,
+/// in the order the error message lists them.
 const TOP_LEVEL_KEYS: [&str; 12] = [
     "catalog",
     "catalogPrune",
@@ -61,9 +72,13 @@ fn parse_named_catalogs(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> 
     return catalogs;
 }
 
-/// What:     `pub fn parse_catalog(source: &str, source_path: &str) -> Result<CatalogDocument, Error>` parses and
-///           validates catalog text. `source_path` only appears in messages.
-/// Why:      The sync needs the validated document; callers that only want to check the file call it directly.
+/// What:
+/// `pub fn parse_catalog(source: &str, source_path: &str) -> Result<CatalogDocument, Error>` parses and
+/// validates catalog text.
+/// `source_path` only appears in messages.
+/// Why:
+/// The sync needs the validated document;
+/// callers that only want to check the file call it directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

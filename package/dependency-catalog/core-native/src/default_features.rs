@@ -1,7 +1,11 @@
-//! What:     The per-crate `default-features` choice for generated `[workspace.dependencies]` entries.
-//! Why:      Cargo before 1.99 rejects `default-features = false` beside `workspace = true` when the workspace entry
-//!           keeps default features, so a crate whose catalog sites all disable default features gets
-//!           `default-features = false` in its own generated entry, and its sites keep adding the features they need.
+//! What:
+//! The per-crate `default-features` choice for generated `[workspace.dependencies]` entries.
+//! Why:
+//! Cargo before 1.99 rejects `default-features = false` beside `workspace = true` when the workspace entry
+//! keeps default features,
+//! so a crate whose catalog sites all disable default features gets
+//! `default-features = false` in its own generated entry,
+//! and its sites keep adding the features they need.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,14 +13,21 @@
 //! export function generatedEntries(args: { info: CrateInfo; resolvedEntries: Map<string, Entry>; issues: SyncIssue[] }): Map<string, GeneratedEntry>
 //! ```
 
+/// Imports `crate::crate_info::CrateInfo`.
 use crate::crate_info::CrateInfo;
+/// Imports `crate::error::SyncIssue`.
 use crate::error::SyncIssue;
+/// Imports `crate::site::{GeneratedEntry, SiteKind}`.
 use crate::site::{GeneratedEntry, SiteKind};
+/// Imports `crate::types::Entry`.
 use crate::types::Entry;
 
-/// What:     `pub fn generated_entries(...)` pairs each resolved entry with the crate's default-features choice.
-///           Sites that disagree cannot share one generated entry and are reported.
-/// Why:      The result keeps the order of `resolved`, which the caller built in site order.
+/// What:
+/// `pub fn generated_entries(...)` pairs each resolved entry with the crate's default-features choice.
+/// Sites that disagree cannot share one generated entry and are reported.
+/// Why:
+/// The result keeps the order of `resolved`,
+/// which the caller built in site order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,6 +1,11 @@
-//! What:     Validation of the catalog's pnpm-named settings (`catalogPrune`, `minimumReleaseAge`, `trustPolicy` ...).
-//! Why:      The update tooling and the sync both read these, so a wrong type is reported with the fix instead of
-//!           silently falling back to a default.
+//! What:
+//! Validation of the catalog's pnpm-named settings (`catalogPrune`,
+//! `minimumReleaseAge`,
+//! `trustPolicy` ...).
+//! Why:
+//! The update tooling and the sync both read these,
+//! so a wrong type is reported with the fix instead of
+//! silently falling back to a default.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,19 +13,26 @@
 //! export function readSettings(args: { root: Record<string, unknown>; issues: Issue[] }): RustCatalogSettings
 //! ```
 
+/// Imports `toml_edit::{Item, TableLike}`.
 use toml_edit::{Item, TableLike};
 
+/// Imports `crate::error::CatalogIssue`.
 use crate::error::CatalogIssue;
+/// Imports `crate::quote::quote`.
 use crate::quote::quote;
+/// Imports `crate::types::{Settings, TrustPolicy}`.
 use crate::types::{Settings, TrustPolicy};
 
-/// pnpm's documented default for `minimumReleaseAge`, in minutes.
+/// pnpm's documented default for `minimumReleaseAge`,
+/// in minutes.
 const DEFAULT_MINIMUM_RELEASE_AGE: u64 = 1_440;
 
-/// The largest whole number a JavaScript number holds exactly, the bound the TypeScript reader implicitly had.
+/// The largest whole number a JavaScript number holds exactly,
+/// the bound the TypeScript reader implicitly had.
 const MAX_SAFE_INTEGER: f64 = 9_007_199_254_740_991.0;
 
-/// Reads a list-of-strings setting; an empty list when absent or invalid.
+/// Reads a list-of-strings setting;
+/// an empty list when absent or invalid.
 fn read_string_list(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Vec<String> {
     let Some(present) = item else {
         return Vec::new();
@@ -46,7 +58,8 @@ fn read_string_list(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssu
     return strings;
 }
 
-/// Reads a boolean setting; `fallback` when absent or invalid.
+/// Reads a boolean setting;
+/// `fallback` when absent or invalid.
 fn read_boolean(key: &str, item: Option<&Item>, fallback: bool, issues: &mut Vec<CatalogIssue>) -> bool {
     let Some(present) = item else {
         return fallback;
@@ -64,9 +77,14 @@ fn read_boolean(key: &str, item: Option<&Item>, fallback: bool, issues: &mut Vec
     };
 }
 
-/// What:     `fn read_minutes(...) -> Option<u64>` reads a non-negative whole number of minutes. TOML integers and
-///           floats with no fraction pass (the TypeScript tool read both as a JS number); a quoted number does not.
-/// Why:      `None` means "absent or invalid" so the caller can apply the default; invalid input is also reported.
+/// What:
+/// `fn read_minutes(...) -> Option<u64>` reads a non-negative whole number of minutes.
+/// TOML integers and
+/// floats with no fraction pass (the TypeScript tool read both as a JS number);
+/// a quoted number does not.
+/// Why:
+/// `None` means "absent or invalid" so the caller can apply the default;
+/// invalid input is also reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -94,7 +112,8 @@ fn read_minutes(key: &str, item: Option<&Item>, issues: &mut Vec<CatalogIssue>) 
     return minutes;
 }
 
-/// Reads the trust policy mode; `off` when absent (pnpm's default).
+/// Reads the trust policy mode;
+/// `off` when absent (pnpm's default).
 fn read_trust_policy(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> TrustPolicy {
     let Some(present) = item else {
         return TrustPolicy::Off;
@@ -117,11 +136,17 @@ fn read_trust_policy(item: Option<&Item>, issues: &mut Vec<CatalogIssue>) -> Tru
     };
 }
 
-/// What:     `pub fn read_settings(root: &dyn TableLike, issues: &mut Vec<CatalogIssue>) -> Settings` reads every
-///           setting with pnpm's names and defaults. `minimumReleaseAgeStrict` defaults to true only when
-///           `minimumReleaseAge` is set explicitly, as pnpm documents.
-/// Why:      Issues are pushed in the order the TypeScript reader reported them: the two minute settings first, then
-///           the rest in declaration order.
+/// What:
+/// `pub fn read_settings(root: &dyn TableLike, issues: &mut Vec<CatalogIssue>) -> Settings` reads every
+/// setting with pnpm's names and defaults.
+/// `minimumReleaseAgeStrict` defaults to true only when
+/// `minimumReleaseAge` is set explicitly,
+/// as pnpm documents.
+/// Why:
+/// Issues are pushed in the order the TypeScript reader reported them:
+/// the two minute settings first,
+/// then
+/// the rest in declaration order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
