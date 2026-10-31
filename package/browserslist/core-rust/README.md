@@ -56,7 +56,7 @@ they are filtered out of the data (see "Deliberate differences from npm browsers
 `samsung 4`) against the locked data and subtracts it from everything selected before it.
 As in browserslist,
 it is an error as the first query:
-``Write any browsers query (for instance, `defaults`) before `not dead` ``.
+`` Write any browsers query (for instance, `defaults`) before `not dead` ``.
 
 The output is sorted and deduplicated exactly as browserslist does it (names ascending,
 versions descending).
