@@ -901,6 +901,58 @@ await describe({
     },),
 
     it({
+      name: 'NAMES THE MODEL THAT ANSWERED IN THE FINDING OF AN ANSWER IT GAVE FOR THE AUTHOR (ledger B1146): an unable, an '
+        + 'as-intended and a revision that still fails, each given by the model the author\'s runaway was re-asked of, say '
+        + 'author and answerer, since the finding is the answerer\'s and not the author\'s',
+      fn: async () => {
+        /**
+         Model the re-ask of the runaway went to.
+         */
+        const other = SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
+        /**
+         Findings the repair of one candidate leaves when the other model answers as scripted.
+         */
+        const findingsFor = async (
+          reply: { readonly resolution: string; readonly translation: string; readonly translatorNote: string; },
+        ): Promise<readonly string[]> => {
+          const repaired = await repairInvalidCandidates({
+            client: {
+              chatText: async () => {
+                throw new Error('chatText unused',);
+              },
+              chatJson: async <ValueT,>(): Promise<ChatJsonOutcome<ValueT>> => ({
+                kind: 'ok',
+                value: reply as ValueT,
+                rawText: '{}',
+                answeredBy: other,
+              }),
+              quotas: async () => {
+                throw new Error('quotas unused',);
+              },
+            },
+            voices: [{ modelId: TRANSLATOR, value: { translation: MERGED_TEXT, }, },],
+            sourceText: SOURCE_TEXT,
+            incumbentText: '',
+            priorMessages: PRIOR_MESSAGES,
+            role: 'translator',
+            reaskClaims: createReaskClaims(),
+            reask: 'other-model',
+            signal: new AbortController().signal,
+            perCallTimeoutMs: HANG_STOP_MS,
+            l,
+          },);
+          return repaired.findings;
+        };
+        expect(await findingsFor({ resolution: 'unable', translation: '', translatorNote: 'cannot', },),)
+          .toContain(`translate-repair-unable (${TRANSLATOR} -> ${other}): cannot`,);
+        expect(await findingsFor({ resolution: 'as-intended', translation: '', translatorNote: 'fine', },),)
+          .toContain(`translate-repair-as-intended (${TRANSLATOR} -> ${other}): fine`,);
+        expect(await findingsFor({ resolution: 'revised', translation: MERGED_TEXT, translatorNote: 'tried', },),)
+          .toContain(`translate-repair-unresolved (${TRANSLATOR} -> ${other}): tried`,);
+      },
+    },),
+
+    it({
       name: 'HANDS THE RE-ASK ITS ROLE, THE SHARED RECORD AND A CONVERSATION THAT DOES NOT CALL THE TEXT THE ASKED '
         + 'MODEL\'S OWN: the translation is named as another translator\'s, with no "your" and no turn of its own',
       fn: async () => {
