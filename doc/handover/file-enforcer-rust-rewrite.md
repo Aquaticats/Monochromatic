@@ -95,7 +95,10 @@ Cutover reminders from finished agents:
   The forbidden-strings release, the cli-git publish, and their cutover config switch belong to that session;
   monochromatic-7a (the cli-git Rust wrapper session) confirmed it holds them and received the items on 2026-10-31
   (release order, the merged rules-list feature, the config switch);
-  this session only drops the rules-file generator, in the cutover unless 7a switches the configs first.
+  this session only drops the rules-file generator, and only after 7a reports the config switch done.
+  Gate from 7a (2026-10-31): `cli-git.config.jsonc` cannot change until a wrapper that reads a `rulesFile` array
+  (0.4.4, after forbidden-strings 0.6.0) is published, the toolchain lock names it, and it is installed as the production git;
+  an older wrapper cannot parse the array. So the cutover keeps the generator until 7a says the switch landed.
 - forbidden-strings must be released before cli-git is published:
   cli-git now uses the rules-list API (task 23; see the planning doc, "Cutover dependency").
 
