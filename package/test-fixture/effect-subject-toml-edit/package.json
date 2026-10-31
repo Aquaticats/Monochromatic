@@ -10,6 +10,7 @@
     "LICENSES"
   ],
   "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/toml-edit-core": "workspace:*"
   }
 }

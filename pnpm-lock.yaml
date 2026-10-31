@@ -4598,6 +4598,9 @@ importers:
 
   package/test-fixture/effect-subject-toml-edit:
     devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
       '@monochromatic-dev/toml-edit-core':
         specifier: workspace:*
         version: link:../../toml-edit/core

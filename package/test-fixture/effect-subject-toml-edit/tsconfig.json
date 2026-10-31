@@ -1,4 +1,3 @@
 {
-  "extends": "@monochromatic-dev/config-typescript",
-  "include": [],
+  "extends": "@monochromatic-dev/config-typescript/dom",
 }
