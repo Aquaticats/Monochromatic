@@ -4630,3 +4630,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - After a green gate: release 0.4.4 to 0.4.5 (`native:release`, `native:release:wait`), then `toolchain:update` (user
   decision each time) and `toolchain:sync`, then tell `monochromatic-6e` the version. Remove the agent worktree
   `.claude/worktrees/agent-a4ffc547354389095` once merged work is confirmed on main.
+
+## Wrapper 0.4.5 released and installed (2026-10-31)
+
+- Container gate on the merged tree plus the config-test fix: 2677 run, 2677 passed, 7 skipped (the first run failed at
+  `the_repository_configuration_sets_rules_file`, which my own config switch `ad9fe75d05` had left asserting the old
+  value; fixed in the next commit).
+- Release commit `0aaaa6ca16`; PUBLISHED on crates.io and as GitHub release `monochromatic-git-policy-cli-v0.4.5` (two
+  Linux assets). `native:release:wait` timed out with "no run for 0aaaa6ca16" because the push run (41178765641) was built
+  from the later commit `36864ce1b8`, which contains the release commit; the wait tool matches the exact SHA only, so a
+  later push before CI starts defeats it. Check crates.io and the release directly in that case.
+- Lock `75ea3adee5` (user chose "check and update even if drift is huge"; drift was binstall, the search and mpm shadows,
+  slopo) and `toolchain:sync` installed it. Real wrapper output checked: the banner line after `git --version` and the
+  five-line section after `git --help`.
+- `monochromatic-6e` was told. The agent worktree `.claude/worktrees/agent-a4ffc547354389095` can be removed (its work is
+  on main as `567103bb3f`).
