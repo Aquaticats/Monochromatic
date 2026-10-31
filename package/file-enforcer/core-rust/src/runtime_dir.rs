@@ -28,8 +28,21 @@ use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 /// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// The longest socket path accepted;
-/// the kernel's `sun_path` holds 108 bytes including the terminator.
+/// What:
+///   The longest socket path accepted,
+/// in bytes:
+/// `100`.
+///   `usize` is the unsigned integer that measures lengths (siblings:
+/// `u32`,
+/// `u64`).
+/// Why:
+///   The kernel's `sun_path` holds 108 bytes including the terminator,
+///   so a longer path fails with `socket-path-too-long` instead of an obscure bind error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const MAX_SOCKET_PATH_BYTES = 100;
+/// ```
 pub const MAX_SOCKET_PATH_BYTES: usize = 100;
 
 /// What:

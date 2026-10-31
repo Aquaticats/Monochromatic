@@ -39,9 +39,39 @@ description = "Opt-in live test: fetch the pinned tarballs from registry.npmjs.o
 run = "cargo nextest run --run-ignored only --test live"
 
 [tasks.update]
-description = "Pick the newest published caniuse-lite and node-releases and the current Firefox ESR, verify them, rewrite browserslist-data.lock.json, then regenerate the fixtures and conformance expectations (needs podman and network)"
-run = ["cargo run --release -- update --lock browserslist-data.lock.json", "node bin/regenerate-conformance.ts"]
+description = "Pick the newest published caniuse-lite and node-releases and the current Firefox ESR, verify them, rewrite the repository-root browserslist-data.lock.json, then regenerate the fixtures and conformance expectations (needs podman and network)"
+run = ["cargo run --release -- update --lock ../../../browserslist-data.lock.json", "node bin/regenerate-conformance.ts"]
 
 [tasks."conformance:regenerate"]
 description = "Regenerate fixtures/data and conformance/expected.json from the locked data with npm browserslist 4.29.5 in a bounded container (needs podman and network)"
 run = "node bin/regenerate-conformance.ts"
+
+[tasks."lint:scripts:types"]
+description = "Type-check the maintenance scripts in bin (TypeScript)"
+extends = "lint:types"
+
+[tasks."lint:scripts:oxlint"]
+description = "Lint explicitly selected maintenance TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('lint:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
+"""
+
+[tasks."format:scripts:oxlint"]
+description = "Auto-fix explicitly selected maintenance TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to fix"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('format:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
+"""

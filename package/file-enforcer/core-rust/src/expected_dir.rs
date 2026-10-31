@@ -19,6 +19,8 @@ use crate::diagnostic::Diagnostic;
 /// Imports `Drift`,
 /// `DriftReason` from `crate::drift`.
 use crate::drift::{Drift, DriftReason};
+/// Imports `canonical_or_same` from `crate::identity`.
+use crate::identity::canonical_or_same;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports `Path`,
@@ -48,7 +50,7 @@ pub fn validate_expected_dir(dir: &Path, root: &Path) -> Result<PathBuf, Diagnos
             }
         }
     }
-    let canonical_root = fs::canonicalize(root).unwrap_or_else(|_| return root.to_path_buf());
+    let canonical_root = canonical_or_same(root);
     let mut probe = absolute_dir.clone();
     let mut suffix = PathBuf::new();
     while !probe.exists() {

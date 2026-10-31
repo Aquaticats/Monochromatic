@@ -22,8 +22,8 @@ use crate::config_reader::Reader;
 use crate::config_types::{Config, RuleConfig};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
-/// Imports `Value` from `serde_json`.
-use serde_json::Value;
+/// Imports `ConfigDocument` from `crate::config_load`.
+use crate::config_load::ConfigDocument;
 /// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 
@@ -71,6 +71,22 @@ pub fn is_repo_relative(path: &str) -> bool {
 }
 
 /// What:
+///  Whether one byte is an octal digit `0` to `7`.
+///  `&u8` is a borrowed byte,
+/// the item type `filter` hands over.
+/// Why:
+///  `filter` takes a function,
+/// and a named one is clearer than a closure that captures nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isOctalDigit(code: number): boolean { return code >= 48 && code <= 55; }
+/// ```
+fn is_octal_digit(byte: &u8) -> bool {
+    return (b'0'..=b'7').contains(byte);
+}
+
+/// What:
 ///  Check that a mode string is three or four octal digits.
 /// Why:
 ///  JSON has no octal literals,
@@ -84,7 +100,7 @@ pub fn is_octal_mode(mode: &str) -> bool {
     if mode.len() < 3 || mode.len() > 4 {
         return false;
     }
-    return mode.bytes().all(|byte| return (b'0'..=b'7').contains(&byte));
+    return mode.bytes().filter(is_octal_digit).count() == mode.len();
 }
 
 /// What:
@@ -96,14 +112,14 @@ pub fn is_octal_mode(mode: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function decodeConfig(value: unknown, scope: ConfigScope, displayPath: string): Config
+/// function decodeConfig(document: ConfigDocument, scope: ConfigScope, displayPath: string): Config
 /// ```
-pub fn decode_config(value: &Value, scope: ConfigScope, display_path: &str) -> Result<Config, Vec<Diagnostic>> {
-    let mut reader = Reader::new(display_path);
+pub fn decode_config(document: &ConfigDocument, scope: ConfigScope, display_path: &str) -> Result<Config, Vec<Diagnostic>> {
+    let mut reader = Reader::new(display_path, &document.locations);
     let mut rules: Vec<RuleConfig> = Vec::new();
     let mut schema: Option<String> = None;
     let mut seen_ids: BTreeSet<String> = BTreeSet::new();
-    if let Some(object) = reader.object(value, "") {
+    if let Some(object) = reader.object(&document.value, "") {
         reader.reject_unknown(object, "", &["$schema", "rules"]);
         schema = reader.optional_text(object, "$schema", "");
         let items = reader.array(object, "rules", "");

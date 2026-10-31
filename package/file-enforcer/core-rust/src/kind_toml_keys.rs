@@ -21,6 +21,8 @@
 use crate::config_parts::{TomlBlock, TomlEdit};
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
+/// Imports `parent_directory` from `crate::path_text`.
+use crate::path_text::parent_directory;
 /// Imports `EntryKind` from `crate::real_fs`.
 use crate::real_fs::EntryKind;
 /// Imports `Change`,
@@ -86,7 +88,15 @@ fn parse_manifest(path: &str, text: &str) -> Result<DocumentMut, Diagnostic> {
     }
 }
 
-/// The `impl TomlKeysRule` block.
+/// What:
+///   The text transformation for one manifest.
+/// Why:
+///   Splitting it from `plan` keeps the per-file edit apart from the glob expansion and the writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TomlKeysRule { transform(view, manifest, text): string }
+/// ```
 impl TomlKeysRule {
     /// What:
     ///  Apply every edit and block to one manifest's text;
@@ -102,7 +112,7 @@ impl TomlKeysRule {
     /// transform(view: View, manifest: string, text: string): string
     /// ```
     fn transform(&self, view: &mut View, manifest: &str, text: &str) -> Result<String, Diagnostic> {
-        let directory = manifest.rsplit_once('/').map(|pair| return pair.0).unwrap_or("");
+        let directory = parent_directory(manifest);
         let mut vars = Vars::new();
         vars.insert("dir".to_string(), directory.to_string());
         vars.insert("manifest".to_string(), manifest.to_string());
@@ -123,7 +133,20 @@ impl TomlKeysRule {
     }
 }
 
-/// The `impl Rule for TomlKeysRule` block.
+/// What:
+///   How the `toml-keys` kind plugs into the engine:
+/// its id,
+/// its kind name,
+/// `composes` and its plan.
+/// Why:
+///   The kind composes:
+/// it reads each manifest through the view and writes the changed text,
+///   so other rules that edit the same manifest can run before or after it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TomlKeysRule implements Rule { id(); kind(); composes(): true; plan(view) }
+/// ```
 impl Rule for TomlKeysRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -160,7 +183,7 @@ impl Rule for TomlKeysRule {
         manifests.sort();
         manifests.dedup();
         for manifest in manifests {
-            let directory = manifest.rsplit_once('/').map(|pair| return pair.0.to_string()).unwrap_or_default();
+            let directory = parent_directory(&manifest).to_string();
             if let Some(only) = &self.only_dirs
                 && !only.contains(&directory)
             {

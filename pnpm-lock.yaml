@@ -999,6 +999,15 @@ importers:
         specifier: 'catalog:'
         version: 26.6.6
 
+  package/browserslist/core-rust:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+
   package/caught-value/core:
     devDependencies:
       '@monochromatic-dev/config-rolldown':

@@ -39,7 +39,16 @@ pub struct ModeOnlyRule {
     pub mode: u32,
 }
 
-/// The `impl ModeOnlyRule` block.
+/// What:
+///   The constructor of the `mode-only` rule.
+/// Why:
+///   The registry builds the rule from a decoded config entry,
+/// parsing the octal mode text once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new ModeOnlyRule(id, path, mode)
+/// ```
 impl ModeOnlyRule {
     /// What:
     ///  Build from decoded fields.
@@ -55,7 +64,17 @@ impl ModeOnlyRule {
     }
 }
 
-/// The `impl Rule for ModeOnlyRule` block.
+/// What:
+///   How the `mode-only` kind plugs into the engine:
+/// its id,
+/// its kind name and its plan.
+/// Why:
+///   The plan plans a mode change for an existing file and never creates the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ModeOnlyRule implements Rule { id(); kind(); plan(view) }
+/// ```
 impl Rule for ModeOnlyRule {
     /// The rule id.
     fn id(&self) -> &str {

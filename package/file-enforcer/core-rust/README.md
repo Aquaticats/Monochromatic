@@ -14,11 +14,15 @@ The accepted design is [`doc/decision/file-enforcer-rust-rewrite.md`](../../../d
 
 ## How a run works
 
-1. The config is parsed with `monochromatic-jsonc-edit`,
+1. The config is parsed with `monochromatic-jsonc-edit` (`parse_jsonc_with_spans`),
    converted to plain JSON (duplicate keys and unpaired surrogates
    are rejected),
    and decoded by hand into `Config`.
-   Every problem is reported with a `path:line:col` or a JSON pointer.
+   Every problem is reported as `file:line:col: /json/pointer: message`,
+   with the position of the offending value
+   (or of the key,
+   for an unknown key);
+   a syntax error has no pointer and reads `file:line:col: message`.
 2. `RuleRegistry::build` turns each entry into a `Rule`.
 3. `plan_run` runs the rules in config order against a `View`:
    the real files plus what earlier rules planned.
@@ -108,7 +112,9 @@ registry.register("browserslist", Box::new(MyBuilder));
   writing the changed text (the `toml-keys` and `rust-catalog` kinds).
   Two rules writing one path fail the run unless both compose.
   A rule that reads a path must come after every rule that writes it,
-  unless it writes that path itself.
+  unless it writes that path itself
+  or both rules compose
+  (a composing reader that plans no change to a file still precedes a composing rule that does).
 - Return `Err(Diagnostic)` for a failure that stops the run (exit 1).
   Put non-fatal notices in `warnings`;
   they are printed as `warning` events and are not drift.
@@ -139,7 +145,9 @@ neither written nor checked.
 - `browserslist` (browserslist crate):
   fields `source` (`.browserslistrc`),
   `output`
-  (`.browserslistrc.resolved.local.json`) and optional `environment`.
+  (`.browserslistrc.resolved.local.json`),
+  `lock` (`browserslist-data.lock.json`,
+  the repository-root data lock) and optional `environment`.
   It owns its output outright (`composes` stays `false`) and must write the JSON array the rolldown consumer reads.
 - `jetbrains-harper` (XML edit crate),
   only in the per-user config:
@@ -249,10 +257,8 @@ never `$XDG_RUNTIME_DIR`.
 
 ## Known limits
 
-- Config field errors name a JSON pointer,
-  not a line and column,
-  because the JSONC value model carries no spans;
-  syntax errors do carry `path:line:col`.
+- Columns count Unicode scalar values and only LF ends a line,
+  the rule `monochromatic-jsonc-edit` documents for its spans.
 - `check` of `mise-path-list` depends on installed `node_modules`,
   as the accepted design says.
 - The `JsonSchema` derive and `serde_json::json!` trip the repository's `disallowed_methods` lint;

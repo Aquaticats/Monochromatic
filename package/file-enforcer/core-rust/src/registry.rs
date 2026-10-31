@@ -52,7 +52,17 @@ use std::collections::BTreeMap;
 /// ```
 pub struct BuiltinBuilder;
 
-/// The `impl RuleBuilder for BuiltinBuilder` block.
+/// What:
+///   How the built-in kinds are built:
+/// one match over the config variants.
+/// Why:
+///   The six kinds this crate implements need no external crate,
+/// so one builder serves them all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class BuiltinBuilder implements RuleBuilder { build(config): Rule }
+/// ```
 impl RuleBuilder for BuiltinBuilder {
     /// What:
     ///  Build one built-in rule from its config entry.
@@ -124,15 +134,26 @@ impl RuleBuilder for BuiltinBuilder {
 /// class NotWiredRule implements Rule { id: string; kind: string; owner: string }
 /// ```
 pub struct NotWiredRule {
-    /// The `id` field.
+    /// Id of the rule entry that named the unlinked kind.
     id: String,
-    /// The `kind` field.
+    /// The kind that nothing has registered a builder for.
     kind: String,
-    /// The `owner` field.
+    /// The library that implements the kind,
+    /// named in the warning.
     owner: String,
 }
 
-/// The `impl Rule for NotWiredRule` block.
+/// What:
+///   How the placeholder rule behaves:
+/// it plans nothing and warns.
+/// Why:
+///   A kind whose crate is not linked yet must not break a run,
+/// but its outputs must not look checked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class NotWiredRule implements Rule { plan(view): RulePlan { return { changes: [], warnings: [kindNotWired] }; } }
+/// ```
 impl Rule for NotWiredRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -178,7 +199,15 @@ pub struct NotWiredBuilder {
     pub owner: String,
 }
 
-/// The `impl RuleBuilder for NotWiredBuilder` block.
+/// What:
+///   How a placeholder is built for a kind that nothing has registered.
+/// Why:
+///   The registry installs one for each seam kind so a config that names it still loads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class NotWiredBuilder implements RuleBuilder { build(config): Rule }
+/// ```
 impl RuleBuilder for NotWiredBuilder {
     /// Build the placeholder rule for `config`.
     fn build(&self, config: &RuleConfig) -> Result<Box<dyn Rule>, Diagnostic> {
@@ -200,11 +229,23 @@ impl RuleBuilder for NotWiredBuilder {
 /// class RuleRegistry { builders: Map<string, RuleBuilder> }
 /// ```
 pub struct RuleRegistry {
-    /// The `builders` field.
+    /// The builder for each kind name;
+    /// `register` replaces an entry.
     builders: BTreeMap<String, Box<dyn RuleBuilder>>,
 }
 
-/// The `impl RuleRegistry` block.
+/// What:
+///   Creating a registry,
+/// registering a kind's builder,
+/// and building every rule of a config.
+/// Why:
+///   A kind registered later replaces the placeholder,
+/// and a config with several bad entries reports them all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RuleRegistry { static withDefaults(); register(kind, builder); build(config): Rule[] }
+/// ```
 impl RuleRegistry {
     /// What:
     ///  The registry with the six built-in kinds and placeholders for `rust-catalog`,

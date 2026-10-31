@@ -165,6 +165,9 @@ pub enum RuleConfig {
         source: String,
         /// Repo-relative output path.
         output: String,
+        /// Repo-relative path of the data lock that pins `caniuse-lite`,
+        /// `node-releases` and the Firefox ESR value.
+        lock: String,
         /// Config section to resolve,
         /// such as `production`.
         environment: Option<String>,
@@ -186,7 +189,17 @@ pub enum RuleConfig {
     },
 }
 
-/// The `impl RuleConfig` block.
+/// What:
+///   Read-only questions about a rule entry that every kind answers the same way.
+/// Why:
+///   The registry,
+/// the id-uniqueness check and the scope check ask for the id and the kind
+///   without matching on every variant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class RuleConfig { id(): string; kind(): string }
+/// ```
 impl RuleConfig {
     /// What:
     ///  Borrow the rule's id,
