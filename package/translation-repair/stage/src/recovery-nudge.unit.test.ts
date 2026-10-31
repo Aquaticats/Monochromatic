@@ -42,6 +42,26 @@ await describe({
           },
         },),
         it({
+          name: 'READS A LENGTH STOP WITH NO CONTENT AS A RUNAWAY (ledger B1074), whether the content is empty or only '
+            + 'whitespace, and keeps a cut that holds content, and a cut inside the thinking, as cut short',
+          fn: async () => {
+            expect([
+              unreadableCauseOf({
+                outcome: { kind: 'schema-mismatch', rawText: '', reason: 'truncated-completion', detail: 'cut', },
+              },),
+              unreadableCauseOf({
+                outcome: { kind: 'schema-mismatch', rawText: ' \n\t', reason: 'truncated-completion', detail: 'cut', },
+              },),
+              unreadableCauseOf({
+                outcome: { kind: 'schema-mismatch', rawText: '{"purr":', reason: 'truncated-completion', detail: 'cut', },
+              },),
+              unreadableCauseOf({
+                outcome: { kind: 'schema-mismatch', rawText: '', reason: 'truncated-thinking', detail: 'cut', },
+              },),
+            ],).toEqual(['runaway', 'runaway', 'cut-short', 'cut-short',],);
+          },
+        },),
+        it({
           name: 'READS EVERY OTHER UNREADABLE ANSWER AS OFF THE SHAPE: unparseable, refused by the guard, a mismatch '
             + 'with no reason recorded, and one that read as a refusal',
           fn: async () => {
@@ -68,6 +88,14 @@ await describe({
       name: 'RECOVERY_NUDGES',
       concurrency: DEFAULT_CONCURRENCY,
       children: [
+        it({
+          name: 'KEEPS THE CUT-SHORT WORDING FOR A RUNAWAY, which is asked of another model with the plain question and '
+            + 'falls back to its own model under the same nudge as before, so a stored payload of that ask still replays',
+          fn: async () => {
+            expect(UNREADABLE_CAUSES[0],).toBe('runaway',);
+            expect(RECOVERY_NUDGES.runaway,).toStrictEqual(CUT_SHORT_RECOVERY_NUDGE,);
+          },
+        },),
         it({
           name: 'WORDS EACH CAUSE APART, so each is a prompt of its own to the uniqueness claims, and names the cut '
             + 'as running out of room rather than as a shape fault',

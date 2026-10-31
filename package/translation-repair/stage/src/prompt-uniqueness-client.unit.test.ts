@@ -337,9 +337,10 @@ await describe({
     },),
 
     it({
-      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through the same claims (ledger B1072): a first reply that '
-        + 'ended in a length stop with no content is re-asked under another model\'s name with no provider hint, the '
-        + 'nudged prompt is a digest of its own, and a later ask of the question replays both exchanges',
+      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through the same claims (ledger B1072, B1076): a first reply '
+        + 'that ended in a length stop with no content is re-asked under another model\'s name with no provider hint and '
+        + 'no nudge, so its digest is the one that model\'s own first ask of the question has, and a later ask of the '
+        + 'question replays both exchanges',
       fn: async () => {
         /** Every request that crossed the wrapper, in order. */
         const asked: ChatTextRequest[] = [];
@@ -363,8 +364,13 @@ await describe({
         expect(asked,).toHaveLength(2,);
         expect(asked[1]?.modelId,).not.toBe(REQUEST.modelId,);
         expect(asked[1]?.otherThan,).toBeUndefined();
-        expect(asked[1]?.messages.slice(0, -1,),).toStrictEqual(REQUEST.messages,);
+        // THE PLAIN QUESTION: the other model is asked the messages as they stood, with no nudge after them.
+        expect(asked[1]?.messages,).toStrictEqual(REQUEST.messages,);
         expect(modelPromptDigest({ request: asked[1] ?? REQUEST, },),).not.toBe(modelPromptDigest({ request: REQUEST, },),);
+        // ITS DIGEST IS THAT MODEL'S OWN FIRST ASK OF THE QUESTION, so a payload stored for that ask is replayed.
+        expect(modelPromptDigest({ request: asked[1] ?? REQUEST, },),).toBe(
+          modelPromptDigest({ request: { ...REQUEST, modelId: asked[1]?.modelId ?? REQUEST.modelId, }, },),
+        );
 
         // Asked again, both answers come from the claims.
         const again = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
