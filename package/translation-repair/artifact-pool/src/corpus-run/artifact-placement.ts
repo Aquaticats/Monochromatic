@@ -3,7 +3,10 @@ import {
   refusalText,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { isLowerHexDigit, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  printRunLine,
+  wordForCount,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { readRunJson, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   type ArtifactFileName,
@@ -244,11 +247,11 @@ export async function readPlacement(
     // check is not an entry id, so the license every other reader has to print
     // one deliberately does not reach it.
     if (recordedId !== keyedId) {
-      console.log(
-        `POOL ${name} records an id that is not its file name (${
+      printRunLine({
+        line: `POOL ${name} records an id that is not its file name (${
           shapeOf({ value: recordedId, },)
         }); treating it as unplaceable`,
-      );
+      },);
       return { kind: 'untagged', };
     }
 
@@ -275,11 +278,11 @@ export async function readPlacement(
     const { pipelineDigest, } = parsed;
 
     if ((typeof pipelineDigest) !== 'string') {
-      console.log(
-        `POOL ${name} records a pipeline digest that is not a string (${
+      printRunLine({
+        line: `POOL ${name} records a pipeline digest that is not a string (${
           shapeOf({ value: pipelineDigest, },)
         }); treating it as unplaceable`,
-      );
+      },);
       return { kind: 'untagged', };
     }
 
@@ -290,11 +293,11 @@ export async function readPlacement(
     // pipeline can no longer be named. Calling it unplaceable would tell an
     // operator to delete good work.
     if (!isDigestShaped({ value: pipelineDigest, },)) {
-      console.log(
-        `POOL ${name} records a pipeline digest this build cannot read (${
+      printRunLine({
+        line: `POOL ${name} records a pipeline digest this build cannot read (${
           shapeOf({ value: pipelineDigest, },)
         }); treating it as legacy`,
-      );
+      },);
       return {
         kind: 'legacy',
         tip,
@@ -321,9 +324,7 @@ export async function readPlacement(
     // artifact from before atomic writes, a concurrent writer, a permission
     // fault, or storage failure. Treating it as routine would normalise every
     // one of those.
-    console.log(
-      `POOL malformed ${name}: ${refusalText({ error, },)}`,
-    );
+    printRunLine({ line: `POOL malformed ${name}: ${refusalText({ error, },)}`, },);
     return { kind: 'malformed', };
   }
 }
