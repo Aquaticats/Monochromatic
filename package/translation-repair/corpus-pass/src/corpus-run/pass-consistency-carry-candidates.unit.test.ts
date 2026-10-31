@@ -98,7 +98,11 @@ function writtenBy(
     crossing = [],
     facts = factsOf({ lineStructured, },),
   }: {
-    readonly voices: readonly { readonly seat: string; readonly translation: string; }[];
+    readonly voices: readonly {
+      readonly seat: string;
+      readonly answeredBy?: string;
+      readonly translation: string;
+    }[];
     readonly lineStructured: boolean;
     readonly lines: string[];
     readonly keeping?: readonly string[];
@@ -215,6 +219,37 @@ await describe({
               findings: [],
             },);
             expect(lines,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'KEEPS THE MODEL THAT ANSWERED FOR A RUNAWAY SEAT BESIDE THE SEAT (ledger B1142, B1160), in what it keeps and in '
+            + 'the finding of a paragraph it withholds, so the carry records who wrote the words',
+          fn: async () => {
+            const { written, findings, } = writtenBy({
+              voices: [
+                {
+                  seat: 'hyper-cat',
+                  answeredBy: 'gemma-cat',
+                  translation: 'The sunlit window put the kitten to sleep.\n\nAnd another paragraph.',
+                },
+                { seat: 'bedrock-cat', answeredBy: 'mercury-cat', translation: 'The warm window sent the kitten to sleep.', },
+                { seat: 'tabby-cat', translation: 'The soft window sent the kitten to sleep.', },
+              ],
+              lineStructured: false,
+              lines: [],
+            },);
+            expect({
+              written,
+              findings: findings.map(function head(finding,): string {
+                return finding.slice(0, 'consistency-candidate-refused (hyper-cat -> gemma-cat): '.length,);
+              },),
+            },).toEqual({
+              written: [
+                { seat: 'bedrock-cat', answeredBy: 'mercury-cat', text: 'The warm window sent the kitten to sleep.', },
+                { seat: 'tabby-cat', text: 'The soft window sent the kitten to sleep.', },
+              ],
+              findings: ['consistency-candidate-refused (hyper-cat -> gemma-cat): ',],
+            },);
           },
         },),
         it({

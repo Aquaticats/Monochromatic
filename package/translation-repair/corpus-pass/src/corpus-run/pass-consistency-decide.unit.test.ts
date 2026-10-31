@@ -161,6 +161,34 @@ await describe({
           },
         },),
         it({
+          name: 'RECORDS THE RUN-OFF BALLOT UNDER THE MODEL THAT CAST IT (ledger B1142, B1160): the one asked in place of a runaway '
+            + 'seat, and the seat itself where it answered',
+          fn: async () => {
+            const count = countOf({
+              over: {
+                winner: { kind: 'none', reason: 'no-majority', },
+                finalists: ['OCCURRENCE 1', 'OCCURRENCE 2',],
+              },
+            },);
+            const heard = runOffOf({ choices: ['OCCURRENCE 2', 'OCCURRENCE 2', 'OCCURRENCE 1',], },);
+            const { runOff, } = afterRunOff({
+              count,
+              labels: LABELS,
+              runOff: [
+                {
+                  ...heard,
+                  voices: heard.voices.map(function answered(voice, at,) {
+                    return (at === 0) ? { ...voice, answeredBy: 'gemma-cat', } : voice;
+                  },),
+                },
+              ],
+            },);
+            expect(runOff[0]?.ballots.map(function seatOf({ seat, },): string {
+              return seat;
+            },),).toEqual(['gemma-cat', 'seat-1', 'seat-2',],);
+          },
+        },),
+        it({
           name: 'REFUSES A TIE THAT WAS NOT RUN OFF, and a run-off for choices that did not tie',
           fn: async () => {
             const tied = countOf({ over: { finalists: ['OCCURRENCE 1', 'OCCURRENCE 2',], }, },);

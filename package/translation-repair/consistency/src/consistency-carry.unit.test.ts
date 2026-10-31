@@ -155,6 +155,29 @@ await describe({
           },
         },),
         it({
+          name: 'NAMES THE MODEL THAT WROTE A PARAGRAPH AND NOT THE SEAT IT ANSWERED FOR (ledger B1142, B1160): a writer whose '
+            + 'seat ran away and was answered by another model is listed under that model, and a seat that answered itself under itself',
+          fn: async () => {
+            const offers = carryOffersOf({
+              current: 'The cat naps in the sun.',
+              splice: [],
+              written: [
+                { seat: 'qwen', answeredBy: 'gemma', text: 'The kitten dozes in the sun.', },
+                { seat: 'kimi', text: 'The kitten sleeps in the sun.', },
+                { seat: 'glm', answeredBy: 'mercury', text: 'The kitten sleeps\nin the sun.', },
+              ],
+              lineStructured: false,
+            },);
+            expect(offers.map(function describeOffer({ kind, writers, text, },): string {
+              return `${kind}:${writers.join('+',)}:${text}`;
+            },).toSorted(),).toEqual([
+              'current::The cat naps in the sun.',
+              'writer:gemma:The kitten dozes in the sun.',
+              'writer:kimi+mercury:The kitten sleeps in the sun.',
+            ].toSorted(),);
+          },
+        },),
+        it({
           name: 'KEEPS A LINE BREAK AS A DIFFERENCE where the line-structure rule governs the slice, so two texts that differ '
             + 'only in their breaks are two candidates',
           fn: async () => {

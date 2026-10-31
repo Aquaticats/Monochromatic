@@ -24,6 +24,17 @@ import {
   ConsistencyInvariantError,
 } from '@monochromatic-dev/translation-repair-consistency';
 import {
+  alternateModelsFor,
+  type ChatJsonOutcome,
+  type ChatJsonRequest,
+  type ModelClient,
+} from '@monochromatic-dev/translation-repair-provider';
+import {
+  SEAT_BEDROCK_ONLY_TEXT,
+  SEAT_HYPER_ONLY,
+  SEAT_HYPER_VISION,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import {
   type CarryUnit,
   carryWithoutChoice,
   choose,
@@ -367,6 +378,85 @@ await describe({
               usable: 3,
               quorum: 2,
               findings: ['consistency-candidate-refused (hyper-cat): none',],
+            },);
+          },
+        },),
+        it({
+          name: 'RECORDS A BALLOT UNDER THE MODEL THAT CAST IT, in the first round and in the run-off (ledger B1142, B1160): '
+            + 'the model asked in place of a runaway seat, and the seat itself where it answered',
+          fn: async () => {
+            /**
+             Model the re-ask of the first judge's runaway goes to, on no bench of this question.
+             */
+            const [answerer,] = alternateModelsFor({
+              modelId: SEAT_HYPER_ONLY,
+              role: 'late-judge',
+              bench: [SEAT_HYPER_ONLY, SEAT_BEDROCK_ONLY_TEXT, SEAT_HYPER_VISION,],
+            },)
+              .alternates;
+            if (answerer === undefined)
+              throw new Error('the late-judge role has a model left to answer a runaway',);
+            /**
+             Label of the candidate holding a text on the sheet a judge was shown.
+             */
+            const labelOfText = function labelOfText({ sheet, text, }: { readonly sheet: string; readonly text: string; },): string {
+              return candidateTextsOf({ sheet, },)
+                .find(function holdsIt(candidate,): boolean {
+                  return candidate.text === text;
+                },)
+                ?.label ?? '';
+            };
+            const scene = carryScene({
+              behave: function splitsThenSettles({ seat, sheet, },): SeatBehaviour {
+                /**
+                 Whether the sheet is the run-off among the finalists.
+                 */
+                const runOff = sheet.includes('A first round of judges was split',);
+                /**
+                 Text each judge chooses: three ways in the first round, the writer's paragraph by two of three in the run-off.
+                 */
+                const text = (seat === answerer)
+                  ? WRITTEN
+                  : (seat === SEAT_BEDROCK_ONLY_TEXT)
+                  ? (runOff ? WRITTEN : SPLICED_PARAGRAPH)
+                  : (runOff ? SPLICED_PARAGRAPH : RECEIVING_ENGLISH);
+                return choosing({ choice: labelOfText({ sheet, text, }), },);
+              },
+            },);
+            const inner = scene.context.client;
+            const client: ModelClient = {
+              ...inner,
+              chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+                if (request.modelId === SEAT_HYPER_ONLY) {
+                  return {
+                    kind: 'schema-mismatch',
+                    rawText: '',
+                    reason: 'truncated-completion',
+                    detail: 'provider reported a truncating completion',
+                  };
+                }
+                return await inner.chatJson(request,);
+              },
+            };
+            const { carries, } = await choose({
+              context: { ...scene.context, client, },
+              repeat: CARRY_REPEAT,
+              chosen: scene.chosen,
+              unit: scene.unit,
+              offers: OFFERS,
+              findings: [],
+            },);
+            const [carry,] = carries;
+            expect({
+              first: carry?.ballots.map(function seatOf({ seat, },): string {
+                return seat;
+              },),
+              runOff: carry?.runOff?.ballots.map(function seatOf({ seat, },): string {
+                return seat;
+              },),
+            },).toEqual({
+              first: [answerer, SEAT_BEDROCK_ONLY_TEXT, SEAT_HYPER_VISION,],
+              runOff: [answerer, SEAT_BEDROCK_ONLY_TEXT, SEAT_HYPER_VISION,],
             },);
           },
         },),
