@@ -31,7 +31,7 @@ const READ_CHUNK_BYTES: usize = 64 * 1024;
 /// ```ts
 /// Buffer.from(bytes).toString('hex')
 /// ```
-fn hex_text(bytes: &[u8]) -> String {
+pub fn hex_of_digest(bytes: &[u8]) -> String {
     let mut text: String = String::new();
     for byte in bytes {
         text.push_str(&format!("{byte:02x}"));
@@ -42,7 +42,7 @@ fn hex_text(bytes: &[u8]) -> String {
 /// SHA-256 of `bytes` as 64 lowercase hex characters.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
-    return hex_text(digest.as_slice());
+    return hex_of_digest(digest.as_slice());
 }
 
 /// What:     SHA-256 of the file at `path`, read in chunks so a large archive never sits in memory whole.
@@ -70,5 +70,5 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
         hasher.update(&buffer[..read]);
     }
     let digest = hasher.finalize();
-    return Ok(hex_text(digest.as_slice()));
+    return Ok(hex_of_digest(digest.as_slice()));
 }
