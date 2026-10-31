@@ -376,6 +376,14 @@ each finished branch is reviewed and merged into `main`):
   so its version stays 0.2.0.
   Asked the owner:
   the host-list scope and how to apply live.
+  Answered 2026-10-31:
+  "Keep the list as built" (all 21 hosts,
+  `github.com` and `api.github.com` included,
+  shared-address sites accepted),
+  and "Full tunnel restart now" (`wg-quicker down fr-par-fr1`,
+  then `up`,
+  accepting the unprotected moment between them),
+  once the separate reviewer finishes with no blocking findings.
 - AGENTS.md rule for concerns leaking out of their owning component:
   two drafts (`CWN`,
   `LKF`) were not approved;
