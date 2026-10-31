@@ -87,33 +87,55 @@ jobs:
           sudo apt-get install -y --no-install-recommends pkg-config
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
-      - name: Prepare dependencies
-        run: task-run prepare:pnpm
-      # Rust dependency catalog (doc/decision/rust-dependency-catalog.md): prepare:pnpm has just run the
-      # file-enforcer sync (`node file-enforcer.config.ts`), so any change it made to a crate manifest or to
-      # rust-catalog.toml means the committed files drifted from what the sync renders, the counterpart of
-      # the JS `pnpm install --frozen-lockfile` gate. (`file-enforcer --check` here would compare against
-      # the files the sync just rewrote, so it could never fail.)
-      - name: Rust catalog drift
-        id: rust_catalog_drift
+      - name: Install the repository tools
+        uses: ./.github/actions/repo-tools-setup
+        with:
+          tools: file-enforcer mpm-shadow
+      # Committed outputs (CLAUDE.md, LICENSE, LICENSES, crate manifests, rust-catalog.toml and every other file no
+      # .gitignore matches) are checked before anything regenerates them, so a drift is reported instead of repaired
+      # (doc/decision/file-enforcer-rust-rewrite.md, "Cutover"; doc/runbook/rust-dependencies.md).
+      - name: Committed file drift
+        id: committed_file_drift
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          if ! git diff --exit-code --stat -- rust-catalog.toml ':(glob)package/**/Cargo.toml'; then
-            echo "::error::Crate manifests or rust-catalog.toml differ from what file-enforcer renders; run 'mise run sync:files' and commit the result (doc/runbook/rust-dependencies.md)"
+          if ! file-enforcer check --outputs committed; then
+            echo "::error::A committed file differs from what file-enforcer renders; run 'mise run sync:files' and commit the result (doc/runbook/rust-dependencies.md)"
             exit 1
           fi
-      # pnpr server config: the same sync renders it through pnpr's generator (package/config/pnpr), so a change
-      # here means the committed file drifted. pnpr's own check:config would compare against the file the sync
-      # just rewrote, so it could never fail at this point.
+      # The plan and the lock must agree and the lock's digest must match: an offline check, no installs.
+      - name: Toolchain lock drift
+        id: toolchain_lock_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! mpm-shadow install --lockfile-only --frozen-lockfile; then
+            echo "::error::toolchain.lock.json does not match toolchain.plan.jsonc; run 'mise run toolchain:update' and commit the result"
+            exit 1
+          fi
+      - name: Prepare dependencies
+        run: task-run prepare:pnpm
+      # prepare:pnpm has just written the gitignored outputs (skill copies, the package bin list, the resolved
+      # browserslist targets); they are checked separately, then the whole tree once.
+      - name: Local file drift
+        id: local_file_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          file-enforcer check --outputs local
+          file-enforcer check
+      # pnpr server config: pnpr's own generator renders it (package/config/pnpr), and the file-enforcer run above
+      # never writes it, so pnpr's own check can see a real drift.
       - name: pnpr config drift
         id: pnpr_config_drift
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          if ! git diff --exit-code --stat -- package/config/pnpr/config.yaml; then
+          if ! task-run //package/config/pnpr:check:config; then
             echo "::error::package/config/pnpr/config.yaml differs from what pnpr's generator renders; run 'mise run //package/config/pnpr:generate:config' and commit the result (package/config/pnpr/README.md)"
             exit 1
           fi

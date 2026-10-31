@@ -41,11 +41,25 @@ RUN node_url="$(jq --raw-output '.tools.node.artifacts["linux-x64"].url' toolcha
  && tar --extract --file /tmp/pnpm.tar.gz --directory /opt/pnpm \
  && ln --symbolic /opt/pnpm/pnpm /usr/local/bin/pnpm
 
-# The workspace dependencies the sync entry point imports.
+# The workspace dependencies the tasks import (`mise run prepare` below needs `node_modules`).
 RUN pnpm install --frozen-lockfile
 
+# `mpm-shadow` is the one prebuilt binary a fresh machine needs: the release of the version
+# `toolchain.lock.json` names for `cargo:monochromatic-mpm-shadow` is fetched and its archive is checked against the
+# release's checksums file before it is unpacked. It then installs every other tool, `file-enforcer` among them.
+RUN crate=monochromatic-mpm-shadow \
+ && version="$(jq --raw-output '.tools["cargo:monochromatic-mpm-shadow"].version' toolchain.lock.json)" \
+ && target=x86_64-unknown-linux-gnu \
+ && archive="${crate}-${version}-${target}.tar.gz" \
+ && base="https://github.com/Aquaticats/Monochromatic/releases/download/${crate}-v${version}" \
+ && curl --fail --silent --show-error --location --output "/tmp/${archive}" "${base}/${archive}" \
+ && curl --fail --silent --show-error --location --output "/tmp/${crate}-${version}-sha256sums.txt" "${base}/${crate}-${version}-sha256sums.txt" \
+ && (cd /tmp && grep " ${archive}\$" "${crate}-${version}-sha256sums.txt" | sha256sum --check) \
+ && tar --extract --gzip --file "/tmp/${archive}" --strip-components=1 --directory /usr/local/bin "${crate}-${version}-${target}/mpm-shadow" \
+ && mpm-shadow --version
+
 # Every tool converges to `toolchain.lock.json`; mise runs only the repository's tasks afterwards
-# (`mise run toolchain:sync` is the same entry once its task is wired).
-RUN export $(cat .env.local | xargs) && node package/file-enforcer/core/src/toolchain/sync.ts
+# (`mise run toolchain:install` is the same entry).
+RUN export $(cat .env.local | xargs) && mpm-shadow install --frozen-lockfile
 
 RUN mise run prepare

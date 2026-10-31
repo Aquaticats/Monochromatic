@@ -19,6 +19,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends pkg-config
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
+      - name: Install the repository tools
+        uses: ./.github/actions/repo-tools-setup
+        with:
+          tools: file-enforcer
       - name: Prepare dependencies
         run: task-run prepare:pnpm
       - name: Build fast subset
