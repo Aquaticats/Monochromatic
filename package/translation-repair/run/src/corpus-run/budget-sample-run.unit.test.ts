@@ -133,6 +133,7 @@ function envWith(
 
 await describe({
   name: sampleBudgets.name,
+  concurrency: 1,
   children: [
     it({
       name: 'ASKS each meter with its own provider\'s key and says routing would use every provider when no meter answers',

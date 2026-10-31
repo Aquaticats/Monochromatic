@@ -515,11 +515,13 @@ Records written before the numbers existed carry states alone,
 and the report names that rather than printing nothing.
 
 Read a collection of those lines back with `meter-report`,
-passing one or more log paths after `--`.
+passing one or more run folders after `--`
+(or a record file of one,
+`<run folder>/log/<day>/*.log.jsonl`).
 It spends no quota:
 
 ```sh
-mise run //package/translation-repair/run:meter-report -- run3.log run4.log
+mise run //package/translation-repair/run:meter-report -- run3 run4
 ```
 
 It reports,
@@ -548,7 +550,7 @@ so nothing observes when the provider came back,
 and every outage that ended a run reads as open-ended forever.
 
 ```sh
-mise run //package/translation-repair/run:budget-sample > sample.log 2>&1
+TRANSLATION_REPAIR_RUNS_DIR=samples mise run //package/translation-repair/run:budget-sample
 ```
 
 One reading of all four providers' meters;
@@ -557,12 +559,17 @@ since a sample missing a provider would read as that provider answering
 (`package/translation-repair/run/src/corpus-run/budget-sample.ts`).
 No model is called and no token is produced;
 a live run took 2.4 seconds.
-Capture both streams:
-the reading is at `info` and an unreadable meter warns at `warn`.
+The sample writes its reading as a record in the run folder it is given
+(`TRANSLATION_REPAIR_RUNS_DIR`,
+here `samples`),
+one file for each process,
+and refuses when it cannot write there:
+the reading is at `info` and an unreadable meter warns at `warn`,
+both as records.
 
 Repeat it on a timer to fill the quiet stretches,
 for example `watch --interval 300`,
-and point `meter-report` at the collected logs.
+and point `meter-report` at the folder the samples were taken into.
 
 ## DeepSeek and Xiaomi are called directly since 2026-10-22
 

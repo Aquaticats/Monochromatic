@@ -111,11 +111,13 @@ which lists every file of this record.
     is not a pass.
     It means that entry could not be weighed at all.
 
-    Then read the destination lines off the pass log,
+    Then read the destination lines off the pass's records
+    (`${RUNDIR}/log/<day>/*.log.jsonl`,
+    each line the `message` of a record),
     which spends nothing either:
 
     ```sh
-    grep '^DESTINATIONS ' "${RUNDIR}.log"
+    jq --raw-output 'select(.message | startswith("DESTINATIONS ")) | .message' "${RUNDIR}"/log/*/*.log.jsonl
     ```
 
     Expected:
@@ -140,7 +142,7 @@ which lists every file of this record.
     Then read the defect lines the same way:
 
     ```sh
-    grep '^DEFECTS ' "${RUNDIR}.log"
+    jq --raw-output 'select(.message | startswith("DEFECTS ")) | .message' "${RUNDIR}"/log/*/*.log.jsonl
     ```
 
     Expected:
@@ -168,9 +170,14 @@ which lists every file of this record.
 3.  Read what the providers were doing while it ran.
 
     ```sh
-    mise run //package/translation-repair/run:meter-report -- "${RUNDIR}.log"
+    mise run //package/translation-repair/run:meter-report -- "${RUNDIR}"
     ```
 
+    The reports of this step name the run folder
+    (or one of its `.log.jsonl` record files),
+    and read its records;
+    a folder that holds no record file is refused in words,
+    and a `.log` text capture is no input.
     Expected:
     per provider,
     a count of readings in each state,
@@ -193,11 +200,13 @@ and a run made from that checkout recorded none of what they read either.
 4.  Read where the wall clock went.
 
     ```sh
-    mise run //package/translation-repair/run:run-timing-report -- "${RUNDIR}.log"
+    mise run //package/translation-repair/run:run-timing-report -- "${RUNDIR}"
     ```
 
     This spends no quota and calls no model.
-    Name more than one log to read a resumed run as a single span.
+    Name more than one run folder to read a resumed run as a single span
+    (a run folder holds the records of every process that wrote to it,
+    in the order they started).
     Expected,
     on a run whose rounds and calls were both recorded:
 
@@ -244,7 +253,7 @@ and a run made from that checkout recorded none of what they read either.
     Read per-slice phase cost separately:
 
     ```sh
-    mise run //package/translation-repair/slice-cache:slice-cost-report -- "${RUNDIR}.log"
+    mise run //package/translation-repair/slice-cache:slice-cost-report -- "${RUNDIR}"
     ```
 
     `SLICE-COST` covers repair,
@@ -260,7 +269,7 @@ and a run made from that checkout recorded none of what they read either.
 5.  Read what the run cost.
 
     ```sh
-    mise run //package/translation-repair/run:spend-report -- "${RUNDIR}.log"
+    mise run //package/translation-repair/run:spend-report -- "${RUNDIR}"
     ```
 
     This spends no quota and calls no model.
@@ -313,9 +322,11 @@ and a run made from that checkout recorded none of what they read either.
     A model that keeps coming back empty or slow on that provider is attributed by two greps:
 
     ```sh
-    rg 'SPEND provider=openrouter model=minimax/minimax-m3' "${RUNDIR}.log" \
+    jq --raw-output '.message' "${RUNDIR}"/log/*/*.log.jsonl \
+      | rg 'SPEND provider=openrouter model=minimax/minimax-m3' \
       | rg --only-matching 'endpoint=\S+' | sort | uniq --count
-    rg ': cut, .*served by' "${RUNDIR}.log" | rg --only-matching 'stream \S+:.*served by "[^"]+"'
+    jq --raw-output '.message' "${RUNDIR}"/log/*/*.log.jsonl \
+      | rg ': cut, .*served by' | rg --only-matching 'stream \S+:.*served by "[^"]+"'
     ```
 
     An upstream that fails after the gateway has already answered 200 shows up as a retry line naming
@@ -347,7 +358,10 @@ and a run made from that checkout recorded none of what they read either.
     MiniMax M3 has one
     such endpoint (ModelRun) once Parasail is ignored and CoreWeave sits on the account-level ignore list
     (measured 2026-09-04,
-    `~/temp/agent/openrouter-minimax-endpoints-20260904.log`).
+    in a text capture of that day's console,
+    `~/temp/agent/openrouter-minimax-endpoints-20260904.log`,
+    a file of the time before a run's records were kept in its folder;
+    its name is left as it was).
 
 6.  Read who produced what,
     and what the judges said about it.

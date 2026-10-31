@@ -821,6 +821,17 @@ named for that subject and listed here.
   which are accepted duplicates merged at emission (B1063),
   and the one spend line without a stored payload,
   which is an unfinished attempt booked at its bound (B1064).
+- [Audit ledger: a pass keeps its records in its run folder](audit-ledger-pass-records-in-the-run-folder.md):
+  The pass that wrote nothing of its own while every reader parsed a console capture (B1090),
+  how a reader finds the records of one run and what it says when there are none (B1091),
+  the retention that can never take them (B1092),
+  the five readers moved with the same reports (B1093),
+  four commands that read no pass records (B1094),
+  the budget sample (B1095),
+  what stays console only and what the launcher changes (B1096),
+  the census of every `.log` the package named (B1097),
+  the cache versions that did not move (B1098),
+  and the editor fidelity bench and the other runners left as open scope (B1099).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

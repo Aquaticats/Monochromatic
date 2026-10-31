@@ -164,8 +164,8 @@ TODO | DONE
     printing presence and never a value:
     `mise exec -- node -e "console.log(process.env.TRANSLATION_REPAIR_OPENROUTER_API_KEY === undefined ? 'absent' : 'present')"`.
 
-3.  Prepare the scratch root that will hold the log,
-    the pid file and the run directory.
+3.  Prepare the scratch root that will hold the pid file and the run directory,
+    which holds the run's records.
 
     ```sh
     mkdir --parents "${HOME}/temp/agent"
@@ -200,21 +200,30 @@ TODO | DONE
 5.  Read both meters before committing to a launch.
 
     ```sh
-    mise run //package/translation-repair/run:budget-sample > ~/temp/agent/pre-launch.log 2>&1
-    cat ~/temp/agent/pre-launch.log
+    SAMPLEDIR="${HOME}/temp/agent/pre-launch-sample"
+    TRANSLATION_REPAIR_RUNS_DIR="${SAMPLEDIR}" mise run //package/translation-repair/run:budget-sample
+    mise run //package/translation-repair/run:meter-report -- "${SAMPLEDIR}"
     ```
 
     Expected:
-    one line containing `METERS`,
+    one reading,
+    `meter-report: logs=1 readings=1 unread=0`,
+    then the window and each provider's state.
+    The sample writes its reading as a record in the run folder it is given,
+    `${SAMPLEDIR}/log/<day>/<timestamp>.<uuid>.log.jsonl`,
+    the way a pass does,
+    and `meter-report` reads the folder.
+    The record's message holds the `METERS` line,
     for example:
 
     ```text
     METERS synthetic=wet hyper=dry syntheticWeekly=97% syntheticFiveHour=48/50 syntheticThrottled=no hyperBalance=0
     ```
 
-    Capture both streams as shown:
-    the reading is at `info`
-    and a meter that could not be reached warns at `warn`.
+    The reading is at `info`
+    and a meter that could not be reached warns at `warn`,
+    and both are records of the folder.
+    A sample taken into a pass's own run folder is read with the pass's readings by `meter-report` on that folder.
 
     A provider reading `dry` does not block ordinary launch.
     Validation or performance arm requiring particular providers must add
@@ -233,9 +242,14 @@ TODO | DONE
 6.  Re-read the completion caps against the runs since the last launch.
 
     ```sh
-    mise run //package/translation-repair/run:cap-census -- ~/temp/agent > ~/temp/agent/cap-census.log 2>&1
-    rg '^cap-census:|^[a-z].*: card cap|^  [A-Z]{4}' ~/temp/agent/cap-census.log
+    mise run //package/translation-repair/run:cap-census -- ~/temp/agent > ~/temp/agent/cap-census.txt 2>&1
+    rg '^cap-census:|^[a-z].*: card cap|^  [A-Z]{4}' ~/temp/agent/cap-census.txt
     ```
+
+    The census reads the record files of the run folders under the directory it is named
+    (`<run folder>/log/<day>/*.log.jsonl`),
+    and takes a pass's by the `START tip=` record its first records hold.
+    A `.log` capture of a console is no log to it.
 
     Expected:
     a `cap-census:` summary line,
@@ -286,19 +300,30 @@ TODO | DONE
     meaning one carrying `--only`,
     wants a throwaway.
 
-2.  Launch it detached,
-    with its output captured.
+2.  Launch it detached.
+    The pass writes its own records:
+    everything it logs and every line it prints is a record in
+    `${RUNDIR}/log/<day>/<timestamp>.<uuid>.log.jsonl`,
+    one file for each process,
+    through the shared logger's file sink,
+    which no retention sweep ever touches.
+    Nothing captures the console,
+    and nothing reads it:
+    the console shows a person watching what the records hold.
 
     ```sh
     cd -- /var/home/user/worktrees/translation-repair
     TRANSLATION_REPAIR_RUNS_DIR="${RUNDIR}" nohup setsid \
       mise run //package/translation-repair/corpus-pass:corpus-pass \
-      > "${RUNDIR}.log" 2>&1 < /dev/null &
+      > /dev/null 2>&1 < /dev/null &
     ```
 
     Expected:
     the shell prints a job number and a pid,
     and returns immediately.
+    A pass that cannot write `${RUNDIR}/log` refuses to start
+    and says so,
+    since a run that leaves no record of itself is not worth its quota.
 
     The repository's `CLAUDE.md` asks that long runs start as their own systemd user unit,
     out of the cgroup every session's shell commands share,
@@ -310,33 +335,17 @@ TODO | DONE
       --property=MemoryMax=12G \
       --working-directory=/var/home/user/worktrees/translation-repair \
       --setenv=TRANSLATION_REPAIR_RUNS_DIR="${RUNDIR}" \
-      --property=StandardOutput=truncate:"${RUNDIR}.log" \
       "$(command -v mise)" run //package/translation-repair/corpus-pass:corpus-pass
     ```
 
-    Give the unit no `StandardError` property:
-    stderr then inherits stdout's file through the same descriptor.
-    `StandardError=append:` on the same file opens a second descriptor,
-    and stdout,
-    writing at its own offset,
-    overwrites every line stderr wrote,
-    every `warn` among them;
-    the TianqiChen66622 launch lost all of them that way
-    (the package's audit ledger,
-    M147).
-    Right after the launch,
-    read how systemd wired the unit's two streams:
-
-    ```sh
-    systemctl --user show --property=StandardOutput --property=StandardError "corpus-pass-$(basename -- "${RUNDIR}")"
-    ```
-
-    Expected:
-    `StandardOutput=truncate` and `StandardError=inherit`.
-    `StandardError=append` is the form that loses stderr;
-    stop the unit and launch again.
-    (Measured 2026-10-11 on two throwaway units,
-    one launched each way.)
+    Give the unit no `StandardOutput` or `StandardError` property:
+    the console goes to the journal for a person watching
+    (`journalctl --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --follow`),
+    and the evidence is the records in the run folder.
+    Before 2026-10-31 this step captured the console into `${RUNDIR}.log`,
+    and every report parsed that capture;
+    the owner's ruling of 2026-10-31 is that the logger's own `*.log.jsonl` files are the record,
+    and a capture beside them means the logger was not used as designed (ledger B1090).
     Under a unit,
     stop the pass with `systemctl --user stop corpus-pass-<name>`,
     where the steps that follow say to kill it by pid.
@@ -357,11 +366,15 @@ TODO | DONE
     `This build is running rolldown <x>, but this checkout installs rolldown <y>.`;
     a checkout older than that commit still needs the check that follows.
     Before trusting a launch meant to run on a known build,
-    read the bundler version off the build lines and the digest off `START`:
+    read the bundler version off the build lines and the digest off `START`.
+    The build lines are the unit's console output,
+    which reaches the journal and no record,
+    and `START` is a record:
 
     ```sh
-    grep --only-matching --max-count 1 'rolldown v[0-9.]*' "${RUNDIR}.log"
-    grep '^START ' "${RUNDIR}.log"
+    journalctl --user --unit="corpus-pass-$(basename -- "${RUNDIR}")" --output=cat \
+      | grep --only-matching --max-count 1 'rolldown v[0-9.]*'
+    jq --raw-output 'select(.message | startswith("START ")) | .message' "${RUNDIR}"/log/*/*.log.jsonl
     ```
 
     Expected:
@@ -513,7 +526,7 @@ TODO | DONE
     since a built command refuses to run in a shell that holds provider keys unless that variable names it:
 
     ```sh
-    TRANSLATION_REPAIR_STARTED_BY=meter-report node dist/final/node/meter-report.mjs "${RUNDIR}.log"
+    TRANSLATION_REPAIR_STARTED_BY=meter-report node dist/final/node/meter-report.mjs "${RUNDIR}"
     ```
 
     To exercise a CHANGE while a pass is in flight,
@@ -545,14 +558,17 @@ Status:
 TODO | DONE
 
 Watch these while it runs.
-Each is the exact string the log carries.
+Each is the exact string the run's records carry,
+as the `message` of a record in `${RUNDIR}/log/<day>/*.log.jsonl`
+(`jq --raw-output '.message' "${RUNDIR}"/log/*/*.log.jsonl` prints them as lines).
 
 -   `[error]` at any point.
     A healthy long run carries none.
-    Count them rather than reading for them:
+    Count them rather than reading for them,
+    by the level each record carries:
 
     ```sh
-    grep --count '\[error\]' "${RUNDIR}.log"
+    jq --slurp '[.[] | select(.level == "error")] | length' "${RUNDIR}"/log/*/*.log.jsonl
     ```
 
     Expected:
@@ -823,11 +839,12 @@ stopping the run and stopping the supervisor are two different operations.
     which can be twelve hours.
 
 To discard a run entirely,
-remove its directory and its log.
+remove its directory,
+which holds its records.
 Do this only for a throwaway run.
 
 ```sh
-rm --recursive --force -- "${RUNDIR}" "${RUNDIR}.log"
+rm --recursive --force -- "${RUNDIR}"
 ```
 
 Expected:
