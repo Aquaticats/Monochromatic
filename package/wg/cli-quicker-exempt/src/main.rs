@@ -13,8 +13,16 @@
 ///  Interpreter,
 ///  and Qure cgroup targets.
 mod application_targets;
+/// Reads the resource limits a moved process must keep.
+mod inherited_limits;
 /// Reads facts about one process from a procfs tree.
 mod process_info;
+/// Delivers failures after startup to a person.
+mod runtime_report;
+/// Runs a command line client as the watched user.
+mod user_client;
+/// The words and outcomes of the update traffic policy.
+mod update_report;
 /// Subscribes to the kernel process-event connector.
 mod process_events;
 /// Moves processes into the updates slice through the user's service manager.
@@ -57,6 +65,18 @@ mod process_events_tests;
 /// Unit tests for the update traffic policy.
 #[cfg(test)]
 mod update_routing_tests;
+/// Unit tests for the words and outcomes of the policy.
+#[cfg(test)]
+mod update_report_tests;
+/// Unit tests for the inherited resource limits.
+#[cfg(test)]
+mod inherited_limits_tests;
+/// Unit tests for failure delivery.
+#[cfg(test)]
+mod runtime_report_tests;
+/// Unit tests for the user client.
+#[cfg(test)]
+mod user_client_tests;
 /// Unit tests for scope adoption.
 #[cfg(test)]
 mod scope_adoption_tests;

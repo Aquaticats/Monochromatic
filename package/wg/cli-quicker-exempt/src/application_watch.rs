@@ -4,8 +4,14 @@
 use crate::application_targets::{scan_application_targets, ScanRoots};
 /// Process events and the update traffic policy.
 use crate::process_events::{drain_exec_events, subscribe};
-/// Policy engine and its loud reports.
-use crate::update_routing::{describe_outcome, policy_failure, Outcome, UpdateRouting};
+/// Delivery of failures after startup.
+use crate::runtime_report::RuntimeReporter;
+/// Policy engine.
+use crate::update_routing::UpdateRouting;
+/// The words of the policy.
+use crate::update_report::{describe_outcome, policy_failure, Outcome, POLICY_PROCESS_WATCH};
+/// Timing of the process scan.
+use std::time::{Duration, Instant};
 /// Unpinned marker links owned by watcher lifetime.
 use crate::bpf::{attach_marker_unpinned, MarkerLinks};
 /// Polling and syscall failures.
@@ -47,13 +53,17 @@ pub struct ApplicationWatch<'a> {
     /// Process-event connector,
     /// absent when the subscription failed and was reported.
     events: Option<OwnedFd>,
-    /// Loop iterations since the last full process scan.
-    ticks_since_scan: u32,
+    /// When the last full process scan finished.
+    last_full_scan: Instant,
+    /// Delivers failures after startup to a person.
+    reporter: RuntimeReporter,
 }
 
-/// Loop iterations between full process scans,
+/// Time between full process scans,
 /// the backstop for events the kernel dropped.
-const FULL_SCAN_TICKS: u32 = 8;
+/// It is a duration and not a count of loop wakeups,
+/// because a busy event stream wakes the loop far more often than the poll timeout.
+const FULL_SCAN_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Creates owned descriptor from successful nonnegative syscall return.
 fn owned_descriptor(raw: libc::c_int) -> io::Result<OwnedFd> {
@@ -211,6 +221,7 @@ pub fn prepare_application_watch(
     roots: ScanRoots<'_>,
     mark: u32,
     routing: UpdateRouting,
+    reporter: RuntimeReporter,
 ) -> io::Result<ApplicationWatch<'_>> {
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
@@ -237,61 +248,81 @@ pub fn prepare_application_watch(
         active: Vec::new(),
         routing,
         events,
-        ticks_since_scan: 0,
+        last_full_scan: Instant::now(),
+        reporter,
     };
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
     reconcile(&mut watch)?;
-    report_outcomes(&watch.routing.rescan());
+    let outcomes = watch.routing.rescan();
+    report_outcomes(&mut watch.reporter, &outcomes);
     return Ok(watch);
 }
 
-/// Prints each outcome that needs saying.
-fn report_outcomes(outcomes: &[Outcome]) {
+/// Delivers each outcome that needs saying:
+/// a failure through the reporter so a person sees it,
+/// and a successful move to the log.
+fn report_outcomes(reporter: &mut RuntimeReporter, outcomes: &[Outcome]) {
     for outcome in outcomes {
-        if let Some(line) = describe_outcome(outcome) {
+        let Some(line) = describe_outcome(outcome) else {
+            continue;
+        };
+        if outcome.is_failure() {
+            reporter.report_failure(&line);
+        } else {
             eprintln!("{line}");
         }
     }
 }
 
 /// Applies the exec events the kernel queued,
-/// and falls back to a full scan after an overrun or on the periodic tick.
+/// and falls back to a full scan after an overrun or when the scan interval passed.
 fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
     let mut full_scan = false;
+    watch.routing.begin_pass();
     if let Some(socket) = &watch.events {
         match drain_exec_events(socket) {
             Ok(drained) => {
                 if drained.overrun {
-                    eprintln!(
-                        "{}",
-                        policy_failure("the kernel dropped process events; every process is rescanned now")
-                    );
+                    watch.reporter.report_failure(&policy_failure("the kernel dropped process events; every process is rescanned now"));
                     full_scan = true;
                 }
                 for pid in drained.pids {
                     let outcome = watch.routing.consider(pid);
-                    report_outcomes(&[outcome]);
+                    report_outcomes(&mut watch.reporter, &[outcome]);
                 }
             }
             Err(error) => {
-                eprintln!(
-                    "{}",
-                    policy_failure(&format!("reading process events failed: {error}; the periodic scan continues"))
-                );
+                watch.reporter.report_failure(&policy_failure(&format!(
+                    "reading process events failed: {error}; the periodic scan continues"
+                )));
             }
         }
     }
-    watch.ticks_since_scan += 1;
-    if full_scan || watch.ticks_since_scan >= FULL_SCAN_TICKS {
-        watch.ticks_since_scan = 0;
-        report_outcomes(&watch.routing.rescan());
+    if full_scan || watch.last_full_scan.elapsed() >= FULL_SCAN_INTERVAL {
+        let outcomes = watch.routing.rescan();
+        report_outcomes(&mut watch.reporter, &outcomes);
+        watch.last_full_scan = Instant::now();
     }
 }
 
 /// Polls cgroup events plus signals and periodically rescans executable-owned processes.
+/// A failure that ends the loop is reported loudly before it is returned,
+/// because the watcher then stops enforcing every policy it owns.
 pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
-    let mut last_reconcile = std::time::Instant::now();
+    let result = poll_until_stopped(watch);
+    if let Err(error) = &result {
+        watch.reporter.report_failure(&format!(
+            "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups, and {POLICY_PROCESS_WATCH}: \
+the watcher stopped because {error}, and neither is enforced any more; run wg-quicker up again after fixing the cause"
+        ));
+    }
+    return result;
+}
+
+/// The poll loop behind `run_application_watch`.
+fn poll_until_stopped(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
+    let mut last_reconcile = Instant::now();
     loop {
         let mut descriptors = vec![
             libc::pollfd {
@@ -337,11 +368,11 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
         // Bursts of process events must not trigger a full target scan each time.
         let cgroup_event = descriptors[0].revents & libc::POLLIN != 0;
         if cgroup_event || last_reconcile.elapsed().as_millis() >= RESCAN_INTERVAL_MS as u128 {
-            last_reconcile = std::time::Instant::now();
+            last_reconcile = Instant::now();
             if let Err(error) = reconcile(watch) {
-                eprintln!(
+                watch.reporter.report_failure(&format!(
                     "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups: the rescan failed: {error}"
-                );
+                ));
             }
         }
         handle_process_events(watch);

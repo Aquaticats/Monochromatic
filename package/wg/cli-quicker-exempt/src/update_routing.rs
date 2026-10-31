@@ -5,93 +5,40 @@
 //! so its sockets and its later children's sockets receive the exemption mark.
 //! The policy has no switch.
 //! When part of it cannot be enforced,
-//! the functions here produce a loud report naming the policy,
+//! the outcomes here carry a loud report naming the policy,
 //! and nothing changes routing on its own.
+//! A failed move is retried with a growing wait,
+//! never forgotten and never repeated in a tight loop.
 
 /// Slice and cgroup names.
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
-/// Classification of processes.
-use crate::update_entry_points::{classify, MatchReason};
+/// The limits the scope carries.
+use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
-use crate::process_info::{list_pids, read_process, ProcessInfo};
+use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_start_time, ProcessInfo};
 /// The seam to the service manager.
-use crate::scope_adoption::{AdoptRequest, Adopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+/// Classification of processes.
+use crate::update_entry_points::classify;
+/// Outcomes and their wording.
+use crate::update_report::Outcome;
 /// Tracking of processes already handled.
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 /// Fake procfs roots in tests.
 use std::path::PathBuf;
+/// Retry timing.
+use std::time::{Duration, Instant};
 
-/// Name of the policy this module enforces,
-/// used in every report.
-pub const POLICY_PROCESS_WATCH: &str = "process watch: update entry points and toolchain install roots stay outside the tunnel";
-
-/// The notice printed when the watcher starts,
-/// so anyone using the wg tools knows before traffic flows.
-pub fn policy_notice() -> String {
-    return [
-        "wg-quicker-exempt: POLICY NOTICE. By the repository's policy, and without any switch, this traffic leaves outside the tunnel:",
-        "  - processes that are update entry points: mise toolchain tasks that fetch, mpm-shadow install, update and outdated,",
-        "    the mpm shadow, and the TypeScript toolchain sync and update scripts, together with the processes they start;",
-        "  - every process whose executable is under the toolchain install roots, toolchain and toolchain-global",
-        "    in the monochromatic-dev data directory, together with the processes it starts.",
-        "  The update-host list is routed around the tunnel for every program by wg-quicker itself.",
-    ]
-    .join("\n");
-}
-
-/// Builds the loud report for a policy that cannot be enforced.
-pub fn policy_failure(detail: &str) -> String {
-    return format!("wg-quicker-exempt: POLICY NOT IN FORCE: {POLICY_PROCESS_WATCH}: {detail}");
-}
-
-/// What considering one process led to.
-#[derive(Debug, Eq, PartialEq)]
-pub enum Outcome {
-    /// The process is not subject to the policy,
-    /// vanished,
-    /// or was already handled.
-    Ignored,
-    /// The process already runs in the slice.
-    AlreadyInSlice,
-    /// The process matched and was moved with its descendants.
-    Adopted {
-        /// Matched process.
-        pid: i32,
-        /// Why it matched.
-        reason: MatchReason,
-        /// Number of processes moved.
-        count: usize,
-    },
-    /// The process matched but cannot be moved.
-    Skipped {
-        /// Matched process.
-        pid: i32,
-        /// Why it cannot be moved.
-        why: String,
-    },
-    /// The process matched and the move failed.
-    Failed {
-        /// Matched process.
-        pid: i32,
-        /// Failure text.
-        error: String,
-    },
-}
-
-/// Formats an outcome for the watcher log,
-/// or `None` when nothing needs saying.
-pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
-    return match outcome {
-        Outcome::Ignored | Outcome::AlreadyInSlice => None,
-        Outcome::Adopted { pid, reason, count } => Some(format!(
-            "wg-quicker-exempt: moved pid {pid} ({}) and {} descendant(s) into {TOOLCHAIN_UPDATES_SLICE}",
-            reason.describe(),
-            count.saturating_sub(1)
-        )),
-        Outcome::Skipped { pid, why } => Some(policy_failure(&format!("pid {pid} matched but was not moved: {why}"))),
-        Outcome::Failed { pid, error } => Some(policy_failure(&format!("pid {pid} matched but the move failed: {error}"))),
-    };
-}
+/// Failed moves one pass may spend before it postpones the rest,
+/// so a manager that fails slowly cannot stall the watcher for long.
+const FAILED_ATTEMPTS_PER_PASS: u32 = 3;
+/// Wait before the second attempt;
+/// each later wait doubles.
+const RETRY_BACKOFF_BASE: Duration = Duration::from_secs(1);
+/// Longest wait between attempts for one process.
+const RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
+/// How long no move is attempted after the manager did not answer in time.
+const BLOCK_AFTER_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Reports whether a cgroup path can be adopted by the user's manager.
 /// The path must lie in the user manager's subtree,
@@ -110,122 +57,321 @@ pub fn adoptable_cgroup(cgroup: &str, uid: u32) -> Result<(), String> {
     return Ok(());
 }
 
+/// The wait before attempt number `attempt` plus one:
+/// one second after the first failure,
+/// doubling,
+/// capped.
+pub fn retry_backoff(attempt: u32) -> Duration {
+    let doublings = attempt.saturating_sub(1).min(6);
+    return RETRY_BACKOFF_BASE.saturating_mul(1 << doublings).min(RETRY_BACKOFF_MAX);
+}
+
+/// Reports whether a collected group already holds `pid`.
+fn contains_pid(group: &[(i32, u64)], pid: i32) -> bool {
+    for (member, _start_time) in group {
+        if *member == pid {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Does nothing,
+/// the default step between collecting a group and checking it again.
+fn nothing() {}
+
+/// Everything the engine needs for one watched user.
+pub struct RoutingSetup {
+    /// Watched user.
+    pub uid: u32,
+    /// Primary group of the watched user.
+    pub gid: u32,
+    /// Toolchain install roots of that user.
+    pub install_roots: Vec<PathBuf>,
+    /// Procfs root.
+    pub proc_root: PathBuf,
+    /// Cgroup filesystem root,
+    /// where the limits of the old cgroup are read.
+    pub cgroup_root: PathBuf,
+    /// Seam to the service manager.
+    pub adopter: Box<dyn Adopter>,
+}
+
+/// The state of a process whose move failed.
+struct Failure {
+    /// Failed attempts so far.
+    attempts: u32,
+    /// Earliest time of the next attempt.
+    retry_at: Instant,
+}
+
 /// The policy engine for one watched user.
 pub struct UpdateRouting {
-    /// Watched user.
-    uid: u32,
-    /// Primary group of the watched user.
-    gid: u32,
-    /// Toolchain install roots of that user.
-    install_roots: Vec<PathBuf>,
-    /// Procfs root.
-    proc_root: PathBuf,
-    /// Seam to the service manager.
-    adopter: Box<dyn Adopter>,
-    /// Processes already handled,
+    /// What the engine was built with.
+    setup: RoutingSetup,
+    /// The watcher's own pid namespace,
+    /// absent when the kernel does not expose it.
+    own_pid_namespace: Option<String>,
+    /// Processes already handled for good,
     /// by pid and start time.
     handled: HashSet<(i32, u64)>,
+    /// Processes whose move failed and will be tried again.
+    failures: HashMap<(i32, u64), Failure>,
+    /// Failed moves spent in the current pass.
+    failed_attempts_this_pass: u32,
+    /// No move is attempted before this time.
+    blocked_until: Option<Instant>,
 }
 
 /// Behavior of the policy engine.
 impl UpdateRouting {
     /// Builds the engine.
-    pub fn new(uid: u32, gid: u32, install_roots: Vec<PathBuf>, proc_root: PathBuf, adopter: Box<dyn Adopter>) -> UpdateRouting {
+    pub fn new(setup: RoutingSetup) -> UpdateRouting {
+        let own_pid_namespace = read_own_pid_namespace(&setup.proc_root);
         return UpdateRouting {
-            uid,
-            gid,
-            install_roots,
-            proc_root,
-            adopter,
+            setup,
+            own_pid_namespace,
             handled: HashSet::new(),
+            failures: HashMap::new(),
+            failed_attempts_this_pass: 0,
+            blocked_until: None,
         };
     }
 
     /// Makes sure the updates slice exists below the user's `app.slice`,
     /// so the watcher can attach the mark to it before any process is moved.
     pub fn ensure_slice(&self, app_slice: &std::path::Path) -> std::io::Result<()> {
-        return self.adopter.ensure_slice(self.uid, self.gid, TOOLCHAIN_UPDATES_SLICE, &app_slice.join(TOOLCHAIN_UPDATES_SLICE));
+        return self.setup.adopter.ensure_slice(
+            self.setup.uid,
+            self.setup.gid,
+            TOOLCHAIN_UPDATES_SLICE,
+            &app_slice.join(TOOLCHAIN_UPDATES_SLICE),
+        );
     }
 
-    /// Collects the live descendants of `root` that run as the watched user and can be adopted.
-    fn adoptable_descendants(&self, root: &ProcessInfo, all: &[i32]) -> Vec<i32> {
-        let mut found: Vec<i32> = vec![root.pid];
+    /// Starts a pass:
+    /// failed moves spent earlier no longer count against the next ones.
+    pub fn begin_pass(&mut self) {
+        self.failed_attempts_this_pass = 0;
+    }
+
+    /// Reports whether moves are paused after a client timeout.
+    fn is_blocked(&self, now: Instant) -> bool {
+        return match self.blocked_until {
+            Some(until) => now < until,
+            None => false,
+        };
+    }
+
+    /// Records the report of a process that could not be inspected,
+    /// once per process.
+    fn unreadable(&mut self, pid: i32, error: &std::io::Error) -> Outcome {
+        let Some(start_time) = read_start_time(&self.setup.proc_root, pid) else {
+            return Outcome::Ignored;
+        };
+        if !self.handled.insert((pid, start_time)) {
+            return Outcome::Ignored;
+        }
+        return Outcome::Unreadable { pid, error: error.to_string() };
+    }
+
+    /// Collects the live descendants of `root` that run as the watched user in the same cgroup,
+    /// with their start times,
+    /// and the number of processes of this user that could not be inspected.
+    fn collect_group(&self, root: &ProcessInfo) -> Result<(Vec<(i32, u64)>, usize), String> {
+        let pids = match list_pids(&self.setup.proc_root) {
+            Ok(pids) => pids,
+            Err(error) => return Err(format!("listing the processes failed: {error}")),
+        };
+        let mut snapshot: Vec<ProcessInfo> = Vec::new();
+        let mut unreadable = 0;
+        for pid in pids {
+            match read_process(&self.setup.proc_root, pid, self.setup.uid) {
+                Ok(Some(info)) => snapshot.push(info),
+                Ok(None) => {}
+                Err(_error) => unreadable += 1,
+            }
+        }
+        let mut found: Vec<(i32, u64)> = vec![(root.pid, root.start_time)];
         let mut index = 0;
         while index < found.len() {
-            let parent = found[index];
+            let parent = found[index].0;
             index += 1;
-            for candidate in all {
-                if found.contains(candidate) {
-                    continue;
-                }
-                let Ok(Some(info)) = read_process(&self.proc_root, *candidate) else {
-                    continue;
-                };
-                if info.parent == parent
-                    && info.uid == self.uid
-                    && !info.cgroup.contains(TOOLCHAIN_UPDATES_SLICE)
-                    && adoptable_cgroup(&info.cgroup, self.uid).is_ok()
-                {
-                    found.push(info.pid);
+            for candidate in &snapshot {
+                if candidate.parent == parent && candidate.cgroup == root.cgroup && !contains_pid(&found, candidate.pid) {
+                    found.push((candidate.pid, candidate.start_time));
                 }
             }
         }
-        return found;
+        return Ok((found, unreadable));
     }
 
-    /// Considers one process that just executed or was found by a scan.
+    /// Keeps the processes that are still the same ones,
+    /// and counts the rest.
+    /// A pid that exited and was reused has another start time and is dropped.
+    fn recheck_group(&self, group: &[(i32, u64)], cgroup: &str) -> (Vec<i32>, usize) {
+        let mut kept: Vec<i32> = Vec::new();
+        let mut dropped = 0;
+        for (pid, start_time) in group {
+            match read_process(&self.setup.proc_root, *pid, self.setup.uid) {
+                Ok(Some(again)) if again.start_time == *start_time && again.cgroup == cgroup => kept.push(*pid),
+                _ => dropped += 1,
+            }
+        }
+        return (kept, dropped);
+    }
+
+    /// Records a failed move and builds its outcome.
+    fn register_failure(&mut self, key: (i32, u64), now: Instant, error: String) -> Outcome {
+        self.failed_attempts_this_pass += 1;
+        let earlier = match self.failures.get(&key) {
+            Some(failure) => failure.attempts,
+            None => 0,
+        };
+        let attempt = earlier + 1;
+        let retry_in = retry_backoff(attempt);
+        self.failures.insert(key, Failure { attempts: attempt, retry_at: now + retry_in });
+        return Outcome::Failed { pid: key.0, error, attempt, retry_in };
+    }
+
+    /// Considers one process at the current time.
     pub fn consider(&mut self, pid: i32) -> Outcome {
-        let Ok(Some(info)) = read_process(&self.proc_root, pid) else {
+        return self.consider_at(pid, Instant::now());
+    }
+
+    /// Considers one process at `now`.
+    pub fn consider_at(&mut self, pid: i32, now: Instant) -> Outcome {
+        return self.consider_with(pid, now, &mut nothing);
+    }
+
+    /// Considers one process at `now`,
+    /// calling `before_move` after the group is collected and before it is checked again,
+    /// the seam where a test swaps a process for a pid-reusing one.
+    pub fn consider_with(&mut self, pid: i32, now: Instant, before_move: &mut dyn FnMut()) -> Outcome {
+        let info = match read_process(&self.setup.proc_root, pid, self.setup.uid) {
+            Ok(Some(info)) => info,
+            Ok(None) => return Outcome::Ignored,
+            Err(error) => return self.unreadable(pid, &error),
+        };
+        let Some(reason) = classify(&info.exe, &info.args, &self.setup.install_roots) else {
             return Outcome::Ignored;
         };
-        if info.uid != self.uid {
+        let key = (pid, info.start_time);
+        if self.handled.contains(&key) {
             return Outcome::Ignored;
         }
-        let Some(reason) = classify(&info.exe, &info.args, &self.install_roots) else {
-            return Outcome::Ignored;
-        };
-        if !self.handled.insert((pid, info.start_time)) {
+        if let Some(failure) = self.failures.get(&key)
+            && now < failure.retry_at
+        {
             return Outcome::Ignored;
         }
         if info.cgroup.contains(TOOLCHAIN_UPDATES_SLICE) {
+            self.handled.insert(key);
             return Outcome::AlreadyInSlice;
         }
-        if let Err(why) = adoptable_cgroup(&info.cgroup, self.uid) {
+        if let (Some(own), Some(theirs)) = (&self.own_pid_namespace, &info.pid_namespace)
+            && own != theirs
+        {
+            self.handled.insert(key);
+            return Outcome::Skipped {
+                pid,
+                why: format!("it runs in another pid namespace ({theirs}), such as a container or a sandbox, which this policy does not enter"),
+            };
+        }
+        if let Err(why) = adoptable_cgroup(&info.cgroup, self.setup.uid) {
+            self.handled.insert(key);
             return Outcome::Skipped { pid, why };
         }
-        let all = list_pids(&self.proc_root).unwrap_or_default();
-        let pids = self.adoptable_descendants(&info, &all);
-        // The pid must still be the same process when the move is requested.
-        match read_process(&self.proc_root, pid) {
-            Ok(Some(again)) if again.start_time == info.start_time => {}
-            _ => return Outcome::Ignored,
+        if self.is_blocked(now) || self.failed_attempts_this_pass >= FAILED_ATTEMPTS_PER_PASS {
+            return Outcome::Deferred;
         }
+        let (group, unreadable) = match self.collect_group(&info) {
+            Ok(collected) => collected,
+            Err(error) => return self.register_failure(key, now, error),
+        };
+        before_move();
+        let (pids, dropped) = self.recheck_group(&group, &info.cgroup);
+        // The matched process must still be the same process when the move is requested.
+        if pids.first() != Some(&pid) {
+            return Outcome::Ignored;
+        }
+        let destination = format!(
+            "/user.slice/user-{0}.slice/user@{0}.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}/wg-quicker-update.scope",
+            self.setup.uid
+        );
+        let limits = match read_inherited_limits(&self.setup.cgroup_root, &info.cgroup, &destination) {
+            Ok(limits) => limits,
+            Err(error) => {
+                let text = format!("the limits of {} could not be read, and a process is never moved without them: {error}", info.cgroup);
+                return self.register_failure(key, now, text);
+            }
+        };
         let request = AdoptRequest {
             pids: &pids,
-            uid: self.uid,
-            gid: info.gid,
+            uid: self.setup.uid,
+            gid: self.setup.gid,
             slice: TOOLCHAIN_UPDATES_SLICE,
+            limits: &limits,
         };
-        return match self.adopter.adopt(&request) {
-            Ok(()) => Outcome::Adopted { pid, reason, count: pids.len() },
-            Err(error) => Outcome::Failed { pid, error: error.to_string() },
+        return match self.setup.adopter.adopt(&request) {
+            Ok(()) => {
+                self.handled.insert(key);
+                self.failures.remove(&key);
+                Outcome::Adopted { pid, reason, count: pids.len(), left_behind: unreadable + dropped }
+            }
+            Err(AdoptError::Vanished) => {
+                self.failures.remove(&key);
+                Outcome::Ignored
+            }
+            Err(AdoptError::Failed(error)) => self.register_failure(key, now, error),
+            Err(AdoptError::TimedOut(error)) => {
+                self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
+                let text = format!("{error}; no move is attempted for {BLOCK_AFTER_TIMEOUT:?}");
+                self.register_failure(key, now, text)
+            }
         };
     }
 
-    /// Considers every live process and forgets handled processes that no longer exist.
-    pub fn rescan(&mut self) -> Vec<Outcome> {
-        let pids = list_pids(&self.proc_root).unwrap_or_default();
-        let mut outcomes: Vec<Outcome> = Vec::new();
-        for pid in &pids {
-            outcomes.push(self.consider(*pid));
-        }
-        let mut alive: HashSet<(i32, u64)> = HashSet::new();
-        for entry in &self.handled {
-            if pids.contains(&entry.0) {
-                alive.insert(*entry);
+    /// Forgets the handled and failed processes whose pids are no longer listed.
+    fn forget_exited(&mut self, listed: &[i32]) {
+        let alive: HashSet<i32> = listed.iter().copied().collect();
+        let mut kept_handled: HashSet<(i32, u64)> = HashSet::new();
+        for key in &self.handled {
+            if alive.contains(&key.0) {
+                kept_handled.insert(*key);
             }
         }
-        self.handled = alive;
+        self.handled = kept_handled;
+        let mut kept_failures: HashMap<(i32, u64), Failure> = HashMap::new();
+        for (key, failure) in self.failures.drain() {
+            if alive.contains(&key.0) {
+                kept_failures.insert(key, failure);
+            }
+        }
+        self.failures = kept_failures;
+    }
+
+    /// Considers every live process now and forgets handled processes that no longer exist.
+    pub fn rescan(&mut self) -> Vec<Outcome> {
+        return self.rescan_at(Instant::now());
+    }
+
+    /// Considers every live process at `now` and forgets handled processes that no longer exist.
+    /// Processes that need no report are left out of the result.
+    pub fn rescan_at(&mut self, now: Instant) -> Vec<Outcome> {
+        self.begin_pass();
+        let pids = match list_pids(&self.setup.proc_root) {
+            Ok(pids) => pids,
+            Err(error) => return vec![Outcome::ScanFailed { error: error.to_string() }],
+        };
+        let mut outcomes: Vec<Outcome> = Vec::new();
+        for pid in &pids {
+            let outcome = self.consider_at(*pid, now);
+            if outcome != Outcome::Ignored {
+                outcomes.push(outcome);
+            }
+        }
+        self.forget_exited(&pids);
         return outcomes;
     }
 }

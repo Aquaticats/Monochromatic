@@ -27,8 +27,14 @@ use crate::update_entry_points::install_roots;
 use crate::scope_adoption::BusctlAdopter;
 /// The watched user's account.
 use crate::user_account::lookup_user;
-/// The policy engine and its start notice.
-use crate::update_routing::{policy_notice, UpdateRouting};
+/// The policy engine and its setup.
+use crate::update_routing::{RoutingSetup, UpdateRouting};
+/// The start notice and the marker of a loud report.
+use crate::update_report::{policy_notice, POLICY_NOT_IN_FORCE_MARKER};
+/// Delivery of failures after startup.
+use crate::runtime_report::RuntimeReporter;
+/// The account of the watched user.
+use crate::user_account::UserAccount;
 /// Handshake and file errors.
 use std::io::{self, BufRead, BufReader, Write};
 /// Unix log creation mode.
@@ -120,6 +126,38 @@ fn read_watch_log(key: &str) -> io::Result<String> {
     }
 }
 
+/// Size of the watcher log now,
+/// zero when it does not exist yet.
+fn watch_log_length(key: &str) -> u64 {
+    return match watch_log_path(key).and_then(std::fs::metadata) {
+        Ok(metadata) => metadata.len(),
+        Err(_error) => 0,
+    };
+}
+
+/// Prints the loud lines the new watcher wrote to its log since `offset`,
+/// so a failure at startup reaches the terminal that ran `up`.
+/// The log stays the full record.
+fn forward_startup_failures(key: &str, offset: u64) -> io::Result<()> {
+    let text = read_watch_log(key)?;
+    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(text.len());
+    let fresh = String::from_utf8_lossy(&text.as_bytes()[start..]).into_owned();
+    for line in fresh.lines() {
+        if line.contains(POLICY_NOT_IN_FORCE_MARKER) {
+            eprintln!("{line}");
+        }
+    }
+    return Ok(());
+}
+
+/// Looks up the watched user and the toolchain install roots of that user.
+fn user_install_roots(uid: u32) -> io::Result<(UserAccount, Vec<PathBuf>)> {
+    let account = lookup_user(uid)?;
+    let canonical_home = std::fs::canonicalize(&account.home).ok();
+    let roots = install_roots(&account.home, canonical_home.as_deref());
+    return Ok((account, roots));
+}
+
 /// Starts a new session in the forked child so the watcher is isolated from the invoking terminal.
 fn start_new_session() -> io::Result<()> {
     // SAFETY: `setsid` is async-signal-safe and touches only the child's session state.
@@ -205,7 +243,9 @@ pub fn start_application_watch(
     uid: u32,
 ) -> io::Result<()> {
     stop_application_watch(key)?;
-    eprintln!("{}", policy_notice());
+    let (_account, roots) = user_install_roots(uid)?;
+    eprintln!("{}", policy_notice(&roots));
+    let log_offset = watch_log_length(key);
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
         drop(candidate.input);
@@ -220,6 +260,12 @@ pub fn start_application_watch(
             io::ErrorKind::InvalidData,
             format!("unexpected application watcher commit: {acknowledgement}"),
         ));
+    }
+    // The watcher is running and committed;
+    // failing to relay its startup reports must not undo that,
+    // but it must be said.
+    if let Err(error) = forward_startup_failures(key, log_offset) {
+        eprintln!("wg-quicker-exempt: the watcher started, but its startup reports could not be read from its log: {error}");
     }
     return Ok(());
 }
@@ -237,17 +283,17 @@ pub fn run_application_watch_child(
         proc_root: Path::new("/proc"),
         cgroup_root: Path::new("/sys/fs/cgroup"),
     };
-    let account = lookup_user(uid)?;
-    let canonical_home = std::fs::canonicalize(&account.home).ok();
-    let routing = UpdateRouting::new(
+    let (account, install_root_list) = user_install_roots(uid)?;
+    eprintln!("{}", policy_notice(&install_root_list));
+    let routing = UpdateRouting::new(RoutingSetup {
         uid,
-        account.gid,
-        install_roots(&account.home, canonical_home.as_deref()),
-        PathBuf::from("/proc"),
-        Box::new(BusctlAdopter::new()),
-    );
-    eprintln!("{}", policy_notice());
-    let mut watch = prepare_application_watch(roots, mark, routing)?;
+        gid: account.gid,
+        install_roots: install_root_list,
+        proc_root: PathBuf::from("/proc"),
+        cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+        adopter: Box::new(BusctlAdopter::new()),
+    });
+    let mut watch = prepare_application_watch(roots, mark, routing, RuntimeReporter::new(uid, account.gid))?;
     println!("{READY}");
     io::stdout().flush()?;
     let mut commit = String::new();

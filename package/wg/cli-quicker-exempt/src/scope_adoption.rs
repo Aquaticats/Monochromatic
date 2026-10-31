@@ -8,20 +8,22 @@
 //! The manager can only move processes inside its own subtree,
 //! `user@<uid>.service`,
 //! so other processes are reported and left where they are.
+//! The new scope carries the resource limits of the cgroup the process left,
+//! so the move never loosens a CPU or memory cap.
 
+/// The limits the scope carries.
+use crate::inherited_limits::InheritedLimits;
+/// The client run as the user.
+use crate::user_client::{ClientError, UserClient};
 /// Syscall and process failures.
 use std::io;
 /// Fake procfs roots in tests.
 use std::path::{Path, PathBuf};
-/// Child process control.
-use std::process::{Command, Stdio};
 /// Bounded waits.
 use std::time::{Duration, Instant};
 
-/// How long `busctl` may run before it is killed.
-const BUSCTL_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long the adopted pid may take to appear in the slice after the job is queued.
-const MOVE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(2);
+const MOVE_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(1);
 /// Pause between confirmation reads.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
@@ -36,6 +38,39 @@ pub struct AdoptRequest<'a> {
     pub gid: u32,
     /// Slice that receives the scope.
     pub slice: &'a str,
+    /// Limits the scope carries,
+    /// read from the cgroup the processes leave.
+    pub limits: &'a InheritedLimits,
+}
+
+/// Why an adoption did not happen.
+#[derive(Debug, Eq, PartialEq)]
+pub enum AdoptError {
+    /// The first process exited before it could be moved,
+    /// which needs no report.
+    Vanished,
+    /// The manager refused or the move did not show.
+    Failed(
+        /// The reason.
+        String,
+    ),
+    /// The client ran past its timeout and was killed.
+    /// The manager may be hung.
+    TimedOut(
+        /// The reason.
+        String,
+    ),
+}
+
+/// Wording for reports.
+impl std::fmt::Display for AdoptError {
+    /// Writes the plain text of the failure.
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return match self {
+            AdoptError::Vanished => write!(formatter, "the process exited before it could be moved"),
+            AdoptError::Failed(text) | AdoptError::TimedOut(text) => write!(formatter, "{text}"),
+        };
+    }
 }
 
 /// Seam between the policy and the user's service manager.
@@ -43,7 +78,7 @@ pub trait Adopter {
     /// Creates the slice when it does not exist.
     fn ensure_slice(&self, uid: u32, gid: u32, slice: &str, slice_directory: &Path) -> io::Result<()>;
     /// Moves the requested processes into a new scope below the slice.
-    fn adopt(&self, request: &AdoptRequest<'_>) -> io::Result<()>;
+    fn adopt(&self, request: &AdoptRequest<'_>) -> Result<(), AdoptError>;
 }
 
 /// Builds the `busctl` arguments for `StartTransientUnit` of a slice.
@@ -66,8 +101,10 @@ pub fn ensure_slice_arguments(slice: &str) -> Vec<String> {
     ];
 }
 
-/// Builds the `busctl` arguments for `StartTransientUnit` of a scope that adopts `pids`.
-pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32]) -> Vec<String> {
+/// Builds the `busctl` arguments for `StartTransientUnit` of a scope that adopts `pids`
+/// and carries `limits`.
+pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits) -> Vec<String> {
+    let limit_properties = limits.properties();
     let mut arguments: Vec<String> = vec![
         "--user".to_string(),
         "call".to_string(),
@@ -78,7 +115,7 @@ pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32]) -> Vec<Strin
         "ssa(sv)a(sa(sv))".to_string(),
         scope_name.to_string(),
         "fail".to_string(),
-        "3".to_string(),
+        (3 + limit_properties.len()).to_string(),
         "Slice".to_string(),
         "s".to_string(),
         slice.to_string(),
@@ -92,103 +129,59 @@ pub fn adopt_arguments(scope_name: &str, slice: &str, pids: &[i32]) -> Vec<Strin
     arguments.push("Description".to_string());
     arguments.push("s".to_string());
     arguments.push("wg-quicker update traffic that bypasses the tunnel".to_string());
+    for (name, value) in limit_properties {
+        arguments.push(name.to_string());
+        arguments.push("t".to_string());
+        arguments.push(value.to_string());
+    }
     arguments.push("0".to_string());
     return arguments;
-}
-
-/// Builds the command that runs the client as the target user.
-/// A root watcher drops to the user's real and effective ids and clears supplementary groups through `setpriv`,
-/// so the bus call is made by the user and not by root.
-/// An unprivileged watcher runs the client directly.
-pub fn client_command(program: &str, uid: u32, gid: u32, arguments: &[String], as_root: bool) -> (String, Vec<String>) {
-    if !as_root {
-        return (program.to_string(), arguments.to_vec());
-    }
-    let mut full: Vec<String> = vec![
-        "--reuid".to_string(),
-        uid.to_string(),
-        "--regid".to_string(),
-        gid.to_string(),
-        "--clear-groups".to_string(),
-        "--no-new-privs".to_string(),
-        program.to_string(),
-    ];
-    full.extend(arguments.iter().cloned());
-    return ("setpriv".to_string(), full);
 }
 
 /// Adopts through the `busctl` command line client.
 /// The marshalling of D-Bus values is the client's,
 /// not hand-written wire code in a root process.
 pub struct BusctlAdopter {
-    /// Client executable.
-    pub program: String,
+    /// The client run as the target user.
+    pub client: UserClient,
     /// Procfs root used to confirm the move.
     pub proc_root: PathBuf,
     /// How long the moved pid may take to appear in the slice.
     pub confirmation_timeout: Duration,
 }
 
-/// Construction and the two client steps.
+/// Construction and the confirmation steps.
 impl BusctlAdopter {
     /// Builds the production adopter.
     pub fn new() -> BusctlAdopter {
         return BusctlAdopter {
-            program: "busctl".to_string(),
+            client: UserClient::new("busctl"),
             proc_root: PathBuf::from("/proc"),
             confirmation_timeout: MOVE_CONFIRMATION_TIMEOUT,
         };
     }
 
-    /// Runs the client as the target user against that user's manager bus,
-    /// failing when it exits nonzero or runs past its timeout.
-    fn run_client(&self, uid: u32, gid: u32, arguments: &[String]) -> io::Result<()> {
-        // SAFETY: geteuid has no preconditions.
-        let as_root = unsafe { libc::geteuid() } == 0;
-        let (program, full_arguments) = client_command(&self.program, uid, gid, arguments, as_root);
-        let mut command = Command::new(program);
-        command
-            .args(full_arguments)
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .env("XDG_RUNTIME_DIR", format!("/run/user/{uid}"))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped());
-        let mut child = command.spawn()?;
-        let started = Instant::now();
-        loop {
-            if let Some(status) = child.try_wait()? {
-                if status.success() {
-                    return Ok(());
-                }
-                let mut message = String::new();
-                if let Some(mut stderr) = child.stderr.take() {
-                    let _read = io::Read::read_to_string(&mut stderr, &mut message);
-                }
-                return Err(io::Error::other(format!("{} exited with {status}: {}", self.program, message.trim())));
-            }
-            if started.elapsed() > BUSCTL_TIMEOUT {
-                let _killed = child.kill();
-                let _reaped = child.wait();
-                return Err(io::Error::other(format!("{} did not finish within {BUSCTL_TIMEOUT:?}", self.program)));
-            }
-            std::thread::sleep(POLL_INTERVAL);
-        }
+    /// Reports whether the process still exists.
+    fn process_exists(&self, pid: i32) -> bool {
+        return self.proc_root.join(pid.to_string()).join("cgroup").exists();
     }
 
-    /// Waits until the pid's cgroup path names the slice.
-    fn confirm_moved(&self, pid: i32, slice: &str) -> io::Result<()> {
+    /// Waits until the pid's cgroup path names the slice,
+    /// and notices at once when the process exits meanwhile.
+    fn confirm_moved(&self, pid: i32, slice: &str) -> Result<(), AdoptError> {
         let path = self.proc_root.join(pid.to_string()).join("cgroup");
         let started = Instant::now();
         loop {
-            if let Ok(text) = std::fs::read_to_string(&path)
-                && text.contains(slice)
-            {
-                return Ok(());
+            match std::fs::read_to_string(&path) {
+                Ok(text) if text.contains(slice) => return Ok(()),
+                Ok(_text) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH) => {
+                    return Err(AdoptError::Vanished);
+                }
+                Err(error) => return Err(AdoptError::Failed(format!("reading the cgroup of pid {pid} failed: {error}"))),
             }
             if started.elapsed() > self.confirmation_timeout {
-                return Err(io::Error::other(format!(
+                return Err(AdoptError::Failed(format!(
                     "the manager accepted the job but pid {pid} is not in {slice} after {:?}",
                     self.confirmation_timeout
                 )));
@@ -205,7 +198,9 @@ impl Adopter for BusctlAdopter {
         if slice_directory.is_dir() {
             return Ok(());
         }
-        self.run_client(uid, gid, &ensure_slice_arguments(slice))?;
+        if let Err(error) = self.client.run(uid, gid, &ensure_slice_arguments(slice)) {
+            return Err(io::Error::other(error.to_string()));
+        }
         let started = Instant::now();
         while !slice_directory.is_dir() {
             if started.elapsed() > self.confirmation_timeout {
@@ -217,13 +212,24 @@ impl Adopter for BusctlAdopter {
     }
 
     /// Requests a scope that adopts the pids and waits until the first pid is in the slice.
-    fn adopt(&self, request: &AdoptRequest<'_>) -> io::Result<()> {
+    /// A failure is never retried without the limits,
+    /// because a process that kept its place keeps its caps and one moved without them would lose them.
+    fn adopt(&self, request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
         let Some(first) = request.pids.first() else {
-            return Err(io::Error::other("no pid to adopt"));
+            return Err(AdoptError::Failed("no pid to adopt".to_string()));
         };
         let scope_name = format!("wg-quicker-update-{first}.scope");
-        let arguments = adopt_arguments(&scope_name, request.slice, request.pids);
-        self.run_client(request.uid, request.gid, &arguments)?;
+        let arguments = adopt_arguments(&scope_name, request.slice, request.pids, request.limits);
+        match self.client.run(request.uid, request.gid, &arguments) {
+            Ok(()) => {}
+            Err(ClientError::TimedOut(text)) => return Err(AdoptError::TimedOut(text)),
+            Err(error) => {
+                if !self.process_exists(*first) {
+                    return Err(AdoptError::Vanished);
+                }
+                return Err(AdoptError::Failed(error.to_string()));
+            }
+        }
         return self.confirm_moved(*first, request.slice);
     }
 }

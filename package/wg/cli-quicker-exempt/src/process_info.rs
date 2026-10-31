@@ -28,19 +28,46 @@ pub struct ProcessInfo {
     /// Start time in clock ticks since boot,
     /// which tells a reused pid from the original.
     pub start_time: u64,
+    /// Pid namespace link text such as `pid:[4026531836]`,
+    /// absent when the kernel did not expose it.
+    pub pid_namespace: Option<String>,
 }
 
 /// Index of the start-time field after the command name in `/proc/<pid>/stat`.
 const START_TIME_FIELD: usize = 19;
 
+/// Reports an error that means the process exited while it was being read.
+/// A permission error is not one of them:
+/// the process is alive and this reader may not inspect it.
+fn means_vanished(error: &io::Error) -> bool {
+    return error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH);
+}
+
 /// Reads a file that may vanish with its process.
+/// A vanished process is `None`,
+/// and every other failure,
+/// a permission error included,
+/// is returned.
 fn read_vanishing(path: &Path) -> io::Result<Option<Vec<u8>>> {
     return match std::fs::read(path) {
         Ok(bytes) => Ok(Some(bytes)),
-        Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied) => Ok(None),
-        Err(error) if error.raw_os_error() == Some(libc::ESRCH) => Ok(None),
+        Err(error) if means_vanished(&error) => Ok(None),
         Err(error) => Err(error),
     };
+}
+
+/// Reads the pid namespace link of the process directory `base`,
+/// or `None` when the kernel does not expose it.
+fn read_pid_namespace(base: &Path) -> Option<String> {
+    return match std::fs::read_link(base.join("ns/pid")) {
+        Ok(link) => Some(link.to_string_lossy().into_owned()),
+        Err(_error) => None,
+    };
+}
+
+/// Reads the pid namespace of the reading process itself through `<proc_root>/self`.
+pub fn read_own_pid_namespace(proc_root: &Path) -> Option<String> {
+    return read_pid_namespace(&proc_root.join("self"));
 }
 
 /// Parses the parent id and start time from `/proc/<pid>/stat`,
@@ -88,36 +115,42 @@ fn is_nul(byte: &u8) -> bool {
     return *byte == 0;
 }
 
-/// Reads one process from `proc_root`,
-/// or `None` when it vanished or is not readable.
-pub fn read_process(proc_root: &Path, pid: i32) -> io::Result<Option<ProcessInfo>> {
+/// Reads one process of `only_uid` from `proc_root`.
+/// The result is `None` when the process exited meanwhile or belongs to another user,
+/// whose files a non-root reader may not open and whose facts the policy does not need.
+/// A process of `only_uid` that this reader may not inspect is an error naming the file,
+/// so the caller can report it instead of mistaking it for an exit.
+pub fn read_process(proc_root: &Path, pid: i32, only_uid: u32) -> io::Result<Option<ProcessInfo>> {
     let base = proc_root.join(pid.to_string());
-    let exe = match std::fs::read_link(base.join("exe")) {
-        Ok(path) => path,
-        Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied) => return Ok(None),
-        Err(error) if error.raw_os_error() == Some(libc::ESRCH) => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let Some(cmdline) = read_vanishing(&base.join("cmdline"))? else {
-        return Ok(None);
-    };
+    // The status file is world-readable, so the owner check never fails for another user's process.
     let Some(status_bytes) = read_vanishing(&base.join("status"))? else {
-        return Ok(None);
-    };
-    let Some(cgroup_bytes) = read_vanishing(&base.join("cgroup"))? else {
-        return Ok(None);
-    };
-    let Some(stat_bytes) = read_vanishing(&base.join("stat"))? else {
         return Ok(None);
     };
     let status = String::from_utf8_lossy(&status_bytes);
     let (Some(uid), Some(gid)) = (parse_status_id(&status, "Uid:"), parse_status_id(&status, "Gid:")) else {
         return Ok(None);
     };
-    let Some(cgroup) = parse_cgroup(&String::from_utf8_lossy(&cgroup_bytes)) else {
+    if uid != only_uid {
+        return Ok(None);
+    }
+    let Some(stat_bytes) = read_vanishing(&base.join("stat"))? else {
         return Ok(None);
     };
     let Some((parent, start_time)) = parse_stat(&String::from_utf8_lossy(&stat_bytes)) else {
+        return Ok(None);
+    };
+    let exe = match std::fs::read_link(base.join("exe")) {
+        Ok(path) => path,
+        Err(error) if means_vanished(&error) => return Ok(None),
+        Err(error) => return Err(io::Error::new(error.kind(), format!("{}: {error}", base.join("exe").display()))),
+    };
+    let Some(cmdline) = read_vanishing(&base.join("cmdline"))? else {
+        return Ok(None);
+    };
+    let Some(cgroup_bytes) = read_vanishing(&base.join("cgroup"))? else {
+        return Ok(None);
+    };
+    let Some(cgroup) = parse_cgroup(&String::from_utf8_lossy(&cgroup_bytes)) else {
         return Ok(None);
     };
     return Ok(Some(ProcessInfo {
@@ -129,7 +162,18 @@ pub fn read_process(proc_root: &Path, pid: i32) -> io::Result<Option<ProcessInfo
         cgroup,
         parent,
         start_time,
+        pid_namespace: read_pid_namespace(&base),
     }));
+}
+
+/// Reads only the start time of a process,
+/// from the world-readable stat file.
+/// Any failure is `None`,
+/// which callers use only to deduplicate reports.
+pub fn read_start_time(proc_root: &Path, pid: i32) -> Option<u64> {
+    let bytes = std::fs::read(proc_root.join(pid.to_string()).join("stat")).ok()?;
+    let (_parent, start_time) = parse_stat(&String::from_utf8_lossy(&bytes))?;
+    return Some(start_time);
 }
 
 /// Lists the numeric process directories of `proc_root`.

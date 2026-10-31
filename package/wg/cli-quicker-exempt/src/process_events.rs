@@ -144,28 +144,64 @@ pub fn subscribe() -> io::Result<OwnedFd> {
     return Ok(socket);
 }
 
-/// Reads every queued datagram and collects the exec events sent by the kernel.
-pub fn drain_exec_events(socket: &OwnedFd) -> io::Result<DrainedEvents> {
+/// One source of datagrams.
+pub trait DatagramSource {
+    /// Fills the buffer and returns the byte count with the netlink port that sent it,
+    /// or the error of the receive call.
+    fn receive(&mut self, buffer: &mut [u8]) -> io::Result<(usize, u32)>;
+}
+
+/// The connector socket as a source.
+pub struct SocketSource<'a> {
+    /// The subscribed socket.
+    pub socket: &'a OwnedFd,
+}
+
+/// Reads from the socket without blocking.
+impl DatagramSource for SocketSource<'_> {
+    /// Receives one datagram from the socket.
+    fn receive(&mut self, buffer: &mut [u8]) -> io::Result<(usize, u32)> {
+        return receive_datagram(self.socket, buffer);
+    }
+}
+
+/// Receives one datagram from the socket without blocking,
+/// returning its length and the sender's netlink port.
+pub fn receive_datagram(socket: &OwnedFd, buffer: &mut [u8]) -> io::Result<(usize, u32)> {
+    // SAFETY: a zeroed sockaddr_nl is valid output storage.
+    let mut sender: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
+    let mut sender_len = std::mem::size_of::<libc::sockaddr_nl>() as libc::socklen_t;
+    // SAFETY: the buffer and sender pointers are valid for the lengths passed.
+    let count = unsafe {
+        libc::recvfrom(
+            socket.as_raw_fd(),
+            buffer.as_mut_ptr().cast(),
+            buffer.len(),
+            0,
+            std::ptr::addr_of_mut!(sender).cast(),
+            &mut sender_len,
+        )
+    };
+    if count < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    return Ok((usize::try_from(count).unwrap_or(0), sender.nl_pid));
+}
+
+/// Collects the exec events from `source` until it reports that nothing is queued.
+/// Only datagrams from netlink port 0,
+/// the kernel,
+/// count,
+/// because a local process can unicast forged datagrams to this socket's port.
+/// An `ENOBUFS` error means the kernel dropped events,
+/// which sets `overrun` so the caller rescans.
+pub fn drain_exec_events_from(source: &mut dyn DatagramSource) -> io::Result<DrainedEvents> {
     let mut drained = DrainedEvents::default();
     let mut buffer = [0_u8; DATAGRAM_BYTES];
     loop {
-        // SAFETY: a zeroed sockaddr_nl is valid output storage.
-        let mut sender: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
-        let mut sender_len = std::mem::size_of::<libc::sockaddr_nl>() as libc::socklen_t;
-        // SAFETY: the buffer and sender pointers are valid for the lengths passed.
-        let count = unsafe {
-            libc::recvfrom(
-                socket.as_raw_fd(),
-                buffer.as_mut_ptr().cast(),
-                buffer.len(),
-                0,
-                std::ptr::addr_of_mut!(sender).cast(),
-                &mut sender_len,
-            )
-        };
-        if count < 0 {
-            let error = io::Error::last_os_error();
-            match error.raw_os_error() {
+        let (length, sender_port) = match source.receive(&mut buffer) {
+            Ok(received) => received,
+            Err(error) => match error.raw_os_error() {
                 Some(libc::EAGAIN) => return Ok(drained),
                 Some(libc::ENOBUFS) => {
                     drained.overrun = true;
@@ -173,18 +209,20 @@ pub fn drain_exec_events(socket: &OwnedFd) -> io::Result<DrainedEvents> {
                 }
                 Some(libc::EINTR) => continue,
                 _ => return Err(error),
-            }
-        }
-        // Only the kernel, netlink port 0, may speak for the connector;
-        // a local process can unicast forged datagrams to this port.
-        if sender.nl_pid != 0 {
+            },
+        };
+        if sender_port != 0 {
             continue;
         }
-        let length = usize::try_from(count).unwrap_or(0);
-        if let Some(pid) = parse_exec_event(&buffer[..length])
+        if let Some(pid) = parse_exec_event(&buffer[..length.min(DATAGRAM_BYTES)])
             && !drained.pids.contains(&pid)
         {
             drained.pids.push(pid);
         }
     }
+}
+
+/// Reads every queued datagram of the connector socket and collects the exec events sent by the kernel.
+pub fn drain_exec_events(socket: &OwnedFd) -> io::Result<DrainedEvents> {
+    return drain_exec_events_from(&mut SocketSource { socket });
 }

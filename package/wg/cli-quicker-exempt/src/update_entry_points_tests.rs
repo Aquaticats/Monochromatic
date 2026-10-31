@@ -91,6 +91,28 @@ fn the_mpm_shadow_matches_by_name() {
     assert_eq!(classify_line("/usr/bin/mpmx", &["mpmx", "install"]), None);
 }
 
+/// A first command-line word set by `exec -a` never makes another executable an entry point,
+/// because only the resolved executable name is trusted.
+#[test]
+fn a_forged_first_word_does_not_match() {
+    assert_eq!(classify_line("/usr/bin/curl", &["mpm", "https://example.org"]), None);
+    assert_eq!(classify_line("/usr/bin/sleep", &["/usr/bin/mpm", "30"]), None);
+    assert_eq!(classify_line("/usr/bin/curl", &["mise", "run", "toolchain:sync"]), None);
+    assert_eq!(classify_line("/usr/bin/curl", &["mpm-shadow", "install"]), None);
+    assert_eq!(classify_line("/usr/bin/curl", &["node", "/repo/package/file-enforcer/core/src/toolchain/sync.ts"]), None);
+    assert_eq!(classify_line("/usr/bin/curl", &["tool"]), None);
+}
+
+/// Names that belong to the entry points match through the executable even when the first word is odd,
+/// so the check stays usable for real launches.
+#[test]
+fn the_real_executables_match_whatever_the_first_word_says() {
+    assert_eq!(classify_line("/usr/bin/mise", &["/opt/x/mise", "run", "toolchain:sync"]), Some(MatchReason::MiseTask));
+    assert_eq!(classify_line("/x/mpm-shadow", &["/x/mpm-shadow", "update"]), Some(MatchReason::MpmShadowVerb));
+    assert_eq!(classify_line("/x/mpm-shadow", &["/home/tester/.cargo/bin/mpm", "list"]), Some(MatchReason::MpmShim));
+    assert_eq!(classify_line("/usr/bin/node", &["node", "/repo/package/file-enforcer/core/src/toolchain/update.ts"]), Some(MatchReason::ToolchainScript));
+}
+
 /// Accepts the TypeScript toolchain scripts run by node and rejects other scripts.
 #[test]
 fn toolchain_scripts_run_by_node_match() {
@@ -193,6 +215,30 @@ fn every_fetching_mise_task_is_listed() {
     assert!(fetching.contains(&"toolchain:update:global".to_string()), "{fetching:?}");
     for name in &fetching {
         assert!(MISE_TASKS.contains(&name.as_str()), "mise task {name} fetches but is not on the wg list");
+    }
+}
+
+/// Task names the toolchain cutover adds under new spellings of `sync` and `status`.
+/// They are on the list before `mise.toml` has them,
+/// so a run started the day the cutover lands is already covered.
+const CUTOVER_PENDING: &[&str] = &["toolchain:install", "toolchain:install:global", "toolchain:outdated", "toolchain:outdated:global"];
+
+/// Every listed name is a real task,
+/// except the cutover names that do not exist yet;
+/// the test fails the day one of them appears,
+/// so the pending list shrinks with the cutover.
+#[test]
+fn every_listed_mise_task_exists_unless_the_cutover_is_pending() {
+    let blocks = mise_task_blocks(&read_repository_file("mise.toml"));
+    let names: Vec<&str> = blocks.iter().map(|(name, _body)| return name.as_str()).collect();
+    for listed in MISE_TASKS {
+        let exists = names.contains(listed);
+        let pending = CUTOVER_PENDING.contains(listed);
+        assert!(exists || pending, "{listed} is on the wg list but no mise task has that name");
+        assert!(!(exists && pending), "{listed} now exists in mise.toml: remove it from CUTOVER_PENDING");
+    }
+    for pending in CUTOVER_PENDING {
+        assert!(MISE_TASKS.contains(pending), "{pending} is pending but not on the wg list");
     }
 }
 

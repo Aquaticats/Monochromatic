@@ -77,18 +77,31 @@ fn is_slash(byte: &u8) -> bool {
     return *byte == b'/';
 }
 
-/// Reports whether the first argument names `program`,
-/// or the executable's own file name does.
-fn is_program(exe: &Path, args: &[Vec<u8>], program: &str) -> bool {
-    if let Some(name) = exe.file_name()
-        && name.as_bytes() == program.as_bytes()
-    {
-        return true;
-    }
-    return match args.first() {
-        Some(first) => basename(first) == program.as_bytes(),
+/// Reports whether the executable's own file name is `program`.
+/// The file name comes from the resolved `exe` link,
+/// which a process cannot rewrite after `exec`,
+/// unlike the first command-line word that `exec -a` sets freely.
+fn is_program(exe: &Path, program: &str) -> bool {
+    return match exe.file_name() {
+        Some(name) => name.as_bytes() == program.as_bytes(),
         None => false,
     };
+}
+
+/// Reports whether the process is the `mpm` shadow:
+/// an executable named `mpm`,
+/// or `mpm-shadow` started under the name `mpm`.
+/// The command-line name counts only for `mpm-shadow`,
+/// so `exec -a mpm /usr/bin/curl` does not match.
+fn is_mpm_shadow(exe: &Path, args: &[Vec<u8>]) -> bool {
+    if is_program(exe, "mpm") {
+        return true;
+    }
+    return is_program(exe, "mpm-shadow")
+        && match args.first() {
+            Some(first) => basename(first) == b"mpm",
+            None => false,
+        };
 }
 
 /// Reports whether any argument after the first equals one of `names`.
@@ -150,19 +163,43 @@ pub fn classify(exe: &Path, args: &[Vec<u8>], install_roots: &[PathBuf]) -> Opti
     if is_under_any(exe, install_roots) {
         return Some(MatchReason::ToolchainPath);
     }
-    if is_program(exe, args, "mise") && has_argument_in(args, MISE_TASKS) {
+    if is_program(exe, "mise") && has_argument_in(args, MISE_TASKS) {
         return Some(MatchReason::MiseTask);
     }
-    if is_program(exe, args, "mpm-shadow") && first_word_in(args, MPM_SHADOW_VERBS) {
+    if is_program(exe, "mpm-shadow") && first_word_in(args, MPM_SHADOW_VERBS) {
         return Some(MatchReason::MpmShadowVerb);
     }
-    if is_program(exe, args, "mpm") {
+    if is_mpm_shadow(exe, args) {
         return Some(MatchReason::MpmShim);
     }
-    if is_program(exe, args, "node") && runs_toolchain_script(args) {
+    if is_program(exe, "node") && runs_toolchain_script(args) {
         return Some(MatchReason::ToolchainScript);
     }
     return None;
+}
+
+/// Most names listed from the install roots in a notice.
+const MAX_LISTED_NAMES: usize = 64;
+
+/// The names of the entries directly inside the install roots that exist,
+/// sorted and without duplicates,
+/// so a notice can say what is installed on this machine now.
+pub fn installed_tool_names(roots: &[PathBuf]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for root in roots {
+        let Ok(entries) = std::fs::read_dir(root) else {
+            continue;
+        };
+        for listed in entries.flatten() {
+            let name = listed.file_name().to_string_lossy().into_owned();
+            if !name.starts_with('.') && !names.contains(&name) {
+                names.push(name);
+            }
+        }
+    }
+    names.sort();
+    names.truncate(MAX_LISTED_NAMES);
+    return names;
 }
 
 /// The toolchain install roots for one home directory,
