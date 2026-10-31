@@ -284,6 +284,9 @@ The shadow's remaining case is language unity and one owner for the rule, not co
 
 ## Open items
 
+- A second `pi` review (`openai/gpt-6.1-sol`, whole handover and probe scripts pasted, told about the user's bad feeling and that the
+  first verdict rested on the disproved no-op premise) was started after the research; prompt `~/temp/agent/pi-review2-prompt.txt`,
+  output `~/temp/agent/pi-review2-output.txt`. Its findings are not yet folded in.
 - The user has not yet confirmed that the shared understanding is complete.
 - The user may veto the shadow recommendations above.
 - Hook timing (lint first then hook, both together, or lint plus a mise call) and the Rust-wrapper-first option are open.
