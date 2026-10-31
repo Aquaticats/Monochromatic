@@ -338,6 +338,44 @@ each finished branch is reviewed and merged into `main`):
   and a policy that cannot be enforced is reported loudly rather than degraded silently.
   This replaces an opt-in,
   fail-closed instruction this session had given the wg agent on its own.
+- wg rework reported 2026-10-31 (branch `worktree-agent-a6f97f5da6f22de4d`, tip `66c06d6dcc`):
+  the removal `8423cf1922` was merged alone into `main` as `bc49bb812f`,
+  so the TypeScript sync/update and mpm-shadow no longer re-execute into the slice
+  (`rg` over `package/file-enforcer` and `package/mpm-shadow` finds no slice,
+  guard variable or tunnel reference,
+  only unrelated package names such as `6tunnel` in `packages.generated.ts`).
+  The four wg commits (`fdfed418ce`,
+  `b9e6e1b67b`,
+  `a2b8a0005a`,
+  `66c06d6dcc`) wait for a separate reviewer
+  (running on the fixed range `8dbd3e47da..worktree-agent-a6f97f5da6f22de4d`)
+  and for the owner's answers.
+  Measured 2026-10-31 with `${HOME}/temp/agent/fe-rust/host-overlap.ts`:
+  the update-host list (21 hosts) resolves to 86 addresses
+  and includes `github.com` and `api.github.com`,
+  which the option text the owner chose did not name,
+  so every program's GitHub traffic (browser,
+  `gh`,
+  `git push`) would leave the tunnel;
+  of 31 everyday sites sampled,
+  `docs.python.org` shares all 8 of its addresses with `pypi.org`,
+  and `raw.githubusercontent.com` and `avatars.githubusercontent.com` share 4 of 8 with the release-asset hosts.
+  Processes on the toolchain's `node` at that moment,
+  which the toolchain-path method would move:
+  `@deepseek-ai/dsh`,
+  `@alibaba-group/open-code-review`,
+  five `mvm` MCP servers,
+  the `bash-output-filter` hooks,
+  and a test fixture.
+  `wg-quicker down` removes the nft kill switch (`package/wg/cli-quicker/src/tunnel-cleanup.ts`),
+  so a down/up restart leaves seconds unprotected;
+  restarting only the exemption watcher has no gap.
+  mpm-shadow 0.2.1 is dropped:
+  since 0.2.0 mpm-shadow only gained and lost the self-placement,
+  plus a style refactor (`8dbd3e47da`) and a docs edit (`c8655d6152`),
+  so its version stays 0.2.0.
+  Asked the owner:
+  the host-list scope and how to apply live.
 - AGENTS.md rule for concerns leaking out of their owning component:
   two drafts (`CWN`,
   `LKF`) were not approved;
