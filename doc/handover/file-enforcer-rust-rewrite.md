@@ -68,7 +68,12 @@ each finished branch is reviewed and merged into `main`):
   file-enforcer `core-rust` and `cli` (task 20,
   `71d0ad760b`);
   mpm-shadow toolchain commands (task 22,
-  first pass);
+  first pass,
+  then merge `bca46afa8b`:
+  `request` is `<origin>@<range>`,
+  the lock is derived from the plan alone,
+  every resolver is ported,
+  and the crate's lint debt is cleared);
   the linter's Dylint driver skip (`package/linter/monochromatic-lint`,
   after the owner-approved toolchain sync and driver warm on 2026-10-30).
 - Running (worktree agents):
@@ -77,10 +82,7 @@ each finished branch is reviewed and merged into `main`):
   and `jetbrains-harper` rule kinds plus moving the browserslist lock to the root;
   hardening the core (jsonc-edit value spans for `file:line:col` decode errors,
   the untested branches,
-  single-line schema descriptions);
-  mpm-shadow second pass (origin in the plan request with a fully derived lock,
-  the unported resolvers,
-  the crate's lint debt).
+  single-line schema descriptions).
 - Then:
   the cutover (task 25),
   keeping the rules-file generator until monochromatic-7a reports the cli-git config switch.
@@ -120,6 +122,30 @@ Cutover reminders from finished agents:
   the lock entry,
   install,
   and config switch are still 7a's to report.
+- mpm-shadow at cutover
+  (from `package/mpm-shadow/cli/README.md`):
+  the converter writes each tool's `request` as `<origin>@<range>`,
+  writes `{version}` for rust `packageId` and `RUSTUP_TOOLCHAIN`,
+  `JAVA_HOME`,
+  `ANDROID_HOME`,
+  and `ANDROID_SDK_ROOT`,
+  and gives `harper-cli` and `tombi` an `options.asset` glob
+  (`tombi`'s need is untested);
+  `assetPattern` and `cargoGit` are now unknown fields.
+  There is no adopt step:
+  the lock is rebuilt with `update`,
+  and the rehearsal against the converted plan changed six tools
+  (musl builds for `ripgrep`,
+  `harper-cli`,
+  `hyperfine`,
+  `marksman`,
+  and `bin`,
+  and `superhtml` 0.7.0 to 0.7.1),
+  while the global lock moves `aws` 2.39.2 to 2.39.3.
+  Only the four Linux platforms are written
+  (`doc/decision/mise-lock-linux-only-stopgap.md`),
+  so `bin`'s macOS and Windows rows and `bun`'s baseline rows go away.
+  Show that lock diff to the user as the review surface.
 - forbidden-strings must be released before cli-git is published:
   cli-git now uses the rules-list API (task 23; see the planning doc, "Cutover dependency").
 
