@@ -115,6 +115,10 @@ not of importance.
     The decision lists it under "Elsewhere",
     not in the switch commit's list,
     so it is a third consumer that must be migrated before `package/file-enforcer/core` is deleted.
+    Done on the worktree branch `worktree-agent-a12d076e7eb77be7b`:
+    `package/vm-builder/cli/src/exec.ts` (direct spawn through `nano-spawn`, no platform-aware form),
+    the dependency is gone from `package/vm-builder/cli/package.json` and `pnpm-lock.yaml`,
+    and `rg 'file-enforcer' package/vm-builder` finds nothing.
 8.  The per-user config for `file-enforcer user write` exists on the owner's machine
     (`<config dir>/monochromatic-dev/file-enforcer/user.config.jsonc`).
     No sample is committed (`rg` finds the path only in the Rust sources and the CLI README);
