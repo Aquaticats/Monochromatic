@@ -541,26 +541,115 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
 
 ## Third pi review (re-review required by rule RRG before confirmation is asked)
 
-Started after the last design round; prompt `~/temp/agent/pi-review3-prompt.txt` (this handover, the cli-git policies platform
-decision, `advisory-core.yml` and `cli-git.config.jsonc`, with a header listing the design as it now stands), output
-`~/temp/agent/pi-review3-output.txt`, model `openai/gpt-6.1-sol`, run in the background with a one-hour limit; it may never return.
-Its findings are not folded in yet. Confirmation of the shared understanding is not to be asked until they are.
+Prompt `~/temp/agent/pi-review3-prompt.txt` (this handover, the cli-git policies platform decision, `advisory-core.yml` and
+`cli-git.config.jsonc`, with a header listing the design as it then stood), output `~/temp/agent/pi-review3-output.txt`,
+model `openai/gpt-6.1-sol`. It returned.
+Verdict: proceed with named changes, and do not confirm the design as complete yet.
+Single strongest reason: the design does not guarantee that the supposedly authoritative CI command runs the intended policy at
+error severity.
+The reviewer's claims below are its own unless marked measured here.
+
+Findings, most severe first:
+
+- Blocker, CI provisioning is missing: a fresh runner has ordinary Git, so `git cli-git ...` is not a subcommand; an older shadow
+  rejects the new policy; updating `toolchain.lock.json` provisions nothing unless the workflow installs the binary from the lock
+  before the check.
+  Also the notes still carry two incompatible bootstrap plans ("build or install").
+  Required: choose one concrete bootstrap (a pinned, verified native release into an isolated runner directory, or a build from
+  committed sources with a pinned toolchain and locked dependencies), not requiring `prepare:pnpm` first and using no floating
+  update; verify on a fresh home with ordinary Git, no Cargo binaries, no `node_modules`, and a planted literal that must fail
+  for a catalog finding, not for a missing tool.
+- High, `--policy` is documented as a filter: the platform document says "A repeated `--policy` filters the enabled set", and native
+  optional policies run only when listed; removing the entry or setting `off` or `warn` could leave the CI command green or
+  checking nothing.
+  Measured here: an unknown policy id fails with exit 2 (`config-invalid`, listing the shipped policies), and a listed error policy
+  (`mono/forbidden-root-context`) on the clean repository exits 0 with no output.
+  Not measured: what `--policy` does for a shipped policy that is absent, `off` or `warn` (needs a disposable fixture).
+  Required: CI forces the policy at `error` or verifies it exists and is error-enabled; an empty selection must not count as success.
+- High, the rollout can break git before the repair runs: a new config entry, an older shadow synced into the shared
+  `~/.cargo/bin` by another worktree, and config-loading git commands failing; the handover reports a real downgrade and a real
+  `rulesFile` array rejection today.
+  No dependency cycle exists in library, then cli-git release, then pinned install, then config activation, but activating the
+  config before the install is a practical trap, and `monochromatic-jsonc-edit =0.1.2` belongs in the release graph.
+  Required: version-scoped installs per checkout, or proof of monotonic installs and backward config compatibility; a documented
+  recovery through an absolute real-git path and an out-of-band install (a policy skip flag does not help when config loading fails).
+- High, a failing workflow is not a landing gate: a push that bypasses the shadow lands before the workflow runs, a red check
+  that is not required does not stop a merge, and `cancel-in-progress` under hundreds of commits a day means not every pushed
+  revision gets a completed check.
+  Required: state the guarantee honestly as detection (a completed run reports violations) or prevention (a required PR check), and
+  call a cancelling push workflow a latest-tip check; inspect branch rules and the concurrency key.
+- Medium, the warn-only wrapper lacks an operational contract: an unreadable manifest, a JSON parse error, a walk error or no
+  workspace root must produce an advisory diagnostic and then delegate to pnpm, never stop it; `pnpm --dir /repo-b` from `/repo-a`
+  scans the wrong tree; child status and signals must be preserved; only failing to find any real pnpm is fatal.
+  Fixed here: the "fail closed" wording in Open items was stale blocking-design language and is replaced below.
+- Medium, the two enumerations are different scopes: the policy sees staged or tracked bytes, the wrapper sees whatever the
+  `ignore` walk finds, so they diverge on tracked-but-ignored manifests, untracked manifests, nested checkouts, partially staged
+  files, nested workspace markers, a copy without `.git` and machine-specific ignore settings.
+  My equivalence probe used ripgrep, not the actual `WalkBuilder` configuration.
+  Required: do not describe the wrapper as the same repository check; a fixture should compare the real walk with the policy scope.
+- Medium, the predicate contract is incomplete: duplicate keys, `"catalog: "`, `"catalog:team "`, `"catalog:team:other"`, embedded
+  whitespace and `null`, array or scalar sections have no stated expected result; a caller that parses into a map first discards
+  duplicate keys.
+  Required: one normative byte-to-findings contract written before implementation, without inventing catalog-name rules that pnpm
+  does not have.
+- Medium, the guarantee is narrower than central version control: catalog indirection (`catalog:` pointing at
+  `workspace:^1.0.0`), `overrides`, package extensions and `.pnpmfile.mjs` rewrites are not checked; tracked manifests outside the
+  workspace get no pnpm validation; a newly tracked `package.json5` or `package.yaml` would escape a JSON-only rule; published
+  manifests legitimately carry literal versions.
+  Required: document it as a source-`package.json` reference-syntax rule, and consider a cheap filename-level rejection of
+  unsupported manifest formats without a YAML parser.
+- The `zod` catalog range: `^4.6.7` to `>=4.6.7` removes the upper major bound; the existing override masks it today; the measured
+  fact is only that the locked resolution does not change, not that the ranges are equivalent.
+  Measured here: the catalog uses `>=` floors for 155 entries and `^` for one, so `>=4.6.7` follows the repository convention, but
+  the non-equivalence stays stated.
+- The wrapper is not on the enforcement critical path: it gives feedback about uncommitted mistakes and a warning before an
+  install, when it is actually selected; it gives no postcondition, no coverage of callers that bypass `PATH`, no staged-byte
+  correctness and no independent enforcement.
+  The reviewer advises landing the commit policy and CI first and shipping the wrapper afterwards or independently; the choice to
+  build it stays the user's.
+
+Sequencing the reviewer proposes (a review proposal, not decided):
+
+1. Fix `zod` first, with the intended range and any lockfile update, for a zero-violation baseline.
+2. Fix the library's byte-to-findings contract, publish it with inline exact-version dependencies and release tasks.
+3. Satisfy the other cli-git publication prerequisites, including the `jsonc-edit` pin.
+4. Add and release the native policy without activating its config entry yet; test the new binary against the old config.
+5. Establish deterministic installation and the CI bootstrap; update the locked version by a targeted operation if possible,
+   otherwise review the whole fleet-update diff.
+6. Activate the `error` policy and land the independently provisioned CI workflow.
+7. Ship the advisory pnpm wrapper independently.
+It also notes that the staged-only commit policy does not need `zod` and activation in one commit (that was the abandoned hook's
+constraint), though fixing `zod` first avoids a tripwire and the whole-repository CI check needs a clean baseline.
+
+The bad feeling, per the reviewer: a one-rule source check has accumulated a published library, two consumers, native git release
+coordination, a fleet toolchain update, shared executable state, a PATH shadow and a new workflow, while the authoritative execution
+path stays underspecified. The observed git breakage is integration risk, not evidence against Rust.
+It asks for stronger warnings on two choices that went against my rankings: the `ignore` enumeration (a scope choice, not just a
+faster walk) and wrapper-first delivery (its marginal value dropped once the commit policy and CI existed).
 
 ## Open items
 
-- The user has not confirmed that the shared understanding is complete.
-  Dependencies, enumeration, workspace discovery and platforms are answered above.
-  Still to ask: which pnpm verbs the wrapper blocks (a wrapper sees `argv`, so this can be scoped, unlike the hook), how it finds
-  the workspace root when `--dir`, `-C`, `--filter` or `--workspace-root` is passed, what it does when the `ignore` walk or the
-  real-pnpm search fails (fail closed), the explicit CI step and its place before `prepare:pnpm`, `PATH` linking through the
-  toolchain plan, how the policy test corpus is shared, the `--ignore-pnpmfile`-style bypass question (an environment variable
-  or flag to skip the preflight, or none), the repair message wording, and the `zod` landing order.
-- Precedent to read before asking: `package/mpm-shadow/cli` (`Cargo.toml`, `real_binary.rs`, `shim.rs`), the Rust dependency
-  catalog (`rust-catalog.toml`, `doc/decision/rust-dependency-catalog.md`) and the `cli-git-native` shadow.
+- The user has not confirmed that the shared understanding is complete. The third review (rule `RRG`) is folded in above, so the
+  confirmation question may now be asked, together with the decisions below that the review made necessary.
+- Decisions the third review needs from the user: the CI bootstrap model (install a pinned native release, or build from committed
+  sources); whether CI guarantees detection only or prevention through a required PR check (branch protection is the owner's
+  setting); whether the policy also rejects tracked `package.json5` and `package.yaml` files; whether the wrapper ships after the
+  commit policy and CI instead of alongside them; whether the `zod` catalog entry keeps `>=4.6.7` (repository convention, 155 of
+  156 entries are floors) or `^4.6.7`.
+- Adopted without asking, veto open: scan failures in the wrapper are advisory diagnostics followed by delegation to pnpm, a missing
+  workspace root means delegation, child status and signals are preserved, only a missing real pnpm is fatal; `--dir` and `-C` are
+  not parsed, so the wrapper checks the tree of its own current directory (a documented limit, since `pnpm --dir /other` from a
+  different tree scans the wrong one); the byte-to-findings contract is written before implementation; the guarantee is documented
+  as a source-`package.json` reference-syntax rule, not resolution enforcement; the wrapper is described as a separate
+  advisory scope, not the same repository check.
+- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder`
+  scope against the policy scope; whether branch protection exists.
 - Whether the `updateConfig` hook is kept as a second layer later is open; nothing is built.
 
 ## Next action
 
-Read the shadow precedent and the Rust catalog, enumerate every dependency option for the wrapper and get each picked,
-then continue the design questions for option B.
-Implementation, including the `zod` fix, waits for the user's explicit confirmation that the shared understanding is complete.
+Ask the user to confirm the shared understanding and to decide the review-driven items above.
+After confirmation: tell `monochromatic-7a` to build the policy from the draft spec (after the library contract is fixed and the
+library is published, per its release order), fix `zod` first, build the library crate, then the CI workflow once the wrapper release
+is installed from the lock, then the pnpm wrapper.
+Nothing is implemented before that confirmation.
