@@ -416,6 +416,8 @@ export async function readImagePair(
         modelId,
         bytes,
         assetName,
+        // EVERY READER OF THIS PICTURE IS THE BENCH: a reading cut empty is re-asked of a model that is none of them.
+        benchModelIds: readerModelIds,
         signal,
         perCallTimeoutMs,
         l,

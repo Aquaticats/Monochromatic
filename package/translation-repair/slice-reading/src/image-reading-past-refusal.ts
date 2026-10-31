@@ -5,7 +5,13 @@ import {
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup/ts';
-import type { ModelCaller, } from '@monochromatic-dev/translation-repair-provider/ts';
+import {
+  alternateModelsFor,
+  describeLeftOut,
+  type LeftOutModel,
+  type ModelCaller,
+  readsImages,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import {
   type ImageReading,
   IMAGE_READING_PERSPECTIVES,
@@ -77,14 +83,29 @@ import type {
 // XingZ6016 stopped for want of a second reading because `glm-5.3-flash` on
 // NeuralWatt reasoned until its completion cap (18316 tokens, `finishReason`
 // `length`, 0 content characters) on a dense screenshot that Hyper read for
-// 2125 characters in 77 s the day before. The cut is a property of one roll on
-// one serving stack, so the second ask goes to another provider that serves
-// the model when one is wet and to the same provider when none is: the router
-// refuses a hinted ask with nowhere else to go (`NoProviderForModelError`),
-// and the ask is then made without the hint. ONCE, not up to the refusal
-// limit: a second cut is a model that cannot finish this picture, and a third
-// ask would spend another cap's worth of tokens to be told so. The second ask
-// takes the next reading responsibility, because the uniqueness wrapper
+// 2125 characters in 77 s the day before. ONCE, not up to the refusal limit: a
+// second cut is a model that cannot finish this picture, and a third ask would
+// spend another cap's worth of tokens to be told so.
+//
+// THE SECOND ASK GOES TO ANOTHER MODEL, since 2026-10-30 (ledger B1074, the
+// owner's answer "Everywhere (Recommended)"). A reply cut with no content is a
+// reasoning runaway, which is the model and not the serving stack: asking the
+// same weights on another route repeated it six times in seven in the runs of
+// 2026-10-22 to 2026-10-24 (`reask-alternate-models.ts` in the provider
+// package). The models asked are the ones that read pictures, in the order of
+// the cap census's runaway shares, that the reader role does not hold out
+// (`reader-unmeasured`, `owner-culled`: a picture reader joins only after a
+// keyed measurement, `design-commitments-providers-and-seats.md`, the rule of
+// 2026-09-08, so a model whose card holds it out of the role cannot stand in),
+// and that are not readers of the same picture (the bench), since their reading
+// recorded as this reader's would count one model twice. The picture is asked
+// as the first ask asked it ("Plain question (Recommended)").
+//
+// ONLY WHERE NO MODEL CAN TAKE IT is the reader itself asked, as before: on
+// another provider that serves the model when one is wet and on the same
+// provider when none is (the router refuses a hinted ask with nowhere else to
+// go, `NoProviderForModelError`, and the ask is then made without the hint). That
+// ask takes the next reading responsibility, because the uniqueness wrapper
 // hashes the prompt and would otherwise replay the empty reply it stored.
 
 /**
@@ -205,22 +226,28 @@ function isOwedAsk(
 }
 
 /**
- Asks again after a reply the completion limit cut: on another provider that
- serves the model when one is wet, on the same provider otherwise.
+ Asks again after a reply the completion limit cut, which is a reasoning runaway (ledger B1074): of another model that
+ reads pictures, in the order of the cap census's runaway shares, with the picture asked as the first ask asked it;
+ where none can take it, of the reader itself, on another provider that serves it when one is wet and on the same
+ provider otherwise.
 
  @param client - provider client
 
- @param modelId - reader asked again
+ @param modelId - reader whose reply was cut
 
  @param bytes - picture as it sits in the corpus
 
  @param assetName - file name, for the log line and the content part
 
- @param perspective - responsibility of this ask, which changes the prompt so
- the uniqueness wrapper buys a new reply
+ @param perspective - responsibility of the ask of the reader itself, which changes the prompt so the uniqueness
+ wrapper buys a new reply; the asks of other models carry the first responsibility, since a new model name is a new
+ prompt already
 
  @param cutOn - provider whose reply was cut, when the client said; absent
  for a client that routes nowhere, which then gets no hint
+
+ @param benchModelIds - every reader of this picture, whose reading recorded as the cut reader's would count one
+ model twice; empty where the caller names none
 
  @param signal - abort honoured inside the ask
 
@@ -232,7 +259,7 @@ function isOwedAsk(
 
  @example
  ```ts
- const reading = await reaskCut({ client, modelId, bytes, assetName, perspective, cutOn: 'neuralwatt', signal, perCallTimeoutMs, l, },);
+ const reading = await reaskCut({ client, modelId, bytes, assetName, perspective, cutOn: 'neuralwatt', benchModelIds, signal, perCallTimeoutMs, l, },);
  ```
  */
 async function reaskCut(
@@ -243,6 +270,7 @@ async function reaskCut(
     assetName,
     perspective,
     cutOn,
+    benchModelIds,
     signal,
     perCallTimeoutMs,
     l,
@@ -253,6 +281,7 @@ async function reaskCut(
     readonly assetName: string;
     readonly perspective: ImageReadingPerspective;
     readonly cutOn?: ProviderName;
+    readonly benchModelIds: readonly RosterModelId[];
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -265,10 +294,71 @@ async function reaskCut(
     tag: reaskCut.name,
     l,
   },);
-  rl.info(
-    `${modelId} was cut by the completion limit on ${assetName} (finish reason length${
-      (cutOn === undefined) ? '' : ` on ${cutOn}`
-    }), asking again${(cutOn === undefined) ? '' : ` on another provider that serves it`}`,
+
+  /**
+   Models to ask in the order of their runaway shares, and the ones the reader role or the bench leaves out.
+   */
+  const {
+    alternates,
+    leftOut,
+  } = alternateModelsFor({
+    modelId,
+    role: 'reader',
+    bench: benchModelIds,
+  },);
+
+  /**
+   The models that read pictures among them, in the same order.
+   */
+  const readers = alternates.filter(function readsPictures(alternate,): boolean {
+    return readsImages({ modelId: alternate, },);
+  },);
+
+  /**
+   Every model left out with why: the ones the role or the bench keeps out, and the ones that read no picture.
+   */
+  const allLeftOut: readonly LeftOutModel[] = [
+    ...leftOut,
+    ...alternates
+      .filter(function readsNoPicture(alternate,): boolean {
+        return !readers.includes(alternate,);
+      },)
+      .map(function withReason(alternate,): LeftOutModel {
+        return {
+          modelId: alternate,
+          why: 'reads no picture',
+        };
+      },),
+  ];
+  for (const other of readers) {
+    rl.info(
+      `${modelId} was cut by the completion limit on ${assetName} (finish reason length${
+        (cutOn === undefined) ? '' : ` on ${cutOn}`
+      }); re-asking ${other} instead, plain question; left out: ${describeLeftOut({ leftOut: allLeftOut, },)}`,
+    );
+    try {
+      /* oxlint-disable-next-line no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
+      return await readImageAsset({
+        client,
+        modelId: other,
+        bytes,
+        assetName,
+        perspective: IMAGE_READING_PERSPECTIVES[0],
+        signal,
+        perCallTimeoutMs,
+        l,
+      },);
+    }
+    catch (error) {
+      // Only the router's "nowhere to ask" moves on to the next model; a stop, or a transport failure, keeps its own handling.
+      if (!(error instanceof NoProviderForModelError))
+        throw error;
+      rl.debug(`${modelId}: ${other} cannot take the re-ask of ${assetName}, no provider serves it with budget`,);
+    }
+  }
+  rl.warn(
+    `${modelId}: no other model could take the re-ask of ${assetName} (${String(readers.length,)} tried); `
+      + `asking ${modelId} again${(cutOn === undefined) ? '' : ' on another provider that serves it'}`,
   );
   if (cutOn !== undefined) {
     try {
@@ -317,6 +407,10 @@ async function reaskCut(
 
  @param assetName - file name, for the log line and the content part
 
+ @param benchModelIds - every reader of this picture, left out of the models a reply the length limit cut is re-asked
+ of, since a reading by one of them recorded as this reader's would count one model twice (ledger B1076); empty where
+ the caller names none
+
  @param signal - abort honoured between asks as well as inside them, so a
  stopped run does not keep re-asking
 
@@ -340,6 +434,7 @@ export async function readPastRefusal(
     modelId,
     bytes,
     assetName,
+    benchModelIds = [],
     signal,
     perCallTimeoutMs,
     l,
@@ -348,6 +443,7 @@ export async function readPastRefusal(
     readonly modelId: RosterModelId;
     readonly bytes: Uint8Array;
     readonly assetName: string;
+    readonly benchModelIds?: readonly RosterModelId[];
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -412,6 +508,7 @@ export async function readPastRefusal(
         assetName,
         perspective,
         ...((reading.servedBy === undefined) ? {} : { cutOn: reading.servedBy, }),
+        benchModelIds,
         signal,
         perCallTimeoutMs,
         l: rl,
