@@ -105,7 +105,7 @@ async function runCorpusPass({ line, }: { readonly line: CommandLineOf<'corpus-p
    Both straggler windows and the contest ledger every stage of the pass runs
    under, read once.
    */
-  const stageSettings = readStageSettings({ env: process.env, },);
+  const stageSettings = readStageSettings({ env: process.env, reask: 'other-model', },);
 
   /**
    Note naming the straggler window when it is not the built-in one.

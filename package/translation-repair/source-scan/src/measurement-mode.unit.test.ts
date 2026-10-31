@@ -49,6 +49,7 @@ const MEASURING_PACKAGES: ReadonlySet<string> = new Set([
  */
 const MODE_CARRIERS: readonly string[] = [
   'gatherStageVoices',
+  'repairInvalidCandidates',
   'runWindowedRounds',
 ];
 
@@ -89,6 +90,25 @@ await describe({
                 return `${file.path}: readStageSettings names ${named}, and this package must name ${expected}`;
               },);
           },),
+        },);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE OTHER-MODEL MODE NOWHERE IN A PROBE, A BENCH OR A CENSUS, so a settings object built as a literal '
+        + 'cannot put a measurement on the mode of the pass',
+      fn: async () => {
+        expectNoFindings({
+          findings: (await readPackageSource())
+            .filter(function isMeasuring(file,): boolean {
+              return (!file.isTest) && MEASURING_PACKAGES.has(packageDirectoryOf({ path: file.path, },),);
+            },)
+            .filter(function namesThePass(file,): boolean {
+              return file.text.includes('\'other-model\'',);
+            },)
+            .map(function toFinding(file,): string {
+              return `${file.path}: names other-model in a package of the measurements`;
+            },),
         },);
       },
     },),

@@ -288,6 +288,7 @@ export async function runRefineStage(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     l,
   },);
 

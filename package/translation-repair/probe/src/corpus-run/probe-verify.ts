@@ -46,7 +46,7 @@ async function main(): Promise<void> {
       damaged: gatherRelabelCases,
       controls: gatherControlCases,
     },
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
   },);
 }
 

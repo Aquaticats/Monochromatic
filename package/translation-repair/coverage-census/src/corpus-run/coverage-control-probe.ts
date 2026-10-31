@@ -37,7 +37,7 @@ if (import.meta.main)
         roster: RUN_ROSTER,
         exchangeTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
         l: tagged({ tag: 'coverage-control', },),
-        stageSettings: readStageSettings({ env: process.env, },),
+        stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
       },);
     },
   },);

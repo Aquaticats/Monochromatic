@@ -172,6 +172,7 @@ export async function produceConsolidations(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     l: pl,
   },);
 
@@ -237,6 +238,7 @@ export async function produceConsolidations(
     priorMessages: messages,
     // THE AUTHORS ARE THE WRITERS, and the record is the gather's own (ledger B1100).
     role: 'writer',
+    reask: stageSettings.reask,
     reaskClaims,
     signal,
     perCallTimeoutMs,

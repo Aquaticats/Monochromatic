@@ -165,6 +165,7 @@ async function gatherWithRunaways(
     seen,
     lines,
     gather: await gatherStageVoices({
+      reask: 'other-model',
       client,
       modelIds: bench,
       messages: [{ role: 'user', content: 'meow', },],

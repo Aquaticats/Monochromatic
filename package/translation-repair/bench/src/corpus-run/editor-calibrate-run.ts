@@ -326,6 +326,8 @@ export async function runEditorCalibrate(
         stageSettings: {
           grace: writerGrace,
           contestLedger,
+          // A CALIBRATION SCORES THE EDITORS IT SEATS (ledger B1141): a runaway is re-asked of the editor itself.
+          reask: 'measured-model',
           ...((editorBenchStart === undefined) ? {} : { editorBenchStart, }),
         },
       },);

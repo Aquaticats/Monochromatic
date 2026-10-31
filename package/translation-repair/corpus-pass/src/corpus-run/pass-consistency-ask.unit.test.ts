@@ -268,6 +268,7 @@ async function gatheredBy(
     l: levelCapturingLogger({ lines: [], },),
     graceMs: HANG_STOP_MS,
     role: 'late-judge',
+    reask: 'other-model',
     ...((seatTally === undefined) ? {} : { seatTally, }),
     // Conditional spread keeps the pinned seat absent instead of undefined.
     ...((benchStart === undefined) ? {} : { benchStart, }),

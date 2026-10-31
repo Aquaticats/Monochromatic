@@ -242,6 +242,7 @@ async function runRepair(
     priorMessages: PRIOR_MESSAGES,
     role: 'translator',
     reaskClaims: createReaskClaims(),
+    reask: 'other-model',
     signal: new AbortController().signal,
     perCallTimeoutMs: HANG_STOP_MS,
     l: (said === undefined) ? l : capturingLogger({ messages: said, },),
@@ -299,6 +300,7 @@ await describe({
           promise: repairInvalidCandidates({
             role: 'translator',
             reaskClaims: createReaskClaims(),
+            reask: 'other-model',
             client: {
               chatText: async () => {
                 throw new Error('chatText unused',);
@@ -392,6 +394,7 @@ await describe({
         const repair = repairInvalidCandidates({
           role: 'translator',
           reaskClaims: createReaskClaims(),
+          reask: 'other-model',
           client: {
             chatText: async () => {
               throw new Error('chatText unused',);
@@ -526,6 +529,7 @@ await describe({
                   const repaired = await repairInvalidCandidates({
                     role: 'translator',
                     reaskClaims: createReaskClaims(),
+                    reask: 'other-model',
                     client: {
                       chatText: async () => {
                         throw new Error('chatText unused',);
@@ -656,6 +660,7 @@ await describe({
         const repaired = await repairInvalidCandidates({
           role: 'translator',
           reaskClaims: createReaskClaims(),
+          reask: 'other-model',
           client: repairClient({
             answer: {
               resolution: 'as-intended',
@@ -882,6 +887,7 @@ await describe({
           priorMessages: PRIOR_MESSAGES,
           role: 'translator',
           reaskClaims: claims,
+          reask: 'other-model',
           signal: new AbortController().signal,
           perCallTimeoutMs: HANG_STOP_MS,
           l,
@@ -922,6 +928,7 @@ await describe({
           priorMessages: PRIOR_MESSAGES,
           role: 'writer',
           reaskClaims: claims,
+          reask: 'other-model',
           signal: new AbortController().signal,
           perCallTimeoutMs: HANG_STOP_MS,
           l,
@@ -1051,6 +1058,7 @@ await describe({
           await repairInvalidCandidates({
             role: 'translator',
             reaskClaims: createReaskClaims(),
+            reask: 'other-model',
             client: repairClient({
               answer: {
                 resolution: 'revised',

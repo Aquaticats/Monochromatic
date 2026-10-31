@@ -207,6 +207,7 @@ export async function runArchiveBlockReviewStage(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
   },);
   /**
    Replies as the review reads them: a replacement that shows a reader nothing

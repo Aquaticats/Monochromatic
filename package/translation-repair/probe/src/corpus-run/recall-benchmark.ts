@@ -44,7 +44,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'recall-benchmark'
     pin,
     newClient: createProbeRunClient,
     now: nowAsIso,
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
   },);
 }
 

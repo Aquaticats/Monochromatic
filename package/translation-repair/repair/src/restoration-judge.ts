@@ -194,6 +194,7 @@ export async function runRestorationJudge(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

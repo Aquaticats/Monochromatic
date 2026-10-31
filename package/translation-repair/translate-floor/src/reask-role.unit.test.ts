@@ -86,6 +86,7 @@ await describe({
           priorMessages: [{ role: 'user', content: SOURCE_TEXT, },],
           role: 'writer',
           reaskClaims: claims,
+          reask: 'other-model',
           signal: new AbortController().signal,
           perCallTimeoutMs: HANG_STOP_MS,
           l: tagged({ tag: 'reask-role-test', },),
@@ -96,7 +97,47 @@ await describe({
           expect(seat.role,).toBe('writer',);
           expect(seat.bench,).toEqual([SEAT_SYNTHETIC_VISION_WITHHELD, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
           expect(seat.claims === claims,).toBe(true,);
+          expect(seat.reask,).toBe('other-model',);
         }
+      },
+    },),
+
+    it({
+      name: 'PASSES THE LAUNCH\'S MODE ON EVERY FOLLOW-UP, so a measurement is re-asked of the author it scores',
+      fn: async () => {
+        /**
+         Seats the follow-up calls carried, in the order they arrived.
+         */
+        const seats: ReaskSeat[] = [];
+        const client: ModelClient = {
+          chatText: async () => {
+            throw new Error('chatText unused',);
+          },
+          chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+            if (request.reaskSeat !== undefined)
+              seats.push(request.reaskSeat,);
+            return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
+          },
+          quotas: async () => {
+            throw new Error('quotas unused',);
+          },
+        };
+        await repairInvalidCandidates({
+          client,
+          voices: [{ modelId: SEAT_SYNTHETIC_VISION_WITHHELD, value: { translation: MERGED_TEXT, }, },],
+          sourceText: SOURCE_TEXT,
+          incumbentText: HEADED_PAGE,
+          priorMessages: [{ role: 'user', content: SOURCE_TEXT, },],
+          role: 'translator',
+          reaskClaims: createReaskClaims(),
+          reask: 'measured-model',
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          l: tagged({ tag: 'reask-role-test', },),
+        },);
+        expect(seats.map(function modeOf(seat,) {
+          return seat.reask;
+        },),).toEqual(['measured-model',],);
       },
     },),
   ],

@@ -268,6 +268,21 @@ export type ChatTextRequest = {
 };
 
 /**
+ Whose answer the re-ask of a reasoning runaway may give.
+
+ `other-model` is the run: a runaway is re-asked of another roster model its role may take, so the question is answered.
+ `measured-model` is a measurement (a probe, a bench, a calibration or a census): the runaway is re-asked of the model
+ itself, on another provider, nudged, since a measurement must score the model it measures and a rival's answer
+ recorded as that model's would be scored as its own (ledger B1141).
+
+ @example
+ ```ts
+ const mode: ReaskMode = 'measured-model';
+ ```
+ */
+export type ReaskMode = 'other-model' | 'measured-model';
+
+/**
  What a re-ask needs to know of the seat that ran away, beyond the question itself.
 
  @example
@@ -280,6 +295,13 @@ export type ReaskSeat = {
    Role of the seat, which decides the holds of a card that keep a model from taking the re-ask.
    */
   readonly role: SeatRole;
+
+  /**
+   Whose answer the re-ask of a runaway may give; absent means another model, which is what a run wants. Every builder of
+   a seat in production code takes the mode from the launch's `StageSettings.reask` and names it, so a measurement that
+   builds a seat through them cannot leave it out (ledger B1141).
+   */
+  readonly reask?: ReaskMode;
 
   /**
    Every model seated on the question, whose answer recorded as the runaway's would count one model twice.

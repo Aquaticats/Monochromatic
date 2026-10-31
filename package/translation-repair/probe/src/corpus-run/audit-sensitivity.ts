@@ -103,7 +103,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'audit-sensitivity
     now: nowAsIso,
     pipelineDigest,
     runnerClosure,
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
   },);
 }
 

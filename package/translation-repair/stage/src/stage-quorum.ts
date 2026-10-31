@@ -7,6 +7,7 @@ import {
   type JsonSchemaResponseFormat,
   type ModelClient,
   type ReaskClaims,
+  type ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
@@ -170,6 +171,9 @@ type RoundsOutcome<ValueT,> = {
  their cards hold out of it (ledger B1074); required, since a caller that left it out was asked as the roster-wide
  role and so re-asked a runaway of exactly the models its card drops from the seat (ledger B1079)
 
+ @param reask - whose answer the re-ask of a reasoning runaway may give, taken from the launch's `StageSettings` and
+ required, with no default, so that a measurement cannot be asked in the pass's mode (ledger B1141)
+
  @param reaskClaims - record of the models asked for the seats of this question, handed in by a caller that goes on to
  ask more seats of the same question (the repair of an invalid candidate) so that one model gives at most one voice
  across both steps (ledger B1100); absent, the gather makes a record for its own seats
@@ -206,6 +210,7 @@ export async function gatherStageVoices<ValueT,>(
     decision,
     seatTally = RUN_SEATS,
     role,
+    reask,
     reaskClaims,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
@@ -225,6 +230,7 @@ export async function gatherStageVoices<ValueT,>(
     readonly decision?: StageDecision;
     readonly seatTally?: SeatTally;
     readonly role: SeatRole;
+    readonly reask: ReaskMode;
     readonly reaskClaims?: ReaskClaims;
   }>,
 ): Promise<StageGather<ValueT>> {
@@ -371,6 +377,8 @@ export async function gatherStageVoices<ValueT,>(
         role,
         bench: modelIds,
         claims: reaskClaims ?? createReaskClaims(),
+        // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the model it scores.
+        reask,
       },
     };
 

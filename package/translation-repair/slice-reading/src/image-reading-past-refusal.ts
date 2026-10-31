@@ -12,6 +12,7 @@ import {
   type ModelCaller,
   readsImages,
   type ReaskClaims,
+  type ReaskMode,
   type ReaskSeat,
   takenFor,
   takeFor,
@@ -302,6 +303,7 @@ async function reaskCut(
     cutOn,
     benchModelIds,
     claims,
+    reask,
     signal,
     perCallTimeoutMs,
     l,
@@ -314,6 +316,7 @@ async function reaskCut(
     readonly cutOn?: ProviderName;
     readonly benchModelIds?: readonly RosterModelId[];
     readonly claims?: ReaskClaims;
+    readonly reask?: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -333,7 +336,12 @@ async function reaskCut(
   const cutText = `${modelId} was cut by the completion limit on ${assetName} (finish reason length${
     (cutOn === undefined) ? '' : ` on ${cutOn}`
   })`;
-  if (benchModelIds === undefined) {
+  if (reask === 'measured-model') {
+    // A MEASUREMENT SCORES THE READER IT ASKS (ledger B1141), bench and record notwithstanding: a rival's reading
+    // recorded as this reader's would be scored as its own.
+    rl.info(`${cutText}; this is a measurement, so no other model is asked`,);
+  }
+  else if (benchModelIds === undefined) {
     // NO BENCH, NO OTHER MODEL: a caller that names the readers of the picture can be sure an answer recorded as this
     // reader's is no second voice of one of them; a caller that names none (the measurement of one model, which must
     // score that model's own reading) asks the reader itself (ledger B1100).
@@ -543,6 +551,10 @@ function otherReadersOf(
  @param claims - record of the models asked for the readers of this picture, which the readers share so that no model
  is asked for two of them (ledger B1080); absent for a reader that is alone on its picture
 
+ @param reask - whose answer a re-ask of a reply the length limit cut may give: `measured-model` asks the reader itself,
+ bench and record notwithstanding (ledger B1141); `readImagePair` hands in the launch's mode, and a caller that names
+ neither mode nor bench is a measurement of one model and asks the reader itself as well
+
  @param signal - abort honoured between asks as well as inside them, so a
  stopped run does not keep re-asking
 
@@ -568,6 +580,7 @@ export async function readPastRefusal(
     assetName,
     benchModelIds,
     claims,
+    reask,
     signal,
     perCallTimeoutMs,
     l,
@@ -578,6 +591,7 @@ export async function readPastRefusal(
     readonly assetName: string;
     readonly benchModelIds?: readonly RosterModelId[];
     readonly claims?: ReaskClaims;
+    readonly reask?: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -654,6 +668,7 @@ export async function readPastRefusal(
         // Conditional spreads keep the bench and the record absent where the caller names none.
         ...((benchModelIds === undefined) ? {} : { benchModelIds, }),
         ...((claims === undefined) ? {} : { claims, }),
+        ...((reask === undefined) ? {} : { reask, }),
         signal,
         perCallTimeoutMs,
         l: rl,

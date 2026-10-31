@@ -3,7 +3,10 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import type {
+  ModelClient,
+  ReaskMode,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type ChunkPair,
@@ -56,6 +59,9 @@ import type { SliceCache, } from '@monochromatic-dev/translation-repair-translat
 
  @param priorReadings - completed evidence from this same pinned entry before re-preparation
 
+ @param reask - whose answer a re-ask of a reading the length limit cut may give; required, with no default, so that
+ a measurement cannot be asked in the pass's mode (ledger B1141)
+
  @param signal - entry abort honoured by every exchange
 
  @param perCallTimeoutMs - deadline per exchange
@@ -75,7 +81,7 @@ import type { SliceCache, } from '@monochromatic-dev/translation-repair-translat
 
  @example
  ```ts
- const readings = await readDocumentPictures({ client, readOcr, slices, assets, readerModelIds, cache, signal, perCallTimeoutMs, l, },);
+ const readings = await readDocumentPictures({ client, readOcr, slices, assets, readerModelIds, cache, reask: 'other-model', signal, perCallTimeoutMs, l, },);
  ```
  */
 export async function readDocumentPictures(
@@ -87,6 +93,7 @@ export async function readDocumentPictures(
     readerModelIds,
     cache,
     priorReadings = new Map(),
+    reask,
     signal,
     perCallTimeoutMs,
     l,
@@ -99,6 +106,7 @@ export async function readDocumentPictures(
     readonly readerModelIds: readonly RosterModelId[];
     readonly cache: SliceCache<PairedReading>;
     readonly priorReadings?: ReadonlyMap<string, PairedReading>;
+    readonly reask: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -215,6 +223,7 @@ export async function readDocumentPictures(
       readerModelIds: pictureReaders,
       bytes,
       assetName,
+      reask,
       signal,
       perCallTimeoutMs,
       l: rl,

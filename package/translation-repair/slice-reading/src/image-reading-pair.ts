@@ -6,6 +6,7 @@ import {
 import {
   createReaskClaims,
   type ModelClient,
+  type ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
@@ -304,6 +305,9 @@ export function isResumableReading({ reading, }: { readonly reading: PairedReadi
 
  @param assetName - its file name, which carries the media type
 
+ @param reask - whose answer a re-ask of a reading the length limit cut may give, from the launch's `StageSettings`;
+ required, with no default, so that a measurement cannot be asked in the pass's mode (ledger B1141)
+
  @param signal - abort honoured for every exchange
 
  @param perCallTimeoutMs - deadline bounding each exchange
@@ -322,7 +326,7 @@ export function isResumableReading({ reading, }: { readonly reading: PairedReadi
 
  @example
  ```ts
- const paired = await readImagePair({ client, readerModelIds, readOcr, bytes, assetName, signal, perCallTimeoutMs, l, },);
+ const paired = await readImagePair({ client, readerModelIds, readOcr, bytes, assetName, reask: 'other-model', signal, perCallTimeoutMs, l, },);
  ```
  */
 export async function readImagePair(
@@ -332,6 +336,7 @@ export async function readImagePair(
     readOcr,
     bytes,
     assetName,
+    reask,
     signal,
     perCallTimeoutMs,
     l,
@@ -341,6 +346,7 @@ export async function readImagePair(
     readonly readOcr: OcrReader;
     readonly bytes: Uint8Array;
     readonly assetName: string;
+    readonly reask: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -428,6 +434,8 @@ export async function readImagePair(
         // EVERY READER OF THIS PICTURE IS THE BENCH: a reading cut empty is re-asked of a model that is none of them.
         benchModelIds: readerModelIds,
         claims,
+        // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the reader it scores.
+        reask,
         signal,
         perCallTimeoutMs,
         l,

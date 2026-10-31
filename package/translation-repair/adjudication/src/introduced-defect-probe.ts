@@ -241,6 +241,7 @@ export async function runIntroducedDefectProbe(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

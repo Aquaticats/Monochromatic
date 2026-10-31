@@ -254,6 +254,7 @@ export async function gateConsolidatedSlice(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

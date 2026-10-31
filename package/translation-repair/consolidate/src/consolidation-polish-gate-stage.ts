@@ -301,6 +301,7 @@ export async function gateConsolidationPolish(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Ballots read from usable voices.

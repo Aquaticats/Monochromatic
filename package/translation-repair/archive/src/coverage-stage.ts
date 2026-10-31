@@ -153,6 +153,7 @@ export async function runCoverageStage(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Seats asked that a provider could serve. THE REACHABLE SEATS ASKED, NOT

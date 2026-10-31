@@ -47,7 +47,7 @@ function main(): Promise<void> {
     client: createProbeRunClient(),
     arms: SENSITIVITY_ARMS,
     production: PRODUCTION_LIST,
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
   },);
 }
 

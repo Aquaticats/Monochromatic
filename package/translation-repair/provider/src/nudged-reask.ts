@@ -22,6 +22,7 @@ import {
   alternateModelsFor,
   describeLeftOut,
 } from './reask-alternate-models.ts';
+import { measuresModelOf, } from './reask-mode.ts';
 import {
   takenFor,
   takeFor,
@@ -77,6 +78,11 @@ import {
 // whose holds decide which models may take the re-ask, the bench, and the record of the models already asked for the
 // seats of the question (`reask-claims.ts`), so that two seats that ran away together are never re-asked of one model.
 // A request that names no seat is re-asked of its own model, on a warning that says so.
+//
+// A MEASUREMENT SEAT IS RE-ASKED OF ITS OWN MODEL, NOT WARNED OF (ledger B1141, the lead's ruling of 2026-10-31:
+// "measurement calls keep the same-model re-ask"). A probe, a bench or a calibration scores the model it asks, so a
+// rival's answer recorded as that model's would be scored as its own. `ReaskSeat.reask` names the mode, and
+// `reask-mode.ts` reads it for this re-ask, the stage's recovery round and the picture reader alike.
 //
 // A WORDING OF ITS OWN, not either of the stage recovery round's
 // (`recovery-nudge.ts`). That round later re-asks every seat still unreadable
@@ -266,6 +272,15 @@ export async function reaskElsewhereNudged<ValueT,>(
       ol.warn(
         `${request.modelId}: the request names no seat, so no role says which model may take the re-ask of a `
           + `reasoning runaway; re-asking ${request.modelId} on another provider, as before`,
+      );
+      return NO_OTHER_MODEL_TOOK_IT;
+    }
+    // A MEASUREMENT SCORES THE MODEL IT ASKS (ledger B1141): a rival's answer recorded as that model's would be scored
+    // as its own, so the runaway is re-asked of the model itself, on another provider, nudged, and that is no fault to warn of.
+    if (measuresModelOf({ seat: reaskSeat, })) {
+      ol.info(
+        `${request.modelId}: reasoning runaway on ${avoid} (a length stop with no content); this is a measurement, `
+          + `so no other model is asked and ${request.modelId} is re-asked on another provider, nudged`,
       );
       return NO_OTHER_MODEL_TOOK_IT;
     }

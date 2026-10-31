@@ -170,6 +170,7 @@ async function gather(
   },
 ): ReturnType<typeof gatherThroughCache<unknown, ConsistencyChoiceRecord>> {
   return await gatherThroughCache({
+    reask: 'other-model',
     client: scriptedJudgeClient({ behave, asked, sheets: [], },),
     modelIds,
     role: 'late-judge',

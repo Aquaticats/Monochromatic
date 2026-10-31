@@ -182,6 +182,7 @@ export async function runCheckerStage(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   // ROSTER ORDER, NOT THE GATHER'S. `gatherStageVoices` hands voices back by

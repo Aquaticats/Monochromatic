@@ -298,6 +298,7 @@ export async function pairSectionsWithRoster(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

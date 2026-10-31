@@ -398,6 +398,7 @@ export async function runPanelStage(
         graceMs: stageSettings
           .grace
           .roundMs,
+        reask: stageSettings.reask,
       },);
       /**
        Wire indices resolve only against this packet's actual members.

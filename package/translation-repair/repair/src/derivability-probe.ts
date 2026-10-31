@@ -193,6 +193,7 @@ export async function runDerivabilityProbe(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

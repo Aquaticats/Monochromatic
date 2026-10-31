@@ -124,6 +124,7 @@ await describe({
         + 'and forwards the two readings that vouch for each other',
       fn: async () => {
         const paired = await readImagePair({
+          reask: 'other-model',
           client: scriptedClient({
             byModel: {
               [SEAT_SYNTHETIC_VISION_WITHHELD]: OTHER_PICTURE,
@@ -155,6 +156,7 @@ await describe({
       name: 'STILL REFUSES three readings of three different pictures, reporting the closest pair',
       fn: async () => {
         const paired = await readImagePair({
+          reask: 'other-model',
           client: scriptedClient({
             byModel: {
               [SEAT_SYNTHETIC_VISION_WITHHELD]: OTHER_PICTURE,

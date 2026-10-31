@@ -8,7 +8,11 @@ export {
   responseFormatSpreadOf,
 } from './chat-json-outcome.ts';
 export { chatJsonThrough, } from './chat-json-through.ts';
-export type { ReaskSeat, } from './chat-contract.ts';
+export type {
+  ReaskMode,
+  ReaskSeat,
+} from './chat-contract.ts';
+export { measuresModelOf, } from './reask-mode.ts';
 export {
   isReasoningRunaway,
   reaskElsewhereNudged,

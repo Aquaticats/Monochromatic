@@ -194,6 +194,7 @@ export async function runRenderingAudit(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

@@ -255,6 +255,7 @@ export async function decideBestCandidate<ValueT,>(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

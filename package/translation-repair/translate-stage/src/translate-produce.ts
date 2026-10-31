@@ -248,6 +248,7 @@ export async function produceTranslateSlate(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     l: tl,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
@@ -284,6 +285,7 @@ export async function produceTranslateSlate(
     priorMessages: plan.messages,
     // THE AUTHORS ARE THE TRANSLATORS, and the record is the gather's own (ledger B1100).
     role: 'translator',
+    reask: stageSettings.reask,
     reaskClaims,
     signal,
     perCallTimeoutMs,

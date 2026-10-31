@@ -228,6 +228,7 @@ export async function pairBlocksWithRoster(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

@@ -495,6 +495,7 @@ export async function contestLaneSlice(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
   },);

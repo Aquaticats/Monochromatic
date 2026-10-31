@@ -6,6 +6,7 @@ import {
   createReaskClaims,
   type JsonSchemaResponseFormat,
   type ModelClient,
+  type ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
@@ -185,12 +186,15 @@ function closedOn(
  @param role - role the bench's seats stand in, which the re-ask of a reasoning runaway reads to leave out the models
  their cards hold out of it; required, with no default, so that a new stage cannot leave it out (ledger B1079)
 
+ @param reask - whose answer the re-ask of a reasoning runaway may give, taken from the launch's `StageSettings`;
+ required, with no default, so that a measurement cannot be asked in the pass's mode (ledger B1141)
+
  @returns Outcomes for the seats asked, in roster order, heard where a
  round heard them and lost otherwise, beside the quorum the rounds closed on
 
  @example
  ```ts
- const { outcomes, } = await runWindowedRounds({ client, modelIds, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage: 'gate', l, graceMs: stageSettings.grace.roundMs, role: 'late-judge', },);
+ const { outcomes, } = await runWindowedRounds({ client, modelIds, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage: 'gate', l, graceMs: stageSettings.grace.roundMs, role: 'late-judge', reask: stageSettings.reask, },);
  ```
  */
 export async function runWindowedRounds<ValueT,>(
@@ -209,6 +213,7 @@ export async function runWindowedRounds<ValueT,>(
     graceMs,
     fanOut = 'window',
     role,
+    reask,
   }: ForeignBorrowed<{
     readonly client: ModelClient;
     readonly modelIds: readonly RosterModelId[];
@@ -224,6 +229,7 @@ export async function runWindowedRounds<ValueT,>(
     readonly graceMs: number;
     readonly fanOut?: FanOutMode;
     readonly role: SeatRole;
+    readonly reask: ReaskMode;
   }>,
 ): Promise<WindowedRounds<ValueT>> {
   /**
@@ -300,6 +306,8 @@ export async function runWindowedRounds<ValueT,>(
       role,
       bench: modelIds,
       claims: createReaskClaims(),
+      // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the model it scores.
+      reask,
     },
   };
   if (fanOut === 'whole-bench') {

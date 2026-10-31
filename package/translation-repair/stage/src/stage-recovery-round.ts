@@ -8,6 +8,7 @@ import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document
 import {
   alternateModelsFor,
   describeLeftOut,
+  measuresModelOf,
   type ReaskSeat,
   takenFor,
   takeFor,
@@ -150,6 +151,45 @@ async function recoverRunaway<ValueT,>(
   } = named;
 
   /**
+   Asks the seat's own model once more, under the cut-short nudge, which is the one ask a measurement makes and the ask
+   a run falls back to where no other model could take the re-ask.
+
+   @returns The one outcome that round returned
+   */
+  async function askSeatItself(): Promise<RoundOutcome<ValueT>> {
+    /**
+     The seat's own model's round, nudged as the cut-short wording has it.
+     */
+    const ownRound = await runGatherRound<ValueT>({
+      ...roundRequest,
+      l: rl,
+      messages: [
+        ...roundRequest.messages,
+        RECOVERY_NUDGES.runaway,
+      ],
+      modelIds: [seat,],
+      heardNeeded: 0,
+    },);
+
+    /**
+     The one outcome that round returned.
+     */
+    const own = ownRound.at(0,);
+    if (own === undefined)
+      throw new Error(`unreachable: the round that asked ${seat} returned no outcome`,);
+    return own;
+  }
+  // A MEASUREMENT SCORES THE MODEL IT ASKS (ledger B1141): a rival's answer recorded as the seat's would be scored as the
+  // seat's own, so the seat is asked again, nudged, and that is no fault to warn of.
+  if (measuresModelOf({ seat: named, })) {
+    rl.info(
+      `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); this is a measurement, `
+        + `so no other model is asked and ${seat} is re-asked, nudged`,
+    );
+    return await askSeatItself();
+  }
+
+  /**
    The bench with the seat on it, which an ask of another model carries so that model's own runaway is not re-asked of
    the seat that began this one.
    */
@@ -232,28 +272,7 @@ async function recoverRunaway<ValueT,>(
     `${roundRequest.stage}: ${seat}: no other model could take the re-ask of a reasoning runaway `
       + `(${String(alternates.length,)} tried); re-asking ${seat}, nudged`,
   );
-
-  /**
-   The seat's own model's round, nudged as the cut-short wording has it.
-   */
-  const ownRound = await runGatherRound<ValueT>({
-    ...roundRequest,
-    l: rl,
-    messages: [
-      ...roundRequest.messages,
-      RECOVERY_NUDGES.runaway,
-    ],
-    modelIds: [seat,],
-    heardNeeded: 0,
-  },);
-
-  /**
-   The one outcome that round returned.
-   */
-  const own = ownRound.at(0,);
-  if (own === undefined)
-    throw new Error(`unreachable: the round that asked ${seat} returned no outcome`,);
-  return own;
+  return await askSeatItself();
 }
 
 /**

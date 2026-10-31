@@ -56,7 +56,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'judge-fidelity-pr
     perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     log: tagged({ tag: 'judge-fidelity-probe', },),
     out: process.stdout,
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
   },);
 }
 

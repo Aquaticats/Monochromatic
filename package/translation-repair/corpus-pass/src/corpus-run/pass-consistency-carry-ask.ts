@@ -230,6 +230,7 @@ export async function askCarryWriters(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     cache,
     key: consistencyKey({
       stage: 'writers',
@@ -338,6 +339,7 @@ export async function askCarryChoice(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     cache,
     key: consistencyKey({
       stage: runOff ? 'choice-run-off' : 'choice',

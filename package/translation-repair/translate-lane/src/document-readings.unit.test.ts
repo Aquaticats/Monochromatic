@@ -336,6 +336,7 @@ async function readOnePicture(
     },
   };
   await readDocumentPictures({
+    reask: 'other-model',
     readOcr: sawText,
     client: agreeing.client,
     slices: [sliceOf({
@@ -386,6 +387,7 @@ await describe({
              Readings under the failing client.
              */
             const unread = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client: failing.client,
               slices: [sliceOf({
@@ -408,6 +410,7 @@ await describe({
              */
             const stableCache = recordingCache({ resumed: new Map(), },);
             const disagreed = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client: disagreeingClient().client,
               slices: [sliceOf({
@@ -443,6 +446,7 @@ await describe({
              Readings under a deterministic reader that rejects.
              */
             const readings = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: rejecting,
               client,
               slices: [sliceOf({
@@ -488,6 +492,7 @@ await describe({
              What the gather produced.
              */
             const readings = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client,
               slices,
@@ -523,7 +528,7 @@ await describe({
             const firstSlices = [sliceOf({ text: showing({ assetName: 'chat.webp', },), sliceIndex: 0, },),];
             /** Shared reader inputs independent of slice boundaries. */
             const input = {
-              client, readOcr: sawText, assets, readerModelIds: READERS, cache,
+              client, readOcr: sawText, assets, readerModelIds: READERS, cache, reask: 'other-model' as const,
               signal: new AbortController().signal, perCallTimeoutMs: HANG_STOP_MS, l,
             };
             /** Completed evidence from the archive-review preparation. */
@@ -563,6 +568,7 @@ await describe({
                 : { kind, reason: 'one-reader-only', transient: true, perReader: [], };
               /** One asset presented again within the same entry. */
               const result = await readDocumentPictures({
+                reask: 'other-model',
                 client, readOcr: sawText,
                 slices: [sliceOf({ text: showing({ assetName: 'chat.webp', },), sliceIndex: 0, },),],
                 assets: new Map([['chat.webp', bytesOf({ seed: 1, },),],]),
@@ -603,6 +609,7 @@ await describe({
              */
             const learning = recordingCache({ resumed: new Map(), },);
             await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client,
               slices: [sliceOf({
@@ -637,6 +644,7 @@ await describe({
               resumed: new Map([[key, stored,],],),
             },);
             const readings = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client,
               slices: [sliceOf({
@@ -672,6 +680,7 @@ await describe({
             ].map(async function keyFor(seed,): Promise<string> {
               const { cache, persisted, } = recordingCache({ resumed: new Map(), },);
               await readDocumentPictures({
+                reask: 'other-model',
                 readOcr: sawText,
                 client,
                 slices: [sliceOf({
@@ -704,6 +713,7 @@ await describe({
              Gather over a slice naming a picture the caller could not read.
              */
             const readings = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client,
               slices: [sliceOf({
@@ -735,6 +745,7 @@ await describe({
              Gather over ordinary prose.
              */
             const readings = await readDocumentPictures({
+              reask: 'other-model',
               readOcr: sawText,
               client,
               slices: [sliceOf({

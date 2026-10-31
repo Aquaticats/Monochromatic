@@ -266,6 +266,7 @@ export async function askConsistencyBench(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     cache,
     key: consistencyKey({
       stage: 'ballots',

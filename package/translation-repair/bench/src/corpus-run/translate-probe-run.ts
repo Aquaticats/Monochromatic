@@ -252,12 +252,14 @@ export async function probeTranslate(
         responseFormat: TRANSLATE_RESPONSE_FORMAT,
         validate: isTranslateReportWire,
         stage: 'translate-probe',
-        // THE PROBE ASKS THE EDITORS, a hand-picked bench of the roster role.
-        role: 'roster',
+        // THE PROBE ASKS THE EDITORS, the hand-picked bench of the editor role (ledger B1141); it is a measurement, so a
+        // runaway is re-asked of the editor itself whatever the role says.
+        role: 'editor',
         l: log,
         graceMs: stageSettings
           .grace
           .roundMs,
+        reask: stageSettings.reask,
       },);
 
       /**

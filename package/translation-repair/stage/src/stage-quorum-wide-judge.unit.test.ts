@@ -126,6 +126,7 @@ await describe({
           },
         };
         const gather = await gatherStageVoices({
+          reask: 'other-model',
           client,
           modelIds: WIDE_BENCH,
           messages: [{ role: 'user', content: 'meow', },],

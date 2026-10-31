@@ -203,6 +203,7 @@ async function confirmCandidates(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Voices heard on the confirmation.
@@ -377,6 +378,7 @@ export async function attestCitedReferences(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Voices heard.

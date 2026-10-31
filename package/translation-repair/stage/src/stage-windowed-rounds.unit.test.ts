@@ -202,6 +202,7 @@ async function runBench(
     quorum,
     unreachable,
   } = await runWindowedRounds({
+    reask: 'other-model',
     client,
     modelIds: BENCH,
     messages: [{ role: 'user', content: 'meow?', },],

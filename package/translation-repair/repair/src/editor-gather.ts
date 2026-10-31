@@ -205,6 +205,7 @@ export async function gatherEditorProposals(
     graceMs: stageSettings
       .grace
       .writerMs,
+    reask: stageSettings.reask,
     // A launch that pins the editor bench's rotation (a fixture or a calibration that must seat the same editors whatever the
     // sheet says) hands the seat down in its settings; the prompt decides otherwise.
     ...((stageSettings.editorBenchStart === undefined) ? {} : { benchStart: stageSettings.editorBenchStart, }),

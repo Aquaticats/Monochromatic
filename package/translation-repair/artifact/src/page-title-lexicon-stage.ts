@@ -226,6 +226,7 @@ export async function settlePageTitles(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
   /**
    Voices in roster order, so the earliest seat breaks a tie.

@@ -203,6 +203,7 @@ export async function runCriticStage(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
   },);
 
   /**

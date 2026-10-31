@@ -251,7 +251,7 @@ export async function scoreableVerdict({ trial, }: { readonly trial: EditorFidel
     signal: new AbortController().signal,
     perCallTimeoutMs: SCRIPTED_DEADLINE_MS,
     l: QUIET,
-    stageSettings: readStageSettings({ env: {}, },),
+    stageSettings: readStageSettings({ env: {}, reask: 'measured-model', },),
   },);
   if (reading.kind !== 'answered')
     return `scripted editor read ${reading.kind}`;

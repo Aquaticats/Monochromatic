@@ -296,6 +296,7 @@ await describe({
              What the roster made of the picture.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -345,6 +346,7 @@ await describe({
              What the roster made of two irreconcilable readings.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -386,6 +388,7 @@ await describe({
              What the roster made of a picture only one reader answered about.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -414,6 +417,7 @@ await describe({
              What the roster made of a picture neither reader answered about.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -454,6 +458,7 @@ await describe({
              What the roster made of a picture the deterministic reader called text.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -489,6 +494,7 @@ await describe({
              What the roster made of a picture carrying a few characters.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -521,6 +527,7 @@ await describe({
              What the roster made of a picture one reader would not look at.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -558,6 +565,7 @@ await describe({
              What the roster made of a picture the readers saw differently.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -591,6 +599,7 @@ await describe({
              What one reader alone produced.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: [LARGER_READER,],
@@ -630,6 +639,7 @@ await describe({
              What the roster made of a picture one reader could not finish reading.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -685,6 +695,7 @@ await describe({
              */
             const refusal = await rejectionOf({
               promise: readImagePair({
+                reask: 'other-model',
                 client: {
                   chatText: async () => {
                     throw dry;
@@ -721,6 +732,7 @@ await describe({
              What the pair did when every reader's own providers were dry.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client: {
                 chatText: async () => {
                   throw modelDarkRefusal({ modelId: SEAT_SYNTHETIC_VISION_WITHHELD, },);
@@ -761,6 +773,7 @@ await describe({
              What the roster made of a picture neither reader could finish.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -796,6 +809,7 @@ await describe({
              What the roster made of a picture whose readers the provider refused.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client: refusedClient({
                 sinon: ctx.sinon,
                 status: 401,
@@ -840,6 +854,7 @@ await describe({
              What the roster made of a picture whose deterministic reader rejected.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: rejecting,
               readerModelIds: READERS,
@@ -876,6 +891,7 @@ await describe({
              What the roster made of a picture whose deterministic reader rejected.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: rejecting,
               readerModelIds: READERS,
@@ -928,6 +944,7 @@ await describe({
                What the roster made of a picture a run stopped while reading.
                */
               const paired = await readImagePair({
+                reask: 'other-model',
                 client,
                 readOcr: interrupted,
                 readerModelIds: READERS,
@@ -977,6 +994,7 @@ await describe({
                What the roster made of a picture a stopped run asked about.
                */
               const paired = await readImagePair({
+                reask: 'other-model',
                 client,
                 readOcr: found,
                 readerModelIds: READERS,
@@ -1050,6 +1068,7 @@ await describe({
              */
             const refusal = await rejectionOf({
               promise: readImagePair({
+                reask: 'other-model',
                 client: {
                   chatText: async (request,) => {
                     /**
@@ -1125,6 +1144,7 @@ await describe({
              */
             const refusal = await rejectionOf({
               promise: readImagePair({
+                reask: 'other-model',
                 client: {
                   chatText: async (request,) => {
                     /**
@@ -1232,6 +1252,7 @@ await describe({
                What the roster made of a picture a stopped run asked about.
                */
               const paired = await readImagePair({
+                reask: 'other-model',
                 client,
                 readOcr: counting,
                 readerModelIds: READERS,
@@ -1268,6 +1289,7 @@ await describe({
              What the roster made of a picture the deterministic reader found bare.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: empty,
               readerModelIds: READERS,
@@ -1304,6 +1326,7 @@ await describe({
              What the roster made of a picture nothing could pre-screen.
              */
             const paired = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: missing,
               readerModelIds: READERS,
@@ -1338,6 +1361,7 @@ await describe({
              */
             const counted: string[] = [];
             await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: found,
               readerModelIds: READERS,
@@ -1357,6 +1381,7 @@ await describe({
              What the roster made of the picture the deterministic reader never read.
              */
             const confirmed = await readImagePair({
+              reask: 'other-model',
               client,
               readOcr: missing,
               readerModelIds: READERS,

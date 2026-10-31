@@ -214,6 +214,7 @@ export async function askRunOff(
     graceMs: stageSettings
       .grace
       .roundMs,
+    reask: stageSettings.reask,
     cache,
     key: consistencyKey({
       stage: 'run-off',

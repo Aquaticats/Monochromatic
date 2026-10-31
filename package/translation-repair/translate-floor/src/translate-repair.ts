@@ -9,6 +9,7 @@ import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document
 import type {
   ModelClient,
   ReaskClaims,
+  ReaskMode,
   ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
@@ -432,6 +433,9 @@ async function repairOneCandidate(
  ask a model the role may take (ledger B1079, B1100): the translator role for the translate lane, the writer role for
  the consolidation
 
+ @param reask - whose answer the re-ask of an author's reasoning runaway may give, from the launch's `StageSettings`;
+ required, with no default, so that a measurement cannot be asked in the pass's mode (ledger B1141)
+
  @param reaskClaims - record of the models asked for the seats of this question, the same one the gather that produced
  the candidates used, so a model that took a runaway seat there cannot give a second voice here (ledger B1100)
 
@@ -481,6 +485,7 @@ export async function repairInvalidCandidates(
     disputedWordings = [],
     priorMessages,
     role,
+    reask,
     reaskClaims,
     signal,
     perCallTimeoutMs,
@@ -497,6 +502,7 @@ export async function repairInvalidCandidates(
     readonly disputedWordings?: readonly DisputedWording[];
     readonly priorMessages: readonly ChatMessage[];
     readonly role: SeatRole;
+    readonly reask: ReaskMode;
     readonly reaskClaims: ReaskClaims;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
@@ -537,6 +543,8 @@ export async function repairInvalidCandidates(
           role,
           bench: authors,
           claims: reaskClaims,
+          // THE LAUNCH'S MODE (ledger B1141): a measurement is re-asked of the author it scores.
+          reask,
         },
         signal,
         perCallTimeoutMs,

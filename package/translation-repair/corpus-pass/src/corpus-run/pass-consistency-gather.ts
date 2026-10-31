@@ -7,6 +7,7 @@ import {
 import type {
   JsonSchemaResponseFormat,
   ModelClient,
+  ReaskMode,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
@@ -124,6 +125,8 @@ export function recordFits(
 
  @param graceMs - window a straggler gets after quorum
 
+ @param reask - whose answer the re-ask of a reasoning runaway may give, from the launch's `StageSettings` (ledger B1141)
+
  @param cache - store an earlier answer is read from and a settled one kept in
 
  @param key - question's identity
@@ -156,6 +159,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     validate,
     stage,
     graceMs,
+    reask,
     cache,
     key,
     readStored,
@@ -173,6 +177,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     readonly validate: (value: unknown,) => value is WireT;
     readonly stage: string;
     readonly graceMs: number;
+    readonly reask: ReaskMode;
     readonly cache: SliceCache<ConsistencyCacheValue>;
     readonly key: string;
     readonly readStored: (value: ConsistencyCacheValue,) => readonly RecordT[];
@@ -251,6 +256,7 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     role,
     l: gl,
     graceMs,
+    reask,
   },);
   /**
    What this gather comes to, voices in roster order so a stored record does not depend on arrival.

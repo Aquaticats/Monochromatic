@@ -490,6 +490,7 @@ await describe({
             const repaired = await repairInvalidCandidates({
               role: 'translator',
               reaskClaims: createReaskClaims(),
+              reask: 'other-model',
               client: cannedClient({
                 replyByModel: [revisionReply({ translation: HIDDEN_BREAK, },),],
               },),

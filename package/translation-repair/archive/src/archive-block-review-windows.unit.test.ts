@@ -57,6 +57,7 @@ const WRITERS_WAIT_READERS_DO_NOT: StageSettings = {
     source: 'built-in',
   },
   contestLedger: { kind: 'unkept', },
+  reask: 'other-model',
 };
 
 /** Block under review. */

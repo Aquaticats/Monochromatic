@@ -56,7 +56,7 @@ async function main({ line, }: { readonly line: CommandLineOf<'roster-bench'>; }
     writeReport: writeBenchReport,
     clock: performance,
     runsDir: await resolveRunsDir(),
-    stageSettings: readStageSettings({ env: process.env, },),
+    stageSettings: readStageSettings({ env: process.env, reask: 'measured-model', },),
   },);
 }
 
