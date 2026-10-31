@@ -181,6 +181,14 @@ the mechanisms below are the verified options for a future re-registration.
   so results and rejections differ from the shared core,
   and any prompt guidance written against the shared tools'
   behavior does not carry over.
+  Measured on 2026-10-31,
+  the built-in surface also loses on top-hit authority,
+  page content,
+  and Cloudflare-blocked SPA fetches;
+  the accepted route around the gap is a one-shot CLI client
+  plus a plugin skill,
+  recorded with the full evidence in
+  `doc/planning/vibe-search-fetch-wiring.md`.
 
 ## What does not work
 
