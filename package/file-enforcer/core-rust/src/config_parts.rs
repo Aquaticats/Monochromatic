@@ -8,6 +8,11 @@
 //! type ValueExpr = string | boolean | number | ValueExpr[] | { file: ValueExpr } | { var: string } | { concat: ValueExpr[] };
 //! ```
 
+// The `JsonSchema` derive expands to `Result::unwrap` calls inside its generated `json_schema` function, which
+// the repository's `clippy.toml` disallows. Evidence and the failed configuration attempts:
+// doc/troubleshooting/schemars-derive-trips-disallowed-methods.md.
+#![expect(clippy::disallowed_methods, reason = "the schemars JsonSchema derive expands to Result::unwrap")]
+
 use schemars::JsonSchema;
 
 /// What:

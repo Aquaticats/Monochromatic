@@ -10,6 +10,11 @@
 //! type Config = { $schema?: string; rules: RuleConfig[] };
 //! ```
 
+// The `JsonSchema` derive expands to `Result::unwrap` calls inside its generated `json_schema` function, which
+// the repository's `clippy.toml` disallows. Evidence and the failed configuration attempts:
+// doc/troubleshooting/schemars-derive-trips-disallowed-methods.md.
+#![expect(clippy::disallowed_methods, reason = "the schemars JsonSchema derive expands to Result::unwrap")]
+
 use crate::config_parts::{HarperScopedServer, LicenseRequirement, TomlBlock, TomlEdit, ValueExpr};
 use schemars::JsonSchema;
 use std::collections::BTreeMap;

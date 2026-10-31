@@ -128,3 +128,16 @@ fn check_scope(reader: &mut Reader, rule: &RuleConfig, scope: ConfigScope, point
         reader.error(pointer, &message);
     }
 }
+
+/// What:
+///  Convert a validated octal mode string such as `0600` into permission bits.
+/// Why:
+///  Rules store the text the config holds; publishing needs the number.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseMode(mode: string): number { return parseInt(mode, 8); }
+/// ```
+pub fn parse_mode(mode: &str) -> u32 {
+    return u32::from_str_radix(mode, 8).unwrap_or(0o644);
+}

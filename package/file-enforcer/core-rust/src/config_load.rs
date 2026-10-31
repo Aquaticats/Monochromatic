@@ -160,10 +160,10 @@ fn convert_number(raw: &str, pointer: &str, display_path: &str) -> Result<Value,
     if let Ok(integer) = raw.parse::<i64>() {
         return Ok(Value::Number(Number::from(integer)));
     }
-    if let Ok(float) = raw.parse::<f64>() {
-        if let Some(number) = Number::from_f64(float) {
-            return Ok(Value::Number(number));
-        }
+    if let Ok(float) = raw.parse::<f64>()
+        && let Some(number) = Number::from_f64(float)
+    {
+        return Ok(Value::Number(number));
     }
     let message = format!("{display_path}: the number {raw} at {pointer} is not representable");
     return Err(Diagnostic::new("config-syntax", &message).with_path(display_path));

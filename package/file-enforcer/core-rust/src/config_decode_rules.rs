@@ -92,10 +92,10 @@ fn decode_concat(reader: &mut Reader, object: &Map<String, Value>, pointer: &str
         parts.push(reader.value_expr(item, &format!("{pointer}/parts/{index}")));
     }
     let mode = reader.optional_text(object, "mode", pointer);
-    if let Some(text) = &mode {
-        if !is_octal_mode(text) {
-            reader.error(&format!("{pointer}/mode"), &format!("{text:?} must be three or four octal digits"));
-        }
+    if let Some(text) = &mode
+        && !is_octal_mode(text)
+    {
+        reader.error(&format!("{pointer}/mode"), &format!("{text:?} must be three or four octal digits"));
     }
     return RuleConfig::Concat { id, output, parts, mode };
 }
