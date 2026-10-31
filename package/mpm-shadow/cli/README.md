@@ -465,7 +465,8 @@ No other row moves,
 exactly as with `mpm-shadow update <those ids>`,
 and the report prints `toolchain sync: locked <id> <version> ...` for each.
 
-- **Frozen:** with `--frozen-lock`,
+- **Frozen:**
+  with `--frozen-lock`,
   or when a CI environment is detected,
   `sync` resolves nothing:
   it refuses as before,
@@ -474,7 +475,7 @@ and the report prints `toolchain sync: locked <id> <version> ...` for each.
   pnpm's `--frozen-lockfile` is "true by default in CI environments"
   and "pnpm detects a CI environment with the same rules as the ci-info package.
   Set `CI=false` to turn detection off"
-  (https://pnpm.io/cli/install).
+  (<https://pnpm.io/cli/install>).
   mpm-shadow ports those rules (`src/toolchain/ci_detect.rs`):
   `CI=false` means not CI,
   otherwise `CI`,

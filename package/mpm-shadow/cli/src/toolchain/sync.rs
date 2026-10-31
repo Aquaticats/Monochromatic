@@ -21,10 +21,14 @@
 //! export function runSync(scope, env, runner, http, host): SyncReport  // throws when plan and lock disagree
 //! ```
 
-/// Imports what this module uses from `super::cargo_installs`.
+/// Imports `BTreeSet`,
+/// a set sorted by value,
+/// from `std::collections`.
 use std::collections::BTreeSet;
 
+/// Imports what this module uses from `super::agree`.
 use super::agree::{Disagreement, compare, refusal};
+/// Imports what this module uses from `super::cargo_installs`.
 use super::cargo_installs::{is_repository_published, older_lock_warnings, point_current_at_newest};
 /// Imports what this module uses from `super::context`.
 use super::context::{Context, Host};
@@ -38,7 +42,7 @@ use super::http::HttpGet;
 use super::install::install_tool;
 /// Imports `applies_to_family` from `super::layout`.
 use super::layout::applies_to_family;
-/// Imports `load_agreeing` from `super::load`.
+/// Imports what this module uses from `super::load`.
 use super::load::{Loaded, load, load_agreeing};
 /// Imports `Lock` from `super::lock`.
 use super::lock::Lock;
@@ -54,8 +58,9 @@ use super::plan::Plan;
 use super::runner::Runner;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
-/// Imports the shared named helpers.
+/// Imports what this module uses from `super::update`.
 use super::update::{OutcomeKind, update_loaded};
+/// Imports the tool lookup.
 use super::util::find_tool;
 
 /// The tools installed first,
@@ -245,10 +250,16 @@ pub enum FrozenReason {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LockPolicy {
-    /// Resolve new and re-edited entries alone, write only their rows, then install.
+    /// Resolve new and re-edited entries alone,
+    /// write only their rows,
+    /// then install.
     Resolve,
-    /// Refuse a plan that is ahead of the lock and name `mpm-shadow update <ids>`.
-    Frozen(FrozenReason),
+    /// Refuse a plan that is ahead of the lock and name `mpm-shadow update <ids>`;
+    /// the reason says which switch or environment froze it.
+    Frozen(
+        /// Why the lock is frozen.
+        FrozenReason,
+    ),
 }
 
 /// The refusal for a frozen `sync` whose plan is ahead of the lock:
@@ -258,7 +269,7 @@ fn frozen_refusal(verdict: &Disagreement, reason: FrozenReason) -> ToolchainErro
     let why: &str = match reason {
         FrozenReason::Flag => "`--frozen-lock` was given",
         FrozenReason::Ci => {
-            "a CI environment was detected (the CI variable or another marker; the rules of pnpm and ci-info), \
+            "a CI environment was detected (the CI variable or another marker, by the rules of pnpm and ci-info), \
              where the lock is frozen; `CI=false` or `--no-frozen-lock` turns that off"
         }
     };
@@ -373,6 +384,9 @@ pub fn run_sync(
     return run_sync_with(scope, env, runner, http, host, LockPolicy::Frozen(FrozenReason::Flag));
 }
 
+/// The text `sync` prints for a report (the tools it locked first,
+/// then warnings,
+/// the counts and each failure).
 pub fn format_sync_report(report: &SyncReport) -> String {
     let mut text: String = String::new();
     for (id, version) in &report.resolved {

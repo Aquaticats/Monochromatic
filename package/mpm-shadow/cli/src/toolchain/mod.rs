@@ -144,7 +144,8 @@ pub mod status_cmd;
 /// The `sync` command.
 pub mod sync;
 
-/// CI detection by the rules of `ci-info`, which pnpm uses.
+/// CI detection by the rules of `ci-info`,
+/// which pnpm uses.
 pub mod ci_detect;
 
 /// The `update` command.

@@ -2,12 +2,13 @@
 //! Whether the process runs in a continuous-integration environment,
 //! by the same rules as the `ci-info` package.
 //! Why:
-//! pnpm decides its default for `--frozen-lockfile` this way ("pnpm detects a CI environment with the same rules as
-//! the ci-info package. Set `CI=false` to turn detection off", https://pnpm.io/cli/install),
+//! pnpm decides its default for `--frozen-lockfile` this way
+//! ("pnpm detects a CI environment with the same rules as the ci-info package.
+//! Set `CI=false` to turn detection off", <https://pnpm.io/cli/install>),
 //! and `mpm-shadow sync` follows pnpm:
 //! frozen in CI,
 //! resolving new plan entries elsewhere.
-//! The rules were read from `index.js` and `vendors.json` of https://github.com/watson/ci-info on 2026-10-31.
+//! The rules were read from `index.js` and `vendors.json` of <https://github.com/watson/ci-info> on 2026-10-31.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
