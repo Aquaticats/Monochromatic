@@ -21,6 +21,7 @@
 
 /// Imports `Ordering` from `std::cmp`.
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
@@ -113,6 +114,37 @@ fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
     // Newest first: the comparison is reversed.
     names.sort_by(|left, right| return compare_versions(right, left));
     return names;
+}
+
+/// What:
+/// The newest finished version of every repository-published crate installed under one toolchain root,
+/// by crate name.
+/// Why:
+/// The registry prune keeps the version that is installed;
+/// for these crates that is read from the version-keyed records under `<toolchain root>/cargo/<crate>/`,
+/// not from `$CARGO_HOME/.crates.toml`,
+/// which `sync` no longer writes.
+/// A directory without a record for its crate is an unfinished install and is ignored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function repositoryVersionsInstalled(toolchainRoot: string): Map<string, string>
+/// ```
+pub fn repository_versions_installed(toolchain_root: &Path) -> BTreeMap<String, String> {
+    let mut versions: BTreeMap<String, String> = BTreeMap::new();
+    let Ok(entries) = fs::read_dir(toolchain_root.join(CARGO_NAMESPACE)) else {
+        return versions;
+    };
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if !name.starts_with(OWN_CRATE_PREFIX) {
+            continue;
+        }
+        if let Some(newest) = newest_installed(toolchain_root, &name) {
+            versions.insert(name, newest);
+        }
+    }
+    return versions;
 }
 
 /// The newest version of the crate whose install finished (cargo's record names it).

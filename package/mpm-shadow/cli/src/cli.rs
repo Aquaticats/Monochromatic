@@ -41,6 +41,10 @@ use crate::constants::USAGE_EXIT_CODE;
 use crate::prune::prune_stale_own_crates;
 /// Imports the toolchain verbs' grammar and dispatch.
 use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
+/// Imports the environment view and the toolchain roots.
+use crate::toolchain::scope::{EnvMap, toolchain_roots};
+/// Imports the owned path type.
+use std::path::PathBuf;
 /// Imports the toolchain prune command.
 use crate::toolchain::prune_cargo::run_prune_command;
 
@@ -162,7 +166,8 @@ fn prune_now() -> i32 {
         eprintln!("mpm-shadow: neither CARGO_HOME nor HOME is set, so cargo's home cannot be found");
         return 1;
     };
-    let deleted = prune_stale_own_crates(&directory);
+    let roots: Vec<PathBuf> = toolchain_roots(&EnvMap::from_process());
+    let deleted = prune_stale_own_crates(&directory, &roots);
     for path in &deleted {
         println!("deleted stale {}", path.display());
     }

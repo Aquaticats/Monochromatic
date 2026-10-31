@@ -253,6 +253,28 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
 }
 
 /// What:
+/// Both toolchain roots a repository-published cargo tool can be installed under for this user:
+/// the repository scope's (`<data home>/monochromatic-dev/toolchain`) and the machine-global one
+/// (`<data home>/monochromatic-dev/toolchain-global`).
+/// Why:
+/// The registry prune runs as the `mpm` shim, which knows no scope and no worktree,
+/// yet must read the version-keyed install records of every root `sync` writes to.
+/// Both roots come from the environment alone, so no plan or repository is needed.
+/// An environment with neither `HOME` nor `USERPROFILE` has no roots.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function toolchainRoots(env: EnvMap): string[]
+/// ```
+pub fn toolchain_roots(env: &EnvMap) -> Vec<PathBuf> {
+    let Ok(home) = home_dir(env) else {
+        return Vec::new();
+    };
+    let base: PathBuf = data_home(env, &home).join("monochromatic-dev");
+    return vec![base.join("toolchain"), base.join("toolchain-global")];
+}
+
+/// What:
 /// Finds the worktree root:
 /// `MONOCHROMATIC_WORKTREE_ROOT` when set,
 /// otherwise the nearest directory at or

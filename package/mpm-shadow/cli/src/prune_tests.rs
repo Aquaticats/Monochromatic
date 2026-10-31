@@ -163,7 +163,7 @@ fn deletes_stale_archives_and_sources_and_keeps_the_installed_version() {
         write_entry(home, "src", name);
     }
 
-    let deleted = prune_stale_own_crates(home);
+    let deleted = prune_stale_own_crates(home, &[]);
 
     let index: PathBuf = home.join("registry");
     assert_eq!(deleted.len(), 2);
@@ -182,7 +182,7 @@ fn never_touches_third_party_crates() {
     write_entry(home, "cache", "serde-1.0.1");
     write_entry(home, "cache", "serde-1.0.2");
 
-    assert!(prune_stale_own_crates(home).is_empty());
+    assert!(prune_stale_own_crates(home, &[]).is_empty());
     assert!(home.join("registry/cache/index.crates.io-fixture/serde-1.0.1.crate").exists());
 }
 
@@ -190,7 +190,7 @@ fn never_touches_third_party_crates() {
 #[test]
 fn deletes_nothing_when_the_registry_does_not_exist() {
     let directory = scratch();
-    assert!(prune_stale_own_crates(directory.path()).is_empty());
+    assert!(prune_stale_own_crates(directory.path(), &[]).is_empty());
 }
 
 /// An unreadable record means nothing is known as installed,
@@ -204,7 +204,7 @@ fn falls_back_to_the_newest_version_when_the_record_is_malformed() {
     write_entry(home, "cache", "monochromatic-lint-0.1.0");
     write_entry(home, "cache", "monochromatic-lint-0.2.0");
 
-    assert_eq!(prune_stale_own_crates(home).len(), 1);
+    assert_eq!(prune_stale_own_crates(home, &[]).len(), 1);
     assert!(home.join("registry/cache/index.crates.io-fixture/monochromatic-lint-0.2.0.crate").exists());
 }
 

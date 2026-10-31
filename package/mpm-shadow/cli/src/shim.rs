@@ -73,6 +73,8 @@ use crate::cargo_home::cargo_home;
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
+/// Imports the environment view and the toolchain roots (where `sync` records version-keyed installs).
+use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports `find_in_path` from `crate::real_binary`.
 use crate::real_binary::find_in_path;
 
@@ -174,7 +176,8 @@ fn prune_after_run() {
     // `env::var("CARGO_HOME").ok()` turns the `Result` into an `Option`: `Some(text)` when set, `None` when unset.
     let home: Option<PathBuf> = cargo_home(env::var("CARGO_HOME").ok(), env::var("HOME").ok());
     if let Some(directory) = home {
-        for path in prune_stale_own_crates(&directory) {
+        let roots: Vec<PathBuf> = toolchain_roots(&EnvMap::from_process());
+        for path in prune_stale_own_crates(&directory, &roots) {
             eprintln!("mpm-shadow: deleted stale {}", path.display());
         }
     }
