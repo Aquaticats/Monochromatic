@@ -1,7 +1,11 @@
-//! What:     The rule that refuses a `find` (and its clone `bfs`) that starts from a repository root, the home directory or the
-//!           filesystem root, with no `-maxdepth` of 3 or less. No start point means the current directory.
-//! Why:      An unbounded walk of those places reads hundreds of thousands of files and stalls the NVMe for every session.
-//!           `-maxdepth 3`, a narrower start directory, or `rg --files PATH` does the same job bounded.
+//! What:
+//! The rule that refuses a `find` (and its clone `bfs`) that starts from a repository root
+//! or the home directory or the filesystem root,
+//! with no `-maxdepth` of 3 or less.
+//! No start point means the current directory.
+//! Why:
+//! An unbounded walk of those places reads hundreds of thousands of files and stalls the NVMe for every session.
+//! A `-maxdepth` of 3 or a narrower start directory or `rg --files PATH` does the same job bounded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,15 +13,22 @@
 //! export function findRefusal(name, args, allowWide, workingDirectory, home): string | undefined { ... }
 //! ```
 
-/// Imports `Path`, the borrowed read-only path type.
+/// Imports `Path`,
+/// the borrowed read-only path type.
 use std::path::Path;
 
+/// Imports the escape-hatch variable name for the refusal message.
 use crate::constants::ALLOW_WIDE_VARIABLE;
+
+/// Imports the walk-start classifier and the words the refusal message uses for each case.
 use crate::walk_target::{WalkTarget, classify, phrase};
 
-/// What:     `const MAX_BOUNDED_DEPTH: u64 = 3;` is a constant unsigned 64-bit integer (siblings: `u32`, `usize`, `i64`).
-/// Why:      A `-maxdepth` up to this value keeps a walk of a repository root small enough to allow; `u64` because the value
-///           is parsed from text with `parse::<u64>()` and needs no cast.
+/// What:
+/// `const MAX_BOUNDED_DEPTH: u64 = 3;` is a constant unsigned 64-bit integer
+/// (the siblings are `u32` / `usize` / `i64`).
+/// Why:
+/// A `-maxdepth` up to this value keeps a walk of a repository root small enough to allow.
+/// It is `u64` because the value is parsed from text with `parse::<u64>()` and needs no cast.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,12 +40,16 @@ const MAX_BOUNDED_DEPTH: u64 = 3;
 /// the single-dash spellings GNU find accepts).
 const INFORMATION_FLAGS: &[&str] = &["--version", "--help", "-version", "-help"];
 
-/// The leading one-token options of `find` and `bfs` that come before the start points (`-H`, `-L`, `-P`, `-E`, `-X`, ...).
+/// The leading one-token options of `find` and `bfs` that come before the start points
+/// (`-H` / `-L` / `-P` / `-E` / `-X` and so on).
 const LEADING_FLAGS: &[&str] = &["-H", "-L", "-P", "-E", "-X", "-d", "-s", "-x"];
 
-/// What:     `pub fn find_start_points(arguments: &[String]) -> Vec<String>` declares a public function returning the start
-///           directories named before the first expression (`-name ...`, `(`, `!`, `,`).
-/// Why:      The refusal needs to know where the walk begins; `find` with none starts at `.`.
+/// What:
+/// `pub fn find_start_points(arguments: &[String]) -> Vec<String>` declares a public function returning the start
+/// directories named before the first expression (`-name ...` / `(` / `!` / `,`).
+/// Why:
+/// The refusal needs to know where the walk begins,
+/// and `find` with none starts at `.`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,10 +91,12 @@ pub fn find_start_points(arguments: &[String]) -> Vec<String> {
     return starts;
 }
 
-/// What:     `pub fn find_max_depth(arguments: &[String]) -> Option<u64>` declares a public function returning the smallest
-///           `-maxdepth` value given, or `None` when there is none. `Option<u64>` is `Some(number)` or `None` (Rust's
-///           replacement for `number | undefined`).
-/// Why:      A small `-maxdepth` bounds the walk.
+/// What:
+/// `pub fn find_max_depth(arguments: &[String]) -> Option<u64>` declares a public function returning the smallest
+/// `-maxdepth` value given or `None` when there is none.
+/// `Option<u64>` is `Some(number)` or `None` (Rust's replacement for `number | undefined`).
+/// Why:
+/// A small `-maxdepth` bounds the walk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -104,9 +121,11 @@ pub fn find_max_depth(arguments: &[String]) -> Option<u64> {
     return smallest;
 }
 
-/// What:     `pub fn find_refusal(...) -> Option<String>` declares a public function returning `Some(message)` when the call
-///           must be refused and `None` when it may run.
-/// Why:      The shim calls it for `find` and `bfs` before launching anything.
+/// What:
+/// `pub fn find_refusal(...) -> Option<String>` declares a public function returning `Some(message)` when the call
+/// must be refused and `None` when it may run.
+/// Why:
+/// The shim calls it for `find` and `bfs` before launching anything.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
