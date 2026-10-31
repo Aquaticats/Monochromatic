@@ -266,6 +266,19 @@ and accepted with this record:
   (`rules_file_takes_a_path_or_an_array_of_entries` in
   `package/git-policy/cli/src/native/config_parse_acceptance_tests.rs`).
   Version-keyed coexistence applies only to third-party tools.
+- Command names follow pnpm's verbs
+  (amended 2026-10-31 after the user noted "Wait, pnpm doesn't have a "sync" keyword."):
+  `sync` becomes `install` (`--frozen-lockfile`,
+  `--no-frozen-lockfile`),
+  offline `lock` becomes `install --lockfile-only --offline`,
+  `lock --check` becomes `install --lockfile-only --frozen-lockfile`,
+  `update --check` becomes `outdated`,
+  `bin-paths` becomes `bin`,
+  `status` becomes `list` (pnpm leaves its drift exit code open, so it stays nonzero on drift),
+  and the mise tasks follow (`toolchain:install`,
+  `toolchain:list`,
+  and their `:global` forms).
+  Older wording in this record keeps the old names as history.
 - `update` takes optional tool ids (`update <tool>...`) and moves only those,
   and a plan entry with no lock row is resolved on its own without moving any other row,
   as `pnpm update <pkg>` and `pnpm install` after adding a dependency do.

@@ -274,6 +274,15 @@ each finished branch is reviewed and merged into `main`):
   Merge,
   then bump and release mpm-shadow,
   before the switch branch regenerates the repository lock.
+- Renaming to pnpm verbs (decision record,
+  "Toolchain (mpm-shadow)"):
+  the mpm-shadow agent renames the crate's commands,
+  the switch-branch agent renames the mise tasks and AGENTS.md `CM7`'s `toolchain:sync`.
+- Release fix 2026-10-31:
+  run `41172212354` failed packaging the cli against published core 0.1.0,
+  which lacks `output_scope` (merged after publication);
+  core and cli are bumped to 0.1.1 with the internal pin `=0.1.1`,
+  and the push publishes both and creates `monochromatic-file-enforcer-cli-v0.1.1`.
 - Running:
   the cutover switch branch (repoints,
   `20-env.toml`,
