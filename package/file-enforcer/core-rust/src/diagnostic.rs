@@ -56,7 +56,17 @@ pub struct Diagnostic {
     pub rule: Option<String>,
 }
 
-/// The `impl Diagnostic` block.
+/// What:
+///   Builders for a `Diagnostic` and the conversion to an output event.
+/// Why:
+///   A diagnostic starts with a code and a message and gains a hint,
+/// a path or a rule only when it has one,
+///   so call sites read as one chained expression.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new Diagnostic(code, message).withHint(hint).withPath(path)
+/// ```
 impl Diagnostic {
     /// What:
     ///  Build a diagnostic from a code and a message,
@@ -145,7 +155,18 @@ impl Diagnostic {
     }
 }
 
-/// The `impl fmt::Display for Diagnostic` block.
+/// What:
+///   How a `Diagnostic` prints as text:
+/// `code: message`.
+///   `fmt::Display` is the trait behind `format!("{}", value)` (TS:
+/// a `toString()` method).
+/// Why:
+///   Logs and test failures show the stable code first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// toString(): string { return `${this.code}: ${this.message}`; }
+/// ```
 impl fmt::Display for Diagnostic {
     /// What:
     ///  Print `code: message`,
@@ -162,5 +183,15 @@ impl fmt::Display for Diagnostic {
     }
 }
 
-/// The `impl std::error::Error for Diagnostic {}` block.
+/// What:
+///   Marks `Diagnostic` as an error value,
+/// so it can travel through `?` and `Box<dyn Error>`.
+///   The empty braces mean the trait needs nothing beyond `Display` and `Debug`.
+/// Why:
+///   Callers can treat a diagnostic like any other error without a wrapper type.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Diagnostic extends Error {}
+/// ```
 impl std::error::Error for Diagnostic {}

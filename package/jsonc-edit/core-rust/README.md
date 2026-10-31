@@ -36,6 +36,31 @@ This crate is the native sibling of the TypeScript package
    so a comment reached after a bare CR stays with the preceding value.
    `doc/decision/jsonc-comment-line-ownership.md` records that choice.
 
+## Source spans
+
+`parse_jsonc_with_spans` returns the same tree as `parse_jsonc` plus the position of every value and every object key:
+byte offset,
+line and column of the start and of the end (exclusive).
+Spans travel beside the tree,
+never inside it,
+so the tree structs,
+their equality and every caller that builds them by hand are unchanged.
+
+- `JsoncSpans::values` lists the spans of all values in document (pre-)order,
+   the root first;
+   `JsoncSpans::keys` lists the object member keys in source order.
+   A caller that walks the tree depth-first with one counter per list reads each node's span with no lookup.
+- Lines and columns count from 1.
+   The column counts Unicode scalar values,
+   only LF ends a line,
+   and a bare CR is one column.
+- Spans are recorded in the same single forward pass as the tree:
+   position counters only move forward,
+   so the cost stays linear in the text and the 512-container bound is unchanged.
+   `parse_jsonc` switches the recorder off and pays nothing.
+- `jsonc_position_at(source, offset)` gives the same line and column for a bare byte offset,
+   such as a parse error's `offset`.
+
 ## Dependencies
 
 None.

@@ -12,16 +12,43 @@
 //! function loadJsonc(path: string): unknown; // throws a Diagnostic naming path:line:col
 //! ```
 
+/// What:
+///  Imports the converter and the location table.
+/// Why:
+///  Loading a config means parsing it,
+/// converting it,
+/// and keeping where every node sits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { convertDocument } from './configConvert';
+/// import { ConfigLocations } from './configLocations';
+/// ```
+use crate::config_convert::convert_document;
+/// Imports `ConfigLocations` from `crate::config_locations`.
+use crate::config_locations::ConfigLocations;
 /// Imports `Diagnostic` from `crate::diagnostic`.
 use crate::diagnostic::Diagnostic;
-/// Imports `JsoncKind`,
-/// `JsoncValue`,
-/// `parse_jsonc` from `monochromatic_jsonc_edit`.
-use monochromatic_jsonc_edit::{JsoncKind, JsoncValue, parse_jsonc};
-/// Imports `Map`,
-/// `Number`,
-/// `Value` from `serde_json`.
-use serde_json::{Map, Number, Value};
+/// What:
+///  Imports the span-reporting parse and the shared line and column rule.
+/// Why:
+///  The config's positions come from the same parse that builds the tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { jsoncPositionAt, parseJsoncWithSpans } from 'monochromatic-jsonc-edit';
+/// ```
+use monochromatic_jsonc_edit::{jsonc_position_at, parse_jsonc_with_spans};
+/// What:
+///  Imports `Value` from `serde_json`.
+/// Why:
+///  The decoder reads a plain JSON value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // JSON values are plain JS objects in TS
+/// ```
+use serde_json::Value;
 /// Imports `Path` from `std::path`.
 use std::path::Path;
 
@@ -38,24 +65,32 @@ use std::path::Path;
 /// function lineAndColumn(source: string, offset: number): [number, number];
 /// ```
 pub fn line_and_column(source: &str, offset: usize) -> (usize, usize) {
-    let mut line: usize = 1;
-    let mut column: usize = 1;
-    for (index, character) in source.char_indices() {
-        if index >= offset {
-            break;
-        }
-        if character == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    return (line, column);
+    let position = jsonc_position_at(source, offset);
+    return (position.line, position.column);
 }
 
 /// What:
-///  Parse JSONC text into a plain JSON value;
+///  A parsed config:
+/// the plain JSON value and where every node of it sits in the file.
+/// Why:
+///  The decoder reads `value` and asks `locations` for the `file:line:col` of every problem it reports,
+///  so the two can never be paired with different files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ConfigDocument = { value: unknown; locations: ConfigLocations };
+/// ```
+#[derive(Clone, Debug)]
+pub struct ConfigDocument {
+    /// The config as plain JSON (comments dropped,
+    /// trailing commas accepted).
+    pub value: Value,
+    /// Where each node of `value` sits in the file.
+    pub locations: ConfigLocations,
+}
+
+/// What:
+///  Parse JSONC text into a plain JSON value plus the location of every node;
 /// comments are dropped,
 /// trailing commas are accepted.
 /// Why:
@@ -64,10 +99,10 @@ pub fn line_and_column(source: &str, offset: usize) -> (usize, usize) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseConfigText(source: string, displayPath: string): unknown;
+/// function parseConfigText(source: string, displayPath: string): ConfigDocument;
 /// ```
-pub fn parse_config_text(source: &str, display_path: &str) -> Result<Value, Diagnostic> {
-    let parsed = match parse_jsonc(source) {
+pub fn parse_config_text(source: &str, display_path: &str) -> Result<ConfigDocument, Diagnostic> {
+    let parsed = match parse_jsonc_with_spans(source) {
         Ok(value) => value,
         Err(error) => {
             let (line, column) = line_and_column(source, error.offset);
@@ -75,7 +110,8 @@ pub fn parse_config_text(source: &str, display_path: &str) -> Result<Value, Diag
             return Err(Diagnostic::new("config-syntax", &message).with_path(display_path));
         }
     };
-    return convert_value(&parsed, "", display_path);
+    let (value, locations) = convert_document(&parsed.value, &parsed.spans, display_path)?;
+    return Ok(ConfigDocument { value, locations });
 }
 
 /// What:
@@ -85,9 +121,9 @@ pub fn parse_config_text(source: &str, display_path: &str) -> Result<Value, Diag
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function loadConfigFile(path: string): unknown;
+/// function loadConfigFile(path: string): ConfigDocument;
 /// ```
-pub fn load_config_file(path: &Path) -> Result<Value, Diagnostic> {
+pub fn load_config_file(path: &Path) -> Result<ConfigDocument, Diagnostic> {
     let display_path = path.display().to_string();
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
@@ -104,85 +140,4 @@ pub fn load_config_file(path: &Path) -> Result<Value, Diagnostic> {
         }
     };
     return parse_config_text(&source, &display_path);
-}
-
-/// What:
-///  Convert one JSONC value (and its children) into a `serde_json::Value`,
-/// recording a JSON pointer for errors.
-/// Why:
-///  A recursive walk is fine here:
-/// the parser already refuses more than 512 nested containers.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function convert(value: JsoncValue, pointer: string): unknown;
-/// ```
-fn convert_value(value: &JsoncValue, pointer: &str, display_path: &str) -> Result<Value, Diagnostic> {
-    match &value.kind {
-        JsoncKind::Null => return Ok(Value::Null),
-        JsoncKind::Boolean { value: flag } => return Ok(Value::Bool(*flag)),
-        JsoncKind::Text { units, .. } => {
-            let text = match String::from_utf16(units) {
-                Ok(text) => text,
-                Err(_) => {
-                    let message = format!("{display_path}: the string at {pointer} holds an unpaired surrogate");
-                    return Err(Diagnostic::new("config-syntax", &message).with_path(display_path));
-                }
-            };
-            return Ok(Value::String(text));
-        }
-        JsoncKind::Number { raw, .. } => {
-            return convert_number(raw, pointer, display_path);
-        }
-        JsoncKind::Array { elements } => {
-            let mut items: Vec<Value> = Vec::new();
-            for (index, element) in elements.iter().enumerate() {
-                let child_pointer = format!("{pointer}/{index}");
-                items.push(convert_value(element, &child_pointer, display_path)?);
-            }
-            return Ok(Value::Array(items));
-        }
-        JsoncKind::Record { entries } => {
-            let mut object: Map<String, Value> = Map::new();
-            for entry in entries {
-                let key = match String::from_utf16(&entry.key.units) {
-                    Ok(key) => key,
-                    Err(_) => {
-                        let message = format!("{display_path}: a key under {pointer} holds an unpaired surrogate");
-                        return Err(Diagnostic::new("config-syntax", &message).with_path(display_path));
-                    }
-                };
-                if object.contains_key(&key) {
-                    let message = format!("{display_path}: the key {key:?} appears twice under {pointer}");
-                    return Err(Diagnostic::new("config-syntax", &message).with_path(display_path));
-                }
-                let child_pointer = format!("{pointer}/{key}");
-                object.insert(key, convert_value(&entry.value, &child_pointer, display_path)?);
-            }
-            return Ok(Value::Object(object));
-        }
-    }
-}
-
-/// What:
-///  Convert a number token into a JSON number.
-/// Why:
-///  The config only uses small integers;
-/// anything else is reported with its pointer instead of being rounded.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function convertNumber(raw: string, pointer: string): number;
-/// ```
-fn convert_number(raw: &str, pointer: &str, display_path: &str) -> Result<Value, Diagnostic> {
-    if let Ok(integer) = raw.parse::<i64>() {
-        return Ok(Value::Number(Number::from(integer)));
-    }
-    if let Ok(float) = raw.parse::<f64>()
-        && let Some(number) = Number::from_f64(float)
-    {
-        return Ok(Value::Number(number));
-    }
-    let message = format!("{display_path}: the number {raw} at {pointer} is not representable");
-    return Err(Diagnostic::new("config-syntax", &message).with_path(display_path));
 }

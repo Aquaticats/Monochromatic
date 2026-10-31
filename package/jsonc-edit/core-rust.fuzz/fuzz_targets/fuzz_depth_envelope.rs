@@ -28,10 +28,16 @@ use jsonc_edit_fuzz::generators::nested_document;
 ///       The accepted side must be shown to hold the depth it was built with.
 use jsonc_edit_fuzz::invariants::depth_of;
 /// What:
-///      Import the parser entry point.
+///  Import the span check.
 /// Why:
-///       The nesting limit is enforced while parsing.
-use monochromatic_jsonc_edit::parse_jsonc;
+///  The nesting boundary must hold for the span-reporting parse as well.
+use jsonc_edit_fuzz::assert_spans_consistent;
+/// What:
+///      Import both parser entry points.
+/// Why:
+///       The nesting limit is enforced while parsing,
+/// in the plain and the span-reporting parse alike.
+use monochromatic_jsonc_edit::{parse_jsonc, parse_jsonc_with_spans};
 
 /// The contract's accepted container count,
 ///  duplicated here on purpose:
@@ -59,9 +65,13 @@ fuzz_target!(|input: (u16, bool)| {
     if depth <= ACCEPTED_DEPTH {
         let parsed = parse_jsonc(&source).unwrap_or_else(|error| panic!("depth {depth} must parse: {error}"));
         assert_eq!(depth_of(&parsed), depth, "parsed depth does not match the generated nesting");
+        // The span-reporting parse must handle the deepest accepted document with spans that match its text.
+        assert_spans_consistent(&source);
         return;
     }
 
     let error = parse_jsonc(&source).err().unwrap_or_else(|| panic!("depth {depth} must be rejected"));
     assert_eq!(error.message, "JSONC nesting too deep", "depth {depth} was rejected for the wrong reason");
+    // The span-reporting parse must refuse the same over-deep text with the same error.
+    assert_eq!(parse_jsonc_with_spans(&source).err(), Some(error), "the spanned parse disagreed at depth {depth}");
 });

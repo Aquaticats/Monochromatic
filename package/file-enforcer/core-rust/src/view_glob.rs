@@ -35,6 +35,23 @@ fn is_pattern(segment: &str) -> bool {
 }
 
 /// What:
+///  Whether a glob segment is one this expander refuses:
+/// empty (a doubled or leading slash) or `**`.
+///  `&&str` is a borrow of a borrowed string,
+/// the item type when iterating a list of `&str`.
+/// Why:
+///  Recursive globs are not supported on purpose,
+/// and an empty segment would silently match the wrong directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isUnsupportedSegment(segment: string): boolean { return segment === '' || segment === '**'; }
+/// ```
+fn is_unsupported_segment(segment: &&str) -> bool {
+    return segment.is_empty() || **segment == *"**";
+}
+
+/// What:
 ///  Expand a pattern into the sorted repo-relative paths whose last segment has kind `want`.
 ///  Hidden names (starting with `.`) match only a segment that starts with `.` itself,
 /// as shell globs do.
@@ -49,7 +66,7 @@ fn is_pattern(segment: &str) -> bool {
 /// ```
 pub fn expand_glob(view: &mut View, pattern: &str, want: EntryKind) -> Result<Vec<String>, Diagnostic> {
     let segments: Vec<&str> = pattern.split('/').collect();
-    if pattern.is_empty() || segments.iter().any(|segment| return segment.is_empty() || *segment == "**") {
+    if pattern.is_empty() || segments.iter().any(is_unsupported_segment) {
         let message = format!("the glob {pattern:?} is empty or uses an unsupported ** or empty segment");
         return Err(Diagnostic::new("glob-invalid", &message));
     }

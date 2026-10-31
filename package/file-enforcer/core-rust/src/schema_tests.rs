@@ -14,7 +14,8 @@
 //! ```
 
 use crate::config_decode::{ConfigScope, decode_config};
-use crate::config_load::parse_config_text;
+use crate::config_load::{ConfigDocument, parse_config_text};
+use crate::config_locations::{ConfigLocations, Location, LocationNode};
 use crate::schema::{config_schema, config_schema_text};
 use serde_json::Value;
 use std::path::Path;
@@ -72,7 +73,29 @@ fn schema_accepts(validator: &jsonschema::Validator, sample: &Value) -> bool {
 /// function decoderAccepts(sample: unknown): boolean
 /// ```
 fn decoder_accepts(sample: &Value) -> bool {
-    return decode_config(sample, ConfigScope::Repository, "corpus").is_ok();
+    return decode_config(&document_of(sample), ConfigScope::Repository, "corpus").is_ok();
+}
+
+/// What:
+///  Build the decoder's input for one corpus sample:
+/// the sample re-read as config text,
+/// so its locations are real.
+/// A scalar root (`"x"`) is not valid config text,
+/// so it gets a one-node table.
+/// Why:
+///  The corpus includes a scalar root to prove the decoder refuses it,
+/// and the loader would stop that one earlier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function documentOf(sample: unknown): ConfigDocument
+/// ```
+fn document_of(sample: &Value) -> ConfigDocument {
+    if let Ok(document) = parse_config_text(&sample.to_string(), "corpus") {
+        return document;
+    }
+    let only = LocationNode { value: Location { line: 1, column: 1 }, key: None, items: Vec::new(), by_key: None };
+    return ConfigDocument { value: sample.clone(), locations: ConfigLocations { root: only } };
 }
 
 /// What:
@@ -94,7 +117,8 @@ fn section<'a>(corpus: &'a Value, name: &str) -> Vec<(&'a String, &'a Value)> {
 #[test]
 fn the_decoder_and_the_schema_agree_over_the_corpus() {
     let corpus = parse_config_text(&read_package_file("fixtures/config-corpus.jsonc"), "config-corpus.jsonc")
-        .expect("the corpus is valid JSONC");
+        .expect("the corpus is valid JSONC")
+        .value;
     let schema = config_schema();
     let validator = jsonschema::validator_for(&schema).expect("the derived schema compiles");
     let mut mismatches: Vec<String> = Vec::new();
@@ -136,9 +160,70 @@ fn the_per_user_kind_is_accepted_by_both_in_the_user_scope() {
         "excludePatterns": ["**/AGENTS.md"],
         "scopedServers": [{"id": "s", "name": "S", "fileNames": ["AGENTS.md"], "languageId": "markdown", "disabledLinters": []}]
     }]}"#;
-    let sample: Value = serde_json::from_str(text).expect("the sample is valid JSON");
+    let document = parse_config_text(text, "corpus").expect("the sample is valid JSONC");
     let validator = jsonschema::validator_for(&config_schema()).expect("the derived schema compiles");
-    assert!(schema_accepts(&validator, &sample));
-    assert!(decode_config(&sample, ConfigScope::User, "corpus").is_ok());
-    assert!(decode_config(&sample, ConfigScope::Repository, "corpus").is_err());
+    assert!(schema_accepts(&validator, &document.value));
+    assert!(decode_config(&document, ConfigScope::User, "corpus").is_ok());
+    assert!(decode_config(&document, ConfigScope::Repository, "corpus").is_err());
+}
+
+/// What:
+///  Collect every `description` string in a schema,
+/// at any depth.
+/// Why:
+///  The one-line rule is checked over all of them,
+/// not a sample.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function descriptions(node: unknown): string[]
+/// ```
+fn descriptions_of(node: &Value, found: &mut Vec<String>) {
+    match node {
+        Value::Array(items) => {
+            for item in items {
+                descriptions_of(item, found);
+            }
+        }
+        Value::Object(members) => {
+            for (key, child) in members {
+                match child {
+                    Value::String(text) if key == "description" => found.push(text.clone()),
+                    _ => descriptions_of(child, found),
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+#[test]
+fn every_schema_description_is_one_line_of_prose() {
+    let mut found: Vec<String> = Vec::new();
+    descriptions_of(&config_schema(), &mut found);
+    assert!(found.len() > 20, "the schema should describe its fields: {}", found.len());
+    for text in &found {
+        assert!(!text.contains('\n') && !text.contains('\r'), "{text:?}");
+        assert!(!text.contains("  ") && text == text.trim(), "{text:?}");
+    }
+    // Positive control: schemars really copies the rustdoc line breaks, so the check above has something to catch.
+    let mut raw: Vec<String> = Vec::new();
+    descriptions_of(&schemars::schema_for!(crate::config_types::Config).to_value(), &mut raw);
+    assert!(raw.iter().any(|text| return text.contains('\n')), "the unflattened schema has no line breaks to flatten");
+}
+
+#[test]
+fn flattening_touches_only_description_strings() {
+    let mut node: Value = serde_json::from_str(
+        r#"{"properties": {"description": {"type": "string", "description": "a\n  b\n\nc"}},
+            "default": "x\ny", "enum": ["p\nq"], "list": [{"description": " d\ne "}]}"#,
+    )
+    .expect("the sample is valid JSON");
+    crate::schema::flatten_descriptions(&mut node);
+    assert_eq!(node["properties"]["description"]["description"], "a b c");
+    assert_eq!(node["properties"]["description"]["type"], "string");
+    assert_eq!(node["default"], "x\ny");
+    assert_eq!(node["enum"][0], "p\nq");
+    assert_eq!(node["list"][0]["description"], "d e");
+    assert_eq!(crate::schema::one_line(""), "");
 }

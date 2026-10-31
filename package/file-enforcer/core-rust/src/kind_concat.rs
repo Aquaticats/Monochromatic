@@ -48,7 +48,15 @@ pub struct ConcatRule {
     pub mode: Option<u32>,
 }
 
-/// The `impl ConcatRule` block.
+/// What:
+///   The constructor of the `concat` rule.
+/// Why:
+///   The registry builds the rule from a decoded config entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new ConcatRule(id, output, parts, mode)
+/// ```
 impl ConcatRule {
     /// What:
     ///  Build from decoded fields,
@@ -66,7 +74,19 @@ impl ConcatRule {
     }
 }
 
-/// The `impl Rule for ConcatRule` block.
+/// What:
+///   How the `concat` kind plugs into the engine:
+/// its id,
+/// its kind name and its plan.
+/// Why:
+///   The plan evaluates each part,
+/// joins the text,
+/// and plans one write of the output file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ConcatRule implements Rule { id(); kind(); plan(view) }
+/// ```
 impl Rule for ConcatRule {
     /// The rule id.
     fn id(&self) -> &str {

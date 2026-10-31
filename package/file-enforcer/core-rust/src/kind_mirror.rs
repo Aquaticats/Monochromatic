@@ -27,6 +27,8 @@ use crate::real_fs::EntryKind;
 use crate::rule::{Change, Rule, RulePlan};
 /// Imports `View` from `crate::view`.
 use crate::view::View;
+/// Imports `Ordering` from `std::cmp`.
+use std::cmp::Ordering;
 /// Imports `BTreeSet` from `std::collections`.
 use std::collections::BTreeSet;
 
@@ -62,11 +64,14 @@ pub struct MirrorRule {
 /// type Tree = { files: Set<string>; directories: Set<string>; others: Set<string> };
 /// ```
 struct Tree {
-    /// The `files` field.
+    /// Paths of regular files under the walked root,
+    /// relative to it.
     files: BTreeSet<String>,
-    /// The `directories` field.
+    /// Paths of directories under the walked root,
+    /// relative to it.
     directories: BTreeSet<String>,
-    /// The `others` field.
+    /// Paths of symbolic links and special files under the walked root,
+    /// which a mirror refuses in its source and removes from its target.
     others: BTreeSet<String>,
 }
 
@@ -105,7 +110,38 @@ fn walk(view: &mut View, root: &str) -> Result<Tree, Diagnostic> {
     return Ok(tree);
 }
 
-/// The `impl Rule for MirrorRule` block.
+/// What:
+///  Order two directory paths deepest first,
+/// and by name descending among equals.
+///  `Ordering` is the three-way result of a comparison (TS:
+/// a negative,
+/// zero or positive `number`).
+///  `&&String` is a borrow of a borrowed string,
+/// which is the item type of the list being sorted.
+/// Why:
+///  A directory can only be removed after everything inside it,
+/// so the longest paths go first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deepestFirst(left: string, right: string): number { return right.length - left.length || (right < left ? -1 : 1); }
+/// ```
+fn deepest_first(left: &&String, right: &&String) -> Ordering {
+    return right.len().cmp(&left.len()).then(right.cmp(left));
+}
+
+/// What:
+///   How the `mirror` kind plugs into the engine:
+/// its id,
+/// its kind name and its plan.
+/// Why:
+///   The plan copies every source file into the target and removes target files and directories the source lacks,
+///   and refuses a source that holds a link or special file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class MirrorRule implements Rule { id(); kind(); plan(view) }
+/// ```
 impl Rule for MirrorRule {
     /// The rule id.
     fn id(&self) -> &str {
@@ -140,7 +176,11 @@ impl Rule for MirrorRule {
         for file in &source.files {
             let from_path = format!("{}/{file}", self.from);
             let Some(content) = view.read_bytes(&from_path)? else { continue };
-            let mode = view.mode_of(&from_path)?.map(|bits| return bits & 0o777);
+            // Only the permission bits are copied: the file-type bits that `mode_of` also reports are dropped.
+            let mut mode = view.mode_of(&from_path)?;
+            if let Some(bits) = mode {
+                mode = Some(bits & 0o777);
+            }
             plan.changes.push(Change::Write { path: format!("{}/{file}", self.to), content, mode });
         }
         for entry in target.files.iter().chain(target.others.iter()) {
@@ -154,7 +194,7 @@ impl Rule for MirrorRule {
                 stale_directories.push(directory);
             }
         }
-        stale_directories.sort_by(|left, right| return right.len().cmp(&left.len()).then(right.cmp(left)));
+        stale_directories.sort_by(deepest_first);
         for directory in stale_directories {
             plan.changes.push(Change::RemoveDirectory { path: format!("{}/{directory}", self.to) });
         }

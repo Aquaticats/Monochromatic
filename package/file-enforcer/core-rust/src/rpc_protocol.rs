@@ -22,21 +22,70 @@ fn v(text: &str) -> Value {
     return Value::String(text.to_string());
 }
 
-/// The protocol version both sides must report in the handshake.
+/// What:
+///   The protocol version,
+/// `1`.
+///   `u64` is an unsigned 64-bit integer (siblings:
+/// `u32`,
+/// `i64`).
+/// Why:
+///   Both sides must report it in the handshake,
+/// and a different value makes the server drain and exit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const PROTOCOL_VERSION = 1;
+/// ```
 pub const PROTOCOL_VERSION: u64 = 1;
 
-/// JSON-RPC error code:
-/// the line was not valid JSON.
+/// What:
+///   The JSON-RPC error code `-32700`.
+///   `i64` is a signed 64-bit integer,
+/// the type the error `code` member is read as.
+/// Why:
+///   The server answers a line that is not valid JSON with this code,
+/// as JSON-RPC 2.0 specifies.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const ERROR_PARSE = -32700;
+/// ```
 pub const ERROR_PARSE: i64 = -32700;
-/// JSON-RPC error code:
-/// the method is unknown or called before the handshake.
+/// What:
+///   The JSON-RPC error code `-32601`.
+/// Why:
+///   The server answers an unknown method,
+/// or any request sent before the handshake,
+/// with this code.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const ERROR_METHOD = -32601;
+/// ```
 pub const ERROR_METHOD: i64 = -32601;
-/// Server error code:
-/// the handshake found a different protocol,
-/// build or worktree.
+/// What:
+///   The server's own error code `-32001`.
+/// Why:
+///   The handshake carries it when the protocol version,
+///   the build identity or the worktree identity differs,
+///   so the client knows to wait for the old server to leave.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const ERROR_MISMATCH = -32001;
+/// ```
 pub const ERROR_MISMATCH: i64 = -32001;
-/// Server error code:
-/// the request could not be run.
+/// What:
+///   The server's own error code `-32002`.
+/// Why:
+///   A request that is well-formed JSON-RPC but cannot be run,
+///   such as a `run` without a config path,
+///   is answered with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const ERROR_FAILED = -32002;
+/// ```
 pub const ERROR_FAILED: i64 = -32002;
 
 /// What:

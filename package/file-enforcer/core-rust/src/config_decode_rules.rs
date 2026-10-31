@@ -14,6 +14,8 @@
 /// Imports `is_octal_mode`,
 /// `is_repo_relative` from `crate::config_decode`.
 use crate::config_decode::{is_octal_mode, is_repo_relative};
+/// Imports `pointer_segment` from `crate::config_locations`.
+use crate::config_locations::pointer_segment;
 /// Imports `HarperScopedServer`,
 /// `LicenseRequirement`,
 /// `TomlBlock`,
@@ -140,7 +142,7 @@ fn decode_package_licenses(reader: &mut Reader, object: &Map<String, Value>, poi
                     Some(path) => {
                         texts.insert(license.clone(), path.to_string());
                     }
-                    None => reader.error(&format!("{pointer}/texts/{license}"), "must be a string"),
+                    None => reader.error(&format!("{pointer}/texts/{}", pointer_segment(license)), "must be a string"),
                 }
             }
         }

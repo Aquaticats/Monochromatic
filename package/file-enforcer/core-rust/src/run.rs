@@ -43,11 +43,40 @@ use crate::run_finish::{finish_check, finish_write};
 /// `PathBuf` from `std::path`.
 use std::path::{Path, PathBuf};
 
-/// Exit code for a clean run.
+/// What:
+///   Exit code `0`.
+///   `i32` is a signed 32-bit integer,
+/// the type process exit codes use.
+/// Why:
+///   Every generated file is up to date and no rule failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const EXIT_CLEAN = 0;
+/// ```
 pub const EXIT_CLEAN: i32 = 0;
-/// Exit code for drift or a rule failure.
+/// What:
+///   Exit code `1`.
+/// Why:
+///   Scripts can tell that files differ from their rules,
+///   or a rule failed,
+///   apart from a mistake in how the tool was called.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const EXIT_DRIFT = 1;
+/// ```
 pub const EXIT_DRIFT: i32 = 1;
-/// Exit code for a bad command line or config.
+/// What:
+///   Exit code `2`.
+/// Why:
+///   The command line or the config is wrong,
+///   so nothing was planned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const EXIT_USAGE = 2;
+/// ```
 pub const EXIT_USAGE: i32 = 2;
 
 /// How many times a write replans after a read file changed before it gives up.
@@ -132,15 +161,15 @@ pub fn emit_errors(sink: &mut dyn EventSink, errors: &[Diagnostic]) {
 /// function loadRules(request: RunRequest, registry: RuleRegistry, sink: EventSink): Rule[] | number
 /// ```
 pub fn load_rules(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink) -> Result<Vec<Box<dyn Rule>>, i32> {
-    let value = match load_config_file(&request.config_path) {
-        Ok(value) => value,
+    let document = match load_config_file(&request.config_path) {
+        Ok(document) => document,
         Err(error) => {
             emit_errors(sink, &[error]);
             return Err(EXIT_USAGE);
         }
     };
     let display = request.config_path.display().to_string();
-    let config = match decode_config(&value, request.scope, &display) {
+    let config = match decode_config(&document, request.scope, &display) {
         Ok(config) => config,
         Err(errors) => {
             emit_errors(sink, &errors);
