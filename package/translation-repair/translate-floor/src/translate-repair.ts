@@ -6,8 +6,13 @@ import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import {
+  createReaskClaims,
+  type ModelClient,
+  type ReaskSeat,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   type DisputedWording,
   disputedWordingFindings,
@@ -117,6 +122,9 @@ function unrevisedFate({ contributorViolation, }: { readonly contributorViolatio
 
  @param priorMessages - exact messages that produced the candidate
 
+ @param reaskSeat - role, bench and shared record of the authors of the slate, which the re-ask of a reasoning runaway
+ reads (ledger B1079, B1080)
+
  @param signal - caller abort honored by the follow-up exchange
 
  @param perCallTimeoutMs - deadline for it
@@ -161,6 +169,7 @@ async function repairOneCandidate(
     declared = [],
     disputedWordings = [],
     priorMessages,
+    reaskSeat,
     signal,
     perCallTimeoutMs,
     l,
@@ -175,6 +184,7 @@ async function repairOneCandidate(
     readonly declared?: readonly DeclaredNamePair[];
     readonly disputedWordings?: readonly DisputedWording[];
     readonly priorMessages: readonly ChatMessage[];
+    readonly reaskSeat: ReaskSeat;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -317,6 +327,7 @@ async function repairOneCandidate(
         responseFormat: TRANSLATE_REPAIR_RESPONSE_FORMAT,
         validate: isTranslateRepairWire,
         stage: REPAIR_STAGE,
+        reaskSeat,
         l: rl,
       },);
     }
@@ -518,6 +529,19 @@ export async function repairInvalidCandidates(
   readonly findings: readonly string[];
 }> {
   /**
+   The models that wrote the candidates, each seated on this slice.
+   */
+  const authors = voices.map(function authorOf(voice,): RosterModelId {
+    return voice.modelId;
+  },);
+
+  /**
+   The models asked for the authors of this slice, which the authors share so that a runaway author is never re-asked of
+   a model another author's re-ask took (ledger B1080).
+   */
+  const claims = createReaskClaims();
+
+  /**
    One outcome per heard voice.
    */
   const outcomes = await allInInputOrder({
@@ -533,6 +557,14 @@ export async function repairInvalidCandidates(
         declared,
         disputedWordings,
         priorMessages,
+        // AN AUTHOR IS ASKED ABOUT ITS FINDINGS IN THE TRANSLATOR ROLE, with the authors of the slate as the bench, so
+        // a runaway author is re-asked of a model its card does not hold out of that role and that wrote none of the
+        // candidates (ledger B1079). Without a seat the re-ask asks no other model at all.
+        reaskSeat: {
+          role: 'translator',
+          bench: authors,
+          claims,
+        },
         signal,
         perCallTimeoutMs,
         l,

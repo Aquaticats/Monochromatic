@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE TRANSLATOR ROLE where an author is asked about the findings on its candidate',
       fn: async () => {
-        const source = await readFile(new URL('./translate-repair.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('translate-repair.ts', import.meta.url,), 'utf8',);
         expect(source.includes('reaskSeat: {',),).toBe(true,);
         expect(source.includes('role: \'translator\',',),).toBe(true,);
       },
