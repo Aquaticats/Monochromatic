@@ -333,6 +333,38 @@ and accepted with this record:
     that is accepted by this choice,
     so the conformance test compares ESR against the locked Mozilla value,
     not against npm.
+  - Spelling:
+    exact text only.
+    Asked between exact text and browserslist's full leniency
+    (case folding,
+    JavaScript whitespace,
+    optional plural,
+    leading zeros),
+    the user wrote "Whatever is easier to implement.";
+    exact text is,
+    since it avoids every JavaScript-against-Rust whitespace and case difference the spec lists.
+    Any other spelling fails with "not implemented" naming the line.
+  - Config file:
+    the user chose "Accept them" with the note "Accept # comments and blank lines and reject everything else.",
+    so `#` comments (with browserslist's comment rule from the spec) and blank lines are accepted;
+    commas as separators,
+    CR line endings,
+    sections,
+    and every other `parseConfig` feature fail with "not implemented".
+  - Adopted from "only supporting the queries we use now",
+    veto open:
+    only the count 1 is supported in `last N ...` queries
+    (other counts,
+    including browserslist's `last 0` and large-count quirks,
+    fail with "not implemented"),
+    and `not dead` evaluates browserslist's own `dead` expansion
+    (`Baidu >= 0`,
+    `ie <= 11`,
+    `ie_mob <= 11`,
+    `bb <= 10`,
+    `op_mob <= 12.1`,
+    `samsung 4`)
+    internally against the locked data rather than a hard-coded result.
   Evidence that led here:
   `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.
 - HTTP client,
