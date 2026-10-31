@@ -130,7 +130,7 @@ function reasonsToLeaveOut(
 
  @param readings - census table the shares are read from
 
- @returns The same models: measured ones by share, then by roster position, then the unmeasured ones in roster order
+ @returns Same models: measured ones by share, then by roster position, then the unmeasured ones in roster order
 
  @example
  ```ts

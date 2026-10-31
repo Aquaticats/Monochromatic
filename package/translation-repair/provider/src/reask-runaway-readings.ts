@@ -19,8 +19,8 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 //   them pass runs, and 582,710 completed calls.
 // - THE SAME COMMAND RE-RUN AT 01:41 UTC ON 2026-10-31 READ 106,377 logs, 40 pass-run logs and 0 completed calls: the
 //   `corpus-pass-<name>.log` files of the runs from `XingZ6016` to `XingZ6022` are no longer under the agent root
-//   (their run directories are). The numbers below therefore cannot be reproduced from the logs now on disk, and the
-//   next census over pass logs that survive is the one that should replace them (ledger B1078).
+//   (their run directories are). The numbers of `RUNAWAY_READINGS` therefore cannot be reproduced from the logs now
+//   on disk, and the next census over pass logs that survive is the one that should replace them (ledger B1078).
 // - The census seats a call by the model id the provider served it under, with the retired DeepSeek ids of ledger
 //   B1071 counted under the DeepSeek seat; 53,706 calls on ids no card names are in no row.
 // - Claude cards are not here (the Claude route is never a re-ask target), nor is the decision-only seat.
