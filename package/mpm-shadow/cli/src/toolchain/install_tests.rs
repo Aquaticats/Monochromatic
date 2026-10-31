@@ -16,6 +16,7 @@ use super::install::install_tool;
 use super::install_archive::safe_file_name;
 use super::install_bin::{percent_decode, release_tag_url, seed_bin_config};
 use super::install_support::{atomic_symlink, restore_exec_bits};
+use super::cargo_installs::version_directory;
 use super::layout::tool_install_dir;
 use super::model::{Artifact, Request};
 
@@ -38,7 +39,11 @@ fn cargo_binstall_runs_with_the_locked_version_the_features_and_the_token() {
     rig.lock.tools[6].declaration.options.cargo_features = Some(vec!["a".to_string(), "b".to_string()]);
     let tool = rig.tool("cargo:fd-find");
     install_tool(&rig.context(), &tool).expect("installed");
-    assert_eq!(rig.runner.lines(), vec!["cargo binstall --no-confirm --version 1.2.3 --features=a --features=b fd-find".to_string()]);
+    let root = version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3");
+    assert_eq!(
+        rig.runner.lines(),
+        vec![format!("cargo binstall --no-confirm --root {} --version 1.2.3 --features=a --features=b fd-find", root.display())]
+    );
     let env = rig.runner.calls()[0].env.clone().expect("an explicit environment");
     assert_eq!(env.get("GITHUB_TOKEN").map(String::as_str), Some("secret-token"));
     assert_eq!(env.get("HOME").map(String::as_str), Some(rig.scope.home.to_str().expect("utf-8")));

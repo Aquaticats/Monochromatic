@@ -258,3 +258,19 @@ mod verify_archive_tests;
 /// The unit tests of the shared helpers.
 #[cfg(test)]
 mod util_tests;
+
+/// Test doubles for `cargo binstall --root`.
+#[cfg(test)]
+mod fakes_cargo;
+
+/// The unit tests of the version-keyed cargo installs and the older-lock warnings.
+#[cfg(test)]
+mod cargo_installs_tests;
+
+/// The unit tests of the launcher's decision.
+#[cfg(test)]
+mod launcher_tests;
+
+/// The unit tests of the cleanup of unnamed cargo versions.
+#[cfg(test)]
+mod prune_cargo_tests;
