@@ -22,6 +22,7 @@ No code has been changed yet; the user has not confirmed the shared understandin
   Correction after the reboot: the `updateConfig` hook does run there, and on every other verb; see "Research after the reboot".
 - Workspace manifests and `file:` dependency manifests both reach the hook without a `dist` key,
   so a `dist` filter would police `file:` dependencies; the hook must use a workspace-name set built from `package/*/*`.
+  (Moot under an `updateConfig` hook, which never sees dependency manifests.)
 - `syncpack` 15.3.3 can express the policy only with workarounds and passes named catalogs.
   `eslint-plugin-pnpm` 1.9.1 leaks `workspace:*.0` and peers starting with `*`, defaults to a destructive autofix, and needs ESLint beside oxlint.
   Both were run in CachyOS containers; neither is adopted.
@@ -49,6 +50,8 @@ No code has been changed yet; the user has not confirmed the shared understandin
   `core-pnpm` stays parsing-only.
 - Lint scope: every tracked `package.json`, including the root and `package-paused/`.
   The hook covers only workspace manifests, identified by a workspace-name set.
+  Superseded by "Research after the reboot": an `updateConfig` hook reads manifests from disk and enumerates the workspace
+  from `config.workspacePackagePatterns`, so no name set and no `dist` classifier is needed; the root manifest is covered too.
 - The check reports every violation in one run, naming the file, the section and the dependency.
 - `zod` moves into the catalog as `>=4.6.7` and `cost-dismissal` switches from `^4.6.7` to `catalog:`.
   An intermediate edit of this handover wrongly said `zod` was already in the catalog;
@@ -149,9 +152,10 @@ Enumerated late; the repo's grilling rule asks for this first.
 Nothing here is picked yet beyond the first item.
 
 - The hook-facing validator file: `node:` builtins only (measured necessity, because the hook loads before `node_modules`).
-- The hook must build a workspace-name set (plus the root name) from `package/*/*`,
-  but `pnpm-workspace.yaml` parsing normally needs the `yaml` library, which the hook cannot import.
-  Open: scan `package/*/*/package.json` with `node:fs`, or parse the one `packages:` key by hand.
+- Superseded: the workspace-name set and the YAML question.
+  `updateConfig` hands the hook `config.workspacePackagePatterns` (measured: `["pkg/*"]` in the fixture),
+  so the hook expands those globs with `node:fs` and needs neither a name set nor a YAML parser.
+  What remains open is how the hook expands `*`, `**` and `!` patterns, and failing closed on a pattern it cannot expand.
 - The rest of `core-specifier-policy` and `cli-specifier-policy` would follow repo rules:
   `@monochromatic-dev/logger-core`, `@monochromatic-dev/or-throw-core`, `string-dedent` and the test harness.
   Open: how `git ls-files` is run (an existing `package/git-executable` may own that; not yet read).
@@ -209,6 +213,19 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
   `--pnpmfile ./missing.mjs` fails with exit 2 rather than skipping.
   A deliberate bypass therefore exists in three spellings (flag, `--config.` form, `pnpm_config_` environment variable),
   which is why the source lint stays as the backstop.
+- Probe `~/temp/agent/catalog-updateconfig-add.ts` (same fixture, hook and manifest restored afterwards):
+  - The `updateConfig` argument carries `workspacePackagePatterns` (value `["pkg/*"]` in the fixture), `packages`, `ignorePnpmfile`,
+    `catalogs`, `catalogMode` and `workspaceDir`, among a long list of settings.
+    The earlier probe logged only a fixed key list that omitted `workspacePackagePatterns`.
+  - `updateConfig` and `readPackage` coexist in one `export const hooks` object; both ran.
+  - With a violation planted, `pnpm add is-odd`, `pnpm update` and `pnpm remove is-number --filter @fx/a` all exit 1 with the
+    policy message.
+    The check runs before those verbs read anything, so pnpm cannot repair a violation: the repair is a hand edit of the
+    manifest (or the bypass).
+    This differs from the `readPackage` finding that a throwing hook leaves `pnpm add` working.
+    The hook's message must therefore name the file, section, dependency and the hand-edit remedy.
+- Landing order: a throwing `updateConfig` makes every pnpm verb except `config get` and `--version` exit 1 while the
+  `zod` violation exists, so the `zod` fix and the hook must land in the same commit.
 - Cost: the same scan over the real repo's workspace manifests took a median of 4.9 ms over 15 in-process runs
   (minimum 4.4, maximum 9.0 on the first), and it found the one real violation, `zod` in `cost-dismissal`.
   This is the scan alone, not pnpm's own startup.
