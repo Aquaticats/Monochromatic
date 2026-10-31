@@ -16,10 +16,7 @@ import {
   PNPR_CONFIG_PATH,
   PNPR_EXCLUDED_PACKAGES,
 } from './generated-config-settings.ts';
-import {
-  PnprConfigShapeError,
-  readPnprPublishTarget,
-} from './publish-plan.ts';
+import { readPnprPublishTarget, } from './publish-plan.ts';
 import { readWorkspaceEntries, } from './registry-read.ts';
 
 //region Generate and check the pnpr server config
@@ -309,11 +306,9 @@ function readTrustedNames(
       .packageNames;
   }
   catch (error) {
-    if (error instanceof PnprConfigShapeError) {
-      logger.debug(`trust list unreadable: ${error.message}`,);
-      return TRUST_LIST_UNREADABLE;
-    }
-    throw error;
+    // Malformed YAML and a missing OIDC workload both mean the file cannot be compared package by package.
+    logger.debug(`trust list unreadable: ${String(error,)}`,);
+    return TRUST_LIST_UNREADABLE;
   }
 }
 

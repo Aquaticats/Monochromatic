@@ -812,6 +812,22 @@ await describe({
           },
         },),
         it({
+          name: 'reports a file that is not valid YAML as unreadable rather than failing on the parser',
+          fn: async () => {
+            await withWorkspace({
+              packages: [PUBLISHED_A,],
+              body: async (rootDir,) => {
+                await mkdir(dirname(join(rootDir, PNPR_CONFIG_PATH,),), { recursive: true, },);
+                await writeFile(join(rootDir, PNPR_CONFIG_PATH,), 'a: [b\n', 'utf8',);
+                const caught = await caughtBy(async () => checkPnprConfig({ rootDir, },),);
+                expect(caught,).toBeInstanceOf(PnprConfigDriftError,);
+                const drift = caught as InstanceType<typeof PnprConfigDriftError>;
+                expect(drift.message,).toContain('no readable OIDC trust list',);
+              },
+            },);
+          },
+        },),
+        it({
           name: 'reports a file without a readable trust list',
           fn: async () => {
             await withWorkspace({

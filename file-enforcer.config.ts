@@ -32,7 +32,10 @@ import {
   type GlobResults,
 } from '@monochromatic-dev/file-enforcer-core/ts';
 
-import { generatePnprConfig, } from '@monochromatic-dev/config-pnpr/ts';
+import {
+  PNPR_CONFIG_PATH,
+  renderPnprConfigForWorkspace,
+} from '@monochromatic-dev/config-pnpr/ts';
 import type browserslist from 'browserslist';
 
 /**
@@ -2053,6 +2056,27 @@ async function generateCargoManifests(): Promise<void> {
   },);
 }
 
+/**
+ Writes the pnpr registry config that `@monochromatic-dev/config-pnpr` renders.
+ pnpr owns the rendering and its own check (doc/decision/file-enforcer-rust-rewrite.md, "Elsewhere");
+ the write still goes through `overwrite` so `file-enforcer --check` keeps reporting drift without touching disk.
+
+ @example
+ ```ts
+ await generatePnprConfigFile();
+ ```
+ */
+async function generatePnprConfigFile(): Promise<void> {
+  /**
+   Config text the pnpr generator renders from the workspace manifests.
+   */
+  const { content, } = await renderPnprConfigForWorkspace({ rootDir: '.', },);
+  await overwrite({
+    dest: `./${PNPR_CONFIG_PATH}`,
+    content,
+  },);
+}
+
 await assertForbiddenRootContextAbsent();
 
 // Normalize hand-authored task headers before the root mise.toml is regenerated from its source.
@@ -2133,8 +2157,7 @@ ${await cat(['./AGENTS.md',],)}`,
 
   generateCargoManifests(),
 
-  // pnpr owns its registry config (doc/decision/file-enforcer-rust-rewrite.md, "Elsewhere"); this call keeps the sync complete.
-  generatePnprConfig({ rootDir: '.', },),
+  generatePnprConfigFile(),
 
   generateResolvedBrowserslistTargets(),
 

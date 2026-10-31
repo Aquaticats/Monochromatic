@@ -62,7 +62,7 @@ Through this route,
     removing,
     or changing the entry points of a workspace package;
    `mise run sync:files` does the same through the root `file-enforcer.config.ts`,
-   which calls this package's generator.
+   which writes the text this package renders (so `file-enforcer --check` still reports its drift).
    `mise run //package/config/pnpr:check:config` writes nothing and exits non-zero,
    naming the file and every package that differs,
    when the checked-in file is not what the generator renders.
@@ -70,7 +70,8 @@ Through this route,
 
 ## Which packages publish
 
-`generatePnprConfig` (`src/generated-config-selection.ts`) lists every workspace package that:
+`generatePnprConfig` (selection in `selectPnprPublishedNames`, `src/generated-config-selection.ts`)
+lists every workspace package that:
 
 - is outside `package/test-fixture/`,
 - still declares `exports`,

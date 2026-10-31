@@ -341,7 +341,10 @@ async function publishMissingVersions(): Promise<void> {
     throw new Error(`pnpr publish incomplete; fix each package or add it to PNPR_EXCLUDED_PACKAGES in package/config/pnpr/src/generated-config-settings.ts:\n${[...failures,].map(function toLine([
       name,
       reason,
-    ]: readonly [string, string],) {
+    ]: readonly [
+      string,
+      string
+    ],) {
       return `- ${name}: ${reason}`;
     },)
       .join('\n',)}`,);
