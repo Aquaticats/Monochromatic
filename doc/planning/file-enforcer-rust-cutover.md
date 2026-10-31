@@ -5,8 +5,8 @@
 Update 2026-10-31:
 the switch series is built on branch `worktree-agent-acfa05abe2fe1d3fa` and waits for the coordinator's merge;
 the plan and lock were converted and rebuilt with mpm-shadow 0.2.0 (64 tools, no version moved),
-the `mpm-shadow` plan entry is a tag-pinned release archive (a directed deviation from `PIN`, kept so the lock records
-the bootstrap archive's SHA-256), CI and the `Dockerfile` run the Rust tools, `package/file-enforcer/core` is deleted,
+the `mpm-shadow` plan entry is the repository's release archive, floating on `options.tagPrefix`
+(`monochromatic-mpm-shadow-v`) so the lock records the bootstrap archive's SHA-256 without a tag pin, CI and the `Dockerfile` run the Rust tools, `package/file-enforcer/core` is deleted,
 and the clean-container check ran against the published 0.1.1 release.
 The text that follows is the inventory as it stood before the switch.
 

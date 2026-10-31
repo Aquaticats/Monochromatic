@@ -377,8 +377,8 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  `mpm.managers.toml` carries the pinned extension manager `cargo-binstall-monochromatic-mpm-shadow`,
  and `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
  installs the release archive's binary through `cargo binstall`.
- Moved at the cutover (2026-10-31): the plan entry is now `mpm-shadow`, a release archive pinned in
- `toolchain.plan.jsonc` so the lock records its SHA-256 for the bootstrap;
+ Moved at the cutover (2026-10-31): the plan entry is now `mpm-shadow`, a release archive of this repository
+ that floats (`@latest` with `options.tagPrefix`) so the lock records its SHA-256 for the bootstrap;
  `.config/mise/conf.d/20-env.toml` holds the `PATH` entries;
  `mpm.managers.toml` and the extension install command are gone (`mpm-shadow install` runs `cargo binstall` itself).
 
