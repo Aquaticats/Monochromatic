@@ -22,6 +22,10 @@ import {
   alternateModelsFor,
   describeLeftOut,
 } from './reask-alternate-models.ts';
+import {
+  takenFor,
+  takeFor,
+} from './reask-claims.ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
   contextRoot,
@@ -68,6 +72,11 @@ import {
 // The uniqueness wrapper samples one model and prompt once; the same bytes asked
 // again would be the same sample by that rule, and would come back from its
 // cache in no time.
+//
+// A RUNAWAY'S SEAT IS NAMED, OR NO OTHER MODEL IS ASKED (ledger B1079). The request's `reaskSeat` carries the role
+// whose holds decide which models may take the re-ask, the bench, and the record of the models already asked for the
+// seats of the question (`reask-claims.ts`), so that two seats that ran away together are never re-asked of one model.
+// A request that names no seat is re-asked of its own model, on a warning that says so.
 //
 // A WORDING OF ITS OWN, not either of the stage recovery round's
 // (`recovery-nudge.ts`). That round later re-asks every seat still unreadable
@@ -247,25 +256,43 @@ export async function reaskElsewhereNudged<ValueT,>(
       l: rl,
     },);
 
+    // A REQUEST THAT NAMES NO SEAT HAS NO ROLE TO READ THE HOLDS OF (ledger B1079), so no other model is asked on a
+    // guess: the roster-wide role, which honours the fewest holds, once asked models their cards drop from the seat.
     /**
-     Models to try in the order of their share of runaways, and the ones left out of the seat's role or bench.
+     Seat the request names, which carries the role, the bench and the record of the question.
+     */
+    const { reaskSeat, } = request;
+    if (reaskSeat === undefined) {
+      ol.warn(
+        `${request.modelId}: the request names no seat, so no role says which model may take the re-ask of a `
+          + `reasoning runaway; re-asking ${request.modelId} on another provider, as before`,
+      );
+      return NO_OTHER_MODEL_TOOK_IT;
+    }
+
+    /**
+     Models to try in the order of their share of runaways, and the ones left out of the seat's role, bench, earlier
+     asks for this question or holds.
      */
     const {
       alternates,
       leftOut,
     } = alternateModelsFor({
       modelId: request.modelId,
-      // Conditional spread keeps the seat's role and bench absent for a caller that names none.
-      ...((request.reaskSeat === undefined)
-        ? {}
-        : {
-          role: request.reaskSeat
-            .role,
-          bench: request.reaskSeat
-            .bench,
-        }),
+      role: reaskSeat.role,
+      bench: reaskSeat.bench,
+      askedForOtherSeats: takenFor({ seat: reaskSeat, },),
     },);
     for (const modelId of alternates) {
+      // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts`): another seat of the question that
+      // ran away at the same time may have taken this model since the list was made.
+      if (!takeFor({
+        seat: reaskSeat,
+        modelId,
+      },)) {
+        ol.info(`${request.modelId}: ${modelId} was asked for another seat of this question since the list was made`,);
+        continue;
+      }
       ol.info(
         `${request.modelId}: reasoning runaway on ${avoid} (a length stop with no content); `
           + `re-asking ${modelId} instead, plain question; left out: ${describeLeftOut({ leftOut, },)}`,

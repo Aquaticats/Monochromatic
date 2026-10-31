@@ -32,6 +32,15 @@ import {
 // answer is recorded as the voice of the seat that ran away; the same model's own answer is already a voice of its
 // own seat, and two of them would count one model twice. A caller that knows its bench passes it.
 //
+// ONE VOICE PER QUESTION: A MODEL ASKED FOR ANOTHER SEAT OF THE QUESTION IS NOT ASKED (the owner's rule of 2026-10-30,
+// ledger B1080). Two seats that ran away together would each take the first model left, and the plain question to a
+// model is its own first ask's digest, so one claimed reply would be two voices. `reask-claims.ts` holds the record
+// the seats share; this list leaves out what the record holds, and the asking seat takes its model from the record
+// before it asks.
+//
+// THE ROLE HAS NO DEFAULT (ledger B1079). A caller that left it out was asked as the roster-wide role, which honours the
+// fewest holds, so a wide gather after a runaway was re-asked of exactly the models its card drops from the wide seats.
+//
 // THREE KINDS OF SEAT ARE ALWAYS LEFT OUT and are not named in the log, since no run changes them: the model that
 // ran away; a decision-only seat, which answers a typed question and never a chat completion; and the Claude route,
 // which is metered on the owner's key ("This key would have $200 every month so be careful what you use", the lead's
@@ -63,7 +72,7 @@ export type LeftOutModel = {
 
  @example
  ```ts
- const { alternates, leftOut, } = alternateModelsFor({ modelId: 'deepseek-v4.1-flash', },);
+ const { alternates, leftOut, } = alternateModelsFor({ modelId: 'deepseek-v4.1-flash', role: 'roster', },);
  ```
  */
 export type AlternateModels = {
@@ -89,11 +98,13 @@ export type AlternateModels = {
 
  @param askedAlready - models already asked for this seat
 
- @returns Reasons, in the order bench, earlier ask, holds; empty where the model may be asked
+ @param askedForOtherSeats - models already asked for other seats of the question
+
+ @returns Reasons, in the order bench, earlier ask, ask for another seat, holds; empty where the model may be asked
 
  @example
  ```ts
- const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', bench: [], askedAlready: [], },);
+ const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', bench: [], askedAlready: [], askedForOtherSeats: [], },);
  ```
  */
 function reasonsToLeaveOut(
@@ -102,11 +113,13 @@ function reasonsToLeaveOut(
     role,
     bench,
     askedAlready,
+    askedForOtherSeats,
   }: {
     readonly candidate: RosterModelId;
     readonly role: SeatRole;
     readonly bench: readonly RosterModelId[];
     readonly askedAlready: readonly RosterModelId[];
+    readonly askedForOtherSeats: readonly RosterModelId[];
   },
 ): readonly string[] {
   /**
@@ -119,6 +132,7 @@ function reasonsToLeaveOut(
   return [
     ...(bench.includes(candidate,) ? ['seated on the bench of this question',] : []),
     ...(askedAlready.includes(candidate,) ? ['already asked for this seat',] : []),
+    ...(askedForOtherSeats.includes(candidate,) ? ['already asked for another seat of this question',] : []),
     ...((holds.length === 0) ? [] : [`held out of the ${role} role by ${holds.join(' and ',)}`,]),
   ];
 }
@@ -184,11 +198,15 @@ function orderedByRunawayShare(
 
  @param modelId - model that ran away, left out
 
- @param role - role of the seat that ran away; the roster-wide role where the request names none
+ @param role - role of the seat that ran away, with no default so that a new caller cannot leave it out and ask a model
+ its card holds out of the seat (ledger B1079)
 
  @param bench - models seated on the question, left out so one model is never two voices
 
  @param askedAlready - models an earlier re-ask for this seat went to, left out so the next ask is another model's
+
+ @param askedForOtherSeats - models asked for other seats of the question, left out so one model gives at most one
+ voice per question (ledger B1080)
 
  @param readings - census table the order is read from
 
@@ -197,21 +215,23 @@ function orderedByRunawayShare(
 
  @example
  ```ts
- const [first,] = alternateModelsFor({ modelId: 'deepseek-v4.1-flash', },).alternates;
+ const [first,] = alternateModelsFor({ modelId: 'deepseek-v4.1-flash', role: 'roster', },).alternates;
  ```
  */
 export function alternateModelsFor(
   {
     modelId,
-    role = 'roster',
+    role,
     bench = [],
     askedAlready = [],
+    askedForOtherSeats = [],
     readings = RUNAWAY_READINGS,
   }: {
     readonly modelId: RosterModelId;
-    readonly role?: SeatRole;
+    readonly role: SeatRole;
     readonly bench?: readonly RosterModelId[];
     readonly askedAlready?: readonly RosterModelId[];
+    readonly askedForOtherSeats?: readonly RosterModelId[];
     readonly readings?: readonly RunawayReading[];
   },
 ): AlternateModels {
@@ -238,6 +258,7 @@ export function alternateModelsFor(
       role,
       bench,
       askedAlready,
+      askedForOtherSeats,
     },);
     return {
       modelId: candidate,

@@ -20,6 +20,12 @@ export {
   type LeftOutModel,
 } from './reask-alternate-models.ts';
 export {
+  createReaskClaims,
+  type ReaskClaims,
+  takenFor,
+  takeFor,
+} from './reask-claims.ts';
+export {
   MIN_CALLS_TO_MEASURE,
   RUNAWAY_READINGS,
   type RunawayReading,

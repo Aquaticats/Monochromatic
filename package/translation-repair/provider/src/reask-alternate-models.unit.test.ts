@@ -64,7 +64,7 @@ await describe({
       name: 'ORDERS THE OTHER MODELS BY THE SHARE OF THEIR CALLS THAT RAN AWAY, lowest first, as the cap census of '
         + '2026-10-30 read it pooled over providers, and breaks a tie in roster order',
       fn: async () => {
-        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).alternates,).toEqual([
+        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', },).alternates,).toEqual([
           SEAT_HYPER_TEXT_BEDROCK,
           SEAT_BEDROCK_ONLY_TEXT,
           SEAT_OPENROUTER_ONLY,
@@ -106,7 +106,7 @@ await describe({
           { modelId: SEAT_SYNTHETIC_VISION_WITHHELD, calls: MIN_CALLS_TO_MEASURE - 1, runaways: 0, },
           { modelId: SEAT_HYPER_VISION, calls: 1_000, runaways: 5, },
         ] as const;
-        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, readings, },).alternates.slice(0, 4,),)
+        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', readings, },).alternates.slice(0, 4,),)
           .toEqual([
             SEAT_HYPER_TEXT_BEDROCK,
             SEAT_HYPER_VISION,
@@ -120,11 +120,11 @@ await describe({
       name: 'LEAVES OUT THE MODEL THAT RAN AWAY wherever it stands in the order, so the lowest share is skipped for '
         + 'itself and the highest for itself',
       fn: async () => {
-        expect(alternateModelsFor({ modelId: SEAT_HYPER_TEXT_BEDROCK, },).alternates[0],).toBe(SEAT_BEDROCK_ONLY_TEXT,);
-        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR, },).alternates.at(-1,),).toBe(
+        expect(alternateModelsFor({ modelId: SEAT_HYPER_TEXT_BEDROCK, role: 'roster', },).alternates[0],).toBe(SEAT_BEDROCK_ONLY_TEXT,);
+        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR, role: 'roster', },).alternates.at(-1,),).toBe(
           SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
         );
-        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).alternates.includes(
+        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', },).alternates.includes(
           SEAT_HYPER_OPENROUTER_UNMEASURED,
         ),).toBe(false,);
       },
@@ -139,7 +139,7 @@ await describe({
           /**
            The list for this model.
            */
-          const { alternates, leftOut, } = alternateModelsFor({ modelId: ranAway, },);
+          const { alternates, leftOut, } = alternateModelsFor({ modelId: ranAway, role: 'roster', },);
           expect(alternates.length,).toBe(9,);
           expect(alternates.some(function onClaudeOrDecides(seat,): boolean {
             return seat.startsWith('claude-',) || (seat === SEAT_OPENROUTER_DECISIONS);
@@ -202,6 +202,7 @@ await describe({
       fn: async () => {
         const { alternates, leftOut, } = alternateModelsFor({
           modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
+          role: 'roster',
           bench: [SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,],
         },);
         expect(alternates[0],).toBe(SEAT_OPENROUTER_ONLY,);
@@ -220,6 +221,7 @@ await describe({
       fn: async () => {
         const { alternates, leftOut, } = alternateModelsFor({
           modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
+          role: 'roster',
           askedAlready: [SEAT_HYPER_TEXT_BEDROCK,],
         },);
         expect(alternates[0],).toBe(SEAT_BEDROCK_ONLY_TEXT,);
@@ -234,6 +236,7 @@ await describe({
       fn: async () => {
         const { alternates, leftOut, } = alternateModelsFor({
           modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
+          role: 'roster',
           bench: CENSUS_ORDER_WITHOUT_DEEPSEEK,
         },);
         expect(alternates,).toEqual([],);

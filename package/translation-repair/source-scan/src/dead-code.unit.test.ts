@@ -115,6 +115,9 @@ type LocatedDeclaration = TopDeclaration & {
  (each slice once, n159, X5); the count is module-private state, which no fixture can reach without an export.
  */
 const PACKAGE_SEAMS: ReadonlySet<string> = new Set([
+  // THE RECORD OF MODELS ASKED PER QUESTION is made by the gather that asks the seats, which the stage commit after
+  // the provider's wires in (ledger B1080); this entry stands for that one commit and is gone with it.
+  'provider/reask-claims.ts#createReaskClaims',
   'shared-contract/run-spend-meter.ts#resetRunSpend',
   'typography/typography-prose-mask.ts#proseMaskBuilds',
 ],);

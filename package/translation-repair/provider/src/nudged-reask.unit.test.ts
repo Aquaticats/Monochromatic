@@ -89,6 +89,8 @@ const FIRST_UNUSABLE: ChatJsonOutcome<Cat> = {
 const RUNAWAY_REQUEST: ChatJsonRequest<Cat> = {
   ...REQUEST,
   modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
+  // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079): the roster-wide role, no bench.
+  reaskSeat: { role: 'roster', bench: [], },
 };
 
 /**
@@ -124,7 +126,7 @@ const NUDGE_CONTENT = 'Your previous reply could not be used: it was not the JSO
  ```
  */
 function triedForDeepseek(): readonly RosterModelId[] {
-  return alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, },).alternates;
+  return alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', },).alternates;
 }
 
 await describe({
@@ -407,7 +409,7 @@ await describe({
           const asked: ChatTextRequest[] = [];
           // oxlint-disable-next-line no-await-in-loop -- one runaway at a time, so each re-ask's calls stay apart
           await reaskElsewhereNudged({
-            request: { ...REQUEST, modelId: ranAway, },
+            request: { ...REQUEST, modelId: ranAway, reaskSeat: { role: 'roster', bench: [], }, },
             first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
             ask: async (nudged,) => {
               asked.push(nudged,);

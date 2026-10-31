@@ -1422,6 +1422,8 @@ await describe({
           messages: MESSAGES,
           signal: SIGNAL,
           validate: isNapSpot,
+          // A RUNAWAY NAMES ITS SEAT, or no other model is asked of it (ledger B1079).
+          reaskSeat: { role: 'roster', bench: [], },
         },);
 
         expect(asked,).toEqual([

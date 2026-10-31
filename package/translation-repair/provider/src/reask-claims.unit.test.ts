@@ -17,7 +17,7 @@ import {
 
 import {
   alternateModelsFor,
-  ReaskClaims,
+  createReaskClaims,
 } from '../dist/final/node/index.mjs';
 import {
   SEAT_BEDROCK_ONLY_TEXT,
@@ -29,14 +29,14 @@ import {
 //region Re-ask claims tests
 
 await describe({
-  name: ReaskClaims.name,
+  name: createReaskClaims.name,
   concurrency: 1,
   children: [
     it({
       name: 'GIVES A MODEL TO THE FIRST SEAT THAT TAKES IT and refuses it to every later seat, listing the models taken '
         + 'in the order they were taken',
       fn: async () => {
-        const claims = new ReaskClaims();
+        const claims = createReaskClaims();
         expect(claims.list(),).toEqual([],);
         expect(claims.take({ modelId: SEAT_BEDROCK_ONLY_TEXT, },),).toBe(true,);
         expect(claims.take({ modelId: SEAT_HYPER_TEXT_BEDROCK, },),).toBe(true,);
@@ -48,8 +48,8 @@ await describe({
     it({
       name: 'KEEPS THE RECORD OF ONE QUESTION APART FROM THE RECORD OF ANOTHER',
       fn: async () => {
-        const first = new ReaskClaims();
-        const second = new ReaskClaims();
+        const first = createReaskClaims();
+        const second = createReaskClaims();
         first.take({ modelId: SEAT_OPENROUTER_ONLY, },);
         expect(second.take({ modelId: SEAT_OPENROUTER_ONLY, },),).toBe(true,);
       },

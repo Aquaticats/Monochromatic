@@ -6,6 +6,7 @@ import type {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { Decider, } from './decision-contract.ts';
+import type { ReaskClaims, } from './reask-claims.ts';
 import type {
   ProviderName,
   RosterModelId,
@@ -282,6 +283,13 @@ export type ReaskSeat = {
    Every model seated on the question, whose answer recorded as the runaway's would count one model twice.
    */
   readonly bench: readonly RosterModelId[];
+
+  /**
+   Record of the models already asked for the seats of this question, which every seat of one question shares so that
+   no model is asked for two of them (ledger B1080); absent for a seat that is alone on its question, which has no
+   other seat to share a model with.
+   */
+  readonly claims?: ReaskClaims;
 };
 
 /**

@@ -24,8 +24,9 @@ import {
   type ChatJsonRequest,
   type ChatTextReply,
   type ChatTextRequest,
+  createReaskClaims,
   reaskElsewhereNudged,
-  ReaskClaims,
+  type ReaskClaims,
 } from '../dist/final/node/index.mjs';
 import {
   infoLinesDuring,
@@ -55,8 +56,8 @@ const UNSEATED_REQUEST: ChatJsonRequest<Cat> = {
     json_schema: { name: 'cat', schema: { type: 'object', }, },
   },
   validate: function isSpotted(value: unknown,): value is Cat {
-    return Object.hasOwn(
-      Object(value,),
+    return ((typeof value) === 'object') && (value !== null) && Object.hasOwn(
+      value,
       'spot',
     );
   },
@@ -104,7 +105,7 @@ const SECOND_SEAT: RosterModelId = SEAT_HYPER_TEXT_BEDROCK;
 
  @example
  ```ts
- const { asked, } = await runBothSeats({ bench: [FIRST_SEAT, SECOND_SEAT,], claims: new ReaskClaims(), },);
+ const { asked, } = await runBothSeats({ bench: [FIRST_SEAT, SECOND_SEAT,], claims: createReaskClaims(), },);
  ```
  */
 async function runBothSeats(
@@ -185,12 +186,14 @@ await describe({
          Models seated on the question.
          */
         const bench = [FIRST_SEAT, SECOND_SEAT,];
-        const { asks, } = await runBothSeats({ bench, claims: new ReaskClaims(), },);
+        const { asks, } = await runBothSeats({ bench, claims: createReaskClaims(), },);
 
         /**
          Model the first seat takes.
          */
         const [firstTakes,] = alternateModelsFor({ modelId: FIRST_SEAT, role: 'roster', bench, },).alternates;
+        if (firstTakes === undefined)
+          throw new Error('the first seat has a model left to take',);
 
         /**
          Model the second seat takes once the first has taken its own.
@@ -220,7 +223,7 @@ await describe({
          Models seated on the question.
          */
         const bench = [FIRST_SEAT, SECOND_SEAT,];
-        const { asks, logged, } = await runBothSeats({ bench, claims: new ReaskClaims(), },);
+        const { asks, logged, } = await runBothSeats({ bench, claims: createReaskClaims(), },);
         expect(logged.some(function namesIt(line,): boolean {
           return line.includes(`${asks[0]?.modelId ?? ''} (already asked for another seat of this question)`,);
         },),).toBe(true,);
@@ -245,7 +248,7 @@ await describe({
          Asks the re-ask received.
          */
         const asks: ChatTextRequest[] = [];
-        const claims = new ReaskClaims();
+        const claims = createReaskClaims();
         const { warned, } = await warnLinesDuring({
           run: async () =>
             Promise.all([FIRST_SEAT, SECOND_SEAT,].map(async function runaway(modelId,) {
