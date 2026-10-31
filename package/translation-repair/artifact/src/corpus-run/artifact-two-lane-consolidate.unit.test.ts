@@ -203,14 +203,30 @@ await describe({
           settlement: {
             ...settledAs({ terminal: 'slate-declined-standing', text: 'The cat naps on the sill.', },),
             translateWinnerShipped: true,
+            translateWinnerReason: 'refused-standing',
           },
         },);
-        // A settlement that names no reason is the one written before the swap existed, which replaced a refused standing.
         expect(winner.shipped,).toStrictEqual({
           kind: 'translate-winner',
           text: 'The cat naps on the sill.',
           reason: 'refused-standing',
         },);
+      },
+    },),
+
+    it({
+      name: 'REFUSES A TRANSLATE LANE WINNER THAT NAMES NO REASON, since both places that mark a winner shipped set the '
+        + 'reason with the mark, and a guessed reason would put a false one in the record',
+      fn: async () => {
+        expect(() =>
+          describeConsolidateSlice({
+            sliceIndex: 7,
+            settlement: {
+              ...settledAs({ terminal: 'slate-declined-standing', text: 'The cat naps on the sill.', },),
+              translateWinnerShipped: true,
+            },
+          },)
+        ).toThrow('names no reason',);
       },
     },),
 

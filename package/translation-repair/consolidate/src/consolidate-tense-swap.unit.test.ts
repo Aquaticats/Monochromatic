@@ -462,6 +462,60 @@ await describe({
           },
         },),
         it({
+          name: 'READS THE SWAP ONCE where a purchase swaps: the detector reads the translate text one time and the '
+            + 'shipment writes it one time, not once more for the settlement that ships it',
+          fn: async () => {
+            /**
+             Times the translate lane's text was read.
+             */
+            const reads = { count: 0, };
+            /**
+             The translate lane's text, counting every read of it.
+             */
+            const counted: LaneText = {
+              lane: 'translate',
+              get text(): string {
+                reads.count += 1;
+                return PAST_TEXT;
+              },
+            };
+            const settled = await buyConsolidationSlice({
+              client: rejectingClient({ asked: { calls: 0, }, },),
+              roster: ROSTER,
+              judgeModelIds: ROSTER,
+              subject: {
+                sourceText: SOURCE,
+                incumbentText: FLAGGED_STANDING,
+                repairText: FLAGGED_STANDING,
+                translateText: PAST_TEXT,
+                ballots: [],
+                lineStructured: false,
+                lifeEnded: true,
+                subjectNames: [...SUBJECT_NAMES,],
+              },
+              standingText: FLAGGED_STANDING,
+              lineStructured: false,
+              sliceIndex: 7,
+              standingMayShip: false,
+              standingEligible: true,
+              laneTexts: [counted,],
+              slateReachable: 1,
+              translateWinnerBallots: 2,
+              signal: AbortSignal.timeout(HANG_STOP_MS,),
+              perCallTimeoutMs: HANG_STOP_MS,
+              l: tagged({ tag: 'consolidate-tense-swap-test', },),
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+            expect({
+              shipped: readSettlement({ settled, },).translateWinnerShipped,
+              reads: reads.count,
+            },).toEqual({
+              shipped: true,
+              reads: 2,
+            },);
+          },
+        },),
+        it({
           name: 'KEEPS THE STANDING where the translate text is flagged too, since the swap would not mend the tense',
           fn: async () => {
             const { settled, } = await settleOver({
