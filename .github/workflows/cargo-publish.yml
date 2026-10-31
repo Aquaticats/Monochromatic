@@ -1241,7 +1241,9 @@ jobs:
         test -x "${check_dir}/${stage_dir}/${bin}"
         got=$("${check_dir}/${stage_dir}/${bin}" --version)
         printf 'extracted binary: %s\n' "$got"
-        [ "$got" = "${bin} ${VERSION}" ]
+        # Since 0.2.1 the line goes on to name the shadowed tools.
+        want="${bin} ${VERSION}, a shadow of "
+        [ "${got#"$want"}" != "$got" ]
 
     - name: Attest binary provenance
       if: ${{ !inputs.dry-run }}
