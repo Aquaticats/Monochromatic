@@ -121,6 +121,13 @@ each finished branch is reviewed and merged into `main`):
   repaired the same night by an owner-approved `toolchain:sync` in the main checkout;
   see `doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`).
   The cutover waits for this agent too.
+  The user then ruled "No older repo-maintained tools should ever exist when newer is present.":
+  repository-published tools are never downgraded and keep one newest copy
+  (decision record,
+  "Toolchain (mpm-shadow)");
+  that agent was told,
+  and a separate agent adds the same guard to the TypeScript sync in `package/file-enforcer/core/src/toolchain/`,
+  which every tree uses until cutover.
 - Then:
   the cutover (task 25),
   dropping the rules-file generator (7a's config switch landed in `ad9fe75d05`).
