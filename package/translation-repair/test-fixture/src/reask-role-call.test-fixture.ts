@@ -50,7 +50,7 @@ const HOLDER_HEAD = [
 
  @param properties - properties of the call's argument object
 
- @param path - the segments before the last one in the dotted key
+ @param path - segments before the last one in the dotted key
 
  @returns Properties of the object the path leads to; none where a segment names no object literal
 
@@ -125,7 +125,7 @@ function isSpread(property: readonly Token[],): boolean {
  
  @param key - key whose values are read
  
- @returns The value named, `none` where the key is absent, `<value> then a spread` where a spread follows the key,
+ @returns Value named, `none` where the key is absent, `<value> then a spread` where a spread follows the key,
  and `duplicate <key>: a, b` where the key is written twice
 
  @example
@@ -321,7 +321,7 @@ export function rolesNamedAtCalls(
 
  @param key - key of the literal that names the role
 
- @returns The value named under the key as {@link rolesNamedAtCalls} reads it, or `no such literal` where no variable of
+ @returns Value named under the key as {@link rolesNamedAtCalls} reads it, or `no such literal` where no variable of
  that name is set to an object literal
 
  @example

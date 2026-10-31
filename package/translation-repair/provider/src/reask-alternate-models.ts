@@ -157,7 +157,7 @@ function reasonsToLeaveOut(
 
  @param holds - holds of the model's card that the role honours
 
- @returns The holds when the role honours any, else that the role's measured list does not name the model
+ @returns Holds when the role honours any, else that the role's measured list does not name the model
 
  @example
  ```ts

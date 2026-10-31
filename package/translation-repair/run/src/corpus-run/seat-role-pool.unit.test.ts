@@ -44,7 +44,7 @@ import {
 
  @param pool - pool of a role
 
- @returns The pool without a decision-only seat
+ @returns Pool without a decision-only seat
 
  @example
  ```ts
@@ -62,7 +62,7 @@ function chatModelsOf({ pool, }: { readonly pool: readonly RosterModelId[]; },):
 
  @param modelIds - models to filter
 
- @returns The models whose card names no Anthropic route
+ @returns Models whose card names no Anthropic route
 
  @example
  ```ts
