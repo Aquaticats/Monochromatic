@@ -1,6 +1,6 @@
 [package]
 name = "forbidden-strings"
-version = "0.5.0"
+version = "0.6.0"
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/forbidden-strings/cli"

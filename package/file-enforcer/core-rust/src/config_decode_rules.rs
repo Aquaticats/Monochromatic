@@ -246,11 +246,12 @@ fn decode_rust_catalog(reader: &mut Reader, object: &Map<String, Value>, pointer
 /// Decodes the fields of a `browserslist` rule into a `RuleConfig`,
 /// recording every problem in the reader.
 fn decode_browserslist(reader: &mut Reader, object: &Map<String, Value>, pointer: &str, id: String) -> RuleConfig {
-    reader.reject_unknown(object, pointer, &["kind", "id", "source", "output", "environment"]);
+    reader.reject_unknown(object, pointer, &["kind", "id", "source", "output", "lock", "environment"]);
     let source = repo_path(reader, object, "source", pointer);
     let output = repo_path(reader, object, "output", pointer);
+    let lock = repo_path(reader, object, "lock", pointer);
     let environment = reader.optional_text(object, "environment", pointer);
-    return RuleConfig::Browserslist { id, source, output, environment };
+    return RuleConfig::Browserslist { id, source, output, lock, environment };
 }
 
 /// Decodes the fields of a `jetbrains-harper` rule into a `RuleConfig`,

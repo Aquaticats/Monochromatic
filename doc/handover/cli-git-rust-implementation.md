@@ -4550,3 +4550,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
      that reads it (0.4.4 after scanner 0.6.0) is published, the toolchain lock names it, and it is installed as the
      production `git`. The peer's `toolchain:sync` installed the locked 0.4.2 over 0.4.0; the lock does not yet name 0.4.3.
      Root config is outside the two packages, so the switch goes to the user first.
+
+## Releases for the rules-list feature (2026-10-31)
+
+- Scanner `forbidden-strings` 0.6.0: release commit `5ec9a377e2`, PUBLISHED, crates.io `2026-10-31T03:17:38Z`,
+  GitHub release `forbidden-strings-v0.6.0`. The package gained `release` and `release:wait` tasks (`4d1d25d7b6`), and
+  `cli.fuzz/Cargo.toml` now holds the scanner dependency as one inline line (`9162c5fd56`) so the shared release tool
+  can move its exact pin.
+- Wrapper `monochromatic-git-policy-cli` 0.4.4: release commit `7ce408f679`, PUBLISHED, crates.io
+  `2026-10-31T03:23:15Z`, GitHub release `monochromatic-git-policy-cli-v0.4.4` with aarch64 and x86_64 Linux assets.
+  It reads a `rulesFile` array with optional entries, resolves the in-process filesystem identity (`ebbf0e7ab5`), and
+  pins scanner 0.6.0.
+- Next action: the root config switch described under the peer handover (item 3) goes to the user through
+  AskUserQuestion. Steps after approval: `toolchain:update` so the lock names 0.4.4 and 0.6.0, `toolchain:sync` so
+  0.4.4 is the production `git`, then the `FORBIDDEN_STRINGS_RULES` and `rulesFile` array edit, then tell the peer
+  session `monochromatic-6e` so it drops its rules-file generator.

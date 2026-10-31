@@ -414,6 +414,36 @@ A and the warm part of the recommended order change no repository file;
 B,
 C and D change the files named in each.
 
+## Fix landed: option B
+
+`monochromatic-lint` now probes the driver before the first package of each library
+(`package/linter/monochromatic-lint/src/closure_driver.rs`).
+It mirrors `driver_builder.rs`:
+the toolchain is the first word of `rustup show active-toolchain` in the library directory,
+the driver is `<DYLINT_DRIVER_PATH or ~/.dylint_drivers>/<toolchain>/dylint-driver`,
+and it counts as current unless its `-V` fails or reports a version below `cargo-dylint`'s.
+A driver that is not current is accepted when `cargo metadata --offline` resolves a scratch crate that pins
+`dylint_driver = "=<cargo-dylint version>"` with `anyhow` and `env_logger`,
+as upstream's `cargo_toml` does.
+Otherwise every package of that library is skipped with the warm command of the first workaround,
+and the exit status is unaffected,
+as for a cold package cache.
+A check that cannot be made (an unreadable `cargo dylint --version`,
+no `rustup`,
+no known driver directory)
+skips nothing and is noted under `--debug`.
+The README of the linter (section "Machine requirements and skips") describes the same behavior.
+
+Evidence on this host on 2026-10-30,
+after the fix:
+the default toolchain driver had meanwhile been rebuilt as 6.3.1 (22:45 EDT) and the registry gained 6.3.1,
+so the host's own state no longer reproduces the failure and the real run passes with no output.
+Pointing `DYLINT_DRIVER_PATH` at an empty directory (same registry,
+`cargo-dylint` 6.3.0,
+pin `=6.3.0`) reproduces the
+original condition,
+and the run prints the skip message and exits 0.
+
 ## What does not work
 
 - Concurrent runs racing on the driver directory:

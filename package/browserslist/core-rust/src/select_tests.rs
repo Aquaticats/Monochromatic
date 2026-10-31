@@ -14,7 +14,7 @@ use crate::caniuse::{Agent, AgentTable};
 use crate::data::BrowserData;
 use crate::fixture::fixture_files;
 use crate::query::Browser;
-use crate::select::{firefox_esr, last_node_major, last_version};
+use crate::select::{firefox_esr, has_prerelease, last_node_major, last_version};
 
 /// Build data around synthetic agents and Node.js versions.
 fn data(agents: Vec<Agent>, node_versions: &[&str]) -> BrowserData {
@@ -106,4 +106,51 @@ fn committed_revision_values() {
     let node = last_node_major(&real).expect("node");
     assert_eq!(node.first().map(String::as_str), Some("node 26.0.0"));
     assert!(node.iter().all(|entry| return entry.starts_with("node 26.")));
+}
+
+/// A semver pre-release part is a dash in the version before any `+build` suffix.
+#[test]
+fn prerelease_detection() {
+    assert!(has_prerelease("27.0.0-alpha.0.0.0"));
+    assert!(has_prerelease("26.13.0-rc.1+build.5"));
+    assert!(!has_prerelease("26.13.0"));
+    assert!(!has_prerelease("26.13.0+build-with-dash"));
+    assert!(!has_prerelease(""));
+}
+
+/// Pre-release versions are dropped before the newest major is chosen:
+/// the alpha of a new major does not hide 26.x.
+#[test]
+fn node_major_ignores_a_pre_release_newest_major() {
+    let synthetic = data(vec![], &["26.12.0", "26.13.0", "27.0.0-alpha.0.0.0"]);
+    assert_eq!(last_node_major(&synthetic).expect("selects"), vec!["node 26.12.0", "node 26.13.0"]);
+}
+
+/// A pre-release in the middle of the newest major is dropped without dropping its stable neighbors.
+#[test]
+fn node_major_drops_a_pre_release_inside_the_newest_major() {
+    let synthetic = data(vec![], &["25.9.0", "26.0.0", "26.1.0-rc.1", "26.1.0"]);
+    assert_eq!(last_node_major(&synthetic).expect("selects"), vec!["node 26.0.0", "node 26.1.0"]);
+}
+
+/// Only pre-releases leaves nothing,
+/// and a stable major 0 followed by a pre-release still selects the whole stable list.
+#[test]
+fn node_major_pre_release_edge_cases() {
+    assert_eq!(last_node_major(&data(vec![], &["1.0.0-beta.1", "2.0.0-alpha.1"])).expect("selects"), Vec::<String>::new());
+    assert_eq!(
+        last_node_major(&data(vec![], &["0.2.0", "0.3.0", "1.0.0-beta.1"])).expect("selects"),
+        vec!["node 0.2.0", "node 0.3.0"]
+    );
+}
+
+/// Control:
+/// the same list without the filter would select the alpha,
+/// so the test above can tell the difference.
+#[test]
+fn control_without_the_alpha_the_answer_is_the_same_list() {
+    let with_alpha = data(vec![], &["26.12.0", "26.13.0", "27.0.0-alpha.0.0.0"]);
+    let without_alpha = data(vec![], &["26.12.0", "26.13.0"]);
+    assert_eq!(last_node_major(&with_alpha).expect("selects"), last_node_major(&without_alpha).expect("selects"));
+    assert_ne!(last_node_major(&with_alpha).expect("selects"), vec!["node 27.0.0-alpha.0.0.0"]);
 }

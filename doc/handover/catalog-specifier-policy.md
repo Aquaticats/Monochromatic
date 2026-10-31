@@ -22,6 +22,7 @@ No code has been changed yet; the user has not confirmed the shared understandin
   Correction after the reboot: the `updateConfig` hook does run there, and on every other verb; see "Research after the reboot".
 - Workspace manifests and `file:` dependency manifests both reach the hook without a `dist` key,
   so a `dist` filter would police `file:` dependencies; the hook must use a workspace-name set built from `package/*/*`.
+  (Moot under an `updateConfig` hook, which never sees dependency manifests.)
 - `syncpack` 15.3.3 can express the policy only with workarounds and passes named catalogs.
   `eslint-plugin-pnpm` 1.9.1 leaks `workspace:*.0` and peers starting with `*`, defaults to a destructive autofix, and needs ESLint beside oxlint.
   Both were run in CachyOS containers; neither is adopted.
@@ -49,6 +50,8 @@ No code has been changed yet; the user has not confirmed the shared understandin
   `core-pnpm` stays parsing-only.
 - Lint scope: every tracked `package.json`, including the root and `package-paused/`.
   The hook covers only workspace manifests, identified by a workspace-name set.
+  Superseded by "Research after the reboot": an `updateConfig` hook reads manifests from disk and enumerates the workspace
+  from `config.workspacePackagePatterns`, so no name set and no `dist` classifier is needed; the root manifest is covered too.
 - The check reports every violation in one run, naming the file, the section and the dependency.
 - `zod` moves into the catalog as `>=4.6.7` and `cost-dismissal` switches from `^4.6.7` to `catalog:`.
   An intermediate edit of this handover wrongly said `zod` was already in the catalog;
@@ -149,9 +152,10 @@ Enumerated late; the repo's grilling rule asks for this first.
 Nothing here is picked yet beyond the first item.
 
 - The hook-facing validator file: `node:` builtins only (measured necessity, because the hook loads before `node_modules`).
-- The hook must build a workspace-name set (plus the root name) from `package/*/*`,
-  but `pnpm-workspace.yaml` parsing normally needs the `yaml` library, which the hook cannot import.
-  Open: scan `package/*/*/package.json` with `node:fs`, or parse the one `packages:` key by hand.
+- Superseded: the workspace-name set and the YAML question.
+  `updateConfig` hands the hook `config.workspacePackagePatterns` (measured: `["pkg/*"]` in the fixture),
+  so the hook expands those globs with `node:fs` and needs neither a name set nor a YAML parser.
+  What remains open is how the hook expands `*`, `**` and `!` patterns, and failing closed on a pattern it cannot expand.
 - The rest of `core-specifier-policy` and `cli-specifier-policy` would follow repo rules:
   `@monochromatic-dev/logger-core`, `@monochromatic-dev/or-throw-core`, `string-dedent` and the test harness.
   Open: how `git ls-files` is run (an existing `package/git-executable` may own that; not yet read).
@@ -209,6 +213,28 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
   `--pnpmfile ./missing.mjs` fails with exit 2 rather than skipping.
   A deliberate bypass therefore exists in three spellings (flag, `--config.` form, `pnpm_config_` environment variable),
   which is why the source lint stays as the backstop.
+- Probe `~/temp/agent/catalog-updateconfig-add.ts` (same fixture, hook and manifest restored afterwards):
+  - The `updateConfig` argument carries `workspacePackagePatterns` (value `["pkg/*"]` in the fixture), `packages`, `ignorePnpmfile`,
+    `catalogs`, `catalogMode` and `workspaceDir`, among a long list of settings.
+    The earlier probe logged only a fixed key list that omitted `workspacePackagePatterns`.
+  - `updateConfig` and `readPackage` coexist in one `export const hooks` object; both ran.
+  - With a violation planted, `pnpm add is-odd`, `pnpm update` and `pnpm remove is-number --filter @fx/a` all exit 1 with the
+    policy message.
+    The check runs before those verbs read anything, so pnpm cannot repair a violation: the repair is a hand edit of the
+    manifest (or the bypass).
+    This differs from the `readPackage` finding that a throwing hook leaves `pnpm add` working.
+    The hook's message must therefore name the file, section, dependency and the hand-edit remedy.
+- The hook cannot tell which verb is running.
+  Probe `~/temp/agent/catalog-updateconfig-argv.ts` (fixture hook restored afterwards) logged `process.argv`, `process.execArgv` and
+  the `npm_*` and `PNPM_*` environment keys inside `updateConfig` for `install`, `add` and `run` (the output for `update` and
+  `remove` was not read): `argv` is empty after the script name, no `npm_command` or `PNPM_*` variable exists, and `execArgv` is
+  pnpm's own bootstrap script, identical for every verb.
+  pnpm starts the pnpmfile in a child Node process that talks to it over a JSON protocol on stdout and stdin,
+  so a hook must never write to stdout, and the verb is not passed.
+  Blocking is therefore all or nothing across verbs; selecting repair verbs would need a platform-specific read of the parent
+  process command line, which is unmeasured and would not work on the Windows runners.
+- Landing order: a throwing `updateConfig` makes every pnpm verb except `config get` and `--version` exit 1 while the
+  `zod` violation exists, so the `zod` fix and the hook must land in the same commit.
 - Cost: the same scan over the real repo's workspace manifests took a median of 4.9 ms over 15 in-process runs
   (minimum 4.4, maximum 9.0 on the first), and it found the one real violation, `zod` in `cost-dismissal`.
   This is the scan alone, not pnpm's own startup.
@@ -219,8 +245,15 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
 
 - Both CI systems install pnpm through the `task-cli-setup` action and run `task-run prepare:pnpm`
   (`.github/workflows/current-baseline.yml`, `.depot/workflows/current-baseline.yml`).
-  CI pins pnpm 12.14.0 while the local toolchain is 12.16.1.
-  Whether the `updateConfig` results above hold on 12.14.0 is being probed in a container; recorded below when it lands.
+  The two `.depot/workflows` files pass `pnpm-version: '12.14.0'` explicitly, while the action reads `.tools.pnpm.version`
+  from `toolchain.lock.json` (12.16.1) when the input is empty, as the `.github/workflows` files do.
+  So CI runs two pnpm versions.
+  A container probe (`~/temp/agent/pnpm-ci-version-probe.md`, CachyOS image, `--memory=2g --cpus=2`, no mounts, with a
+  12.16.1 control that reproduced every host result) found `updateConfig` identical on 12.14.0:
+  it fires on every verb except `config get` and `--version`, a throwing hook blocks no-op and frozen install, `run`, `exec`
+  and `list` with the policy message, and `--ignore-pnpmfile` skips it.
+  Only `preResolution` differs: it does not fire on frozen install or `prune` on 12.14.0.
+  Not covered by that probe: node 24 (the image has 26.12.1) and recursive filters (covered on 12.16.1 only, above).
 - The action puts node, pnpm and the task CLI on `PATH` (`.github/actions/task-cli-setup/action.yml`) and nothing about a
   shadow directory.
   The mpm shadow reaches callers because the toolchain plan links it into a gitignored directory first on `PATH`
@@ -228,6 +261,28 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
   for each runner OS (the workflows include Windows steps).
 - The Rust dependency catalog has `clap`, `serde` and `serde_json` but no YAML crate (`rust-catalog.toml`),
   so a Rust checker must hand-parse `packages:` too or add a crate.
+
+### Upstream state (agent report `~/temp/agent/pnpm-upstream-research.md`, source reading of pnpm commit `c7b46aedef`, not run)
+
+- Issue [8644](https://github.com/pnpm/pnpm/issues/8644) "Checks to enforce pnpm catalog protocol usage" is the direct request.
+  It proposed "Or the `pnpm install` command fails if enforcement is enabled" and was closed `COMPLETED` on 2026-02-15
+  with no closing PR, on the grounds that `catalogMode` "likely addresses this feature request".
+  `catalogMode` does not: its code is wired to add and update only (`crates/package-manager/src/catalog_mode.rs:1`).
+- Discussion [8567](https://github.com/orgs/pnpm/discussions/8567) holds an unanswered question from 2026-03-11 asking whether a
+  hand-edited `package.json` should be covered; no maintainer replied.
+  Install-time warnings were also suggested in 15022 (now a locked discussion); neither it nor 11742 has a maintainer reply.
+  The maintainers point to `syncpack` as the external route.
+  No upstream fix is on the horizon, so the repo needs its own check.
+- No pnpm command or setting validates specifiers: no `pnpm catalog` or lint command exists, and `blockExoticSubdeps`,
+  `trustPolicy`, `minimumReleaseAge` and `strictDepBuilds` act on resolved packages.
+- The agent's source reading agrees with the probes: `updateConfig` receives settings (`dir`, `workspaceDir`,
+  `workspacePackagePatterns`) and no manifests, runs before the command on almost every verb, and does not run on `dlx` or `doctor`.
+  `pnpm dlx` is therefore an unchecked path, which is acceptable because it installs into a throwaway project.
+- The no-op install fast path refuses to short-circuit when a pnpmfile is present, which is why `updateConfig` still runs.
+- The agent's `gh search` first PR round used a quoted multi-word phrase that returns nothing, so only its rerun counts.
+  It did not search `pnpm/rfcs`.
+- The earlier `pi` verdict (defer the hook) was reached on my wrong premise that no hook reaches the no-op install and that the
+  hook must wait for manifests through `readPackage`; the verdict should be treated as superseded on that point.
 
 ### What this changes
 
@@ -238,6 +293,9 @@ The shadow's remaining case is language unity and one owner for the rule, not co
 
 ## Open items
 
+- A second `pi` review (`openai/gpt-6.1-sol`, whole handover and probe scripts pasted, told about the user's bad feeling and that the
+  first verdict rested on the disproved no-op premise) was started after the research; prompt `~/temp/agent/pi-review2-prompt.txt`,
+  output `~/temp/agent/pi-review2-output.txt`. Its findings are not yet folded in.
 - The user has not yet confirmed that the shared understanding is complete.
 - The user may veto the shadow recommendations above.
 - Hook timing (lint first then hook, both together, or lint plus a mise call) and the Rust-wrapper-first option are open.

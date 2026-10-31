@@ -1,6 +1,12 @@
-//! What:     The program entry point. It looks at the name it was started under: `mpm` means shadow mode; anything
+//! What:
+//! The program entry point.
+//! It looks at the name it was started under:
+//! `mpm` means shadow mode;
+//! anything
 //!           else (`mpm-shadow`) means the command-line tool.
-//! Why:      One binary serves both roles, so the link the toolchain plan creates as `mpm` needs no second program.
+//! Why:
+//! One binary serves both roles,
+//! so the link the toolchain plan creates as `mpm` needs no second program.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,9 +15,12 @@
 //! process.exit(invokedAs === 'mpm' ? runShim(process.argv.slice(2)) : runCli(process.argv));
 //! ```
 
-/// What:     `use mpm_shadow::cli::run_cli;` imports a function from this package's own library crate (`mpm_shadow`,
+/// What:
+/// `use mpm_shadow::cli::run_cli;` imports a function from this package's own library crate (`mpm_shadow`,
 ///           declared in `Cargo.toml`).
-/// Why:      `main` only chooses the mode; all logic lives in the library.
+/// Why:
+/// `main` only chooses the mode;
+/// all logic lives in the library.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,8 +43,11 @@ use std::env;
 /// Imports `Path` to take the file name off argv[0].
 use std::path::Path;
 
-/// What:     `fn main()` is the entry point the operating system calls; the exit code is set by `std::process::exit`.
-/// Why:      Every run starts here.
+/// What:
+/// `fn main()` is the entry point the operating system calls;
+/// the exit code is set by `std::process::exit`.
+/// Why:
+/// Every run starts here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

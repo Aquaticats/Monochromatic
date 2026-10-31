@@ -23,24 +23,6 @@
       "output": "LICENSE",
       "parts": [{ "file": "LICENSES/LGPL-3.0-or-later.txt" }],
     },
-    // Every package carries the license texts its manifest needs. LGPL-3.0-or-later is an additional-permissions layer
-    // over GPL-3.0-or-later, so it needs both. Only the three ids under "texts" are ever pruned.
-    {
-      "kind": "package-licenses",
-      "id": "package-licenses",
-      "manifests": ["package/*/*/package.json", "package/*/*/Cargo.toml"],
-      "directory": "LICENSES",
-      "texts": {
-        "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt",
-        "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
-        "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
-      },
-      "requires": [
-        { "contains": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"] },
-        { "contains": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"] },
-        { "contains": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"] },
-      ],
-    },
     // Skill copies for tools that read .claude/skills and .factory/skills; the targets are owned outright.
     { "kind": "mirror", "id": "skills-claude", "from": ".agents/skills", "to": ".claude/skills" },
     { "kind": "mirror", "id": "skills-factory", "from": ".agents/skills", "to": ".factory/skills" },
@@ -178,20 +160,41 @@
       ],
       "blocks": [],
     },
-    // Not linked yet: the dependency-catalog Rust library renders rust-catalog.toml into every [workspace.dependencies].
-    // Until it is linked this rule warns (kind-not-wired) and plans nothing. It must stay after the toml-keys rules.
+    // The dependency-catalog Rust library renders rust-catalog.toml into every [workspace.dependencies].
+    // It composes with the toml-keys rules and must stay after them.
     {
       "kind": "rust-catalog",
       "id": "rust-catalog",
       "catalog": "rust-catalog.toml",
       "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
     },
-    // Not linked yet: the in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
+    // Placed after the rules that write manifests: it reads each manifest's license, which the toml-keys rules set.
+    // Every package carries the license texts its manifest needs. LGPL-3.0-or-later is an additional-permissions layer
+    // over GPL-3.0-or-later, so it needs both. Only the three ids under "texts" are ever pruned.
+    {
+      "kind": "package-licenses",
+      "id": "package-licenses",
+      "manifests": ["package/*/*/package.json", "package/*/*/Cargo.toml"],
+      "directory": "LICENSES",
+      "texts": {
+        "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt",
+        "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
+        "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
+      },
+      "requires": [
+        { "contains": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"] },
+        { "contains": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"] },
+        { "contains": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"] },
+      ],
+    },
+    // The in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
+    // The data it resolves against is pinned by the lock (package/browserslist/core-rust).
     {
       "kind": "browserslist",
       "id": "browserslist-targets",
       "source": ".browserslistrc",
       "output": ".browserslistrc.resolved.local.json",
+      "lock": "browserslist-data.lock.json",
       "environment": "production",
     },
     // The package bin directories pnpm created, for Mise's PATH. Gitignored; it sorts before the committed
