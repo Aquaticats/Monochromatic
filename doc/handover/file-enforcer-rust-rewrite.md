@@ -166,8 +166,8 @@ now `GXD` in `AGENTS.md`,
 and that each broad vet check in with the user before enumerating candidates,
 now "Check in before broad discovery" in `.agents/skills/choosing-technology/SKILL.md`.
 
-## Update 2026-10-30
-task 20 built on branch `worktree-agent-a9e487e6d38ec954c`
+## Task 20 status on 2026-10-30
+Built on branch `worktree-agent-a9e487e6d38ec954c`.
 
 `package/file-enforcer/core-rust` (library) and `package/file-enforcer/cli` (binary `file-enforcer`) exist,
 with `file-enforcer.config.jsonc`,
