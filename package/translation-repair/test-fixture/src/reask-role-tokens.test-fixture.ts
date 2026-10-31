@@ -182,11 +182,11 @@ export function tokensOf({ source, }: { readonly source: string; },): readonly T
  Index one past the bracket that closes the one at `open`.
 
  @param tokens - all tokens
- 
+
  @param open - index of an opening `(`, `[`, `{` or `<`
- 
+
  @param angled - whether `<` and `>` count as brackets, which a type argument list needs and an object does not
- 
+
  @returns Index one past the matching closer, or the end
 
  @example
@@ -238,7 +238,7 @@ export function afterBracket(
  Splits the tokens of an object literal's body into its properties at the commas outside every bracket.
 
  @param body - tokens between the braces
- 
+
  @returns One list of tokens per property
 
  @example

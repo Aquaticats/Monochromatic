@@ -120,7 +120,7 @@ const RUNAWAY: ChatJsonOutcome<unknown> = {
 };
 
 await describe({
-  name: `${attemptStageCall.name} (a reasoning runaway)`,
+  name: `${attemptStageCall.name} (a reasoning runaway, and the model that answered)`,
   concurrency: 1,
   children: [
     it({
@@ -184,12 +184,7 @@ await describe({
         expect('reaskSeat' in (seen[1] ?? {}),).toBe(false,);
       },
     },),
-  ],
-},);
 
-await describe({
-  name: `${attemptStageCall.name} (an answer of another model)`,
-  children: [
     it({
       name: 'CARRIES THE MODEL THAT ANSWERED on a heard voice when the re-ask of a runaway went to another model, and '
         + 'none when the seat\'s own model answered',

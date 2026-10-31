@@ -122,9 +122,9 @@ function isSpread(property: readonly Token[],): boolean {
  Reads what one call's argument names under a key.
 
  @param properties - properties of the call's argument object
- 
+
  @param key - key whose values are read
- 
+
  @returns Value named, `none` where the key is absent, `<value> then a spread` where a spread follows the key,
  and `duplicate <key>: a, b` where the key is written twice
 

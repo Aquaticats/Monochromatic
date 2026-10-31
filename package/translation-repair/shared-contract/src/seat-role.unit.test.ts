@@ -27,7 +27,7 @@ import {
 //region Seat role tests
 
 await describe({
-  name: holdsKeepingOutOf.name,
+  name: `${holdsKeepingOutOf.name} and ${rolePoolOf.name}`,
   children: [
     it({
       name: 'NAMES NINE ROLES, each with the holds it honours, and the roster-wide role honours the two that empty a '
@@ -127,12 +127,7 @@ await describe({
         }
       },
     },),
-  ],
-},);
 
-await describe({
-  name: rolePoolOf.name,
-  children: [
     it({
       name: 'THE CHECKER POOL IS THE MEASURED CHECKER ORDER and no model outside it: the two Gemma sizes the benchmark '
         + 'measured out of the role, and every roster model it never measured, are not in it',
