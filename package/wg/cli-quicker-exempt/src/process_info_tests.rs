@@ -112,6 +112,23 @@ fn an_unreadable_file_is_an_error_and_not_a_vanished_process() {
     assert_eq!(read_process(&fresh, 5, uid).expect("a vanish is not an error"), None);
 }
 
+/// A permission error on a process of the watched user is an error,
+/// because a reader that may not look cannot say the process is gone.
+/// Root can read everything, so the test has nothing to show there.
+#[test]
+fn a_permission_error_is_an_error_and_not_a_vanished_process() {
+    // SAFETY: geteuid has no preconditions.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let root = fake_process("permission");
+    let (uid, _gid) = own_ids();
+    let cmdline = root.join("5/cmdline");
+    std::fs::set_permissions(&cmdline, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("lock the file");
+    let error = read_process(&root, 5, uid).expect_err("a locked file");
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+}
+
 /// Looks up this process's own account and an id that has none.
 #[test]
 fn the_account_lookup_finds_this_user_and_rejects_an_unknown_id() {

@@ -135,17 +135,28 @@ fn watch_log_length(key: &str) -> u64 {
     };
 }
 
+/// The loud lines in the part of `log` that starts at byte `offset`,
+/// which is what the new watcher wrote since the start began.
+/// Earlier lines belong to earlier runs and are left out.
+pub fn failure_lines_since(log: &str, offset: u64) -> Vec<String> {
+    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(log.len());
+    let fresh = String::from_utf8_lossy(&log.as_bytes()[start..]).into_owned();
+    let mut lines: Vec<String> = Vec::new();
+    for line in fresh.lines() {
+        if line.contains(POLICY_NOT_IN_FORCE_MARKER) {
+            lines.push(line.to_string());
+        }
+    }
+    return lines;
+}
+
 /// Prints the loud lines the new watcher wrote to its log since `offset`,
 /// so a failure at startup reaches the terminal that ran `up`.
 /// The log stays the full record.
 fn forward_startup_failures(key: &str, offset: u64) -> io::Result<()> {
     let text = read_watch_log(key)?;
-    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(text.len());
-    let fresh = String::from_utf8_lossy(&text.as_bytes()[start..]).into_owned();
-    for line in fresh.lines() {
-        if line.contains(POLICY_NOT_IN_FORCE_MARKER) {
-            eprintln!("{line}");
-        }
+    for line in failure_lines_since(&text, offset) {
+        eprintln!("{line}");
     }
     return Ok(());
 }
