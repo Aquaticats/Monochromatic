@@ -23,10 +23,27 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'NAMES THE LATE-JUDGE ROLE where the consistency of a page is gathered',
+      name: 'ASKS THE CONSISTENCY GATHER IN NO ROLE OF ITS OWN: the role it asks in is its caller\'s',
       fn: async () => {
         const source = await readFile(new URL('pass-consistency-gather.ts', import.meta.url,), 'utf8',);
-        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['late-judge',],);
+        expect(source.includes('role: \'late-judge\'',),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'TAKES THE ROLE OF THE CONSISTENCY GATHER FROM ITS CALLER, and each caller names the role of the bench it '
+        + 'asks: the choice and the run-off of a page are asked of the late judges, the writers of a carry of the '
+        + 'translators',
+      fn: async () => {
+        const gather = await readFile(new URL('pass-consistency-gather.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source: gather, callee: 'gatherStageVoices', },),).toEqual(['role',],);
+        const named = async (file: string,): Promise<readonly string[]> => rolesNamedAtCalls({
+          source: await readFile(new URL(file, import.meta.url,), 'utf8',),
+          callee: 'gatherThroughCache',
+        },);
+        expect(await named('pass-consistency-ask.ts',),).toEqual(['late-judge',],);
+        expect(await named('pass-consistency-run-off.ts',),).toEqual(['late-judge',],);
+        expect(await named('pass-consistency-carry-ask.ts',),).toEqual(['translator', 'late-judge',],);
       },
     },),
   ],
