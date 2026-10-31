@@ -199,6 +199,27 @@ await describe({
         expect(roleNamedInLiteral({ source, name: 'missing', },),).toBe('no such literal',);
       },
     },),
+
+    it({
+      name: 'DOES NOT COUNT A SPREAD OF AN INLINE OBJECT THAT NAMES OTHER KEYS as one that can replace the role, and does '
+        + 'count one that names the role itself',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices({',
+          '  role: \'wide-judge\',',
+          '  ...((fanOut === undefined) ? {} : { fanOut, }),',
+          '},);',
+          'await gatherStageVoices({',
+          '  role: \'wide-judge\',',
+          '  ...(late ? { role: \'roster\', } : {}),',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual([
+          'wide-judge',
+          'wide-judge then a spread',
+        ],);
+      },
+    },),
   ],
 },);
 
