@@ -24,27 +24,45 @@ Calibration answers, in the user's words:
 - Cross-cutting subagents: "For cross cutting concerns one agent can be assigned many packages at
   the same time." They carry exactly one concern each and are exempt from the one-package rule.
 - Handover: "this is a huge task so write a handover NOW and update it as you go aggressively."
+- Yield challenge (2026-10-31): "1053 files and only 75 findings is extremely sus." The
+  orchestrator treats machine-scan-only yields as suspect; deep slices must read prose in full and
+  account per file.
 
 ## Purpose and method
 
 The whole tracked tree is reviewed by scanning subagents (exactly one package each; giant packages
 split by subdirectory, still one package) plus cross-cutting subagents (exactly one concern each,
 spanning any number of packages by design). Briefs demand: read every tracked file in scope, quote
-evidence from the current tree with `path:line`, no edits, no tracker writes, no spawning,
-prioritize and report uncovered files rather than compress verification quality inside the
-~60-minute budget.
+evidence from the current tree with `path:line`, no main-worktree edits, no tracker writes, no
+spawning, prioritize and report uncovered files rather than compress verification quality inside
+the ~60-minute budget. For doc areas, mechanical scans alone are not sufficient: the yield
+challenge above requires deep-read slices with per-file accounting.
 
 Findings land as JSONL under `${HOME}/temp/agent/repo-review-2026-10-31/findings/`. The
-orchestrator re-verifies each finding against the tree, deduplicates against the tracker index,
-then files: a comment on the owning existing issue for matches, otherwise a new issue with the
-labels above, every body stating that no preferred resolution has been picked. Filing is
-incremental per wave.
+orchestrator re-verifies each finding against the tree (`verify-findings.ts`), deduplicates
+against the tracker index (`dedupe-findings.ts`), adjudicates, then files: a comment on the
+owning existing issue for matches, otherwise a new issue with the labels above, every body stating
+that no preferred resolution has been picked. Filing is incremental per wave; the index is
+refreshed after each filing batch so later children's duplicates of just-filed issues dedupe to
+comments.
 
 Cross-cutting concerns planned, one subagent each (many packages allowed): `GRW` duplicate shapes
 without owners, `TWS` two-sided code without a stated arrangement, workspace dependency structure
 and `ST3` `/ts` imports, repo-wide logging-rule adherence, error-handling patterns, async and
 unbounded-input patterns, package manifest and mise task conventions, test-convention health,
 TSDoc quality, CSS quality, security sweep.
+
+## Harness limits measured this session
+
+- Subagent child limit: the harness rejects spawns at about 32 admitted children, and the count
+  includes idle (completed) children (`tools.agents.list()` showed 32 admitted with 4 idle at the
+  moment the limit fired). Child names are permanent. Consequence: the sweep runs as a worker
+  pool: at most ~32 children ever; as each child goes idle it is re-tasked, by
+  `tools.agents.send_message` with a fresh standalone brief, with the next assignment from the
+  queue in this handover. Re-tasking to an idle child is proven to work.
+- `run_typescript` programs have a 60-second budget and each spawn takes 5 to 8 seconds: at most
+  3 spawns per program, ideally 2. `send_message` calls are cheaper; 7 fit in one program.
+- `gh issue list` here has no `--paginate`; use `--limit 3000`.
 
 ## Facts measured (re-verify before trusting)
 
@@ -61,67 +79,121 @@ TSDoc quality, CSS quality, security sweep.
   or `cargo build` 300% / 4G / 256; repo-wide aggregates 800% / 12G / 1024.
 - `systemctl --user show` behavior, settled by the differential probe
   (`probe2-cgroup-show.ts`): with the full `<unit>.scope` name, `show` displays the applied
-  limits correctly (`CPUQuotaPerSecUSec=370ms`, `MemoryMax=134217728` for `CPUQuota=37%`
-  `MemoryMax=128M`), matching the kernel files (`cpu.max: 37000 100000`,
-  `memory.max: 134217728`). Queried with a bare unit name, `systemctl show` silently mangles the
-  name to `.service`, reports `LoadState=not-found` with stub defaults
-  (`MemoryMax=infinity`, `CPUQuotaPerSecUSec=infinity`), and exits 0. The first probe's "show
-  displays infinity even when applied" reading was this name-mangling footgun, not a systemd
-  display bug; the briefs and queued addendum claiming otherwise are corrected in the re-slice
-  interrupt messages. Also: `show -p CPUQuota` prints nothing; the property name is
-  `CPUQuotaPerSecUSec`.
+  limits correctly. Queried with a bare unit name, `systemctl show` silently mangles the name to
+  `.service`, reports `LoadState=not-found` with stub defaults, and exits 0. Also: `show -p
+  CPUQuota` prints nothing; the property name is `CPUQuotaPerSecUSec`.
 
 ## Central runs
 
-- `mise run lint` runs capped as `rr-central-lint` (800% / 12G / 1024), process
-  `process-5367861df51f-3afa61a56d494ac4efca2f9d`, log at
-  `${HOME}/temp/agent/repo-review-2026-10-31/lint-full.log`. Its per-package diagnostics are
-  distributed to the owning scanning child for a verdict plus evidence before anything is filed.
-- `mise run test:unit` starts under the same sizing after the lint run finishes.
+- `mise run lint` completed (exit 1), log at
+  `${HOME}/temp/agent/repo-review-2026-10-31/lint-full.log`. Still to triage into a per-package
+  digest, then distribute package diagnostics to owning children for a verdict plus evidence.
+- `mise run test:unit` started capped as `rr-central-tests` (800% / 12G / 1024), log at
+  `${HOME}/temp/agent/repo-review-2026-10-31/test-unit-full.log` (process
+  `process-5367861df51f-5da96774b169cb0e8ea33d48`).
 - Dedupe index: all 1787 tracker issues fetched to
-  `${HOME}/temp/agent/repo-review-2026-10-31/issues-all.jsonl` (number, title, state, labels,
-  body).
-- systemd `v259` shallow clone completed at `${HOME}/temp/agent/systemd-v259-2026-10-31`
-  (process `process-5367861df51f-c147e175521274fc29f89757`, exit 0) for the troubleshooting doc
-  source trace.
+  `${HOME}/temp/agent/repo-review-2026-10-31/issues-all.jsonl`.
+- systemd `v259` shallow clone completed at `${HOME}/temp/agent/systemd-v259-2026-10-31` for the
+  troubleshooting doc source trace.
+
+## Filing pipeline
+
+- `${HOME}/temp/agent/repo-review-2026-10-31/verify-findings.ts <repoRoot> <findings.jsonl> [...]`:
+  schema check, cited `path:line` tracked and in bounds, evidence quote match against the tree;
+  writes `<findings>.verdicts.jsonl` next to the input. Note: script outputs match `*.jsonl`, so
+  pass explicit findings paths, never a glob.
+- `${HOME}/temp/agent/repo-review-2026-10-31/dedupe-findings.ts <issues.jsonl> <findings.jsonl> [...]`:
+  token-overlap candidates against the issue index; writes `<findings>.candidates.jsonl`.
+- Remaining: adjudicate candidates (comment versus new issue), draft bodies in the house format
+  (title `<area>: <problem>`, `## What happens`, `## Evidence (2026-10-31)` with `path:line` and
+  verbatim quotes, explicit "no preferred resolution has been picked" line), then file via
+  `gh issue create` / `gh issue comment` after orchestrator verification. First batch: 210
+  findings across 9 files (see Children). Refresh the issue index after each batch.
 
 ## Children
 
-Scanning children running, with the one-package re-slice delivered by interrupt plus narrowing
-message (multi-package children keep their first package; orphaned packages get fresh
-single-package children, to be spawned):
+Completed turn 1 or 2, findings accepted (idle; most re-tasked already):
 
-- `root-configs`: root config and build files (one area, no narrowing).
-- `ci-depot`: `.github/` and `.depot/` (one area, no narrowing).
-- `docs-core`: narrowed to the rulebook files only (`AGENTS.md`, `CLAUDE.md`, `README.md`,
-  `SECURITY.md`).
-- `docs-decisions`: `doc/decision/` (one family, no narrowing).
-- `docs-ops`: narrowed to `doc/troubleshooting/` only.
-- `docs-planning-audit`: narrowed to `doc/planning/` only.
-- `w2-throw-async-a`: narrowed to `package/or-throw/core`; orphans: `array-at/core`,
-  `async-iter/core`, `async-time/core`, `caught-value/core`, `const/core`.
-- `w2-async-b1`: narrowed to `package/function-arity/core`; orphans: `numeric-format/core`,
-  `observable/core`.
-- `w2-async-b2`: narrowed to `package/pipe/core`; orphans: `throws/core`, `shell-argument/core`.
-- `w2-fs-a`: narrowed to `package/fs-path/core`; orphan: `fs-id/core`.
-- `w2-fs-b`: narrowed to `package/kv-store/core`; orphans: `kv-store/memoize`, `zip-writer/core`.
-- `w2-dom-a`: narrowed to `package/hyperscript/core`; orphan: `dom/core`.
-- `w2-typeface-figma`: narrowed to `package/typeface/aquaticat`; orphans: `figma/kiwi`,
-  `figma/to-penpot` (never assigned before).
-- `w2-th-diag-expect`: narrowed to `package/test-harness/core-diagnostic`; orphan:
-  `test-harness/core-expect`.
-- `w2-th-matrix-sandbox`: narrowed to `package/test-harness/core-matrix`; orphan:
-  `test-harness/core-sandbox`.
-- Single-package children already compliant: `w2-i18n` (`i18n-compose/core`), `w2-logger-src`
-  and `w2-logger-tests` (`logger/core`, split by files), `w2-logger-fuzz` (`logger/core.fuzz`),
-  `w2-th-core` (`test-harness/core`).
-- Cross-cutting child: `sysd-source-trace` (systemd v259 source citations for the
-  troubleshooting doc; single concern, exempt from the one-package rule).
+- `docs-planning-audit`: 75 findings (13 warning, 62 nit) over all 1053 `doc/planning` plus
+  `doc/audit` files, machine-scanned. Yield challenged by the user; deep re-slices queued.
+  Re-tasked to `package/fs-id/core`.
+- `docs-ops`: 19 findings (3 warning, 16 nit), all 819 `doc/troubleshooting` files
+  machine-scanned. Remainder queued: 79 fixture and code files plus per-command flag
+  verification. Re-tasked to `package/numeric-format/core`.
+- `docs-core`: 15 findings (1 blocker, 7 warning, 7 nit), four rulebook files read in full.
+  Blocker: `.claude-plugin/marketplace.json` sources use `./packages/...` but the repo directory
+  is `package/`, so every `claude plugin install` fails. Re-tasked to `package/caught-value/core`.
+- `docs-decisions`: 23 findings in `findings/docs-decisions.jsonl` (report text never reached the
+  orchestrator; file verified present). Re-tasked to `package/const/core`.
+- `ci-depot`: 32 findings (1 blocker, 19 warning, 12 nit), all 27 in-scope files. Blocker:
+  `env-local-json.yml` red on main, six consecutive failed runs, `spawnSync /root/.local/bin/mise
+  ENOENT` inside `ubuntu:latest`; root cause lives in `package/toolchain/env-local-json` code (a
+  scanning child must cover it). Re-tasked to `package/kv-store/memoize`.
+- `w2-logger-tests`: 12 findings (5 warning, 7 nit), logger/core task and CI wiring slice.
+  Re-tasked to `package/zip-writer/core`.
+- `w2-throw-async-a`: 19 findings (9 warning, 10 nit) for `or-throw/core` full plus verified
+  findings on its five dropped packages, marked with scope notes (dedupe against the fresh
+  pkg-* children when they report). Re-tasked to `package/test-harness/core-expect`.
+- Partial findings files exist already (children still running): `w2-async-b2.jsonl` (9),
+  `w2-fs-a.jsonl` (6).
 
-Batch-one children (`root-configs` through `w2-throw-async-a`) were spawned before the cgroup
-rule landed; the rule, the corrected `systemctl show` guidance, and the narrowing were delivered
-by the interrupt plus message sent this session. Batch-two children carried the cgroup rule in
-their briefs and received the narrowing plus the corrected caveat by interrupt plus message.
+Running (with current assignment): `root-configs` (root configs), `sysd-source-trace` (systemd
+v259 source citations), `w2-async-b1` (function-arity/core), `w2-async-b2` (pipe/core),
+`w2-fs-a` (fs-path/core), `w2-fs-b` (kv-store/core), `w2-dom-a` (hyperscript/core),
+`w2-typeface-figma` (typeface/aquaticat), `w2-th-diag-expect` (test-harness/core-diagnostic),
+`w2-th-matrix-sandbox` (test-harness/core-matrix), `w2-i18n` (i18n-compose/core),
+`w2-logger-src`, `w2-logger-fuzz` (logger/core), `w2-th-core` (test-harness/core),
+`pkg-array-at`, `pkg-async-iter`, `pkg-async-time`, `pkg-observable`, `pkg-throws`,
+`pkg-shell-argument`, `pkg-dom`, `pkg-figma-kiwi`, `pkg-figma-to-penpot`, `docs-philosophy`,
+`docs-skills`, plus the seven just re-tasked (docs-core, docs-decisions, docs-ops,
+docs-planning-audit, ci-depot, w2-logger-tests, w2-throw-async-a).
+
+Brief template v4 (in the transcript): reviewer-only, one area, main-worktree protection with
+throwaway-worktree experiments allowed, cgroup wrapper with corrected `.scope`-suffix caveat,
+JSONL schema, final message under 250 words. For doc deep slices add: every file read in full
+gets an explicit verdict, and the final message reports files reviewed versus findings per file.
+
+## Assignment queue (re-task idle children in this order)
+
+1. `package/test-harness/core-sandbox`
+2. `doc/agent/`
+3. `doc/runbook/`
+4. `doc/troubleshooting/` code and fixture files (79) plus per-command flag verification
+5. `doc/audit/` and `doc/planning/` deep passes, re-sliced by subdirectory with per-file
+   accounting (see the yield challenge; slice sizes from the filelist subdir stats)
+6. Cross-cutting concerns, one each: `GRW`, `TWS`, workspace deps + `ST3` imports, logging
+   adherence, error-handling patterns, async + unbounded input, manifest and mise conventions,
+   test-convention health, TSDoc quality, CSS quality, security sweep
+7. Linter tooling: `monochromatic-lint` (243 files, split), its closure, `kotlin`,
+   `oxlint-plugin/*` (split), `monorepo-task/*`, `file-enforcer/core` (242, split) plus `cli`,
+   `forbidden-strings/*` (split), `mutation-test/*`, `open-code-review-issue/cli`,
+   `env-local-json/core` (owns the ci-depot blocker root cause)
+8. Apps: `done/app`, `done/variant-postcss`, `rss/app`, `wc/app`, `doodle-widget/app`,
+   `syllable-break-demo/app`, `terminal/app`, `ssg/aquati.cat` (split), `ide/app` (1134, split
+   ~3), `file-manager/*` (4), music-player `design` (1269, split ~3), `desktop-app` (361, split
+   2), `android-app` (354, split 2), `asset`, `truepeak-core` plus bench, `desktop-e2e`
+9. Plugins: `agent-harness-shared/*` (9), `claude-code-plugin/*` (~14), `pi-plugin/*` (~18),
+   `dsh-plugin/*`, `codex-plugin/bash-limit`, `search-fetch/*` (core has concurrent edits),
+   `electron-infra/*`, `cloudflare-worker/rand`, `claude-cpu-cap/daemon`, `hall-monitor/daemon`,
+   `mcp/*`
+10. Rust: `git-policy/cli` (1030, split 3-4) plus fuzz, `file-enforcer/core-rust`,
+    `browserslist/core-rust`, `jsonc-edit/core-rust` plus fuzz, `xml-edit/core-rust` plus fuzz,
+    `dependency-catalog/*`, `wg/core-allowedips`, `linter/rust`, `learning/rust`,
+    `ownership-marker/foreign-borrowed` (ci-depot found the workflow filter misspells this),
+    `mpm-shadow/cli`, `search-shadow/cli`, `crate-release/cli`, `mvm/cli`,
+    `nested-wayland-session/cli`, `vm-builder/cli`, `vmsync/cli`
+11. `translation-repair/*` (~35, one per assignment); `upstream-fork/*` (~12 plus fuzz sidecars);
+    `config/*` (9; `pnpr` has concurrent edits); misc: `backup-path/cli`,
+    `android-exempt-unused/cli`, `deps-update/cli`, `fy/cli`, `git-clone-size/cli`,
+    `git-executable/core`, `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`,
+    `watch-restart/cli`, `kwin/key-helper`, `intellij-plugin/islands-black`,
+    `rolldown-plugin/import-attributes`, `pnpm-override/*` (7), `runtime-error/bun`,
+    hyperscript-class remainders, `test-fixture/*` source code only
+
+Calibration data: machine-scan strategies covered ~1000 files per turn but with low yield (75
+findings per 1053 files, 19 per 819), which the user has challenged; deep full reads fit ~4
+dense files per turn. Treat prose areas as deep-read slices of 30 to 80 smaller files per
+child-turn with per-file accounting, and re-slice by subdirectory.
 
 ## Concurrent work (do not touch)
 
@@ -134,25 +206,24 @@ edits in flight".
 
 ## Next actions
 
-1. Commit this handover, then keep updating and committing it at every wave transition.
-2. Spawn the orphaned single-package scanning children (21: `array-at`, `async-iter`,
-   `async-time`, `caught-value`, `const`, `numeric-format`, `observable`, `throws`,
-   `shell-argument`, `fs-id`, `kv-store/memoize`, `zip-writer`, `dom`, `figma/kiwi`,
-   `figma/to-penpot`, `test-harness/core-expect`, `test-harness/core-sandbox`, plus docs
-   children for `doc/agent` plus `doc/philosophy`, the `.agents/` skills plus `.claude-plugin`,
-   `doc/runbook`, and `doc/audit`).
-3. Spawn the cross-cutting children (one concern each, many packages allowed).
-4. When `sysd-source-trace` returns: verify its citations against the clone, write
-   `doc/troubleshooting/<topic>.md` for the `systemctl show` bare-name footgun (symptom, source
-   trace, verification catalogs, workarounds, 6-constraint upstream-filing audit; check
-   `.out-of-scope/` first), and commit it.
-5. After the central lint finishes, start `mise run test:unit` capped, then distribute package
-   diagnostics.
-6. As children report: verify findings, dedupe against the index, comment or open issues; update
-   this handover at every wave transition.
+1. Adjudicate the verified 210-finding batch (verdicts and candidates files are being written by
+   the pipeline run), draft bodies, file after verification, refresh the issue index.
+2. Yield challenge: spot-audit a sample of `doc/planning` and `doc/audit` files the scan marked
+   clean, count what the scan missed, then queue the deep re-slices by subdirectory with
+   per-file accounting. Extend `.agents/skills/project-code-review/SKILL.md` with the
+   exhaustive-review mandates once `docs-skills` (currently reviewing `.agents/`) completes, to
+   avoid concurrent edits.
+3. Triage `lint-full.log` into a per-package digest; distribute diagnostics to owning children.
+4. When `sysd-source-trace` returns: verify citations against the clone, write
+   `doc/troubleshooting/<topic>.md` (6-constraint upstream audit; check `.out-of-scope/` first),
+   and commit.
+5. Keep re-tasking idle children from the queue; update and commit this handover at every wave
+   transition.
 
 ## Stop conditions
 
-No code changes anywhere. Tracker writes happen only after orchestrator verification. Every new
-issue body states that no preferred resolution has been picked. Subagent scopes stay within one
-package (scanning) or one concern (cross-cutting) and within the ~60-minute budget.
+No code changes in the main worktree; experiments run only in throwaway worktrees. Tracker
+writes happen only after orchestrator verification. Every new issue body states that no
+preferred resolution has been picked. Subagent scopes stay within one package (scanning) or one
+concern (cross-cutting) and within the ~60-minute budget. Machine scans alone do not close a
+prose area: deep reads with per-file accounting do.
