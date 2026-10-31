@@ -115,7 +115,7 @@ const workspaceRootsCache = new Map<string, string[]>();
  @example
  ```ts
  await discoverWorkspaceRoots("/home/user/Monochromatic")
- // ["/home/user/Monochromatic/package/file-enforcer/core", ...]
+ // ["/home/user/Monochromatic/package/logger/core", ...]
  ```
  */
 export async function discoverWorkspaceRoots(monorepoRoot: string,): Promise<string[]> {

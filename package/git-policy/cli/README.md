@@ -445,7 +445,7 @@ The keys `plugins` and `trust` are refused.
     "markdown/autofix": ["warn", { "rules": ["lfs-image-url"], "exclude": ["package/ssg/"] }],
     "mono/forbidden-root-context": "error",
     "mono/dependent-version-bump": "error",
-    "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ".cache/forbidden-strings.rules.txt" }]
+    "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ["forbidden-strings.append.txt", { "path": "forbidden-strings.append.local.txt", "optional": true }] }]
   },
   "hooks": { "concurrentCommits": false },
   "indexLock": { "unprovenOwnerTimeoutMs": 1000 },
@@ -507,7 +507,7 @@ The `rulesFile` option takes either form:
 
 ```jsonc
 // One required file, the form that existed before lists.
-{ "rulesFile": ".cache/forbidden-strings.rules.txt" }
+{ "rulesFile": "forbidden-strings.append.txt" }
 // Several files; a string is a required file, an object may mark one optional.
 { "rulesFile": [
   "forbidden-strings.append.txt",

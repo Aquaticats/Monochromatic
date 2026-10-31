@@ -2,8 +2,8 @@
 # Non-sensitive deny-list rules that apply to every clone of this repo.
 # Tail-format sections: a '==> name <==' header opens one rule; section names
 # surface in findings as 'rule=<name>'.
-# This file is concatenated with forbidden-strings.append.local.txt by
-# file-enforcer to produce the runtime .cache/forbidden-strings.rules.txt
+# The scanner reads this file and forbidden-strings.append.local.txt directly through
+# FORBIDDEN_STRINGS_RULES (.config/mise/conf.d/20-env.toml)
 # (the betterleaks baseline ships inside the scanner binary; repo scans pass
 # --builtin-rules). Keep sensitive rules (codenames, customer names, partner
 # identifiers, politically-charged literals) out of this file; put those in

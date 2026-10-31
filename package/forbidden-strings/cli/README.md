@@ -171,32 +171,24 @@ Inside the Monochromatic monorepo,
    Place sensitive literals (codenames,
    customer names,
    partner IDs) here.
-- `.cache/forbidden-strings.rules.txt` is the authoritative runtime text consumed by the scanner.
-  File-enforcer concatenates the two appendixes into the gitignored `.cache/` scratch dir.
-  The generated root `mise.toml` `[env]` points `FORBIDDEN_STRINGS_RULES` at it
-  (absolute via `{{config_root}}`).
-  Do not edit directly.
+- The scanner reads the two appendixes directly.
+  `.config/mise/conf.d/20-env.toml` sets `FORBIDDEN_STRINGS_RULES` to a comma-separated list,
+  each entry absolute via `{{config_root}}`;
+  a trailing `?` marks the gitignored appendix as optional,
+  so a clean clone scans with the shared one alone.
+  No file is generated from them.
 - A compiled runtime artifact lives under the current user's native cache root,
   partitioned by scanner version,
   platform,
   and SHA-256 of the exact runtime text.
   It stores exact-literal groups directly and precompiled engine bytes only for explicit regex rules.
-  File-enforcer invokes `forbidden-strings compile-rules` after generating the text when the
-  release scanner exists.
-  A later scan repairs a missing or rejected artifact automatically.
+  The scanner compiles and publishes it on first use and repairs a missing or rejected artifact on a later scan.
+  `forbidden-strings compile-rules` builds it ahead of time.
 
-Run `mise run file-enforcer` after editing either appendix to regenerate the runtime text
-and eagerly compile its cache artifact.
-The generator is `generateForbiddenStringsRules` in `file-enforcer.config.ts`.
-During fresh setup before the release scanner exists,
-file-enforcer reports that eager compilation was skipped;
-the first later scan compiles and publishes the artifact.
-A stale pre-0.4.0 release binary exists but does not understand `compile-rules`,
-so file-enforcer fails instead of silently claiming eager compilation;
-rebuild the scanner before rerunning file-enforcer.
+Edit either appendix and the next scan picks the change up.
  If you
-fork this scanner into a project that does not use file-enforcer,
- drop the appendix split
+fork this scanner into a project that does not use the appendix split,
+ drop it
 and follow the single-file workflow above.
 
 ## Usage

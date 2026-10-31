@@ -27,22 +27,21 @@ Three layers feed the scanner,
   strings).
 
 There is no rules file at the repository root anymore.
-`mise run file-enforcer` concatenates the two appendixes into the gitignored
- `.cache/forbidden-strings.rules.txt`,
- and the root `mise.toml` `[env]` points `FORBIDDEN_STRINGS_RULES` at that
- cache by absolute path so local scans and the `cli-git` commit gate resolve it.
+`.config/mise/conf.d/20-env.toml` points `FORBIDDEN_STRINGS_RULES` at the two appendixes directly,
+ by absolute path through `{{config_root}}`,
+ with a trailing `?` on the gitignored one so a clone without it still scans;
+ `cli-git.config.jsonc` lists the same two files in its `rulesFile` array.
+ Nothing is generated from them.
 The design decision is recorded in `doc/decision/gitignore-negations.md`,
  and the de-rooting landed in commit `58995afff`.
 
 ## Set up a local appendix (contributor)
 
-Run `mise run file-enforcer` once.
-It scaffolds `forbidden-strings.append.local.txt` if the file is absent
- (an existing file is never overwritten) and regenerates
- `.cache/forbidden-strings.rules.txt`.
+Create `forbidden-strings.append.local.txt` at the repository root if it is absent
+ (nothing scaffolds it; `file-enforcer` only keeps its mode at 0600 once it exists).
 
-Add one rule per line to `forbidden-strings.append.local.txt`,
- then rerun `mise run file-enforcer` to recompose the cache.
+Add one rule per line to `forbidden-strings.append.local.txt`;
+ the next scan reads it.
 The file is already covered by `.gitignore`;
  confirm with `git check-ignore forbidden-strings.append.local.txt`
  before adding anything sensitive.
@@ -148,9 +147,8 @@ The per-rule semantics the port applies (quantifier bounding,
 After changing either appendix or the secret:
 
 - Local:
-   rerun `mise run file-enforcer`,
-  then make a throwaway commit or run `git cli-git check` on a scratch file
-  to confirm the cache loads and the gate still fires on a canary.
+  make a throwaway commit or run `git cli-git check` on a scratch file
+  to confirm the appendixes load and the gate still fires on a canary.
 - CI:
    the `forbidden-strings` workflow scans changed files on every pull
   request and the full tree on every push to `main`;

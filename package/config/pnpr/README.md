@@ -61,8 +61,7 @@ Through this route,
    Run `mise run //package/config/pnpr:generate:config` after adding,
     removing,
     or changing the entry points of a workspace package;
-   `mise run sync:files` does the same through the root `file-enforcer.config.ts`,
-   which writes the text this package renders (so `file-enforcer --check` still reports its drift).
+   file-enforcer does not write this file.
    `mise run //package/config/pnpr:check:config` writes nothing and exits non-zero,
    naming the file and every package that differs,
    when the checked-in file is not what the generator renders.

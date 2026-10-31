@@ -29,7 +29,7 @@ const MATRIX_TEST_SUFFIX = '.unit.matrix.test.ts';
  @example
  ```ts
  const files = await discoverTestFiles(
-   '/var/home/user/Monochromatic/package/file-enforcer/core',
+   '/var/home/user/Monochromatic/package/logger/core',
  );
  // ['/var/home/user/.../ensure-package.unit.matrix.test.ts']
  ```

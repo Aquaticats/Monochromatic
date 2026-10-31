@@ -5655,8 +5655,7 @@ and the caret callback in `src/native/language/actions.rs`.
 and the linter reports that as a finding of the same rule,
 at the same severity.
 The `check-cfg` entry in `Cargo.toml` that declares the `dylint_lib` name is written by file-enforcer
-(`file-enforcer.config.ts`,
-`CARGO_DYLINT_DIRS`).
+(rule `cargo-dylint` in `file-enforcer.config.jsonc`).
 
 What the IDE needs on the host,
 and what the linter does about it:
