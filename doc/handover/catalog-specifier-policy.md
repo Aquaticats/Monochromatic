@@ -291,18 +291,67 @@ other verb on any caller, with `--ignore-pnpmfile` as the only bypass found, whi
 it first.
 The shadow's remaining case is language unity and one owner for the rule, not coverage.
 
+## Mechanism decision (user, after the reboot research)
+
+The user chose option B, "Rust + clap pnpm wrapper first, everything in it", against my ranking of A (updateConfig hook plus lint),
+C (Rust checker plus hook stub), D (lint and CI only) above B.
+The ranking and the cons of each option were shown with the question, so this is an informed choice and stands.
+The user also chose to wait for the second `pi` review before deciding; the review finished after that answer, and its findings
+are below.
+Consequences recorded, not yet confirmed by the user as the full design:
+
+- The earlier decisions about the policy, no exceptions, named catalogs, manifests only, syntax only and `zod` into the catalog
+  still stand, because they are about the rule, not the mechanism.
+- The two TypeScript packages (`core-specifier-policy`, `cli-specifier-policy`), the `.pnpmfile.mjs` hook wiring and the mise lint
+  task as the primary mechanism are not chosen.
+  The `updateConfig` measurements remain valid facts, and a hook can still be added later as a second layer.
+- A wrapper sees `argv`, so unlike the hook it can tell the verb and scope which verbs it blocks.
+  It also reaches only callers that resolve it first on `PATH`; CI's setup action puts the real pnpm on `PATH`, so CI needs an
+  explicit step that runs the checker (a `check` subcommand of the same binary, built without pnpm).
+  Without that step the policy is not enforced in CI.
+
+## Second pi review (`openai/gpt-6.1-sol`, prompt `~/temp/agent/pi-review2-prompt.txt`, output `~/temp/agent/pi-review2-output.txt`)
+
+Told about the user's bad feeling and that the first verdict rested on the disproved no-op premise.
+Verdict: do not ship A as written; proceed with an omitted option E, a dependency-free Node checker with mandatory CI source lint
+and an advisory (non-blocking) `updateConfig` hook, no Rust requirement.
+The user chose B before this arrived, so E is recorded as a considered alternative, not the plan.
+Findings that bear on any design, including B (the reviewer's claims, not independently verified here):
+
+- A hard-failing hook turns a manifest mistake into a repository-wide pnpm outage, and `--ignore-pnpmfile` also disables the
+  existing dependency blocklist.
+  A wrapper can avoid this by scoping verbs; the lint backstop must not need pnpm to run.
+- CI enforcement is a proposed property, not an established one: whether any workflow runs the root `lint` task is unprobed, and
+  `package-paused/` is outside the workspace.
+  The checker needs an explicit CI step, repository-root-relative tracked paths including the root manifest, working-tree
+  contents, NUL-delimited git output, and failure (not success) when enumeration fails.
+- The probe's glob expansion was wrong outside its fixture: `**` taken literally, `!` exclusions ignored, partial-segment wildcards
+  taken literally, and a missing directory throwing.
+  Any enumerator must fail closed on a pattern it cannot expand, or reuse a maintained facility whose semantics are tested against pnpm.
+- `isCatalog` used `RegExp.test`, which coerces an array such as `["catalog:team"]` to a matching string; a checker must require
+  string values and define malformed dependency maps.
+- Landing the `zod` change may need a regenerated lockfile and clean frozen-install tests on both pnpm versions, Node 24 and Windows.
+- A preflight is not a postcondition: a script run from a valid workspace can write a literal specifier and exit 0.
+- Several handover statements were stronger than their evidence: "every verb" (the agent's source reading found `dlx` and `doctor`
+  exceptions, which this handover already records), "only bypass" (a valid alternative pnpmfile was not tested), "must hand-parse
+  YAML" (a Rust stub or wrapper can be handed `workspacePackagePatterns` or read `pnpm-workspace.yaml` itself), and Node 26 probes
+  do not cover Node 24.
+- Option C has a bootstrap obligation, not a circular dependency: the checker binary must be built before the first hooked pnpm call.
+- The bad feeling is not evidence for or against Rust; a structural reading is that the design grew from specifier enforcement
+  into a prerequisite for most pnpm work while bootstrap, recovery and CI execution stayed unspecified.
+
 ## Open items
 
-- A second `pi` review (`openai/gpt-6.1-sol`, whole handover and probe scripts pasted, told about the user's bad feeling and that the
-  first verdict rested on the disproved no-op premise) was started after the research; prompt `~/temp/agent/pi-review2-prompt.txt`,
-  output `~/temp/agent/pi-review2-output.txt`. Its findings are not yet folded in.
-- The user has not yet confirmed that the shared understanding is complete.
-- The user may veto the shadow recommendations above.
-- Hook timing (lint first then hook, both together, or lint plus a mise call) and the Rust-wrapper-first option are open.
-- Pick the dependencies listed above before any other branch is explored.
+- The user has not confirmed that the shared understanding is complete, and has not yet been asked the design questions that
+  follow from option B: dependencies first, then crate home and name, verb scope, workspace-root discovery with `--dir`, `-C`,
+  `--filter` and `--workspace-root`, manifest enumeration (tracked files through git versus a directory walk), the CI step,
+  `PATH` linking, and how the policy corpus is shared.
+- Precedent to read before asking: `package/mpm-shadow/cli` (`Cargo.toml`, `real_binary.rs`, `shim.rs`), the Rust dependency
+  catalog (`rust-catalog.toml`, `doc/decision/rust-dependency-catalog.md`) and the `cli-git-native` shadow.
+- Whether the `updateConfig` hook is kept as a second layer later is open; nothing is built.
 
 ## Next action
 
-After confirmation: fix `zod`, build `core-specifier-policy` and `cli-specifier-policy` with adversarial boundary tests,
-wire the lint task into the root `lint` task's repo-wide list,
-wire the hook in `.pnpmfile.mjs`, correct its stale comment, then verify each failure path in a throwaway fixture.
+Read the shadow precedent and the Rust catalog, enumerate every dependency option for the wrapper and get each picked,
+then continue the design questions for option B.
+Implementation, including the `zod` fix, waits for the user's explicit confirmation that the shared understanding is complete.
