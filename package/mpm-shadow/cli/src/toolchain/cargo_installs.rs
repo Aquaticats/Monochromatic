@@ -96,6 +96,20 @@ pub fn recorded_version(version_dir: &Path, crate_name: &str) -> Option<String> 
     return installed_versions(version_dir).get(crate_name).cloned();
 }
 
+/// What:
+/// Orders two version names newest first.
+/// Why:
+/// `sort_by` takes a function of two references;
+/// it is generic over the text type so the same function serves `Vec<String>` without taking `&String` parameters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const newestFirst = (left: string, right: string): number => compareVersions(right, left);
+/// ```
+fn newest_first<T: AsRef<str>>(left: &T, right: &T) -> Ordering {
+    return compare_versions(right.as_ref(), left.as_ref());
+}
+
 /// Every version directory of the crate (a plain directory that is not `current`,
 /// not hidden),
 /// newest first.
@@ -114,8 +128,7 @@ fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
             names.push(name);
         }
     }
-    // Newest first: the comparison is reversed.
-    names.sort_by(|left, right| return compare_versions(right, left));
+    names.sort_by(newest_first);
     return names;
 }
 
