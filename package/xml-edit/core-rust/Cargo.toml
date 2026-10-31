@@ -5,6 +5,7 @@ authors = ["Aquaticat"]
 categories = ["parser-implementations", "encoding"]
 documentation = "https://docs.rs/monochromatic-xml-edit"
 edition = "2024"
+homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/xml-edit/core-rust"
 include = [
   "src/**/*.rs",
   "Cargo.toml",
@@ -14,6 +15,8 @@ include = [
 ]
 keywords = ["xml", "edit", "lossless", "parser", "formatting"]
 license = "LGPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/Aquaticats/Monochromatic.git"
 description = "Formatting-preserving XML attribute and element edits for Rust: an owned scanner and parser record the byte span of every element and attribute, edits splice only those spans, and malformed or out-of-scope XML is rejected with a positioned diagnostic."
 
 [lib]

@@ -138,6 +138,10 @@ fn out_of_scope_constructs_are_rejected() {
     assert!(rejected("<?xml ?><a/>").0.contains("version"));
     assert!(rejected("<?xml version=\"1.0\"encoding=\"UTF-8\"?><a/>").0.contains("separated"));
     assert!(rejected("<?xml version=\"1.0\"?><?xml version=\"1.0\"?><a/>").0.contains("very start"));
+    assert!(rejected("<?xml version 1.0?><a/>").0.contains("expected ="));
+    assert!(rejected("<?xml version=1.0?><a/>").0.contains("must start with a quote"));
+    assert!(rejected("<?xml version=\"1.0?><a/>").0.contains("never closed"));
+    assert!(rejected("<?xml version=\"1.0\" version=\"1.0\"?><a/>").0.contains("out-of-order"));
     assert!(rejected("<a>&foo;</a>").0.contains("&foo;"));
     assert!(rejected("<a>&amp</a>").0.contains("closing ;"));
     assert!(rejected("<a x=\"<\"/>").0.contains("&lt;"));
