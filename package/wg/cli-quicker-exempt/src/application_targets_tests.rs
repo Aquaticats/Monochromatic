@@ -8,8 +8,10 @@ use crate::application_targets::{
     is_helium_service_name,
     is_interpreter_service_name,
     is_qure_service_name,
+    is_toolchain_updates_slice_name,
     scan_application_targets,
     ScanRoots,
+    TOOLCHAIN_UPDATES_SLICE,
 };
 /// Standard fixture errors.
 use std::io;
@@ -484,6 +486,75 @@ fn scan_discovers_qure_cgroups() -> io::Result<()> {
     ];
     expected.sort();
     assert_eq!(targets, expected);
+    std::fs::remove_dir_all(&scratch)?;
+    return Ok(());
+}
+
+/// Accepts exactly the toolchain updates slice name,
+///  never a scope inside it,
+///  a lookalike with a suffix,
+///  the nested-hierarchy spelling,
+///  or the name without the `app-` prefix that would sit outside `app.slice`.
+#[test]
+fn toolchain_updates_slice_name_is_exact() {
+    assert!(is_toolchain_updates_slice_name(
+        "app-monochromatic\\x2dupdates.slice"
+    ));
+    assert_eq!(
+        TOOLCHAIN_UPDATES_SLICE,
+        "app-monochromatic\\x2dupdates.slice"
+    );
+    assert!(!is_toolchain_updates_slice_name(
+        "app-monochromatic\\x2dupdates-extra.slice"
+    ));
+    assert!(!is_toolchain_updates_slice_name(
+        "app-monochromatic\\x2dupdates.scope"
+    ));
+    // An unescaped dash names `app.slice/app-monochromatic.slice/app-monochromatic-updates.slice`.
+    assert!(!is_toolchain_updates_slice_name(
+        "app-monochromatic-updates.slice"
+    ));
+    assert!(!is_toolchain_updates_slice_name("monochromatic-updates.slice"));
+    assert!(!is_toolchain_updates_slice_name(
+        "app-Monochromatic\\x2dupdates.slice"
+    ));
+}
+
+/// Attaches the updates slice itself,
+///  not the run scopes below it,
+///  and leaves lookalike names alone.
+#[test]
+fn scan_discovers_only_the_toolchain_updates_slice() -> io::Result<()> {
+    let scratch = crate::test_scratch::scratch_root().join(format!(
+        "wg-quicker-application-targets-updates-{}",
+        std::process::id()
+    ));
+    let cgroup_root = scratch.join("cgroup");
+    let app_slice = cgroup_root.join("users/app.slice");
+    let proc_root = scratch.join("proc");
+    std::fs::create_dir_all(&app_slice)?;
+    std::fs::create_dir(&proc_root)?;
+    let updates_slice = app_slice.join("app-monochromatic\\x2dupdates.slice");
+    // A scope created by `systemd-run --slice` lives below the slice and inherits its programs.
+    let run_scope = updates_slice.join("run-p4242-i4343.scope");
+    let suffixed_slice = app_slice.join("app-monochromatic\\x2dupdates-extra.slice");
+    let nested_hierarchy_slice = app_slice.join("app-monochromatic-updates.slice");
+    let unrelated = app_slice.join("app-org.example.Other.scope");
+    std::fs::create_dir(&updates_slice)?;
+    std::fs::create_dir(&run_scope)?;
+    for path in [&suffixed_slice, &nested_hierarchy_slice, &unrelated] {
+        std::fs::create_dir(path)?;
+    }
+    // A sibling of `app.slice`, the place a name without the `app-` prefix would land,
+    // is outside the watched directory.
+    let outside = cgroup_root.join("users/monochromatic-updates.slice");
+    std::fs::create_dir(&outside)?;
+    let targets = scan_application_targets(&ScanRoots {
+        app_slice: &app_slice,
+        proc_root: &proc_root,
+        cgroup_root: &cgroup_root,
+    })?;
+    assert_eq!(targets, vec![updates_slice]);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
