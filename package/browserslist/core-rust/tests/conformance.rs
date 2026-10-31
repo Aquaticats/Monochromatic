@@ -200,7 +200,7 @@ fn node_prerelease_exception_is_exactly_the_alpha() {
 #[test]
 fn every_other_case_equals_plain_npm() {
     let document = expected();
-    let lock = DataLock::from_json(LOCK).expect("lock parses");
+    let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let npm_esr = document["npmFirefoxEsr"].as_str().expect("npm ESR entry");
     let locked_major = lock.firefox_esr.split('.').next().expect("a major");
     for case in document["cases"].as_array().expect("cases") {
@@ -222,7 +222,7 @@ fn every_other_case_equals_plain_npm() {
 #[test]
 fn control_ours_differs_from_plain_npm_for_the_exception() {
     let document = expected();
-    let lock = DataLock::from_json(LOCK).expect("lock parses");
+    let lock = DataLock::from_json(&lock_text()).expect("lock parses");
     let case = exception_cases(&document)[0];
     let data = data_with(&lock.firefox_esr, case.get("nodeVersions").map(strings));
     let ours = resolve_config_text(case["config"].as_str().expect("config"), &data).expect("resolves");
