@@ -30,6 +30,7 @@ import { hashContent, } from '@monochromatic-dev/translation-repair-document-str
 import { buildEditorCandidates, } from '../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+  SEAT_HYPER_VISION,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -161,6 +162,49 @@ await describe({
         expect(candidates.map(function toId(candidate,) {
           return candidate.modelId;
         },),).toStrictEqual([...ROSTER,],);
+      },
+    },),
+
+    it({
+      name: 'CREDITS AN EDIT TO THE MODEL THAT WROTE IT and keeps it at the position of the seat it answered for '
+        + '(ledger B1142): the model asked in place of a runaway editor is the candidate\'s producer, and the finding '
+        + 'its edit raised names it, while the candidates still follow the roster',
+      fn: async () => {
+        /**
+         Model asked in place of the second editor, on no bench of the gather.
+         */
+        const stand = SEAT_HYPER_VISION;
+        const { candidates, findings, } = buildEditorCandidates({
+          voices: [
+            heard({
+              modelId: ROSTER[2],
+              region: 1,
+              newText: 'The cat naps.',
+            },),
+            {
+              modelId: stand,
+              seat: ROSTER[1],
+              value: { edits: [{ region: 9, newText: 'No such region.', },], },
+            },
+            heard({
+              modelId: ROSTER[0],
+              region: 1,
+              newText: 'The cat dozes.',
+            },),
+          ],
+          editorModelIds: ROSTER,
+          promptEnvelopes: ENVELOPES,
+          targetText: TARGET_TEXT,
+          envelopes: ENVELOPES,
+          preservation: { mode: 'skip', },
+        },);
+        expect(candidates.map(function toId(candidate,) {
+          return candidate.modelId;
+        },),).toStrictEqual([ROSTER[0], stand, ROSTER[2],],);
+        expect(findings.every(function namesAuthor(finding,): boolean {
+          return finding.startsWith(`${stand}: `,);
+        },),).toBe(true,);
+        expect(findings.length > 0,).toBe(true,);
       },
     },),
 

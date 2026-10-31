@@ -646,6 +646,62 @@ await describe({
         },),
 
         it({
+          name: 'COUNTS AN ANSWER THAT ANOTHER MODEL GAVE FOR A RUNAWAY SEAT as unusable for the seat and usable for the '
+            + 'model that wrote it (ledger B1142), so a seat that runs away on every ask is not counted as answering',
+          fn: async () => {
+            /** Tally the wrapper counts into. */
+            const tally = createSeatTally();
+            /** Client whose runaway seat was re-asked of another model that answered. */
+            const client = seatTallyClient({
+              inner: {
+                chatText: async () => {
+                  throw new Error('chatText unused',);
+                },
+                chatJson: async <ValueT,>(): Promise<ChatJsonOutcome<ValueT>> => ({
+                  kind: 'ok',
+                  value: { verdict: 'purr', } as ValueT,
+                  rawText: '{"verdict":"purr"}',
+                  answeredBy: SEAT_HYPER_TEXT_BEDROCK,
+                }),
+                quotas: async () => {
+                  throw new Error('quotas unused',);
+                },
+              },
+              tally,
+              minAsks: 4,
+            },);
+            await client.chatJson({
+              modelId: SEAT_HYPER_VISION,
+              messages: MESSAGES,
+              signal: SIGNAL,
+              validate: isCatVerdict,
+            },);
+            expect(tally.counts(),).toStrictEqual([
+              {
+                modelId: SEAT_HYPER_VISION,
+                asked: 1,
+                usable: 0,
+                unusable: 1,
+                threw: 0,
+                silent: 0,
+                abandoned: 0,
+                unreachable: 0,
+              },
+              {
+                modelId: SEAT_HYPER_TEXT_BEDROCK,
+                asked: 1,
+                usable: 1,
+                unusable: 0,
+                threw: 0,
+                silent: 0,
+                abandoned: 0,
+                unreachable: 0,
+              },
+            ],);
+          },
+        },),
+
+        it({
           name: 'COUNTS a JSON outcome the guard rejected as unusable, since an answer nothing can read '
             + 'is not a voice',
           fn: async () => {

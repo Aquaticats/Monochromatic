@@ -28,10 +28,11 @@ import {
   type IssueAuthorship,
   UNATTRIBUTED_TEXT,
 } from '@monochromatic-dev/translation-repair-house-rule';
-import type {
-  ChatJsonOutcome,
-  ChatJsonRequest,
-  ModelClient,
+import {
+  alternateModelsFor,
+  type ChatJsonOutcome,
+  type ChatJsonRequest,
+  type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import type {
   AdjudicatedIssue,
@@ -88,7 +89,13 @@ const CHECKERS = [
  ```
  */
 function checkerClient(
-  { reportFor, }: { readonly reportFor: (modelId: string,) => unknown; },
+  {
+    reportFor,
+    runaway = [],
+  }: {
+    readonly reportFor: (modelId: string,) => unknown;
+    readonly runaway?: readonly string[];
+  },
 ): ModelClient {
   return {
     chatText: async () => {
@@ -97,6 +104,15 @@ function checkerClient(
     chatJson: async <ValueT,>(
       request: ChatJsonRequest<ValueT>,
     ): Promise<ChatJsonOutcome<ValueT>> => {
+      // A REASONING RUNAWAY: the length stop with no content, which the gather re-asks of another model.
+      if (runaway.includes(request.modelId,)) {
+        return {
+          kind: 'schema-mismatch',
+          rawText: '',
+          reason: 'truncated-completion',
+          detail: 'provider reported a truncating completion',
+        };
+      }
       /**
        Scripted report for the answering model.
        */
@@ -309,6 +325,53 @@ await describe({
         expect(published,).toContain(
           `checker-ballot ${CHECKERS[1]} adjudicated/tense fixed outsider`,
         );
+      },
+    },),
+
+    it({
+      name: 'READS THE AUTHORSHIP OF THE MODEL THAT ANSWERED FOR A RUNAWAY CHECKER (ledger B1142, the pin of B1107 turned '
+        + 'around): a model that wrote the text and answered in place of a seat checks it as its author, and the seat that '
+        + 'ran away casts no ballot',
+      fn: async () => {
+        const {
+          lines,
+          logger,
+        } = capturingLoggerPair();
+
+        /**
+         Model the re-ask of the first seat's runaway goes to, which is on no bench of this stage.
+         */
+        const [alternate,] = alternateModelsFor({
+          modelId: CHECKERS[0],
+          role: 'checker',
+          bench: CHECKERS,
+        },).alternates;
+        if (alternate === undefined)
+          throw new Error('the checker role has a model left to answer a runaway',);
+        const result = await runStage({
+          client: checkerClient({
+            reportFor: () => ({ checks: [{ issue: 1, verdict: 'fixed', },], }),
+            runaway: [CHECKERS[0],],
+          },),
+          issues: [catIssue({ issueId: 'adjudicated/tense', },),],
+          // THE ALTERNATE WROTE THE TEXT, and no seat of the bench did.
+          authorship: { perIssue: { 'adjudicated/tense': [alternate,], }, everyIssue: [], },
+          logger,
+        },);
+        expect(lines.filter(function isBallot(line,): boolean {
+          return line.startsWith('checker-ballot ',);
+        },).toSorted(),).toEqual([
+          `checker-ballot ${alternate} adjudicated/tense fixed author`,
+          `checker-ballot ${CHECKERS[1]} adjudicated/tense fixed outsider`,
+          `checker-ballot ${CHECKERS[2]} adjudicated/tense fixed outsider`,
+        ].toSorted(),);
+        expect(result.readings['adjudicated/tense']?.ballots.map(function wrote(ballot,): string {
+          return `${ballot.modelId}:${String(ballot.wroteTheText,)}`;
+        },).toSorted(),).toEqual([
+          `${alternate}:true`,
+          `${CHECKERS[1]}:false`,
+          `${CHECKERS[2]}:false`,
+        ].toSorted(),);
       },
     },),
 

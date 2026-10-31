@@ -549,6 +549,48 @@ await describe({
           },
         },),
         it({
+          name: 'RECORDS THE BALLOT UNDER THE MODEL THAT CAST IT where a seat\'s reasoning runaway was re-asked of another '
+            + 'model (ledger B1142), not under the seat, so the audit trail names the judge who chose',
+          fn: async () => {
+            /**
+             Model that answered for the first seat.
+             */
+            const answerer = SEAT_HYPER_VISION;
+            const outcome = await contestLaneSlice({
+              fanOut: 'whole-bench',
+              client: {
+                chatText: async () => {
+                  throw new Error('chatText unused by the lane contest',);
+                },
+                chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+                  const value: unknown = JSON.parse(ballot({ choice: 'repair', },),);
+                  if (!request.validate(value,))
+                    throw new Error('scripted lane contest ballot failed validation',);
+                  return {
+                    kind: 'ok',
+                    value,
+                    rawText: JSON.stringify(value,),
+                    ...((request.modelId === ROSTER[0]) ? { answeredBy: answerer, } : {}),
+                  };
+                },
+                quotas: async () => {
+                  throw new Error('quotas unused by the lane contest',);
+                },
+              },
+              modelIds: ROSTER,
+              subject: SUBJECT,
+              signal: AbortSignal.timeout(HANG_STOP_MS,),
+              exchangeTimeoutMs: HANG_STOP_MS,
+              l,
+              stageSettings: SCRIPTED_STAGE_SETTINGS,
+            },);
+            expect(outcome.ballots.map(function seatOf(seated,): string {
+              return seated.modelId ?? '';
+            },).toSorted(),).toEqual([answerer, ROSTER[1], ROSTER[2],].toSorted(),);
+          },
+        },),
+
+        it({
           name: 'KEEPS the findings each judge reported, for the audit trail',
           fn: async () => {
             const outcome = await contest({

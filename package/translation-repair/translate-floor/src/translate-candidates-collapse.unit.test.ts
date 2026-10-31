@@ -42,6 +42,7 @@ import {
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 
 //region Fixtures
@@ -88,6 +89,36 @@ function voiceOf(
 await describe({
   name: buildTranslateCandidates.name,
   children: [
+    it({
+      name: 'PLACES A RENDERING WRITTEN IN PLACE OF A SEAT AT THAT SEAT (ledger B1142), under the model that wrote it: the '
+        + 'candidates keep the roster\'s order whatever model answered for a seat, and each is produced by its author',
+      fn: async () => {
+        /**
+         Model that wrote the first seat's rendering after that seat's reasoning ran away.
+         */
+        const stand = SEAT_SYNTHETIC_VISION_WITHHELD;
+        const set = buildTranslateCandidates({
+          voices: [
+            voiceOf({
+              at: 1,
+              translation: 'The cat sleeps on the windowsill.',
+            },),
+            {
+              modelId: stand,
+              seat: TRANSLATORS[0],
+              value: { translation: 'The cat dozes on the windowsill.', },
+            },
+          ],
+          translatorModelIds: [...TRANSLATORS,],
+          incumbentText: '',
+          lineStructured: false,
+        },);
+        expect(set.candidates.map(function producedBy(candidate,): string {
+          return (candidate.producer.kind === 'model') ? candidate.producer.modelId : candidate.producer.kind;
+        },),).toEqual([stand, TRANSLATORS[1],],);
+      },
+    },),
+
     it({
       name: 'COLLAPSES two renderings that differ only after their last character, since a trailing '
         + 'newline is not a different translation and offering it twice would split one wording`s stake '

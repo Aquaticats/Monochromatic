@@ -100,7 +100,18 @@ function reviewClient(
     delayed = false,
     held,
     refused = [],
+    answeredFor,
   }: {
+    readonly answeredFor?: {
+      /**
+       Seat whose reasoning runaway was re-asked of another model.
+       */
+      readonly seat: RosterModelId;
+      /**
+       Model that answered for it.
+       */
+      readonly answerer: RosterModelId;
+    };
     readonly unavailable?: readonly RosterModelId[];
     readonly rejecting?: RosterModelId;
     readonly delayed?: boolean;
@@ -169,6 +180,10 @@ function reviewClient(
         kind: 'ok',
         value,
         rawText: JSON.stringify(value,),
+        // Conditional spread keeps the model absent for a seat whose own model answered.
+        ...(((answeredFor !== undefined) && (request.modelId === answeredFor.seat))
+          ? { answeredBy: answeredFor.answerer, }
+          : {}),
       };
     },
     quotas: async () => {
@@ -250,6 +265,19 @@ await describe({
           'acceptable',
           'acceptable',
         ],);
+      },
+    },),
+
+    it({
+      name: 'RECORDS THE SEAT UNDER THE MODEL THAT REVIEWED where a seat\'s reasoning runaway was re-asked of another '
+        + 'model (ledger B1142), so the record names the reviewer whose verdict it holds',
+      fn: async () => {
+        const review = await runReview({
+          client: reviewClient({ answeredFor: { seat: ROSTER[0], answerer: SEAT_HYPER_VISION, }, },),
+        },);
+        expect(review.seats.map(function reviewer(seat,): string {
+          return seat.modelId;
+        },),).toEqual([SEAT_HYPER_VISION, ROSTER[1], ROSTER[2],],);
       },
     },),
 
