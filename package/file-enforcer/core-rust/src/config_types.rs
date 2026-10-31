@@ -165,6 +165,9 @@ pub enum RuleConfig {
         source: String,
         /// Repo-relative output path.
         output: String,
+        /// Repo-relative path of the data lock that pins `caniuse-lite`,
+        /// `node-releases` and the Firefox ESR value.
+        lock: String,
         /// Config section to resolve,
         /// such as `production`.
         environment: Option<String>,

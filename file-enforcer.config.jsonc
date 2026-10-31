@@ -178,20 +178,22 @@
       ],
       "blocks": [],
     },
-    // Not linked yet: the dependency-catalog Rust library renders rust-catalog.toml into every [workspace.dependencies].
-    // Until it is linked this rule warns (kind-not-wired) and plans nothing. It must stay after the toml-keys rules.
+    // The dependency-catalog Rust library renders rust-catalog.toml into every [workspace.dependencies].
+    // It composes with the toml-keys rules and must stay after them.
     {
       "kind": "rust-catalog",
       "id": "rust-catalog",
       "catalog": "rust-catalog.toml",
       "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
     },
-    // Not linked yet: the in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
+    // The in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
+    // The data it resolves against is pinned by the lock (package/browserslist/core-rust).
     {
       "kind": "browserslist",
       "id": "browserslist-targets",
       "source": ".browserslistrc",
       "output": ".browserslistrc.resolved.local.json",
+      "lock": "browserslist-data.lock.json",
       "environment": "production",
     },
     // The package bin directories pnpm created, for Mise's PATH. Gitignored; it sorts before the committed

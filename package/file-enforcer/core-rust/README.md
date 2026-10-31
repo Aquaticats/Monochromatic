@@ -139,7 +139,8 @@ neither written nor checked.
 - `browserslist` (browserslist crate):
   fields `source` (`.browserslistrc`),
   `output`
-  (`.browserslistrc.resolved.local.json`) and optional `environment`.
+  (`.browserslistrc.resolved.local.json`),
+  `lock` (`browserslist-data.lock.json`, the repository-root data lock) and optional `environment`.
   It owns its output outright (`composes` stays `false`) and must write the JSON array the rolldown consumer reads.
 - `jetbrains-harper` (XML edit crate),
   only in the per-user config:
