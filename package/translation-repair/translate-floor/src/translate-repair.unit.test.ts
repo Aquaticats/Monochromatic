@@ -953,6 +953,79 @@ await describe({
     },),
 
     it({
+      name: 'PUTS THE SEAT AND THE ANSWERER OF EVERY VOICE ON THE BENCH OF THE RE-ASK (ledger B1161): a seat that ran away '
+        + 'and was answered by another model is not asked to revise that model\'s text on the question it ran away on',
+      fn: async () => {
+        /**
+         Seat that ran away in the gather and was answered by the model of the voice.
+         */
+        const runawaySeat = SEAT_SYNTHETIC_TEXT_EVERYWHERE;
+        /**
+         Seat the follow-up call carried.
+         */
+        let seat: ChatJsonRequest<unknown>['reaskSeat'];
+        await repairInvalidCandidates({
+          client: {
+            chatText: async () => {
+              throw new Error('chatText unused',);
+            },
+            chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+              seat = request.reaskSeat;
+              return { kind: 'schema-mismatch', rawText: '', detail: 'fixture', };
+            },
+            quotas: async () => {
+              throw new Error('quotas unused',);
+            },
+          },
+          voices: [
+            { modelId: TRANSLATOR, seat: runawaySeat, value: { translation: MERGED_TEXT, }, },
+            { modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, value: { translation: GOOD_TEXT, }, },
+          ],
+          sourceText: SOURCE_TEXT,
+          incumbentText: '',
+          priorMessages: PRIOR_MESSAGES,
+          role: 'translator',
+          reaskClaims: createReaskClaims(),
+          reask: 'other-model',
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          l,
+        },);
+        expect(seat?.bench.toSorted(),).toEqual([TRANSLATOR, runawaySeat, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,].toSorted(),);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE SEAT OF A VOICE THAT REVISED ITS OWN CANDIDATE (ledger B1161), so the candidates are still ordered '
+        + 'by the seat they answered for',
+      fn: async () => {
+        /**
+         Seat the voice answered for, other than the model that answered.
+         */
+        const runawaySeat = SEAT_SYNTHETIC_TEXT_EVERYWHERE;
+        const repaired = await repairInvalidCandidates({
+          client: repairClient({
+            answer: { resolution: 'revised', translation: GOOD_TEXT, translatorNote: 'restored the heading', },
+            log: { calls: 0, messages: [], },
+          },),
+          voices: [{ modelId: TRANSLATOR, seat: runawaySeat, value: { translation: MERGED_TEXT, }, },],
+          sourceText: SOURCE_TEXT,
+          incumbentText: '',
+          priorMessages: PRIOR_MESSAGES,
+          role: 'translator',
+          reaskClaims: createReaskClaims(),
+          reask: 'other-model',
+          signal: new AbortController().signal,
+          perCallTimeoutMs: HANG_STOP_MS,
+          l,
+        },);
+        expect(repaired.voices,).toEqual([
+          { modelId: TRANSLATOR, seat: runawaySeat, value: { translation: GOOD_TEXT, }, },
+        ],);
+      },
+    },),
+
+    it({
       name: 'HANDS THE RE-ASK ITS ROLE, THE SHARED RECORD AND A CONVERSATION THAT DOES NOT CALL THE TEXT THE ASKED '
         + 'MODEL\'S OWN: the translation is named as another translator\'s, with no "your" and no turn of its own',
       fn: async () => {
