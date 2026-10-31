@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted, 2026-05-18.
+Accepted,
+2026-05-18.
  Amended 2026-10-31:
  the Optique valueparser layer is deprecated across the workspace,
  and this decision now prescribes `node:util` `parseArgs`
@@ -45,9 +46,15 @@ Parse with `node:util` `parseArgs`,
 Decision rule for value validation:
 
 - The value is "any string" or "any integer":
-  no schema, accept the token as parsed.
+  no schema,
+  accept the token as parsed.
 - The value has a shape constraint
- (regex, range, picklist, URL, email, custom transform):
+ (regex,
+  range,
+  picklist,
+  URL,
+  email,
+  custom transform):
   validate with a Valibot pipe such as `v.pipe(v.string(), ...)`.
 - A schema already exists for the input
  (the search-fetch tool specs are the example):
@@ -55,16 +62,22 @@ Decision rule for value validation:
   A strict flag grammar feeding a tolerant tool schema is intended:
   the CLI rejects unknown flags,
   the tool layer still warns and strips unknown keys.
-- The value needs a non-string output type (number, Date, parsed config):
-  bridge with `v.transform()`; CLI arguments are always strings on entry.
+- The value needs a non-string output type (number,
+  Date,
+  parsed config):
+  bridge with `v.transform()`;
+  CLI arguments are always strings on entry.
 
 Validation failures are usage errors
- (exit `2`, per `doc/decision/cli-output-and-exit-codes.md`),
+ (exit `2`,
+per `doc/decision/cli-output-and-exit-codes.md`),
  and the message lives in the thrown error (`PP6`),
  not in a preceding console line.
 
-Async Valibot pipes (`v.pipeAsync`, `v.checkAsync`) run after argument
- parsing, never inside it;
+Async Valibot pipes (`v.pipeAsync`,
+`v.checkAsync`) run after argument
+ parsing,
+never inside it;
  `parseArgs` itself is synchronous and stays that way.
 
 Out of scope for this decision:
@@ -81,9 +94,12 @@ Out of scope for this decision:
 ### Broad adoption: wrap every value in a Valibot pipe
 
 Rejected.
- Parsers that accept "any string" (VM names, generic paths, freeform
+ Parsers that accept "any string" (VM names,
+generic paths,
+freeform
  identifiers) gain nothing from `v.pipe(v.string())` beyond import
- churn. Reach for Valibot only where a shape constraint exists.
+ churn.
+Reach for Valibot only where a shape constraint exists.
 
 ### Ad-hoc `map()` validation when shape checks are needed
 
@@ -97,25 +113,33 @@ Rejected.
 Rejected without separate vetting.
  The workspace chose Valibot at the catalog level;
  a second validation library for one subsystem splits contributor
- attention. It would need its own decision doc.
+ attention.
+It would need its own decision doc.
 
 ## Historical: the Optique-era decision
 
-What follows is the 2026-05-18 record, kept for its research and
- reasoning. It describes a framework this workspace is deprecating;
+What follows is the 2026-05-18 record,
+kept for its research and
+ reasoning.
+It describes a framework this workspace is deprecating;
  do not read it as current guidance.
 
 The Optique-era decision rule was:
  use `@optique/valibot` selectively for shape-constrained value
- parsers, default to the plain `string()` / `integer()` primitives
- otherwise, and keep async validation out of the synchronous
+ parsers,
+default to the plain `string()` / `integer()` primitives
+ otherwise,
+and keep async validation out of the synchronous
  `ValueParser.parse()`.
 
 The 2026-05-18 audit of `@optique/valibot`
- (via `gh api repos/dahlia/optique`, the npm registry, and npm
+ (via `gh api repos/dahlia/optique`,
+the npm registry,
+and npm
  download counts):
  MIT licensed,
- single maintainer (Hong Minhee, 3315 contributions against the second
+ single maintainer (Hong Minhee,
+3315 contributions against the second
  contributor's 2),
  1.1.0 at HEAD with 1.0.0 released 2026-04-14,
  3078 weekly downloads against 15832 for `@optique/core`,
@@ -124,7 +148,9 @@ The 2026-05-18 audit of `@optique/valibot`
  (the README's "0.42.0 and above" claim was stale),
  no open security advisories,
  zero open bug-labeled issues.
- Engines `node>=20.0.0`, `bun>=1.2.0`, `deno>=2.3.0`;
+ Engines `node>=20.0.0`,
+`bun>=1.2.0`,
+`deno>=2.3.0`;
  dual ESM/CJS exports,
  with the Node ESM resolver picking the ESM entry.
 
@@ -134,5 +160,6 @@ The 2026-05-18 audit of `@optique/valibot`
   validation library other than Valibot,
   this decision renews alongside `PHILOSOPHY.tool-choices.md`.
 - If async validation at parse time becomes a hard requirement
-  (DNS resolution, remote registry lookups),
+  (DNS resolution,
+  remote registry lookups),
   it belongs in a post-parse step regardless of parser choice.

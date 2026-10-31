@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted, 2026-10-31.
+Accepted,
+2026-10-31.
  Recorded from conventions three CLIs already share
  (`package/crate-release/cli`,
  `package/env-local-json/core`,
@@ -20,10 +21,13 @@ The exit-code and stream conventions lived only in package READMEs:
  and `package/git-policy/cli/README.md` documents
  "0 means clean or warnings only,
   1 means final error findings,
-  2 means a usage, configuration, transaction or engine failure".
+  2 means a usage,
+configuration,
+transaction or engine failure".
  `package/git-clone-size/cli/README.md` adds the stream rule:
  "Output is JSONL only ...
-  Diagnostics go to stderr, so stdout stays valid for `jq`".
+  Diagnostics go to stderr,
+so stdout stays valid for `jq`".
 
 Every new CLI re-derived these from its siblings,
  and the `search-fetch` CLI grilling surfaced the gap.
@@ -33,9 +37,16 @@ Every new CLI re-derived these from its siblings,
 
 Exit codes:
 
-- `0`: success, and explicit `--help` or `--version` output.
-- `1`: the operation failed: provider failure or deadline expiry.
-- `2`: the caller or configuration is wrong: usage error, configuration error,
+- `0`:
+  success,
+  and explicit `--help` or `--version` output.
+- `1`:
+  the operation failed:
+  provider failure or deadline expiry.
+- `2`:
+  the caller or configuration is wrong:
+  usage error,
+  configuration error,
   or policy refusal such as a blocklist hit.
 
 Streams:
@@ -56,7 +67,8 @@ Usage text is generated from the same constants the parser enforces,
  (the `package/crate-release/cli/src/usage.ts` pattern).
 
 `process.exitCode` is set explicitly only for the non-standard code
- `2`, per `PP6`;
+ `2`,
+per `PP6`;
  `0` and `1` come from normal return and thrown errors.
 
 ## Rejected alternatives
@@ -66,7 +78,9 @@ Usage text is generated from the same constants the parser enforces,
 Rejected.
  Consumers here are agents and small scripts;
  a code table they must learn buys nothing over
- "caller wrong, operation failed, fine",
+ "caller wrong,
+operation failed,
+fine",
  which is what `0`/`1`/`2` already encodes.
  The three incumbent CLIs agree on `0`/`1`/`2`,
  so a fourth scheme would split the fleet.
@@ -77,7 +91,8 @@ Rejected.
  `package/git-clone-size/cli/README.md` records the reason:
  stdout must stay valid for `jq`.
  Any prompt or notice that lands on stdout breaks machine consumers
- silently, which is the failure class this rule exists to prevent.
+ silently,
+which is the failure class this rule exists to prevent.
 
 ### Usage text on stderr even for explicit `--help`
 
