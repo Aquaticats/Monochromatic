@@ -21,8 +21,9 @@ import {
   holdSet,
   MEASURED_CHECKER_ORDER,
   type ProviderRecord,
-  ROSTER_MODEL_IDS,
+  rolePoolOf,
   type RosterModelId,
+  type SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   type BudgetView,
@@ -66,7 +67,8 @@ const HERE = import.meta.dirname;
 
 /**
  Candidates no judge fidelity probe has seated (`judge-unmeasured` on the
- card): they hold no seat until measured.
+ card): they hold no seat until measured. Multiple serving routes do not
+ establish eligibility or transfer a predecessor's calibration.
  */
 const JUDGE_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'judge-unmeasured', },);
 
@@ -77,13 +79,6 @@ const JUDGE_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'judge-unme
  unit fixture. `hf:openai/gpt-oss-120b` since 2026-09-24.
  */
 export const OWNER_CULLED: ReadonlySet<RosterModelId> = holdSet({ hold: 'owner-culled', },);
-
-/**
- New candidates that hold no judge or preparation seat until measured
- (`judge-unmeasured` on the card). Multiple serving routes do not establish
- eligibility or transfer a predecessor's calibration.
- */
-const UNMEASURED_UNTIL_SEATED: ReadonlySet<RosterModelId> = JUDGE_UNMEASURED;
 
 /**
  Roster models no producer calibration has measured, so they hold no
@@ -119,6 +114,27 @@ const UNMEASURED_UNTIL_SEATED: ReadonlySet<RosterModelId> = JUDGE_UNMEASURED;
  holds. Record: the second 2026-09-09 addendum of the seating decision.
  */
 export const WRITER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'writer-unmeasured', },);
+
+/**
+ The chat models a role's bench is derived from: the models no hold of the role keeps out (`rolePoolOf`, the one list a
+ re-ask of that role draws its stand-ins from too, ledger B1148), less the decision-only seats, which take no completion
+ and so are on no chat bench however they measure; they reach the select judges through `RUN_DECISION_JUDGES` alone.
+
+ @param role - role the bench is for
+
+ @returns The roster's chat models the role may seat, in roster order
+
+ @example
+ ```ts
+ const writers = chatBenchOf({ role: 'writer', },);
+ ```
+ */
+function chatBenchOf({ role, }: { readonly role: SeatRole; },): readonly RosterModelId[] {
+  return rolePoolOf({ role, },)
+    .filter(function chatSeat(modelId,): boolean {
+      return !DECISION_ONLY_ROSTER_IDS.includes(modelId,);
+    },);
+}
 
 /**
  Every model this run may seat, across both providers.
@@ -160,21 +176,7 @@ export const WRITER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'wr
  Record: the 2026-09-11 addendum in
  `doc/decision/translation-repair-roster-seating-2026-09-01.md`.
  */
-export const RUN_ROSTER: readonly RosterModelId[] = ROSTER_MODEL_IDS
-  .filter(function measured(modelId,): boolean {
-    return !UNMEASURED_UNTIL_SEATED.has(modelId,);
-  },)
-  // THE OWNER'S CULL EMPTIES EVERY BENCH, so it is applied where every bench
-  // derives from rather than on each bench in turn.
-  .filter(function notCulled(modelId,): boolean {
-    return !OWNER_CULLED.has(modelId,);
-  },)
-  // A DECISION-ONLY SEAT TAKES NO COMPLETION, so it is on no chat bench
-  // however it measures; it reaches the select judges through
-  // `RUN_DECISION_JUDGES` alone.
-  .filter(function chatSeat(modelId,): boolean {
-    return !DECISION_ONLY_ROSTER_IDS.includes(modelId,);
-  },);
+export const RUN_ROSTER: readonly RosterModelId[] = chatBenchOf({ role: 'roster', },);
 
 /**
  Consolidation writers: the run roster less {@link WRITER_UNMEASURED}. The
@@ -185,10 +187,7 @@ export const RUN_ROSTER: readonly RosterModelId[] = ROSTER_MODEL_IDS
  OpenRouter-only one. Filtered off {@link RUN_ROSTER} rather than off the catalog so a
  Bedrock-only size the roster seats writes once measured and never before.
  */
-export const RUN_WRITERS: readonly RosterModelId[] = RUN_ROSTER
-  .filter(function measuredWriter(modelId,): boolean {
-    return !WRITER_UNMEASURED.has(modelId,);
-  },);
+export const RUN_WRITERS: readonly RosterModelId[] = chatBenchOf({ role: 'writer', },);
 
 /**
  Writers a 40-round producer calibration measured out of the translator
@@ -277,7 +276,7 @@ export const TRANSLATOR_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 't
  `hf:moonshotai/Kimi-K3` is likewise withheld from the select seats alone
  while Hyper would serve it (`HYPER_SLOW_SELECT_JUDGES`).
  */
-const WIDE_SEAT_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'wide-seat-dropped', },);
+export const WIDE_SEAT_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'wide-seat-dropped', },);
 
 /**
  Models unseated from the roster-wide judge rounds that run after the lanes:
@@ -294,7 +293,7 @@ const WIDE_SEAT_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'wide-seat
  Pairing and insertion-admission rounds are not judgments of text and lost no
  voice to the window (27 of 27 and 9 of 9 heard), so they keep the roster.
  */
-const LATE_JUDGE_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'late-judge-dropped', },);
+export const LATE_JUDGE_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'late-judge-dropped', },);
 
 /**
  Translators for the translate lane: the roster less
@@ -307,10 +306,7 @@ const LATE_JUDGE_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'late-jud
  and every slate keeps at least two disinterested judges under
  `assertJudgeableProducerRoster`.
  */
-export const RUN_TRANSLATORS: readonly RosterModelId[] = RUN_ROSTER
-  .filter(function stillWrites(modelId,): boolean {
-    return (!TRANSLATOR_DROPPED.has(modelId,)) && (!WRITER_UNMEASURED.has(modelId,));
-  },);
+export const RUN_TRANSLATORS: readonly RosterModelId[] = chatBenchOf({ role: 'translator', },);
 
 /**
  Critics, adjudication panel and judges for both lanes: the roster less
@@ -327,10 +323,7 @@ export const RUN_TRANSLATORS: readonly RosterModelId[] = RUN_ROSTER
  judged with nine then (quorum 5), and with seven (quorum 4) while Synthetic
  was dry and the select-slow judge was withheld.
  */
-export const RUN_WIDE_SEATS: readonly RosterModelId[] = RUN_ROSTER
-  .filter(function stillSeated(modelId,): boolean {
-    return !WIDE_SEAT_DROPPED.has(modelId,);
-  },);
+export const RUN_WIDE_SEATS: readonly RosterModelId[] = chatBenchOf({ role: 'wide-judge', },);
 
 /**
  Judges for the lane contest, the consolidation slate and the consolidation
@@ -339,10 +332,7 @@ export const RUN_WIDE_SEATS: readonly RosterModelId[] = RUN_ROSTER
  left on 2026-10-22, the seat `run-seats.ts` used to withhold while Synthetic
  was dry.
  */
-export const RUN_LATE_JUDGES: readonly RosterModelId[] = RUN_ROSTER
-  .filter(function stillJudges(modelId,): boolean {
-    return !LATE_JUDGE_DROPPED.has(modelId,);
-  },);
+export const RUN_LATE_JUDGES: readonly RosterModelId[] = chatBenchOf({ role: 'late-judge', },);
 
 /**
  Decision-only seats the judge fidelity probe has seated: they judge slates
@@ -815,7 +805,7 @@ export const RUN_TRANSLATE_MODELS: TranslateModels = {
  Reported image capability is not yet a verified reader seat for a new model.
  Keep this separate from judge admission: Gemma 4 31B already reads without judging.
  */
-const READER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'reader-unmeasured', },);
+export const READER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'reader-unmeasured', },);
 
 /**
  Models that read this run's pictures.
@@ -845,11 +835,9 @@ const READER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'reader-un
  const readings = await readDocumentPictures({ readerModelIds: RUN_READER_MODELS, ... },);
  ```
  */
-export const RUN_READER_MODELS: readonly RosterModelId[] = ROSTER_MODEL_IDS
+export const RUN_READER_MODELS: readonly RosterModelId[] = chatBenchOf({ role: 'reader', })
   .filter(function reads(modelId,): boolean {
-    return readsImages({ modelId, },)
-      && (!READER_UNMEASURED.has(modelId,))
-      && (!OWNER_CULLED.has(modelId,));
+    return readsImages({ modelId, },);
   },);
 
 /**

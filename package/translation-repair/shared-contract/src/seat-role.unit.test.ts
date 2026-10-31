@@ -18,10 +18,13 @@ import {
   holdsKeepingOutOf,
   MEASURED_CHECKER_ORDER,
   MODEL_CARDS,
+  reaskHoldsKeepingOutOf,
+  reaskPoolOf,
   rolePoolOf,
   ROSTER_MODEL_IDS,
   SEAT_ROLE_HOLDS,
   SEAT_ROLES,
+  type SeatRole,
 } from '../dist/final/node/index.mjs';
 
 //region Seat role tests
@@ -30,7 +33,7 @@ await describe({
   name: `${holdsKeepingOutOf.name} and ${rolePoolOf.name}`,
   children: [
     it({
-      name: 'NAMES NINE ROLES, each with the holds it honours, and the roster-wide role honours the two that empty a '
+      name: 'NAMES ELEVEN ROLES, each with the holds it honours, and the roster-wide role honours the two that empty a '
         + 'bench for every role but the checker and the reader',
       fn: async () => {
         expect([...SEAT_ROLES,],).toEqual([
@@ -39,6 +42,8 @@ await describe({
           'writer',
           'wide-judge',
           'late-judge',
+          'select-judge',
+          'slate-judge',
           'reader',
           'checker',
           'editor',
@@ -158,6 +163,48 @@ await describe({
             ROSTER_MODEL_IDS.filter((modelId,) => holdsKeepingOutOf({ modelId, role, },).length === 0),
           );
         }
+      },
+    },),
+
+    it({
+      name: 'THE POOL OF EACH ROLE IS THE ROSTER LESS THE HOLDS SPELLED OUT HERE, written apart from the table the source '
+        + 'derives them from (ledger B1148), so a hold added to one and not the other fails; the editors and refiners, and '
+        + 'the select and slate seats, are the benches they are hand-picked from or drawn out of',
+      fn: async () => {
+        /**
+         The holds each role keeps a model out by, written out again.
+         */
+        const spelled: Readonly<Record<string, readonly string[]>> = {
+          'roster': ['owner-culled', 'judge-unmeasured',],
+          'translator': ['owner-culled', 'judge-unmeasured', 'writer-unmeasured', 'translator-dropped',],
+          'writer': ['owner-culled', 'judge-unmeasured', 'writer-unmeasured',],
+          'editor': ['owner-culled', 'judge-unmeasured', 'writer-unmeasured',],
+          'refiner': ['owner-culled', 'judge-unmeasured', 'writer-unmeasured',],
+          'wide-judge': ['owner-culled', 'judge-unmeasured', 'wide-seat-dropped',],
+          'select-judge': ['owner-culled', 'judge-unmeasured', 'wide-seat-dropped',],
+          'late-judge': ['owner-culled', 'judge-unmeasured', 'late-judge-dropped',],
+          'slate-judge': ['owner-culled', 'judge-unmeasured', 'late-judge-dropped',],
+          'reader': ['owner-culled', 'reader-unmeasured',],
+        };
+        for (const [role, holds,] of Object.entries(spelled,)) {
+          expect(rolePoolOf({ role: role as SeatRole, },),).toEqual(
+            ROSTER_MODEL_IDS.filter((modelId,) => !holds.some((hold,) => MODEL_CARDS[modelId].holds.some((carried,) => carried === hold)),),
+          );
+        }
+      },
+    },),
+
+    it({
+      name: 'THE RE-ASK POOL LEAVES OUT THE MODELS THE RUN WITHHOLDS AT SEATING TIME, Qwen3.8-27B from every role but the '
+        + 'editors and refiners and Kimi-K3 from the select and slate seats only (ledger B1143)',
+      fn: async () => {
+        for (const role of SEAT_ROLES) {
+          expect(reaskPoolOf({ role, },).includes('hf:Qwen/Qwen3.8-27B',),).toBe((role === 'editor') || (role === 'refiner'),);
+        }
+        expect(reaskPoolOf({ role: 'select-judge', },).includes('hf:moonshotai/Kimi-K3',),).toBe(false,);
+        expect(reaskPoolOf({ role: 'slate-judge', },).includes('hf:moonshotai/Kimi-K3',),).toBe(false,);
+        expect(reaskPoolOf({ role: 'wide-judge', },).includes('hf:moonshotai/Kimi-K3',),).toBe(true,);
+        expect(reaskHoldsKeepingOutOf({ modelId: 'hf:moonshotai/Kimi-K3', role: 'select-judge', },),).toEqual(['hyper-slow-select',],);
       },
     },),
 

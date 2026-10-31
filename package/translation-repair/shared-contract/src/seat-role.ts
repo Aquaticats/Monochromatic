@@ -76,6 +76,33 @@ export const SEAT_ROLES = [
 export type SeatRole = typeof SEAT_ROLES[number];
 
 /**
+ The holds of the writers' bench, which the editors and the refiners are hand-picked from (ledger B1100) and so honour too.
+ */
+const WRITER_HOLDS: readonly SeatHold[] = [
+  'owner-culled',
+  'judge-unmeasured',
+  'writer-unmeasured',
+];
+
+/**
+ The holds of the wide seats' bench, which the select seats are drawn from (ledger B1143).
+ */
+const WIDE_HOLDS: readonly SeatHold[] = [
+  'owner-culled',
+  'judge-unmeasured',
+  'wide-seat-dropped',
+];
+
+/**
+ The holds of the late judges' bench, which the slate seats are drawn from (ledger B1143).
+ */
+const LATE_HOLDS: readonly SeatHold[] = [
+  'owner-culled',
+  'judge-unmeasured',
+  'late-judge-dropped',
+];
+
+/**
  The holds each role honours, in the order a model is checked against them, written once per role.
  */
 const HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
@@ -89,47 +116,18 @@ const HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
     'writer-unmeasured',
     'translator-dropped',
   ],
-  writer: [
-    'owner-culled',
-    'judge-unmeasured',
-    'writer-unmeasured',
-  ],
-  'wide-judge': [
-    'owner-culled',
-    'judge-unmeasured',
-    'wide-seat-dropped',
-  ],
-  'late-judge': [
-    'owner-culled',
-    'judge-unmeasured',
-    'late-judge-dropped',
-  ],
-  // THE SELECT SEATS ARE THE WIDE SEATS' BENCH AND THE SLATE SEATS THE LATE JUDGES' (ledger B1143): the same static holds.
-  'select-judge': [
-    'owner-culled',
-    'judge-unmeasured',
-    'wide-seat-dropped',
-  ],
-  'slate-judge': [
-    'owner-culled',
-    'judge-unmeasured',
-    'late-judge-dropped',
-  ],
+  writer: WRITER_HOLDS,
+  'wide-judge': WIDE_HOLDS,
+  'late-judge': LATE_HOLDS,
+  'select-judge': WIDE_HOLDS,
+  'slate-judge': LATE_HOLDS,
   reader: [
     'owner-culled',
     'reader-unmeasured',
   ],
   checker: ['owner-culled',],
-  editor: [
-    'owner-culled',
-    'judge-unmeasured',
-    'writer-unmeasured',
-  ],
-  refiner: [
-    'owner-culled',
-    'judge-unmeasured',
-    'writer-unmeasured',
-  ],
+  editor: WRITER_HOLDS,
+  refiner: WRITER_HOLDS,
 };
 
 /**

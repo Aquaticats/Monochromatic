@@ -26,16 +26,17 @@ import {
   rolePoolOf,
   type RosterModelId,
   type SeatRole,
-} from '@monochromatic-dev/translation-repair-shared-contract';
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   type BudgetView,
   NO_PROVIDER,
   providerServing,
   reachOf,
   readsImages,
-} from '@monochromatic-dev/translation-repair-provider';
+} from '@monochromatic-dev/translation-repair-provider/ts';
+// READ FROM SOURCE, NOT FROM THE BUILD (ledger B1151): `test:unit` does not build first, and a drift test that reads a stale
+// build says nothing about the benches the source derives today.
 import {
-  judgeSeatsFor,
   RUN_CHECKER_ORDER,
   RUN_LATE_JUDGES,
   RUN_MODELS,
@@ -44,7 +45,8 @@ import {
   RUN_TRANSLATORS,
   RUN_WIDE_SEATS,
   RUN_WRITERS,
-} from '../../dist/final/node/index.mjs';
+} from './run-config.ts';
+import { judgeSeatsFor, } from './run-seats.ts';
 
 //region Seat role pool tests
 
