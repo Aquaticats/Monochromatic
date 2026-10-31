@@ -219,8 +219,15 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
 
 - Both CI systems install pnpm through the `task-cli-setup` action and run `task-run prepare:pnpm`
   (`.github/workflows/current-baseline.yml`, `.depot/workflows/current-baseline.yml`).
-  CI pins pnpm 12.14.0 while the local toolchain is 12.16.1.
-  Whether the `updateConfig` results above hold on 12.14.0 is being probed in a container; recorded below when it lands.
+  The two `.depot/workflows` files pass `pnpm-version: '12.14.0'` explicitly, while the action reads `.tools.pnpm.version`
+  from `toolchain.lock.json` (12.16.1) when the input is empty, as the `.github/workflows` files do.
+  So CI runs two pnpm versions.
+  A container probe (`~/temp/agent/pnpm-ci-version-probe.md`, CachyOS image, `--memory=2g --cpus=2`, no mounts, with a
+  12.16.1 control that reproduced every host result) found `updateConfig` identical on 12.14.0:
+  it fires on every verb except `config get` and `--version`, a throwing hook blocks no-op and frozen install, `run`, `exec`
+  and `list` with the policy message, and `--ignore-pnpmfile` skips it.
+  Only `preResolution` differs: it does not fire on frozen install or `prune` on 12.14.0.
+  Not covered by that probe: node 24 (the image has 26.12.1) and recursive filters (covered on 12.16.1 only, above).
 - The action puts node, pnpm and the task CLI on `PATH` (`.github/actions/task-cli-setup/action.yml`) and nothing about a
   shadow directory.
   The mpm shadow reaches callers because the toolchain plan links it into a gitignored directory first on `PATH`
