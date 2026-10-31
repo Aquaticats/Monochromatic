@@ -259,6 +259,38 @@ Next for this area:
 register the three builders when their crates land,
 then the cutover (task 25).
 
+## Rule kinds wired on 2026-10-31
+Branch `worktree-agent-a23c3740c67ba36d9`.
+
+The `file-enforcer` binary now implements `rust-catalog`,
+`browserslist` and `jetbrains-harper`
+(`package/file-enforcer/cli/src/kinds.rs`;
+details in the CLI README,
+section "Rule kinds linked here").
+The browserslist data lock moved to `browserslist-data.lock.json` at the repository root,
+and the rule names it in its required `lock` field.
+Against a throwaway copy of this repository the Rust tool reports no drift for `rust-catalog.toml`
+and every manifest the globs match (32 files) as the TypeScript tool wrote them,
+detects and repairs a changed `[workspace.dependencies]` table,
+writes the same `.browserslistrc.resolved.local.json` as npm `browserslist` 4.29.5 on the same `caniuse-lite`,
+and writes byte-identical JetBrains settings files to the retired TypeScript policy in a disposable home.
+Engine change:
+the read-order check skips pairs where both rules compose,
+and `package-licenses` moved after `rust-catalog` in `file-enforcer.config.jsonc`
+because it reads manifests and does not compose.
+Sandbox note:
+a Rust binary's direct connection to `registry.npmjs.org` is aborted inside the agent sandbox
+(`Software caused connection abort`) while `curl` works,
+so the cold-cache fetch was not exercised there;
+the cache was seeded with `curl` and verified against the lock.
+Open:
+the `bin/*.ts` scripts of the browserslist package now belong to a workspace package
+and still have oxlint findings
+(sync Node APIs,
+arrow functions,
+try/finally,
+missing TSDoc).
+
 ## How to respond
 
 Reply in the session that resumes this work;

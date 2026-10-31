@@ -188,7 +188,7 @@ fn mise_path_list_lists_sorted_non_empty_directories_only() {
 #[test]
 fn a_kind_whose_library_is_not_linked_warns_and_is_not_drift() {
     let dir = scratch_dir();
-    let config = r#"{"rules": [{"kind": "browserslist", "id": "bl", "source": ".browserslistrc", "output": "out.json"}]}"#;
+    let config = r#"{"rules": [{"kind": "browserslist", "id": "bl", "source": ".browserslistrc", "output": "out.json", "lock": "lock.json"}]}"#;
     let (code1, events1) = run_config(dir.path(), config, check());
     assert_eq!(code1, 0, "{events1:?}");
     assert_eq!(count_code(&events1, "kind-not-wired"), 1);
