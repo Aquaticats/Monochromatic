@@ -369,13 +369,57 @@ await describe({
         },),).toEqual([
           'warn [runRecoveryRound] gate: recovery round for 1 unreadable answer (1 runaway)',
           `info [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: reasoning runaway (a length stop with no content); `
-            + `re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question; left out: `
-            + 'hf:openai/gpt-oss-120b (held out of the roster role by owner-culled), '
+            + 'left out: hf:openai/gpt-oss-120b (held out of the roster role by owner-culled), '
             + `${SEAT_HYPER_VISION} (seated on the bench of this question), `
             + 'google.gemma-4-31b (held out of the roster role by judge-unmeasured), '
-            + 'xiaomi/mimo-v2.6-flash (held out of the roster role by judge-unmeasured)',
+            + 'xiaomi/mimo-v2.6-flash (held out of the roster role by judge-unmeasured); to ask in turn: '
+            + 'gemma-4-26b-a4b-it, google.gemma-4-e2b, inception/mercury-2.5, hf:moonshotai/Kimi-K3, glm-5.3, '
+            + 'hf:Qwen/Qwen3.8-27B, hf:zai-org/GLM-5.3-Flash',
+          `info [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, `
+            + 'plain question',
           'info [runRecoveryRound] gate: recovery round heard 1 of 1 re-asked voice',
         ],);
+      },
+    },),
+
+    it({
+      name: 'WRITES THE MODELS LEFT OUT ONCE, BEFORE THE FIRST ASK, so a model without a provider moves the round on '
+        + 'without the left-out line being written again',
+      fn: async () => {
+        const run = await recoverRunaway({ noProvider: [SEAT_HYPER_TEXT_BEDROCK,], },);
+        expect(run.lines.filter(function namesLeftOut(line,): boolean {
+          return line.includes('left out:',);
+        },).length,).toBe(1,);
+        expect(run.lines.filter(function asksOne(line,): boolean {
+          return line.includes('instead, plain question',);
+        },).length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'WRITES THE MODELS LEFT OUT ALSO WHERE NONE IS LEFT TO ASK, ahead of the warning of the fall back, and says '
+        + 'that none is to be asked',
+      fn: async () => {
+        const run = await recoverRunaway({
+          noProvider: [],
+          reaskSeat: {
+            role: 'roster',
+            bench: [
+              RUNAWAY_SEAT,
+              SEAT_HYPER_TEXT_BEDROCK,
+              SEAT_BEDROCK_ONLY_TEXT,
+              SEAT_OPENROUTER_ONLY,
+              SEAT_SYNTHETIC_VISION_WITHHELD,
+              SEAT_HYPER_VISION,
+              'glm-5.3',
+              'hf:Qwen/Qwen3.8-27B',
+              'hf:zai-org/GLM-5.3-Flash',
+            ],
+          },
+        },);
+        expect(run.lines.filter(function namesLeftOut(line,): boolean {
+          return line.includes('left out:',) && line.includes('to ask in turn: none',);
+        },).length,).toBe(1,);
       },
     },),
 
