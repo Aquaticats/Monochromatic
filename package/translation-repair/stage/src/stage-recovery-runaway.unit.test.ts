@@ -365,7 +365,9 @@ await describe({
           reaskSeat: { role: 'roster', bench: [RUNAWAY_SEAT, SEAT_HYPER_VISION,], },
         },);
         expect(run.lines.filter(function isRunawayLine(line,): boolean {
-          return line.includes('reasoning runaway',) || line.includes(': recovery round ',);
+          return line.includes('reasoning runaway',)
+            || line.includes('instead, plain question',)
+            || line.includes(': recovery round ',);
         },),).toEqual([
           'warn [runRecoveryRound] gate: recovery round for 1 unreadable answer (1 runaway)',
           `info [runRecoveryRound] [recoverRunaway] gate: ${RUNAWAY_SEAT}: reasoning runaway (a length stop with no content); `

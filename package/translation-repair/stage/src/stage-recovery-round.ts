@@ -174,6 +174,12 @@ async function recoverRunaway<ValueT,>(
     askedAlready: (askedInstead === undefined) ? [] : [askedInstead,],
     askedForOtherSeats: takenFor({ seat: named, },),
   },);
+  // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines of
+  // the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).
+  rl.info(
+    `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); `
+      + `left out: ${describeLeftOut({ leftOut, },)}; to ask in turn: ${alternates.length === 0 ? 'none' : alternates.join(', ',)}`,
+  );
   for (const alternate of alternates) {
     // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts` in the provider): another runaway seat of
     // this gather whose function ran first may have taken this model since the list was made (ledger B1080).
@@ -184,10 +190,7 @@ async function recoverRunaway<ValueT,>(
       rl.info(`${roundRequest.stage}: ${seat}: ${alternate} was asked for another seat of this question since the list was made`,);
       continue;
     }
-    rl.info(
-      `${roundRequest.stage}: ${seat}: reasoning runaway (a length stop with no content); `
-        + `re-asking ${alternate} instead, plain question; left out: ${describeLeftOut({ leftOut, },)}`,
-    );
+    rl.info(`${roundRequest.stage}: ${seat}: re-asking ${alternate} instead, plain question`,);
 
     /* oxlint-disable no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
     /**
