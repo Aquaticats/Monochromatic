@@ -329,6 +329,19 @@ each finished branch is reviewed and merged into `main`):
   mpm-shadow 0.2.1 (approved) is held until the self-placement is gone from mpm-shadow,
   so it never ships.
   The OpenSnitch rules stay.
+  Policy for the wg tools,
+  user:
+  "Anyone using our wg set of tools should be warned on start and the behavior shouldn't have a toggle.
+  It should always enforce our policies, even clearnet."
+  So no switch disables any bypass,
+  every start warns exactly what leaves the tunnel,
+  and a policy that cannot be enforced is reported loudly rather than degraded silently.
+  This replaces an opt-in,
+  fail-closed instruction this session had given the wg agent on its own.
+- AGENTS.md rule for concerns leaking out of their owning component:
+  two drafts (`CWN`,
+  `LKF`) were not approved;
+  the owner will write the wording from issue #1819.
 - Released 2026-10-31:
   `monochromatic-search-shadow` 0.2.1 (run `41174514524`)
   after two CI fixes to its exact `--version` checks (`6a2d944949`,
