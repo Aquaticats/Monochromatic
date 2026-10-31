@@ -43,6 +43,7 @@ import { EveryProviderDryError, type JsonSchemaResponseFormat, } from '@monochro
 import type { EntryOutcome, } from '@monochromatic-dev/translation-repair-slice-cache';
 import {
   digestPipeline,
+  readRunLogText,
   StatedRefusalError,
   writeDeclinedEntry,
 } from '@monochromatic-dev/translation-repair-glossary';
@@ -1055,6 +1056,36 @@ await describe({
             + `soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms ${AT}`,
         ],);
         expect(watched.clients,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'RECORDS WHY IT STOPPED in the run folder, the refusal of a required provider among them, since the '
+        + 'console gets the refusal only after the run log is closed',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+
+        await expect(runPass({
+          typed: [
+            '--require-providers',
+            'hyper',
+          ],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {},
+        },),).rejects.toThrow('required provider hyper is not ready: key missing',);
+
+        expect(await readRunLogText({ path: runs.path, },),).toContain(
+          '[corpus-pass] the pass stopped: required provider hyper is not ready: key missing',
+        );
       },
     },),
     it({
