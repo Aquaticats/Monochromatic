@@ -62,7 +62,9 @@ each finished branch is reviewed and merged into `main`):
   `2ebe1dd93a`,
   now owned by session monochromatic-7a);
   in-repo browserslist `package/browserslist/core-rust` (task 28,
-  `c60687b1d8`);
+  `c60687b1d8`,
+  then the Node pre-release filter with node-releases 2.0.62 and
+  `doc/troubleshooting/browserslist-node-major-prerelease.md`);
   file-enforcer `core-rust` and `cli` (task 20,
   `71d0ad760b`);
   mpm-shadow toolchain commands (task 22,
@@ -76,7 +78,6 @@ each finished branch is reviewed and merged into `main`):
   hardening the core (jsonc-edit value spans for `file:line:col` decode errors,
   the untested branches,
   single-line schema descriptions);
-  browserslist Node pre-release filter plus its troubleshooting doc;
   mpm-shadow second pass (origin in the plan request with a fully derived lock,
   the unported resolvers,
   the crate's lint debt).
