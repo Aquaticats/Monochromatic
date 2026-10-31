@@ -239,19 +239,22 @@ function articleForPossessive({ finding, }: { readonly finding: string; },): str
    */
   const word: string[] = [];
   /**
-   Mark that closes the quotation being copied; empty outside one.
+   Whether a quotation is being copied, and the mark that closes it.
    */
-  const quotation = { closer: '', };
+  const quotation = {
+    open: false,
+    closer: '',
+  };
   /**
    Marks that have no closing mark left in the text, so they open nothing.
    */
   const unclosed = new Set<string>();
   for (const [at, character,] of finding.split('',)
     .entries()) {
-    if (quotation.closer !== '') {
+    if (quotation.open) {
       pieces.push(character,);
       if (character === quotation.closer)
-        quotation.closer = '';
+        quotation.open = false;
       continue;
     }
     if (isWordCharacter({ character, },)) {
@@ -267,8 +270,10 @@ function articleForPossessive({ finding, }: { readonly finding: string; },): str
       if (finding.includes(
         character,
         at + 1,
-      ))
+      )) {
+        quotation.open = true;
         quotation.closer = character;
+      }
       else
         unclosed.add(character,);
     }

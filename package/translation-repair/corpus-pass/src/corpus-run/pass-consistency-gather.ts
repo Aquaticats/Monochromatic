@@ -174,7 +174,7 @@ export function recordFits(
 
  @example
  ```ts
- const { record, resumed, } = await gatherThroughCache({ client, modelIds, role, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage, graceMs, cache, key, readStored, recordOf, l, },);
+ const { record, resumed, } = await gatherThroughCache({ client, modelIds, role, messages, signal, exchangeTimeoutMs, responseFormat, validate, stage, graceMs, reask, cache, key, readStored, recordOf, l, },);
  ```
  */
 export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(

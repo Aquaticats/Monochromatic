@@ -127,6 +127,10 @@ await describe({
         expect(text,).toContain(
           '- The translation carries the pronoun untranslated as "Your Ta" and the `your cat` stays: Keep it.',
         );
+        // A mark with no closing mark opens no quotation, so the words after it are swapped like any other.
+        expect(turnFor({ findings: ['Your translation keeps a lone " mark and your `cat` too.',], },),).toContain(
+          '- The translation keeps a lone " mark and the `cat` too.',
+        );
       },
     },),
 

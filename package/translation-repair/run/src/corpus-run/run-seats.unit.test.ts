@@ -21,7 +21,9 @@ import {
 
 import {
   ANTHROPIC_SERVED_IDS,
+  holdSet,
   ROSTER_MODEL_IDS,
+  type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   type BudgetView,
@@ -46,8 +48,6 @@ import {
   RUN_TRANSLATORS,
   RUN_WIDE_SEATS,
   RUN_WRITERS,
-  TRANSLATOR_DROPPED,
-  WRITER_UNMEASURED,
 } from '../../dist/final/node/index.mjs';
 import {
   SEAT_BEDROCK_ONLY_TEXT,
@@ -67,6 +67,16 @@ import {
   SEATED_BEDROCK_JUDGES,
   SEATED_OPENROUTER_JUDGES,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts/roster-buckets.test-fixture.ts';
+
+/**
+ Models the writer calibration never measured, which the cards hold out of the writing seats.
+ */
+const WRITER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'writer-unmeasured', },);
+
+/**
+ Models the translator calibration put out of the translator seat, which the cards hold out of it.
+ */
+const TRANSLATOR_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'translator-dropped', },);
 
 /**
  The Hyper-slow judge.

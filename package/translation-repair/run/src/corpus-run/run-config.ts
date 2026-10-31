@@ -80,40 +80,41 @@ const JUDGE_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'judge-unme
  */
 export const OWNER_CULLED: ReadonlySet<RosterModelId> = holdSet({ hold: 'owner-culled', },);
 
-/**
- Roster models no producer calibration has measured, so they hold no
- writing seat: not the translate lane, not the consolidation. The judge
- fidelity probe measures reading, and reading is what they were seated for.
-
- EMPTY SINCE 2026-09-08, AND AGAIN SINCE 2026-09-09. `google.gemma-4-e2b` sat here from its judge seat
- of 2026-09-07 until the 40-round producer calibration of 2026-09-08 measured
- it beside the nine measured writers: 30 of 298 disinterested ballots
- (10.1 percent, z -1.40 against a 12.8 percent pooled null, 39 of 40
- candidates, 94 of 94 asks usable), not separated from the null, where the
- two writers {@link TRANSLATOR_DROPPED} named then sat at z -4.5 on 2026-09-01.
- By the rule of that day it takes the translator seat and, as a measured
- writer, the consolidation seat. The next single-provider candidate the owner
- approves starts here again. Record: the 2026-09-08 addendum of
- `doc/decision/translation-repair-roster-seating-2026-09-01.md`.
-
- `inception/mercury-2.5` SAT HERE ON 2026-09-09 from its judge seat
- (its card in `model-cards.ts`) of 17:00 UTC until the 40-round producer
- calibration launched at 17:06 UTC that day (`producer-calibrate 40
- --candidates inception/mercury-2.5`, read at 20:02 UTC, its reading recorded in
- `doc/decision/translation-repair-roster-seating-2026-09-01.md`) measured it
- beside the ten measured writers: 18 of 101 disinterested
- ballots (17.8 percent, adjusted 11.4 for the 23 of 40 candidates it wrote,
- z -0.43 against a 19.5 percent pooled null over 1,229 ballots, 49 of 49
- asks usable, completed streams p50 4.7 s and max 10.1 s), not separated
- from the null, so by the same rule it takes the translator seat and the
- consolidation seat. The bench that day sat without Hyper (its daily limit
- spent, so `glm-5.3` threw 48 of 48) and without Synthetic from 17:25 UTC
- (Qwen3.8-27B threw 35 of 56), and `deepseek-v4-pro-0813` judged and wrote
- from NextBit without its reasoning (`openrouter-catalog.ts`); every
- candidate was compared under the same judges, so the standing among them
- holds. Record: the second 2026-09-09 addendum of the seating decision.
- */
-export const WRITER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'writer-unmeasured', },);
+// THE HOLD `writer-unmeasured`, which the cards carry. A set `WRITER_UNMEASURED` named its models until
+// the benches were derived from
+// the pool of their role (ledger B1148). What the hold records:
+// Roster models no producer calibration has measured, so they hold no
+// writing seat: not the translate lane, not the consolidation. The judge
+// fidelity probe measures reading, and reading is what they were seated for.
+//
+// EMPTY SINCE 2026-09-08, AND AGAIN SINCE 2026-09-09. `google.gemma-4-e2b` sat here from its judge seat
+// of 2026-09-07 until the 40-round producer calibration of 2026-09-08 measured
+// it beside the nine measured writers: 30 of 298 disinterested ballots
+// (10.1 percent, z -1.40 against a 12.8 percent pooled null, 39 of 40
+// candidates, 94 of 94 asks usable), not separated from the null, where the
+// two writers `TRANSLATOR_DROPPED` named then sat at z -4.5 on 2026-09-01.
+// By the rule of that day it takes the translator seat and, as a measured
+// writer, the consolidation seat. The next single-provider candidate the owner
+// approves starts here again. Record: the 2026-09-08 addendum of
+// `doc/decision/translation-repair-roster-seating-2026-09-01.md`.
+//
+// `inception/mercury-2.5` SAT HERE ON 2026-09-09 from its judge seat
+// (its card in `model-cards.ts`) of 17:00 UTC until the 40-round producer
+// calibration launched at 17:06 UTC that day (`producer-calibrate 40
+// --candidates inception/mercury-2.5`, read at 20:02 UTC, its reading recorded in
+// `doc/decision/translation-repair-roster-seating-2026-09-01.md`) measured it
+// beside the ten measured writers: 18 of 101 disinterested
+// ballots (17.8 percent, adjusted 11.4 for the 23 of 40 candidates it wrote,
+// z -0.43 against a 19.5 percent pooled null over 1,229 ballots, 49 of 49
+// asks usable, completed streams p50 4.7 s and max 10.1 s), not separated
+// from the null, so by the same rule it takes the translator seat and the
+// consolidation seat. The bench that day sat without Hyper (its daily limit
+// spent, so `glm-5.3` threw 48 of 48) and without Synthetic from 17:25 UTC
+// (Qwen3.8-27B threw 35 of 56), and `deepseek-v4-pro-0813` judged and wrote
+// from NextBit without its reasoning (`openrouter-catalog.ts`); every
+// candidate was compared under the same judges, so the standing among them
+// holds. Record: the second 2026-09-09 addendum of the seating decision.
+//
 
 /**
  The chat models a role's bench is derived from: the models no hold of the role keeps out (`rolePoolOf`, the one list a
@@ -165,8 +166,8 @@ function chatBenchOf({ role, }: { readonly role: SeatRole; },): readonly RosterM
  and the judge fidelity probe of 17:00 UTC read it at 14 of 14
  (its card in `model-cards.ts`); it wrote nothing until the producer
  calibration read at 20:02 UTC the same day seated it as a writer
- ({@link WRITER_UNMEASURED}); the calibration of 2026-09-19 read it below
- the pooled null and took the translator seat back ({@link TRANSLATOR_DROPPED}).
+ (`WRITER_UNMEASURED`); the calibration of 2026-09-19 read it below
+ the pooled null and took the translator seat back (`TRANSLATOR_DROPPED`).
 
  DeepSeek V4.1 Flash joins on 2026-09-11 after choosing the source-reviewed
  reference on all fourteen distinct comparisons, with no damaged pick or abstention.
@@ -179,7 +180,7 @@ function chatBenchOf({ role, }: { readonly role: SeatRole; },): readonly RosterM
 export const RUN_ROSTER: readonly RosterModelId[] = chatBenchOf({ role: 'roster', },);
 
 /**
- Consolidation writers: the run roster less {@link WRITER_UNMEASURED}. The
+ Consolidation writers: the run roster less `WRITER_UNMEASURED`. The
  whole measured roster writes there, GLM-5.3-Flash included, which keeps its
  writing seats and left every judge seat on 2026-09-02, and since 2026-09-08
  `google.gemma-4-e2b`, the first Bedrock-only writer a producer calibration
@@ -189,115 +190,118 @@ export const RUN_ROSTER: readonly RosterModelId[] = chatBenchOf({ role: 'roster'
  */
 export const RUN_WRITERS: readonly RosterModelId[] = chatBenchOf({ role: 'writer', },);
 
-/**
- Writers a 40-round producer calibration measured out of the translator
- seat, dropped on the owner's authorization of 2026-09-01 ("drop any model
- from any role, as long as you have evidence").
+// THE HOLD `translator-dropped`, which the cards carry. A set `TRANSLATOR_DROPPED` named its models until
+// the benches were derived from
+// the pool of their role (ledger B1148). What the hold records:
+// Writers a 40-round producer calibration measured out of the translator
+// seat, dropped on the owner's authorization of 2026-09-01 ("drop any model
+// from any role, as long as you have evidence").
+//
+// TWO SAT UNDER THE POOLED NULL WITH FULL AVAILABILITY on 2026-09-01:
+// `gpt-oss-120b` took 5 of 207 disinterested ballots (z -4.53 against a
+// 13.02 percent null) and `deepseek-v4-flash-0731` 5 of 208 (z -4.55), each
+// having written 40 of 40 candidates, so the finding is about the writing
+// rather than about rounds missed. Record and method:
+// `doc/planning/translation-repair-roster-calibration-2026-09-01.md`.
+//
+// `deepseek-v4-pro-0813` SINCE 2026-09-09, ON ITS SECOND READING BELOW THE
+// NULL: 19 of 243 disinterested ballots on 2026-09-08 (z -2.31, Parasail
+// serving it with its reasoning) and 13 of 144 over 29 candidates on
+// 2026-09-09 (adjusted 7.3 percent, z -3.18 against a 19.5 percent null,
+// threshold 2.81, NextBit serving it without; 62 of 62 asks usable), the
+// second crossing the threshold. The fidelity probe of 20:15 UTC that day
+// read the no-reasoning endpoint at 11 of 14 against 4 of 14 with reasoning
+// on the same fourteen questions, so the endpoint the run buys stays and the
+// reading is of what the run buys. Record: the second 2026-09-09 addendum of
+// `doc/decision/translation-repair-roster-seating-2026-09-01.md`.
+//
+// ALL THREE KEPT EVERY OTHER SEAT: nothing here measures judging, critique,
+// checking or the consolidation, and the anchor judge stays the anchor judge.
+//
+// THE TWO DEEPSEEK V4 MODELS LEFT THE ROSTER ON 2026-09-16 at the owner's
+// instruction ("DeepSeek V4.1 Flash is much better than both V4 Pro and V4
+// Flash, so please remove V4 Pro and V4 Flash"), so only gpt-oss-120b is
+// listed; their readings stay recorded because they are the method's worked
+// examples.
+//
 
- TWO SAT UNDER THE POOLED NULL WITH FULL AVAILABILITY on 2026-09-01:
- `gpt-oss-120b` took 5 of 207 disinterested ballots (z -4.53 against a
- 13.02 percent null) and `deepseek-v4-flash-0731` 5 of 208 (z -4.55), each
- having written 40 of 40 candidates, so the finding is about the writing
- rather than about rounds missed. Record and method:
- `doc/planning/translation-repair-roster-calibration-2026-09-01.md`.
+// THE HOLD `wide-seat-dropped`, which the cards carry. A set `WIDE_SEAT_DROPPED` named its models until
+// the benches were derived from
+// the pool of their role (ledger B1148). What the hold records:
+// Models measured out of every nine-wide seat (critic, panel, judge) on the
+// same authorization, for wall clock rather than for quality.
+//
+// `glm-5.3` IS THE SLOWEST VOICE ON THE ROSTER in every role measured: its
+// completed streams run p50 61 to 66 s and p90 166 to 172 s against p90s under
+// 110 s for everyone but GLM-5.3-Flash. It lost 11 of 38 select asks to the
+// 180000 ms production window in the producer calibration, one panel stream
+// to the 360000 ms per-call deadline after 3.4 M raw characters and another
+// to the 300000 ms calibration window, and each loss holds the round for the
+// whole window after quorum at the roster's highest output rate. Across both
+// calibration logs 75 to 83 percent of round time is that wait, and the wide
+// seats are where a ninth voice adds least: the stage reached quorum without
+// it every time. It keeps the translator seat and any editor seat the editor
+// standing gives it, where its text is what is being measured.
+//
+// `hf:zai-org/GLM-5.3-Flash` LEFT EVERY JUDGE SEAT ON 2026-09-02 by the owner's
+// decision ("Unseat GLM-5.3-Flash as a judge, keep it as editor"). Its
+// reasoning streams run to a million raw characters, and under the 60 s round
+// window of the Toka_ls relaunch it was cut in 12 of 13 panel rounds, 12 of 21
+// translate-select rounds, 11 of 29 repair-select rounds, 11 of 15 critic
+// rounds and 5 of 15 contest rounds: 51 of the run's 78 cuts. No round lost its
+// decision without it and two needed a challenge round, so the seat cost a
+// window's wait far more often than it cast a ballot. It keeps the first editor
+// seat (top three in every one of 4000 resamples), its refiner seat and its
+// translator seat, where its text is what is being measured. Record:
+// `doc/planning/translation-repair-roster-calibration-2026-09-01.md`, "The
+// Toka_ls relaunch was killed at 77 minutes, in consolidation".
+//
+// `hf:Qwen/Qwen3.8-27B` LEFT THESE SEATS ON 2026-10-29, the owner's answer
+// "Remove Qwen from wide seats" (ledger B1030). Under the rules of XingZ6022 it
+// was the one voice that arrived after the quorum in 127 of the 131 panel
+// rounds and 112 of the 118 select rounds that had a late ballot, its late
+// ballot changed the round's own result in 42 of 272 late rounds, and the
+// grace it held open summed to about 191 minutes, with 160 more on 79 streams
+// cut at the grace with no answer. The owner chose to lose every Qwen vote and
+// claim, including the 18 critic rounds where only Qwen found an accepted
+// issue, over the wait. The checker order lost it the same day
+// ({@link RUN_CHECKER_ORDER}).
+//
+// BEFORE THAT IT WAS SEATED PER PROVIDER, the owner's decision of 2026-09-03
+// after a morning in which it left every judge seat outright: served by Hyper
+// it reasons past the round window (30 of 34 translate-lane select rounds cut
+// on XIEPT2), served by Synthetic it answers (25 of 28 on Toka_ls).
+// `run-seats.ts` still reads the meters before each phase and withholds the
+// seats it keeps (translator, picture reader, consolidation writer and the
+// roster the pairing and admission rounds ask) while Hyper is the provider that
+// would serve it, that is while Synthetic is dry and Hyper is wet; with both
+// dry no provider serves it, and a round reads it as unreachable and hands its
+// place on (ledger P12 corrected "while Synthetic is dry").
+// `hf:moonshotai/Kimi-K3` is likewise withheld from the select seats alone
+// while Hyper would serve it (`HYPER_SLOW_SELECT_JUDGES`).
+//
 
- `deepseek-v4-pro-0813` SINCE 2026-09-09, ON ITS SECOND READING BELOW THE
- NULL: 19 of 243 disinterested ballots on 2026-09-08 (z -2.31, Parasail
- serving it with its reasoning) and 13 of 144 over 29 candidates on
- 2026-09-09 (adjusted 7.3 percent, z -3.18 against a 19.5 percent null,
- threshold 2.81, NextBit serving it without; 62 of 62 asks usable), the
- second crossing the threshold. The fidelity probe of 20:15 UTC that day
- read the no-reasoning endpoint at 11 of 14 against 4 of 14 with reasoning
- on the same fourteen questions, so the endpoint the run buys stays and the
- reading is of what the run buys. Record: the second 2026-09-09 addendum of
- `doc/decision/translation-repair-roster-seating-2026-09-01.md`.
-
- ALL THREE KEPT EVERY OTHER SEAT: nothing here measures judging, critique,
- checking or the consolidation, and the anchor judge stays the anchor judge.
-
- THE TWO DEEPSEEK V4 MODELS LEFT THE ROSTER ON 2026-09-16 at the owner's
- instruction ("DeepSeek V4.1 Flash is much better than both V4 Pro and V4
- Flash, so please remove V4 Pro and V4 Flash"), so only gpt-oss-120b is
- listed; their readings stay recorded because they are the method's worked
- examples.
- */
-export const TRANSLATOR_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'translator-dropped', },);
-
-/**
- Models measured out of every nine-wide seat (critic, panel, judge) on the
- same authorization, for wall clock rather than for quality.
-
- `glm-5.3` IS THE SLOWEST VOICE ON THE ROSTER in every role measured: its
- completed streams run p50 61 to 66 s and p90 166 to 172 s against p90s under
- 110 s for everyone but GLM-5.3-Flash. It lost 11 of 38 select asks to the
- 180000 ms production window in the producer calibration, one panel stream
- to the 360000 ms per-call deadline after 3.4 M raw characters and another
- to the 300000 ms calibration window, and each loss holds the round for the
- whole window after quorum at the roster's highest output rate. Across both
- calibration logs 75 to 83 percent of round time is that wait, and the wide
- seats are where a ninth voice adds least: the stage reached quorum without
- it every time. It keeps the translator seat and any editor seat the editor
- standing gives it, where its text is what is being measured.
-
- `hf:zai-org/GLM-5.3-Flash` LEFT EVERY JUDGE SEAT ON 2026-09-02 by the owner's
- decision ("Unseat GLM-5.3-Flash as a judge, keep it as editor"). Its
- reasoning streams run to a million raw characters, and under the 60 s round
- window of the Toka_ls relaunch it was cut in 12 of 13 panel rounds, 12 of 21
- translate-select rounds, 11 of 29 repair-select rounds, 11 of 15 critic
- rounds and 5 of 15 contest rounds: 51 of the run's 78 cuts. No round lost its
- decision without it and two needed a challenge round, so the seat cost a
- window's wait far more often than it cast a ballot. It keeps the first editor
- seat (top three in every one of 4000 resamples), its refiner seat and its
- translator seat, where its text is what is being measured. Record:
- `doc/planning/translation-repair-roster-calibration-2026-09-01.md`, "The
- Toka_ls relaunch was killed at 77 minutes, in consolidation".
-
- `hf:Qwen/Qwen3.8-27B` LEFT THESE SEATS ON 2026-10-29, the owner's answer
- "Remove Qwen from wide seats" (ledger B1030). Under the rules of XingZ6022 it
- was the one voice that arrived after the quorum in 127 of the 131 panel
- rounds and 112 of the 118 select rounds that had a late ballot, its late
- ballot changed the round's own result in 42 of 272 late rounds, and the
- grace it held open summed to about 191 minutes, with 160 more on 79 streams
- cut at the grace with no answer. The owner chose to lose every Qwen vote and
- claim, including the 18 critic rounds where only Qwen found an accepted
- issue, over the wait. The checker order lost it the same day
- ({@link RUN_CHECKER_ORDER}).
-
- BEFORE THAT IT WAS SEATED PER PROVIDER, the owner's decision of 2026-09-03
- after a morning in which it left every judge seat outright: served by Hyper
- it reasons past the round window (30 of 34 translate-lane select rounds cut
- on XIEPT2), served by Synthetic it answers (25 of 28 on Toka_ls).
- `run-seats.ts` still reads the meters before each phase and withholds the
- seats it keeps (translator, picture reader, consolidation writer and the
- roster the pairing and admission rounds ask) while Hyper is the provider that
- would serve it, that is while Synthetic is dry and Hyper is wet; with both
- dry no provider serves it, and a round reads it as unreachable and hands its
- place on (ledger P12 corrected "while Synthetic is dry").
- `hf:moonshotai/Kimi-K3` is likewise withheld from the select seats alone
- while Hyper would serve it (`HYPER_SLOW_SELECT_JUDGES`).
- */
-export const WIDE_SEAT_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'wide-seat-dropped', },);
-
-/**
- Models unseated from the roster-wide judge rounds that run after the lanes:
- the lane contest, the consolidation slate's judges and the consolidation
- gate. Those rounds seat the whole roster, `glm-5.3` included, since they were
- built after the wide-seat drop; only the owner's 2026-09-02 decision on
- GLM-5.3-Flash reaches them, for the reason on {@link WIDE_SEAT_DROPPED}.
- Qwen3.8-27B was seated here per provider by `run-seats.ts` until the owner's
- answer of 2026-10-22 (UTC), "Remove from both benches": 17 of 19 lane-contest
- and 7 of 14 consolidation-gate rounds cut on Carena0442 when Hyper served it,
- and in XingZ6017, served by Synthetic, 40 of 95 streams cut after the grace
- with no answer (ledger B810, B815). Its card holds it off these rounds now,
- whichever provider would serve it.
- Pairing and insertion-admission rounds are not judgments of text and lost no
- voice to the window (27 of 27 and 9 of 9 heard), so they keep the roster.
- */
-export const LATE_JUDGE_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'late-judge-dropped', },);
+// THE HOLD `late-judge-dropped`, which the cards carry. A set `LATE_JUDGE_DROPPED` named its models until
+// the benches were derived from
+// the pool of their role (ledger B1148). What the hold records:
+// Models unseated from the roster-wide judge rounds that run after the lanes:
+// the lane contest, the consolidation slate's judges and the consolidation
+// gate. Those rounds seat the whole roster, `glm-5.3` included, since they were
+// built after the wide-seat drop; only the owner's 2026-09-02 decision on
+// GLM-5.3-Flash reaches them, for the reason on `WIDE_SEAT_DROPPED`.
+// Qwen3.8-27B was seated here per provider by `run-seats.ts` until the owner's
+// answer of 2026-10-22 (UTC), "Remove from both benches": 17 of 19 lane-contest
+// and 7 of 14 consolidation-gate rounds cut on Carena0442 when Hyper served it,
+// and in XingZ6017, served by Synthetic, 40 of 95 streams cut after the grace
+// with no answer (ledger B810, B815). Its card holds it off these rounds now,
+// whichever provider would serve it.
+// Pairing and insertion-admission rounds are not judgments of text and lost no
+// voice to the window (27 of 27 and 9 of 9 heard), so they keep the roster.
+//
 
 /**
  Translators for the translate lane: the roster less
- {@link TRANSLATOR_DROPPED} and less {@link WRITER_UNMEASURED}. Eight since
+ `TRANSLATOR_DROPPED` and less `WRITER_UNMEASURED`. Eight since
  2026-09-08 (seven from 2026-09-01): `google.gemma-4-e2b` was measured in
  that day, on 2026-09-09 `inception/mercury-2.5` was measured in and
  `deepseek-v4-pro-0813` out the same evening, and on 2026-09-19
@@ -310,7 +314,7 @@ export const RUN_TRANSLATORS: readonly RosterModelId[] = chatBenchOf({ role: 'tr
 
 /**
  Critics, adjudication panel and judges for both lanes: the roster less
- {@link WIDE_SEAT_DROPPED}. Seven since 2026-10-29, with Synthetic wet or dry
+ `WIDE_SEAT_DROPPED`. Seven since 2026-10-29, with Synthetic wet or dry
  alike, so each of those stages reaches quorum at 4 voices (`ceil(7 / 2)`; the
  panel tally's minimum ballot weight of 3, once 3 of 7, was removed by the
  owner on 2026-10-25: two answering panelists decide). The slates add the
@@ -327,7 +331,7 @@ export const RUN_WIDE_SEATS: readonly RosterModelId[] = chatBenchOf({ role: 'wid
 
 /**
  Judges for the lane contest, the consolidation slate and the consolidation
- gate: the roster less {@link LATE_JUDGE_DROPPED}. Eight from 2026-09-02
+ gate: the roster less `LATE_JUDGE_DROPPED`. Eight from 2026-09-02
  with Synthetic wet, seven with it dry; seven either way since Qwen3.8-27B
  left on 2026-10-22, the seat `run-seats.ts` used to withhold while Synthetic
  was dry.
@@ -801,11 +805,12 @@ export const RUN_TRANSLATE_MODELS: TranslateModels = {
   judgeModelIds: RUN_SELECT_JUDGES,
 };
 
-/**
- Reported image capability is not yet a verified reader seat for a new model.
- Keep this separate from judge admission: Gemma 4 31B already reads without judging.
- */
-export const READER_UNMEASURED: ReadonlySet<RosterModelId> = holdSet({ hold: 'reader-unmeasured', },);
+// THE HOLD `reader-unmeasured`, which the cards carry. A set `READER_UNMEASURED` named its models until
+// the benches were derived from
+// the pool of their role (ledger B1148). What the hold records:
+// Reported image capability is not yet a verified reader seat for a new model.
+// Keep this separate from judge admission: Gemma 4 31B already reads without judging.
+//
 
 /**
  Models that read this run's pictures.
