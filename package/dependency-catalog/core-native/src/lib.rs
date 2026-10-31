@@ -106,3 +106,12 @@ mod requirement_tests;
 
 #[cfg(test)]
 mod syntax_tests;
+
+#[cfg(test)]
+mod sync_issue_tests;
+
+#[cfg(test)]
+mod sync_test_support;
+
+#[cfg(test)]
+mod sync_tests;

@@ -12,7 +12,7 @@
 //! export function generatedTableSplices(...): Splice[]
 //! ```
 
-use toml_edit::{DocumentMut, Item, Key, Table, TableLike, Value};
+use toml_edit::{DocumentMut, InlineTable, Item, Key, RawString, Table, TableLike, Value};
 
 use crate::edit_catalog::{end_position, replace_string};
 use crate::quote::quote;
@@ -152,8 +152,43 @@ pub fn set_path_version(item: &mut Item, version: &str) -> bool {
         replace_string(current, &wanted);
         return true;
     }
-    members.insert("version", Item::Value(parse_value(&wanted_text)));
+    if let Item::Value(Value::InlineTable(inline)) = item {
+        append_inline_version(inline, &wanted_text);
+        return true;
+    }
+    if let Some(table) = item.as_table_like_mut() {
+        table.insert("version", Item::Value(parse_value(&wanted_text)));
+    }
     return true;
+}
+
+/// What:     `fn append_inline_version(...)` adds `version = "<wanted>"` after the last member of an inline table
+///           so it prints as `, version = "=0.1.1" }`.
+/// Why:      The last member's trailing space (before `}`) moves to the new value; without that, `toml_edit` would
+///           print a stray space before the comma.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// source.slice(0, last.range.end) + ', version = "=0.1.1"' + source.slice(last.range.end)
+/// ```
+fn append_inline_version(inline: &mut InlineTable, wanted_text: &str) {
+    let last_name: Option<String> = inline.iter().last().map(|pair| return pair.0.to_string());
+    let mut last_suffix: Option<RawString> = None;
+    if let Some(name) = last_name
+        && let Some(last) = inline.get_mut(&name)
+    {
+        last_suffix = last.decor().suffix().cloned();
+        last.decor_mut().set_suffix("");
+    }
+    let mut key: Key = Key::new("version");
+    key.leaf_decor_mut().set_prefix(" ");
+    key.leaf_decor_mut().set_suffix(" ");
+    let mut value: Value = parse_value(wanted_text);
+    value.decor_mut().set_prefix(" ");
+    if let Some(suffix) = last_suffix {
+        value.decor_mut().set_suffix(suffix);
+    }
+    inline.insert_formatted(&key, value);
 }
 
 /// Builds the table of generated entries in name order.
