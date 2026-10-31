@@ -14,6 +14,18 @@ This loader applies that mark to sockets created in Ghostty,
  Interpreter,
  and Qure cgroups without enumerating their destination IPs.
 
+It also marks the toolchain updates slice,
+ `app-monochromatic\x2dupdates.slice`,
+ so toolchain sync and update runs and everything they start use the physical route.
+The slice name is a contract with the TypeScript and Rust toolchain entry points,
+ which re-run themselves in a `systemd-run --user --scope` below it.
+The `app-` prefix puts the slice directly under `app.slice`,
+ the only directory the watcher scans and watches,
+ and `\x2d` is the escaped literal dash.
+A cgroup program applies to every descendant cgroup,
+ so the watcher attaches the slice once and each per-run scope inherits the mark.
+`list-targets` lists the slice while it exists.
+
 ## How it works
 
 For each cgroup,

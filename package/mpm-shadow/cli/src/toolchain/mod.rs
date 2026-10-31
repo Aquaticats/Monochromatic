@@ -35,6 +35,9 @@ pub mod bin_paths;
 /// The command-line grammar and dispatch of the toolchain verbs.
 pub mod commands;
 
+/// The re-execution of the network verbs inside the clearnet updates slice.
+pub mod updates_slice;
+
 /// The bundle of seams every provider,
 /// observer and resolver receives.
 pub mod context;
@@ -289,3 +292,7 @@ mod launcher_tests;
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
 mod prune_cargo_tests;
+
+/// The unit tests of the clearnet updates slice.
+#[cfg(test)]
+mod updates_slice_tests;

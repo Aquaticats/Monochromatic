@@ -99,9 +99,9 @@ fn parse_state(text: &str) -> io::Result<KeeperState> {
     let mut active: Option<Option<KeeperProcess>> = None;
     let mut candidate: Option<Option<KeeperProcess>> = None;
     for line in text.lines() {
-        let (key, value) = line.split_once('=').ok_or_else(|| {
-            return io::Error::new(io::ErrorKind::InvalidData, "keeper state line lacks equals");
-        })?;
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "keeper state line lacks equals"));
+        };
         if key == "version" && version.is_none() {
             version = Some(value);
         } else if key == "active" && active.is_none() {
@@ -121,10 +121,15 @@ fn parse_state(text: &str) -> io::Result<KeeperState> {
             "unsupported keeper state version",
         ));
     }
+    let Some(active_process) = active else {
+        return Err(io::Error::other("missing active keeper field"));
+    };
+    let Some(candidate_process) = candidate else {
+        return Err(io::Error::other("missing candidate keeper field"));
+    };
     let parsed = KeeperState {
-        active: active.ok_or_else(|| return io::Error::other("missing active keeper field"))?,
-        candidate: candidate
-            .ok_or_else(|| return io::Error::other("missing candidate keeper field"))?,
+        active: active_process,
+        candidate: candidate_process,
     };
     if parsed.active.is_none() && parsed.candidate.is_none() {
         return Err(io::Error::new(
@@ -156,7 +161,9 @@ fn serialize_process(process: Option<KeeperProcess>) -> String {
 /// Atomically writes state and syncs file plus parent directory.
 pub fn write_state(cgroup_dir: &Path, state: &KeeperState) -> io::Result<()> {
     let path = state_path(cgroup_dir)?;
-    let parent = path.parent().ok_or_else(|| return io::Error::other("state path lacks parent"))?;
+    let Some(parent) = path.parent() else {
+        return Err(io::Error::other("state path lacks parent"));
+    };
     std::fs::create_dir_all(parent)?;
     let temporary = parent.join(format!("state-new-{}", std::process::id()));
     let text = format!(
@@ -183,7 +190,9 @@ fn commit_marker_path(
     process: KeeperProcess,
 ) -> io::Result<PathBuf> {
     let state = state_path(cgroup_dir)?;
-    let parent = state.parent().ok_or_else(|| return io::Error::other("state path lacks parent"))?;
+    let Some(parent) = state.parent() else {
+        return Err(io::Error::other("state path lacks parent"));
+    };
     return Ok(parent.join(format!(
         "committed-{}-{}",
         process.pid, process.start_time

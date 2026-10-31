@@ -791,6 +791,32 @@ then looks each one up again once.
 A second failure is final and says the lookup was made twice.
 `outdated` never installs.
 
+### Clearnet updates slice
+
+`install`,
+`update`
+and `outdated` fetch from the network,
+so each re-executes itself through
+`systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
+before it does any work.
+The offline forms stay outside the slice:
+`install --lockfile-only --offline`,
+the frozen lock check that `install --lockfile-only` runs against an existing lock,
+and `list` and `bin`.
+`wg-quicker-exempt` marks that slice while a WireGuard tunnel with `ExemptMark` is up,
+so the run and every child it starts take the physical route.
+A silent `systemd-run` probe comes first;
+`systemd-run` reports its own failures with the exit code a failing sync uses,
+so only a probe that succeeded lets the real run start.
+The run stays in place,
+with the default route,
+on another platform,
+without a user systemd manager socket,
+when `MONOCHROMATIC_TOOLCHAIN_IN_UPDATES_SLICE` is set,
+under `MONOCHROMATIC_TOOLCHAIN_CLEARNET=off`,
+and when its cgroup already contains the slice.
+The TypeScript `toolchain:sync` and `toolchain:update` entry points use the same slice name and the same two variables.
+
 ## Concurrency
 
 `install --lockfile-only` and `update` read the plan and lock,

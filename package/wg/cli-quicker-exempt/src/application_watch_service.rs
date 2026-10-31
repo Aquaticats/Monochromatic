@@ -112,6 +112,15 @@ fn read_watch_log(key: &str) -> io::Result<String> {
     }
 }
 
+/// Starts a new session in the forked child so the watcher is isolated from the invoking terminal.
+fn start_new_session() -> io::Result<()> {
+    // SAFETY: `setsid` is async-signal-safe and touches only the child's session state.
+    if unsafe { libc::setsid() } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    return Ok(());
+}
+
 /// Spawns detached watcher and waits for initial target coverage.
 fn spawn_watch_candidate(
     key: &str,
@@ -136,16 +145,15 @@ fn spawn_watch_candidate(
         .stderr(Stdio::from(log));
     // SAFETY: setsid is async-signal-safe and isolates watcher from invoking terminal.
     unsafe {
-        command.pre_exec(|| {
-            if libc::setsid() < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            return Ok(());
-        });
+        command.pre_exec(start_new_session);
     }
     let mut child = command.spawn()?;
-    let input = child.stdin.take().ok_or_else(|| return io::Error::other("watcher stdin absent"))?;
-    let stdout = child.stdout.take().ok_or_else(|| return io::Error::other("watcher stdout absent"))?;
+    let Some(input) = child.stdin.take() else {
+        return Err(io::Error::other("watcher stdin absent"));
+    };
+    let Some(stdout) = child.stdout.take() else {
+        return Err(io::Error::other("watcher stdout absent"));
+    };
     let mut output = BufReader::new(stdout);
     let ready = read_message(&mut output);
     let ready_message = match ready {

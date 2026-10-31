@@ -81,15 +81,33 @@ fn create_signal_fd() -> io::Result<OwnedFd> {
     return owned_descriptor(raw);
 }
 
+/// Reports the `app.slice` path error for an embedded NUL byte.
+fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidInput, "app.slice path contains NUL");
+}
+
+/// Reports whether an attachment's cgroup directory still exists.
+fn attachment_directory_exists(attachment: &ActiveAttachment) -> bool {
+    return attachment.path.is_dir();
+}
+
+/// Reports whether `target` already has an attachment.
+fn is_attached(active: &[ActiveAttachment], target: &Path) -> bool {
+    for attachment in active {
+        if attachment.path == target {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Creates inotify descriptor and installs watch before first target scan.
 fn create_inotify(app_slice: &Path) -> io::Result<OwnedFd> {
     // SAFETY: init returns newly owned descriptor on success.
     let inotify = owned_descriptor(unsafe {
         libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK)
     })?;
-    let path = std::ffi::CString::new(app_slice.as_os_str().as_bytes()).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "app.slice path contains NUL");
-    })?;
+    let path = std::ffi::CString::new(app_slice.as_os_str().as_bytes()).map_err(app_slice_contains_nul)?;
     let mask = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM;
     // SAFETY: descriptor is inotify instance and path remains NUL-terminated through call.
     let watch = unsafe { libc::inotify_add_watch(inotify.as_raw_fd(), path.as_ptr(), mask) };
@@ -115,10 +133,10 @@ fn attach_target(path: &Path, mark: u32) -> io::Result<Option<ActiveAttachment>>
 
 /// Reconciles discovered targets and retains attached cgroups until directory removal.
 fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
-    watch.active.retain(|attachment| return attachment.path.is_dir());
+    watch.active.retain(attachment_directory_exists);
     let targets = scan_application_targets(&watch.roots)?;
     for target in targets {
-        if watch.active.iter().any(|attachment| return attachment.path == target) {
+        if is_attached(&watch.active, &target) {
             continue;
         }
         if let Some(attachment) = attach_target(&target, watch.mark)? {

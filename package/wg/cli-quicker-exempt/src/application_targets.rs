@@ -42,6 +42,16 @@ const QURE_EXECUTABLE_PREFIX: &str = "qure";
 /// Qure desktop service prefix observed from its desktop-entry identifier.
 const QURE_SERVICE_PREFIX: &str = "app-qure@";
 
+/// Slice that carries the toolchain's sync and update runs.
+/// The `app-` prefix makes systemd nest it directly under `app.slice`,
+///  where the watcher scans and watches.
+/// A name such as `monochromatic-updates.slice` would sit beside `app.slice` instead,
+///  and the watcher would never see it.
+/// `\x2d` is the escaped literal dash,
+///  so the name is one hierarchy level and not `app-monochromatic.slice`.
+/// The TypeScript and Rust toolchain entry points spell the same name when they re-run themselves inside it.
+pub const TOOLCHAIN_UPDATES_SLICE: &str = "app-monochromatic\\x2dupdates.slice";
+
 /// Roots make process and cgroup discovery testable without real host state.
 pub struct ScanRoots<'a> {
     /// User's systemd `app.slice` directory.
@@ -105,9 +115,22 @@ pub fn is_qure_service_name(name: &str) -> bool {
     return name.starts_with(QURE_SERVICE_PREFIX) && name.ends_with(".service");
 }
 
+/// Reports the slice the toolchain's sync and update runs execute in.
+/// Cgroup programs apply to every descendant cgroup,
+///  so attaching to the slice marks each run scope created below it,
+///  with no attach per run.
+pub fn is_toolchain_updates_slice_name(name: &str) -> bool {
+    return name == TOOLCHAIN_UPDATES_SLICE;
+}
+
 /// Reports numeric procfs directory name without regular expression parsing.
 fn is_process_id(name: &str) -> bool {
-    return !name.is_empty() && name.bytes().all(|byte| return byte.is_ascii_digit());
+    return !name.is_empty() && name.bytes().all(is_ascii_digit_byte);
+}
+
+/// Reports one ASCII decimal digit byte.
+fn is_ascii_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
 }
 
 /// What:
@@ -231,7 +254,8 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 ///  Firefox Nightly,
 /// ChatGPT,
 ///  Interpreter,
-///  or Qure services.
+///  or Qure services,
+///  and the toolchain updates slice.
 fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry_result in std::fs::read_dir(roots.app_slice)? {
         let entry = entry_result?;
@@ -249,6 +273,7 @@ fn scan_named_cgroups(roots: &ScanRoots<'_>, targets: &mut Vec<PathBuf>) -> io::
             || is_chatgpt_service_name(name_text)
             || is_interpreter_service_name(name_text)
             || is_qure_service_name(name_text)
+            || is_toolchain_updates_slice_name(name_text)
         {
             push_unique(targets, entry.path());
         }

@@ -35,16 +35,12 @@ fn encode_key(key: &str) -> io::Result<String> {
             "watcher key must not be empty",
         ));
     }
-    return Ok(key
-        .as_bytes()
-        .iter()
-        .flat_map(|byte| {
-            return [
-                HEX_DIGITS[(byte >> 4) as usize] as char,
-                HEX_DIGITS[(byte & 0x0f) as usize] as char,
-            ];
-        })
-        .collect());
+    let mut encoded = String::new();
+    for byte in key.as_bytes() {
+        encoded.push(HEX_DIGITS[(byte >> 4) as usize] as char);
+        encoded.push(HEX_DIGITS[(byte & 0x0f) as usize] as char);
+    }
+    return Ok(encoded);
 }
 
 /// Maps watcher key into private state directory.
@@ -111,7 +107,9 @@ pub fn read_watch_state(key: &str) -> io::Result<Option<WatchProcess>> {
 /// Atomically writes watcher state and syncs file plus parent directory.
 pub fn write_watch_state(key: &str, process: WatchProcess) -> io::Result<()> {
     let path = watch_state_path(key)?;
-    let parent = path.parent().ok_or_else(|| return io::Error::other("watch state path lacks parent"))?;
+    let Some(parent) = path.parent() else {
+        return Err(io::Error::other("watch state path lacks parent"));
+    };
     ensure_watch_state_directory(key)?;
     let temporary = parent.join(format!("state-new-{}", std::process::id()));
     let text = format!(
