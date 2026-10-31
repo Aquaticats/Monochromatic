@@ -53,7 +53,7 @@ export const REPAIR_STAGE = 'translate-repair';
 
  @param l - logger of the candidate's turn
 
- @returns The answer as data; `answeredBy` names the model that gave it where the re-ask went to another model
+ @returns Answer as data; `answeredBy` names the model that gave it where the re-ask went to another model
 
  @throws Whatever the exchange raised, once the caller aborted, having written it on this seat's line and marked it
  written (`markFailureWritten`) unless it is the caller's reason itself

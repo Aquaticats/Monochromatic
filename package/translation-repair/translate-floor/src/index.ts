@@ -142,7 +142,9 @@ export {
   untranslatedOrResidueFindings,
 } from './translate-han-residue.ts';
 export { neutralPronounFindings, } from './translate-neutral-pronoun.ts';
+export { askAboutFindings, } from './translate-repair-ask.ts';
 export {
+  buildAnotherTranslatorRepairMessages,
   buildTranslateRepairMessages,
   isTranslateRepairWire,
   type RepairResolution,
