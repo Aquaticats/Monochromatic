@@ -825,6 +825,30 @@ named for that subject and listed here.
   which are accepted duplicates merged at emission (B1063),
   and the one spend line without a stored payload,
   which is an unfinished attempt booked at its bound (B1064).
+- [Audit ledger: a pass keeps its records in its run folder](audit-ledger-pass-records-in-the-run-folder.md):
+  The pass that wrote nothing of its own while every reader parsed a console capture (B1090),
+  how a reader finds the records of one run and what it says when there are none (B1091),
+  the retention that can never take them (B1092),
+  the five readers moved with the same reports (B1093),
+  four commands that read no pass records (B1094),
+  the budget sample (B1095),
+  what stays console only and what the launcher changed (B1096),
+  the census of every `.log` the package named (B1097),
+  the cache versions that did not move (B1098),
+  the editor fidelity bench and the other runners left as open scope (B1099),
+  and what an independent re-check of that round found:
+  the loggers of a pass that bypassed its run log (B1110),
+  the console-only lines it reached (B1111),
+  the bounded wait for the run folder (B1112),
+  the stop signals (B1113),
+  the refusals before the run log opens (B1114),
+  the default logger kept out of a run folder (B1115),
+  the first record that makes the record file (B1116),
+  the debug and trace records (B1117),
+  the control characters and the `run-records` task (B1118),
+  a folder named twice by two paths (B1119),
+  the line-by-line read (B1120),
+  and the corrections to the record (B1121).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
@@ -934,7 +958,7 @@ named for that subject and listed here.
   ledger rows and log lines that name one key more than once,
   read by the first or the last without saying so.
 - [Audit ledger: command lines read by each runner](audit-ledger-command-lines-read-by-each-runner.md):
-  How the runners read their command lines,
+  How the runners read their command lines and where a doc's invocation of one ends (B1122),
   and ids a line names that its runner cannot reach.
 - [Audit ledger: operator refusals printed as faults](audit-ledger-operator-refusals-printed-as-faults.md):
   Refusals of an operator's own mistake that printed as faults of the command,

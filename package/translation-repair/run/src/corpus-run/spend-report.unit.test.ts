@@ -59,7 +59,7 @@ await describe({
          */
         const log = join(
           scratch.path,
-          'run.log',
+          'run.log.jsonl',
         );
         await writeFile(
           log,
@@ -123,7 +123,7 @@ await describe({
          */
         const closed = join(
           scratch.path,
-          'closed.log',
+          'closed.log.jsonl',
         );
         await writeFile(
           closed,
@@ -163,7 +163,7 @@ await describe({
          */
         const missing = join(
           scratch.path,
-          'missing.log',
+          'missing.log.jsonl',
         );
 
         /**
@@ -180,7 +180,7 @@ await describe({
           code: REFUSED_AS_STATED,
           stdout: '',
           stderr: `spend-report: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-            + 'Name a log a pass, probe or calibration wrote, by a path that exists.\n',
+            + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.\n',
         },);
       },
     },),
@@ -203,8 +203,8 @@ await describe({
         expect(run,).toEqual({
           code: REFUSED_AS_STATED,
           stdout: '',
-          stderr: 'spend-report: this command needs <log file>. '
-            + 'Usage: spend-report <log file> [<log file> ...]\n',
+          stderr: 'spend-report: this command needs <run folder or log file>. '
+            + 'Usage: spend-report <run folder or log file> [<run folder or log file> ...]\n',
         },);
       },
     },),

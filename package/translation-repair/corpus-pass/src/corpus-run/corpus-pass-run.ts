@@ -1,10 +1,18 @@
+import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  contextRoot,
+  installRunLog,
+  openRunLog,
+  printRunLine,
+  recordRunLine,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../claude-schema-producers.ts';
 import {
   declinedEntryIds,
   digestPipeline,
   readAttemptMap,
+  StatedRefusalError,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   HARD_CAP_MINUTES,
@@ -21,6 +29,9 @@ import {
   passStartLine,
 } from './corpus-pass-lines.ts';
 import { assertPassResumable, } from './corpus-pass-guards.ts';
+import { handlingStopSignals, } from './pass-stop-signals.ts';
+import { recordingClosing, } from './pass-record-closing.ts';
+import { refuseLogDirectoryInRunFolder, } from './pass-log-directory-guard.ts';
 import { assertSchemasSendable, } from './pass-schema-check.ts';
 import { runPassQueue, } from './corpus-pass-queue.ts';
 import { createPassDryStop, } from './pass-dry-stop.ts';
@@ -40,6 +51,8 @@ import {
   readRequiredProviders,
   RUN_CALL_CONFIG,
   RUN_PER_CALL_TIMEOUT_MS,
+  framesOf,
+  isUnexpectedFault,
 } from '@monochromatic-dev/translation-repair-run/ts';
 
 //region Corpus pass run
@@ -80,6 +93,107 @@ const republishLog = contextRoot({ tag: 'republish', },);
  */
 export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> {
   /**
+   Runs directory this pass claims and keeps its records in.
+   */
+  const { runsDir, } = input;
+
+  // FIRST OF ALL, before the lock, the guards, the START line and every provider: a stage schema the Claude route
+  // cannot send is a fault in the code that no document causes, and each entry that reached its stage would otherwise
+  // record one `status=ERROR` after the paid calls of the stages before it. `--plan` is checked too, since it
+  // promises to verify setup at zero quota.
+  assertSchemasSendable({ producers: input.schemaProducers ?? CLAUDE_SCHEMA_PRODUCERS, },);
+
+  // Taken before anything is read, and held for the whole pass. Two passes
+  // sharing one directory overwrite each other attempt counts, delete each
+  // other cached slices whenever their pipelines differ, and the later write of
+  // any entry replaces the earlier one, all of it looking like ordinary output.
+  /**
+   Exclusive claim on this runs directory, released when the pass returns.
+   */
+  await using lock = await lockRunsDir({ runsDir, },);
+
+  // BEFORE THE RUN LOG OPENS, since the lock made the folder: the default logger sweeps the directory it is told to write
+  // to, and a run folder's `log` directory is the one place this run's records are (`pass-log-directory-guard.ts`).
+  await refuseLogDirectoryInRunFolder({
+    env: input.env,
+    runsDir,
+  },);
+
+  // THE RUN'S RECORDS, opened once the lock is held so a pass another pass refuses leaves nothing behind, and before
+  // anything is printed or logged: everything the pass logs from here on, and the lines it prints, are recorded in
+  // `<runsDir>/log/<day>/*.log.jsonl` through the shared logger's file sink (`typography/src/run-log.ts`), which no
+  // retention sweep ever touches. A run that cannot record itself does not start: its evidence is the point.
+  /**
+   The run's log, flushed when the pass returns or throws, before the lock is let go.
+   */
+  await using runLog = await openRunLog({ runDir: runsDir, },);
+  if (!runLog.recording)
+    throw new StatedRefusalError({
+      says: (runLog.destination === 'unanswered')
+        ? `the pass could not learn whether it can write its records to ${runLog.directory}, since that directory did `
+          + 'not answer in time, so it would leave no record of itself and has not started. Check the disk that holds '
+          + 'it, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, then start the pass again.'
+        : `the pass cannot write its records to ${runLog.directory}, so it would leave no record of itself and has `
+          + 'not started. Make that directory writable, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, '
+          + 'then start the pass again.',
+    },);
+  /**
+   Install of that log for every context root, put back when the pass returns.
+   */
+  using _recording = installRunLog({ log: runLog, },);
+
+  // A STOP SIGNAL ENDS THE PASS WITH ITS REASON RECORDED, its log flushed and its lock released (`pass-stop-signals.ts`).
+  /**
+   Handlers of the signals that stop a pass, taken off when the pass returns.
+   */
+  using _signals = handlingStopSignals({
+    log: runLog,
+    release: async function releaseLock(): Promise<void> {
+      await lock[Symbol.asyncDispose]();
+    },
+  },);
+
+  // WHAT THE COMMAND SAYS AT ITS END (the seat report and the end reports) is recorded last, while the log stands.
+  /**
+   Record of the closing lines, made when the pass returns or throws, while the run log stands.
+   */
+  await using _closing = recordingClosing(
+    (input.closing === undefined) ? {} : { closing: input.closing, },
+  );
+
+  try {
+    await runPassRecorded({ input, },);
+  }
+  catch (error) {
+    // WHY THE PASS STOPPED IS PART OF ITS RECORD. The refusal reaches the console only after this scope has closed the
+    // run log, so it is recorded here, while the log stands, and then thrown on unchanged for the entry to state. It is
+    // recorded and not printed, since the entry prints it once and a second print would change the pass's stderr.
+    recordRunLine({
+      level: 'error',
+      line: `[corpus-pass] the pass stopped: ${refusalText({ error, },)}`,
+    },);
+    // A FAULT NOBODY PLANNED keeps its frames, without its message or its cause, as the command prints them.
+    if (isUnexpectedFault({ error, },))
+      recordRunLine({
+        level: 'error',
+        line: `[corpus-pass] the stack frames of the fault that stopped the pass:\n${framesOf({ error, },)}`,
+      },);
+    throw error;
+  }
+}
+
+/**
+ Runs the pass once its runs directory is claimed and its records are open.
+
+ @param input - what the pass needs from the process that runs it
+
+ @example
+ ```ts
+ await runPassRecorded({ input, },);
+ ```
+ */
+async function runPassRecorded({ input, }: { readonly input: CorpusPassInput; },): Promise<void> {
+  /**
    Everything the pass reads from the process.
    */
   const {
@@ -96,21 +210,6 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    Corpus clone and commit this run reads.
    */
   const { pin, } = pinSetting;
-
-  // FIRST OF ALL, before the lock, the guards, the START line and every provider: a stage schema the Claude route
-  // cannot send is a fault in the code that no document causes, and each entry that reached its stage would otherwise
-  // record one `status=ERROR` after the paid calls of the stages before it. `--plan` is checked too, since it
-  // promises to verify setup at zero quota.
-  assertSchemasSendable({ producers: input.schemaProducers ?? CLAUDE_SCHEMA_PRODUCERS, },);
-
-  // Taken before anything is read, and held for the whole pass. Two passes
-  // sharing one directory overwrite each other attempt counts, delete each
-  // other cached slices whenever their pipelines differ, and the later write of
-  // any entry replaces the earlier one, all of it looking like ordinary output.
-  /**
-   Exclusive claim on this runs directory, released when the pass returns.
-   */
-  await using _lock = await lockRunsDir({ runsDir, },);
 
   /**
    Every path this pass reads and writes under its runs dir; the artifacts
@@ -182,7 +281,10 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     wallClock: passClock,
   },);
 
-  console.log(passStartLine({
+  /**
+   The line the pass opens its run with, which a census tells a pass's records by.
+   */
+  const startLine = passStartLine({
     facts: {
       tip,
       pipelineDigest,
@@ -195,7 +297,8 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
       claudeCallMs: RUN_CALL_CONFIG.claudeCallTimeoutMs,
     },
     wallClock: passClock,
-  },),);
+  },);
+  printRunLine({ line: startLine, },);
 
   for (const launchLine of passLaunchLines({
     hardCapMs,
@@ -207,7 +310,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     writerNote: input.writerNote,
     pinSetting,
   },))
-    console.log(launchLine,);
+    printRunLine({ line: launchLine, },);
 
   /**
    Providers validation or performance arm explicitly requires wet.
@@ -221,12 +324,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   },);
 
   for (const requiredLine of passRequiredLines({ providers: requiredProviders, },))
-    console.log(requiredLine,);
+    printRunLine({ line: requiredLine, },);
 
   // SAID AT EVERY LAUNCH, whether or not its key is in the environment: the client this run builds reads an off
   // provider's key as unset, so no call goes to it, and the line is where the run says so.
   for (const offLine of passProvidersOffLines({ off: PROVIDERS_LEFT_OFF, },))
-    console.log(offLine,);
+    printRunLine({ line: offLine, },);
 
   /**
    Gate ending the pass when the router finds every provider dry (`pass-dry-stop.ts`); the pass never waits for
@@ -243,14 +346,16 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   },), },);
 
   if (line.switched('plan',)) {
-    console.log(passPlanLine({
-      tip,
-      pipelineDigest,
-      pendingIds: pending.map(function toPlanId(entry,): string {
-        return entry.id;
+    printRunLine({
+      line: passPlanLine({
+        tip,
+        pipelineDigest,
+        pendingIds: pending.map(function toPlanId(entry,): string {
+          return entry.id;
+        },),
+        previewCount: PLAN_PREVIEW_COUNT,
       },),
-      previewCount: PLAN_PREVIEW_COUNT,
-    },),);
+    },);
     return;
   }
 
@@ -337,15 +442,17 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     artifactsDir,
     declinedDir,
   },);
-  console.log(passDoneLine({
-    processed,
-    pending: pending.length,
-    pairs,
-    settledIds,
-    declinedIds,
-    elapsedMs: now() - start,
-    wallClock: passClock,
-  },),);
+  printRunLine({
+    line: passDoneLine({
+      processed,
+      pending: pending.length,
+      pairs,
+      settledIds,
+      declinedIds,
+      elapsedMs: now() - start,
+      wallClock: passClock,
+    },),
+  },);
 }
 
 //endregion Corpus pass run

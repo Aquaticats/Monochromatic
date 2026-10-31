@@ -1,7 +1,8 @@
 # Audit ledger: command lines read by each runner
 
 How the runners read their command lines,
-and ids a line names that its runner cannot reach.
+and ids a line names that its runner cannot reach,
+and where the scan of a doc ends a runner's flags (B1122).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -318,3 +319,90 @@ printed 1,490 PASS lines and no FAIL line.
 Recurrence:
 a runner that narrows its walk by id passes the ids asked for and the ids it can reach through `askedAmong`;
 `command-flags.unit.test.ts` holds the refusal.
+
+## B1122: the flags of a runner end at a shell control operator
+
+Status:
+fixed on 2026-10-31 (UTC) in `a83aaf2f1b` and `3570941cd1`,
+after the failing cases of `f95e7e651e`.
+
+Gate m387 (the pass-records round merged with the branch and main) had one red case:
+the case of `source-scan/src/corpus-run/command-lines.unit.test.ts` that holds the living docs
+to the flags each runner reads.
+It named 4 lines in 2 runbooks:
+`run-records --fixed-strings` 3 times and `run-records --count` once.
+Each line is `mise run //package/translation-repair/run:run-records -- "${RUNDIR}" | rg <flag> ...`,
+and the flag is `rg`'s.
+The scan took everything a doc types after a runner,
+up to the next backtick or the line's end,
+as the runner's flags,
+so a command piped on from a runner was read as the runner.
+The 4 lines were right as commands and the scan was wrong.
+
+Fixed:
+`invocationEnd` cuts what a doc types after a runner at the first
+`|`,
+`&`,
+`;`,
+`>`
+or `<`
+that stands outside quotes and is not escaped,
+which covers `||`,
+`&&`
+and `2>&1`
+by their first character.
+An operator inside single or double quotes,
+or after a backslash outside single quotes,
+is an argument and the scan reads on.
+It is one pass over the typed text.
+The red commit adds 2 cases.
+The first has 3 checks:
+7 operators
+(`|`,
+`||`,
+`&&`,
+`;`,
+`>`,
+`2>&1`,
+`<`)
+each followed by a flag the runner does not read,
+which must report nothing;
+a line continued into a pipe that carries such a flag,
+which must report nothing;
+and the same 7 with an undeclared flag before the operator,
+which must be reported once each and the flag after it not at all.
+The second has 5 lines:
+an operator inside double quotes,
+inside single quotes,
+after an escaped quote inside double quotes,
+and escaped by a backslash outside quotes,
+each followed by an undeclared flag that must be reported,
+and a quoted operator followed by a real pipe and a flag after it,
+which must report nothing.
+Before the fix both cases and the doc case failed,
+the doc case with exactly the 4 lines gate m387 named;
+after it all 8 cases of the file pass.
+One of the 3 checks in the first case,
+a line continued into a pipe,
+passed before the fix too,
+since the scan reads an invocation up to its first line's end and never reads the continued line.
+
+The limit that remains,
+said plainly:
+the flags typed on the continued lines of an invocation broken across lines are not checked at all,
+for the runner's own flags as for a piped command's.
+The runbook that breaks `run-records` across lines (the checks after the run exits) is read to its first line only.
+
+Found with it:
+the check of `doc/runbook/translation-repair-corpus-pass.md` that counts `[error]` records
+said to expect `0`,
+but `rg --count` prints a count only for an input that matches and exits 1 when nothing does.
+A stdin of one `[info]` line printed nothing and exited 1,
+and a stdin of two `[error]` lines printed `2` and exited 0.
+The runbook now says what the operator sees:
+no output and exit status 1.
+
+No production code changed outside `source-scan`,
+and no cache version,
+prompt,
+sheet or decision rule moved.

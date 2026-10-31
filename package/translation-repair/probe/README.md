@@ -365,6 +365,8 @@ and each task sets it to its own name.
   so never for one log read alone and never for two logs without a low arm).
   Pass the three or four arm logs after `--`.
   The exit status of an arm is read from `<arm>.exit` beside `<arm>.log`.
+  OPEN (ledger B1099) as the arms still capture their console into `<arm>.log` and this command reads it.
+  The corpus pass and the reports of its records moved to the run folder (ledger B1090 to B1098).
   Spends nothing.
 - `damage-sample`:
   draws shipped regions at random and asks a human the same source-anchored damage question the probe asks,

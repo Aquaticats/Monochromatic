@@ -113,8 +113,14 @@ type LocatedDeclaration = TopDeclaration & {
 
  `proseMaskBuilds` counts the prose masks built since the process began, so a test sees how many slices one page pass parsed
  (each slice once, n159, X5); the count is module-private state, which no fixture can reach without an export.
+
+ `renderRunLogLine` renders one line of a record file as the console sink shows it, which the reader's tests hold against
+ the real console sink; the reader itself renders a record it has parsed already. `linesOfLog` cuts the text of a run
+ folder into the lines a parser takes, which the tests of the reports compare against; the reports read lines directly.
  */
 const PACKAGE_SEAMS: ReadonlySet<string> = new Set([
+  'glossary/corpus-run/run-log-read.ts#renderRunLogLine',
+  'run/corpus-run/report-log-read.ts#linesOfLog',
   'shared-contract/run-spend-meter.ts#resetRunSpend',
   'typography/typography-prose-mask.ts#proseMaskBuilds',
 ],);

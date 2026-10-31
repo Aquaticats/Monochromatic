@@ -68,7 +68,7 @@ env.TRANSLATION_REPAIR_STARTED_BY = "ledger-report"
 run = "node dist/final/node/ledger-report.mjs"
 
 [tasks."budget-sample"]
-description = "Take one reading of every provider's meter and leave it in the log, so an outage's END is observed during the quiet stretches when no pass is running; SPENDS NO GENERATION (capture both streams: `> log 2>&1`)"
+description = "Take one reading of every provider's meter and leave it in the log, so an outage's END is observed during the quiet stretches when no pass is running; the reading is a record in the run log of TRANSLATION_REPAIR_RUNS_DIR (else the worktree default), where meter-report reads it; SPENDS NO GENERATION"
 depends = ["build"]
 env.TRANSLATION_REPAIR_STARTED_BY = "budget-sample"
 run = "node dist/final/node/budget-sample.mjs"
@@ -78,6 +78,12 @@ description = "Read provider availability back out of run logs and report each p
 depends = ["build"]
 env.TRANSLATION_REPAIR_STARTED_BY = "meter-report"
 run = "node dist/final/node/meter-report.mjs"
+
+[tasks."run-records"]
+description = "Print the records a pass kept in its run folder (log/<day>/*.log.jsonl) the way the console showed them, control characters escaped as the console escapes them, one line for each record, with the debug and trace records left out unless --verbose is given; SPENDS NO QUOTA (pass one or more run folders or record files after --)"
+depends = ["build"]
+env.TRANSLATION_REPAIR_STARTED_BY = "run-records"
+run = "node dist/final/node/run-records.mjs"
 
 [tasks."verify-published"]
 description = "Read a published tree back and check it against the artifacts that produced it: every settled entry has a page, and every page carries the wording its artifact says would ship; spends no quota, reads TRANSLATION_REPAIR_RUNS_DIR"

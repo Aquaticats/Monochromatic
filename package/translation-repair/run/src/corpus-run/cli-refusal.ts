@@ -128,7 +128,7 @@ const REFUSED_AS_STATED = 6;
  console.error(framesOf({ error, },),);
  ```
  */
-function framesOf({ error, }: { readonly error: unknown; },): string {
+export function framesOf({ error, }: { readonly error: unknown; },): string {
   if (!Error.isError(error,))
     return '  (no frames: the thrown value is not an Error)';
 
@@ -170,28 +170,111 @@ function framesOf({ error, }: { readonly error: unknown; },): string {
 }
 
 /**
- Prints the seat report to stderr when its scope ends, after whatever the
+ Whether a caught value is a fault nobody planned, whose frames a log must keep.
+
+ THE SAME CLASSIFICATION THE COMMAND REPORTS BY: a refusal this package states in its own words and a run file that
+ would not read have no frames worth keeping, since nothing broke; anything else is a fault in the command, and its
+ frames (without its message or its cause, see {@link framesOf}) are what locates it.
+
+ @param error - caught value, of unknown type by construction
+
+ @returns Whether it is neither a stated refusal nor an unreadable run file
+
+ @example
+ ```ts
+ if (isUnexpectedFault({ error, },))
+   record(framesOf({ error, },),);
+ ```
+ */
+export function isUnexpectedFault({ error, }: { readonly error: unknown; },): boolean {
+  return (!(error instanceof StatedRefusalError)) && (!(error instanceof RunJsonUnreadableError));
+}
+
+/**
+ The lines a command says at its end: the end reports, then the seat report.
+
+ BUILT ONCE, ASKED FOR BY WHOEVER NEEDS THEM FIRST. A body that keeps a record of its run (a pass) records them before it
+ closes its log, and the command prints the very same lines when the body returns, so the console says what it always
+ said and the record says the same. Building them runs the end reports, which empty their registry and may ask a
+ provider for a reading, so they must not be built twice.
+
+ @example
+ ```ts
+ const lines = await closing.lines();
+ ```
+ */
+export type ClosingReport = {
+  /**
+   The lines, built on the first call and handed back as they were on every call after.
+   */
+  readonly lines: () => Promise<readonly string[]>;
+};
+
+/**
+ Builds the lines a command says at its end, running the end reports.
+
+ @param seats - tally to render
+
+ @returns End reports, then the seat report
+
+ @example
+ ```ts
+ const lines = await buildClosingLines({ seats: RUN_SEATS, },);
+ ```
+ */
+async function buildClosingLines({ seats, }: { readonly seats: SeatTally; },): Promise<readonly string[]> {
+  // THE END REPORTS FIRST (NeuralWatt's plan energy), then the seat report, so the
+  // closing lines of every command stay the seats.
+  return [
+    ...await runEndReports(),
+    ...seatReportLines({ tally: seats, },),
+  ];
+}
+
+/**
+ Builds the closing report of a command.
+
+ @param seats - tally to render
+
+ @returns Report whose lines are built on first use
+
+ @example
+ ```ts
+ const closing = closingReportOf({ seats: RUN_SEATS, },);
+ ```
+ */
+function closingReportOf({ seats, }: { readonly seats: SeatTally; },): ClosingReport {
+  /**
+   The lines once someone has asked for them.
+   */
+  const built: { lines?: Promise<readonly string[]>; } = {};
+  return {
+    lines: function closingLines(): Promise<readonly string[]> {
+      built.lines ??= buildClosingLines({ seats, },);
+      return built.lines;
+    },
+  };
+}
+
+/**
+ Prints the closing report to stderr when its scope ends, after whatever the
  command said, so the closing lines of every command name any seat that
  produced nothing usable. Nothing at all when no seat was asked, so
  a command that never built a client prints nothing extra.
 
- @param seats - tally to render
+ @param closing - report to print
 
  @returns Async disposable printing the end reports and then the seat report on dispose
 
  @example
  ```ts
- await using _report = printingSeatReport({ seats: RUN_SEATS, },);
+ await using _report = printingClosingReport({ closing: closingReportOf({ seats: RUN_SEATS, },), },);
  ```
  */
-function printingSeatReport({ seats, }: { readonly seats: SeatTally; },): AsyncDisposable {
+function printingClosingReport({ closing, }: { readonly closing: ClosingReport; },): AsyncDisposable {
   return {
     async [Symbol.asyncDispose](): Promise<void> {
-      // THE END REPORTS FIRST (NeuralWatt's plan energy), then the seat report, so the
-      // closing lines of every command stay the seats.
-      for (const line of await runEndReports())
-        console.error(line,);
-      for (const line of seatReportLines({ tally: seats, },))
+      for (const line of await closing.lines())
         console.error(line,);
     },
   };
@@ -214,7 +297,8 @@ function printingSeatReport({ seats, }: { readonly seats: SeatTally; },): AsyncD
  the one it means to start refuses before its command line is read
  (`task-runner-guard.ts`)
 
- @param run - CLI body to run, given the command line read
+ @param run - CLI body to run, given the command line read and the closing report the command will print when the body
+ returns, which a body that keeps a record of its run records before it closes its log
 
  @param seats - tally to print when the command ends; defaults to the
  run-wide one `createRunClient` counts into, and tests pass their own
@@ -236,16 +320,26 @@ export async function reportingRefusals<const Command extends CommandName>(
     readonly what: Command;
     readonly argv: readonly string[];
     readonly env: Readonly<NodeJS.ProcessEnv>;
-    readonly run: (input: { readonly line: CommandLineOf<Command>; },) => Promise<void>;
+    readonly run: (
+      input: {
+        readonly line: CommandLineOf<Command>;
+        readonly closing: ClosingReport;
+      },
+    ) => Promise<void>;
     readonly seats?: SeatTally;
   },
 ): Promise<void> {
+  /**
+   The lines this command says at its end, built when the body or the end of this scope first asks for them.
+   */
+  const closing = closingReportOf({ seats, },);
+
   /**
    Prints the seat report when this scope ends, whatever happened inside it:
    under the refusal line on a refusal, alone on a clean run, so a seat that
    produced nothing usable is in the closing lines of every command.
    */
-  await using _report = printingSeatReport({ seats, },);
+  await using _report = printingClosingReport({ closing, },);
 
   try {
     // FIRST, before the command line is read and before the body touches a
@@ -269,6 +363,7 @@ export async function reportingRefusals<const Command extends CommandName>(
         spec: COMMAND_LINES[what],
         argv,
       },),
+      closing,
     },);
   } catch (error) {
     // TO STDERR, unlike the reports these commands normally print. A reader

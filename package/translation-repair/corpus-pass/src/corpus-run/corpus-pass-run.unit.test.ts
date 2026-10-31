@@ -19,6 +19,7 @@
 import {
   mkdir,
   readdir,
+  readFile,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -42,6 +43,7 @@ import { EveryProviderDryError, type JsonSchemaResponseFormat, } from '@monochro
 import type { EntryOutcome, } from '@monochromatic-dev/translation-repair-slice-cache';
 import {
   digestPipeline,
+  readRunLogText,
   StatedRefusalError,
   writeDeclinedEntry,
 } from '@monochromatic-dev/translation-repair-glossary';
@@ -173,6 +175,11 @@ type Overrides = {
    What settling one entry does.
    */
   readonly settle?: CorpusPassInput['settle'];
+
+  /**
+   The lines the run says at its end, built once by the command that prints them.
+   */
+  readonly closing?: NonNullable<CorpusPassInput['closing']>;
 };
 
 /**
@@ -810,6 +817,90 @@ await describe({
       },
     },),
     it({
+      name: 'KEEPS ITS LINES AS RECORDS in the run folder, the START line and the plan among them, beside the '
+        + 'console, and never lets a sweep take the run\'s older records',
+      fn: async (ctx) => {
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [{
+          id: 'tabby',
+          sourceText: '猫睡觉。\n',
+          targetText: 'The cat naps.\n',
+        },], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+        /**
+         An older day of the same run's records, far outside any retention window.
+         */
+        const oldDay = join(
+          runs.path,
+          'log',
+          '2026-01-01',
+        );
+        await mkdir(
+          oldDay,
+          { recursive: true, },
+        );
+        await writeFile(
+          join(
+            oldDay,
+            '2026-01-01T00-00-00.000Z.00000000-0000-4000-8000-0000000000aa.log.jsonl',
+          ),
+          '{"level":"info","message":"START tip=an-earlier-process","timestamp":1767225600000}\n',
+        );
+
+        await runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {},
+        },);
+
+        /**
+         Names of everything under the run's log directory.
+         */
+        const names = await readdir(
+          join(
+            runs.path,
+            'log',
+          ),
+          { recursive: true, },
+        );
+        /**
+         Record files this process wrote, which are every one but the older day's.
+         */
+        const written = names.filter(function isThisProcess(name,): boolean {
+          return name.endsWith('.log.jsonl',) && (!name.startsWith('2026-01-01',));
+        },);
+        expect(written.length,).toBe(1,);
+        /**
+         Messages of the records, in order.
+         */
+        const messages = (await readFile(
+          join(
+            runs.path,
+            'log',
+            written[0] ?? 'no record file',
+          ),
+          'utf8',
+        )).split('\n',)
+          .filter(function present(line,): boolean {
+            return line !== '';
+          },)
+          .map(function messageOf(line,): string {
+            return (JSON.parse(line,) as { readonly message: string; }).message;
+          },);
+
+        // THE PASS'S OWN LINES ARE THE RECORDS WITHOUT A TAG: the console printed them, and the run folder holds them.
+        expect(messages.filter(function isOwnLine(message,): boolean {
+          return !message.startsWith('[',);
+        },),).toEqual(printed.lines,);
+        expect(names,).toContain('2026-01-01',);
+        expect(names,).not.toContain('.logger-retention-sweep',);
+      },
+    },),
+    it({
       name: 'REMOVES THE PAGE OF A DECLINED ENTRY BEFORE THE FIRST ENTRY RUNS, and counts the decline among those '
         + 'finished before it',
       fn: async (ctx) => {
@@ -970,6 +1061,220 @@ await describe({
             + `soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms ${AT}`,
         ],);
         expect(watched.clients,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'RECORDS WHY IT STOPPED in the run folder, the refusal of a required provider among them, since the '
+        + 'console gets the refusal only after the run log is closed',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+
+        await expect(runPass({
+          typed: [
+            '--require-providers',
+            'hyper',
+          ],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {},
+        },),).rejects.toThrow('required provider hyper is not ready: key missing',);
+
+        expect(await readRunLogText({ path: runs.path, },),).toContain(
+          '[corpus-pass] the pass stopped: required provider hyper is not ready: key missing',
+        );
+      },
+    },),
+    it({
+      name: 'RECORDS WHAT THE RUN SAYS AT ITS END before the log closes, on the clean path and under a refusal, from lines '
+        + 'built once by the command that prints them (ledger B1111)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using built = await builtPipeline();
+        /**
+         The seat report and the plan energy the command prints at its end, and how often the pass asked for them.
+         */
+        const asked = { count: 0, };
+        /**
+         The closing report a command hands the body.
+         */
+        const closing = {
+          lines: async function closingLines(): Promise<readonly string[]> {
+            asked.count += 1;
+            return [
+              'SEAT cat asked=1 usable=0 unusable=0 threw=1 silent=0 abandoned=0 unreachable=0',
+              'SEATS DARK: 1 of 1 seats asked produced nothing usable this run: cat (asked 1, unusable 0, threw 1).',
+            ];
+          },
+        };
+
+        await using clean = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: clean.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: { closing, },
+        },);
+        /**
+         Lines of the clean run's records, as the console printed them.
+         */
+        const cleanLines = (await readRunLogText({ path: clean.path, },)).split('\n',);
+        expect(cleanLines.filter(function isClosing(line,): boolean {
+          return line.includes('] SEAT cat asked=1',) || line.includes('] SEATS DARK: 1 of 1 seats',);
+        },).length,).toBe(2,);
+        expect(cleanLines.findIndex(function isPlan(line,): boolean {
+          return line.includes('] PLAN ',);
+        },),).toBeLessThan(cleanLines.findIndex(function isSeat(line,): boolean {
+          return line.includes('] SEAT cat',);
+        },),);
+
+        await using refused = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await expect(runPass({
+          typed: [
+            '--require-providers',
+            'hyper',
+          ],
+          clone,
+          runsDir: refused.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: { closing, },
+        },),).rejects.toThrow('required provider hyper is not ready: key missing',);
+        /**
+         Lines of the refused run's records.
+         */
+        const refusedLines = (await readRunLogText({ path: refused.path, },)).split('\n',);
+        expect(refusedLines.findIndex(function isStop(line,): boolean {
+          return line.includes('] [corpus-pass] the pass stopped: ',);
+        },),).toBeLessThan(refusedLines.findIndex(function isSeat(line,): boolean {
+          return line.includes('] SEAT cat',);
+        },),);
+        expect(refusedLines.some(function isDark(line,): boolean {
+          return line.includes('] SEATS DARK: ',);
+        },),).toBe(true,);
+        expect(asked.count,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'RECORDS THE STACK FRAMES OF AN UNEXPECTED FAULT before the log closes, without its message, and none for a '
+        + 'refusal the pass states in its own words (ledger B1111)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using built = await builtPipeline();
+        await using faulted = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await expect(runPass({
+          typed: [],
+          clone,
+          runsDir: faulted.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {
+            newClient: function newClient(): never {
+              throw new Error('a tabby walked across Pouncewick',);
+            },
+          },
+        },),).rejects.toThrow('a tabby walked across Pouncewick',);
+        /**
+         Records of the faulted run, as the console printed them.
+         */
+        const faultedText = await readRunLogText({ path: faulted.path, },);
+        expect(faultedText,).toContain('] [corpus-pass] the stack frames of the fault that stopped the pass:',);
+        expect(faultedText,).toContain('\n    at ',);
+        expect(faultedText,).not.toContain('Pouncewick',);
+
+        await using stated = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await expect(runPass({
+          typed: [
+            '--require-providers',
+            'hyper',
+          ],
+          clone,
+          runsDir: stated.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {},
+        },),).rejects.toThrow('required provider hyper is not ready: key missing',);
+        expect(await readRunLogText({ path: stated.path, },),).not.toContain('the stack frames of the fault',);
+      },
+    },),
+    it({
+      name: 'REFUSES TO START when the default logger\'s directory is the run folder or inside it, in words naming the '
+        + 'directory and the variable, since the logger\'s retention sweep would take the run\'s records (ledger B1115)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using elsewhere = await scratchDir({ prefix: 'corpus-pass-elsewhere-', },);
+        await using built = await builtPipeline();
+        /**
+         Directories the default logger may be told to write to, each of which sits in or is the run folder.
+         */
+        const inside = [
+          runs.path,
+          join(
+            runs.path,
+            'log',
+          ),
+          join(
+            runs.path,
+            'log',
+            '2026-10-31',
+          ),
+          join(
+            runs.path,
+            'not',
+            'made',
+            'yet',
+          ),
+        ];
+        for (const directory of inside) {
+          // oxlint-disable-next-line no-await-in-loop -- one directory after the other, so a refusal is the one named
+          await expect(runPass({
+            typed: ['--plan',],
+            clone,
+            runsDir: runs.path,
+            pipelineDir: built.dir,
+            watched: nothingWatched(),
+            overrides: { env: { MONOCHROMATIC_LOG_DIRECTORY: directory, }, },
+          },),).rejects.toThrow(
+            `MONOCHROMATIC_LOG_DIRECTORY names ${directory}, which is the run folder ${runs.path} or inside it`,
+          );
+        }
+
+        // The control: a directory outside the run folder starts the pass.
+        await runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: { env: { MONOCHROMATIC_LOG_DIRECTORY: elsewhere.path, }, },
+        },);
+        expect(await readRunLogText({ path: runs.path, },),).toContain('] PLAN ',);
       },
     },),
     it({

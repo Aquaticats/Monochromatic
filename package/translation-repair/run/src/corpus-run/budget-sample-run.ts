@@ -3,6 +3,11 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
+import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import {
+  installRunLog,
+  openRunLog,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   bedrockLedgerFromEnv,
   createBedrockClient,
@@ -41,12 +46,15 @@ import { PROBE_MAX_HOLD_MS, } from './run-probe-client.ts';
 // a minute while working (ledger D16): the Synthetic, Hyper and OpenRouter
 // endpoints, and the Bedrock and NeuralWatt ledgers on disk, where those
 // providers' credit and daily energy are kept (NeuralWatt's quota endpoint is
-// not read: it reports the plan, not the free daily energy). No model is called, no token is produced, and nothing is written to
-// a run directory.
+// not read: it reports the plan, not the free daily energy). No model is called and no token is produced.
 //
 // THE READING IS THE OUTPUT. It goes to the log as a `METERS` line, which is
-// the same line a pass leaves and the same line `meter-report` reads back.
-// Capture both streams: the reading is at info and an unreadable meter warns.
+// the same line a pass leaves and the same line `meter-report` reads back. The
+// sample writes its records into the run folder it is given, the way a pass does
+// (`typography/src/run-log.ts`), as a file of its own beside the pass's, so
+// `meter-report <run folder>` reads the readings of the pass and of the samples
+// taken between its attempts together. The reading is at info and an unreadable
+// meter warns.
 
 /**
  How long one sample may take before it is abandoned.
@@ -178,6 +186,59 @@ export async function sampleBudgets(
     `SAMPLED: routing would ${verdicts.join(', ',)}. The reading this command logged is the record; `
       + `read a collection of them with \`mise run ${taskPathOf({ command: 'meter-report', },)}\``,
   );
+}
+
+/**
+ Takes one reading of every provider's meter into a run folder's records.
+
+ @param runDir - run folder the sample's records are written to, a pass's or a folder of its own
+
+ @param env - environment the keys and the ledgers' places are read from: `process.env` in a run
+
+ @param transport - HTTP every meter is read over: `fetchTransport` in a run
+
+ @param l - logger the summary line is written to; a context root, so it follows the run log installed here
+
+ @throws {@link StatedRefusalError} when the run folder cannot be written, since a sample that leaves no record is
+ no sample, or for the reasons {@link sampleBudgets} refuses
+
+ @example
+ ```ts
+ await sampleIntoRunLog({ runDir, env: process.env, transport: fetchTransport, l, },);
+ ```
+ */
+export async function sampleIntoRunLog(
+  {
+    runDir,
+    env,
+    transport,
+    l,
+  }: {
+    readonly runDir: string;
+    readonly env: Readonly<NodeJS.ProcessEnv>;
+    readonly transport: ModelTransport;
+    readonly l: Logger;
+  },
+): Promise<void> {
+  /**
+   The sample's log, flushed when the sample ends, however it ends.
+   */
+  await using runLog = await openRunLog({ runDir, },);
+  if (!runLog.recording)
+    throw new StatedRefusalError({
+      says: `the sample cannot write its records to ${runLog.directory}, so it would leave no record and has not asked a `
+        + 'meter. Make that directory writable, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, '
+        + 'then take the sample again.',
+    },);
+  /**
+   Install of that log for every context root, put back when the sample ends.
+   */
+  using _recording = installRunLog({ log: runLog, },);
+  await sampleBudgets({
+    env,
+    transport,
+    l,
+  },);
 }
 
 //endregion Budget sample run

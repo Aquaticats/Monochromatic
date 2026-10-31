@@ -1,11 +1,12 @@
-import { readFile, } from 'node:fs/promises';
-
 import {
   isMissingPathError,
   wordForCount,
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import { readSliceCosts, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
-import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import {
+  readRunLogText,
+  StatedRefusalError,
+} from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { CommandLineOf, } from '@monochromatic-dev/translation-repair-run/ts';
 import {
   bucketSliceCostsBySize,
@@ -42,46 +43,48 @@ import { printSliceCostSpread, } from './slice-cost-spread.ts';
 
 
 /**
- Reads the log the command was named.
+ Reads the records the command was named.
 
- @param path - log named on the command line
+ @param path - run folder or record file named on the command line
 
- @returns Log's whole text
+ @returns Records as the lines the console printed
 
  @throws StatedRefusalError when nothing is at the path, which is a mistyped
- name rather than a fault of the command
+ name rather than a fault of the command, or when the path is no run folder and no record file, or a run folder holds
+ no record file
 
  @example
  ```ts
- const log = await logTextAt({ path: '/runs/pass.log', },);
+ const log = await logTextAt({ path: '/runs/corpus-pass-tabby', },);
  ```
  */
 async function logTextAt({ path, }: { readonly path: string; },): Promise<string> {
   try {
-    return await readFile(
-      path,
-      'utf8',
-    );
+    return await readRunLogText({ path, },);
   }
   catch (error) {
+    // A PATH THAT IS NO RUN FOLDER, OR A FOLDER WITH NO RECORD FILE, was refused in words of its own.
+    if (error instanceof StatedRefusalError) {
+      throw error;
+    }
     if (!isMissingPathError({ error, },)) {
       throw error;
     }
     throw new StatedRefusalError({
-      says: `${path} is not there; name a pass log that exists: slice-cost-report <log file>`,
+      says: `${path} is not there; name a run folder or log file that exists: slice-cost-report <run folder or log file>`,
       cause: error,
     },);
   }
 }
 
 /**
- Reads a pass log and reports what its slices cost.
+ Reads a pass's records and reports what its slices cost.
 
  @param line - report's command line, read whole by `reportingRefusals`,
- which refuses it when no log is named
+ which refuses it when no run folder is named
 
- @throws StatedRefusalError when the log is named as an empty argument, or
- nothing is at the path named
+ @throws StatedRefusalError when the run folder is named as an empty argument, or
+ nothing is at the path named, or it holds no record file
 
  @example
  ```ts
@@ -96,7 +99,9 @@ export async function reportSliceCost(
    */
   const [path = '',] = line.positionals;
   if (path === '')
-    throw new StatedRefusalError({ says: 'name a log file, not an empty argument: slice-cost-report <log file>', },);
+    throw new StatedRefusalError({
+      says: 'name a run folder, not an empty argument: slice-cost-report <run folder or log file>',
+    },);
 
   /**
    Everything its cost lines said.

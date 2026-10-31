@@ -63,11 +63,11 @@ await describe({
          */
         const first = join(
           scratch.path,
-          'first.log',
+          'first.log.jsonl',
         );
         const second = join(
           scratch.path,
-          'second.log',
+          'second.log.jsonl',
         );
         await writeFile(
           first,
@@ -163,7 +163,7 @@ await describe({
          */
         const bare = join(
           scratch.path,
-          'bare.log',
+          'bare.log.jsonl',
         );
         await writeFile(
           bare,
@@ -201,7 +201,7 @@ await describe({
          */
         const missing = join(
           scratch.path,
-          'missing.log',
+          'missing.log.jsonl',
         );
 
         /**
@@ -218,7 +218,7 @@ await describe({
           code: REFUSED_AS_STATED,
           stdout: '',
           stderr: `meter-report: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-            + 'Name a log a pass, probe or calibration wrote, by a path that exists.\n',
+            + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.\n',
         },);
       },
     },),
@@ -241,8 +241,8 @@ await describe({
         expect(run,).toEqual({
           code: REFUSED_AS_STATED,
           stdout: '',
-          stderr: 'meter-report: this command needs <log file>. '
-            + 'Usage: meter-report <log file> [<log file> ...]\n',
+          stderr: 'meter-report: this command needs <run folder or log file>. '
+            + 'Usage: meter-report <run folder or log file> [<run folder or log file> ...]\n',
         },);
       },
     },),

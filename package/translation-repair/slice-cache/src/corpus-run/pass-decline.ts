@@ -18,7 +18,9 @@ import {
   archiveOriginalReadingOf,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
+  printRunLine,
   rethrowUnlessMissingPath,
+  runLogger,
   sliceTagged,
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -203,7 +205,12 @@ export async function recordEntryDecline(
   /**
    Entry logger, which names the attempt the decline is recorded in (ledger B963).
    */
-  const el = sliceTagged({ l: tagged({ tag: entry.id, },), },);
+  const el = sliceTagged({
+    l: tagged({
+      tag: entry.id,
+      l: runLogger,
+    },),
+  },);
   if (await removeLeftoverPage({
     publishDir,
     entryId: entry.id,
@@ -225,14 +232,14 @@ export async function recordEntryDecline(
     `ARCHIVE ORIGINAL entry=${entry.id}: the archive's note says the whole page is the author's own `
       + `English (${note}), so the pipeline declines to repair it and the archive stands`,
   );
-  console.log(
-    `TALLY ${entry.id} status=DECLINED ${
+  printRunLine({
+    line: `TALLY ${entry.id} status=DECLINED ${
       lifecycleStamp({
         attempt,
         wallClock,
       },)
     } reason=archive-original ms=${String(monotonicMs() - startedAt,)}`,
-  );
+  },);
   return { kind: 'declined', };
 }
 
@@ -291,7 +298,12 @@ export async function removeDeclinedPages(
       return entryId;
     },), },);
   for (const entryId of removed) {
-    sliceTagged({ l: tagged({ tag: entryId, },), },)
+    sliceTagged({
+      l: tagged({
+        tag: entryId,
+        l: runLogger,
+      },),
+    },)
       .warn(`entry ${entryId}: removed a page standing for a declined entry, since the archive's note says the archive ships`,);
   }
   return removed;

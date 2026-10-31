@@ -232,7 +232,7 @@ await describe({
              */
             const bare = join(
               scratch.path,
-              'bare.log',
+              'bare.log.jsonl',
             );
             await writeFile(
               bare,
@@ -268,7 +268,7 @@ await describe({
              */
             const cut = join(
               scratch.path,
-              'cut.log',
+              'cut.log.jsonl',
             );
             await writeFile(
               cut,
@@ -304,7 +304,7 @@ await describe({
              */
             const log = join(
               scratch.path,
-              'run.log',
+              'run.log.jsonl',
             );
             await writeFile(
               log,
@@ -358,11 +358,11 @@ await describe({
              */
             const wet = join(
               scratch.path,
-              'wet.log',
+              'wet.log.jsonl',
             );
             const dry = join(
               scratch.path,
-              'dry.log',
+              'dry.log.jsonl',
             );
             await writeFile(
               wet,
@@ -411,7 +411,7 @@ await describe({
              */
             const log = join(
               scratch.path,
-              'once.log',
+              'once.log.jsonl',
             );
             await writeFile(
               log,
@@ -439,7 +439,7 @@ await describe({
              */
             const missing = join(
               scratch.path,
-              'missing.log',
+              'missing.log.jsonl',
             );
 
             /**
@@ -462,7 +462,7 @@ await describe({
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);
             expect(String(refusal,),).toBe(
               `StatedRefusalError: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-                + 'Name a log a pass, probe or calibration wrote, by a path that exists.',
+                + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.',
             );
           },
         },),

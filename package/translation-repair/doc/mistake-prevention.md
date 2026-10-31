@@ -312,22 +312,31 @@ not a memory of having done it.
 7.  The current handover says what is launching and why (M55):
     the snapshot's "What to do next" and its newest checkpoint name this launch,
     and the document map's "Current status" names the last pass read.
-8.  Both output streams reach the log through one descriptor (M147):
-    the runbook's `> "${RUNDIR}.log" 2>&1`,
-    or a systemd unit given `StandardOutput=truncate:<log>` and no `StandardError` property,
-    which then inherits stdout's file;
-    never `StandardOutput=truncate:` beside `StandardError=append:` on the same file,
-    whose stdout overwrites every stderr line,
-    every `warn` among them.
-    Right after the launch,
-    `systemctl --user show --property=StandardError <unit>` prints `StandardError=inherit`
-    (the runbook's launch step).
+8.  The pass keeps its records in its run folder,
+    and nothing captures its console into a file (B1090):
+    a unit is given no `StandardOutput` or `StandardError` property,
+    so the console reaches the unit's journal,
+    and the launch is never redirected to `/dev/null` (B1114).
+    Once the pass has written its first record,
+    `${RUNDIR}/log/<day>/` holds one `.log.jsonl` file for each process that opened the run log:
+    the file appears with the first record and not at the instant of the launch (B1116).
+    A pass that cannot write there refuses to start,
+    but it says so on the console only,
+    which is the unit's journal,
+    because the refusal comes before the run log it would be recorded in (B1114).
+    The records are read with the `run-records` task (B1118) and not with `jq`.
+    This replaces the rule of M147,
+    which kept both streams in one captured file
+    (a stdout descriptor overwrote every `warn` a second stderr descriptor had written):
+    with no capture there is no descriptor to share,
+    and the logger's own file sink appends each record whole.
 9.  The build runs the worktree's own tools (M278):
     a unit gets no `--setenv=PATH=`,
     or one with every main-checkout entry removed and the worktree's `node_modules/.bin` first,
     and a launch meant to run on a known build is stopped
-    unless the log's `rolldown v…` line is the worktree's version
-    and its `START` line carries that build's `pipeline=` digest.
+    unless the unit's journal `rolldown v…` line is the worktree's version
+    (the build lines are console output and reach no record)
+    and the `START` record's message carries that build's `pipeline=` digest.
     Since `0fa3120174` a family build enforces the first half itself:
     `checkoutBundlerPlugin` (`package/config/rolldown/src/checkout-bundler.ts`)
     refuses a build whose running bundler is not the version the checkout installs,

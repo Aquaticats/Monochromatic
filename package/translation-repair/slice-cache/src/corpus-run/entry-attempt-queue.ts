@@ -4,7 +4,10 @@ import {
   lifecycleStamp,
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  printRunLine,
+  wordForCount,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { readAttemptOutcome, } from './entry-reattempt.ts';
 import type { EntryOutcome, } from './pass-entry-contract.ts';
 
@@ -175,33 +178,33 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     const runEnded = runHasStopped();
 
     if ((verdict.kind === 'earned') && (!runEnded)) {
-      console.log(
-        `REATTEMPT ${entry.id} queued ${stampOf({ entry, },)}: ${String(verdict.gained,)} more cache ${
+      printRunLine({
+        line: `REATTEMPT ${entry.id} queued ${stampOf({ entry, },)}: ${String(verdict.gained,)} more cache ${
           wordForCount({
             count: verdict.gained,
             one: 'record',
             many: 'records',
           },)
         } than it had, so the next attempt starts further along`,
-      );
+      },);
       queue.push(entry,);
     }
     if ((verdict.kind === 'stalled') && (!runEnded)) {
-      console.log(
-        `STALLED ${entry.id} ${stampOf({ entry, },)}: its ${String(verdict.cached,)} cache ${
+      printRunLine({
+        line: `STALLED ${entry.id} ${stampOf({ entry, },)}: its ${String(verdict.cached,)} cache ${
           wordForCount({
             count: verdict.cached,
             one: 'record is',
             many: 'records are',
           },)
         } what it started with, so a further attempt in this invocation would repeat it`,
-      );
+      },);
     }
     if (verdict.kind === 'stopped') {
-      console.log(
-        `INCOMPLETE ${entry.id} ${stampOf({ entry, },)}: stage-local work remains; whole entry will not restart in `
+      printRunLine({
+        line: `INCOMPLETE ${entry.id} ${stampOf({ entry, },)}: stage-local work remains; whole entry will not restart in `
           + 'this invocation',
-      );
+      },);
     }
   }
 }

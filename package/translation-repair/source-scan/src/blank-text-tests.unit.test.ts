@@ -1641,6 +1641,10 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SETTING,
   },
+  'corpus-pass/corpus-run/pass-log-directory-guard.ts#refuseLogDirectoryInRunFolder': {
+    tests: 1,
+    why: SETTING,
+  },
   'run/corpus-run/report-log-read.ts#linesOfLog': {
     tests: 1,
     why: SCANNER,

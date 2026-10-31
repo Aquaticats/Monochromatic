@@ -73,10 +73,13 @@ import { BedrockCreditOverrideError, } from '@monochromatic-dev/translation-repa
 import {
   HardCapOverrideError,
   LedgerShapeError,
+  registerRunEndReport,
   reportingRefusals,
   RunConfigError,
   RunsDirectoryBusyError,
   SpendCeilingOverrideError,
+  framesOf,
+  isUnexpectedFault,
 } from '../../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_TEXT_BEDROCK,
@@ -797,6 +800,72 @@ await describe({
 
         expect(ran,).toBe(true,);
         expect(printed.lines,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'HANDS THE BODY THE LINES IT WILL PRINT AT ITS END, built once, so the body can record the seat report and the '
+        + 'end reports before its log closes and the command still prints each line once, as before (ledger B1111)',
+      fn: async () => {
+        using held = holdingExitCode();
+        using printed = collectingErrors({ lines: [], },);
+
+        /**
+         Tally of a run in which one seat threw.
+         */
+        const seats = createSeatTally();
+        seats.record({ modelId: SEAT_HYPER_TEXT_BEDROCK, outcome: 'threw', },);
+        /**
+         How often the end report was built.
+         */
+        const built = { count: 0, };
+        registerRunEndReport({
+          key: 'plan-energy-for-the-case',
+          report: async () => {
+            built.count += 1;
+            return 'NEURALWATT plan energy: a made-up figure';
+          },
+        },);
+        /**
+         Lines the body was handed, asked for twice.
+         */
+        const handed: (readonly string[])[] = [];
+
+        process.exitCode = 0;
+        await reportingRefusals({
+          what: 'editor-calibrate',
+          argv: BARE_ARGV,
+          env: NO_KEYS,
+          run: async ({ closing, }) => {
+            handed.push(
+              await closing.lines(),
+              await closing.lines(),
+            );
+          },
+          seats,
+        },);
+
+        expect(process.exitCode,).toBe(0,);
+        expect(built.count,).toBe(1,);
+        expect(handed[0],).toBe(handed[1],);
+        expect(handed[0]?.[0],).toBe('NEURALWATT plan energy: a made-up figure',);
+        expect(printed.lines,).toEqual(handed[0],);
+      },
+    },),
+    it({
+      name: 'GIVES THE STACK FRAMES OF AN UNEXPECTED FAULT and nothing for a refusal the commands state in their own words, '
+        + 'or for a run file that would not read: the frames, without the message or the cause (ledger B1111)',
+      fn: async () => {
+        /**
+         Frames of a plain error.
+         */
+        const frames = framesOf({ error: new Error(FAULT_MESSAGE,), },);
+
+        expect(frames.includes('    at ',),).toBe(true,);
+        expect(frames.includes(FAULT_MESSAGE,),).toBe(false,);
+        expect(isUnexpectedFault({ error: new Error(FAULT_MESSAGE,), },),).toBe(true,);
+        expect(isUnexpectedFault({ error: 'a bare text', },),).toBe(true,);
+        expect(isUnexpectedFault({ error: new StatedRefusalError({ says: STATED_MESSAGE, },), },),).toBe(false,);
+        expect(isUnexpectedFault({ error: fixtureRefusal(), },),).toBe(false,);
       },
     },),
   ],

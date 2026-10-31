@@ -1,8 +1,7 @@
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { CommandLineOf, } from './command-lines.ts';
 import {
-  linesOfLog,
-  readLogTexts,
+  readLogLines,
   refuseRepeatedLogs,
 } from './report-log-read.ts';
 import {
@@ -43,15 +42,12 @@ export async function reportRunTiming({ line, }: { readonly line: CommandLineOf<
   const paths = line.positionals;
 
   // BEFORE ANY FILE IS READ: a log named twice would be counted twice.
-  refuseRepeatedLogs({ paths, },);
+  await refuseRepeatedLogs({ paths, },);
 
   /**
    Every line of every named log, in one list.
    */
-  const lines = (await readLogTexts({ paths, },))
-    .flatMap(function linesOf(text,): readonly string[] {
-      return linesOfLog({ text, },);
-    },);
+  const lines = await readLogLines({ paths, },);
 
   /**
    Every timing line those logs held.

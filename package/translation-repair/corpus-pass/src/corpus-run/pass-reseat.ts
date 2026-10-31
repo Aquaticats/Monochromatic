@@ -1,7 +1,4 @@
-import {
-  type Logger,
-  tagged,
-} from '@monochromatic-dev/logger-core/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type { RepairSliceSeating, } from '@monochromatic-dev/translation-repair-assembly/ts';
 import type {
@@ -9,7 +6,7 @@ import type {
   TranslateSliceSeating,
 } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
-import { sliceTagged, } from '@monochromatic-dev/translation-repair-typography/ts';
+import { entryLoggerOf, } from './pass-entry-logger.ts';
 import {
   type Reseated,
   reseatHookFor,
@@ -82,7 +79,7 @@ export function translateReseatFor(
       client,
       phase: 'translate lane',
       signal,
-      l: sliceTagged({ l: tagged({ tag: entryId, },), },),
+      l: entryLoggerOf({ entryId, },),
     },);
     return reseated.translateModels;
   };
@@ -264,7 +261,7 @@ export function lanesHooksFor(
     signal,
     entryId,
     startedSelectReachable,
-    l = sliceTagged({ l: tagged({ tag: entryId, },), },),
+    l = entryLoggerOf({ entryId, },),
   }: {
     readonly client: SeatReadingClient;
     readonly signal: AbortSignal;
@@ -352,7 +349,7 @@ export async function readLanesSeats(
     client,
     phase: 'lanes',
     signal,
-    l: sliceTagged({ l: tagged({ tag: entryId, },), },),
+    l: entryLoggerOf({ entryId, },),
   },);
   return {
     seats,

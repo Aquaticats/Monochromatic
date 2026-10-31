@@ -76,6 +76,7 @@ export type CommandLines = EditorFidelityCommandLines & {
   readonly 'rendering-audit-settled-report': CommandLineSpec<'run' | 'against', never, never>;
   readonly 'roster-bench': CommandLineSpec<never, never, never>;
   readonly 'roster-card': CommandLineSpec<never, never, never>;
+  readonly 'run-records': CommandLineSpec<never, never, 'verbose'>;
   readonly 'run-timing-report': CommandLineSpec<never, never, never>;
   readonly 'score-agreement': CommandLineSpec<'sheet' | 'manifest' | 'pre-grades', never, never>;
   readonly 'score-attribution': CommandLineSpec<never, never, never>;
@@ -112,10 +113,10 @@ const NO_ARGUMENTS: CommandLineSpec<never, never, never> = {
 };
 
 /**
- Positions of a report that reads one or more logs.
+ Positions of a report that reads the records of one or more runs: a run folder, or one record file of it.
  */
 const LOG_FILES: PositionalSpec = {
-  names: ['log file',],
+  names: ['run folder or log file',],
   least: 1,
   rest: true,
 };
@@ -307,6 +308,11 @@ export const COMMAND_LINES: CommandLines = {
       rest: false,
     },
   },
+  'run-records': {
+    ...NO_ARGUMENTS,
+    positionals: LOG_FILES,
+    switches: { verbose: true, },
+  },
   'run-timing-report': {
     ...NO_ARGUMENTS,
     positionals: LOG_FILES,
@@ -341,7 +347,7 @@ export const COMMAND_LINES: CommandLines = {
   'slice-cost-report': {
     ...NO_ARGUMENTS,
     positionals: {
-      names: ['log file',],
+      names: ['run folder or log file',],
       least: 1,
       rest: false,
     },

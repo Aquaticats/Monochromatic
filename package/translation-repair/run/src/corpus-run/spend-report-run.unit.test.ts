@@ -330,7 +330,7 @@ await describe({
          */
         const missing = join(
           scratch.path,
-          'missing.log',
+          'missing.log.jsonl',
         );
 
         /**
@@ -353,7 +353,7 @@ await describe({
         expect(refusal,).toBeInstanceOf(StatedRefusalError,);
         expect(String(refusal,),).toBe(
           `StatedRefusalError: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-            + 'Name a log a pass, probe or calibration wrote, by a path that exists.',
+            + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.',
         );
       },
     },),

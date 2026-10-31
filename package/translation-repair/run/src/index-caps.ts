@@ -6,7 +6,10 @@ export {
   type ProviderKeys,
   readProviderKeys,
 } from './corpus-run/budget-sample-keys.ts';
-export { sampleBudgets, } from './corpus-run/budget-sample-run.ts';
+export {
+  sampleBudgets,
+  sampleIntoRunLog,
+} from './corpus-run/budget-sample-run.ts';
 export { capCensusPassRunReading, } from './corpus-run/cap-census-pass-run.ts';
 export {
   capCensusProviderLine,

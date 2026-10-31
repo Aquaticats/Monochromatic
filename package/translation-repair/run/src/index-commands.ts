@@ -2,7 +2,12 @@
 // The command lines and their refusals, the corpus pin setting and the entry filter.
 // Re-exported by `index.ts`, which is the package's one public entry.
 
-export { reportingRefusals, } from './corpus-run/cli-refusal.ts';
+export {
+  type ClosingReport,
+  framesOf,
+  isUnexpectedFault,
+  reportingRefusals,
+} from './corpus-run/cli-refusal.ts';
 export {
   askedAmong,
   idListFlag,

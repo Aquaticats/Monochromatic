@@ -1,6 +1,9 @@
 import { createReadStream, } from 'node:fs';
-import { readFile, } from 'node:fs/promises';
 
+import {
+  parseRunLogRecord,
+  readRunLogText,
+} from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   type CapLogReading,
   readCapLog,
@@ -8,11 +11,15 @@ import {
 
 //region Cap census pass run
 // WHICH LOGS THE CAP CENSUS COUNTS (ledger P7, P10): a log counts only when the
-// first line among its first `HEAD_LINES` lines that opens `START tip=` holds a
+// first record among its first `HEAD_LINES` lines whose message opens `START tip=` holds a
 // commit id a repository could give, since suite, build and prototype logs carry
 // fixture `SPEND` lines. Each log is opened only far enough to find the marker,
 // and a pass-run log's text is dropped once its samples are read, so memory
 // holds samples, not logs.
+//
+// A LOG IS A RECORD FILE (`typography/src/run-log.ts`): one JSON object per line, the pass's own `START` line the
+// message of one of them. The marker is read from the message of a line that is exactly a record, so a line of a record
+// file that merely mentions it, or a cut-off line, is not the pass's START.
 //
 // A REAL COMMIT ID IS WHAT TELLS A PASS FROM A SUITE (ledger B963). A test suite
 // runs fixture passes in its own process and prints their START lines into its
@@ -72,6 +79,11 @@ const BLOCK_BYTES = 65_536;
 const PASS_RUN_MARKER = 'START tip=';
 
 /**
+ Sentinel for a line that is no record opening with the pass-run marker.
+ */
+const NO_MARKER: unique symbol = Symbol('line is no record opening with the pass-run marker',);
+
+/**
  Digits a commit id holds.
  */
 const COMMIT_ID_LENGTH = 40;
@@ -107,9 +119,33 @@ function isCommitId({ text, }: { readonly text: string; },): boolean {
 }
 
 /**
+ The message of a line that is a record opening with the pass-run marker.
+
+ @param line - line of the record file, a cut-off or foreign line included
+
+ @returns Record's message, or {@link NO_MARKER} where the line is no record or its message does not open with the
+ marker
+
+ @example
+ ```ts
+ const message = markerMessageOf({ line: '{"level":"info","message":"START tip=2a33","timestamp":0}', },); // 'START tip=2a33'
+ ```
+ */
+function markerMessageOf({ line, }: { readonly line: string; },): string | typeof NO_MARKER {
+  /**
+   The line as a record, if it is one.
+   */
+  const record = parseRunLogRecord({ line, },);
+  if (record === 'not-a-record')
+    return NO_MARKER;
+  return record.message
+    .startsWith(PASS_RUN_MARKER,) ? record.message : NO_MARKER;
+}
+
+/**
  Whether a line opens a pass's report, which only a pass prints.
 
- @param line - line of the log
+ @param line - message of the record
 
  @returns Whether it opens with the pass-run marker followed by a commit id
 
@@ -138,12 +174,11 @@ function startsAPass({ line, }: { readonly line: string; },): boolean {
  Whether the first line among the first `HEAD_LINES` of a log that opens with the pass-run marker is a pass's START.
 
  The log is read in blocks of `BLOCK_BYTES`, one byte to a character, and the lines of a block are cut where a line
- feed, a carriage return or a pair of them stands, so a lone carriage return ends a line as it does for any line
- reader and a pair split between two blocks counts an empty line. The unfinished line at the end of a block is held to
- be completed by the next. The read stops at the first line that opens with the marker, at the bound in lines, or at a
- line longer than `LINE_BYTES`, so the cost and the memory do not depend on the size of the log, on the bytes of the
- lines before the marker or on whether the log has a line break at all. The first marker decides: a log whose first
- marker holds no commit id is a suite's, whatever it prints later.
+ feed stands, which is the only line end a record file has: the sink writes each record on one line. The unfinished
+ line at the end of a block is held to be completed by the next. The read stops at the first record whose message opens
+ with the marker, at the bound in lines, or at a line longer than `LINE_BYTES`, so the cost and the memory do not
+ depend on the size of the log, on the bytes of the lines before the marker or on whether the log has a line break at
+ all. The first marker decides: a log whose first marker holds no commit id is a suite's, whatever it prints later.
 
  @param path - log file
 
@@ -173,31 +208,19 @@ async function opensWithinHead({ path, }: { readonly path: string; },): Promise<
       },
     )) {
       /**
-       The unfinished line and the block, with every pair of a carriage return and a line feed made one line feed.
-       */
-      const pairsJoined = `${unfinished}${String(block,)}`.replaceAll(
-        '\r\n',
-        '\n',
-      );
-
-      /**
-       The same text with every lone carriage return made a line feed.
-       */
-      const lineFeedsOnly = pairsJoined.replaceAll(
-        '\r',
-        '\n',
-      );
-
-      /**
        The text cut at every line feed: the lines it finished, then the line it leaves unfinished.
        */
-      const pieces = lineFeedsOnly.split('\n',);
+      const pieces = `${unfinished}${String(block,)}`.split('\n',);
       unfinished = pieces.pop() ?? '';
       for (const line of pieces) {
         if (line.length > LINE_BYTES)
           return false;
-        if (line.startsWith(PASS_RUN_MARKER,))
-          return startsAPass({ line, },);
+        /**
+         The record's message, when the line is a record that opens with the marker.
+         */
+        const message = markerMessageOf({ line, },);
+        if (message !== NO_MARKER)
+          return startsAPass({ line: message, },);
         linesRead += 1;
         if (linesRead >= HEAD_LINES)
           return false;
@@ -205,7 +228,11 @@ async function opensWithinHead({ path, }: { readonly path: string; },): Promise<
       if (unfinished.length > LINE_BYTES)
         return false;
     }
-    return unfinished.startsWith(PASS_RUN_MARKER,) && startsAPass({ line: unfinished, },);
+    /**
+     The record the last, unterminated line is, when it is one that opens with the marker.
+     */
+    const lastMessage = markerMessageOf({ line: unfinished, },);
+    return (lastMessage !== NO_MARKER) && startsAPass({ line: lastMessage, },);
   })();
 }
 
@@ -228,10 +255,7 @@ export async function capCensusPassRunReading(
   if (!(await opensWithinHead({ path, },)))
     return 'not-a-pass-run';
   return readCapLog({
-    lines: (await readFile(
-      path,
-      'utf8',
-    )).split('\n',),
+    lines: (await readRunLogText({ path, },)).split('\n',),
   },);
 }
 

@@ -25,6 +25,7 @@ import {
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { publishInterimPage, } from '@monochromatic-dev/translation-repair-page-check/ts';
 import { endsTheRun, } from '@monochromatic-dev/translation-repair-stage/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Pass entry interim
 // THE PART OF AN ENTRY'S PIPELINE THAT SURVIVES ITS STOP. `runEntryPipeline` keeps the slicing, the lanes, the contest
@@ -230,15 +231,15 @@ export async function shipInterimOnDryStop(
         pageSha256: interimPageDigest({ pageText: shipped.pageText, },),
       },
     },);
-    console.log(
-      `INTERIM ${entryId} ${
+    printRunLine({
+      line: `INTERIM ${entryId} ${
         lifecycleStamp({
           attempt,
           wallClock,
         },)
       } settled=${String(shipped.settledSlices,)} archive=${String(shipped.archiveSlices,)} `
         + `source=${String(shipped.sourceSlices,)} reason=dry-stop`,
-    );
+    },);
   }
   catch (failure) {
     l.error(

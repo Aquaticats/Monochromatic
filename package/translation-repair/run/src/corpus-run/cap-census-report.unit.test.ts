@@ -33,6 +33,7 @@ import { runBuiltCommand, } from '@monochromatic-dev/translation-repair-adjudica
 import { RUN_ENTRY, } from './built-entry.test-fixture.ts';
 import { SEAT_HYPER_OPENROUTER_UNMEASURED, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import { writeLog as writeRecordLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/report-log-write.test-fixture.ts';
 import {
   CAP_CENSUS_CLOSING_NOTE,
   spendLine,
@@ -102,11 +103,15 @@ function passRunLines(): readonly string[] {
 }
 
 /**
- Writes a named log of the given lines into a scratch directory.
+ Writes a named record file of the given lines into a scratch directory.
+
+ A line that opens `START tip=` is written as the record a pass makes of its START line, the way the console prints it
+ (`[info] [stamp] START ...`); a line in the console's form is written as the record the logger writes for it, and any
+ other line as a foreign line.
 
  @param directory - scratch directory
 
- @param name - file name
+ @param name - file name, which gains `.jsonl` where it ends `.log`
 
  @param lines - log's lines
 
@@ -126,14 +131,13 @@ async function writeLog(
     readonly lines: readonly string[];
   },
 ): Promise<void> {
-  await writeFile(
-    join(
-      directory,
-      name,
-    ),
-    `${lines.join('\n',)}\n`,
-    'utf8',
-  );
+  await writeRecordLog({
+    dir: directory,
+    name,
+    lines: lines.map(function asRecordLine(line,): string {
+      return line.startsWith('START tip=',) ? `[info] [2026-09-28T09:59:00.000Z] ${line}` : line;
+    },),
+  },);
 }
 
 await describe({
@@ -216,7 +220,7 @@ await describe({
              */
             const sealed = join(
               scratch.path,
-              'sealed.log',
+              'sealed.log.jsonl',
             );
             await chmod(
               sealed,
@@ -367,22 +371,16 @@ await describe({
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'cap-census-built-', },);
             await using runs = await scratchDir({ prefix: 'cap-census-built-runs-', },);
-            await writeFile(
-              join(
-                scratch.path,
-                'pass.log',
-              ),
-              `${passRunLines().join('\n',)}\n`,
-              'utf8',
-            );
-            await writeFile(
-              join(
-                scratch.path,
-                'suite.log',
-              ),
-              'a suite log\n',
-              'utf8',
-            );
+            await writeLog({
+              directory: scratch.path,
+              name: 'pass.log',
+              lines: passRunLines(),
+            },);
+            await writeLog({
+              directory: scratch.path,
+              name: 'suite.log',
+              lines: ['a suite log',],
+            },);
             await writeFile(
               join(
                 scratch.path,
@@ -395,15 +393,14 @@ await describe({
               scratch.path,
               'slice-cache',
             ),);
-            await writeFile(
-              join(
+            await writeLog({
+              directory: join(
                 scratch.path,
                 'slice-cache',
-                'skipped.log',
               ),
-              `${passRunLines().join('\n',)}\n`,
-              'utf8',
-            );
+              name: 'skipped.log',
+              lines: passRunLines(),
+            },);
 
             /**
              A path the walk cannot read.

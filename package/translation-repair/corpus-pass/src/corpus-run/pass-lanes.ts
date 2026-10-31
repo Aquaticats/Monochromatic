@@ -1,9 +1,5 @@
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
-
-import {
-  sliceTagged,
-  wordForCount,
-} from '@monochromatic-dev/translation-repair-typography/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import { entryLoggerOf, } from './pass-entry-logger.ts';
 import type {
   InsertionAdmission,
   PreparedDocumentPair,
@@ -120,7 +116,7 @@ export async function runPassLanes(
    Entry logger both lanes write to, which names the attempt inside one. The lanes slice-tag the logger they are
    handed, and a line passes through a slice-tagged logger once, so their lines read as they always have (ledger B963).
    */
-  const l = sliceTagged({ l: tagged({ tag: entryId, },), },);
+  const l = entryLoggerOf({ entryId, },);
   l.debug(`${runPassLanes.name}: running both lanes over ${String(prepared.slices
     .length,)} ${
     wordForCount({

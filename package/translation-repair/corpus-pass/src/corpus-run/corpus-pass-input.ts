@@ -1,5 +1,6 @@
 import type { ModelTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import type {
+  ClosingReport,
   CommandLineOf,
   CorpusPinSetting,
   RunClient,
@@ -74,9 +75,15 @@ export type CorpusPassInput = {
   readonly readTip: () => Promise<string>;
 
   /**
-   Environment the required providers' keys are read from.
+   Environment the required providers' keys are read from, and the default logger's directory is looked for in.
    */
   readonly env: Readonly<NodeJS.ProcessEnv>;
+
+  /**
+   The lines the command says at its end (the end reports and the seat report), which the pass records before its run
+   log closes and the command prints when the pass returns; absent where nothing prints them.
+   */
+  readonly closing?: ClosingReport;
 
   /**
    HTTP the required providers' meters are read over.

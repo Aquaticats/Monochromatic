@@ -1,8 +1,7 @@
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { CommandLineOf, } from './command-lines.ts';
 import {
-  linesOfLog,
-  readLogTexts,
+  readLogLines,
   refuseRepeatedLogs,
 } from './report-log-read.ts';
 import { priceTally, } from './spend-cost.ts';
@@ -36,15 +35,12 @@ export async function reportSpendCost({ line, }: { readonly line: CommandLineOf<
   const paths = line.positionals;
 
   // BEFORE ANY FILE IS READ: a log named twice would be totalled twice.
-  refuseRepeatedLogs({ paths, },);
+  await refuseRepeatedLogs({ paths, },);
 
   /**
    Every line of every named log, in one list.
    */
-  const lines = (await readLogTexts({ paths, },))
-    .flatMap(function linesOf(text,): readonly string[] {
-      return linesOfLog({ text, },);
-    },);
+  const lines = await readLogLines({ paths, },);
 
   /**
    Per-seat totals over every record those lines held.

@@ -5,12 +5,15 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
+import { runLogger, } from './run-log.ts';
+
 //region Log context
 // WHICH ENTRY, ATTEMPT, LANE AND SLICE A LINE BELONGS TO, carried by the async
 // call rather than threaded through every stage (ledger A11, B960).
 //
 // The run client is built once per pass and shared by every entry, so its
-// lines could never name one: 3279 of 5943 lines of TianqiChen66616.log, SPEND
+// lines could never name one: 3279 of 5943 lines of TianqiChen66616.log (a text capture of that pass's console, from
+// before 2026-10-31, when a pass began to keep its records in its run folder), SPEND
 // among them, carried no entry, and the lane lines carried no slice while
 // slices ran side by side. A context set where an entry starts and where each
 // lane takes up a slice reaches every call beneath it, the provider queues
@@ -536,7 +539,12 @@ export function sliceTagged({ l, }: { readonly l: Logger; },): Logger {
 export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
   return sliceTagged({
     l: prefixing({
-      l: tagged({ tag, },),
+      // WRITES THROUGH THE RUN LOG A PASS INSTALLED (`run-log.ts`), chosen at each call, and through the default logger
+      // while none is.
+      l: tagged({
+        tag,
+        l: runLogger,
+      },),
       prefixOf: entryPrefix,
     },),
   },);

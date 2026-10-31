@@ -19,12 +19,13 @@
 
 import {
   mkdir,
+  readdir,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
-  caught,
   describe,
   expect,
   it,
@@ -38,6 +39,7 @@ import {
 } from '../../dist/final/node/index.mjs';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import { writeRunFolder, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/run-log-write.test-fixture.ts';
 
 await describe({
   name: 'report log read',
@@ -48,19 +50,19 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'READS every named log whole, in the order named',
+          name: 'READS every named record file whole, a line to a line and each closed by a line feed, in the order named',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
             /**
-             Two logs, named in the reverse of their file names' order.
+             Two record files, named in the reverse of their file names' order.
              */
             const first = join(
               scratch.path,
-              'b.log',
+              'b.log.jsonl',
             );
             const second = join(
               scratch.path,
-              'a.log',
+              'a.log.jsonl',
             );
             await writeFile(
               first,
@@ -78,7 +80,7 @@ await describe({
               ],
             },),).toEqual([
               'purr\nnap\n',
-              'stretch',
+              'stretch\n',
             ],);
           },
         },),
@@ -99,7 +101,7 @@ await describe({
              */
             const missing = join(
               scratch.path,
-              'missing.log',
+              'missing.log.jsonl',
             );
 
             /**
@@ -112,18 +114,18 @@ await describe({
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);
             expect(String(refusal,),).toBe(
               `StatedRefusalError: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-                + 'Name a log a pass, probe or calibration wrote, by a path that exists.',
+                + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.',
             );
             expect(Error.isError(refusal,) && Error.isError(refusal.cause,),).toBe(true,);
           },
         },),
 
         it({
-          name: 'REFUSES a path that is a directory with the code the filesystem gave',
+          name: 'REFUSES a directory that holds no record file, in words of its own and not with a filesystem code',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
             /**
-             Directory named where a log belongs.
+             Empty directory named where a run folder belongs.
              */
             const directory = join(
               scratch.path,
@@ -139,8 +141,8 @@ await describe({
             },);
 
             expect(String(refusal,),).toBe(
-              `StatedRefusalError: the log ${directory} could not be read (EISDIR), so nothing was counted. `
-                + 'Name a log a pass, probe or calibration wrote, by a path that exists.',
+              `StatedRefusalError: ${directory} holds no record file (log/<day>/*.log.jsonl), so there is nothing to count. `
+                + 'Name the run folder of a pass that ran, or one of its record files. Nothing was counted.',
             );
           },
         },),
@@ -153,13 +155,34 @@ await describe({
       children: [
         it({
           name: 'ACCEPTS no log, one log and several different logs',
-          fn: async () => {
-            refuseRepeatedLogs({ paths: [], },);
-            refuseRepeatedLogs({ paths: ['/tmp/tabby.log',], },);
-            refuseRepeatedLogs({
+          fn: async ctx => {
+            await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
+            /**
+             Two run folders of two passes.
+             */
+            const [tabby, calico,] = await Promise.all([
+              writeRunFolder({
+                sinon: ctx.sinon,
+                dir: scratch.path,
+                name: 'corpus-pass-tabby',
+                day: '2026-10-23',
+                lines: ['purr',],
+              },),
+              writeRunFolder({
+                sinon: ctx.sinon,
+                dir: scratch.path,
+                name: 'corpus-pass-calico',
+                day: '2026-10-23',
+                lines: ['nap',],
+              },),
+            ],);
+
+            await refuseRepeatedLogs({ paths: [], },);
+            await refuseRepeatedLogs({ paths: [tabby,], },);
+            await refuseRepeatedLogs({
               paths: [
-                '/tmp/tabby.log',
-                '/tmp/calico.log',
+                tabby,
+                calico,
               ],
             },);
           },
@@ -171,8 +194,8 @@ await describe({
             /**
              What the check threw.
              */
-            const refusal = caught(function namesTwice(): unknown {
-              return refuseRepeatedLogs({
+            const refusal = await rejectionOf(async function namesTwice(): Promise<unknown> {
+              return await refuseRepeatedLogs({
                 paths: [
                   '/tmp/tabby.log',
                   '/tmp/calico.log',
@@ -195,8 +218,8 @@ await describe({
             /**
              What the check threw.
              */
-            const refusal = caught(function namesTwoSpellings(): unknown {
-              return refuseRepeatedLogs({
+            const refusal = await rejectionOf(async function namesTwoSpellings(): Promise<unknown> {
+              return await refuseRepeatedLogs({
                 paths: [
                   '/tmp/tabby.log',
                   '/tmp/cats/../tabby.log',
@@ -207,6 +230,162 @@ await describe({
             expect(String(refusal,),).toBe(
               'StatedRefusalError: the log /tmp/cats/../tabby.log is named more than once, so its lines would be '
                 + 'counted twice. Name each log once.',
+            );
+          },
+        },),
+
+        it({
+          name: 'REFUSES a run folder named beside its own log directory, a day directory or one of its files, and a '
+            + 'link to a run folder already named, since each reaches the same record files by another path '
+            + '(ledger B1119)',
+          fn: async ctx => {
+            await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
+            /**
+             A run folder of one pass.
+             */
+            const runDir = await writeRunFolder({
+              sinon: ctx.sinon,
+              dir: scratch.path,
+              name: 'corpus-pass-tabby',
+              day: '2026-10-23',
+              lines: ['purr',],
+            },);
+            /**
+             The record file inside it.
+             */
+            const [file = 'no record file',] = await readdir(join(
+              runDir,
+              'log',
+              '2026-10-23',
+            ),);
+            /**
+             A link to the run folder.
+             */
+            const link = join(
+              scratch.path,
+              'link-to-tabby',
+            );
+            await symlink(
+              runDir,
+              link,
+            );
+            /**
+             The pairs that name one run's files twice, each with the log that is named second.
+             */
+            const overlaps: readonly (readonly [readonly string[], string])[] = [
+              [
+                [
+                  runDir,
+                  join(
+                    runDir,
+                    'log',
+                  ),
+                ],
+                join(
+                  runDir,
+                  'log',
+                ),
+              ],
+              [
+                [
+                  join(
+                    runDir,
+                    'log',
+                  ),
+                  runDir,
+                ],
+                runDir,
+              ],
+              [
+                [
+                  runDir,
+                  join(
+                    runDir,
+                    'log',
+                    '2026-10-23',
+                    file,
+                  ),
+                ],
+                join(
+                  runDir,
+                  'log',
+                  '2026-10-23',
+                  file,
+                ),
+              ],
+              [
+                [
+                  join(
+                    runDir,
+                    'log',
+                    '2026-10-23',
+                  ),
+                  join(
+                    runDir,
+                    'log',
+                    '2026-10-23',
+                    file,
+                  ),
+                ],
+                join(
+                  runDir,
+                  'log',
+                  '2026-10-23',
+                  file,
+                ),
+              ],
+              [
+                [
+                  runDir,
+                  link,
+                ],
+                link,
+              ],
+            ];
+            for (const [paths, second,] of overlaps) {
+              /* oxlint-disable no-await-in-loop -- one pair after the other, so a failing pair is the one named */
+              /**
+               What the check threw for this pair.
+               */
+              const refusal = await rejectionOf(async function namesOneRunTwice(): Promise<unknown> {
+                return await refuseRepeatedLogs({ paths, },);
+              },);
+              /* oxlint-enable no-await-in-loop */
+
+              expect(refusal,).toBeInstanceOf(StatedRefusalError,);
+              expect(String(refusal,),).toBe(
+                `StatedRefusalError: the log ${second} reaches the record file ${file}, which the log ${
+                  paths[0]
+                } reaches too, so its lines would be counted twice. Name each run folder or record file once, and `
+                  + 'not a run folder together with its log directory or one of its files.',
+              );
+            }
+          },
+        },),
+
+        it({
+          name: 'REFUSES a log that will not list as the readers do, before it compares anything',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
+            /**
+             Folder where no run was kept.
+             */
+            const empty = join(
+              scratch.path,
+              'empty',
+            );
+            await mkdir(empty,);
+
+            /**
+             What the check threw.
+             */
+            const refusal = await rejectionOf(async function namesAnEmptyFolder(): Promise<unknown> {
+              return await refuseRepeatedLogs({ paths: [empty,], },);
+            },);
+
+            expect(String(refusal,),).toBe(
+              `StatedRefusalError: ${empty} holds no record file (log/<day>/*.log.jsonl), so there is nothing to count. `
+                + 'Name the run folder of a pass that ran, or one of its record files. Nothing was counted.',
             );
           },
         },),

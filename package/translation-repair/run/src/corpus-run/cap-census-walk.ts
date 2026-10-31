@@ -8,6 +8,7 @@ import {
 } from 'node:path';
 
 import { ARTIFACTS_DIR, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
+import { RUN_LOG_SUFFIX, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   PROMPT_PAYLOADS_DIR,
   SLICE_CACHE_DIR,
@@ -18,6 +19,10 @@ import {
 // thousands of logs, some large, so the walk names paths only: it opens
 // nothing, and a path it cannot read is counted rather than fatal.
 //
+// A LOG IS A RECORD FILE, a name ending `.log.jsonl`, which a pass writes under `<run folder>/log/<day>/` through the
+// shared logger (`typography/src/run-log.ts`). A `.log` capture of a console is no log here: nothing in this package
+// writes one, and one named like a log is a file the walk drops by its name like any other file.
+//
 // WHAT IS NAMED ON STDERR IS WHAT COULD HAVE HELD A LOG (ledger B991). A
 // directory it cannot list may hold one, and a link named like a log may stand
 // for one, so both are named and counted as unreadable. A link to nothing under
@@ -27,9 +32,11 @@ import {
 
 /**
  How deep below a named directory the walk goes: the run directories under the
- agent root sit one or two levels down.
+ agent root sit one or two levels down, and the records of a run sit two levels
+ below its folder (`log/<day>/`), so a day directory of a run two levels down is
+ the fourth level and the bound leaves a level to spare.
  */
-const MAX_DEPTH = 3;
+const MAX_DEPTH = 5;
 
 /**
  Directories that hold no run log and are large: caches, artifacts, payloads.
@@ -96,7 +103,7 @@ function isMissingPath({ error, }: { readonly error: unknown; },): boolean {
  Whether a failed visit was a link to nothing that no log can be named by.
 
  A LINK TO NOTHING HOLDS NO LOG: a directory it stood for would be there to list, and a file it stood for to read. Its
- name decides whether the census would have taken it: only a name ending `.log` is a log, so a dangling link under any
+ name decides whether the census would have taken it: only a name ending `.log.jsonl` is a log, so a dangling link under any
  other name (a browser profile's `SingletonLock`, a scratch `bin/git`) cannot change the result. A path named on the
  command line is always reported, whatever it is.
 
@@ -127,7 +134,7 @@ function isLogLessDanglingLink(
    The path the failed visit was for.
    */
   const { path, } = next;
-  if (path.endsWith('.log',))
+  if (path.endsWith(RUN_LOG_SUFFIX,))
     return false;
   return isMissingPath({ error, },);
 }
@@ -177,7 +184,7 @@ async function visit({ next, }: { readonly next: PendingPath; },): Promise<Visit
     const info = await stat(next.path,);
     if (info.isFile())
       return next.path
-        .endsWith('.log',) ? { kind: 'log', } : { kind: 'nothing', };
+        .endsWith(RUN_LOG_SUFFIX,) ? { kind: 'log', } : { kind: 'nothing', };
     if ((!info.isDirectory()) || (next.depth > MAX_DEPTH))
       return { kind: 'nothing', };
 
@@ -197,7 +204,7 @@ async function visit({ next, }: { readonly next: PendingPath; },): Promise<Visit
            The entry's name.
            */
           const { name, } = entry;
-          return (!SKIPPED_DIRS.has(name,)) && ((!entry.isFile()) || name.endsWith('.log',));
+          return (!SKIPPED_DIRS.has(name,)) && ((!entry.isFile()) || name.endsWith(RUN_LOG_SUFFIX,));
         },)
         .map(function child(entry,): PendingPath {
           return {
@@ -231,7 +238,7 @@ async function visit({ next, }: { readonly next: PendingPath; },): Promise<Visit
 }
 
 /**
- Every `.log` file under the named paths, files named directly included.
+ Every `.log.jsonl` file under the named paths, files named directly included.
 
  @param roots - files or directories named on the command line
 
