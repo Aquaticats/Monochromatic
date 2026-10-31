@@ -617,7 +617,8 @@ await writeRootFixtureFile({
     '[Interface]',
     `PrivateKey = ${privateKey}`,
     'Address = 10.200.0.1/32',
-    'ExemptMark = 9999',
+    // Changed mark carrying no reserved bit so config parsing still accepts it.
+    'ExemptMark = 200',
   ].join('\n',),
 },);
 await runWgQuickerCli({
