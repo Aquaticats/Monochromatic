@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where the coverage of a translation is asked',
       fn: async () => {
-        const source = await readFile(new URL('./coverage-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('coverage-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster',],);
       },
     },),
@@ -34,7 +34,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where a block is reviewed, and where its reviewers are judged',
       fn: async () => {
-        const source = await readFile(new URL('./archive-block-review-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('archive-block-review-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster',],);
         expect(rolesNamedAtCalls({ source, callee: 'decideBestCandidate', },),).toEqual(['roster',],);
       },
@@ -43,7 +43,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where the naturalness of a block is reviewed',
       fn: async () => {
-        const source = await readFile(new URL('./absolute-naturalness-review-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('absolute-naturalness-review-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['roster',],);
       },
     },),

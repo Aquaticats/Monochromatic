@@ -145,6 +145,8 @@ export async function runCoverageStage(
     responseFormat: COVERAGE_RESPONSE_FORMAT,
     validate: isCoverageReportWire,
     stage: 'coverage',
+    // THE COVERAGE IS ASKED OF THE RUN ROSTER (`seats.roster`) and nothing narrower.
+    role: 'roster',
     l,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),

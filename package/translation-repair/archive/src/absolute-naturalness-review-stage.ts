@@ -290,6 +290,8 @@ export async function reviewAbsoluteNaturalness(
       },);
     },
     stage: 'absolute-naturalness-review',
+    // THE REVIEW IS ASKED OF THE RUN ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     l: rl,
     quorumOver,
     graceMs: stageSettings

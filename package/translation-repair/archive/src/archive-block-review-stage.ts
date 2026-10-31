@@ -194,6 +194,8 @@ export async function runArchiveBlockReviewStage(
     responseFormat: ARCHIVE_BLOCK_REVIEW_RESPONSE_FORMAT,
     validate: isArchiveBlockReviewWire,
     stage: 'archive-block-review',
+    // THE REVIEW IS ASKED OF THE RUN ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     l: reviewLog,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
@@ -444,6 +446,8 @@ export async function runArchiveBlockReviewStage(
     client,
     candidates,
     judgeModelIds: modelIds,
+    // THE CORRECTIONS ARE JUDGED BY THE REVIEW ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     sourceText,
     task: ARCHIVE_BLOCK_SELECTION_TASK,
     criteria: ARCHIVE_BLOCK_SELECTION_CRITERIA,
