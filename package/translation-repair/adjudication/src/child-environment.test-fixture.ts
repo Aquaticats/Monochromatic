@@ -45,6 +45,7 @@ import { fileURLToPath, } from 'node:url';
 import nanoSpawn, { type Result, } from 'nano-spawn';
 
 import { isCredentialName, } from '@monochromatic-dev/translation-repair-typography';
+import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { STARTED_BY_VARIABLE, } from '../dist/final/node/index.mjs';
 import {
   builtDirectoryOf,
@@ -144,6 +145,164 @@ export async function spawnKeyless(
       env: environmentWithoutKeys({ extra, },),
     },
   );
+}
+
+/**
+ Text a child of {@link runUntilSignalled} writes to stdout when it is ready for its signal, which the fixture waits for.
+ */
+const SIGNALLED_READY_TEXT = 'ready';
+
+/**
+ What a child that was sent a signal wrote and how it ended.
+
+ @example
+ ```ts
+ const run: SignalledRun = { code: 143, signal: 'none', stdout: 'ready\n', stderr: '', };
+ ```
+ */
+export type SignalledRun = ChildRun & {
+  /**
+   Signal that ended the child, `none` where it ended itself.
+   */
+  readonly signal: NodeJS.Signals | 'none';
+};
+
+/**
+ Runs a program with the keyless environment, sends it a signal once it says it is ready, and reports how it ended.
+ The signal goes to the child this fixture started and to nothing else.
+
+ THE CHILD IS STOPPED IF IT HANGS: past the shared hang stop it is killed, so a handler that never exits fails the case
+ and leaves no process behind.
+
+ @param file - program to run
+
+ @param args - its arguments
+
+ @param cwd - directory it runs in, the caller's own where absent
+
+ @param extra - variables the case sets for it
+
+ @param signal - signal to send the child once it has written {@link SIGNALLED_READY_TEXT}
+
+ @returns Exit code, the signal that ended it, then stdout and stderr whole
+
+ @throws Error when the process never started
+
+ @example
+ ```ts
+ const done = await runUntilSignalled({ file: process.execPath, args: [script, runsDir,], signal: 'SIGTERM', },);
+ ```
+ */
+export async function runUntilSignalled(
+  {
+    file,
+    args,
+    cwd,
+    extra = {},
+    signal,
+  }: {
+    readonly file: string;
+    readonly args: readonly string[];
+    readonly cwd?: string;
+    readonly extra?: Readonly<Record<string, string>>;
+    readonly signal: NodeJS.Signals;
+  },
+): Promise<SignalledRun> {
+  /**
+   The child, its input closed.
+   */
+  const child = spawn(
+    file,
+    args,
+    {
+      ...((cwd === undefined) ? {} : { cwd, }),
+      env: environmentWithoutKeys({ extra, },),
+      stdio: [
+        'ignore',
+        'pipe',
+        'pipe',
+      ],
+    },
+  );
+  /**
+   Stdout as it arrives.
+   */
+  const out: string[] = [];
+  /**
+   Stderr as it arrives.
+   */
+  const err: string[] = [];
+  /**
+   Settled when the child has said it is ready, or has ended without saying so.
+   */
+  const ready = Promise.withResolvers<void>();
+  child.stdout
+    .setEncoding('utf8',);
+  child.stdout
+    .on(
+    'data',
+    function keepOut(chunk: string,): void {
+      out.push(chunk,);
+      if (out
+        .join('',)
+        .includes(SIGNALLED_READY_TEXT,))
+        ready.resolve();
+    },
+    );
+  child.stderr
+    .setEncoding('utf8',);
+  child.stderr
+    .on(
+    'data',
+    function keepErr(chunk: string,): void {
+      err.push(chunk,);
+    },
+    );
+  child.once(
+    'close',
+    function endedBeforeReady(): void {
+      ready.resolve();
+    },
+  );
+  /**
+   Timer that kills the child if it outlives the shared hang stop.
+   */
+  const hangStop = setTimeout(
+    function killHungChild(): void {
+      child.kill('SIGKILL',);
+    },
+    HANG_STOP_MS,
+  );
+  /**
+   Clears the hang stop when the child has ended in time.
+   */
+  using _cleanup = {
+    [Symbol.dispose](): void {
+      clearTimeout(hangStop,);
+    },
+  };
+  await ready.promise;
+  /**
+   Whether the child is still running.
+
+   @returns Whether it has neither exited nor been ended by a signal
+   */
+  function running(): boolean {
+    return (child.exitCode === null) && (child.signalCode === null);
+  }
+  if (running())
+    child.kill(signal,);
+  if (running())
+    await once(
+      child,
+      'close',
+    );
+  return {
+    code: child.exitCode ?? SIGNALLED,
+    signal: child.signalCode ?? 'none',
+    stdout: out.join('',),
+    stderr: err.join('',),
+  };
 }
 
 /**

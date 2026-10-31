@@ -175,6 +175,11 @@ type Overrides = {
    What settling one entry does.
    */
   readonly settle?: CorpusPassInput['settle'];
+
+  /**
+   The lines the run says at its end, built once by the command that prints them.
+   */
+  readonly closing?: NonNullable<CorpusPassInput['closing']>;
 };
 
 /**
@@ -1086,6 +1091,190 @@ await describe({
         expect(await readRunLogText({ path: runs.path, },),).toContain(
           '[corpus-pass] the pass stopped: required provider hyper is not ready: key missing',
         );
+      },
+    },),
+    it({
+      name: 'RECORDS WHAT THE RUN SAYS AT ITS END before the log closes, on the clean path and under a refusal, from lines '
+        + 'built once by the command that prints them (ledger B1111)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using built = await builtPipeline();
+        /**
+         The seat report and the plan energy the command prints at its end, and how often the pass asked for them.
+         */
+        const asked = { count: 0, };
+        /**
+         The closing report a command hands the body.
+         */
+        const closing = {
+          lines: async function closingLines(): Promise<readonly string[]> {
+            asked.count += 1;
+            return [
+              'SEAT cat asked=1 usable=0 unusable=0 threw=1 silent=0 abandoned=0 unreachable=0',
+              'SEATS DARK: 1 of 1 seats asked produced nothing usable this run: cat (asked 1, unusable 0, threw 1).',
+            ];
+          },
+        };
+
+        await using clean = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: clean.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: { closing, },
+        },);
+        /**
+         Lines of the clean run's records, as the console printed them.
+         */
+        const cleanLines = (await readRunLogText({ path: clean.path, },)).split('\n',);
+        expect(cleanLines.filter(function isClosing(line,): boolean {
+          return line.includes('] SEAT cat asked=1',) || line.includes('] SEATS DARK: 1 of 1 seats',);
+        },).length,).toBe(2,);
+        expect(cleanLines.findIndex(function isPlan(line,): boolean {
+          return line.includes('] PLAN ',);
+        },),).toBeLessThan(cleanLines.findIndex(function isSeat(line,): boolean {
+          return line.includes('] SEAT cat',);
+        },),);
+
+        await using refused = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await expect(runPass({
+          typed: [
+            '--require-providers',
+            'hyper',
+          ],
+          clone,
+          runsDir: refused.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: { closing, },
+        },),).rejects.toThrow('required provider hyper is not ready: key missing',);
+        /**
+         Lines of the refused run's records.
+         */
+        const refusedLines = (await readRunLogText({ path: refused.path, },)).split('\n',);
+        expect(refusedLines.findIndex(function isStop(line,): boolean {
+          return line.includes('] [corpus-pass] the pass stopped: ',);
+        },),).toBeLessThan(refusedLines.findIndex(function isSeat(line,): boolean {
+          return line.includes('] SEAT cat',);
+        },),);
+        expect(refusedLines.some(function isDark(line,): boolean {
+          return line.includes('] SEATS DARK: ',);
+        },),).toBe(true,);
+        expect(asked.count,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'RECORDS THE STACK FRAMES OF AN UNEXPECTED FAULT before the log closes, without its message, and none for a '
+        + 'refusal the pass states in its own words (ledger B1111)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using built = await builtPipeline();
+        await using faulted = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await expect(runPass({
+          typed: [],
+          clone,
+          runsDir: faulted.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {
+            newClient: function newClient(): never {
+              throw new Error('a tabby walked across Pouncewick',);
+            },
+          },
+        },),).rejects.toThrow('a tabby walked across Pouncewick',);
+        /**
+         Records of the faulted run, as the console printed them.
+         */
+        const faultedText = await readRunLogText({ path: faulted.path, },);
+        expect(faultedText,).toContain('] [corpus-pass] the stack frames of the fault that stopped the pass:',);
+        expect(faultedText,).toContain('\n    at ',);
+        expect(faultedText,).not.toContain('Pouncewick',);
+
+        await using stated = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await expect(runPass({
+          typed: [
+            '--require-providers',
+            'hyper',
+          ],
+          clone,
+          runsDir: stated.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {},
+        },),).rejects.toThrow('required provider hyper is not ready: key missing',);
+        expect(await readRunLogText({ path: stated.path, },),).not.toContain('the stack frames of the fault',);
+      },
+    },),
+    it({
+      name: 'REFUSES TO START when the default logger\'s directory is the run folder or inside it, in words naming the '
+        + 'directory and the variable, since the logger\'s retention sweep would take the run\'s records (ledger B1115)',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'error',
+        );
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using elsewhere = await scratchDir({ prefix: 'corpus-pass-elsewhere-', },);
+        await using built = await builtPipeline();
+        /**
+         Directories the default logger may be told to write to, each of which sits in or is the run folder.
+         */
+        const inside = [
+          runs.path,
+          join(
+            runs.path,
+            'log',
+          ),
+          join(
+            runs.path,
+            'log',
+            '2026-10-31',
+          ),
+          join(
+            runs.path,
+            'not',
+            'made',
+            'yet',
+          ),
+        ];
+        for (const directory of inside) {
+          // oxlint-disable-next-line no-await-in-loop -- one directory after the other, so a refusal is the one named
+          await expect(runPass({
+            typed: ['--plan',],
+            clone,
+            runsDir: runs.path,
+            pipelineDir: built.dir,
+            watched: nothingWatched(),
+            overrides: { env: { MONOCHROMATIC_LOG_DIRECTORY: directory, }, },
+          },),).rejects.toThrow(
+            `MONOCHROMATIC_LOG_DIRECTORY names ${directory}, which is the run folder ${runs.path} or inside it`,
+          );
+        }
+
+        // The control: a directory outside the run folder starts the pass.
+        await runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: { env: { MONOCHROMATIC_LOG_DIRECTORY: elsewhere.path, }, },
+        },);
+        expect(await readRunLogText({ path: runs.path, },),).toContain('] PLAN ',);
       },
     },),
     it({

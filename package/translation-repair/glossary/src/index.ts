@@ -62,6 +62,7 @@ export {
 export { textSettingOf, } from './corpus-run/env-text-setting.ts';
 export {
   parseRunLogRecord,
+  readRunLogLines,
   readRunLogText,
   renderRunLogLine,
   type RunLogRecord,

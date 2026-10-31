@@ -1,5 +1,6 @@
 import { join, } from 'node:path';
 
+import { settleWithin, } from '@monochromatic-dev/async-time-core/ts';
 import {
   createLogger,
   logger as defaultLogger,
@@ -24,6 +25,10 @@ import {
 // never sweeps, and it ignores `MONOCHROMATIC_LOG_FILE=off` here (the environment handed to it is empty), because a
 // run that quietly records nothing is worse than one that records.
 //
+// THE WAIT FOR THE DESTINATION IS BOUNDED (`RUN_LOG_VERIFY_MS`), because the pass holds its lock while it asks and a
+// destination that never answers would leave it holding the lock and saying nothing. A destination that has not
+// answered is a run log that records nothing and says `unanswered`, and the pass refuses to start naming the folder.
+//
 // THE FOLDER A RUN KEEPS: `<run folder>/log/<UTC day>/<timestamp>.<uuid>.log.jsonl`, one file per process that opened
 // the run log, never rotated, one JSON object per line holding exactly `level`, `message` and `timestamp`. The day
 // directory is the sink's own and cannot be turned off.
@@ -37,6 +42,18 @@ export const RUN_LOG_DIRECTORY = 'log';
  Name ending every file the run log writes: the file sink's own, `{timestamp}.{uuid}.log.jsonl`.
  */
 export const RUN_LOG_SUFFIX = '.log.jsonl';
+
+/**
+ Longest a run waits for the file sink to say whether its folder is writable, in milliseconds. A verification is a
+ directory made and a file written, which takes the time of a disk answering; a destination that has not answered in
+ this long is not going to, and a pass that waited on it would hold its lock and print nothing (ledger B1112).
+ */
+export const RUN_LOG_VERIFY_MS = 30_000;
+
+/**
+ What the run folder's destination answered: it is writable, it is not, or it did not answer within the bound.
+ */
+export type RunLogDestination = 'unanswered' | 'unwritable' | 'writable';
 
 /**
  One run's open log: the logger that shows its lines to a person and records them, the logger that only records, and
@@ -57,6 +74,12 @@ export type RunLog = AsyncDisposable & {
    Whether the destination proved writable, so records are being kept; a run that needs its evidence refuses when not.
    */
   readonly recording: boolean;
+
+  /**
+   Why records are or are not being kept: the destination proved writable, proved not to be, or did not answer within
+   the bound, which a refusal says in other words.
+   */
+  readonly destination: RunLogDestination;
 
   /**
    Logger that shows each line on the console and records it.
@@ -84,6 +107,11 @@ const installed: { current?: RunLog; } = {};
 
  @param runDir - run folder the records live in
 
+ @param fileSinkOf - builds the file sink, the logger's own unless a case plants one that does not answer
+
+ @param verifyWithinMs - longest to wait for the sink to say whether the folder is writable; past it the log is open and
+ records nothing, and says its destination did not answer
+
  @returns Open log, which flushes when disposed
 
  @example
@@ -91,7 +119,17 @@ const installed: { current?: RunLog; } = {};
  await using log = await openRunLog({ runDir: '/runs/corpus-pass-tabby', },);
  ```
  */
-export async function openRunLog({ runDir, }: { readonly runDir: string; },): Promise<RunLog> {
+export async function openRunLog(
+  {
+    runDir,
+    fileSinkOf = createFileSink,
+    verifyWithinMs = RUN_LOG_VERIFY_MS,
+  }: {
+    readonly runDir: string;
+    readonly fileSinkOf?: (options: Parameters<typeof createFileSink>[0],) => ReturnType<typeof createFileSink>;
+    readonly verifyWithinMs?: number;
+  },
+): Promise<RunLog> {
   /**
    Directory under the run folder the sink writes into.
    */
@@ -103,25 +141,42 @@ export async function openRunLog({ runDir, }: { readonly runDir: string; },): Pr
   /**
    The one sink both loggers write through, so every record of the process lands in one file in arrival order.
    */
-  const fileSink = createFileSink({
+  const fileSink = fileSinkOf({
     directory,
     retention: NO_LOG_RETENTION_SWEEP,
     environment: {},
   },);
 
   /**
-   Whether the destination is writable, asked before any record so a run can refuse to start without its evidence.
+   The destination's answer, asked before any record so a run can refuse to start without its evidence, and awaited
+   only as long as the bound allows.
    */
-  const recording = await fileSink.verify();
+  const verifying = fileSink.verify();
 
   /**
-   Logger that shows and records.
+   What the destination answered within the bound.
+   */
+  const destination = await destinationOf({
+    verifying,
+    verifyWithinMs,
+  },);
+
+  /**
+   Whether the destination proved writable.
+   */
+  const recording = destination === 'writable';
+
+  /**
+   Logger that shows and records. A sink that has not answered is left out of it, since the logger would wait for it on
+   its first line.
    */
   const { logger, } = createLogger({
-    sinks: [
-      sinks.createConsoleSink(),
-      fileSink,
-    ],
+    sinks: recording
+      ? [
+        sinks.createConsoleSink(),
+        fileSink,
+      ]
+      : [sinks.createConsoleSink(),],
   },);
 
   /**
@@ -145,6 +200,7 @@ export async function openRunLog({ runDir, }: { readonly runDir: string; },): Pr
   return {
     directory,
     recording,
+    destination,
     logger,
     recordOnly,
     flush,
@@ -152,6 +208,37 @@ export async function openRunLog({ runDir, }: { readonly runDir: string; },): Pr
       await flush();
     },
   };
+}
+
+/**
+ What a file sink's verification answered, within a bound.
+
+ @param verifying - sink's verification, started
+
+ @param verifyWithinMs - longest to wait for it
+
+ @returns Whether the destination is writable or not, or that it did not answer in time
+
+ @example
+ ```ts
+ const destination = await destinationOf({ verifying: sink.verify(), verifyWithinMs: 30_000, },);
+ ```
+ */
+async function destinationOf(
+  {
+    verifying,
+    verifyWithinMs,
+  }: {
+    readonly verifying: Promise<boolean>;
+    readonly verifyWithinMs: number;
+  },
+): Promise<RunLogDestination> {
+  if (await settleWithin({
+    promise: verifying,
+    ms: verifyWithinMs,
+  },) === 'expired')
+    return 'unanswered';
+  return (await verifying) ? 'writable' : 'unwritable';
 }
 
 /**

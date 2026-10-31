@@ -1,9 +1,15 @@
-import { resolve, } from 'node:path';
+import { realpath, } from 'node:fs/promises';
+import {
+  basename,
+  resolve,
+} from 'node:path';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
+  readRunLogLines,
   readRunLogText,
+  runLogFilesUnder,
   StatedRefusalError,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
 
@@ -25,13 +31,48 @@ import {
 // that holds no record file is refused in the same way, in its own words: an
 // empty report would read as a run that did nothing.
 //
-// A LOG NAMED TWICE IS REFUSED where its lines would be totalled. Reading the
-// same file twice counts every call, round and credit in it twice, and the
-// total looks exactly like a run twice as large.
+// A LOG NAMED TWICE IS REFUSED where its lines would be totalled, by the files it reaches and not by how it is
+// spelled. Reading the same file twice counts every call, round and credit in it twice, and the total looks exactly
+// like a run twice as large; a run folder and its `log` directory, or a folder and one of its record files, reach the
+// same files by two spellings (ledger B1119).
 //
 // THE FINAL NEWLINE IS NOT A LINE. A log a run wrote ends in a newline, and a
 // split on it leaves an empty piece after the last line that a count of lines
 // took for one more.
+
+/**
+ The refusal for a log that would not read, in the words every reader of records uses.
+
+ @param path - run folder or record file named on the command line
+
+ @param error - what the read raised
+
+ @returns Refusal to throw: the one the read raised when it is a stated refusal, else a stated refusal naming the
+ path and the failure's name
+
+ @example
+ ```ts
+ throw unreadableLog({ path, error, },);
+ ```
+ */
+function unreadableLog(
+  {
+    path,
+    error,
+  }: {
+    readonly path: string;
+    readonly error: unknown;
+  },
+): StatedRefusalError {
+  // A PATH THAT IS NO RUN FOLDER, OR A FOLDER WITH NO RECORD FILE, was refused in words of its own.
+  if (error instanceof StatedRefusalError)
+    return error;
+  return new StatedRefusalError({
+    says: `the log ${path} could not be read (${failureName({ error, },)}), so nothing was counted. `
+      + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.',
+    cause: error,
+  },);
+}
 
 /**
  Reads the records of every named run folder or record file, refusing one that will not read.
@@ -58,13 +99,9 @@ export async function readLogTexts(
       try {
         return await readRunLogText({ path, },);
       } catch (error) {
-        // A PATH THAT IS NO RUN FOLDER, OR A FOLDER WITH NO RECORD FILE, was refused in words of its own.
-        if (error instanceof StatedRefusalError)
-          throw error;
-        throw new StatedRefusalError({
-          says: `the log ${path} could not be read (${failureName({ error, },)}), so nothing was counted. `
-            + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.',
-          cause: error,
+        throw unreadableLog({
+          path,
+          error,
         },);
       }
     },),
@@ -72,20 +109,151 @@ export async function readLogTexts(
 }
 
 /**
- Refuses a command line that names one log more than once, where the logs are
- totalled as one run.
+ Streams the records of every named run folder or record file as the lines the console printed, one at a time.
 
- @param paths - logs named on the command line
+ @param paths - run folders or record files named on the command line, which the refusal repeats
 
- @throws {@link StatedRefusalError} naming the first log named a second time,
- where two paths reach one file by the same spelling once made absolute
+ @param verbose - whether to include the debug and trace records, which the console showed only for a verbose run
+
+ @returns Lines of each one's records, in the order named
+
+ @throws {@link StatedRefusalError} as {@link readLogTexts} does
 
  @example
  ```ts
- refuseRepeatedLogs({ paths: line.positionals, },);
+ for await (const line of streamLogLines({ paths: line.positionals, },))
+   console.log(line,);
  ```
  */
-export function refuseRepeatedLogs({ paths, }: { readonly paths: readonly string[]; },): void {
+export async function* streamLogLines(
+  {
+    paths,
+    verbose = false,
+  }: {
+    readonly paths: readonly string[];
+    readonly verbose?: boolean;
+  },
+): AsyncGenerator<string> {
+  for (const path of paths) {
+    try {
+      yield* readRunLogLines({
+        path,
+        verbose,
+      },);
+    } catch (error) {
+      throw unreadableLog({
+        path,
+        error,
+      },);
+    }
+  }
+}
+
+/**
+ Reads the records of every named run folder or record file as one list of the lines the console printed.
+
+ NO TEXT OF A WHOLE LOG IS BUILT: the lines are read one at a time and kept in the list the report counts over, so a
+ report that counts lines holds them once.
+
+ @param paths - run folders or record files named on the command line, which the refusal repeats
+
+ @returns Lines of each one's records, in the order named
+
+ @throws {@link StatedRefusalError} as {@link readLogTexts} does
+
+ @example
+ ```ts
+ const lines = await readLogLines({ paths: line.positionals, },);
+ ```
+ */
+export async function readLogLines(
+  { paths, }: { readonly paths: readonly string[]; },
+): Promise<readonly string[]> {
+  /**
+   Lines read so far, in the order the logs were named.
+   */
+  const lines: string[] = [];
+  for await (const line of streamLogLines({ paths, },))
+    lines.push(line,);
+  return lines;
+}
+
+/**
+ Record files a named log holds, refusing one that will not list as every reader of records does.
+
+ @param path - run folder or record file named on the command line
+
+ @returns Its record files
+
+ @throws {@link StatedRefusalError} as {@link readLogTexts} does
+
+ @example
+ ```ts
+ const files = await recordFilesNamed({ path, },);
+ ```
+ */
+async function recordFilesNamed({ path, }: { readonly path: string; },): Promise<readonly string[]> {
+  try {
+    return await runLogFilesUnder({ path, },);
+  } catch (error) {
+    throw unreadableLog({
+      path,
+      error,
+    },);
+  }
+}
+
+/**
+ The real file a record file is: past every link and every spelling of its directory.
+
+ @param file - record file a named log holds
+
+ @param path - log that holds it, which the refusal names
+
+ @returns Its real path
+
+ @throws {@link StatedRefusalError} as {@link readLogTexts} does when the file is not there
+
+ @example
+ ```ts
+ const real = await realFileOf({ file, path, },);
+ ```
+ */
+async function realFileOf(
+  {
+    file,
+    path,
+  }: {
+    readonly file: string;
+    readonly path: string;
+  },
+): Promise<string> {
+  try {
+    return await realpath(file,);
+  } catch (error) {
+    throw unreadableLog({
+      path,
+      error,
+    },);
+  }
+}
+
+/**
+ Refuses a command line that names one log more than once, where the logs are
+ totalled as one run: by one spelling, or by two that reach the same record file (a run folder and its `log`
+ directory, a run folder and one of its files, a link and its target).
+
+ @param paths - logs named on the command line
+
+ @throws {@link StatedRefusalError} naming the first log named a second time, or the first one that reaches a record
+ file an earlier one reaches, and naming a log that cannot be read as {@link readLogTexts} does
+
+ @example
+ ```ts
+ await refuseRepeatedLogs({ paths: line.positionals, },);
+ ```
+ */
+export async function refuseRepeatedLogs({ paths, }: { readonly paths: readonly string[]; },): Promise<void> {
   /**
    Logs met so far, as the absolute paths they reach.
    */
@@ -104,6 +272,45 @@ export function refuseRepeatedLogs({ paths, }: { readonly paths: readonly string
       },);
 
     met.add(reached,);
+  }
+
+  /**
+   Real record files met so far, each with the log that named it first.
+   */
+  const reachedBy = new Map<string, string>();
+
+  for (const path of paths) {
+    /* oxlint-disable no-await-in-loop -- in the order named, so the refusal names the first log that overlaps an earlier one */
+    /**
+     Record files under the path, as `readLogTexts` would find them.
+     */
+    const files = await recordFilesNamed({ path, },);
+    /* oxlint-enable no-await-in-loop */
+    for (const file of files) {
+      /* oxlint-disable no-await-in-loop -- in the order named, so the refusal names the first log that overlaps an earlier one */
+      /**
+       The file itself, past every link and every spelling of its directory.
+       */
+      const real = await realFileOf({
+        file,
+        path,
+      },);
+      /* oxlint-enable no-await-in-loop */
+      /**
+       The log that reached this file first.
+       */
+      const first = reachedBy.get(real,);
+      if (first !== undefined)
+        throw new StatedRefusalError({
+          says: `the log ${path} reaches the record file ${basename(real,)}, which the log ${first} reaches too, so `
+            + 'its lines would be counted twice. Name each run folder or record file once, and not a run folder '
+            + 'together with its log directory or one of its files.',
+        },);
+      reachedBy.set(
+        real,
+        path,
+      );
+    }
   }
 }
 

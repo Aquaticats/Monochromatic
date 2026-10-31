@@ -222,7 +222,8 @@ await describe({
             },);
 
             expect(failure instanceof StatedRefusalError,).toBe(false,);
-            expect(String(failure,),).toBe(`Error: EISDIR: illegal operation on a directory, read '${path}'`,);
+            // The reader streams the file, and a stream's failure names the code and the call and no path.
+            expect(String(failure,),).toBe('Error: EISDIR: illegal operation on a directory, read',);
           },
         },),
       ],

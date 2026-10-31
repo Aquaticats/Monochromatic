@@ -12,11 +12,13 @@ The existence of them means we didn't architect properly."
 Entries B1090 to B1099 say what moved,
 what holds it,
 what did not move and why.
+Entries B1110 to B1121 say what an independent re-check of that round found,
+and what moved because of it.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
 
-## B1090: a pass wrote nothing of its own, and its console capture was the record every reader parsed
+## B1090: a pass wrote nothing, and readers parsed its capture
 
 Status:
 fixed on 2026-10-31 (UTC) in `3679320e90` and `a8c99f75be`,
@@ -75,6 +77,16 @@ and the record became a print-free one.
 The console gets the refusal only after the run log is closed,
 so without this line a pass refused by a generation drift left no word of why in its folder.
 
+What holds of the flush,
+said plainly (it was written as "flushes on every exit"):
+the run log is flushed when the pass returns,
+when it throws out of the pass body,
+and when SIGINT or SIGTERM stops it (B1113).
+A SIGKILL,
+a crash of the process and a power loss flush nothing,
+so a record written after the last flush is lost,
+and the lock is left for the next pass to judge stale.
+
 What the run folder holds after a pass:
 `log/<UTC day>/<timestamp>.<uuid>.log.jsonl`,
 one file for each process that opened the run log,
@@ -85,18 +97,26 @@ The day directory is the sink's own and cannot be turned off.
 A pass and a `budget-sample` taken into the same folder each leave a file of their own beside the other's.
 
 A correction to the commit messages:
-`3679320e90` says it turns "the 40 failing cases of the previous commit" green.
-The failing cases of `7c51effbe0` are 24
+`3679320e90` says it turns "40 failing cases" green.
+The failing cases of `7c51effbe0`,
+the commit that precedes it,
+are 24
 (typography 11,
 run 10,
 slice cache 2,
 corpus pass 1),
-and typography's 11 became 5 in `3679320e90` when its three reader suites moved to glossary with the reader.
-`a8c99f75be` says the cap census walk "goes five levels down a named directory and not three":
-the bound `MAX_DEPTH` went from 3 to 5,
-and the case that holds it went from reaching directories four levels below the root to six.
+and typography's 11 became 6 in `3679320e90` when its three reader suites moved to glossary with the reader
+(the re-check of B1121 counted six).
+`a8c99f75be` says the cap census walk "goes five levels down a named directory and not three".
+What changed is the bound `MAX_DEPTH`,
+from 3 to 5:
+the walk lists directories down to the fifth level below the named one,
+so it reads a record file as deep as six levels below it where it read four.
+The case that holds it is titled `GOES SIX LEVELS DOWN`,
+counting the file's level,
+and it moved from a log in a directory at the fourth level to one at the sixth.
 
-## B1091: how a reader finds the records of one run, and what it says when there are none
+## B1091: how a reader finds one run's records
 
 Status:
 fixed on 2026-10-31 (UTC) in `3679320e90`.
@@ -126,9 +146,13 @@ whole,
 so the report counts it as the damaged or foreign line it is.
 This is the shape that
 [readers accept shapes writers never write](audit-ledger-readers-accept-shapes-writers-never-write.md) asks for.
-The one difference from a console capture is that the console sink writes control characters other than the line feed
-and the tab as `\uXXXX` and this does not:
-a message reaches the parser as it was logged.
+A message reaches the parser as the console showed it:
+the console sink writes control characters other than the line feed and the tab as `\uXXXX`,
+and the reader does the same through the logger's own function (B1118).
+The debug and trace records,
+which the console showed only for a verbose run,
+are left out unless the reader is asked for them,
+so every count is what it was over a capture (B1117).
 
 A folder that holds no record file is refused in words:
 `<path> holds no record file (log/<day>/*.log.jsonl), so there is nothing to count. Name the run folder of a pass that
@@ -195,7 +219,7 @@ and finds it,
 and no stamp,
 after a pass.
 
-## B1093: the five readers that parsed a pass's console read its records, with the same reports
+## B1093: the five readers read records, with the same reports
 
 Status:
 fixed on 2026-10-31 (UTC) in `3679320e90`.
@@ -224,7 +248,8 @@ and a case that prints the report over the folder.
   the pass-run head reads the `START tip=` record's message (a record that merely mentions the marker is not one,
   and the bound of a line now bounds the record's line),
   and `readCapLog` over the records equals `readCapLog` over the lines.
-  The walk goes five levels down a named directory,
+  The walk lists directories five levels down a named directory,
+  so it reads a record file six levels below it,
   since a run's records sit two levels below its folder.
 
 The cases that held the old text inputs were kept and now write record files:
@@ -266,12 +291,14 @@ Cases:
 the reading is one record that `meter-report` counts as `logs=1 readings=1 unread=0`,
 and a folder blocked by a file is a stated refusal with no meter asked.
 
-## B1096: what is console only, and what the launcher has to change
+## B1096: what is console only, and what the launcher changed
 
 Status:
-recorded on 2026-10-31 (UTC),
-the launcher is outside the repository and was read,
-not edited.
+recorded on 2026-10-31 (UTC);
+the launcher is outside the repository,
+and the lead made the edits named here to it the same day,
+so none is to do.
+What is console only changed in B1111 and B1114.
 
 Console only,
 with nothing that parses it:
@@ -279,7 +306,11 @@ the seat report and the run end reports that `reportingRefusals` prints to stder
 the refusal line itself (the `the pass stopped` record of B1090 carries its text),
 the build lines of the mise task (`rolldown v...`),
 and the lines a probe prints through `artifact-pool.ts` (`POOL ...`),
-which the pass never calls.
+which the pass never calls
+(the `POOL ...` lines of `readPlacement`,
+which the pass does reach,
+were missed here and are records now:
+B1111).
 The readers match only these markers:
 ` METERS `,
 ` SPEND `,
@@ -288,12 +319,13 @@ the stream completion marker,
 `SLICE-COST` and `START tip=`.
 None of the console-only lines carries one.
 
-The launcher `/var/home/user/temp/agent/tr-fan/s245/split/launch-rotation.ts` has to change in these places:
+The launcher `/var/home/user/temp/agent/tr-fan/s245/split/launch-rotation.ts` changed in these places,
+all done:
 
-- Drop `--property=StandardOutput=truncate:${log}`,
+- Dropped `--property=StandardOutput=truncate:${log}`,
   and the `existsSync(log)` guard against an earlier capture.
-- Read START from the records:
-  poll `${runsDir}/log/*/*.log.jsonl` and parse each line as JSON,
+- Reads START from the records:
+  polls `${runsDir}/log/*/*.log.jsonl` and parses each line as JSON,
   taking the record whose `message` starts with `START `,
   not a line that starts with `START` in a capture.
   The digest check on `pipeline=${FROZEN} ` then reads that message.
@@ -301,7 +333,8 @@ The launcher `/var/home/user/temp/agent/tr-fan/s245/split/launch-rotation.ts` ha
   They reach the unit's journal and no record,
   so the bundler version is read from `journalctl --user --unit=<unit> --output=cat`.
 - The `/\[error\]/` early exit reads `level === "error"` of the records.
-  A stderr line of the pass is no longer in any file the launcher reads.
+  A stderr line of the pass is no longer in any file the launcher reads,
+  and a refusal before the run log opened is in the journal only (B1114).
 
 ## B1097: census of every `.log` the package named, at `d343265b71`
 
@@ -435,3 +468,389 @@ the runs directory around the body,
 with the same refusal,
 and one reader rule for their reports.
 It is a round of its own.
+
+## B1110: the loggers of a pass bypassed its run log
+
+Status:
+fixed on 2026-10-31 (UTC) in `bbc2952859` and `b48b8da3e5`,
+after the failing cases of `fbe3d6d29f`.
+
+What was wrong:
+`tagged` writes through logger-core's default logger when it is given no `l`.
+`contextRoot` writes through `runLogger` (B1090),
+but the pass built its entry loggers as `sliceTagged({ l: tagged({ tag: entryId }) })`,
+which never reaches the installed run log.
+So the `round:` lines of the stages,
+the `SLICE-COST` lines of the lanes and the consolidation,
+the consolidate driver's lines and every entry-level warning and error reached the console alone,
+and `run-timing-report` and `slice-cost-report` read nothing on a real run.
+B1093 did not see it:
+the case that ran a pass (`corpus-pass-run.unit.test.ts`) ran `--plan` only,
+and its comparison dropped every message that begins with `[`.
+
+Census at `86c1722f6e`,
+by syntax tree over the production source of every package of the family and under whatever local name a file binds `tagged`:
+201 calls,
+171 with an `l` and 30 without.
+Of the 30,
+11 are on the pass path in 8 files:
+corpus pass 7 (`pass-entry` 1,
+`pass-lanes` 1,
+`pass-prepare-reseat` 1,
+`pass-insertion-reseat` 1,
+`pass-reseat` 3),
+slice cache 2 (`pass-decline`),
+run 2 (`required-providers`,
+`run-providers`).
+The other 19 sit in 17 files of runners that are no pass:
+the bench 7,
+the probe 10 and the coverage census 2.
+No other logger of the pass bypasses the run log:
+the default `logger` is imported by name in `bench/.../model-health.ts` and `probe/.../damage-sample.ts` only,
+both runners,
+and `createLogger` outside typography is the silent logger of `page-check/.../source-ships-tiling.ts`.
+
+What holds now:
+`entryLoggerOf` (`corpus-pass/src/corpus-run/pass-entry-logger.ts`) builds the one entry logger,
+slice-tagged and rooted on `runLogger`,
+and the 7 corpus pass sites call it;
+the 4 sites of slice cache and run give `tagged` an `l: runLogger`.
+Where no run log is installed the logger writes to the default logger as before.
+The scan `source-scan/src/tagged-parent-scan.unit.test.ts` fails on any call of `tagged` without a parent in the family's source,
+but for the 17 runner files it lists with their counts and the reason of B1099:
+the list can only shrink as those runners move.
+The pass-level case is in `pass-entry.unit.test.ts`:
+it settles an entry with a scripted client through `settleEntry` under an installed run log,
+settles a second entry that is declined while a page an earlier crash left stands,
+and finds in the folder a `round:` record,
+a `SLICE-COST` record and the `warn` of the removed page.
+At `86c1722f6e` it found no `round:` record.
+The seam is `settleEntry`,
+which `runCorpusPassOver` hands each entry,
+because the `runCorpusPassOver` cases script their settlement;
+the cases that run the whole pass over a scripted settlement hold the lines the pass prints itself.
+
+What the scan cannot see:
+a function that receives its `l` from a caller that built it with the default logger is a call the scan has no reason to read,
+and a `tagged` called by a name that is neither an import nor a const alias of it.
+The behavioural case sees the first;
+nothing in the family builds the second.
+
+## B1111: console-only lines the pass reached are records now
+
+Status:
+fixed on 2026-10-31 (UTC) in `6d57f27934`,
+after the failing cases of `e34df38acf`.
+
+B1096 listed what the pass leaves on the console.
+Three things on that list were reached by a pass and belong in its folder:
+
+- The `POOL ...` lines of `readPlacement` (`artifact-pool`),
+  4 of them,
+  reached through the resume guard's census.
+  They went through `console.log`;
+  they go through `printRunLine` now,
+  which prints the line as before (the probes' stdout cases hold it) and records it.
+  The `POOL` lines that `artifact-pool.ts` prints for a probe stay console only,
+  since the pass never calls it.
+- The seat report (`SEAT ...`,
+  `SEATS DARK:`) and the end reports (NeuralWatt's plan energy) were printed by `reportingRefusals` after the pass body
+  returned,
+  that is after the run log was closed.
+  `reportingRefusals` builds those lines once (`ClosingReport`:
+  the end reports empty their registry and may ask a provider for a reading,
+  so they cannot be built twice),
+  hands them to the body as `closing`,
+  and prints the same lines when the body returns.
+  The pass records them as info records last,
+  while its log stands,
+  after any `the pass stopped` record.
+- The stack frames of an unexpected fault were printed after the log closed.
+  A throw that is neither a stated refusal nor an unreadable run file (`isUnexpectedFault`) records the frames the command
+  prints (`framesOf`:
+  the frames without the message or the cause) as `[corpus-pass] the stack frames of the fault that stopped the pass:`.
+
+Still console only,
+and in the unit's journal (B1114):
+the refusal line itself,
+a refusal before the run log opened,
+and the build lines of the task.
+
+## B1112: the wait for the run folder to answer is bounded
+
+Status:
+fixed on 2026-10-31 (UTC) in `6d57f27934`,
+after the failing cases of `e34df38acf`.
+
+`openRunLog` awaited the file sink's verification with no bound,
+after the pass held its lock,
+so a disk that never answered left a pass holding its lock and saying nothing.
+The wait is bounded now by `RUN_LOG_VERIFY_MS`,
+30 seconds,
+through `settleWithin`.
+The run log reports its `destination` as `writable`,
+`unwritable` or `unanswered`,
+and records nothing in the last two.
+The pass refuses to start in words that name the folder and say which it was,
+and the lock is released by the `await using` that holds it.
+The console logger of an unanswered log leaves the unverified sink out,
+because the logger would wait for it on its first line.
+The case plants a verification that never settles and passes the bound under fake timers.
+
+The dependency:
+`@monochromatic-dev/async-time-core` is a `devDependency` of typography,
+and the import in `run-log.ts` is accepted by the linter and bundled into the built package.
+`package.json` and `pnpm-lock.yaml` are untouched,
+since moving the entry to `dependencies` stales the lock and installs are not part of this round.
+If the owner wants the published package to depend on it,
+the move and a lock regeneration are owed.
+
+## B1113: a stop signal ends a pass with its reason recorded
+
+Status:
+fixed on 2026-10-31 (UTC) in `6d57f27934`,
+after the failing cases of `e34df38acf`.
+
+A pass had no signal handler:
+`systemctl --user stop`,
+a reboot's SIGTERM and a Ctrl-C ended it at once,
+with nothing in its folder to say why and its lock file left for the next pass to judge stale.
+`handlingStopSignals` (`pass-stop-signals.ts`) is installed once the lock and the run log are held,
+and on SIGINT or SIGTERM:
+records `[corpus-pass] the pass stopped: <signal> arrived, ...` at level error,
+flushes the run log,
+releases the lock,
+and exits with the conventional code,
+130 for SIGINT and 143 for SIGTERM.
+Each step is tried whatever the one before did,
+and a second signal changes nothing.
+The handlers come off when the pass returns.
+The pass does not wait for the entry in flight:
+an artifact is written to a temporary name and renamed,
+so a stop mid-write leaves nothing half-written,
+and the entry is pending for the next pass as after any kill.
+
+The cases:
+the order of record,
+flush,
+release and exit with a stand-in for the process's signals,
+and a real child program that holds a lock and a run log as a pass does,
+which the case starts and signals itself (`runUntilSignalled` of the shared child fixture,
+which kills the child at the shared hang stop):
+it exits 143 and 130,
+its folder holds the record naming the signal,
+and `pass.lock` is gone.
+
+`process.exit` is called once,
+in `exitProcess`,
+behind a disable comment for `unicorn/no-process-exit`.
+The rule has no option for a handler that must end a pass that is still running,
+and ending it with a signal's conventional code needs an exit.
+
+What holds of the flush is in B1090.
+
+## B1114: a refusal before the run log opens leaves no record
+
+Status:
+runbooks fixed on 2026-10-31 (UTC).
+
+A pass opens its run log after it holds the lock.
+A refusal before that point is stated once on the console and recorded nowhere:
+the task runner's guard,
+the command line read,
+an environment override that cannot be read (`corpus-pass.ts` reads them all before the pass starts),
+the runs directory another pass holds,
+a `MONOCHROMATIC_LOG_DIRECTORY` inside the run folder (B1115),
+a run folder the pass cannot write,
+and one that does not answer (B1112).
+The runbook's detached form sent the console to `/dev/null`,
+so such a refusal was lost,
+and its step said a pass that cannot write the log folder "refuses to start and says so",
+which is true only of the console.
+The runbook (`doc/runbook/translation-repair-corpus-pass.md`) now launches the pass as its own unit with no output property,
+so the console reaches the journal,
+says where to read it (`journalctl --user --unit=<unit> --output=cat`,
+which keeps the output after `--collect` removes the unit),
+and lists these refusals as the journal's,
+beside the build lines.
+`mistake-prevention.md` says the same.
+No code changed:
+the refusal text is on the console,
+which is where the owner reads a refusal.
+
+## B1115: the default logger must not write into a run folder
+
+Status:
+fixed on 2026-10-31 (UTC) in `6d57f27934`,
+after the failing case of `e34df38acf`.
+
+The run log is built with no retention sweep (B1092),
+but the default logger every other module writes through takes its directory from `MONOCHROMATIC_LOG_DIRECTORY`
+and sweeps it:
+day directories past its age bound go,
+and the oldest files are trimmed by size and count.
+An operator who set the variable to a run folder's `log` directory handed the sweep the run's evidence.
+`refuseLogDirectoryInRunFolder` (`pass-log-directory-guard.ts`) runs after the lock is held and before the run log opens,
+and refuses in words that name the variable,
+the directory and the run folder when the variable names the run folder or a place in it,
+links resolved and a directory that does not exist yet judged by its nearest parent that does.
+The case tries the run folder,
+its `log`,
+a day below it and a folder not made yet,
+and starts the pass with a directory outside as the control.
+The unset case needs no guard:
+the default directory is the user's state or the project's `node_modules/.monochromatic`,
+the default runs directory sits inside it,
+and the sweep reads names that begin with a date only (B1092).
+
+## B1116: a record file exists only once a record is written
+
+Status:
+wording fixed on 2026-10-31 (UTC).
+
+`mistake-prevention.md` and the runbook said that right after the launch `${RUNDIR}/log/<day>/` holds one
+`.log.jsonl` file.
+The sink makes the file with its first record,
+so at the instant the unit starts there is none.
+Both now say the file appears with the first record.
+
+## B1117: debug and trace records reach the folder
+
+Status:
+fixed on 2026-10-31 (UTC) in `d865644c86`,
+after the failing cases of `ab7b3d8389`.
+
+The console sink drops debug and trace records unless a run is verbose,
+and the file sink records them always,
+so a folder holds records a console capture never held.
+They stay in the folder:
+more evidence.
+The reader (`readRunLogLines`,
+`readRunLogText`) hands the report parsers what the console showed,
+which is every record but the debug and trace ones,
+unless it is asked for them (`verbose`).
+So every count a report makes is the count it made over a capture:
+the `lines` of `spend-report` and `run-timing-report`,
+the markers all five readers match,
+and the lines `slice-cost-report` drops.
+The case writes a record of every level whose message quotes a round marker,
+and finds none of the debug and trace ones counted.
+`run-records --verbose` prints them.
+
+## B1118: a record is shown as the console showed it
+
+Status:
+fixed on 2026-10-31 (UTC) in `d865644c86`,
+after the failing cases of `ab7b3d8389`.
+
+The console sink writes control characters (C0 but the line feed and the tab,
+DEL and C1) as `\uXXXX`;
+the reader passed them raw,
+and the runbooks read the files with `jq --raw-output '.message'`,
+which prints a message raw,
+so an escape sequence reaches the terminal,
+and which jq 1.8.1 refuses with exit 5 on a record holding a lone surrogate.
+`renderRunLogLine` writes the message through the logger's own function for it
+(`_neutralizeControlCharacters` of `@monochromatic-dev/logger-core/ts`,
+an underscore export that exists so the logger's tests reach it;
+using it keeps one definition of the escaping instead of a copy that can drift).
+The case writes all 160 characters from NUL to the end of C1 through the real console sink and through the reader,
+and finds the same text for each.
+
+`run-records` is the new built command and task of the run package:
+`mise run //package/translation-repair/run:run-records -- <run folder or record file>...` prints one line for each record,
+every line through the same function once more,
+so a foreign line is escaped too.
+The two runbooks read the records with it.
+It refuses a log named twice (B1119).
+
+## B1119: a folder named beside its own log was counted twice
+
+Status:
+fixed on 2026-10-31 (UTC) in `d865644c86`,
+after the failing cases of `ab7b3d8389`.
+
+`refuseRepeatedLogs` compared the spellings of the paths named,
+so a run folder named with its `log` directory,
+a day directory or one of its files,
+or with a link to it,
+read the same files twice and totalled every call twice.
+It is asynchronous now and resolves each named log to its record files and each file to its real path
+(`realpath`),
+and refuses the first log that reaches a file an earlier one reached,
+naming both.
+The check by spelling stays first,
+for a log named twice that does not exist yet.
+The meter report collapses exact repeats of a reading already and needs no refusal.
+The cases:
+5 pairs of overlapping names,
+and a folder with no record,
+refused in the readers' words.
+
+## B1120: a reader holds no file whole
+
+Status:
+fixed on 2026-10-31 (UTC) in `d865644c86`,
+after the failing case of `ab7b3d8389`.
+
+`readRunLogText` read every file whole,
+rendered into a list and joined it:
+the file's text,
+the list and the joined text held at once.
+`readRunLogLines` reads each file in chunks,
+cuts lines on the line feed alone as before (a last line no line feed ends is a line),
+and hands them one at a time,
+so a consumer that stops stops the read.
+The case reads a record of 500000 characters and stops after two lines with a later file that cannot be opened.
+`spend-report` and `run-timing-report` read lines with it and no longer split a text.
+
+One existing case pinned the old error text:
+the case of `slice-cost-report-run.unit.test.ts` that names a directory for the log still sees the fault escape unwrapped.
+The text of that read failure was `EISDIR: illegal operation on a directory, read '<path>'` from `readFile`,
+and it is `EISDIR: illegal operation on a directory, read` from a stream,
+which no longer quotes the path.
+The case pins the new text.
+
+The limit that remains,
+said plainly:
+the parsers of `meter-report`,
+`slice-cost-report` and the cap census take a whole text,
+and those of `spend-report` and `run-timing-report` take the whole list of lines,
+so each report holds what it counts once,
+not one line.
+Only `run-records` holds one line.
+The memory of a report is the size of the records it reads and no longer a multiple of it.
+
+## B1121: corrections to this record, and what did not move
+
+Status:
+done on 2026-10-31 (UTC).
+
+Corrections to B1090 to B1096,
+made in place:
+the flush claim and the signal (B1090,
+B1113),
+`typography's 11 became 6` (B1090),
+the wording of the census walk's depth (B1090 and B1093),
+the control characters and the debug and trace records in B1091 (B1117,
+B1118),
+and the launcher edits of B1096,
+which the lead made.
+The index lines of B1090,
+B1091 and B1093 in `audit-ledger-entries-by-id.md` were over 120 columns and are shortened with their headings.
+
+Commit messages that say something this record corrects:
+`ab7b3d8389` says 5 new cases in the glossary reader suite;
+there are 4.
+`6d57f27934` also holds the lint spellings of `adjudication/src/child-environment.test-fixture.ts`,
+a test fixture,
+which its message does not list.
+
+No cache version moved:
+this round changed where records are written and how they are shown,
+no key material,
+no stored record shape,
+no prompt,
+no sheet and no decision rule.
+The pipeline digest moves as it does for any commit that changes a built file.
+The editor fidelity bench and the other runners that capture a `.log` (B1099) were not started.

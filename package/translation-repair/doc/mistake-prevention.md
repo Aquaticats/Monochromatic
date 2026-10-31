@@ -313,12 +313,18 @@ not a memory of having done it.
     the snapshot's "What to do next" and its newest checkpoint name this launch,
     and the document map's "Current status" names the last pass read.
 8.  The pass keeps its records in its run folder,
-    and nothing captures its console (B1090):
+    and nothing captures its console into a file (B1090):
     a unit is given no `StandardOutput` or `StandardError` property,
-    and the runbook's launch redirects the shell's streams to `/dev/null`.
-    Right after the launch,
-    `${RUNDIR}/log/<day>/` holds one `.log.jsonl` file,
-    and a pass that cannot write there refuses to start and says so.
+    so the console reaches the unit's journal,
+    and the launch is never redirected to `/dev/null` (B1114).
+    Once the pass has written its first record,
+    `${RUNDIR}/log/<day>/` holds one `.log.jsonl` file for each process that opened the run log:
+    the file appears with the first record and not at the instant of the launch (B1116).
+    A pass that cannot write there refuses to start,
+    but it says so on the console only,
+    which is the unit's journal,
+    because the refusal comes before the run log it would be recorded in (B1114).
+    The records are read with the `run-records` task (B1118) and not with `jq`.
     This replaces the rule of M147,
     which kept both streams in one captured file
     (a stdout descriptor overwrote every `warn` a second stderr descriptor had written):

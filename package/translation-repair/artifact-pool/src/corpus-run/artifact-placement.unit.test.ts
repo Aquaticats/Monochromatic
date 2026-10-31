@@ -52,6 +52,11 @@ import {
   type Placement,
   readPlacement,
 } from '../../dist/final/node/index.mjs';
+import { readRunLogText, } from '@monochromatic-dev/translation-repair-glossary';
+import {
+  installRunLog,
+  openRunLog,
+} from '@monochromatic-dev/translation-repair-typography';
 import { relayingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
@@ -642,6 +647,47 @@ await describe({
         ],);
         expect(own.join('\n',)
           .includes('whiskers',),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'RECORDS EACH POOL LINE IN THE INSTALLED RUN LOG beside printing it, the four kinds a placement says, so a pass '
+        + 'that reads its artifacts leaves them in its run folder (ledger B1111)',
+      fn: async (ctx) => {
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'artifact-placement-', },);
+        await using runLog = await openRunLog({ runDir: join(scratch.path, 'run',), },);
+        using _installed = installRunLog({ log: runLog, },);
+
+        // Four artifacts that each draw a POOL line: a mismatched id, a digest that is no string, a digest this build
+        // cannot read, and a file that is no JSON.
+        await placementOf({
+          body: { id: 'Whiskers', tip: FIXED_TIP, pipelineDigest: FIXED_DIGEST, },
+          name: 'Mismatch.json',
+        },);
+        await placementOf({
+          body: { id: 'Digit', tip: FIXED_TIP, pipelineDigest: 7, },
+          name: 'Digit.json',
+        },);
+        await placementOf({
+          body: { id: 'Unreadable', tip: FIXED_TIP, pipelineDigest: 'sha1-whatever', },
+          name: 'Unreadable.json',
+        },);
+        await using broken = await scratchDir({ prefix: 'artifact-placement-', },);
+        await artifactsDirWith({ dir: broken.path, files: { 'Broken.json': '{not json', }, },);
+        await readPlacement({ artifactsDir: broken.path, name: 'Broken.json', },);
+        await runLog.flush();
+
+        /**
+         The lines of the records, as the console would have printed them.
+         */
+        const records = (await readRunLogText({ path: join(scratch.path, 'run',), },)).split('\n',);
+        for (const line of printed.lines) {
+          expect(records.filter(function isThisLine(record,): boolean {
+            return record.endsWith(`Z] ${line}`,);
+          },).length,).toBe(1,);
+        }
+        expect(printed.lines.length,).toBe(4,);
       },
     },),
   ],

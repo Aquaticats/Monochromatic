@@ -13,6 +13,7 @@ import {
 import { fetchTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import { monotonicMs, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
+  type ClosingReport,
   type CommandLineOf,
   createRunClient,
   HARD_CAP_VAR,
@@ -59,12 +60,22 @@ import { RUN_PICTURE_SOURCES, } from './pass-visual-evidence.ts';
 
  @param line - pass's command line, read whole by `reportingRefusals`
 
+ @param closing - lines the command prints when the pass returns, which the pass records before its log closes
+
  @example
  ```ts
- await runCorpusPass({ line, },);
+ await runCorpusPass({ line, closing, },);
  ```
  */
-async function runCorpusPass({ line, }: { readonly line: CommandLineOf<'corpus-pass'>; },): Promise<void> {
+async function runCorpusPass(
+  {
+    line,
+    closing,
+  }: {
+    readonly line: CommandLineOf<'corpus-pass'>;
+    readonly closing: ClosingReport;
+  },
+): Promise<void> {
   /**
    Hard ceiling in milliseconds, after any environment override.
 
@@ -141,6 +152,7 @@ async function runCorpusPass({ line, }: { readonly line: CommandLineOf<'corpus-p
 
   return runCorpusPassOver({
     line,
+    closing,
     runsDir: await resolveRunsDir(),
     graceNote,
     writerNote,

@@ -29,6 +29,9 @@ import {
   passStartLine,
 } from './corpus-pass-lines.ts';
 import { assertPassResumable, } from './corpus-pass-guards.ts';
+import { handlingStopSignals, } from './pass-stop-signals.ts';
+import { recordingClosing, } from './pass-record-closing.ts';
+import { refuseLogDirectoryInRunFolder, } from './pass-log-directory-guard.ts';
 import { assertSchemasSendable, } from './pass-schema-check.ts';
 import { runPassQueue, } from './corpus-pass-queue.ts';
 import { createPassDryStop, } from './pass-dry-stop.ts';
@@ -48,6 +51,8 @@ import {
   readRequiredProviders,
   RUN_CALL_CONFIG,
   RUN_PER_CALL_TIMEOUT_MS,
+  framesOf,
+  isUnexpectedFault,
 } from '@monochromatic-dev/translation-repair-run/ts';
 
 //region Corpus pass run
@@ -105,7 +110,14 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   /**
    Exclusive claim on this runs directory, released when the pass returns.
    */
-  await using _lock = await lockRunsDir({ runsDir, },);
+  await using lock = await lockRunsDir({ runsDir, },);
+
+  // BEFORE THE RUN LOG OPENS, since the lock made the folder: the default logger sweeps the directory it is told to write
+  // to, and a run folder's `log` directory is the one place this run's records are (`pass-log-directory-guard.ts`).
+  await refuseLogDirectoryInRunFolder({
+    env: input.env,
+    runsDir,
+  },);
 
   // THE RUN'S RECORDS, opened once the lock is held so a pass another pass refuses leaves nothing behind, and before
   // anything is printed or logged: everything the pass logs from here on, and the lines it prints, are recorded in
@@ -117,14 +129,37 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   await using runLog = await openRunLog({ runDir: runsDir, },);
   if (!runLog.recording)
     throw new StatedRefusalError({
-      says: `the pass cannot write its records to ${runLog.directory}, so it would leave no record of itself and has `
-        + 'not started. Make that directory writable, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, '
-        + 'then start the pass again.',
+      says: (runLog.destination === 'unanswered')
+        ? `the pass could not learn whether it can write its records to ${runLog.directory}, since that directory did `
+          + 'not answer in time, so it would leave no record of itself and has not started. Check the disk that holds '
+          + 'it, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, then start the pass again.'
+        : `the pass cannot write its records to ${runLog.directory}, so it would leave no record of itself and has `
+          + 'not started. Make that directory writable, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, '
+          + 'then start the pass again.',
     },);
   /**
    Install of that log for every context root, put back when the pass returns.
    */
   using _recording = installRunLog({ log: runLog, },);
+
+  // A STOP SIGNAL ENDS THE PASS WITH ITS REASON RECORDED, its log flushed and its lock released (`pass-stop-signals.ts`).
+  /**
+   Handlers of the signals that stop a pass, taken off when the pass returns.
+   */
+  using _signals = handlingStopSignals({
+    log: runLog,
+    release: async function releaseLock(): Promise<void> {
+      await lock[Symbol.asyncDispose]();
+    },
+  },);
+
+  // WHAT THE COMMAND SAYS AT ITS END (the seat report and the end reports) is recorded last, while the log stands.
+  /**
+   Record of the closing lines, made when the pass returns or throws, while the run log stands.
+   */
+  await using _closing = recordingClosing(
+    (input.closing === undefined) ? {} : { closing: input.closing, },
+  );
 
   try {
     await runPassRecorded({ input, },);
@@ -137,6 +172,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
       level: 'error',
       line: `[corpus-pass] the pass stopped: ${refusalText({ error, },)}`,
     },);
+    // A FAULT NOBODY PLANNED keeps its frames, without its message or its cause, as the command prints them.
+    if (isUnexpectedFault({ error, },))
+      recordRunLine({
+        level: 'error',
+        line: `[corpus-pass] the stack frames of the fault that stopped the pass:\n${framesOf({ error, },)}`,
+      },);
     throw error;
   }
 }

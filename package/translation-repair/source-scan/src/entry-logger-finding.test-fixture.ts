@@ -21,7 +21,7 @@ import {
 /**
  Name the pass imports `tagged` under, which a file is taken to bind without importing it.
  */
-const TAGGED = 'tagged';
+export const TAGGED = 'tagged';
 
 /**
  Name the pass imports the wrapper under.
@@ -76,12 +76,40 @@ type ConstBinding = readonly [
  const properties = nodeListOf({ value: options.properties, },);
  ```
  */
-function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNode[] {
+export function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNode[] {
   return Array.isArray(value,)
     ? value.filter(function isNode(item,): item is TreeNode {
       return isTreeNode(item,);
     },)
     : [];
+}
+
+/**
+ The calls in a file's nodes of a function under any of the names the file binds it to.
+
+ @param nodes - every node of the file
+
+ @param names - names the file calls the function by
+
+ @returns Call expressions whose callee is a bare name among them
+
+ @example
+ ```ts
+ const calls = callsNamed({ nodes, names: localNamesOf({ nodes, imported: 'tagged', }), });
+ ```
+ */
+export function callsNamed(
+  {
+    nodes,
+    names,
+  }: {
+    readonly nodes: readonly TreeNode[];
+    readonly names: ReadonlySet<string>;
+  },
+): readonly TreeNode[] {
+  return nodes.filter(function isCallByName(node,): boolean {
+    return (node.type === 'CallExpression') && names.has(identifierName({ node: node.callee, },),);
+  },);
 }
 
 /**
@@ -98,7 +126,7 @@ function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNod
  const names = localNamesOf({ nodes, imported: 'tagged', },); // Set { 'tagged', 'makeLogger', 'make' }
  ```
  */
-function localNamesOf(
+export function localNamesOf(
   {
     nodes,
     imported,
@@ -354,8 +382,9 @@ export function unwrappedEntryLoggersIn({ file, }: { readonly file: SourceText; 
   /**
    Calls of `tagged` in the file.
    */
-  const calls = nodes.filter(function isTaggedCall(node,): boolean {
-    return (node.type === 'CallExpression') && taggedNames.has(identifierName({ node: node.callee, },),);
+  const calls = callsNamed({
+    nodes,
+    names: taggedNames,
   },);
   /**
    Calls of `tagged` that build a logger for an entry and stand without the wrapper.

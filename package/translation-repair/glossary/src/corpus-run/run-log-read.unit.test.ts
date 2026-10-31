@@ -12,11 +12,18 @@
  */
 
 import {
+  chmod,
   mkdir,
+  readFile,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { format, } from 'node:util';
 
+import {
+  createLogger,
+  sinks,
+} from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
@@ -31,6 +38,7 @@ import {
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   parseRunLogRecord,
+  readRunLogLines,
   readRunLogText,
   renderRunLogLine,
   runLogFilesUnder,
@@ -219,6 +227,194 @@ await describe({
             expect(await readRunLogText({ path: cut, },),).toBe(
               '[info] [1970-01-01T00:00:00.000Z] whole\n{"level":"info","message":"cut\n',
             );
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'rendering as the console shows',
+      concurrency: 1,
+      children: [
+        it({
+          name: 'ESCAPES every control character the console sink escapes, the same way, and none it leaves alone: C0 '
+            + 'but the line feed and the tab, DEL and C1, each checked against what the real console sink printed '
+            + '(ledger B1118)',
+          fn: async (ctx) => {
+            /**
+             What the console sink prints, stubbed so the case holds it.
+             */
+            const info = ctx.sinon.stub(
+              console,
+              'info',
+            );
+            /**
+             Every character from NUL to the end of C1.
+             */
+            const characters = Array.from(
+              { length: 0xA0, },
+              function characterAt(_unused, index,): string {
+                return String.fromCodePoint(index,);
+              },
+            );
+            /**
+             The logger a person watches, with the console sink only.
+             */
+            const { logger, } = createLogger({ sinks: [sinks.createConsoleSink(),], },);
+            for (const character of characters) {
+              logger.info(`a${character}b`,);
+              // A RUN OF LINES OF ONE LEVEL IS HANDED TO THE CONSOLE AS ONE CALL, so each is settled before the next.
+              // oxlint-disable-next-line no-await-in-loop -- one line to a console call, so each call holds one character
+              await logger.flush();
+            }
+            /**
+             What the console printed, a call for each character, the message after the bracketed instant.
+             */
+            const printed = info.args.flatMap(function messagesOf(call,): readonly string[] {
+              return [format(...(call as readonly unknown[]),).split('] ',).slice(2,)
+                .join('] ',),];
+            },);
+            expect(printed.length,).toBe(characters.length,);
+            characters.forEach(function compare(character, index,): void {
+              /**
+               The record line as the file sink writes it.
+               */
+              const line = JSON.stringify({ level: 'info', message: `a${character}b`, timestamp: 0, },);
+              /**
+               The rendering's message, after the bracketed level and instant.
+               */
+              const rendered = renderRunLogLine({ line, },).slice('[info] [1970-01-01T00:00:00.000Z] '.length,);
+              expect(rendered,).toBe(printed[index],);
+            },);
+            // The positive control: the characters that must be written out, and the two that stay.
+            expect(renderRunLogLine({ line: JSON.stringify({ level: 'info', message: '\u001B[31mred', timestamp: 0, },), },),)
+              .toBe(String.raw`[info] [1970-01-01T00:00:00.000Z] \u001B[31mred`,);
+            expect(renderRunLogLine({ line: JSON.stringify({ level: 'info', message: 'a\tb\nc', timestamp: 0, },), },),)
+              .toBe('[info] [1970-01-01T00:00:00.000Z] a\tb\nc',);
+          },
+        },),
+
+        it({
+          name: 'READS A RECORD HOLDING A LONE SURROGATE that a JSON tool refuses, as the console shows it, and a '
+            + 'folder holding it counts one line',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'run-log-read-', },);
+            /**
+             A record file written the way the sink writes one: a lone surrogate leaves `JSON.stringify` as an escape.
+             */
+            const file = join(
+              scratch.path,
+              'lone.log.jsonl',
+            );
+            await writeFile(
+              file,
+              `${JSON.stringify({ level: 'warn', message: 'cut \uD800 here', timestamp: 0, },)}\n`,
+            );
+            expect(await readFile(file, 'utf8',),).toContain(String.raw`\ud800`,);
+            expect(await readRunLogText({ path: file, },),).toBe('[warn] [1970-01-01T00:00:00.000Z] cut \uD800 here\n',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'debug and trace records',
+      concurrency: 1,
+      children: [
+        it({
+          name: 'LEAVES OUT the debug and trace records the console showed only for a verbose run, so a count over the '
+            + 'folder is the count over a console capture, and a debug line that quotes a marker is no marker '
+            + '(ledger B1117); asked for them, hands them on',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'run-log-read-', },);
+            /**
+             A record file of every level, a debug line quoting a marker among them.
+             */
+            const file = join(
+              scratch.path,
+              'levels.log.jsonl',
+            );
+            await writeFile(
+              file,
+              `${[
+                'trace',
+                'debug',
+                'info',
+                'warn',
+                'error',
+                'fatal',
+              ].map(function recordOf(level, index,): string {
+                return JSON.stringify({ level, message: `${level} round: ${String(index,)}/3 heard`, timestamp: index, },);
+              },).join('\n',)}\nnot a record\n`,
+            );
+            /**
+             What the console showed, in file order.
+             */
+            const shown = (await readRunLogText({ path: file, },)).split('\n',);
+            expect(shown,).toEqual([
+              '[info] [1970-01-01T00:00:00.002Z] info round: 2/3 heard',
+              '[warn] [1970-01-01T00:00:00.003Z] warn round: 3/3 heard',
+              '[error] [1970-01-01T00:00:00.004Z] error round: 4/3 heard',
+              '[fatal] [1970-01-01T00:00:00.005Z] fatal round: 5/3 heard',
+              'not a record',
+              '',
+            ],);
+            expect((await readRunLogText({ path: file, verbose: true, },)).split('\n',).length,).toBe(8,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: readRunLogLines.name,
+      concurrency: 1,
+      children: [
+        it({
+          name: 'READS A FILE A LINE AT A TIME: a consumer that stops after the first line never touches a later file, '
+            + 'so no file is held whole (ledger B1120), and a line cut across the reader\'s chunks is one line',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'run-log-read-', },);
+            /**
+             A first file of one long record, longer than a read chunk, and a second file that cannot be opened.
+             */
+            const first = join(
+              scratch.path,
+              'a.log.jsonl',
+            );
+            const second = join(
+              scratch.path,
+              'b.log.jsonl',
+            );
+            /**
+             Message of the long record, many times the size of a chunk.
+             */
+            const long = 'purr '.repeat(100_000,);
+            await writeFile(
+              first,
+              `${JSON.stringify({ level: 'info', message: long, timestamp: 0, },)}\n`
+                + `${JSON.stringify({ level: 'info', message: 'nap', timestamp: 1, },)}\n`,
+            );
+            await writeFile(
+              second,
+              'never read\n',
+            );
+            await chmod(
+              second,
+              0o000,
+            );
+            /**
+             Lines taken before stopping.
+             */
+            const taken: string[] = [];
+            for await (const line of readRunLogLines({ path: scratch.path, },)) {
+              taken.push(line,);
+              if (taken.length === 2)
+                break;
+            }
+            expect(taken,).toEqual([
+              `[info] [1970-01-01T00:00:00.000Z] ${long}`,
+              '[info] [1970-01-01T00:00:00.001Z] nap',
+            ],);
           },
         },),
       ],
