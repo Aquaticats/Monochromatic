@@ -5,6 +5,7 @@ import {
   installRunLog,
   openRunLog,
   printRunLine,
+  recordRunLine,
 } from '@monochromatic-dev/translation-repair-typography/ts';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../claude-schema-producers.ts';
 import {
@@ -65,11 +66,6 @@ import {
  Logger the republish lines go through.
  */
 const republishLog = contextRoot({ tag: 'republish', },);
-
-/**
- Logger the line saying why the pass stopped goes through.
- */
-const passLog = contextRoot({ tag: 'corpus-pass', },);
 
 /**
  Runs one accumulation pass over the corpus, writing artifacts and TALLY lines.
@@ -135,8 +131,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   }
   catch (error) {
     // WHY THE PASS STOPPED IS PART OF ITS RECORD. The refusal reaches the console only after this scope has closed the
-    // run log, so it is written here, while the log stands, and then thrown on unchanged for the entry to state.
-    passLog.error(`the pass stopped: ${refusalText({ error, },)}`,);
+    // run log, so it is recorded here, while the log stands, and then thrown on unchanged for the entry to state. It is
+    // recorded and not printed, since the entry prints it once and a second print would change the pass's stderr.
+    recordRunLine({
+      level: 'error',
+      line: `[corpus-pass] the pass stopped: ${refusalText({ error, },)}`,
+    },);
     throw error;
   }
 }

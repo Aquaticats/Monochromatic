@@ -239,12 +239,41 @@ export const runLogger: Logger = {
  */
 export function printRunLine({ line, }: { readonly line: string; },): void {
   console.log(line,);
+  recordRunLine({
+    level: 'info',
+    line,
+  },);
+}
+
+/**
+ Records a line in the installed run log, when one is installed, and prints nothing.
+
+ FOR A LINE THE CONSOLE GETS ANOTHER WAY: the refusal that ends a pass is printed once by the entry that states it, and
+ a second print of it by the logger would change what the operator's console and the built command's stderr say.
+
+ @param level - level the record is written at
+
+ @param line - line to record whole as the message
+
+ @example
+ ```ts
+ recordRunLine({ level: 'error', line: 'the pass stopped: required provider hyper is not ready', },);
+ ```
+ */
+export function recordRunLine(
+  {
+    level,
+    line,
+  }: {
+    readonly level: Level;
+    readonly line: string;
+  },
+): void {
   if (installed.current
     ?.recording
     === true)
     installed.current
-      .recordOnly
-      .info(line,);
+      .recordOnly[level](line,);
 }
 
 //endregion Run log

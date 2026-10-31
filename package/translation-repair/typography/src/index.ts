@@ -40,6 +40,7 @@ export {
   installRunLog,
   openRunLog,
   printRunLine,
+  recordRunLine,
   RUN_LOG_DIRECTORY,
   RUN_LOG_SUFFIX,
   type RunLog,

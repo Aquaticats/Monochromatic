@@ -33,6 +33,7 @@ import {
   installRunLog,
   openRunLog,
   printRunLine,
+  recordRunLine,
   RUN_LOG_SUFFIX,
 } from '../dist/final/node/index.mjs';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
@@ -85,6 +86,26 @@ async function recordsUnder({ runDir, }: { readonly runDir: string; },): Promise
   return lines.map(function parsed(line,): unknown {
     return JSON.parse(line,);
   },);
+}
+
+/**
+ Level and message of a parsed record.
+
+ @param record - one record read back from a record file
+
+ @returns Its level and its message
+
+ @example
+ ```ts
+ const seen = levelAndMessageOf({ level: 'info', message: 'purr', timestamp: 0, },);
+ ```
+ */
+function levelAndMessageOf(record: unknown,): unknown {
+  const { level, message, } = record as { readonly level: unknown; readonly message: unknown; };
+  return {
+    level,
+    message,
+  };
 }
 
 await describe({
@@ -314,13 +335,7 @@ await describe({
             await log.flush();
 
             expect(printed.args,).toEqual([['START tip=2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815 pending=2',],],);
-            expect((await recordsUnder({ runDir: scratch.path, },)).map(function levelAndMessage(record,): unknown {
-              const { level, message, } = record as { readonly level: unknown; readonly message: unknown; };
-              return {
-                level,
-                message,
-              };
-            },),).toEqual([
+            expect((await recordsUnder({ runDir: scratch.path, },)).map(levelAndMessageOf,),).toEqual([
               {
                 level: 'info',
                 message: 'START tip=2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815 pending=2',
@@ -340,6 +355,42 @@ await describe({
             printRunLine({ line: 'DONE', },);
 
             expect(printed.args,).toEqual([['DONE',],],);
+          },
+        },),
+
+        it({
+          name: 'RECORDS A LINE WITHOUT PRINTING IT, at the level given, and records nothing where no run log is '
+            + 'installed',
+          fn: async (ctx) => {
+            const printedLog = ctx.sinon.stub(
+              console,
+              'log',
+            );
+            const printedError = ctx.sinon.stub(
+              console,
+              'error',
+            );
+            await using scratch = await scratchDir({ prefix: 'run-log-', },);
+            recordRunLine({
+              level: 'error',
+              line: 'before any log is installed',
+            },);
+            await using log = await openRunLog({ runDir: scratch.path, },);
+            using _installed = installRunLog({ log, },);
+
+            recordRunLine({
+              level: 'error',
+              line: 'the pass stopped',
+            },);
+            await log.flush();
+
+            expect((await recordsUnder({ runDir: scratch.path, },)).map(levelAndMessageOf,),).toEqual([
+              {
+                level: 'error',
+                message: 'the pass stopped',
+              },
+            ],);
+            expect([printedLog.args, printedError.args,],).toEqual([[], [],],);
           },
         },),
       ],

@@ -61,8 +61,17 @@ because a run that leaves no record of itself is not worth its quota.
 `MONOCHROMATIC_LOG_FILE=off` is ignored by this sink on purpose:
 a run that quietly records nothing is worse than one that records.
 
-A throw out of the pass after the log is open is logged as `the pass stopped: <refusal text>` while the log stands,
+A throw out of the pass after the log is open is recorded as `[corpus-pass] the pass stopped: <refusal text>`
+at level `error` while the log stands,
 and thrown on unchanged.
+The record is made with `recordRunLine`,
+which prints nothing:
+the entry states the refusal once on stderr,
+and the first form of this record went through the logger's console sink too,
+so eight cases of the built command's stderr (`corpus-pass.unit.test.ts` five,
+`corpus-pass-refusals.unit.test.ts`
+three) failed in the end-of-round suite on a second line,
+and the record became a print-free one.
 The console gets the refusal only after the run log is closed,
 so without this line a pass refused by a generation drift left no word of why in its folder.
 
