@@ -310,6 +310,41 @@ and accepted with this record:
   the data source and the Firefox ESR source are open questions to the user.
   Evidence that led here:
   `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.
+- HTTP client,
+  decided 2026-10-30 without a vet:
+  the user wrote "Add `hyper` to the Rust catalog.
+  I'm approving it.
+  If you think it's not the best choice for what we need,
+  tell me why and I'll research more.",
+  then "Additionally please add hyper-util,
+  tokio,
+  http-body-util to the rust catalog and I'm approving them too.
+  Again,
+  if not enough,
+  tell me."
+  So `hyper`,
+  `hyper-util`,
+  `tokio`,
+  and `http-body-util` are approved.
+  They enter `rust-catalog.toml` when a crate first uses them:
+  `catalogPrune = true` removed an unused `hyper = ">=1.12.0"` line on the next `mise run sync:files` (measured 2026-10-30).
+  Not enough for the registries,
+  which are HTTPS:
+  hyper's guide says "hyper allows you to bring your own IO,
+  so it can work on top of any TLS implementation"
+  and names separately maintained connectors (`hyper-tls`,
+  `hyper-rustls`,
+  `hyper-openssl`);
+  `hyper-rustls` 0.27.10 defaults pull `aws-lc-rs`,
+  `rustls-native-certs`,
+  `tokio-rustls`,
+  and `log`,
+  with `ring` and `webpki-roots` as opt-in features.
+  Told this,
+  the user wrote "Add this too.
+  https://crates.io/crates/hyper-rustls",
+  so `hyper-rustls` is approved,
+  used with its default features (`aws-lc-rs` and native roots) unless a reason to change them turns up.
 - Follow-ups:
   process rules in issue #1817.
 

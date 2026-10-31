@@ -66,7 +66,7 @@ with briefs saved at `${HOME}/temp/agent/fe-rust/brief-task-20.md` and `brief-ta
 Waiting on the user:
 the browserslist data source,
 the Firefox ESR source,
-the HTTP client crate,
+the HTTP stack is decided (`hyper`, `hyper-util`, `tokio`, `http-body-util`, `hyper-rustls`, all approved 2026-10-30),
 and the JSON Schema validator crate for the schema golden test.
 After those:
 the in-repo browserslist crate (task 28),
