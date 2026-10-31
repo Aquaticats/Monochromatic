@@ -27,7 +27,7 @@
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, run_commit};
 use super::commit::COMMIT_BOUND_SECONDS;
 use super::fork_failure::{strace_available, strace_program};
-use super::support::{Fixture, Observed, bounded_for, fixture, git, repository, wrapper_first_path};
+use super::support::{Fixture, Observed, bounded_for, direct, fixture, git, repository, wrapper_first_path};
 use std::ffi::OsStr;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -273,6 +273,24 @@ fn check_first_run(label: &str, fault: &Injection, ran: &Ran) -> Result<(), Stri
     return Ok(());
 }
 
+/// The lock files and wrapper directories in `.git`, for a failure message that must say what a first run left.
+fn names_in_git_directory(repo: &Path) -> String {
+    let mut names: Vec<String> = Vec::new();
+    for directory in [repo.join(".git"), repo.join(".git/cli-git-transactions")] {
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name: String = entry.file_name().to_string_lossy().into_owned();
+            if name.contains("lock") || name.starts_with("cli-git") || directory.ends_with("cli-git-transactions") {
+                names.push(format!("{}/{name}", directory.strip_prefix(repo).unwrap_or(&directory).display()));
+            }
+        }
+    }
+    names.sort();
+    return names.join(", ");
+}
+
 /// What the repository must show after any first run that met a fault, whatever the fault was:
 ///  the next ordinary command succeeds with the commit landed or not made,
 ///  the repository passes `git fsck`,
@@ -309,7 +327,14 @@ pub(super) fn verify_recovery(fixture: &Fixture, repo: &Path, label: &str, said:
         return Err(format!("{label}: git fsck: {}", String::from_utf8_lossy(&checked.stderr)));
     }
     std::fs::write(repo.join("b.txt"), b"two\n").expect("b");
-    git(fixture, repo, &["add", "--", "b.txt"]);
+    let staged: Output = direct(fixture).current_dir(repo).args(["add", "--", "b.txt"]).output().expect("git add starts");
+    if !staged.status.success() {
+        return Err(format!(
+            "{label}: staging the next file failed after the first run: {}\nfirst run said: {said}\nleft in .git: {}",
+            String::from_utf8_lossy(&staged.stderr),
+            names_in_git_directory(repo)
+        ));
+    }
     let again: Observed = run_commit(fixture, repo, &["commit", "--quiet", "--message=y", "--", "b.txt"]);
     if again.code != Some(0) {
         return Err(format!(
