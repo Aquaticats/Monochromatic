@@ -5336,3 +5336,21 @@ This block supersedes "State at 2026-10-29 (night, later)".
   git-ignored). (3) `native:test:host` needs `GIT_POLICY_NATIVE_TEST_LINTER`; only the container gate sets it.
 - Merge order now: commit-timeouts fixes (agent running), LFS branch (independent review owed), dispatcher branch (conflicts
   expected in `commit_command.rs`; open items above), design-review docs branch (docs only), each gated; then mutation; then release.
+
+### Review independence: Claude subagent reviews are a second pass, not independent review
+
+- User, verbatim: "What? Shouldn't independent reviewers be non-Claude models?" Facts: `doc/agent/self-review.md` forbids presenting
+  a check by "the same model, session, or local skill" as independent and requires "an actually separate reviewer"; CLAUDE.md names
+  the non-Claude route (`pi --model openai/gpt-6.1-sol`, reads only what is pasted, never instead of the advisor). The reviews
+  launched this session through the Agent tool (`a8b40c8ed2921a872` for the commit-timeouts branch, `a17cdadef7473983d` for the
+  LFS branch, `a7a724e5d1dfe58a7` for the hooks branch) run on the same model family as the agents that wrote the code, so they
+  are a second Claude pass. They remain useful because they run experiments (the timeouts reviewer found the assume-unchanged
+  bug by running Git), but they must be reported as a second Claude pass.
+- Independent review started: three `pi --model openai/gpt-6.1-sol --thinking xhigh --no-tools` runs, each given one branch
+  diff as an attached file and a neutral question that states only the owner's stated aim, in units `sol-ct`, `sol-lfs`,
+  `sol-hooks` (inputs and outputs in `~/temp/agent/sol/`: `ct.diff` 53 KB, `lfs.diff` 263 KB, `hooks.diff` 338 KB with deleted files
+  omitted; outputs `out-ct.md`, `out-lfs.md`, `out-hooks.md`, errors `err-*.log`). Per the rule, not polled and not killed; a unit
+  that ends with an empty output file means the run failed and must be reported as such. A branch merges only after both its
+  experiment review and its sol review are read and every finding is verified or dismissed with evidence.
+- Proposed AGENTS.md edit (not made; for the owner): tighten the separate-reviewer rule to say a reviewer counts as independent
+  only when it is a non-Claude model or the user, and a Claude subagent review is reported as a second pass.
