@@ -1050,8 +1050,11 @@ The user confirmed the shared understanding and the order below, after the third
   happens to succeed. When any push lands, `6751b15dbc` goes with it, the path filter of `cargo-publish.yml` starts the release
   (`ps-detect` sees 0.1.0 to 0.1.1), and Trusted Publishing publishes and creates the release `monochromatic-pnpm-shadow-v0.1.1`.
   The waiter `~/temp/agent/wait-shadow-release-011.ts` (90-minute deadline) was restarted and ends at the full result.
-  Then: tell `monochromatic-6e`, who put the PATH entry back after a fixed release (its request), and install 0.1.1 from the lock
-  (its `toolchain:update` row).
+  Then: tell the toolchain session, which asked to be told when a fixed release is out so it can put the PATH entry back and
+  re-run `command -v pnpm`, `pnpm --version`, `pnpm root` and `pnpm --help` with timeouts, and then install 0.1.1 from the lock
+  (its `toolchain:update` row). After the reboot `ListAgents` showed no `monochromatic-6e` or `monochromatic-8c`; the peers were
+  `monochromatic-2a` and `monochromatic-6c`, and which of them owns the toolchain was not known, so no status was sent; a message to
+  the stale socket of 6e failed with ENOENT. Ask the user, or read `ListAgents` again, for the current owner before sending.
 
 ## Open items
 
