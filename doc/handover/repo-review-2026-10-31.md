@@ -340,6 +340,49 @@ Wave-4 fifth checkpoint (2026-11-01, all rows verified against the tree before r
   mention counts in findings files (bash-output-filter, claude-spawn, correction-reminder,
   cost-dismissal, guardrail) are unproven per-file coverage.
 
+Wave-4 sixth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: claude-code-plugin family complete at 237 of 237 (`w4-mp-design`
+  turns 10 to 12; rows `w4-cc-plugins-001` to `-015` verified 15 of 15; the zero-coverage
+  70-file slice plus the final 61-file five-subpackage slice; the wave-3 test slice's rows
+  all cite `source/` paths so nothing was double-covered; headline: all nine
+  marketplace.json source paths say the plural `packages/` where the directory is
+  `package/`, the SGD rename commit 413020169e missed them). forbidden-strings/cli
+  complete at 97 of 97 (`w4-cc-statusline`; rows `w4-fs-cli-001` to `-013` verified 13 of
+  13; headline: the `scan:all` mise task passes `scan .` to a CLI whose only subcommand is
+  `compile-rules`, and PERF.md's undated living sections still teach the pre-2026-07-17
+  architecture). android-app core/ complete at 84 of 84; all 159 Kotlin files are now
+  covered (`w4-android-app` turns 1 to 14; rows through `w2-async-b1-104` verified; the
+  package tail, rust/ JNI bridge plus resources and build files, is in flight).
+- Manual queue slice 2 orchestrator-verified: 58 unique ids repaired (60 entries;
+  `docs-philosophy-019`/`-021` appeared twice), zero refutations; the 17 batch-3 stubs
+  `pkg-figma-kiwi-051` to `-067` restored to canonical schema (run 1 had written
+  `path:NaN`); docs-ops BAD count dropped from 6 to 4 exactly as reported; my own verify
+  run over the five touched files confirms no slice id flagged and every remaining BAD is
+  a pre-existing or later-slice stub (the pkg-figma-kiwi 045-050 and 068-080 blocks).
+  Slice 3 (from `pkg-array-at-002`; 296 problems entries remain) in flight.
+- Repairs since the fifth checkpoint: `w2-async-b1-028` relocated (a concurrent
+  crate-release/cli change shifted release-run.ts by +73 lines; quotes re-verified at the
+  new lines). `pkg-observable-083`'s pre-compaction append was confirmed single by the
+  child before continuing. `pkg-observable-089`'s evidence initially paraphrased to dodge
+  an apostrophe that broke the child's shell wrapper; the child rewrote it with a unicode
+  escape and recorded the repair in `ran`; verified verbatim.
+- Returns verified: `w4-fe-core-tests` rows `w4-wg-quicker-014` to `-023` (23 of 23
+  lines; headline row 020: update-hosts.unit.test.ts still scans the
+  cutover-deleted `package/file-enforcer/core/src/toolchain`, so both host-coverage tests
+  fail at HEAD and the suite is red; also the default-route duplicate-skip miss, the
+  XDG_CACHE_HOME empty-string defeat with two cross-package twins, the teardown
+  exemption-watcher leak). 120 of 138 files covered; the final tunnel cluster is in flight.
+  `w4-desktop-app` rows `pkg-observable-076` to `-089` (oklch mix pseudocode, pagination
+  pseudocode ordering, peak_swap tutorial comments, the five-instance scratch_root
+  temp-dir comment class, player_content ninth-field omission); 116 files remain from
+  relpath.rs. `w4-mp-design` ide/app slice 1 (root files plus six small src modules) and
+  `w4-cc-statusline` on the core.bench/core.fuzz sidecars (28 files; cli.fuzz's 73 files
+  follow) both in flight.
+- Queue state: claude-code-plugin done; forbidden-strings cli done, sidecars in flight
+  (core.bench 16, core.fuzz 12, then cli.fuzz 73); android-app tail in flight; wg/cli-quicker
+  final turn in flight.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
