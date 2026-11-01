@@ -37,6 +37,9 @@ use clap::Parser;
     name = "pnpm-shadow",
     version,
     about = "Shadows pnpm. Started under the name `pnpm` it warns about package.json dependency versions that are not catalog: or workspace:*, then runs the real pnpm unchanged and never blocks it. Started under its own name it only answers --help and --version.",
+    // clap also turns the struct's doc comment into help text, and its long form would win over `about` in `--help`;
+    // `long_about = None` keeps the comment above out of the help text.
+    long_about = None,
     arg_required_else_help = true
 )]
 pub struct Cli {}
