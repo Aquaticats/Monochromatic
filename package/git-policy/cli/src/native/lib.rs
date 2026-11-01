@@ -1110,6 +1110,24 @@ pub mod repo_read_pack;
 #[cfg(unix)]
 pub mod repo_read_odb;
 
+/// In-process repository reads: trees, flattened trees and commit fields.
+#[cfg(unix)]
+pub mod repo_read_tree;
+
+/// In-process repository reads: the entries of an index file, versions 2 to 4.
+pub mod repo_read_index;
+
+/// In-process repository reads: the difference between two sorted entry lists and the output spellings.
+#[cfg(unix)]
+pub mod repo_read_diff;
+
+/// In-process repository reads: answers to the exact read-only command lines the wrapper issues.
+#[cfg(unix)]
+pub mod repo_read_query;
+
+/// In-process repository reads: the two runner entry points that try the answers before starting Git.
+pub mod repo_read_hook;
+
 /// The standards-review shadow run: JavaScript text behaviors the log depends on (UTF-16 lengths, number text).
 pub mod standards_review_text;
 

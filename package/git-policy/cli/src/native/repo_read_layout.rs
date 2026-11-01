@@ -16,8 +16,9 @@
 
 use super::child_environment::{COUNT_VARIABLE, environment_value, parse_config_count};
 use super::private_storage::read_regular_file;
-use super::repo_read_config_scan::{ScopeEnvironment, entries_avoid_discovery_keys, outer_scopes_avoid_discovery_keys};
-use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_config_text};
+use super::repo_read_hook::enabled;
+use super::repo_read_config_scan::{ScopeEnvironment, discovery_key, entries_avoid_keys, outer_scopes_avoid_keys};
+use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, last_entry, parse_bool, parse_config_text};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -308,9 +309,15 @@ fn finish(start: &Path, worktree: &Path, entry: (PathBuf, bool), scope: &ScopeEn
     let entries: Vec<ConfigEntry> = parse_config_text(config_bytes.as_slice())?;
     let object_format: ObjectFormat = object_format_of(entries.as_slice())?;
 
-    let local_ok: bool = entries_avoid_discovery_keys(entries.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0, true)?;
+    // The repository's own file carries `bare = false` after `init`; that spelling is the plain layout.
+    let discoverable: Vec<ConfigEntry> = entries
+        .iter()
+        .filter(|candidate| { return !(candidate.key == "core.bare" && parse_bool(candidate.value.as_deref()) == Some(false)); })
+        .cloned()
+        .collect();
+    let local_ok: bool = entries_avoid_keys(discoverable.as_slice(), common_dir.join("config").as_path(), scope.home.as_deref(), 0, &discovery_key)?;
     let worktree_config: bool = last_entry(entries.as_slice(), "extensions.worktreeconfig").is_some();
-    if !local_ok || worktree_config || !outer_scopes_avoid_discovery_keys(scope)? {
+    if !local_ok || worktree_config || !outer_scopes_avoid_keys(scope, &discovery_key)? {
         return None;
     }
     let head: String = small_file(git_dir.join("HEAD").as_path())?;
@@ -343,11 +350,11 @@ fn has_git_directory_entries_split(git_dir: &Path, common_dir: &Path) -> bool {
 /// const layout = readLayout(globalPrefix, overlay); // undefined: ask Git
 /// ```
 pub fn read_layout(global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
-    if !environment_is_plain(effective_environment(overlay).as_slice()) {
+    if !enabled(overlay) || !environment_is_plain(effective_environment(overlay).as_slice()) {
         return None;
     }
     let start: PathBuf = start_directory(global_prefix)?;
-    return walk_up(start.as_path(), &ScopeEnvironment::from_process());
+    return walk_up(start.as_path(), &ScopeEnvironment::from_variables(effective_environment(overlay).as_slice()));
 }
 
 /// What:
@@ -376,7 +383,11 @@ pub fn read_layout_with(start: &Path, variables: &[(OsString, OsString)], scope:
 /// const layout = readLayoutIn(directory, overlay); // undefined: ask Git
 /// ```
 pub fn read_layout_in(directory: &Path, overlay: &[(OsString, OsString)]) -> Option<RepoLayout> {
-    return read_layout_with(directory, effective_environment(overlay).as_slice(), &ScopeEnvironment::from_process());
+    if !enabled(overlay) {
+        return None;
+    }
+    let variables: Vec<(OsString, OsString)> = effective_environment(overlay);
+    return read_layout_with(directory, variables.as_slice(), &ScopeEnvironment::from_variables(variables.as_slice()));
 }
 
 /// Walk from `start` to the root looking for the first `.git`, as Git does, and build the layout there.

@@ -26,6 +26,7 @@ use std::rc::Rc;
 ///  The Git processes predicting one `git add` may start,
 ///  however many files it
 ///       stages:
+///  the index path query,
 ///  the listing before and after the replay,
 ///  the
 ///       replay,
@@ -36,12 +37,13 @@ use std::rc::Rc;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ADD_PROCESS_BOUND = 5;
+/// const ADD_PROCESS_BOUND = 6;
 /// ```
-const ADD_PROCESS_BOUND: usize = 5;
+const ADD_PROCESS_BOUND: usize = 6;
 
 /// What:
 ///  The Git processes projecting one direct scope may start:
+///  the index path query,
 ///       the private `git add --all`,
 ///  the scope listing,
 ///  one baseline listing and the
@@ -52,9 +54,9 @@ const ADD_PROCESS_BOUND: usize = 5;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const DIRECT_PROCESS_BOUND = 4;
+/// const DIRECT_PROCESS_BOUND = 5;
 /// ```
-const DIRECT_PROCESS_BOUND: usize = 4;
+const DIRECT_PROCESS_BOUND: usize = 5;
 
 /// A counting `git` that appends one line per start,
 ///  then becomes real Git.
@@ -107,7 +109,7 @@ fn prepare_and_read(program: &Path, repo: &Path, request: &CandidateRequest, fil
     let mut prepared: PreparedCandidates = prepare_candidates(
         program,
         &[OsString::from("-C"), repo.as_os_str().to_os_string()],
-        &[],
+        &crate::repo_read_hook::switch_off(),
         request,
     )
     .expect("candidates");
@@ -166,7 +168,7 @@ fn a_second_baseline_listing_starts_after_two_thousand_and_forty_eight_paths() {
     let prepared: PreparedCandidates = prepare_candidates(
         program.as_path(),
         &[OsString::from("-C"), repo.as_os_str().to_os_string()],
-        &[],
+        &crate::repo_read_hook::switch_off(),
         &CandidateRequest::Add(vec![OsString::from("new")]),
     )
     .expect("candidates");
@@ -198,7 +200,7 @@ fn a_per_file_reader_through_the_stand_in_grows_with_the_files() {
         let prepared: PreparedCandidates = prepare_candidates(
             Path::new(REAL_GIT),
             &[OsString::from("-C"), repo.as_os_str().to_os_string()],
-            &[],
+            &crate::repo_read_hook::switch_off(),
             &CandidateRequest::Add(vec![OsString::from("new")]),
         )
         .expect("candidates");

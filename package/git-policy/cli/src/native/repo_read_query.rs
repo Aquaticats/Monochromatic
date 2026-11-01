@@ -1,0 +1,336 @@
+//! What:
+//!  Answers, without a Git process, to the exact read-only Git command lines the wrapper itself issues:
+//!  `ls-files --stage`, `ls-files --unmerged`, `diff-index --cached`, `diff --cached --name-only`, `diff-tree --root -r -m`
+//!  and `show --no-patch --format=%s`.
+//! Why:
+//!  Each is a start of Git for a fact two in-process readers (the index, the object database) can produce byte for byte.
+//!  The reader takes the same argument list the caller would give Git and returns Git's standard output and exit code,
+//!  or `None` for any command line, repository or configuration it does not fully understand, so a caller tries it first
+//!  and starts Git on `None`.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const answer = answerInProcess({ args, directory, variables }); // undefined: start Git
+//! ```
+
+#![cfg(unix)]
+
+use super::repo_read_config_scan::{ScopeEnvironment, content_key, entries_avoid_keys, outer_scopes_avoid_keys};
+use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, parse_config_text};
+use super::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filter, raw_lines, select};
+use super::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
+use super::repo_read_layout::{RepoLayout, read_layout_with};
+use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
+use super::repo_read_odb::ObjectDatabase;
+use super::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
+
+/// The command line and surroundings of one query.
+pub struct Query<'a> {
+    /// The arguments given to Git, global options first.
+    pub arguments: &'a [OsString],
+    /// The directory Git would run in; `None` is the process directory.
+    pub directory: Option<&'a Path>,
+    /// The variables added to Git's environment for this run.
+    pub variables: &'a [(OsString, OsString)],
+}
+
+/// What Git would have printed and returned.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Answer {
+    /// Standard output.
+    pub stdout: Vec<u8>,
+    /// The exit code.
+    pub code: i32,
+}
+
+/// The parts of a command line after its global options.
+struct Parsed<'a> {
+    /// The subcommand word.
+    command: &'a str,
+    /// Options before `--`.
+    flags: Vec<&'a str>,
+    /// Non-option arguments before `--`.
+    operands: Vec<&'a [u8]>,
+    /// Arguments after `--`.
+    specs: Vec<&'a [u8]>,
+}
+
+/// Split the arguments: leading `-C <dir>` pairs move the start directory, `--no-literal-pathspecs` is Git's default.
+fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a>> {
+    let mut index: usize = 0;
+    while index < arguments.len() {
+        let word: &OsStr = arguments[index].as_os_str();
+        if word == "-C" {
+            let target: &OsString = arguments.get(index + 1)?;
+            if !target.is_empty() {
+                *start = start.join(target);
+            }
+            index += 2;
+        } else if word == "--no-literal-pathspecs" {
+            index += 1;
+        } else {
+            break;
+        }
+    }
+    let command: &str = arguments.get(index)?.to_str()?;
+    let mut parsed: Parsed<'a> = Parsed { command, flags: Vec::new(), operands: Vec::new(), specs: Vec::new() };
+    let mut after_separator: bool = false;
+    for argument in &arguments[index + 1..] {
+        let bytes: &[u8] = argument.as_encoded_bytes();
+        if after_separator {
+            parsed.specs.push(bytes);
+        } else if bytes == b"--" {
+            after_separator = true;
+        } else if bytes.starts_with(b"-") {
+            parsed.flags.push(argument.to_str()?);
+        } else {
+            parsed.operands.push(bytes);
+        }
+    }
+    return Some(parsed);
+}
+
+/// Whether `flags` holds exactly the options of `allowed` (each at most once) and every one of `required`.
+fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
+    return required.iter().all(|flag| { return flags.contains(flag); })
+        && flags.iter().all(|flag| { return allowed.contains(flag) || required.contains(flag); })
+        && flags.iter().enumerate().all(|(position, flag)| { return !flags[..position].contains(flag); });
+}
+
+/// The environment Git would see, without the two variables this reader handles itself.
+fn environment(
+    base: Vec<(OsString, OsString)>,
+    variables: &[(OsString, OsString)],
+) -> (Vec<(OsString, OsString)>, Option<OsString>, Option<OsString>) {
+    let mut all: Vec<(OsString, OsString)> = base
+        .into_iter()
+        .filter(|(name, _)| { return !variables.iter().any(|(added, _)| { return added == name; }); })
+        .collect();
+    all.extend(variables.iter().cloned());
+    let find = |wanted: &str| -> Option<OsString> {
+        return all.iter().find(|(name, _)| { return name == wanted; }).map(|(_, value)| { return value.clone(); });
+    };
+    let index: Option<OsString> = find("GIT_INDEX_FILE");
+    let objects: Option<OsString> = find("GIT_OBJECT_DIRECTORY");
+    all.retain(|(name, _)| { return name != "GIT_INDEX_FILE" && name != "GIT_OBJECT_DIRECTORY"; });
+    return (all, index, objects);
+}
+
+/// Whether no configuration file Git reads for these queries sets a key that could change the output.
+fn content_config_is_plain(layout: &RepoLayout, scope: &ScopeEnvironment) -> Option<bool> {
+    let path: PathBuf = layout.common_dir.join("config");
+    let bytes: Vec<u8> = super::private_storage::read_regular_file(path.as_path(), CONFIG_TEXT_LIMIT as u64).ok()?;
+    let entries = parse_config_text(bytes.as_slice())?;
+    if !entries_avoid_keys(entries.as_slice(), path.as_path(), scope.home.as_deref(), 0, &content_key)? {
+        return Some(false);
+    }
+    return outer_scopes_avoid_keys(scope, &content_key);
+}
+
+/// Everything one query needs, opened lazily.
+struct Context {
+    /// The repository.
+    layout: RepoLayout,
+    /// The index file Git would read.
+    index_path: PathBuf,
+    /// The object directory override, if any.
+    objects: Option<PathBuf>,
+}
+
+impl Context {
+    /// The object database.
+    fn database(&self) -> Option<ObjectDatabase> {
+        return ObjectDatabase::open(self.layout.common_dir.as_path(), self.objects.as_deref(), self.layout.object_format);
+    }
+
+    /// The index entries.
+    fn index(&self) -> Option<Vec<IndexEntry>> {
+        let bytes: Vec<u8> = super::private_storage::read_regular_file(self.index_path.as_path(), 1 << 30).ok()?;
+        return parse_index(bytes.as_slice(), self.layout.object_format);
+    }
+
+    /// The index as flat entries, refusing unmerged or intent-to-add entries.
+    fn resolved_index(&self) -> Option<Vec<FlatEntry>> {
+        let entries: Vec<IndexEntry> = self.index()?;
+        if entries.iter().any(|entry| { return entry.stage != 0 || entry.extended & INTENT_TO_ADD != 0; }) {
+            return None;
+        }
+        return Some(entries.into_iter().map(|entry| { return FlatEntry { path: entry.path, mode: entry.mode, id: entry.id }; }).collect());
+    }
+
+    /// The root tree of a commit or tree named by `hex`.
+    fn tree_of(&self, database: &ObjectDatabase, hex: &[u8]) -> Option<Vec<u8>> {
+        let name: Vec<u8> = from_hex(hex, self.layout.object_format)?;
+        let object = database.read(name.as_slice())?;
+        return match object.kind {
+            ObjectKind::Tree => Some(name),
+            ObjectKind::Commit => Some(parse_commit(object.bytes.as_slice(), self.layout.object_format)?.tree),
+            ObjectKind::Blob | ObjectKind::Tag => None,
+        };
+    }
+
+    /// The zero object name spelled out for raw lines.
+    fn zero(&self) -> String {
+        return "0".repeat(self.layout.object_format.hex_length());
+    }
+}
+
+/// `ls-files --stage -z` and `ls-files --unmerged -z`.
+fn list_files(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+    let unmerged: bool = parsed.flags.contains(&"--unmerged");
+    let required: [&str; 2] = [if unmerged { "--unmerged" } else { "--stage" }, "-z"];
+    if !flags_are(&parsed.flags, &required, &["--full-name"]) || !parsed.operands.is_empty() || !context.layout.prefix.is_empty() {
+        return None;
+    }
+    let filter: PathFilter = PathFilter::parse(parsed.specs.as_slice(), true)?;
+    let mut stdout: Vec<u8> = Vec::new();
+    for entry in context.index()? {
+        if (unmerged && entry.stage == 0) || !filter.matches(entry.path.as_slice()) {
+            continue;
+        }
+        stdout.extend_from_slice(format!("{:06o} {} {}\t", entry.mode, to_hex(entry.id.as_slice()), entry.stage).as_bytes());
+        stdout.extend_from_slice(entry.path.as_slice());
+        stdout.push(0);
+    }
+    return Some(Answer { stdout, code: 0 });
+}
+
+/// `diff-index --cached` and `diff --cached --name-only`.
+fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Option<Answer> {
+    let raw: bool = parsed.flags.contains(&"--raw");
+    let mut required: Vec<&str> = vec!["--cached", "-z"];
+    required.push(if raw { "--raw" } else { "--name-only" });
+    if raw {
+        required.push("--no-abbrev");
+    }
+    let mut statuses: Option<Vec<u8>> = None;
+    let mut others: Vec<&str> = Vec::new();
+    for flag in &parsed.flags {
+        match flag.strip_prefix("--diff-filter=") {
+            Some(letters) if !porcelain => statuses = Some(parse_diff_filter(letters)?),
+            _ => others.push(flag),
+        }
+    }
+    let allowed: &[&str] = if porcelain { &[] } else { &["--no-renames"] };
+    if (porcelain && raw) || !flags_are(&others, &required, allowed) || parsed.operands.len() != 1 || (porcelain && !parsed.specs.is_empty()) {
+        return None;
+    }
+    let filter: PathFilter = PathFilter::parse(parsed.specs.as_slice(), context.layout.prefix.is_empty())?;
+    let database: ObjectDatabase = context.database()?;
+    let tree: Vec<u8> = context.tree_of(&database, parsed.operands[0])?;
+    let old: Vec<FlatEntry> = flatten_tree(&database, tree.as_slice(), context.layout.object_format)?;
+    let changes = diff_sorted(old.as_slice(), context.resolved_index()?.as_slice())?;
+    // The porcelain pairs an added and a deleted path as a rename; plain lists cannot say which pairs it would choose.
+    if porcelain && changes.iter().any(|change| { return change.status == b'A'; }) && changes.iter().any(|change| { return change.status == b'D'; }) {
+        return None;
+    }
+    let kept = select(changes, &filter, statuses.as_deref());
+    let stdout: Vec<u8> = if raw { raw_lines(kept.as_slice(), context.zero().as_str()) } else { name_lines(kept.as_slice()) };
+    return Some(Answer { stdout, code: 0 });
+}
+
+/// `diff-tree --root --no-commit-id -r -z -m --no-renames --no-abbrev <commit>` for a commit with at most one parent.
+fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+    let required: [&str; 7] = ["--root", "--no-commit-id", "-r", "-z", "-m", "--no-renames", "--no-abbrev"];
+    if !flags_are(&parsed.flags, &required, &[]) || parsed.operands.len() != 1 || !parsed.specs.is_empty() {
+        return None;
+    }
+    let database: ObjectDatabase = context.database()?;
+    let name: Vec<u8> = from_hex(parsed.operands[0], context.layout.object_format)?;
+    let object = database.read(name.as_slice())?;
+    if object.kind != ObjectKind::Commit {
+        return None;
+    }
+    let commit = parse_commit(object.bytes.as_slice(), context.layout.object_format)?;
+    if commit.parents.len() > 1 {
+        return None;
+    }
+    let new: Vec<FlatEntry> = flatten_tree(&database, commit.tree.as_slice(), context.layout.object_format)?;
+    let old: Vec<FlatEntry> = match commit.parents.first() {
+        Some(parent) => {
+            let parent_object = database.read(parent.as_slice())?;
+            if parent_object.kind != ObjectKind::Commit {
+                return None;
+            }
+            let parent_tree = parse_commit(parent_object.bytes.as_slice(), context.layout.object_format)?.tree;
+            flatten_tree(&database, parent_tree.as_slice(), context.layout.object_format)?
+        }
+        None => Vec::new(),
+    };
+    let changes = diff_sorted(old.as_slice(), new.as_slice())?;
+    return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), code: 0 });
+}
+
+/// `show --no-patch --format=%s <commit>`.
+fn show_subject(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
+    if !flags_are(&parsed.flags, &["--no-patch", "--format=%s"], &[]) || parsed.operands.len() != 1 || !parsed.specs.is_empty() {
+        return None;
+    }
+    let database: ObjectDatabase = context.database()?;
+    let name: Vec<u8> = from_hex(parsed.operands[0], context.layout.object_format)?;
+    let object = database.read(name.as_slice())?;
+    if object.kind != ObjectKind::Commit {
+        return None;
+    }
+    let commit = parse_commit(object.bytes.as_slice(), context.layout.object_format)?;
+    let mut stdout: Vec<u8> = subject_of(commit.message.as_slice())?;
+    stdout.push(b'\n');
+    return Some(Answer { stdout, code: 0 });
+}
+
+/// What:
+///  The answer to `query`, or `None` when Git must be started.
+/// Why:
+///   This is the one entry point; every reason to decline (an unknown command line, a repository or configuration
+///  the readers do not fully understand, a missing object) is the same `None`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = answer(query); // undefined: start Git
+/// ```
+pub fn answer(query: &Query<'_>) -> Option<Answer> {
+    let mut base: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    base.extend(query.variables.iter().cloned());
+    let scope: ScopeEnvironment = ScopeEnvironment::from_variables(base.as_slice());
+    return answer_with(query, std::env::vars_os().collect(), &scope);
+}
+
+/// The same with the process environment and the configuration scope facts given, so a control does not depend on its host.
+pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &ScopeEnvironment) -> Option<Answer> {
+    let mut start: PathBuf = match query.directory {
+        Some(directory) => directory.to_path_buf(),
+        None => std::env::current_dir().ok()?,
+    };
+    let parsed: Parsed<'_> = parse(query.arguments, &mut start)?;
+    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show") {
+        return None;
+    }
+    let (variables, index_variable, objects_variable) = environment(base, query.variables);
+    let layout: RepoLayout = read_layout_with(start.as_path(), variables.as_slice(), scope)?;
+    if !content_config_is_plain(&layout, scope)? {
+        return None;
+    }
+    let index_path: PathBuf = match index_variable {
+        Some(file) => start.join(file),
+        None => layout.git_dir.join("index"),
+    };
+    let objects: Option<PathBuf> = objects_variable.map(|directory| { return start.join(directory); });
+    let context: Context = Context { layout, index_path, objects };
+    if name_length(context.layout.object_format) == 0 {
+        return None;
+    }
+    return match parsed.command {
+        "ls-files" => list_files(&context, &parsed),
+        "diff-index" => diff_cached(&context, &parsed, false),
+        "diff" => diff_cached(&context, &parsed, true),
+        "diff-tree" => diff_tree(&context, &parsed),
+        "show" => show_subject(&context, &parsed),
+        _ => None,
+    };
+}
+
+#[cfg(test)]
+#[path = "repo_read_query_tests.rs"]
+mod tests;

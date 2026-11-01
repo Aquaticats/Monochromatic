@@ -69,11 +69,11 @@ fn run_counted(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> (Observed,
     return (observed, logged);
 }
 
-/// A read-only command starts Git once to ask where it runs,
-///  or not at all,
-///  and never reads configuration.
+/// A read-only command finds where it runs from the file system, so the forwarded command is the only Git start,
+///  except when the repository is one the reader leaves to Git (then one question precedes it);
+///  and it never reads configuration.
 #[test]
-fn read_only_commands_start_at_most_the_location_query() {
+fn read_only_commands_start_only_the_forwarded_command() {
     let fixture: Fixture = fixture("fast-path-count");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
@@ -132,7 +132,7 @@ fn read_only_commands_start_at_most_the_location_query() {
     );
     assert_eq!(announced.stdout, expected_stdout);
     assert_eq!(announced.code, Some(0));
-    // Other read-only commands: one question about the location, then the forwarded command.
+    // Other read-only commands: the location is read in process, so only the forwarded command starts.
     for (arguments, forwarded) in [
         (vec!["log", "--oneline"], "log --oneline"),
         (vec!["rev-parse", "HEAD"], "rev-parse HEAD"),
@@ -147,14 +147,15 @@ fn read_only_commands_start_at_most_the_location_query() {
     ] {
         let (observed, logged) = run_counted(&fixture, repo.as_path(), arguments.as_slice());
         assert_eq!(observed.code, Some(0), "{arguments:?}");
-        assert_eq!(
-            logged,
-            format!("{LOCATION_QUERY}\n{forwarded}\n"),
-            "{arguments:?}"
-        );
+        assert_eq!(logged, format!("{forwarded}\n"), "{arguments:?}");
     }
+    // Positive control: a global option the reader leaves to Git brings the location question back.
+    let (_, asked) = run_counted(&fixture, repo.as_path(), &["-c", "core.pager=cat", "log", "--oneline"]);
+    let asked_lines: Vec<&str> = asked.lines().collect();
+    assert_eq!(asked_lines.len(), 2, "{asked:?}");
+    assert!(asked_lines[0].ends_with(LOCATION_QUERY), "the first start is the location question: {asked:?}");
     // Positive control: a guarded command does read the configuration, and stops on it
-    // after the same single question, without ever starting the command itself.
+    // without starting any Git process.
     let (stopped, stopped_log) =
         run_counted(&fixture, repo.as_path(), &["reset", "--soft", "HEAD"]);
     assert_eq!(stopped.code, Some(2));
@@ -163,13 +164,13 @@ fn read_only_commands_start_at_most_the_location_query() {
         "{:?}",
         String::from_utf8_lossy(&stopped.stderr)
     );
-    assert_eq!(stopped_log, format!("{LOCATION_QUERY}\n"));
-    // Positive control: with valid configuration the same guarded command is counted twice.
+    assert_eq!(stopped_log, "");
+    // Positive control: with valid configuration the same guarded command is counted once.
     std::fs::write(repo.join(CONFIG_FILE_NAME), "{}").expect("valid");
     std::fs::remove_file(repo.join("cli-git.config.ts")).expect("remove legacy");
     let (ran, ran_log) = run_counted(&fixture, repo.as_path(), &["reset", "--soft", "HEAD"]);
     assert_eq!(ran.code, Some(0));
-    assert_eq!(ran_log, format!("{LOCATION_QUERY}\nreset --soft HEAD\n"));
+    assert_eq!(ran_log, "reset --soft HEAD\n");
     remove(&fixture);
 }
 

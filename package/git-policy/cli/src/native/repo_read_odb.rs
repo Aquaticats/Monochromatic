@@ -62,7 +62,7 @@ fn alternates_of(root: &Path, depth: usize, found: &mut Vec<PathBuf>) -> Option<
 /// Whether the repository changes what an object name means: replace refs, a shallow file, grafts.
 fn objects_are_replaced(common_dir: &Path) -> bool {
     let replace_dir: PathBuf = common_dir.join("refs/replace");
-    if std::fs::read_dir(&replace_dir).map_or(false, |mut entries| { return entries.next().is_some(); }) {
+    if std::fs::read_dir(&replace_dir).is_ok_and(|mut entries| { return entries.next().is_some(); }) {
         return true;
     }
     if common_dir.join("shallow").exists() || common_dir.join("info/grafts").exists() {

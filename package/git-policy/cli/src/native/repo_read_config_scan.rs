@@ -12,14 +12,29 @@
 //! const safe: boolean | undefined = noScopeSetsBareOrWorktree({ home, env }); // undefined: ask Git
 //! ```
 
-use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_bool, parse_config_text};
+use super::repo_read_config_text::{CONFIG_TEXT_LIMIT, ConfigEntry, parse_config_text};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// How many nested includes are followed before the reader gives up.
 const INCLUDE_DEPTH_LIMIT: usize = 10;
 
-/// The keys whose presence in any file makes the reader decline.
+/// The keys whose presence in any file makes the location reader decline.
 const DISCOVERY_KEYS: [&str; 2] = ["core.bare", "core.worktree"];
+
+/// The keys whose presence in any file makes the content readers decline (listings, cached diffs, `show`).
+const CONTENT_KEYS: [&str; 10] = [
+    "core.ignorecase",
+    "core.precomposeunicode",
+    "core.sparsecheckout",
+    "core.splitindex",
+    "index.sparse",
+    "diff.orderfile",
+    "diff.renames",
+    "diff.ignoresubmodules",
+    "log.showsignature",
+    "i18n.logoutputencoding",
+];
 
 /// What:
 ///  The text of a configuration file, following links, or `Some(None)` when the file does not exist.
@@ -63,17 +78,27 @@ fn is_include_key(key: &str) -> bool {
     return key == "include.path" || (key.starts_with("includeif.") && key.ends_with(".path"));
 }
 
+/// Whether a key decides how Git discovers the repository.
+pub fn discovery_key(key: &str) -> bool {
+    return DISCOVERY_KEYS.contains(&key);
+}
+
+/// Whether a key can change what the content queries (listings, cached diffs, `show`) print.
+pub fn content_key(key: &str) -> bool {
+    return CONTENT_KEYS.contains(&key) || (key.starts_with("submodule.") && key.ends_with(".ignore"));
+}
+
 /// What:
-///  Whether the file at `path`, and every file it includes, avoids the discovery keys;
+///  Whether the file at `path`, and every file it includes, avoids every key `declines` names;
 ///  `None` when any file cannot be read or parsed.
 /// Why:
 ///   A missing file is an empty file to Git, so it passes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function avoidsDiscoveryKeys(path: string, depth = 0): boolean | undefined;
+/// function avoidsKeys(path: string, declines: (key: string) => boolean, depth = 0): boolean | undefined;
 /// ```
-pub fn file_avoids_discovery_keys(path: &Path, home: Option<&Path>, depth: usize) -> Option<bool> {
+pub fn file_avoids_keys(path: &Path, home: Option<&Path>, depth: usize, declines: &dyn Fn(&str) -> bool) -> Option<bool> {
     if depth > INCLUDE_DEPTH_LIMIT {
         return None;
     }
@@ -81,31 +106,34 @@ pub fn file_avoids_discovery_keys(path: &Path, home: Option<&Path>, depth: usize
         return Some(true);
     };
     let entries: Vec<ConfigEntry> = parse_config_text(text.as_slice())?;
-    return entries_avoid_discovery_keys(entries.as_slice(), path, home, depth, false);
+    return entries_avoid_keys(entries.as_slice(), path, home, depth, declines);
 }
 
 /// The same proof for entries already parsed from `path` (so the repository's own file is read once).
-///  The repository's own file passes `false_bare_allowed`, because `git init` writes `bare = false` into it.
-pub fn entries_avoid_discovery_keys(
+pub fn entries_avoid_keys(
     entries: &[ConfigEntry],
     path: &Path,
     home: Option<&Path>,
     depth: usize,
-    false_bare_allowed: bool,
+    declines: &dyn Fn(&str) -> bool,
 ) -> Option<bool> {
     for entry in entries {
-        let plain_false: bool = false_bare_allowed && entry.key == "core.bare" && parse_bool(entry.value.as_deref()) == Some(false);
-        if DISCOVERY_KEYS.contains(&entry.key.as_str()) && !plain_false {
+        if declines(entry.key.as_str()) {
             return Some(false);
         }
         if is_include_key(entry.key.as_str()) {
             let target: PathBuf = include_target(entry.value.as_deref()?, path, home)?;
-            if !file_avoids_discovery_keys(target.as_path(), home, depth + 1)? {
+            if !file_avoids_keys(target.as_path(), home, depth + 1, declines)? {
                 return Some(false);
             }
         }
     }
     return Some(true);
+}
+
+/// The discovery proof for one file.
+pub fn file_avoids_discovery_keys(path: &Path, home: Option<&Path>, depth: usize) -> Option<bool> {
+    return file_avoids_keys(path, home, depth, &discovery_key);
 }
 
 /// What:
@@ -135,15 +163,23 @@ pub struct ScopeEnvironment {
 impl ScopeEnvironment {
     /// The facts of this process.
     pub fn from_process() -> ScopeEnvironment {
+        return ScopeEnvironment::from_variables(std::env::vars_os().collect::<Vec<(OsString, OsString)>>().as_slice());
+    }
+
+    /// The facts of an environment as a child would see it: the process variables with a run's additions over them.
+    pub fn from_variables(variables: &[(OsString, OsString)]) -> ScopeEnvironment {
+        let find = |name: &str| -> Option<OsString> {
+            return variables.iter().rev().find(|(candidate, _)| { return candidate == name; }).map(|(_, value)| { return value.clone(); });
+        };
         let nonempty = |name: &str| -> Option<PathBuf> {
-            return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from);
+            return find(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from);
         };
         return ScopeEnvironment {
             home: nonempty("HOME"),
             xdg: nonempty("XDG_CONFIG_HOME"),
-            no_system: std::env::var_os("GIT_CONFIG_NOSYSTEM").is_some(),
-            system: std::env::var_os("GIT_CONFIG_SYSTEM").map(PathBuf::from),
-            global: std::env::var_os("GIT_CONFIG_GLOBAL").map(PathBuf::from),
+            no_system: find("GIT_CONFIG_NOSYSTEM").is_some(),
+            system: find("GIT_CONFIG_SYSTEM").map(PathBuf::from),
+            global: find("GIT_CONFIG_GLOBAL").map(PathBuf::from),
         };
     }
 
@@ -178,9 +214,9 @@ impl ScopeEnvironment {
 /// ```ts
 /// scopeFiles(env).every((file) => avoidsDiscoveryKeys(file)); // undefined when unreadable
 /// ```
-pub fn outer_scopes_avoid_discovery_keys(scope: &ScopeEnvironment) -> Option<bool> {
+pub fn outer_scopes_avoid_keys(scope: &ScopeEnvironment, declines: &dyn Fn(&str) -> bool) -> Option<bool> {
     for file in scope.files() {
-        if !file_avoids_discovery_keys(file.as_path(), scope.home.as_deref(), 0)? {
+        if !file_avoids_keys(file.as_path(), scope.home.as_deref(), 0, declines)? {
             return Some(false);
         }
     }
