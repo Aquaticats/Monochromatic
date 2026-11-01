@@ -865,7 +865,7 @@ The user confirmed the shared understanding and the order below, after the third
     no Rust toolchain (`~/temp/agent/cs-workflow-test.ts`, log `cs-workflow-test/build.log`): the sha256 check printed OK, the cli-git
     install took 1.99 s, the check exited 0 and the negative control was rejected as expected. `zizmor` v1.31.1 reports no findings;
     its one suppressed finding is the pedantic `anonymous-definition` (job `check` has no `name:`), the same as sibling workflows.
-    The workflow has not yet run on a GitHub runner.
+    First GitHub run: run 41311571968 on `d0d1a8bc35` (push, created 2026-11-01T13:30:21Z) completed with conclusion success.
   - Before activation: 257 manifests scanned, 0 parse failures, 0 violations, and no tracked `package.json5`, `package.yaml` or
     `package.yml`. With the policy listed, the real repository check exits 0.
   - Activation: `cli-git.config.jsonc` lists `"mono/catalog-specifiers": "error"`. The workflow fails with exit 2 while the policy is
@@ -879,7 +879,7 @@ The user confirmed the shared understanding and the order below, after the third
 ## Open items
 
 - Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).
-- Open: the first real run of `catalog-specifiers.yml` on a GitHub runner; read it with `gh run list --workflow catalog-specifiers.yml`.
+- Done: the first real run of `catalog-specifiers.yml` on a GitHub runner succeeded (run 41311571968).
 - Open: whether a failing run blocks a merge depends on branch protection, which is the owner's setting; not measured.
 - Open for the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0.
 - Next (task 4): the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
@@ -891,5 +891,4 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Read the first GitHub run of `catalog-specifiers.yml` and fix what it shows, then build the warn-only `pnpm-shadow` wrapper
-(task 4, last in the agreed order).
+Build the warn-only `pnpm-shadow` wrapper (task 4, last in the agreed order): read the precedent shadows in the repository first.
