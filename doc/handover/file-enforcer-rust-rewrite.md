@@ -1725,6 +1725,21 @@ each finished branch is reviewed and merged into `main`):
   retried on the narrower security diff `~/temp/agent/wg-cleanup/review3.diff`
   (output `sol-review3.txt`),
   with a same-vendor second pass alongside.
+  Second pass:
+  nothing blocks;
+  every adversarial token sequence outside the owned shapes is rejected,
+  interfaces named after keywords still delete only the owned route,
+  and an unknown process state is never counted as gone.
+  Limits:
+  dropped `src` can change an unbound marked socket's source address,
+  IPv6 `pref` becomes `medium`,
+  and a default route with `initcwnd`,
+  `features ecn`,
+  `realm`,
+  `tos`,
+  `nhid`
+  or `nexthop` now refuses the bypass (fails closed);
+  the TSDoc and README wording sent back for that.
   Then merge,
   build,
   and one restart (`down` then `up`).
