@@ -1582,7 +1582,17 @@ each finished branch is reviewed and merged into `main`):
   which intercepts `--version` after the wrapped command
   (`timeout 5 echo --version` prints `timeout 0.1.0`;
   other flags such as `--model x --print` pass through).
-  A troubleshooting-doc agent is tracing it.
+  Traced in `doc/troubleshooting/timeout-cli-consumes-flags-right-after-command.md` (merge `d54be4f9de`):
+  all four of its flags (`-V`, `-h`, `-v`, `-k`) are consumed right after the command
+  (`timeout 5 grep -v x` ran grep without `-v`).
+  Owner 2026-11-01:
+  "uutils timeout (Recommended)" and "Don't file (Recommended)".
+  Done in `9341b8a474`:
+  `cargo:uu_timeout` 0.12.0 replaced it in the repo plan and lock,
+  and `echo --version`,
+  `df -h /`,
+  `grep -v`
+  and `du -k` now match `/usr/bin/timeout`.
 - Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
   owner chose "Keep open, recheck later (Recommended)";
   tracked in #3473
