@@ -79,7 +79,7 @@ fn notices_print_once() {
 #[test]
 fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     let root: std::path::PathBuf = fixture("handoff-review");
-    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::NotInstalled);
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     let pending: std::path::PathBuf = state_directory(work_directory(handoff.common_dir.as_path()).as_path(), PENDING);
     let mut sink: Vec<u8> = Vec::new();
     let _without = hand_over(&handoff, OID, &mut sink);
