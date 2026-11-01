@@ -76,7 +76,7 @@ run = "cargo clippy --locked --offline --all-targets -- -D warnings"
 
 [tasks.build]
 description = "Build the native wrapper executable `cli-git-native` in release mode, the artifact the cargo-installed `git` runs"
-run = "cargo build --release --locked --offline --bin cli-git-native"
+run = "cargo build --release --locked --offline --bins"
 
 [tasks."native:perf"]
 description = "Measure the latency the release wrapper adds to forwarded Git commands and explicit-path commits against paired direct Git; `-- --output perf/native-latency-<date>.json` stores the raw samples"

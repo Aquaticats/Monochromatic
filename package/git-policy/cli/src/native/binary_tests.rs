@@ -177,6 +177,10 @@ mod lfs_server;
 #[path = "binary_hooks_off_tests.rs"]
 mod hooks_off;
 
+/// A configuration cannot make a Git the wrapper started run a hook through an alias, a monitor program or an editor.
+#[path = "binary_hooks_off_escape_tests.rs"]
+mod hooks_off_escape;
+
 /// The notices of a commit that waits: what it waits for, who holds it, the repeat, and the bound.
 #[path = "binary_wait_notice_tests.rs"]
 mod wait_notice;
@@ -216,6 +220,14 @@ mod fault_filesystem;
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
+
+/// The wrapped commit command through the resident service, compared with native Git.
+#[path = "binary_service_commit_tests.rs"]
+mod service_commit;
+
+/// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
+#[path = "binary_service_tests.rs"]
+mod service;
 
 /// A Git step past its class bound is stopped, named with its class, and the repository recovers.
 #[path = "binary_child_bound_tests.rs"]

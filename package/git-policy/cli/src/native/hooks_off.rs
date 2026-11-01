@@ -6,7 +6,9 @@
 //!  cleans a file) and not a hook defined in the configuration (`hook.<name>.event` with `hook.<name>.command`).
 //!  Every real-Git start of the wrapper therefore carries `-c core.hooksPath=<a directory that never exists>`, which
 //!  finds no hook file, and `-c hook.<event>.enabled=false` for every hook event Git knows, which switches every
-//!  configured hook off whatever its name.
+//!  configured hook off whatever its name, and `-c core.fsmonitor=false`, because a `core.fsmonitor` that names a program
+//!  is the hook `fsmonitor-watchman` and Git starts it without looking at the hooks path or the event switches
+//!  (measured on Git 2.56.0; the built-in monitor daemon is switched off with it).
 //!  They follow every global option of the caller and precede the subcommand, so no `-c` or `--config-env` of the caller
 //!  can switch a hook or the hooks path back on.
 //!  The options are part of the argument vector, so they add no system call and no process start.
@@ -68,20 +70,32 @@ pub fn switched_off_events() -> impl Iterator<Item = &'static str> {
     return HOOK_EVENTS.iter().copied();
 }
 
+/// The setting that stops Git starting the program `core.fsmonitor` names, which is the hook `fsmonitor-watchman`.
+pub const FSMONITOR_OFF: &str = "core.fsmonitor=false";
+
 /// What:
-///  Whether `arguments` run `git config`.
+///  Whether `arguments` run `git config` to report or change configuration, without opening an editor.
 /// Why:
 ///   A configuration query reports what the repository configures, and the wrapper itself reads `core.hooksPath` that
 ///  way; the injected value must not answer for it.
-///  A query runs no hook, so leaving it out costs no protection.
+///  A query starts no program, so leaving the options out costs no protection.
+///  `--edit` (or `-e`) starts the editor, and a Git the editor starts inherits the options through
+///  `GIT_CONFIG_PARAMETERS`, so it gets them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// layout.outcome === 'command' && args[layout.prefixLen] === 'config'
+/// layout.outcome === 'command' && args[layout.prefixLen] === 'config' && !opensEditor(args.slice(layout.prefixLen + 1))
 /// ```
 fn is_configuration_query(arguments: &[OsString]) -> bool {
     let layout = global_layout(arguments);
-    return layout.outcome == GlobalOutcome::Command && arguments[layout.prefix_len] == "config";
+    if layout.outcome != GlobalOutcome::Command || arguments[layout.prefix_len] != "config" {
+        return false;
+    }
+    let opens_editor: bool = arguments[layout.prefix_len + 1..]
+        .iter()
+        .take_while(|token| { return *token != "--"; })
+        .any(|token| { return token == "--edit" || token == "-e"; });
+    return !opens_editor;
 }
 
 /// Whether this process starts real Git with hooks off; the executable switches it on before any start.
@@ -123,6 +137,8 @@ pub fn hooks_off_arguments(arguments: &[OsString]) -> Vec<OsString> {
     let mut result: Vec<OsString> = arguments[..split].to_vec();
     result.push(OsString::from("-c"));
     result.push(OsString::from(format!("core.hooksPath={NO_HOOKS_DIRECTORY}")));
+    result.push(OsString::from("-c"));
+    result.push(OsString::from(FSMONITOR_OFF));
     for event in switched_off_events() {
         result.push(OsString::from("-c"));
         result.push(OsString::from(format!("hook.{event}.enabled=false")));

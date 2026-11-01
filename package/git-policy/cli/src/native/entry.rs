@@ -21,6 +21,7 @@ use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, pri
 use super::command_push::stackable_option_tokens;
 use super::external_hooks::external_hooks_warning;
 use super::lfs_pre_push::uses_lfs;
+use super::lfs_upload_plan::settings_from_snapshot;
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use super::command_push::parse_push_region;
@@ -31,7 +32,7 @@ use super::effective_target::default_allowed_worktree_dirs;
 use super::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
 use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use super::index_writer_commands::is_index_writer;
-use super::forwarded_command::{ResolvedCommand, creates_or_moves_worktrees, resolve_forwarded_command};
+use super::forwarded_command::{ResolvedCommand, Route, creates_or_moves_worktrees, resolve_forwarded_command};
 use super::invocation_config::{config_invalid_event, load_identity_config};
 use super::config_file::LoadedConfig;
 use super::repository_location::RepositoryLocation;
@@ -499,11 +500,17 @@ fn forward_action(
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
+    // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
+    //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
+    let forwarded_arguments: Vec<OsString> = match command.route {
+        Route::Alias => command.arguments.clone(),
+        Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
+    };
     let writes_index: bool = is_index_writer(&command);
     if !writes_index && copy_bypassed {
         return Action::Forward {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             stderr,
         };
@@ -515,7 +522,7 @@ fn forward_action(
     if location.identity == WorktreeIdentity::OutsideWorktree {
         return Action::Forward {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             stderr,
         };
@@ -564,14 +571,14 @@ fn forward_action(
         let Some(facts) = copy else {
             return Action::Forward {
                 real_git,
-                arguments,
+                arguments: forwarded_arguments,
                 overlay,
                 stderr,
             };
         };
         return Action::ForwardSettled {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             copy: Box::new(facts),
             stderr,
@@ -583,7 +590,7 @@ fn forward_action(
     return Action::ForwardCoordinated {
         forward: Box::new(CoordinatedForward {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             identity: location.identity,
             command,
@@ -607,15 +614,15 @@ fn forward_action(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function needsLfsUpload(command, realGit, overlay): [boolean, string];
+/// function needsLfsUpload(command, realGit, overlay): [boolean, string, settings];
 /// ```
 fn needs_lfs_upload(
     command: &ResolvedCommand,
     real_git: &Path,
     overlay: &[(OsString, OsString)],
-) -> (bool, String) {
+) -> (bool, String, Option<Vec<(String, String)>>) {
     if command.word() != b"push" {
-        return (false, String::new());
+        return (false, String::new(), None);
     }
     let dry_run: bool = parse_push_region(command.region(), &[]).is_ok_and(|region| {
         return region.dry_run;
@@ -632,11 +639,17 @@ fn needs_lfs_upload(
     };
     let warning: String = external_hooks_warning(snapshot.as_ref()).unwrap_or_default();
     if dry_run {
-        return (false, warning);
+        return (false, warning, None);
     }
     return match snapshot {
-        Some(found) => (uses_lfs(&found), warning),
-        None => (true, warning),
+        Some(found) => {
+            let uses: bool = uses_lfs(&found);
+            let settings: Option<Vec<(String, String)>> = uses.then(|| {
+                return settings_from_snapshot(&found);
+            });
+            (uses, warning, settings)
+        }
+        None => (true, warning, None),
     };
 }
 
@@ -681,7 +694,8 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
-    let (lfs, hook_warning): (bool, String) = needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
+    let (lfs, hook_warning, lfs_settings): (bool, String, Option<Vec<(String, String)>>) =
+        needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
     let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
     let stack: bool =
@@ -698,6 +712,7 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
                 copy,
                 environment: environment.to_vec(),
                 lfs,
+                lfs_settings,
                 stack,
             }),
             stderr: stderr_with_warning,

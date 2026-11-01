@@ -10,8 +10,8 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-/// The delay of the slow upload, in whole seconds as the stand-in's `sleep` takes it.
-const UPLOAD_DELAY_SECONDS: u64 = 2;
+/// How many tenth-of-a-second looks an upload takes for the other upload to start before it gives up waiting.
+const BARRIER_TRIES: u32 = 300;
 
 /// The push deadline the detaching control sets, in whole seconds.
 const SHORT_DEADLINE_SECONDS: u64 = 2;
@@ -53,11 +53,20 @@ fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(
 #[test]
 fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other() {
     let fixture: Fixture = fixture("lfs-hang-two-worktrees");
-    let (repo, origin) = world(&fixture, &format!("#!/bin/sh\ncat > /dev/null\nsleep {UPLOAD_DELAY_SECONDS}\nexit 0\n"));
+    // Each upload announces itself and then waits for the other to announce itself; an upload that never sees the
+    //  other start (uploads taken in turn) leaves a mark and fails the control.
+    let marks: PathBuf = fixture.root.join("marks");
+    std::fs::create_dir(&marks).expect("marks directory");
+    let barrier: String = format!(
+        "#!/bin/sh\ntouch '{dir}/started.'$$\ni=0\nwhile [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ] && [ $i -lt {tries} ]; do sleep 0.1; i=$((i+1)); done\n\
+         if [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ]; then touch '{dir}/alone'; fi\nexit 0\n",
+        dir = marks.display(),
+        tries = BARRIER_TRIES
+    );
+    let (repo, origin) = world(&fixture, barrier.as_str());
     let second: PathBuf = fixture.root.join("second");
     git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "other", second.to_str().expect("UTF-8")]);
     git(&fixture, second.as_path(), &["push", "--quiet", "--no-verify", "--set-upstream", "origin", "other"]);
-    let started: Instant = Instant::now();
     let (first_seen, second_seen) = std::thread::scope(|scope| {
         let first = scope.spawn(|| {
             return commit_file(&fixture, repo.as_path(), "first.txt", &[]);
@@ -67,20 +76,15 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
         });
         return (first.join().expect("first commit"), other.join().expect("second commit"));
     });
-    let elapsed: Duration = started.elapsed();
     for (label, seen) in [("first", &first_seen), ("second", &second_seen)] {
         assert_eq!(seen.code, Some(0), "{label}: {}", stderr_of(seen));
         assert!(!stderr_of(seen).contains("waiting for"), "{label} waited for the other: {}", stderr_of(seen));
     }
-    // Serial pushes would take two delays; the bound is generous (a delay and the load allowance) and still
-    //  separates "ran at once" from "waited in turn" only through the absence of a wait notice, asserted above.
-    assert!(
-        elapsed < Duration::from_secs(UPLOAD_DELAY_SECONDS) + LOAD_ALLOWANCE,
-        "both commits finished within one upload plus the allowance: {elapsed:?}"
-    );
-    for branch in ["main", "other"] {
-        let head: String = git_text(&fixture, origin.as_path(), &["rev-parse", &format!("refs/heads/{branch}")]);
-        assert!(!head.trim().is_empty(), "{branch} reached the origin");
+    assert!(!marks.join("alone").exists(), "one upload ran without the other: they were taken in turn");
+    for (branch, worktree) in [("main", repo.as_path()), ("other", second.as_path())] {
+        let published: String = git_text(&fixture, origin.as_path(), &["rev-parse", &format!("refs/heads/{branch}")]);
+        let landed: String = git_text(&fixture, worktree, &["rev-parse", "HEAD"]);
+        assert_eq!(published.trim(), landed.trim(), "{branch}: the new commit, not the earlier one, reached the origin");
     }
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);

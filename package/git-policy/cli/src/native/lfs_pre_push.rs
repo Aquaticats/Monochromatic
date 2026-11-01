@@ -55,6 +55,27 @@ pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
     });
 }
 
+/// Whether a configuration name is the switch: Git reads the section and the variable case-insensitively and the
+///  subsection exactly.
+fn is_switch_key(name: &str) -> bool {
+    const VARIABLE: &str = ".enabled";
+    let Some(rest) = name.get(..5).filter(|section| {
+        return section.eq_ignore_ascii_case("hook.");
+    }).map(|_| {
+        return &name[5..];
+    }) else {
+        return false;
+    };
+    if rest.len() <= VARIABLE.len() {
+        return false;
+    }
+    if !rest.is_char_boundary(rest.len() - VARIABLE.len()) {
+        return false;
+    }
+    let (subsection, variable) = rest.split_at(rest.len() - VARIABLE.len());
+    return variable.eq_ignore_ascii_case(VARIABLE) && subsection == SWITCH_NAME;
+}
+
 /// Whether a value of the switch reads as false the way Git reads a boolean (an empty value counts as false).
 fn reads_as_false(value: &str) -> bool {
     return ["false", "no", "off", "0", ""].iter().any(|spelling| {
@@ -76,7 +97,6 @@ fn reads_as_false(value: &str) -> bool {
 /// lastEnabledSetting([...envPairs, ...cPairs], `hook.${name}.enabled`) is false
 /// ```
 pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
-    let key: String = format!("hook.{SWITCH_NAME}.enabled");
     let mut off: bool = false;
     let count: usize = super::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
         .and_then(|value| {
@@ -90,7 +110,7 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
             return super::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
         };
         if name_of("KEY").is_some_and(|name| {
-            return name.eq_ignore_ascii_case(key.as_str());
+            return is_switch_key(&name.to_string_lossy());
         }) {
             off = name_of("VALUE").is_some_and(|value| {
                 return reads_as_false(&value.to_string_lossy());
@@ -107,8 +127,12 @@ pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, O
         }) else {
             continue;
         };
-        if let Some(value) = setting.strip_prefix(format!("{key}=").as_str()) {
-            off = reads_as_false(value);
+        // Git reads the name case-insensitively and a name without `=` as the boolean true.
+        let (name, value) = setting.split_once('=').map_or((setting, None), |(name, value)| {
+            return (name, Some(value));
+        });
+        if is_switch_key(name) {
+            off = value.is_some_and(reads_as_false);
         }
     }
     return off;
@@ -136,6 +160,10 @@ pub fn find_program(path: &OsStr) -> Option<std::path::PathBuf> {
             return std::fs::metadata(candidate).is_ok_and(|found| {
                 return found.is_file() && found.permissions().mode() & 0o111 != 0;
             });
+        })
+        // A relative `PATH` entry is relative to where the lookup happens; the child may start elsewhere (`-C`).
+        .and_then(|found| {
+            return std::path::absolute(found).ok();
         });
 }
 
@@ -186,6 +214,26 @@ pub fn missing_program_message() -> String {
          repository does not use Git LFS, remove its configuration (`git lfs uninstall`, or delete the `filter.lfs.*` \
          and `lfs.*` keys); or accept pointers without objects for this push with `git push --no-verify` and upload \
          the objects later with `git lfs push --all <remote>` once Git LFS is installed.\n"
+    );
+}
+
+/// What:
+///  The refusal printed when the wrapper cannot work out which objects a push needs uploaded.
+/// Why:
+///   Running the push without an upload could publish pointers whose objects the server lacks, so the push is not started;
+///  every way forward is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `cli-git: this push was stopped before it sent anything: ${why}...`
+/// ```
+pub fn plan_failed_message(why: &str) -> String {
+    return format!(
+        "cli-git: this push was stopped before it sent anything. The Git configuration of this repository has Git LFS \
+         keys, so the wrapper uploads the large files the pushed commits point to before it publishes the pointer \
+         files, but it could not work out which refs this push sends ({why}). Pushing without that upload could \
+         publish pointers whose content the LFS server does not have. Ways forward: push again, because the cause may \
+         be transient; or upload by hand with `git lfs push --all <remote>` and push with `git push --no-verify`.\n"
     );
 }
 

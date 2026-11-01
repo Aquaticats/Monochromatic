@@ -665,8 +665,14 @@ pub mod lfs_pre_push;
 /// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
 pub mod lfs_upload_plan;
 
+/// The configuration the Git LFS upload plan reads, and the default remote derived from it.
+pub mod lfs_upload_settings;
+
 /// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
+
+/// The Git LFS step before a push the caller typed: pre-check, plan and upload with the caller's streams.
+pub mod lfs_interactive;
 
 /// The check that `git-lfs` can start, made before a push that is preceded by the upload.
 pub mod lfs_push_precheck;
@@ -1117,6 +1123,33 @@ mod standards_review_mock;
 
 /// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
 pub mod work_item;
+
+/// Messages between the wrapper and the resident commit service.
+pub mod service_protocol;
+
+/// What the user is told when the commit service cannot land a commit.
+pub mod service_messages;
+
+/// The commit service's journal and its restart decisions.
+pub mod service_journal;
+
+/// Test-only fault points of the commit service.
+pub mod service_fault;
+
+/// The commit service's serialized step.
+pub mod service_land;
+
+/// The commit service's loop.
+pub mod service_server;
+
+/// The wrapper's side of a commit through the commit service.
+pub mod service_client;
+
+/// Which commit command lines the commit service covers, and the message they stand for.
+pub mod service_commit_args;
+
+/// The commit command's path through the commit service.
+pub mod service_commit;
 
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]

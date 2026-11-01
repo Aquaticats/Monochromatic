@@ -5842,3 +5842,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Docs issues fixed and closed by commit (each claim checked with `ls`, `rg` or `git merge-base` first): `#3194` (S1 hook-shim record
   superseded), `#1906` (moved TypeScript sources), `#3187` (cutover finished), `#3274` (trust-registry bullets retired), `#2367` (task
   form `//package/git-policy/cli:...`), `#2368` (README citation by section, not line).
+- Cross-vendor review of the linter embedding (`~/temp/agent/embedding-review.txt`): P1 the old 64 MiB / 4 MiB output bounds are gone
+  and `catch_unwind` is no crash boundary (stack overflow, abort); P1 lockfile change possibly missing from the reviewed patch (agent
+  reported one; to verify); P2 abandoned workers can pile up within one command, raw panic payload unbounded, post-commit and
+  exact-bytes tests pass with linting skipped, differential test lacks runtime-failure cases; P3 stale comments. Sent to
+  `a19be37e1bd9ea63d` (resumed). Cross-vendor review of the flaky-test fix (`~/temp/agent/ct/pi-review.out`): pruning race, build
+  identity by length plus mtime, `st_dev` equality is not link capability, weak concurrency test, skipped relocated-root case, `/proc`
+  assumption. Sent to `a54d6b24f9cf91c20` together with the lock-free request. `sol-service` (design review) still running.
+- PUBLISHED: `monochromatic-git-policy-cli 0.5.0` on crates.io at 2026-11-01T13:21:46Z, GitHub release
+  `monochromatic-git-policy-cli-v0.5.0` with x86_64 and aarch64 linux-gnu assets; release commit `069e45a200`. Messaged
+  `monochromatic-c0` with version, commit and the behavior changes; the `toolchain.lock.json` bump and install are theirs. Next on my
+  side: merge the linter embedding when `a19be37e1bd9ea63d` reports READY after its review fixes, release the linter (old route), bump
+  the wrapper and `monochromatic-lint.fuzz` pins, gate, release the wrapper again; merge service slices and the test-store fix as READY.
+  Linter route, read from `.github/workflows/cargo-publish.yml`: a push to `main` that changes the version in
+  `package/linter/monochromatic-lint/Cargo.toml` publishes it (manual dispatch with `crate=monochromatic-lint` also exists, with a dry
+  run). Plan: one commit after the merge sets the linter to 0.5.0 (new public API `run_embedded` and feature `semantic`) and both pins
+  (`package/git-policy/cli/Cargo.toml`, `package/linter/monochromatic-lint.fuzz/Cargo.toml`) to `=0.5.0`; local builds use the path, so
+  nothing breaks before crates.io has it; wait for crates.io, then gate and dispatch the wrapper release.
+- `monochromatic-c0` installed 0.5.0 (lock commit `efba845e0b`; `cli-git-native --version` prints 0.5.0) and probed the catalog
+  policy (`~/temp/agent/cs-policy-050-probe.ts`). CORRECTION of my earlier statement that the policy reads index bytes only:
+  `git cli-git check` and `fix` read the worktree files their scope selects, unstaged changes included (`management.rs`, "A direct
+  command asks for the worktree files its scope selects"); only commit and push check staged or committed content. README "Commands"
+  now says so. All other probe cases matched.

@@ -15,6 +15,24 @@ fn listing_snapshot(records: &[(&str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(bytes.as_slice(), true).expect("a well-formed listing");
 }
 
+/// A `core.fsmonitor` that names a program is reported as the hook it is; a boolean names none.
+#[test]
+fn a_monitor_program_is_reported_like_a_configured_hook() {
+    let program: ConfigSnapshot = listing_snapshot(&[("local", "core.fsmonitor\n/usr/local/bin/watch")]);
+    let hooks: Vec<ConfiguredHook> = configured_hooks(&program);
+    assert_eq!(hooks.len(), 1);
+    assert_eq!(hook_key(&hooks[0]), FSMONITOR_KEY);
+    assert_eq!(describe_hook(&hooks[0]), format!("{FSMONITOR_KEY} (events: {FSMONITOR_EVENT})"));
+    let warning: String = external_hooks_warning(Some(&program)).expect("a warning");
+    assert!(warning.contains(FSMONITOR_KEY), "{warning}");
+    for value in ["true", "false", "yes", "off"] {
+        let boolean: ConfigSnapshot = listing_snapshot(&[("local", format!("core.fsmonitor\n{value}").as_str())]);
+        assert!(configured_hooks(&boolean).is_empty(), "{value}");
+    }
+    let unset: ConfigSnapshot = listing_snapshot(&[("local", "core.bare\nfalse")]);
+    assert!(configured_hooks(&unset).is_empty());
+}
+
 /// A stream that refuses every write.
 struct RefusingStream;
 
