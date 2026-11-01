@@ -37,7 +37,8 @@ fn block(line: usize) -> Place {
 #[test]
 fn plain_text_places_line_n_at_n_code_rows() {
     let map = RowMap::plain(1000);
-    assert!(CODE_ROW > 0.0, "a code row has height");
+    // One code row on the map is one CODE_ROW in pixels.
+    assert_eq!(map.code_top(1) - map.code_top(0), CODE_ROW);
     for line in [0_usize, 1, 2, 17, 499, 999] {
         // `as f32` converts the line index to the float pixels are measured in.
         let expected = line as f32 * CODE_ROW;
