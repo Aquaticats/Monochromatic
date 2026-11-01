@@ -34,10 +34,30 @@ export const PERIOD_USEC = 100_000;
 export const DEFAULT_THREADS = 30;
 
 /**
- Default `io.weight` of the `claude-code-bash` cgroup (the kernel default is 100). It is a proportional share, so it only
- matters while the NVMe is contended, and it takes effect only under the BFQ scheduler.
+ Default IO weight of the `claude-code-bash` cgroup (the kernel default is 100). It is a proportional share, so it only
+ matters while a disk is contended. The cgroup has two weight files, one per controller: `io.bfq.weight` is read
+ when the disk uses the BFQ scheduler, and `io.weight` is read by the iocost controller (which stays off until
+ `io.cost.qos` enables it). The watcher writes both.
  */
 export const DEFAULT_IO_WEIGHT = 10;
+
+/**
+ Smallest weight either weight file accepts. `io.weight` is documented as `[1, 10000]` in
+ `Documentation/admin-guide/cgroup-v2.rst` and checked in `block/blk-iocost.c` (`CGROUP_WEIGHT_MIN`);
+ `io.bfq.weight` is documented as `1..1000` in `Documentation/block/bfq-iosched.rst` and checked in
+ `block/bfq-iosched.h` (`BFQ_MIN_WEIGHT`), both at Linux v7.2.11.
+ */
+export const IO_WEIGHT_MIN = 1;
+
+/**
+ Largest weight `io.weight` accepts (iocost); a write above it fails with `EINVAL`.
+ */
+export const IO_WEIGHT_MAX = 10_000;
+
+/**
+ Largest weight `io.bfq.weight` accepts (`BFQ_MAX_WEIGHT`); a write above it fails with `ERANGE`.
+ */
+export const IO_BFQ_WEIGHT_MAX = 1_000;
 
 /**
  Consecutive bad samples before a metric raises an alert (3 samples, 6 seconds).
