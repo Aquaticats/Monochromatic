@@ -410,6 +410,12 @@ which are not amended:
   variables;
   the source-scan suite run after it found more cases red,
   which the commit after it clears (see the gates).
+- `d3bd0fbcf0` says the new ledger file has 477 lines and that 8 statements were corrected in place;
+  the file has 485 lines and 7 statements are listed.
+- `4b973d9a5e` was needed for the findings of the source scans,
+  which were run last when the brief asked for them at the end;
+  oxlint and the types were run before,
+  and the order is why the round has three commits that clear lint and scans.
 
 Slips of the work and not of a message:
 
