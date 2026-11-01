@@ -106,7 +106,8 @@ use crate::source::TruePeakSource;
 
 /// What:
 ///      `pub async fn cached_or_resolve<Open>(cache: &DecisionCache, policy: &Policy,
-///           fingerprint: u64, decoder_stack_id: u64, open: Open) -> Result<Decision,
+///           fingerprint: u64, decoder_stack_id: u64, provenance: TrackProvenance,
+///           bones_hot_bins: Option<&[usize]>, open: Open) -> Result<Decision,
 ///           CacheError> where Open: FnOnce() -> Result<Box<dyn TruePeakSource>,
 ///           TruePeakError>`.
 ///  Return the cached decision,
