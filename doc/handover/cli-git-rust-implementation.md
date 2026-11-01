@@ -6775,6 +6775,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the new worktree's own instance copies its ignored files; lost compare-and-swap on a shared ref retries. Sent to
   `aadfd3e728b38325b` (top item, its per-repository landing item dropped), `ab3dd6294f9d91284` (copy by the
   destination's instance) and `abf5d1e9f7ca62e6a` (notices per worktree). Do not re-ask.
+- OWNER, 2026-11-01, verbatim, on my note that the copy tests must fit the 5-second bound: "I mean: the copy tests would
+  auto pass after the upcoming changes." So no work goes into fitting them now; re-run them after the per-worktree
+  and btrfs changes land (caveat: tests on a non-btrfs gate filesystem take the fallback path).
+- OWNER, 2026-11-01, verbatim: "Properly support overlayfs too." Sent to the design agent `abc58339444bd7c9d`: the
+  repository on overlayfs (container roots, including this repo's gate) must be correct and use the cheapest operation
+  overlayfs offers; overlayfs as a cheap-worktree mechanism where no snapshot exists (unprivileged mounts are private to
+  a user namespace; `fuse-overlayfs` is an external program, out under "embed instead of spawning"); doctor reports it.
+- Latency 0.5.5 (one run, integ worktree, `~/temp/agent/perf/perf-0.5.5.log`): forwarded commands add about 1 ms;
+  `commit-service` wrapped median 46.8 ms (added 41.6), `commit-signed-service` 59.1 ms (added 50.5), the transaction
+  route 141.6 ms. Higher than the earlier medians (service 26.4, signed service 33.0), but the unchanged transaction
+  route roughly doubled too, so load is likely; not concluded. A paired run (0.5.4 and 0.5.5 alternating, unit
+  `gpc-perf-ab`, worktree `.claude/worktrees/perf-054`, log `~/temp/agent/perf/alternate.log`) is running.
 - DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): 4d part 2, deleting the old transaction route, "After
   per-worktree (Recommended)": start it as soon as the per-worktree service change merges and gates. Task created.
 
@@ -6797,6 +6809,19 @@ This block supersedes "State at 2026-10-29 (night, later)".
   they survive a kill but not a power loss.
 - Not done: moving copy state to the worktree's admin directory and sending the copy to the destination's instance;
   it waits for the per-worktree service change.
+- Replay READY `f717000a51` (agent `afcbaabc8c4046584`, branch `worktree-agent-afcbaabc8c4046584`, base
+  `72893e5faa`): new `service_replay.rs`; on `RetryPrepare` the client writes the captured tree and runs `merge-tree
+  --write-tree --merge-base=<preparation base> <tip> <captured tree>`, then `read-tree` into the private index, then
+  the usual policies; a conflict is a `core-finding` `concurrent-commit/replay-conflict` naming each path and the first
+  commit, with the saved message path and `git commit -F <file>`; adjacent edits whose capture already holds the landed
+  edit reuse `replay_subsumption`. Red `c15ef71a9d` (late write landed, first edit lost; conflict exited 0), green
+  `b31f75d1dc`. Lib 2764, binary 448, clippy clean. e2e seed 4233994366: `shared-file-*` all pass; trace-replay passes
+  in some runs and fails only on the forwarded `git add` exit 128. Choices it made (accepted): policies re-run on
+  every retry (no recorded reads on the service path; all shipped policies are unrestricted); a merged tree equal to
+  the tip ends exit 1 `already-committed`; the conflict is one JSONL `core-finding`.
+- Sent back to `afcbaabc8c4046584`: capture order (the decision's "later capture wins" for one worktree; t10 now fails
+  as a conflict where the decision lands it), and the two paths that still re-read the worktree (`Submitted::Moved`
+  rebuild of a Git-built commit; the prune re-prepare on a first attempt).
 - Third cross-vendor review running: inputs `~/temp/agent/review-wtc/v3/` (`prepare3.ts`: the design doc and six copy
   modules whole, the other production changes as `main...fe2081f2a1`, the second review attached), output
   `~/temp/agent/review-wtc/v3/sol-review.txt`.
