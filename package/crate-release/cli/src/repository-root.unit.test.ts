@@ -4,6 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { repositoryMarkerFile } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import { findRepositoryRoot } from './repository-root.ts';
 
@@ -30,7 +31,7 @@ await describe({
           fn: async () => {
             expect(findRepositoryRoot({
               startDirectory: '/repo/package/crate-release/cli',
-              exists: existing(['/repo/pnpm-workspace.yaml']),
+              exists: existing([`/repo/${repositoryMarkerFile}`]),
             })).toBe('/repo');
           },
         }),
@@ -39,7 +40,7 @@ await describe({
           fn: async () => {
             expect(findRepositoryRoot({
               startDirectory: '/repo',
-              exists: existing(['/repo/pnpm-workspace.yaml']),
+              exists: existing([`/repo/${repositoryMarkerFile}`]),
             })).toBe('/repo');
           },
         }),
@@ -48,7 +49,7 @@ await describe({
           fn: async () => {
             expect(findRepositoryRoot({
               startDirectory: '/repo/inner/package/x',
-              exists: existing(['/repo/pnpm-workspace.yaml', '/repo/inner/pnpm-workspace.yaml']),
+              exists: existing([`/repo/${repositoryMarkerFile}`, `/repo/inner/${repositoryMarkerFile}`]),
             })).toBe('/repo/inner');
           },
         }),
@@ -64,7 +65,7 @@ await describe({
             }
             expect(caught).toBeInstanceOf(CrateReleaseError);
             expect((caught as Error).message).toContain('/a/b');
-            expect((caught as Error).message).toContain('pnpm-workspace.yaml');
+            expect((caught as Error).message).toContain(repositoryMarkerFile);
             expect((caught as Error).message).toContain('--root');
           },
         }),

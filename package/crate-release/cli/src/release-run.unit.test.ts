@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { adversarialLines } from './adversarial-fixture.ts';
+import { commitType, failureExitCode } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import type { ReleaseOptions } from './release-options.ts';
 import { runRelease } from './release-run.ts';
@@ -134,7 +135,7 @@ await describe({
             expect(result.printed).toContain('== cargo check');
             expect(result.printed).toContain('$ cargo check --offline --bin cli-git-native');
             expect(result.printed).toContain(
-              `$ git commit --message 'chore(git-policy/cli): release 0.4.3: fix the thing' -- `
+              `$ git commit --message '${commitType}(git-policy/cli): release 0.4.3: fix the thing' -- `
                 + 'package/git-policy/cli/Cargo.toml package/git-policy/cli/Cargo.lock '
                 + 'package/git-policy/cli.fuzz/Cargo.toml package/git-policy/cli.fuzz/Cargo.lock',
             );
@@ -148,7 +149,7 @@ await describe({
               const commit = result.steps.find(function isCommit(step) {
                 return step.label === 'commit';
               });
-              expect(commit?.args[2]).toBe(`chore(git-policy/cli): release 0.4.3: ${note}`);
+              expect(commit?.args[2]).toBe(`${commitType}(git-policy/cli): release 0.4.3: ${note}`);
               expect(commit?.args).toHaveLength(8);
             },
           });
@@ -185,7 +186,7 @@ await describe({
           name: 'stops at the first failing step, names it and its status, and runs nothing after it',
           fn: async () => {
             const result = await record({ failing: 'lock members', failureStatus: 7 });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('FAILED lock members (7)');
             expect(result.events).toContain('step lock members');
             expect(result.events).not.toContain('step publish dry run');

@@ -6,6 +6,15 @@ import {
 
 import { adversarialLines } from './adversarial-fixture.ts';
 import { buildCommitMessage } from './commit-message.ts';
+import {
+  cargoProgram,
+  commitType,
+  gitProgram,
+  lockFileName,
+  manifestFileName,
+  systemdRunProgram,
+  taskRunnerProgram,
+} from './constants.ts';
 import type { ReleaseOptions } from './release-options.ts';
 import {
   buildCheckArguments,
@@ -43,13 +52,13 @@ await describe({
         it({
           name: 'puts the lockfile in the directory of the manifest',
           fn: async () => {
-            expect(lockFileBeside('package/a/b/Cargo.toml')).toBe('package/a/b/Cargo.lock');
+            expect(lockFileBeside(`package/a/b/${manifestFileName}`)).toBe(`package/a/b/${lockFileName}`);
           },
         }),
         it({
           name: 'handles a manifest at the repository root',
           fn: async () => {
-            expect(lockFileBeside('Cargo.toml')).toBe('Cargo.lock');
+            expect(lockFileBeside(manifestFileName)).toBe(lockFileName);
           },
         }),
       ],
@@ -61,10 +70,10 @@ await describe({
           name: 'lists the manifest and lockfile of the crate and of each pin file, in that order',
           fn: async () => {
             expect(commitPaths(gitPolicyOptions)).toEqual([
-              'package/git-policy/cli/Cargo.toml',
-              'package/git-policy/cli/Cargo.lock',
-              'package/git-policy/cli.fuzz/Cargo.toml',
-              'package/git-policy/cli.fuzz/Cargo.lock',
+              `package/git-policy/cli/${manifestFileName}`,
+              `package/git-policy/cli/${lockFileName}`,
+              `package/git-policy/cli.fuzz/${manifestFileName}`,
+              `package/git-policy/cli.fuzz/${lockFileName}`,
             ]);
           },
         }),
@@ -72,17 +81,17 @@ await describe({
           name: 'lists only the crate files when there is no pin file',
           fn: async () => {
             expect(commitPaths({ ...gitPolicyOptions, pinFiles: [] })).toEqual([
-              'package/git-policy/cli/Cargo.toml',
-              'package/git-policy/cli/Cargo.lock',
+              `package/git-policy/cli/${manifestFileName}`,
+              `package/git-policy/cli/${lockFileName}`,
             ]);
           },
         }),
         it({
           name: 'lists a path once when a pin file is the crate manifest',
           fn: async () => {
-            expect(commitPaths({ ...gitPolicyOptions, pinFiles: ['package/git-policy/cli/Cargo.toml'] })).toEqual([
-              'package/git-policy/cli/Cargo.toml',
-              'package/git-policy/cli/Cargo.lock',
+            expect(commitPaths({ ...gitPolicyOptions, pinFiles: [`package/git-policy/cli/${manifestFileName}`] })).toEqual([
+              `package/git-policy/cli/${manifestFileName}`,
+              `package/git-policy/cli/${lockFileName}`,
             ]);
           },
         }),
@@ -134,7 +143,7 @@ await describe({
               '--pipe',
               '--working-directory=/repo/package/git-policy/cli',
               '--property=MemoryMax=12G',
-              'cargo',
+              cargoProgram,
               'publish',
               '--dry-run',
               '--locked',
@@ -188,19 +197,19 @@ await describe({
             expect(buildReleaseSteps(gitPolicyOptions)).toEqual([
               {
                 label: 'cargo check',
-                program: 'cargo',
+                program: cargoProgram,
                 args: ['check', '--offline', '--bin', 'cli-git-native'],
                 cwd: '/repo/package/git-policy/cli',
               },
               {
                 label: 'lock members',
-                program: 'mise',
+                program: taskRunnerProgram,
                 args: ['run', '//package/git-policy/cli.fuzz:lock:members'],
                 cwd: '/repo',
               },
               {
                 label: 'publish dry run',
-                program: 'systemd-run',
+                program: systemdRunProgram,
                 args: [
                   '--user',
                   '--unit=cli-git-publish-dry',
@@ -219,16 +228,13 @@ await describe({
               },
               {
                 label: 'commit',
-                program: 'git',
+                program: gitProgram,
                 args: [
                   'commit',
                   '--message',
-                  'chore(git-policy/cli): release 0.4.3: fix the thing',
+                  `${commitType}(git-policy/cli): release 0.4.3: fix the thing`,
                   '--',
-                  'package/git-policy/cli/Cargo.toml',
-                  'package/git-policy/cli/Cargo.lock',
-                  'package/git-policy/cli.fuzz/Cargo.toml',
-                  'package/git-policy/cli.fuzz/Cargo.lock',
+                  ...commitPaths(gitPolicyOptions),
                 ],
                 cwd: '/repo',
               },
@@ -240,7 +246,7 @@ await describe({
           fn: async () => {
             const two = buildReleaseSteps({ ...gitPolicyOptions, lockTasks: ['//a:lock', '//b:lock'] });
             expect(two.filter(function isLock(step) {
-              return step.program === 'mise';
+              return step.program === taskRunnerProgram;
             }).map(function taskOf(step) {
               return step.args[1];
             })).toEqual(['//a:lock', '//b:lock']);

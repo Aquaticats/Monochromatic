@@ -6,6 +6,12 @@ import {
 
 import type { ProgramCall } from './run-program.ts';
 import type { WaitOptions } from './wait-options.ts';
+import {
+  cratesIoApiBase,
+  failureExitCode,
+  millisecondsPerSecond,
+} from './constants.ts';
+import { describeDuration } from './publish-results.ts';
 import { waitForPublish } from './wait-run.ts';
 
 /**
@@ -25,6 +31,11 @@ const options: WaitOptions = {
   userAgent: 'agent',
   maxTimeSeconds: 30,
 };
+
+/**
+ Milliseconds the wait sleeps between two looks, as the production poll computes it.
+ */
+const pollSleepMilliseconds = options.pollIntervalSeconds * millisecondsPerSecond;
 
 /**
  Run listing that holds the commit.
@@ -139,7 +150,7 @@ await describe({
                   '30',
                   '--user-agent',
                   'agent',
-                  'https://crates.io/api/v1/crates/c/0.4.10',
+                  `${cratesIoApiBase}/${options.crateName}/${options.version}`,
                 ],
                 cwd: '/repo',
               },
@@ -164,22 +175,22 @@ await describe({
           fn: async () => {
             const result = await record({ script: { listings: [emptyListing, emptyListing, { status: 0, stdout: foundListing, stderr: '' }] } });
             expect(result.status).toBe(0);
-            expect(result.sleeps).toEqual([2_000, 2_000]);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
           },
         }),
         it({
           name: 'gives up after the last attempt without sleeping after it and names the bound',
           fn: async () => {
             const result = await record({ script: { listings: [emptyListing] } });
-            expect(result.status).toBe(1);
-            expect(result.sleeps).toEqual([2_000, 2_000]);
+            expect(result.status).toBe(failureExitCode);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
             expect(result.printed).toEqual([
-              'no cargo-publish.yml run for abcdef0 within 6 seconds',
+              `no ${options.workflow} run for ${options.sha} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
               'last result: No listed run was built from abcdef0.',
             ]);
             expect(result.calls.filter(function isList(call) {
               return call.args[1] === 'list';
-            })).toHaveLength(3);
+            })).toHaveLength(options.attempts);
           },
         }),
         it({
@@ -188,7 +199,7 @@ await describe({
             const result = await record({
               script: { listings: [{ status: 1, stdout: '', stderr: 'gh: not logged in' }] },
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.join('\n')).toContain('gh: not logged in');
           },
         }),
@@ -199,14 +210,14 @@ await describe({
               script: { listings: [{ status: 1, stdout: '', stderr: 'timeout' }, { status: 0, stdout: foundListing, stderr: '' }] },
             });
             expect(result.status).toBe(0);
-            expect(result.sleeps).toEqual([2_000]);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds]);
           },
         }),
         it({
           name: 'still checks crates.io and the release when the workflow run failed, and fails',
           fn: async () => {
             const result = await record({ script: { watchStatus: 1 } });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('watch exit 1');
             expect(result.printed.join('\n')).toContain('crates.io 0.4.10:');
             expect(result.printed.at(-1)).toContain('PUBLISH CHECK FAILED');
@@ -216,7 +227,7 @@ await describe({
           name: 'fails when crates.io does not know the version',
           fn: async () => {
             const result = await record({ script: { crates: '{"errors":[{"detail":"Not Found"}]}' } });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('crates.io 0.4.10: not found');
           },
         }),
@@ -226,7 +237,7 @@ await describe({
             const result = await record({
               script: { release: { status: 0, stdout: JSON.stringify({ assets: [{ name: 'c-0.4.10-a.tar.gz' }] }), stderr: '' } },
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.at(-1)).toContain('c-0.4.10-b.tar.gz');
           },
         }),
@@ -236,7 +247,7 @@ await describe({
             const result = await record({
               script: { release: { status: 1, stdout: '', stderr: 'release not found' } },
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('release c-v0.4.10 assets: release not found');
           },
         }),

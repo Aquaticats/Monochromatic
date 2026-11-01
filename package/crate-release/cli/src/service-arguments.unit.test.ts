@@ -4,6 +4,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { cratesIoApiBase } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import {
   buildCratesIoArguments,
@@ -145,13 +146,13 @@ await describe({
           name: 'addresses one version of one crate',
           fn: async () => {
             expect(cratesIoUrl({ crateName: 'monochromatic-git-policy-cli', version: '0.4.10' }))
-              .toBe('https://crates.io/api/v1/crates/monochromatic-git-policy-cli/0.4.10');
+              .toBe(`${cratesIoApiBase}/monochromatic-git-policy-cli/0.4.10`);
           },
         }),
         it({
           name: 'encodes the plus sign of a build version',
           fn: async () => {
-            expect(cratesIoUrl({ crateName: 'c', version: '1.0.0+build.5' })).toBe('https://crates.io/api/v1/crates/c/1.0.0%2Bbuild.5');
+            expect(cratesIoUrl({ crateName: 'c', version: '1.0.0+build.5' })).toBe(`${cratesIoApiBase}/c/1.0.0%2Bbuild.5`);
           },
         }),
         ...['../x', 'a?b', 'a#b', 'a b', 'a/b', '', '1.0'].map(function rejectVersion(version) {
@@ -190,7 +191,7 @@ await describe({
               '30',
               '--user-agent',
               'crate-release-check',
-              'https://crates.io/api/v1/crates/c/1.0.0',
+              `${cratesIoApiBase}/c/1.0.0`,
             ]);
           },
         }),
