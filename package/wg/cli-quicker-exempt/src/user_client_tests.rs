@@ -148,3 +148,42 @@ fn a_failing_client_with_a_large_error_message_is_not_left_blocked() {
     assert!(matches!(&error, ClientError::Failed(text) if text.contains("exited with") && text.len() < 70_000), "{} bytes", error.to_string().len());
     assert!(started.elapsed() < Duration::from_secs(8));
 }
+
+/// A reader that cannot be started for the error stream kills the client at once.
+/// Without a reader a client that writes much to its error stream blocks on the full pipe until the timeout kills it,
+/// so the failure would arrive after the whole timeout and not at once;
+/// the first reader starts normally,
+/// so the check also shows the output reader is not left behind.
+#[test]
+fn an_error_reader_that_cannot_start_ends_the_client_at_once() {
+    let directory = scratch("reader-fails");
+    let pid_file = directory.join("pid");
+    let fake = script(&directory, &format!("echo $$ > '{}'\nhead -c 300000 /dev/zero | tr '\\0' 'e' >&2\nexec /usr/bin/sleep 30", pid_file.display()));
+    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(20) };
+    let (uid, gid) = own_ids();
+    let calls = std::cell::Cell::new(0_u32);
+    let starter = |stream: Box<dyn std::io::Read + Send>, limit: u64| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 2 {
+            // Wait until the client is running and has written its pid, so the check below has a process to look for.
+            for _ in 0..200 {
+                if pid_file.exists() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            return Err(std::io::Error::other("no thread for the error reader"));
+        }
+        return std::thread::Builder::new().spawn(move || {
+            let mut kept = Vec::new();
+            let _read = std::io::Read::read_to_end(&mut std::io::Read::take(stream, limit), &mut kept);
+            return String::from_utf8_lossy(&kept).into_owned();
+        });
+    };
+    let started = Instant::now();
+    let error = client.run_with_readers(uid, gid, &[], 65_536, &starter).expect_err("the error reader cannot start");
+    assert!(matches!(&error, ClientError::Failed(text) if text.contains("the error output of") && text.contains("could not start")), "{error}");
+    assert!(started.elapsed() < Duration::from_secs(10), "the failure waited for the timeout");
+    let pid = std::fs::read_to_string(&pid_file).expect("the client wrote its pid");
+    assert!(!Path::new(&format!("/proc/{}", pid.trim())).exists(), "the client {} was left running or unreaped", pid.trim());
+}
