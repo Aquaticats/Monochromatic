@@ -121,22 +121,19 @@ that facility was built and deleted on the owner's instruction, and the key is a
 These scenarios fail because of the product, not the harness.
 Each is for its owner and is not worked around here:
 
-- `sigkill-editor-open`, `sigkill-editor-written`, `sigkill-queued` and `sigkill-after-landing`:
-  a `SIGKILL`ed client leaves its scratch directory `<git dir>/cli-git-service-<id>` behind, and nothing removes it
-  (a design gap: neither `SPEC.md` nor `doc/planning/cli-git-resident-service.md` says who removes a dead client's scratch).
-- `sigkill-service-during-work`:
-  a service killed while it holds a claimed `push` or `maintenance` record leaves it claimed until its 30-minute lease
-  ends, and a restarted service does not take it back.
-- `branch-switch-during-commit`:
-  a commit held in its editor while real Git switches branches lands on the branch it started on,
-  but the service updates the real index of the new `HEAD` and the push goes to the checked-out branch
-  (`plan_push` reads the symbolic `HEAD`, so `push_once` plans from the checked-out branch, not from the record's `branch_ref`).
+- `baseline-hooks-config` and `hooks-config-concurrent`:
+  the service route never prints the `external-hooks-unsupported` warning,
+  because `warn_external_hooks` runs only in the retired transaction path (`src/native/commit_transaction.rs`).
 - `foreign-index-lock-holder`, `foreign-index-lock-unproven`, `gc-prune-during-commits`,
-  `lint-staged-stash-concurrent`, `reservation-after-lost-races` and `amend-during-commits`
+  `lint-staged-stash-concurrent` and `amend-during-commits`
   belong to other owners; `gc-prune-during-commits` still holds its commit in a `pre-commit` hook that no longer runs.
 
 ### Retired scenarios
 
+- `reservation-after-lost-races` is retired:
+  it asserted the landing reservation and the `race-lost` marker of the transaction route, which the service replaces.
+  The property it guarded, that a commit which keeps losing races is not starved, holds by the queue's arrival order and the
+  bound on prepared-again answers (`doc/planning/cli-git-resident-service.md`, "Service-side fixes of 0.5.6").
 - `sigkill-prepare-commit-msg` is retired:
   between the `pre-commit` and `commit-msg` hooks it marked a point that the editor alone marks now,
   and `sigkill-editor-open` already kills there.
@@ -348,24 +345,6 @@ Design scenarios exercise the accepted concurrent-commit design:
   the others replay onto the amended history,
   which auto-push merges into the remote branch when the two histories do not conflict
   (see `push-rejection-surfaced` for the conflicting case).
-- `reservation-after-lost-races`:
-  a victim commit holds in its editor until a first winner lands,
-  then loses one race per winner,
-  pausing at each `race-lost-<n>` while the next winner lands,
-  until its `landing.reserveAfterLostRaces`-th lost race
-  (the default of 1,
-  so the first winner alone)
-  takes the landing reservation,
-  where it pauses;
-  a commit started then must not land during a 1.5 s window,
-  and after release the victim lands first.
-  Expectations:
-  `victim-lost-races`,
-  `reserved-within-bound`
-  (exactly one `landing-reserved`,
-   at most `landing.reserveAfterLostRaces` + 1 lost races),
-  `reservation-blocks-landing`,
-  and `reserved-lands-first`.
 - `branch-switch-during-commit`:
   a commit is held in its message editor while the wrapper refuses a switch (tracked files are modified)
   and real Git then switches to another branch.

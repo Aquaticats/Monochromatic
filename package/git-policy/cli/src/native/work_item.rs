@@ -297,16 +297,37 @@ pub fn settle(work_dir: &Path, claimed: &Claimed, state: &str) -> Result<(), Str
 ///  Return claims whose lease ran out to `pending` with one more try, or to `failed` at `max_tries`.
 ///  Returns how many were moved.
 /// Why:
-///   This is the only way a consumer killed at any instruction is noticed: by its lease, never by a process id.
+///   This is how a consumer killed at any instruction is noticed when nothing says its successor started: by its lease,
+///   never by a process id.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (const stale of claimed.filter((c) => now - c.mtime > lease)) requeue(stale)
 /// ```
 pub fn requeue_expired(work_dir: &Path, now: SystemTime, lease: Duration, max_tries: u32) -> usize {
+    return requeue_where(work_dir, max_tries, &|started| { return now.duration_since(started).unwrap_or(Duration::ZERO) > lease; });
+}
+
+/// What:
+///  Return every claim to `pending` with one more try, or to `failed` at `max_tries`, whatever its age. Returns how many
+///  were moved.
+/// Why:
+///   A consumer that starts holds no claim yet, and the manager runs one consumer at a time, so a claim it finds was left by a
+///   consumer that died or was replaced; waiting out the lease would strand the work for as long as the lease lasts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const left of claimed) requeue(left)
+/// ```
+pub fn requeue_claimed(work_dir: &Path, max_tries: u32) -> usize {
+    return requeue_where(work_dir, max_tries, &|_started| { return true; });
+}
+
+/// Returns the claims whose stamp satisfies `due` to `pending`, or to `failed` at `max_tries`; how many were moved.
+fn requeue_where(work_dir: &Path, max_tries: u32, due: &dyn Fn(SystemTime) -> bool) -> usize {
     let mut moved: usize = 0;
     for (id, started) in entries_oldest_first(work_dir, CLAIMED) {
-        if now.duration_since(started).unwrap_or(Duration::ZERO) <= lease {
+        if !due(started) {
             continue;
         }
         let from: PathBuf = state_directory(work_dir, CLAIMED).join(id.as_str());

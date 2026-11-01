@@ -299,7 +299,7 @@ export async function observeRun({
   /**
    Records the service did not finish.
    */
-  const unsettledWork = await settleServiceWork(repository.commonDir,);
+  const unsettledWork = await settleServiceWork(repository.gitDir,);
   // A refused push leaves a notice that the next wrapped command shows, so one runs before the ledger is read.
   await showPushNotices({
     repository,

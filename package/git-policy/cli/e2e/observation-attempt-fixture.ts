@@ -307,7 +307,7 @@ export async function settledPushRecords(repository: ScenarioRepository,): Promi
    */
   const names = (await Promise.all(SETTLED_STATES.map(async function listState(state,) {
     return await readNames(join(
-      repository.commonDir,
+      repository.gitDir,
       'cli-git',
       'work',
       state,

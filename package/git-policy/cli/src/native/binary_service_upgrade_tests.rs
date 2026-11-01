@@ -1,33 +1,31 @@
 //! What:
-//!  The upgrade from the 0.5.4 release, run with that release's own service program: a service of protocol 4 that sends no
-//!  release in its greeting, still running from a program path the upgrade deleted, meets the wrapper of this build.
+//!  The upgrade from the 0.5.4 release, run with that release's own service program: the single per-user service of protocol
+//!  4 that sends no release in its greeting, still running from a program path the upgrade deleted, meets the wrapper of this
+//!  build, which gives each worktree its own service.
 //! Why:
 //!  Nothing but the real 0.5.4 program shows what its reader accepts. This build speaks a newer protocol, and a request to
 //!  retire that carries only this build's version is refused by a reader that wants its own, which would leave the old
-//!  service in place for good and fail every commit after the upgrade. The service manager is the stand-in bus of
+//!  service in place for good. The service manager is the stand-in bus of
 //!  `binary_service_provision_tests.rs`, so no real unit and no real runtime directory is touched.
 
 use super::commit::git_text;
-use super::service_commit::start_in;
-use super::service_provision::{PATIENCE, commit, fake_bus_many, finish, finished_batches, prepared, subject};
+use super::service_commit::Running;
+use super::service_provision::{PATIENCE, activation, commit, fake_bus_many, finish, finished_batches, prepared, subject};
 use super::support::git;
-use git_policy_cli::service_messages::UPDATING_NOTICE;
-use git_policy_cli::service_provision::{ProvisionHost, SERVICE_UNIT_NAME, runtime_unit_dir, unit_texts};
-use git_policy_cli::service_route::SOCKET_RELATIVE;
+use git_policy_cli::service_instance::LEGACY_SOCKET_RELATIVE;
+use git_policy_cli::service_provision::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// The variable naming the 0.5.4 `cli-git-service` program, copied out of the toolchain directory before the install that
 ///  deletes it.
 const OLD_SERVICE_VARIABLE: &str = "CLI_GIT_OLD_SERVICE";
 
-/// Where the 0.5.4 program was installed, and so what the unit it left behind names once the next release removes it.
-const REMOVED_PROGRAM: &str = "/home/a/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/0.5.4/bin/cli-git-service";
-
 /// Starts the 0.5.4 service program on the socket the wrapper looks for, as the manager's socket activation left it.
 fn start_old_service(program: &Path, root: &Path, runtime: &Path) -> Child {
-    let socket: PathBuf = runtime.join(SOCKET_RELATIVE);
+    let socket: PathBuf = runtime.join(LEGACY_SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let child: Child = Command::new(program)
         .args(["--journal", root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
@@ -63,10 +61,10 @@ fn exited_within(child: &mut Child, limit: Duration) -> Option<std::process::Exi
     }
 }
 
-/// A 0.5.4 service is running from a program the upgrade deleted, and its unit names that program. The next signed commit
-///  rewrites the unit, has the manager clear the failed state, asks the old service to retire (which that service accepts
-///  although this build speaks a newer protocol), and lands on the current release's service, signed. The old service
-///  exits by itself with success, the current one is still serving at the end, and the person is told only of the update.
+/// A 0.5.4 service is running from a program the upgrade deleted, on the one socket every worktree shared, and its two units are
+///  installed. The next signed commit asks the old service to retire (which that service accepts although this build speaks a
+///  newer protocol), has the manager stop its two units and reload, removes them, and lands on the worktree's own service,
+///  signed. The old service exits by itself with success, and the worktree's service is still serving at the end.
 #[test]
 #[ignore = "needs CLI_GIT_OLD_SERVICE, the 0.5.4 cli-git-service program"]
 fn a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted() {
@@ -87,52 +85,26 @@ fn a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted() 
     ] {
         git(&fixture, &repo, &["config", setting, value]);
     }
-    // The units the 0.5.4 release installed, naming the program that the upgrade removed.
-    let host: ProvisionHost = ProvisionHost {
-        runtime_dir: runtime.clone(),
-        user_unit_dir: None,
-        bus: runtime.join("bus"),
-        service_binary: PathBuf::from(REMOVED_PROGRAM),
-        git: PathBuf::from("/usr/bin/git"),
-    };
-    let units: PathBuf = runtime_unit_dir(runtime.as_path());
+    // The two units the 0.5.4 release installed.
+    let units: PathBuf = runtime.join("systemd/user");
     std::fs::create_dir_all(&units).expect("unit directory");
-    for (name, text) in unit_texts(&host) {
-        std::fs::write(units.join(name), text).expect("old unit");
+    for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
+        std::fs::write(units.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("old unit");
     }
     let mut old: Child = start_old_service(program.as_path(), fixture.root.as_path(), runtime.as_path());
-    // The manager starts the next service on the socket once the old one has gone; the test plays that part.
-    let replacement = std::thread::spawn({
-        let root: PathBuf = fixture.root.clone();
-        let socket_directory: PathBuf = runtime.clone();
-        move || {
-            let Some(status) = exited_within(&mut old, PATIENCE / 6) else {
-                let _killed = old.kill();
-                let _waited = old.wait();
-                return (None, None);
-            };
-            std::fs::remove_file(socket_directory.join(SOCKET_RELATIVE)).expect("the old socket goes");
-            return (Some(status), Some(start_in(root.as_path(), socket_directory.as_path())));
-        }
-    });
-    let bus = fake_bus_many(runtime.as_path(), false, 1, Box::new(|| {}));
+    let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
+    let bus = fake_bus_many(runtime.as_path(), false, 1, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
-    let (exit, started) = replacement.join().expect("replacement");
-    let status = exit.expect("the 0.5.4 service retired when the wrapper asked it to");
     assert!(output.status.success(), "{stderr}");
+    let status = exited_within(&mut old, PATIENCE / 6).expect("the 0.5.4 service retired when the wrapper asked it to");
     assert!(status.success(), "the old service retired by itself: {status:?}");
-    let mut current = started.expect("the current service started");
-    assert!(current.exited_within(Duration::from_millis(100)).is_none(), "the current service is serving at the end");
-    assert!(stderr.contains(UPDATING_NOTICE), "{stderr}");
     assert_eq!(subject(&fixture, &repo), "subject");
-    assert_eq!(finished_batches(&fixture), 1, "the current service landed it");
+    assert_eq!(finished_batches(&fixture), 1, "the worktree's own service landed it");
     assert!(git_text(&fixture, &repo, &["cat-file", "commit", "HEAD"]).contains("\ngpgsig -----BEGIN SSH SIGNATURE-----"), "the commit is signed");
     git(&fixture, &repo, &["verify-commit", "HEAD"]);
-    // The manager was told to reload the rewritten unit and to clear the failed state of both units before it started the socket.
-    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "Reload", "ResetFailedUnit", "ResetFailedUnit", "StartUnit"]]);
-    let unit: String = std::fs::read_to_string(units.join(SERVICE_UNIT_NAME)).expect("service unit");
-    assert!(!unit.contains(REMOVED_PROGRAM), "the unit names the program that exists: {unit}");
-    drop(current);
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StopUnit", "StopUnit", "Reload", "StartUnit"]]);
+    assert!(!units.join(LEGACY_SOCKET_UNIT_NAME).exists() && !units.join(LEGACY_SERVICE_UNIT_NAME).exists(), "the old units are gone");
+    keep.lock().expect("lock").clear();
     finish(&fixture, runtime.as_path());
 }

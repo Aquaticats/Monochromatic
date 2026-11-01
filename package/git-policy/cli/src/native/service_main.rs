@@ -5,9 +5,11 @@
 //!  listening socket (socket activation). Development and test runs name an address instead.
 //!  Options: `--journal <directory>` (required), `--git <path>` (default `/usr/bin/git`), and one of
 //!  `--abstract <name>` or `--path <socket>`; with neither, the socket comes from the service manager. Test runs may also
-//!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's).
+//!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's). The unit
+//!  instance of one worktree passes `--instance <name>` (`service_instance.rs`), and that service refuses messages about
+//!  any other worktree; without it a development run serves any.
 
-use git_policy_cli::service_land::LandContext;
+use git_policy_cli::service_land::{LandContext, recover_instance};
 use git_policy_cli::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
 use git_policy_cli::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -57,6 +59,14 @@ fn main() {
     let mut settings: ServeSettings = ServeSettings::new(idle);
     if let Some(release) = option(&arguments, "--release") {
         settings.release = release;
+    }
+    // The unit instance names the worktree this service is for; a message about any other worktree is refused.
+    settings.instance = option(&arguments, "--instance");
+    // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
+    //  it are finished before the first connection is accepted.
+    if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
+        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, index_wait: context.index_wait };
+        let _reports = recover_instance(&earlier, instance);
     }
     eprintln!("cli-git-service: ready");
     serve(listener, &context, &settings);

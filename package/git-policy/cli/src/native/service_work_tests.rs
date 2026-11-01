@@ -207,22 +207,22 @@ fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     remove(repo.root.as_path());
 }
 
-/// A claim whose consumer died is taken back after the lease and run again, then given up after the tries.
+/// A claim a service left when it died or was replaced is run again by the next service's first drain at once, not after
+///  the lease.
 #[test]
-fn an_expired_claim_is_run_again_and_given_up_after_the_tries() {
+fn a_claim_left_by_an_earlier_service_is_run_again_at_once() {
     let repo: Repo = repo("work-lease");
     let stuck: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
     enqueue_all(&repo, std::slice::from_ref(&stuck));
     let work_dir: PathBuf = work_directory(repo.common.as_path());
     let started: SystemTime = SystemTime::now();
-    // The first consumer claims it and dies.
+    // The earlier service claims it and dies.
     assert!(claim_next_of(work_dir.as_path(), started, &SERVICE_KINDS).expect("claim").is_some());
     let recorder: Recorder = Recorder::answering(Verdict::Done);
-    drain(repo.common.as_path(), &recorder, started + LEASE / 2);
-    assert!(recorder.pushes.borrow().is_empty(), "a live claim is not taken");
-    drain(repo.common.as_path(), &recorder, started + LEASE * 2);
-    assert_eq!(recorder.pushes.borrow().len(), 1, "an expired claim runs again");
+    drain(repo.common.as_path(), &recorder, started);
+    assert_eq!(recorder.pushes.borrow().len(), 1, "a claim left by an earlier service runs again without waiting for the lease");
     assert_eq!(names(&repo, DONE), vec![stuck.id()]);
+    assert!(names(&repo, CLAIMED).is_empty());
     remove(repo.root.as_path());
 }
 

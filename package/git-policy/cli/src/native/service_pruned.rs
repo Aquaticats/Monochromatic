@@ -87,6 +87,34 @@ pub fn prepared_content_missing(common_dir: &Path, objects_dir: &Path, object_fo
 }
 
 /// What:
+///  Whether any object the requests of a batch depend on is gone from the repository's object store.
+/// Why:
+///   The landing asks this before it imports anything or moves the branch: `fast-import` dies on a missing blob and leaves a
+///  crash report in the Git directory, and Git moves a branch to a commit whose objects are gone without looking. Loose
+///  objects are found with one lookup each; the packs are opened only when an object is not loose. A store the in-process
+///  reader cannot open answers `false`, which leaves the decision to Git, as for the client's own check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// requests.flatMap(namesOf).some((name) => !loose(name) && !(await packs()).has(name))
+/// ```
+pub fn batch_content_missing(common_dir: &Path, requests: &[&CommitRequest]) -> bool {
+    let names: Vec<&str> = requests
+        .iter()
+        .flat_map(|request| {
+            return request.changes.iter().filter_map(|change| { return change.blob.as_deref(); }).chain(request.tree.as_deref()).chain(request.commit.as_deref());
+        })
+        .collect();
+    let objects: std::path::PathBuf = common_dir.join("objects");
+    let is_loose = |name: &str| -> bool { return name.len() > 2 && objects.join(&name[..2]).join(&name[2..]).is_file(); };
+    let absent: Vec<&str> = names.into_iter().filter(|name| { return !is_loose(name); }).collect();
+    let Some(sample) = absent.first() else { return false };
+    let format: ObjectFormat = if sample.len() == ObjectFormat::Sha256.hex_length() { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
+    let Some(database) = ObjectDatabase::open(common_dir, None, format) else { return false };
+    return absent.iter().any(|name| { return from_hex(name.as_bytes(), format).is_some_and(|bytes| { return !database.contains(bytes.as_slice()); }); });
+}
+
+/// What:
 ///  Reaches a service-commit phase marker, numbering the files by how often this process reached the phase.
 /// Why:
 ///   A commit prepared again reaches each phase again, and a test that removes content at the phase must be able to answer

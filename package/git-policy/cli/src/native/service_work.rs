@@ -5,7 +5,8 @@
 //!  A commit must not wait for the network or for upkeep, so the wrapper leaves a record and the resident service does
 //!  the work on its own thread (`doc/planning/cli-git-resident-service.md`, "After-commit work"). The service is the
 //!  only pusher of the repositories it serves, so no lock is needed: several pending pushes of one branch become one
-//!  push, and a service that died mid-push is noticed by the claim's lease, never by a process id. Other kinds of work
+//!  push, and a service that died mid-push is noticed by its successor's first drain, which takes back every claim it finds,
+//!  never by a process id. Other kinds of work
 //!  (the standards review) are never claimed here.
 //!
 //! In TS you'd write (pseudocode):
@@ -23,16 +24,12 @@ use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
 use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
-use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_expired, settle};
+use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_claimed, settle};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 /// The kinds of work the service runs itself.
 pub const SERVICE_KINDS: [WorkKind; 3] = [WorkKind::Push, WorkKind::Maintenance, WorkKind::Review];
-
-/// How long a claim stands before it is taken back: longer than a push's whole budget, so a push that is merely slow is
-///  never run twice at once.
-pub const LEASE: Duration = Duration::from_secs(30 * 60);
 
 /// How many times an item is tried before it is given up on.
 pub const MAX_TRIES: u32 = 3;
@@ -60,8 +57,8 @@ pub trait WorkHandlers {
 }
 
 /// The work directory of a repository.
-pub fn work_directory(common_dir: &Path) -> PathBuf {
-    return common_dir.join(WORK_DIRECTORY);
+pub fn work_directory(git_dir: &Path) -> PathBuf {
+    return git_dir.join(WORK_DIRECTORY);
 }
 
 /// What:
@@ -72,12 +69,12 @@ pub fn work_directory(common_dir: &Path) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isAcceptable(item, commonDir)
+/// isAcceptable(item, gitDir)
 /// ```
-pub fn is_acceptable(item: &WorkItem, common_dir: &Path) -> bool {
+pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
     return Path::new(item.repository.as_str()).is_absolute()
         && Path::new(item.repository.as_str()).is_dir()
-        && Path::new(item.git_dir.as_str()) == common_dir
+        && Path::new(item.git_dir.as_str()) == git_dir
         && item.branch_ref.starts_with("refs/")
         && !item.branch_ref.contains(['\0', '\n', ' '])
         && item.oid.len() >= 40
@@ -93,7 +90,7 @@ fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &st
 }
 
 /// What:
-///  Runs everything pending for one repository: takes back expired claims, claims every pending push and maintenance
+///  Runs everything pending for one repository: takes back the claims an earlier service left, claims every pending push and maintenance
 ///  item, runs one push per branch and one upkeep per repository, settles the items, and leaves a notice for each
 ///  failed push.
 /// Why:
@@ -101,11 +98,14 @@ fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &st
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drain(commonDir, handlers, new Date())
+/// await drain(gitDir, handlers, new Date())
 /// ```
-pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
-    let work_dir: PathBuf = work_directory(common_dir);
-    let _requeued = requeue_expired(work_dir.as_path(), now, LEASE, MAX_TRIES);
+pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+    let work_dir: PathBuf = work_directory(git_dir);
+    // This thread claims nothing before this line, and the manager runs one service at a time, so a claim found here was
+    //  left by a service that died or was asked to retire in the middle of a push. Waiting out a lease would leave its work
+    //  stranded for the lease's length; each such death costs the item one try.
+    let _requeued = requeue_claimed(work_dir.as_path(), MAX_TRIES);
     loop {
         let mut claimed: Vec<super::work_item::Claimed> = Vec::new();
         loop {
@@ -121,7 +121,7 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
         if claimed.is_empty() {
             return;
         }
-        let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, common_dir); });
+        let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, git_dir); });
         settle_all(work_dir.as_path(), &refused, FAILED);
         let (pushes, rest): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
         let (reviews, upkeep): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
@@ -140,14 +140,14 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
                     // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
                     if let Some(newest) = members.last() {
-                        clear_push_failures(common_dir, newest.item.branch_ref.as_str());
+                        clear_push_failures(git_dir, newest.item.branch_ref.as_str());
                     }
                     settle_all(work_dir.as_path(), &members, DONE);
                 }
                 Verdict::Failed(text) => {
                     // The record goes before the items settle, so an item in `failed` always has its record.
                     if let Some(newest) = members.last()
-                        && let Err(reason) = record_push_failure(common_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
+                        && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
                     {
                         eprintln!("cli-git-service: the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
@@ -237,17 +237,17 @@ impl GitHandlers {
     }
 
     /// Keep the credential for the reviews of this repository until `forget_review_key`.
-    pub fn remember_review_key(&self, common_dir: &Path, key: ReviewKey) {
-        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(common_dir.to_path_buf(), key);
+    pub fn remember_review_key(&self, git_dir: &Path, key: ReviewKey) {
+        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(git_dir.to_path_buf(), key);
     }
 
     /// Drop the credential of this repository.
-    pub fn forget_review_key(&self, common_dir: &Path) {
-        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(common_dir);
+    pub fn forget_review_key(&self, git_dir: &Path) {
+        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(git_dir);
     }
 
-    fn review_key_of(&self, common_dir: &Path) -> Option<ReviewKey> {
-        return self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(common_dir).cloned();
+    fn review_key_of(&self, git_dir: &Path) -> Option<ReviewKey> {
+        return self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(git_dir).cloned();
     }
 
     fn push_git(&self, item: &WorkItem) -> PushGit {
@@ -267,7 +267,7 @@ impl WorkHandlers for GitHandlers {
         let Some(newest) = items.last() else { return Verdict::Done };
         let git: PushGit = self.push_git(newest);
         let mut output: Vec<u8> = Vec::new();
-        return match push_once(&git, newest.oid.as_str(), &mut output) {
+        return match push_once(&git, newest.branch_ref.as_str(), newest.oid.as_str(), &mut output) {
             Ok(result) if result.exit_code == 0 => Verdict::Done,
             Ok(result) => Verdict::Failed(result.shown),
             Err(error) => Verdict::Failed(format!("{error}")),

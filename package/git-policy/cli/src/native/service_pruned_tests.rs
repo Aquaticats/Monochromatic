@@ -27,6 +27,7 @@ fn request(blob: &str) -> CommitRequest {
         id: String::from("x"),
         repository: PathBuf::from("/nowhere"),
         common_dir: PathBuf::from("/nowhere/.git"),
+        git_dir: PathBuf::from("/nowhere/.git"),
         reference: String::from("refs/heads/main"),
         base: NAME.to_string(),
         changes: vec![Change { path: String::from("a.txt"), mode: ALLOWED_MODES[0], blob: Some(blob.to_string()) }],

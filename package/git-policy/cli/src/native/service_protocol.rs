@@ -13,7 +13,7 @@
 
 use serde_json::{Map, Value};
 use super::service_review_key::ReviewKey;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
 pub const PROTOCOL_VERSION: u32 = 5;
@@ -89,8 +89,11 @@ pub struct CommitRequest {
     pub id: String,
     /// Worktree root whose index is updated.
     pub repository: PathBuf,
-    /// Common git directory shared by the worktrees; the queue key.
+    /// Common git directory shared by the worktrees.
     pub common_dir: PathBuf,
+    /// The worktree's own Git directory (`.git` of the main worktree, `.git/worktrees/<id>` of a linked one): the key of the
+    ///  service instance that lands the commit, which refuses a request that names another worktree's.
+    pub git_dir: PathBuf,
     /// Full name of the branch the commit goes on.
     pub reference: String,
     /// The commit the client prepared against.
@@ -201,10 +204,18 @@ pub enum ClientMessage {
     Commit(Box<CommitRequest>),
     /// Finish the queue and exit, so the manager starts the current binary.
     Retire,
+    /// The sender keeps this scratch directory of a commit in preparation for as long as the connection stays open; the
+    ///  service removes the directory when the connection closes, whatever closed it.
+    Scratch {
+        /// The worktree's own Git directory, which holds the directory and names the instance that removes it.
+        git_dir: PathBuf,
+        /// The scratch directory (`cli-git-service-<id>` in a Git directory of that repository).
+        path: PathBuf,
+    },
     /// Work items were written for this repository; run what is pending.
     Work {
-        /// The repository's common Git directory, which holds the work directory.
-        common_dir: PathBuf,
+        /// The worktree's own Git directory, which holds the work directory.
+        git_dir: PathBuf,
         /// The gateway credential for the standards review of the commits this message announces. It lives only in this
         /// message and in the service's memory, never in a work item or on disk.
         review_key: Option<ReviewKey>,
@@ -248,6 +259,31 @@ pub fn is_plain_path(path: &str) -> bool {
         && path.split('/').all(|part| { return !part.is_empty() && part != "." && part != ".." && part != ".git"; });
 }
 
+/// The name prefix of a commit's scratch directory.
+pub const SCRATCH_PREFIX: &str = "cli-git-service-";
+
+/// What:
+///  Whether `path` is the scratch directory of a commit in the worktree whose own Git directory is `git_dir`.
+/// Why:
+///   The service removes whatever a client names when the client's connection closes, so the name must be one only the
+///  wrapper makes (the prefix and an identity of letters, digits and dashes) and the place must be directly inside the
+///  worktree's own Git directory, with no relative part that could lead elsewhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isScratchPath(path, gitDir)
+/// ```
+pub fn is_scratch_path(path: &Path, git_dir: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|name| { return name.to_str(); }) else { return false };
+    let identity: &str = name.strip_prefix(SCRATCH_PREFIX).unwrap_or("");
+    return git_dir.is_absolute()
+        && path.parent() == Some(git_dir)
+        && !identity.is_empty()
+        && identity.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
+        && git_dir.components().all(|part| { return !matches!(part, std::path::Component::ParentDir | std::path::Component::CurDir); })
+        && !path.to_string_lossy().contains('\0');
+}
+
 /// One JSON object, written on one line from its entries.
 fn object(entries: Vec<(&str, Value)>) -> String {
     let mut map: Map<String, Value> = Map::new();
@@ -284,11 +320,17 @@ pub fn encode_retire(version: u32) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => encode_retire(PROTOCOL_VERSION),
-        ClientMessage::Work { common_dir, review_key } => {
+        ClientMessage::Scratch { git_dir, path } => object(vec![
+            ("type", Value::from("scratch")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
+            ("path", Value::from(path.to_string_lossy().as_ref())),
+        ]),
+        ClientMessage::Work { git_dir, review_key } => {
             let mut entries: Vec<(&str, Value)> = vec![
                 ("type", Value::from("work")),
                 ("version", Value::from(PROTOCOL_VERSION)),
-                ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
+                ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
             ];
             if let Some(key) = review_key {
                 entries.push(("reviewKey", Value::from(key.expose())));
@@ -301,6 +343,7 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("id", Value::from(request.id.as_str())),
             ("repository", Value::from(request.repository.to_string_lossy().as_ref())),
             ("commonDir", Value::from(request.common_dir.to_string_lossy().as_ref())),
+            ("gitDir", Value::from(request.git_dir.to_string_lossy().as_ref())),
             ("reference", Value::from(request.reference.as_str())),
             ("base", Value::from(request.base.as_str())),
             (
@@ -365,9 +408,17 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     match field(&value, "type")? {
         "retire" => return Ok(ClientMessage::Retire),
+        "scratch" => {
+            let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
+            let path: PathBuf = PathBuf::from(field(&value, "path")?);
+            if !is_scratch_path(path.as_path(), git_dir.as_path()) {
+                return Err(String::from("scratch directory is not acceptable"));
+            }
+            return Ok(ClientMessage::Scratch { git_dir, path });
+        }
         "work" => {
-            let common_dir: PathBuf = PathBuf::from(field(&value, "commonDir")?);
-            if !common_dir.is_absolute() || common_dir.to_string_lossy().contains('\0') {
+            let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
+            if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') {
                 return Err(String::from("work request is not acceptable"));
             }
             let review_key: Option<ReviewKey> = match value.get("reviewKey") {
@@ -375,7 +426,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 Some(Value::String(text)) => ReviewKey::new(text.as_str()),
                 Some(_) => return Err(String::from("work request is not acceptable")),
             };
-            return Ok(ClientMessage::Work { common_dir, review_key });
+            return Ok(ClientMessage::Work { git_dir, review_key });
         }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
@@ -398,6 +449,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         id: field(&value, "id")?.to_string(),
         repository: PathBuf::from(field(&value, "repository")?),
         common_dir: PathBuf::from(field(&value, "commonDir")?),
+        git_dir: PathBuf::from(field(&value, "gitDir")?),
         reference: field(&value, "reference")?.to_string(),
         base: field(&value, "base")?.to_string(),
         changes,
@@ -428,6 +480,8 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && (!is_zero_object(&request.base) || request.commit.is_some())
         && request.repository.is_absolute()
         && request.common_dir.is_absolute()
+        && request.git_dir.is_absolute()
+        && !request.git_dir.to_string_lossy().contains('\0')
         && request.index.is_absolute()
         && !request.index.to_string_lossy().contains('\0')
         && !request.committer.contains(['\0', '\n'])

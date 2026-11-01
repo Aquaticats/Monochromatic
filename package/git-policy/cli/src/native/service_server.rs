@@ -14,7 +14,9 @@
 
 use super::service_journal::landed_commits;
 use super::service_index_lock::Announce;
-use super::service_land::{LandContext, Outcome, land_batch_announcing, recover};
+use super::service_land::{LandContext, Outcome, land_batch_announcing, recover, recover_instance};
+use super::private_storage::remove_tree;
+use super::service_instance::instance_of;
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -48,12 +50,15 @@ pub struct ServeSettings {
     /// The release the service announces to every client. It is this build's release (`RELEASE`) except in a test that
     ///  needs a service of another release.
     pub release: String,
+    /// The worktree this instance serves, as `service_instance::instance_of` names it; every message about another worktree
+    ///  is refused. Nothing in a development run that serves any worktree.
+    pub instance: Option<String>,
 }
 
 impl ServeSettings {
     /// The settings of an ordinary run: the given idle exit and this build's release.
     pub fn new(idle: Duration) -> Self {
-        return Self { idle, release: String::from(RELEASE) };
+        return Self { idle, release: String::from(RELEASE), instance: None };
     }
 }
 
@@ -87,7 +92,7 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
         }
         #[cfg(not(target_os = "linux"))]
         Bind::Abstract(_) => Err(std::io::Error::other("abstract sockets need Linux")),
-        Bind::Path(path) => UnixListener::bind(path),
+        Bind::Path(path) => bind_path(path),
         Bind::Inherited => {
             use std::os::fd::FromRawFd;
             let announced_for: bool = std::env::var("LISTEN_PID").is_ok_and(|pid| { return pid == std::process::id().to_string(); });
@@ -99,6 +104,34 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
             Ok(unsafe { UnixListener::from_raw_fd(INHERITED_DESCRIPTOR) })
         }
     };
+}
+
+/// What:
+///  Binds a socket file, taking over one that no service listens on.
+/// Why:
+///   A service that was killed leaves its socket file behind, and the next bind of the same path then fails with
+///  "Address already in use" although nothing answers there. Only a socket that refuses a connection is replaced: one that
+///  answers belongs to a running service, and any other file is the person's. Two services started on one path at the same
+///  moment are the caller's to avoid (the service manager's socket, which production uses, never comes here).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return listen(path) } catch (inUse) { if (await refusesConnections(path)) { unlink(path); return listen(path) } throw inUse }
+/// ```
+fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener> {
+    use std::os::unix::fs::FileTypeExt;
+    let first: std::io::Error = match UnixListener::bind(path) {
+        Ok(listener) => return Ok(listener),
+        Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => error,
+        Err(error) => return Err(error),
+    };
+    let is_socket: bool = std::fs::symlink_metadata(path).is_ok_and(|meta| { return meta.file_type().is_socket(); });
+    let refused: bool = matches!(UnixStream::connect(path), Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused);
+    if !is_socket || !refused {
+        return Err(first);
+    }
+    std::fs::remove_file(path)?;
+    return UnixListener::bind(path);
 }
 
 /// The user id of the process on the other end of a connection.
@@ -118,6 +151,21 @@ enum Job {
     Retire,
     /// After-commit work was announced; it only restarts the idle clock.
     Activity,
+    /// A client that held a commit's scratch directory is gone; the directory is removed between batches, never during a
+    ///  landing that may read it.
+    Release(std::path::PathBuf),
+}
+
+/// Returns when the other end of the connection has closed it, or the connection failed. Anything the client sends is ignored.
+fn wait_for_close(stream: &UnixStream) {
+    let mut sink: [u8; 64] = [0; 64];
+    let mut reader = stream;
+    loop {
+        match reader.read(&mut sink) {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {}
+        }
+    }
 }
 
 fn send(stream: &UnixStream, message: &ServiceMessage) {
@@ -128,7 +176,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, release: &str) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, busy: &AtomicUsize, release: &str, instance: Option<&str>) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(release.to_string()) });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -146,15 +194,35 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
         // A connection that only looked (a readiness probe) sends nothing and is not an error.
         return;
     }
+    // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
+    //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
+    let foreign = |git_dir: &std::path::Path| -> bool { return instance.is_some_and(|mine| { return instance_of(git_dir) != mine; }); };
     match decode_client(line.trim_end_matches('\n')) {
+        Ok(ClientMessage::Commit(request)) if foreign(request.git_dir.as_path()) => {
+            eprintln!("cli-git-service: refused a commit for {}, which another instance serves", request.git_dir.display());
+            send(&stream, &ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::Rejected });
+        }
+        Ok(ClientMessage::Scratch { git_dir, .. } | ClientMessage::Work { git_dir, .. }) if foreign(git_dir.as_path()) => {
+            eprintln!("cli-git-service: refused a message for {}, which another instance serves", git_dir.display());
+            send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected });
+        }
         Ok(ClientMessage::Commit(request)) => {
             let _queued = queue.send(Job::Commit(request, stream));
         }
         Ok(ClientMessage::Retire) => {
             let _queued = queue.send(Job::Retire);
         }
-        Ok(ClientMessage::Work { common_dir, review_key }) => {
-            let _queued = work.send((common_dir, review_key));
+        Ok(ClientMessage::Scratch { git_dir, path }) => {
+            // The connection is the client's claim on the directory. While it is open the service is not idle, and when it
+            //  closes, by the client's end or its death, the directory is no one's.
+            busy.fetch_add(1, Ordering::SeqCst);
+            wait_for_close(&stream);
+            busy.fetch_sub(1, Ordering::SeqCst);
+            let _unused = git_dir;
+            let _queued = queue.send(Job::Release(path));
+        }
+        Ok(ClientMessage::Work { git_dir, review_key }) => {
+            let _queued = work.send((git_dir, review_key));
             let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
@@ -164,8 +232,16 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
     }
 }
 
+/// Finishes the open batches this instance owns: those of its worktree when it serves one, all of them in a development run.
+fn settle_open_batches(context: &LandContext, instance: Option<&str>) -> Vec<super::service_land::RecoveryReport> {
+    return match instance {
+        Some(mine) => recover_instance(context, mine),
+        None => recover(context),
+    };
+}
+
 /// Lands one group of jobs that share a branch, and answers each client.
-fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitRequest>, UnixStream)>, landed: &mut HashMap<String, String>) {
+fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<(Box<CommitRequest>, UnixStream)>, landed: &mut HashMap<String, String>) {
     let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _)| { return landed.contains_key(&request.id); });
     for (request, stream) in again {
         send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
@@ -180,7 +256,7 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
-    let _settled = recover(context);
+    let _settled = settle_open_batches(context, instance);
     *seq += 1;
     for (index, (_, stream)) in fresh.iter().enumerate().skip(1) {
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
@@ -257,7 +333,7 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
 /// ```
 pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
     let idle: Duration = settings.idle;
-    let _reports = recover(context);
+    let _reports = settle_open_batches(context, settings.instance.as_deref());
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
@@ -268,15 +344,20 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     let announced_release: String = settings.release.clone();
+    let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
+    let instance: Option<String> = settings.instance.clone();
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
             let release: String = announced_release.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work, release.as_str()); });
+            let counted: Arc<AtomicUsize> = Arc::clone(&connection_busy);
+            let mine: Option<String> = instance.clone();
+            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str(), mine.as_deref()); });
         }
     });
-    let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });
+    // Microseconds, so that instances started at nearly the same time do not number their batches alike in a shared journal.
+    let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_micros()).unwrap_or(1); });
     let mut retiring: bool = false;
     while !retiring {
         let first: Job = match receiver.recv_timeout(idle) {
@@ -294,10 +375,12 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
         }
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<((std::path::PathBuf, String, bool), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
+        let mut releases: Vec<std::path::PathBuf> = Vec::new();
         for job in jobs {
             match job {
                 Job::Retire => retiring = true,
                 Job::Activity => {}
+                Job::Release(path) => releases.push(path),
                 Job::Commit(request, stream) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
@@ -317,7 +400,17 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             }
         }
         for (_, group) in groups {
-            land_group(context, &mut seq, group, &mut landed);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed);
+        }
+        for path in releases {
+            if let Err(error) = remove_tree(path.as_path()) {
+                eprintln!("cli-git-service: the scratch directory {} could not be removed: {error}", path.display());
+            }
         }
     }
 }
+
+/// Socket controls stay out of the release executable.
+#[cfg(test)]
+#[path = "service_server_tests.rs"]
+mod tests;

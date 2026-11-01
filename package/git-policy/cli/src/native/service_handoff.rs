@@ -29,8 +29,8 @@ pub struct ServiceHandoff {
     pub config: ClientConfig,
     /// The worktree root.
     pub repository: PathBuf,
-    /// The common Git directory.
-    pub common_dir: PathBuf,
+    /// The worktree's own Git directory, which holds the work records and names the service instance.
+    pub git_dir: PathBuf,
     /// The branch the commit went to.
     pub reference: String,
     /// The branch value the commit was made on.
@@ -67,14 +67,14 @@ pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write
 /// await handOverWithKey(handoff, landed, key)
 /// ```
 pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let work_dir: PathBuf = work_directory(handoff.common_dir.as_path());
+    let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
     let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
     for kind in HANDED_OVER.iter().chain(review.iter()).copied() {
         let item: WorkItem = WorkItem {
             kind,
             repository: handoff.repository.display().to_string(),
-            git_dir: handoff.common_dir.display().to_string(),
+            git_dir: handoff.git_dir.display().to_string(),
             branch_ref: handoff.reference.clone(),
             oid: landed.to_string(),
             parent: handoff.parent.clone(),
@@ -83,7 +83,7 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
         };
         enqueue(work_dir.as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
     }
-    return wake(&handoff.config, handoff.common_dir.as_path(), review_key, notices);
+    return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices);
 }
 
 /// Handoff controls stay out of the release executable.

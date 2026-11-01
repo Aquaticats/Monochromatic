@@ -15,6 +15,11 @@ export type ScenarioService = Readonly<{
    */
   runtime: string;
   /**
+   Starts the service of the worktree whose own Git directory is given, the one instance this scenario's commands go to, and
+   waits until it listens.
+   */
+  bind: (worktree: Readonly<{ gitDir: string; }>) => Promise<void>;
+  /**
    Process ID of the running service.
    */
   pid: () => number;
@@ -41,7 +46,7 @@ export type ScenarioService = Readonly<{
   kill: () => Promise<void>;
   /**
    Starts a service after the previous one ended, the way the service manager restarts a crashed unit:
-   the stale socket file is removed first, because the service itself does not replace one.
+   the dead service's socket file stays, and the new service takes it over.
    The new process is clean unless a fault point arms it.
    */
   restart: (fault?: string) => Promise<void>;

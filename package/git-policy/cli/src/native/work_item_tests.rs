@@ -132,6 +132,26 @@ fn expired_leases_requeue_and_then_fail() {
     remove(directory.as_path());
 }
 
+/// Every claim returns to pending whatever its age, with one more try each time, and to failed at the limit.
+#[test]
+fn every_claim_is_requeued_whatever_its_age_and_fails_at_the_limit() {
+    let directory: PathBuf = fixture("work-requeue-claimed");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    enqueue(work.as_path(), &item(WorkKind::Review, "ccc")).expect("enqueue");
+    let now: SystemTime = SystemTime::now();
+    let held: Claimed = claim_next(work.as_path(), now).expect("claim").expect("item");
+    for attempt in 1..=MAX_TRIES {
+        assert_eq!(requeue_claimed(work.as_path(), MAX_TRIES), 1, "a claim stamped this instant is still returned");
+        if attempt < MAX_TRIES {
+            let again: Claimed = claim_next(work.as_path(), now).expect("claim").expect("requeued item");
+            assert_eq!(again.item.tries, attempt);
+        }
+    }
+    assert_eq!(names(work.as_path(), FAILED), vec![held.id]);
+    assert_eq!(requeue_claimed(work.as_path(), MAX_TRIES), 0, "nothing is left to return");
+    remove(directory.as_path());
+}
+
 /// The oldest pending item's age is what the wrapper's notice is based on; an empty queue has none.
 #[test]
 fn the_oldest_pending_age_is_measured_from_the_oldest_item() {

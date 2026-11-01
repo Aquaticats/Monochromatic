@@ -35,6 +35,7 @@ fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest 
         id: String::from(id),
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
+        git_dir: world.repo.join(".git"),
         reference: String::from("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: String::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
@@ -340,7 +341,8 @@ fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
 }
 
 /// The service lands only what the request's rule allows: a commit made on other parents, a name that is not a commit, a
-///  name that is not in the store, and an amend whose parents are not the replaced commit's are all refused untouched.
+///  and an amend whose parents are not the replaced commit's are all refused untouched. A name that is not in the store is
+///  content a prune took, which `a_built_commit_that_was_pruned_is_unavailable_not_refused` covers.
 #[test]
 fn a_commit_git_built_is_checked_before_the_branch_moves() {
     let world: World = world("service-land-built-checked");
@@ -351,11 +353,9 @@ fn a_commit_git_built_is_checked_before_the_branch_moves() {
     on_other_parents.base = second.clone();
     let mut not_a_commit: CommitRequest = built_request(&world, "tree", "tree.txt", &[second.as_str()]);
     not_a_commit.commit = Some(git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]));
-    let mut absent: CommitRequest = built_request(&world, "absent", "absent.txt", &[second.as_str()]);
-    absent.commit = Some("1".repeat(40));
     let mut wrong_amend: CommitRequest = built_request(&world, "amend", "amend.txt", &[second.as_str()]);
     wrong_amend.amend = true;
-    for (label, refused) in [("other parents", on_other_parents), ("a tree", not_a_commit), ("an absent name", absent), ("an amend on the base itself", wrong_amend)] {
+    for (label, refused) in [("other parents", on_other_parents), ("a tree", not_a_commit), ("an amend on the base itself", wrong_amend)] {
         assert_eq!(land_batch(&world.context, 1, &[refused]), Err(FailureCode::Rejected), "{label}");
         assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), second, "{label}: the branch did not move");
     }
@@ -495,6 +495,8 @@ fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_t
     let mut with_parent: CommitRequest = first.clone();
     with_parent.id = String::from("parent");
     with_parent.commit = built_request(&world, "child", "child.txt", &[commit.as_str()]).commit;
+    // The worktree is on the branch that does not exist yet, as it is after `git switch --orphan` or in a new repository.
+    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/fresh"]);
     assert_eq!(land_batch(&world.context, 1, &[with_parent]), Err(FailureCode::Rejected), "a root commit has no parent");
     assert_eq!(land_batch(&world.context, 2, &[first]).expect("landed"), vec![Outcome::Landed { commit: commit.clone() }]);
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/fresh"]), commit);
@@ -522,5 +524,182 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
     assert!(!git_output(world.repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]).status.success(), "the head is still detached");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base);
+    remove(world.root.as_path());
+}
+
+/// What a landing leaves of the index lock, and of the branch and the index, after it refused: nothing at all.
+fn assert_nothing_changed(world: &World, branch: &str, expected_tip: &str, index_before: &[u8], what: &str) {
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", branch]), expected_tip, "{what}: the branch did not move");
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), index_before, "{what}: the index is as it was");
+    assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
+}
+
+/// A commit prepared on a branch is not landed once the worktree's head names another branch: the branch, the index and the
+///  other branch stay as they are, and every request of the batch is told the branch moved.
+#[test]
+fn a_commit_is_not_landed_once_the_worktree_switched_to_another_branch() {
+    let world: World = world("service-land-switched");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "--create", "side"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=side work"]);
+    let side_tip: String = git_text(world.repo.as_path(), &["rev-parse", "side"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let batch: Vec<CommitRequest> = ["one", "two"].iter().map(|id| { return request(&world, id, format!("{id}.txt").as_str(), "x\n"); }).collect();
+    git(world.repo.as_path(), &["switch", "--quiet", "--force", "side"]);
+    let index_before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    let outcomes = land_batch(&world.context, 1, &batch).expect("answered");
+    assert_eq!(outcomes, vec![Outcome::BranchMoved, Outcome::BranchMoved], "each request is answered");
+    assert_nothing_changed(&world, "main", base.as_str(), index_before.as_slice(), "main");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "side"]), side_tip, "the branch switched to did not move");
+    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/side");
+    remove(world.root.as_path());
+}
+
+/// A worktree whose head went back to the branch lands the commit: the check refuses a switch, not a branch.
+#[test]
+fn a_commit_lands_when_the_worktree_is_on_its_branch() {
+    let world: World = world("service-land-on-branch");
+    git(world.repo.as_path(), &["branch", "side"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "side"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let sent: CommitRequest = request(&world, "back", "back.txt", "x\n");
+    let outcomes = land_batch(&world.context, 1, &[sent]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    remove(world.root.as_path());
+}
+
+/// A linked worktree keeps its head in its own Git directory: a switch there is found, and a worktree still on its branch lands.
+#[test]
+fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
+    let world: World = world("service-land-linked");
+    let linked: PathBuf = world.root.join("linked");
+    git(world.repo.as_path(), &["worktree", "add", "--quiet", "-b", "wt", linked.to_str().expect("UTF-8")]);
+    git(world.repo.as_path(), &["branch", "other"]);
+    let git_dir: PathBuf = world.repo.join(".git/worktrees/linked");
+    let linked_request = |id: &str| -> CommitRequest {
+        std::fs::write(linked.join(format!("{id}.txt")), "x\n").expect("write");
+        let blob: String = git_text(linked.as_path(), &["hash-object", "-w", "--", format!("{id}.txt").as_str()]);
+        return CommitRequest {
+            repository: linked.clone(),
+            reference: String::from("refs/heads/wt"),
+            base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
+            changes: vec![Change { path: format!("{id}.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+            git_dir: git_dir.clone(),
+            index: git_dir.join("index"),
+            ..request(&world, id, "unused.txt", "x\n")
+        };
+    };
+    let on_branch: CommitRequest = linked_request("kept");
+    let outcomes = land_batch(&world.context, 1, &[on_branch]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    let switched: CommitRequest = linked_request("lost");
+    let wt_tip: String = git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]);
+    git(linked.as_path(), &["switch", "--quiet", "--force", "other"]);
+    let refused = land_batch(&world.context, 2, &[switched]).expect("answered");
+    assert_eq!(refused, vec![Outcome::BranchMoved]);
+    assert_eq!(git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]), wt_tip, "the linked worktree's branch did not move");
+    remove(world.root.as_path());
+}
+
+/// A repository that keeps its references in reftable tables has only a placeholder in `HEAD`, and the switch is found anyway.
+#[test]
+fn a_switch_is_found_in_a_reftable_repository() {
+    let root: PathBuf = fixture("service-land-reftable");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--ref-format=reftable"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir(&journal).expect("journal");
+    let world: World = World {
+        root: root.clone(),
+        repo: repo.clone(),
+        context: LandContext { git: git_context(), journal, on_objects_written: None, index_wait: std::time::Duration::from_secs(5) },
+    };
+    git(repo.as_path(), &["branch", "side"]);
+    let on_branch: CommitRequest = request(&world, "kept", "kept.txt", "x\n");
+    let outcomes = land_batch(&world.context, 1, &[on_branch]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    let switched: CommitRequest = request(&world, "lost", "lost.txt", "x\n");
+    let tip: String = git_text(repo.as_path(), &["rev-parse", "main"]);
+    git(repo.as_path(), &["switch", "--quiet", "--force", "side"]);
+    let refused = land_batch(&world.context, 2, &[switched]).expect("answered");
+    assert_eq!(refused, vec![Outcome::BranchMoved]);
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "main"]), tip, "the branch did not move");
+    remove(root.as_path());
+}
+
+/// Removes the unreferenced objects the way `git gc --prune=now` does, between a request's preparation and its landing.
+fn prune_now(world: &World) {
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+}
+
+/// What a landing that found the prepared content gone leaves of the repository: the branch where it was, no index lock, and
+///  no crash report of the program that imports the objects.
+fn assert_refused_cleanly(world: &World, base: &str, what: &str) {
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base, "{what}: the branch did not move");
+    assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
+    let reports: Vec<String> = std::fs::read_dir(world.repo.join(".git"))
+        .expect("git directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name.starts_with("fast_import_crash"); })
+        .collect();
+    assert!(reports.is_empty(), "{what}: left {reports:?}");
+}
+
+/// A blob the request names that `git gc --prune=now` removed after the preparation is found before anything is imported, and
+///  the landing answers that it could not be done, so the client prepares the commit again.
+#[test]
+fn a_request_whose_blob_was_pruned_is_refused_before_anything_is_imported() {
+    let world: World = world("service-land-pruned-blob");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let sent: CommitRequest = request(&world, "pruned", "pruned.txt", "x\n");
+    prune_now(&world);
+    assert_eq!(land_batch(&world.context, 1, &[sent]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "blob");
+    remove(world.root.as_path());
+}
+
+/// An amend whose tree was removed is refused the same way.
+#[test]
+fn an_amend_whose_tree_was_pruned_is_refused_before_anything_is_imported() {
+    let world: World = world("service-land-pruned-tree");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut amend: CommitRequest = request(&world, "amend", "amend.txt", "x\n");
+    git(world.repo.as_path(), &["add", "--", "amend.txt"]);
+    amend.tree = Some(git_text(world.repo.as_path(), &["write-tree"]));
+    git(world.repo.as_path(), &["reset", "--quiet"]);
+    amend.amend = true;
+    amend.changes = Vec::new();
+    prune_now(&world);
+    assert_eq!(land_batch(&world.context, 1, &[amend]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "tree");
+    remove(world.root.as_path());
+}
+
+/// A commit Git built that was removed whole is the removal of prepared content, not a request the service refuses as unsafe.
+#[test]
+fn a_built_commit_that_was_pruned_is_unavailable_not_refused() {
+    let world: World = world("service-land-pruned-commit");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    prune_now(&world);
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "commit");
+    remove(world.root.as_path());
+}
+
+/// A commit Git built whose commit object survived but whose blob did not (a prune that was still deleting) is never put on the
+///  branch: Git moves a branch to a commit without looking at what the commit holds.
+#[test]
+fn a_built_commit_with_a_missing_blob_is_never_put_on_the_branch() {
+    let world: World = world("service-land-partly-pruned");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let blob: String = git_text(world.repo.as_path(), &["rev-parse", "--verify", format!("{}:typed.txt", built.commit.clone().unwrap_or_default()).as_str()]);
+    std::fs::remove_file(world.repo.join(".git/objects").join(&blob[..2]).join(&blob[2..])).expect("the blob is loose");
+    assert_eq!(land_batch(&world.context, 1, &[built]), Err(FailureCode::Unavailable));
+    assert_refused_cleanly(&world, base.as_str(), "partial");
     remove(world.root.as_path());
 }

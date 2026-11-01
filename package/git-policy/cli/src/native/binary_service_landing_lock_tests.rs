@@ -31,7 +31,8 @@ impl Drop for Held {
 /// A service that waits `limit` seconds for a foreign index lock, as the unit file's environment would say.
 fn service_with_limit(fixture: &Fixture, name: &str, limit: &str) -> Held {
     let runtime: PathBuf = runtime_for(name);
-    let socket: PathBuf = runtime.join(git_policy_cli::service_route::SOCKET_RELATIVE);
+    let git_dir: PathBuf = fixture.root.join("repo/.git");
+    let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir.as_path());
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let child: Child = Command::new(SERVICE)
         .args(["--journal"])

@@ -28,6 +28,23 @@ impl Manager for Recorder {
         self.calls.lock().expect("lock").push(format!("start {unit}"));
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
+
+    fn stop(&mut self, unit: &str) -> Result<(), CallError> {
+        self.calls.lock().expect("lock").push(format!("stop {unit}"));
+        return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
+    }
+}
+
+/// The instance the fixture machine's worktree has.
+const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
+
+/// The units of the instance, as the manager is asked about them.
+fn instance_socket() -> String {
+    return socket_unit_instance(INSTANCE);
+}
+
+fn instance_service() -> String {
+    return service_unit_instance(INSTANCE);
 }
 
 impl Recorder {
@@ -49,6 +66,7 @@ fn machine(name: &str) -> Machine {
         bus: root.join("run/bus"),
         service_binary: root.join("programs/cli-git-service"),
         git: PathBuf::from("/usr/bin/git"),
+        instance: String::from(INSTANCE),
     };
     return Machine { root, host };
 }
@@ -66,11 +84,11 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     for (name, text) in unit_texts(&machine.host) {
         assert_eq!(written(&machine, name), text);
-        assert!(!text.contains('@'), "no placeholder is left in {name}");
+        assert!(!text.contains(BINARY_PLACEHOLDER) && !text.contains(GIT_PLACEHOLDER), "no placeholder is left in {name}");
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "{name} carries the marker");
     }
     assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
-    assert_eq!(recorder.calls(), vec![format!("start {SOCKET_UNIT_NAME}")]);
+    assert_eq!(recorder.calls(), vec![format!("start {}", instance_socket())]);
     remove(machine.root.as_path());
 }
 
@@ -88,7 +106,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
     provision_with(&machine.host, &mut second).expect("provisioned again");
     assert_eq!(
         second.calls(),
-        vec![format!("reset-failed {SERVICE_UNIT_NAME}"), format!("reset-failed {SOCKET_UNIT_NAME}"), format!("start {SOCKET_UNIT_NAME}")]
+        vec![format!("reset-failed {}", instance_service()), format!("reset-failed {}", instance_socket()), format!("start {}", instance_socket())]
     );
     let after: Vec<std::time::SystemTime> = [SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]
         .map(|name| { return std::fs::metadata(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name)).expect("unit").modified().expect("time"); })
@@ -99,7 +117,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
 
 /// The socket the units activate, as the manager would have made it.
 fn add_socket(machine: &Machine) {
-    let socket: PathBuf = machine.host.runtime_dir.join(SOCKET_RELATIVE);
+    let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
     std::fs::write(&socket, b"").expect("socket stand-in");
 }
@@ -140,9 +158,9 @@ fn a_unit_naming_a_removed_program_is_repaired_with_a_reload_and_a_reset() {
         recorder.calls(),
         vec![
             String::from("reload"),
-            format!("reset-failed {SERVICE_UNIT_NAME}"),
-            format!("reset-failed {SOCKET_UNIT_NAME}"),
-            format!("start {SOCKET_UNIT_NAME}")
+            format!("reset-failed {}", instance_service()),
+            format!("reset-failed {}", instance_socket()),
+            format!("start {}", instance_socket())
         ]
     );
     remove(machine.root.as_path());
@@ -205,25 +223,25 @@ fn earlier_units_are_removed_with_their_link() {
     let machine: Machine = machine("provision-earlier-lib");
     let directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
     std::fs::create_dir_all(directory.join("sockets.target.wants")).expect("directories");
-    std::fs::write(directory.join(SOCKET_UNIT_NAME), "[Unit]\nDescription=Commit service socket for the git wrapper\n").expect("earlier socket");
-    std::fs::write(directory.join(SERVICE_UNIT_NAME), "[Unit]\nDescription=Commit service for the git wrapper\n").expect("earlier service");
-    std::os::unix::fs::symlink("../cli-git.socket", directory.join("sockets.target.wants").join(SOCKET_UNIT_NAME)).expect("link");
+    std::fs::write(directory.join(LEGACY_SOCKET_UNIT_NAME), "[Unit]\nDescription=Commit service socket for the git wrapper\n").expect("earlier socket");
+    std::fs::write(directory.join(LEGACY_SERVICE_UNIT_NAME), "[Unit]\nDescription=Commit service for the git wrapper\n").expect("earlier service");
+    std::os::unix::fs::symlink("../cli-git.socket", directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).expect("link");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
-    assert!(!directory.join(SOCKET_UNIT_NAME).exists() && !directory.join(SERVICE_UNIT_NAME).exists());
-    assert!(std::fs::symlink_metadata(directory.join("sockets.target.wants").join(SOCKET_UNIT_NAME)).is_err());
+    assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
+    assert!(std::fs::symlink_metadata(directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).is_err());
     assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"));
     remove(machine.root.as_path());
 }
 
-/// A unit of the same name that something else wrote is never touched, nothing else is written, the manager is not asked,
+/// A unit of the earlier single service's name that something else wrote is never touched, nothing else is written, the manager is not asked,
 ///  and the failure names the file.
 #[test]
 fn a_foreign_unit_is_left_alone_and_named() {
     let machine: Machine = machine("provision-foreign-lib");
     let directory: PathBuf = machine.host.user_unit_dir.clone().expect("unit directory");
     std::fs::create_dir_all(&directory).expect("directory");
-    let foreign: PathBuf = directory.join(SERVICE_UNIT_NAME);
+    let foreign: PathBuf = directory.join(LEGACY_SERVICE_UNIT_NAME);
     std::fs::write(&foreign, "[Service]\nExecStart=/usr/bin/true\n").expect("foreign unit");
     let mut recorder: Recorder = Recorder::default();
     let failure: ClientFailure = provision_with(&machine.host, &mut recorder).expect_err("refused");
@@ -283,6 +301,47 @@ fn racing_first_commits_agree_without_a_lock() {
 /// The wrapper's own program name and the unit names agree with what the units say.
 #[test]
 fn the_unit_names_agree_with_the_templates() {
-    assert!(SERVICE_UNIT.contains(&format!("Requires={SOCKET_UNIT_NAME}")));
+    assert!(SERVICE_UNIT.contains(&format!("Requires={}", SOCKET_UNIT_NAME.replace('@', "@%i"))));
     assert!(SERVICE_UNIT.contains(BINARY_PLACEHOLDER) && SERVICE_UNIT.contains(GIT_PLACEHOLDER));
+}
+
+/// The single service of the earlier releases, which served every worktree, is retired by the first provisioning of the release
+///  that gives each worktree its own: its socket and service are stopped (socket first), its unit files and socket file are
+///  removed, the manager is reloaded, and the worktree's own instance is started. Nothing of it counts as in place.
+#[test]
+fn the_earlier_single_service_is_stopped_and_its_units_removed() {
+    let machine: Machine = machine("provision-retire-earlier-lib");
+    let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&directory).expect("unit directory");
+    for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
+        std::fs::write(directory.join(name), "# Written by the git wrapper for its commit service (cli-git-unit)\n[Unit]\n").expect("earlier unit");
+    }
+    let earlier_socket: PathBuf = machine.host.runtime_dir.join(LEGACY_SOCKET_RELATIVE);
+    std::fs::create_dir_all(earlier_socket.parent().expect("socket directory")).expect("directories");
+    std::fs::write(&earlier_socket, b"").expect("the earlier socket's file");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert_eq!(
+        recorder.calls(),
+        vec![format!("stop {LEGACY_SOCKET_UNIT_NAME}"), format!("stop {LEGACY_SERVICE_UNIT_NAME}"), String::from("reload"), format!("start {}", instance_socket())]
+    );
+    assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
+    assert!(!earlier_socket.exists(), "the earlier socket's file is gone");
+    add_socket(&machine);
+    assert!(in_place(&machine.host));
+    remove(machine.root.as_path());
+}
+
+/// Units of the earlier name that something else wrote are not the wrapper's to stop or remove.
+#[test]
+fn an_earlier_unit_the_wrapper_did_not_write_is_not_stopped() {
+    let machine: Machine = machine("provision-retire-foreign-lib");
+    let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+    std::fs::create_dir_all(&directory).expect("unit directory");
+    std::fs::write(directory.join(LEGACY_SERVICE_UNIT_NAME), "[Service]\nExecStart=/usr/bin/true\n").expect("someone's unit");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert!(!recorder.calls().iter().any(|call| { return call.starts_with("stop "); }), "{:?}", recorder.calls());
+    assert!(directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
+    remove(machine.root.as_path());
 }

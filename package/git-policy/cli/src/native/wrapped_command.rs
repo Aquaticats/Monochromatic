@@ -60,7 +60,7 @@ use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_pass::{PassResult, policies_of_kind, run_policy_pass};
 use super::policy_registry::PolicyId;
 use super::landed_summary::short_name;
-use super::push_failure_notice::{Worktrees, branch_of_head, checked_out_branches, is_machine_read, notice_directory, take_push_failures_for};
+use super::push_failure_notice::{is_machine_read, notice_directory, take_push_failures_for};
 use super::policy_trigger::Trigger;
 use super::rule_linked_worktree::{LinkedWorktreeDecision, decide_linked_worktree};
 use super::repository_facts::RepositoryFacts;
@@ -423,34 +423,31 @@ fn recover_before_read_only<F: RepositoryFacts>(
 ///  worktree, before the command runs.
 /// Why:
 ///   The service pushes after a commit returned, so the command that made the commit cannot print the failure; the next
-///  command in the worktree that has the commit's branch checked out does (in any worktree when none has it, so the
-///  failure is not lost). A command whose output a program reads shows nothing and takes
+///  command in the worktree whose commit it was does, because the records live under that worktree's own Git directory.
+///  A command whose output a program reads shows nothing and takes
 ///  nothing, and neither does a command run where the repository is not found without starting Git. When nothing
 ///  failed the check is one directory read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!isMachineRead(command)) for (const text of takePushFailures(commonDir)) stderr.write(text + '\n');
+/// if (!isMachineRead(command)) for (const text of takePushFailures(gitDir)) stderr.write(text + '\n');
 /// ```
 fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks: &mut ShippedChecks<F>) {
     if is_machine_read(command_word(stripped), command_region(stripped)) {
         return;
     }
-    let Some(common_dir) = checks.facts.known_common_dir() else { return };
-    // Nothing failed: one directory check, and no question about the worktrees.
-    if !notice_directory(common_dir.as_path()).is_dir() {
+    // The records are the worktree's own, so a notice shows in the worktree whose push failed.
+    let Some(git_dir) = checks.facts.known_git_dir() else { return };
+    // Nothing failed: one directory check, and no question to Git.
+    if !notice_directory(git_dir.as_path()).is_dir() {
         return;
     }
-    let worktrees: Worktrees = Worktrees {
-        here: checks.facts.known_git_dir().and_then(|git_dir| { return branch_of_head(git_dir.as_path()); }),
-        all: checked_out_branches(common_dir.as_path()),
-    };
     let context = checks.facts.transaction_context();
-    let cwd: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return common_dir.clone(); });
-    let objects: PathBuf = common_dir.join("objects");
+    let cwd: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return git_dir.clone(); });
+    let objects: PathBuf = checks.facts.known_common_dir().unwrap_or_else(|| { return git_dir.clone(); }).join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate = |commit: &str| -> String { return short_name(&context, cwd.as_path(), objects.as_path(), None, commit); };
-    for text in take_push_failures_for(common_dir.as_path(), Some(&worktrees), &abbreviate) {
+    for text in take_push_failures_for(git_dir.as_path(), None, &abbreviate) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{text}");
     }

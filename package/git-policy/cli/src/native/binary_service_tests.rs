@@ -96,6 +96,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         id: id.to_string(),
         repository: repo.to_path_buf(),
         common_dir: repo.join(".git"),
+        git_dir: repo.join(".git"),
         reference: String::from("refs/heads/main"),
         base: query(fixture, repo, &["rev-parse", "HEAD"]),
         changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],

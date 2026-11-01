@@ -17,7 +17,6 @@ import { LOCK_GC_SCENARIOS, } from './scenario-lock-gc-fixture.ts';
 import type { ScenarioDefinition, } from './scenario-model-fixture.ts';
 import { PHASE_KILL_SCENARIOS, } from './scenario-phase-kill-fixture.ts';
 import { REPLAY_DEGRADATION_SCENARIOS, } from './scenario-replay-degradation-fixture.ts';
-import { RESERVATION_SCENARIOS, } from './scenario-reservation-fixture.ts';
 import { SERVICE_KILL_SCENARIOS, } from './scenario-service-kill-fixture.ts';
 import { SHARED_FILE_SCENARIOS, } from './scenario-shared-file-fixture.ts';
 import { SIGKILL_SCENARIOS, } from './scenario-sigkill-fixture.ts';
@@ -42,7 +41,6 @@ export const SCENARIO_CATALOG: readonly ScenarioDefinition[] = [
   ...INDEX_WRITER_SCENARIOS,
   ...HOOKED_SCENARIOS,
   ...AMEND_SWITCH_SCENARIOS,
-  ...RESERVATION_SCENARIOS,
   ...LOCK_GC_SCENARIOS,
   ...FOREIGN_UNPROVEN_SCENARIOS,
   ...SIGKILL_SCENARIOS,

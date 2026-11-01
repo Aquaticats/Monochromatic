@@ -69,7 +69,7 @@ export async function pushRecordNames({
   return (await Promise.all(states.map(async function listState(state,) {
     try {
       return await readdir(join(
-        repository.commonDir,
+        repository.gitDir,
         'cli-git',
         'work',
         state,

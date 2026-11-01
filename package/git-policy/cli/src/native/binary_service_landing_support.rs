@@ -9,7 +9,7 @@
 //!  references, the head) is what the person's next command sees.
 
 use super::commit::wrapped_commit;
-use super::service_commit::runtime_for;
+use super::service_commit::{Running, runtime_for, start_worktree};
 use super::support::{Fixture, Observed, direct, observe};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::path::{Path, PathBuf};
@@ -117,6 +117,8 @@ pub(super) fn run_served(fixture: &Fixture, repo: &Path, name: &str, entry: &Cas
     if entry.index_commit {
         arguments.insert(1, "--no-enforce-only");
     }
+    // A copy of the repository made after the service started is a worktree of its own, with a service of its own.
+    let _service_of_this_worktree: Running = start_worktree(fixture.root.as_path(), runtime_for(name).as_path(), repo);
     let mut command: Command = wrapped_commit(fixture, repo, arguments.as_slice());
     command.env("XDG_RUNTIME_DIR", runtime_for(name));
     pinned(&mut command);

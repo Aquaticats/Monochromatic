@@ -1,13 +1,13 @@
 //! What:
 //!  The record of a backup push that failed after its commit was saved, and the rule for when the wrapper shows it:
-//!  the resident service writes one record per failed push, a later wrapper command shows each record once on standard
-//!  error in the worktree that has the record's branch checked out (in any worktree when none has it), and a later push
-//!  of the same branch that succeeds removes the records of that branch.
+//!  the resident service writes one record per failed push under the Git directory of the worktree whose commit it was, a
+//!  later wrapper command in that worktree shows each record once on standard error, and a later push of the same branch
+//!  that succeeds removes the records of that branch.
 //! Why:
 //!  The push runs in the service after the commit command returned, so nothing is attached to the command that could
 //!  print its failure; without a record the person would never learn that their backup push was refused
-//!  (`doc/planning/cli-git-resident-service.md`, "After-commit work"). Records are plain files in the common Git
-//!  directory so the check on every command is one directory read that finds nothing when nothing failed. A record holds
+//!  (`doc/planning/cli-git-resident-service.md`, "After-commit work"). Records are plain files in the worktree's
+//!  own Git directory so the check on every command is one directory read that finds nothing when nothing failed. A record holds
 //!  the branch, the whole commit name and Git's words with credentials already masked; the wrapper words the notice when it
 //!  shows it, so the commit name is abbreviated the way Git abbreviates it in the repository as it is then. Records are
 //!  shown on standard error only, and not at all to a command whose output a program reads (`--porcelain`, `-z`,
@@ -15,7 +15,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await recordPushFailure(commonDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(commonDir));
+//! await recordPushFailure(gitDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(gitDir));
 //! ```
 
 use super::auto_push::PUSH_FAILED_NOTE;
@@ -26,7 +26,7 @@ use super::service_messages::RESTART_COMMAND;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// Directory under the common Git directory that holds the records for the person.
+/// Directory under the worktree's own Git directory that holds the records for the person.
 pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
 
 /// Separates the parts of a record's name; it is not a character a branch key can contain.
@@ -50,8 +50,8 @@ const COMMIT_FIELD: &str = "commit: ";
 const NO_REASON: &str = "Git gave no reason.";
 
 /// The directory that holds the records of a repository.
-pub fn notice_directory(common_dir: &Path) -> PathBuf {
-    return common_dir.join(NOTICE_DIRECTORY);
+pub fn notice_directory(git_dir: &Path) -> PathBuf {
+    return git_dir.join(NOTICE_DIRECTORY);
 }
 
 /// A 64-bit FNV-1a hash of the text, in hexadecimal.
@@ -160,10 +160,10 @@ pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recordPushFailure(commonDir, { branchRef, commit, said })
+/// await recordPushFailure(gitDir, { branchRef, commit, said })
 /// ```
-pub fn record_push_failure(common_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
-    let directory: PathBuf = notice_directory(common_dir);
+pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+    let directory: PathBuf = notice_directory(git_dir);
     create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
@@ -193,10 +193,10 @@ fn parse_record(text: &str) -> Option<(&str, &str, &str)> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await clearPushFailures(commonDir, branchRef)
+/// await clearPushFailures(gitDir, branchRef)
 /// ```
-pub fn clear_push_failures(common_dir: &Path, branch_ref: &str) {
-    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return };
+pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
+    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
         if entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
@@ -263,10 +263,10 @@ fn is_for(worktrees: &Worktrees, branch_ref: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailuresFor(commonDir, worktrees, abbreviate)
+/// const texts = await takePushFailuresFor(gitDir, worktrees, abbreviate)
 /// ```
-pub fn take_push_failures_for(common_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return Vec::new() };
+pub fn take_push_failures_for(git_dir: &Path, worktrees: Option<&Worktrees>, abbreviate: &dyn Fn(&str) -> String) -> Vec<String> {
+    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
     paths.sort();
     let mut texts: Vec<String> = Vec::new();
@@ -298,10 +298,10 @@ pub fn take_push_failures_for(common_dir: &Path, worktrees: Option<&Worktrees>, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailures(commonDir)
+/// const texts = await takePushFailures(gitDir)
 /// ```
-pub fn take_push_failures(common_dir: &Path) -> Vec<String> {
-    return take_push_failures_for(common_dir, None, &|commit| { return commit.to_string(); });
+pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
+    return take_push_failures_for(git_dir, None, &|commit| { return commit.to_string(); });
 }
 
 /// Commands that a program reads the output of, or that carry a protocol on their streams.

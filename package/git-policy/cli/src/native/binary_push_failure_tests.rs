@@ -17,7 +17,7 @@ use super::support::{Fixture, Observed, fixture, git, repository, run_direct, ru
 use git_policy_cli::iso_time::now_iso;
 use git_policy_cli::push_failure_notice::notice_directory;
 use git_policy_cli::service_client::{Activation, ClientConfig, wake};
-use git_policy_cli::service_route::SOCKET_RELATIVE;
+use git_policy_cli::service_instance::socket_for;
 use git_policy_cli::service_server::Bind;
 use git_policy_cli::service_work::work_directory;
 use git_policy_cli::work_item::{WorkItem, WorkKind, enqueue};
@@ -62,6 +62,7 @@ fn setup_with(name: &str, service_environment: &[(&str, &str)]) -> Setup {
         fixture.service_environment.lock().expect("the service environment").push((std::ffi::OsString::from(variable), std::ffi::OsString::from(value)));
     }
     let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
     return Setup { fixture, repo, remote, service };
 }
 
@@ -174,7 +175,7 @@ fn push_through_service(setup: &Setup, commit: &str) {
     };
     enqueue(work_directory(common_dir(setup).as_path()).as_path(), &item).expect("the push is recorded for the service");
     let config: ClientConfig = ClientConfig {
-        address: Bind::Path(setup.service.runtime.join(SOCKET_RELATIVE)),
+        address: Bind::Path(socket_for(setup.service.runtime.as_path(), setup.repo.join(".git").as_path())),
         activation: Activation::Managed,
         start_wait: PATIENCE,
         commit_wait: PATIENCE,

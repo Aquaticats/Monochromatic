@@ -6834,6 +6834,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `service_protocol.rs` (`captured`, `LandedCapture`, `RetryPrepare.landed`), `service_land.rs:314` (one
   `record_landed` line), `service_server.rs:214`, `service_client.rs` (`PrepareAgain { base, landed }`). Lib 2772,
   binary 448, e2e seed 4233994366 all four pass (t10 now `already-committed`).
+- PRODUCTION BUG CONFIRMED (round 3, red `deeb83aa70`, fix `d0e70e1ec4`): in one batch, an earlier-captured commit of a
+  file arriving second replaced the later edit, exit 0, no conflict
+  (`an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_later_one`). 0.5.5 and 0.5.4 have the
+  identical member loop (code reading; the red test was not run against a 0.5.5 binary). Fix, `service_land.rs:222`
+  to `:231`: a member overlapping an earlier member stays only when `earlier.captured != 0 && request.captured >
+  earlier.captured`, else `RetryPrepare` (the replay then keeps the landed later bytes, or names a conflict). Lib 2773,
+  binary 450, clippy clean; e2e `shared-file-*` pass, trace replay failed only on the forwarded `git add` exit 128.
+- Decision (mine, revisable): release replay plus client fixes now as 0.5.6 because of the silent lost edit, and the
+  per-worktree service and the other service-side fixes as 0.5.7. Integrator `aeded5148326713ab` merges
+  `worktree-agent-afcbaabc8c4046584` (`d0e70e1ec4`) then `worktree-agent-abf5d1e9f7ca62e6a` (`40334312d5`) onto
+  `origin/main`; next: gate 20, merge, release 0.5.6, bump, verify a signed commit.
 - Sent back to `afcbaabc8c4046584` (round 3): two same-base requests changing one path in ONE batch are not checked
   against each other (`service_land.rs` around 209 to 229; `import_stream` writes in arrival order), so an
   earlier-captured request landing last would overwrite a newer edit silently. Prove with a failing test, then fix
@@ -6928,10 +6939,86 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Crash and rollback: SIGKILL after the copy, with the lock held before the exchange, and between the exchange and the
   rename; each `--resume` ended with inode 256 and a clean `git status`; `--rollback` restored the original tree and
   kept a file written to the new root.
-- Exact command line (dry run first; the dry run never walks the tree):
-  `node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic`, then
-  `systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G
-  --property=TasksMax=64 node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
-  --apply`.
+- Exact command lines (dry run first; the dry run never walks the tree):
+
+  ```sh
+  # file: dry run
+  node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
+  ```
+
+  ```sh
+  # file: migration
+  systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G \
+    --property=TasksMax=64 node /var/home/user/temp/agent/subvol-migrate/migrate.ts \
+    --root /var/home/user/Monochromatic --apply
+  ```
+
+- The script is not in Git and lives on the other disk (`~/temp` is `/var/mnt/encrypted/temp`); copy or commit it
+  before any reboot.
 - Not proven: a wrapped (`cli-git`) commit after the migration, because it would go through the production commit
   service; plain Git commits from the main checkout and from a linked worktree worked.
+
+## 2026-11-01: owner correction on the 5-second bound
+
+- OWNER, verbatim: "\" 5-second bound on wrapped commands\" - there is never a 5s bound on wrapped commands. The
+  measure is always just commits vs native git should not take 5s longer."
+- Plain reading: no wrapped command is required to finish within 5 seconds. The one latency requirement is paired:
+  a commit made through the wrapper must not take 5 seconds or more longer than the same commit made with native Git.
+- Retracted: every sentence in this handover, in `package/git-policy/cli/README.md` (section "Operating conditions",
+  "The shared 5-second bound on one wrapped command is deliberate") and in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md` that calls the 5-second kill in
+  `observe_raw` (`TIME_BOUND_SECONDS`, `src/native/binary_support.rs`) a requirement or "the owner's bound".
+  It is a test hang guard the agents chose (its doc comment: "so a mutant that loops fails every affected control
+  quickly"), not a product bound. The note of 2026-11-01 that "the copy tests must fit" it is retracted too.
+- Also not the owner's measure: the 2,000 ms bound on a forwarded command's added p95 in `native:perf`
+  (`README.md` near line 997, task 59). The owner's measure is commits against native Git with a 5-second margin.
+- Open: earlier owner conditions on the `observe_raw` bound (handover entries at 20:45 and 20:50: raise only after the
+  owner approves evidence, never above 10 s) were given about that same 5-second kill. Whether they still govern a
+  test hang guard is asked in the question tool, not assumed.
+- Next: reword the README and the troubleshooting note, rename the guard by role, make `native:perf` gate on the
+  paired commit delta, and tell the running agents not to fit work to the 5-second kill.
+
+## 2026-11-01: facts measured after the btrfs report
+
+- Kopia global policy (`kopia policy show --global`): "Scan one filesystem only: false", so nested subvolumes are not
+  skipped by the global policy (per-path policies not listed yet).
+- `/etc/fstab` asks for `compress=zstd:1` on `/`, `/home` and `/var`, but the boot mount comes from the kernel argument
+  `rootflags=subvol=root` alone, so compression was off until the runtime remount of 2026-11-01 turned it on with
+  `user_subvol_rm_allowed`. A persistent fix is `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; not run.
+- `rpm-ostree status`: "State: busy", a rebase to `ghcr.io/ublue-os/bazzite:testing` started from a ghostty terminal
+  (the owner's own transaction). A reboot into it would drop the runtime mount options and may lose files outside Git,
+  so the migration script under `~/temp/agent/subvol-migrate` needs a home in Git before then.
+
+## 2026-11-01: ignored state, adopted btrfs choices, 0.5.6 READY
+
+- OWNER, verbatim: "carrying over ignored files like node_modules into a new worktree is expected, because agents and
+  people frequently forget to manually install node_modules in new worktrees."
+  This answers the btrfs report's open item "accept everything the source has as the ignored state": yes. Every rung of
+  the ladder carries the source worktree's ignored state (the snapshot gets it for free; the reflink and real-Git rungs
+  keep the existing ignored-state copy). The copy cost is a feature to make cheap, not a cost to remove.
+- Adopted without asking (each follows from an owner statement; veto open): every new linked worktree is created as a
+  subvolume ("I also intended for this to not be so heavy because we can take advantage of btrfs"); the wrapper deletes
+  a worktree subvolume itself through the ioctl when `user_subvol_rm_allowed` is active, else falls back to Git's
+  removal; rung 2 (reflink plus own index writer) ships ("Properly support overlayfs too"); no `checkout.workers=-1`
+  (63 processes against "Invoke real git as rarely as possible"); the snapshot source is the creating worktree, main
+  included when clean, with the snapshot's `.git` directory renamed aside and deleted after the command returns.
+- Kopia does not skip nested subvolumes under its global policy ("Scan one filesystem only: false").
+- The test hang guard: per the advisor, kept at 5 s as a test mechanism (the owner's 20:45 and 20:50 conditions on it
+  stand); only its wording changes, and the `TIME_BOUND_SECONDS` rename waits until the open branches merge.
+- `native:perf`: the 2,000 ms bound on forwarded commands comes from `package/git-policy/cli/SPEC.md:3562` ("must remain
+  strictly less than `2,000 ms`") and stays. The commit delta is reported, not enforced (handover entry of 2026-10-20);
+  enforcing the owner's measure (a wrapped commit less than 5 s slower than native Git) is queued.
+- Migration script made durable before the owner's pending reboot:
+  [cli-git-subvolume-migration-script.md](cli-git-subvolume-migration-script.md).
+- The earlier statement that `compress=zstd:1` was off because the boot mount takes only `rootflags` is inferred from
+  the mount table before and after the remount, not from a boot log.
+- 0.5.6 integrator READY: merged head `877bdab090` (replay `d0e70e1ec4`, then client `40334312d5`, onto `7f68f745f8`),
+  clippy clean, lib 2809 passed, binary 462 all passed counting reruns, e2e six scenarios on two seeds all PASS, no
+  forwarded `git add` exit 128. Gate 20 started on it (unit `gpc-main-gate20`, log
+  `~/temp/agent/gate/main-gate20.log`).
+- Queued: `fault_signal::an_interrupt_during_the_editor_ends_the_commit_and_leaves_nothing` failed once in the full
+  binary suite under load (60.85 s, exit 1 with "Aborting commit due to empty commit message" instead of 130) and passed
+  alone in 0.79 s. Undiagnosed; to be diagnosed and fixed properly, not rerun away.
+- Migration timing: after gate 20, the 0.5.6 release and the bump, with the service agent paused. 87 processes have a
+  working directory inside the checkout, among them the owner's ghostty shell (`bash --posix`) and `brh rebase testing`;
+  that shell needs `cd "$PWD"` after the exchange.
