@@ -884,6 +884,27 @@ an unreadable record is reported as unknown.
 A watcher that stops with an error already delivers its own report,
 and its record is removed on the way out,
 so that case is not reported twice.
+A shutdown or a reboot is not a policy failure:
+it ends the watcher with everything else,
+and the state in `/run` and the tunnel go with it.
+When the verdict would be a report (the record still names the dead watcher,
+or cannot be read)
+the sentinel first asks whether the whole system is stopping,
+and if it is,
+it reports nothing.
+The system counts as stopping when `/run/nologin` exists
+(`systemd-user-sessions stop` creates it early in a shutdown,
+and `systemd-logind` creates it shortly before a scheduled one)
+or when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
+A logout while the system keeps running is still reported:
+the tunnel stays up with no watcher,
+so the update traffic of later sessions is no longer exempted,
+which is a real failure.
+A probe that cannot tell (`systemctl` fails or runs past five seconds) counts as a system that keeps running,
+so a failing probe never hides a death.
+The one case this can hide is a watcher that dies during the minutes between a scheduled shutdown being announced and the shutdown itself,
+because `/run/nologin` already exists then;
+the tunnel is about to go away anyway.
 A sentinel that was started is not taken for running because its process was created.
 When it has loaded it writes a marker beside the state (`<state>.sentinel.json`)
 with the watcher's pid,
@@ -908,7 +929,7 @@ The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,
 nothing reports it,
-and a clean system shutdown ends both without a report;
+and a clean system shutdown ends both;
 with the service,
 a kill of the watcher's whole cgroup no longer takes the sentinel with it.
 `wg-quicker-exempt` has its own sentinel for its watcher.

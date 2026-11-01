@@ -153,6 +153,47 @@ await describe({
   ],
 },);
 
+/**
+ Runs a sentinel whose watcher ended while the whole system was stopping,
+ and checks that nothing was reported and the probe was asked once.
+
+ @param verdict - What the record said about the end.
+
+ @example
+ ```ts
+ await expectNothingReportedDuringShutdown({ verdict: { kind: 'unexpected' } });
+ ```
+ */
+async function expectNothingReportedDuringShutdown(
+  { verdict, }: { readonly verdict: Awaited<ReturnType<typeof judgeWatcherEnd>>; },
+): Promise<void> {
+  /**
+   Delivery and calls of a run during a shutdown.
+   */
+  const stopping = recordingDelivery();
+  /**
+   Whether the probe was asked.
+   */
+  const asked = { count: 0, };
+  /**
+   What the sentinel concluded.
+   */
+  const outcome = await runWatcherSentinel({
+    target: TARGET,
+    deliver: stopping.deliver,
+    isAlive: () => Promise.resolve(false,),
+    pause: () => Promise.resolve(),
+    judge: () => Promise.resolve(verdict,),
+    isSystemStopping: () => {
+      asked.count += 1;
+      return Promise.resolve(true,);
+    },
+  },);
+  expect(outcome,).toEqual({ kind: 'system stopping', },);
+  expect(stopping.calls,).toEqual([],);
+  expect(asked.count,).toBe(1,);
+}
+
 await describe({
   name: runWatcherSentinel.name,
   children: [
@@ -169,6 +210,7 @@ await describe({
          */
         const pauses: number[] = [];
         const verdict = await runWatcherSentinel({
+          isSystemStopping: () => Promise.resolve(false,),
           target: TARGET,
           deliver,
           isAlive: () => Promise.resolve(answers.shift() ?? false,),
@@ -199,6 +241,7 @@ await describe({
          */
         const expected = recordingDelivery();
         await runWatcherSentinel({
+          isSystemStopping: () => Promise.resolve(false,),
           target: TARGET,
           deliver: expected.deliver,
           isAlive: () => Promise.resolve(false,),
@@ -211,6 +254,7 @@ await describe({
          */
         const unknown = recordingDelivery();
         await runWatcherSentinel({
+          isSystemStopping: () => Promise.resolve(false,),
           target: TARGET,
           deliver: unknown.deliver,
           isAlive: () => Promise.resolve(false,),
@@ -220,6 +264,35 @@ await describe({
         expect(unknown.calls,).toHaveLength(1,);
         expect(unknown.calls[0]?.line,).toContain('cannot be read (Error: EACCES)',);
         expect(unknown.calls[0]?.line,).toContain('cannot be told whether wg-quicker asked for that',);
+      },
+    },),
+    it({
+      name: 'reports nothing when the end came while the whole system was stopping, for a record that names the watcher and for one that cannot be read',
+      fn: async () => {
+        await expectNothingReportedDuringShutdown({ verdict: { kind: 'unexpected', }, },);
+        await expectNothingReportedDuringShutdown({ verdict: { kind: 'unknown', reason: 'Error: ENOENT', }, },);
+      },
+    },),
+    it({
+      name: 'does not ask whether the system is stopping when the end was asked for',
+      fn: async () => {
+        /**
+         Whether the probe was asked.
+         */
+        const asked = { count: 0, };
+        const outcome = await runWatcherSentinel({
+          target: TARGET,
+          deliver: recordingDelivery().deliver,
+          isAlive: () => Promise.resolve(false,),
+          pause: () => Promise.resolve(),
+          judge: () => Promise.resolve({ kind: 'expected', } as const,),
+          isSystemStopping: () => {
+            asked.count += 1;
+            return Promise.resolve(true,);
+          },
+        },);
+        expect(outcome,).toEqual({ kind: 'expected', },);
+        expect(asked.count,).toBe(0,);
       },
     },),
     it({
@@ -255,6 +328,7 @@ await describe({
          Sentinel over the real process with a short poll and grace.
          */
         const verdict = await runWatcherSentinel({
+          isSystemStopping: () => Promise.resolve(false,),
           target: { statePath: TARGET.statePath, identity: { ownerId: 'owner-1', pid, startTime: live.startTime, }, },
           deliver,
           judge: () => Promise.resolve({ kind: 'unexpected', } as const,),
