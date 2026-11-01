@@ -25,7 +25,8 @@ use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
-use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit, with_fixed_message};
+use super::landed_summary::{short_name, subject_of, summary_line};
+use super::service_commit_args::{ServiceCommitArgs, asks_for_quiet, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
 use super::service_land::LANDING_ATTEMPTS;
 use super::service_message::{author_overrides, build_message, identity};
@@ -194,7 +195,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     mode: native_inputs.mode,
                     staged_all: native_inputs.staged_all,
                     selected_privately: native_inputs.selected_privately,
-                    quiet: attempt > 0,
+                    // The summary is printed once the commit has landed, by this process.
+                    quiet: true,
                 })?;
                 let parent: String = built.parents.first().cloned().unwrap_or_default();
                 typed = Some(built.message.clone());
@@ -257,18 +259,20 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     // The commit was made from the saved message; the file has done its work.
                     let _removed = std::fs::remove_file(file);
                 }
-                if let Some(made) = embedded.as_ref().filter(|made| { return !native && !made.quiet; }) {
-                    let subject: &str = made.message.lines().next().unwrap_or("");
-                    let short: &str = commit.get(..7).unwrap_or(commit.as_str());
-                    let branch: &str = ready.reference.trim_start_matches("refs/heads/");
-                    print_summary(format!("[{branch} {short}] {subject}").as_str());
-                }
-                if native && attempt > 0 {
-                    // Git printed no summary for the build that landed, and the first one named a commit that did not land.
-                    let subject: &str = typed.as_deref().and_then(|text| { return text.lines().next(); }).unwrap_or("");
-                    let short: &str = commit.get(..7).unwrap_or(commit.as_str());
-                    let branch: &str = ready.reference.trim_start_matches("refs/heads/");
-                    print_summary(format!("[{branch} {short}] {subject}").as_str());
+                // One summary line, printed once the branch moved, so it names the commit that landed. Builds made by Git are told to
+                //  print none, because the build that lands is not always the first one.
+                let embedded_made: Option<&Embedded> = embedded.as_ref().filter(|_| { return !native; });
+                let quiet: bool = embedded_made.map_or_else(|| { return asks_for_quiet(after); }, |made| { return made.quiet; });
+                if !quiet {
+                    let message: &str = embedded_made.map(|made| { return made.message.as_str(); }).or(typed.as_deref()).unwrap_or("");
+                    let name: String = short_name(
+                        invocation.context,
+                        invocation.cwd,
+                        native_inputs.capture.layout.object_directory.as_path(),
+                        native_inputs.capture.layout.config_snapshot.as_ref(),
+                        commit.as_str(),
+                    );
+                    print_summary(summary_line(ready.reference.as_str(), first_parent.as_str(), name.as_str(), subject_of(message).as_str()).as_str());
                 }
                 // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
                 install_added_worktree_files(

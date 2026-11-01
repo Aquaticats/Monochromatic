@@ -133,7 +133,9 @@ fn a_commit_git_builds_prints_one_summary_line_and_quiet_prints_none() {
 #[test]
 fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
     let fixture: Fixture = fixture("client-summary-states");
-    let unborn: PathBuf = repository(&fixture, OsStr::new("unborn"));
+    let unborn: PathBuf = fixture.root.join("unborn");
+    std::fs::create_dir(&unborn).expect("directory");
+    git(&fixture, unborn.as_path(), &["init", "--quiet", "--initial-branch=main"]);
     std::fs::write(unborn.join("a.txt"), b"first\n").expect("file");
     git(&fixture, unborn.as_path(), &["add", "a.txt"]);
     git(&fixture, unborn.as_path(), &["config", "maintenance.autoDetach", "false"]);
