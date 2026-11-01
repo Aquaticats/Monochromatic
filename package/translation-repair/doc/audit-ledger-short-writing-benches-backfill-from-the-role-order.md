@@ -168,7 +168,26 @@ the last-seat grace needs a quorum greater than two (`reachableQuorum`),
 the first round asks the quorum and the spare in both cases (`firstRoundWindow`),
 and Sonnet holds `judge-unmeasured`,
 so it judges no slate and the half-weight rule for a writer judging its own text has no case to apply to.
-Cost lines count Sonnet's calls as they count the editor seat's.
+Spend lines name the card a call is for and not the stage that asked it
+(`ClaudeAttemptAsk.label` is "the card the call is named by,
+as its SPEND line names it"),
+so Sonnet's refiner calls join its editor calls in one figure.
+
+What no code bounds is the Claude route.
+The per-run ceiling of 20 USD for each provider (`SPEND_CEILING_USD`,
+the owner's "20 USD each" of 2026-10-22,
+never summed) covers `SPEND_CEILING_PROVIDERS`,
+which are OpenRouter,
+DeepSeek and Xiaomi,
+and the corpus pass wires no `admitClaudeAttempt` (only the editor fidelity probe does).
+The Claude key has the owner's allowance of "$200 every month" (2026-10-22) and nothing in the run stops a pass short of it,
+so the refiner seat adds the refine stage's Sonnet calls,
+and the consolidation polish's,
+to the editor seat's against that one allowance.
+Nothing is changed here;
+whether the Claude route needs a ceiling of its own,
+and whether the refiner seat should share the editor seat's,
+is the owner's to say.
 
 ## B1285: what the owner's answer changed for the readings that stop
 
@@ -213,7 +232,8 @@ The stop line,
 the line of a phase that goes on without its writers and the line after a wait say
 `backfilled by role order: <words>` between the clauses and the verdict.
 The chunk re-seating line names the editors,
-the refiners and the same words.
+the refiners and the same words,
+and the consolidation slice re-seating line names the polish refiners and the same words.
 No provider text is in any of them.
 
 ## B1287: the readers of the editor and refiner lists
@@ -237,7 +257,9 @@ each kept or changed on purpose:
   `editor-width-probe-run.ts`,
   `editor-width-slice.ts`,
   `translate-probe.ts`,
-  `sentinel-probe.ts`):
+  `sentinel-probe.ts`,
+  `recall-benchmark-run.ts`,
+  the last two reading the whole of `RUN_MODELS`):
   unchanged.
 - Test files:
   `seat-role-pool.unit.test.ts` and `owner-cull.unit.test.ts` read the static lists as the declaration,
@@ -332,11 +354,13 @@ Slips:
   a few `sed` edits ran without the keyless wrapper,
   and `tail` read the end of a type-check log.
   No key was read or printed.
-- The whole source-scan suite ran three times,
+- The whole source-scan suite ran more than once,
   not once:
   the first run found the 4 scans' findings named in B1289,
   the second found a reference by position in this entry's own text,
-  and the third ran on the commit that fixed it.
+  and the last ran on the commit at which the round ended,
+  after a review of the round named comments that no longer matched the code and a re-seating line that did not name
+  the polish refiners.
 - The message of `b48353727a` says 5 scans where the log shows 4 failing scans (8 failure lines,
   2 for each).
   It was not amended.
@@ -354,7 +378,7 @@ Open:
   is the owner's to say.
 - The re-ask pool of the editor and refiner roles and the backfill disagree about Qwen3.8-27B under Hyper (B1283).
 - Sonnet 5.5 is unmeasured as a refiner,
-  and the Claude key is metered:
+  and the Claude key is metered with no ceiling of its own in the run (B1284):
   a run that backfills nothing still asks it as the second refiner in every reading in which the key is wet.
 - `doc/audit/standards-review-gate-shadow.md` is modified in this tree by a hook that is not part of this round,
   and is not committed.

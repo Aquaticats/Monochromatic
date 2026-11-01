@@ -178,6 +178,11 @@ and applied by `alternateModelsFor` in `provider/src/reask-alternate-models.ts`.
     "Why don't you bench?"),
     and is unmeasured as a refiner until the next `editor-calibrate`,
     whose refiner chair seats it by name.
+    Its refiner calls spend the same Claude allowance as its editor calls ("$200 every month",
+    2026-10-22),
+    and no per-run ceiling covers the Claude route (the ceiling of 20 USD for each provider covers OpenRouter,
+    DeepSeek and Xiaomi),
+    which is recorded as open in ledger B1284 for the owner.
 -   The `JUDGE SEATS` line counts the editors and the refiners and names the seats taken from the role order
     (`backfilled-by-role-order=`),
     and the stop line says which seats the role order gave

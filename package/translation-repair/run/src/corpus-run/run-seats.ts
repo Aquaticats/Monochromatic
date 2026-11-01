@@ -87,7 +87,9 @@ import {
  the wide benches (owner, 2026-10-29, ledger B1030) and the late bench (owner,
  2026-10-22, ledger B815), and the checker order does not list it. What this
  set withholds is its translator, picture reader, consolidation writer and
- roster seats, which the owner's answers did not take away.
+ roster seats, which the owner's answers did not take away, and, since the
+ owner's answer of 2026-11-01 ("Backfill, and add sonnet"), its place among the
+ candidates that fill a dark editor or refiner seat (ledger B1283).
  */
 export const HYPER_SLOW_JUDGES: ReadonlySet<RosterModelId> = holdSet({ hold: 'hyper-slow', },);
 
@@ -214,9 +216,11 @@ export type JudgeSeats = {
   readonly roster: readonly RosterModelId[];
 
   /**
-   Repair lane roles with the wide, select and checker seats applied, the
-   run's roster otherwise, so the refiners every run seats stay required and
-   the consolidation's naturalness roles never read as off (ledger T8).
+   Repair lane roles with the wide, select, checker, editor and refiner seats
+   applied (the editors and refiners as `run-writing-backfill.ts` derives
+   them), the run's roster otherwise, so the refiners every run seats stay
+   required and the consolidation's naturalness roles never read as off
+   (ledger T8).
    */
   readonly repairModels: RunRepairModels;
 

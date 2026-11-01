@@ -951,10 +951,16 @@ await describe({
               },),
             };
             /**
+             Polish refiners the reading derived.
+             */
+            const { refinerModelIds: polishRefiners, } = seats.repairModels;
+            /**
              Line naming the phase the reading waited on and the roster it seated.
              */
             const reseatLine = `JUDGE SEATS phase=consolidation slice re-seated under a hold: writers=${seats.writers.join(',',)} `
-              + `slateJudges=${seats.slateJudges.join(',',)} polishGate=${seats.lateJudges.join(',',)}`;
+              + `slateJudges=${seats.slateJudges.join(',',)} polishGate=${seats.lateJudges.join(',',)} `
+              + `polishRefiners=${polishRefiners.join(',',)} `
+              + `backfilled-by-role-order=${backfillWordsOf({ backfilled: seats.backfilled, },)}`;
             /**
              Slate judges of that reading a wet provider would serve.
              */

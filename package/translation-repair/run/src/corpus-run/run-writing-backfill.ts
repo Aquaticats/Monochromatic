@@ -149,6 +149,9 @@ export const REFINER_BACKFILL_ORDER: readonly RosterModelId[] = backfillOrderOf(
 /**
  Derives one writing bench for one reading.
 
+ THE STATIC SEATS ARE NOT FILTERED BY `seatable`: they are the owner's hand-picked first choice, and none of them is
+ withheld by a reading today. Only the candidates from the role order are asked whether the run seats them.
+
  @param staticSeats - static bench of the role, whose size is the width
 
  @param backfillOrder - role order of the models that may fill a dark seat

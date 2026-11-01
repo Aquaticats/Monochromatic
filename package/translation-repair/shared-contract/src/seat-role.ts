@@ -23,8 +23,9 @@ import {
 // - `RUN_READER_MODELS` drops `reader-unmeasured` and `owner-culled` only ("Gemma 4 31B already reads without
 //   judging"), so a model the judge probe withheld can still read.
 // - The checker bench is a static order that only the cull empties.
-// - The editors and the refiners are hand-picked benches of the writers: the editor calibration seats the roster's
-//   writers in both chairs (`editor-calibrate-lane.ts`), so their pool is the writers' (ledger B1100).
+// - The static editor and refiner benches are hand-picked, and the places their dark seats leave are filled from the pool
+//   of the writers (the owner's answer of 2026-11-01, "Backfill, and add sonnet", ledger B1280): the editor calibration
+//   seats the roster's writers in both chairs (`editor-calibrate-lane.ts`), so their pool is the writers' (ledger B1100).
 //
 // A ROLE ALSO HAS A POOL (ledger B1100, the lead's ruling of 2026-10-31): the models a re-ask of that role may ask. A
 // re-ask of the checker seat asks only a model the checker benchmark measured in, and no hold of a card says so, since
@@ -236,8 +237,12 @@ export function rolePoolOf({ role, }: { readonly role: SeatRole; },): readonly R
  The holds the run applies when it seats a role that depend on which provider would serve the model, which a re-ask of
  that role honours as well (ledger B1143), written once per role.
 
- `hyper-slow` is applied by `run-seats.ts` to every seat it derives from the roster but the editors and refiners, which are
- hand-picked benches it does not filter; `hyper-slow-select` only to the select and slate seats. The run withholds such a
+ `hyper-slow` is applied by `run-seats.ts` to every seat it derives from the roster, and since 2026-11-01 to the candidates
+ that fill the dark places of the editor and refiner benches too (`run-writing-backfill.ts`, ledger B1283); it does not
+ filter the static editors and refiners, none of which holds it. The entries of the editor and refiner roles stay empty here
+ because this record also decides the re-ask pool, whose order the owner chose on 2026-10-31 with Qwen3.8-27B first for
+ an editor, so the backfill withholds a model that a re-ask may still ask, which is the owner's to settle (ledger B1283);
+ `hyper-slow-select` only to the select and slate seats. The run withholds such a
  model from a bench while Hyper would serve it and seats it otherwise, so it is either on the bench (and a re-ask leaves
  the bench out) or withheld (and must not be asked): out of the re-ask pool in both readings. `openrouter-dropped`,
  `openrouter-withheld` and `synthetic-withheld` need no entry: the router refuses a call to a model on a route those holds
