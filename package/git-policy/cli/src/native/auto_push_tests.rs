@@ -736,3 +736,34 @@ fn a_named_branch_is_pushed_from_a_detached_worktree() {
     assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
     remove(&root);
 }
+
+/// Two services of two worktrees share the repository's references: while one holds the lock of a remote-tracking reference
+/// for a moment, Git still delivers the push, prints the refusal to update the reference and exits 0, and leaves the reference
+/// stale. The push is tried again until the reference agrees with what was delivered.
+#[test]
+fn a_tracking_reference_locked_for_a_moment_ends_up_to_date() {
+    let root = fixture("ap-tracking-locked");
+    let remote = root.join("remote.git");
+    let repo = root.join("repo");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(&repo, &["remote", "add", "origin", remote.to_str().expect("utf-8")]);
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    commit_change(&repo, "work\n");
+    let landed = head_oid(&repo);
+    let lock = repo.join(format!(".git/refs/remotes/origin/{default}.lock"));
+    std::fs::write(&lock, b"").expect("another worktree's service holds the lock");
+    let releasing = lock.clone();
+    let holder = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::remove_file(releasing).expect("the other service lets go");
+    });
+    let (attempted, err) = run_for_branch(&repo, &format!("refs/heads/{default}"), &landed);
+    holder.join().expect("holder");
+    assert_eq!(attempted.expect("push").outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(remote_tip(&remote, &default).as_deref(), Some(landed.as_str()));
+    let tracking = String::from_utf8_lossy(&git(&repo, &["rev-parse", &format!("origin/{default}")]).stdout).trim().to_owned();
+    assert_eq!(tracking, landed, "the remote-tracking reference agrees with the remote");
+    remove(&root);
+}
