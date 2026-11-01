@@ -5679,3 +5679,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Merged and running meanwhile: LFS branch `dde983848f` merged to main by the coordinator (log `~/temp/agent/main-merge-lfs.log`); its gate runs in unit
   `gpc-lfs-gate` (`~/temp/agent/gate/lfs-gate.log`); the CI release dry run (run `41306647962`) SUCCEEDED (every step passed, the bump push step skipped, `origin/main`
   still 0.4.6); mutation campaign `m048c` running; new agent `abdf738d7cb09a5e6` replaces read-only Git starts with in-process readers (architecture-independent).
+
+### Service failure rule (owner) and CI release path proven
+
+- Owner, verbatim: "socket activation (OS starts it) or a loud, clear failure - no, never leak internal things that could be resolved to the user." Recorded in
+  `package/git-policy/cli/DESIGN.md` and sent as a requirement to the service designer `a6e4566588e9ec087`: exactly two outcomes when the service is
+  unreachable (OS socket activation starts it, or a loud plain failure that says what the user can do); version skew, stale sockets or records, crashed
+  service, slow start and client killed mid-request are resolved silently; unresolvable failures follow the diagnostic rule (name input and calls, every valid
+  remediation, no unexplained implementation terms); platforms without activation get the loud failure, never a second writer; tests assert messages derive
+  from named constants and contain no denylisted internal terms.
+- CI release path PROVEN (peer `monochromatic-6e`, run `41306407444`, forbidden-strings 0.6.1): the push step hit "main moved after the checkout: Expected branch
+  to point to ...", compared with the new head (ahead, 1 changed file, none of the watched paths), resent and pushed `55f3a1634e` (GitHub: verified, reason
+  valid); publish run `41306795688` succeeded; 0.6.1 on crates.io (2026-11-01T12:33:50Z) with all platform assets. My dry run (run `41306647962`) also
+  passed. The wrapper release can go through `crate-release.yml`: `mise run //package/git-policy/cli:native:release -- <from> <to> <note>`, then
+  `native:release:wait` with the printed run URL (needs `<run> <version>`).
