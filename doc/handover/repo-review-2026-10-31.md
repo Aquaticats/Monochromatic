@@ -2168,6 +2168,36 @@ Wave-4 fifty-ninth checkpoint (2026-11-01, permission recovery):
   rr-fms-001. fm 073 and planning 015 continued; all six lanes are live.
 - The LFS 503 push backlog remains; this commit is local until git recovers.
 
+Wave-4 sixtieth checkpoint (2026-11-01, split-ledger recovery and six new slices):
+
+- Six lanes returned. Two wrote to a repo-local `findings/` because their briefs
+  used relative paths: fm created a 12-row `w4-docs-decision` fragment and
+  cc-plugin an 11-row `w5-cc-plugin` fragment. I merged both into the scratch
+  ledgers, archived the originals under `findings-imported-2026-11-01/`, and
+  removed the repo-local directory. Every future brief uses the absolute
+  `/home/user/temp/agent/repo-review-2026-10-31/findings/<file>` path and says
+  never to create `findings/` in the repo.
+- Structural repair: 28 `w4-docs-decision` and 21 `w5-cc-plugin` file refs were
+  bare paths; they now carry `path:line` (evidence line where present, line 1
+  otherwise). One `style` category became `enhancement`. Three old rows whose
+  quotes moved under concurrent edits (022, 034, 043) are parked in
+  `findings-parked/w4-docs-decision.jsonl`.
+- Clean ledgers: `w4-docs` 52 of 52, `w4-docs-decision` 81 of 81,
+  `w2-logger-src` 112 of 112, `w5-docs-planning` 21 of 21, `w5-cc-plugin` 20 of
+  20, `w5-fm-sticky` 10 of 10, and `w5-fm-app` 16 of 16.
+- Refutation: `w5-fm-app-001` is parked. GTK4 `grab_focus` delegates to the first
+  focusable descendant; the app listing pane's `ListView` and the preview header's
+  close button are focusable by default, so focus does move. The precise
+  `w5-fm-sticky-001` remains, where the close button is explicitly non-focusable.
+- Lane milestones: cc finished doc/audit positions 419 to 520 with no unread
+  middle; next id 055 if a new audit row appears. `file-manager/app` and
+  `variant-gtk-sticky` are complete. cc-plugin slice 2 read 43 of its 100 files
+  end to end and probed 57 unit-test sidecars; its next slice is positions 201
+  to 300.
+- Relaunched or opened: fm 085 rr-fmv-67, troubleshooting 114 rr-ts-384,
+  planning 022 rr-dp-003, cc-plugin 021 rr-ccp-003, and the two remaining
+  file-manager variants: electron 001 rr-fme-001 and qt 001 rr-fmq-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

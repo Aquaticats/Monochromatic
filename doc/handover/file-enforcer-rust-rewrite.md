@@ -1691,6 +1691,27 @@ each finished branch is reviewed and merged into `main`):
   `proto 201`,
   each once and canonical)
   plus a table-range floor.
+  Fixed (`8e200031a2..d912d60d26`):
+  `729a9d2873` positive route grammar
+  (iproute2 `e4cd9f1` read:
+  `matches()` in `lib/utils.c:909-919` accepts any prefix,
+  and a repeated key overwrites,
+  `ip/iproute.c:1467-1495`;
+  `BASE_BYPASS_TABLE` shared with the allocator;
+  the writers drop display-only `src`,
+  `pref`
+  and similar,
+  and a physical default outside the grammar such as `nhid` stops the bypass with an error),
+  `bad5718700` vanish only on established exit,
+  with the third member-vanished retry loud,
+  `30d21dc1ba` detection follows verb aliases and `depends`,
+  `depends_post`
+  and task-reference `run` steps,
+  plus lint follow-ups.
+  Both `buildAndTest` pass;
+  the namespace integration scenarios were asked for next,
+  with a default route carrying `src` and `pref medium` like this host's.
+  Cross-vendor re-review running (`~/temp/agent/wg-cleanup/sol-review2.txt`).
   Then merge,
   build,
   and one restart (`down` then `up`).

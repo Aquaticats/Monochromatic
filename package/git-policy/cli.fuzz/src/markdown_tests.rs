@@ -5,13 +5,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(corruptionsReachedBy(generatedRecords)).toEqual(CORRUPTIONS);
+//! // expect(corruptionsReachedBy(generatedFindings)).toEqual(CORRUPTIONS);
 //! ```
 
 /// Import the generators and invariants under control.
 use super::{
-    CORRUPTIONS, check_event_path, check_generated_records, check_linter_config, check_linter_run,
-    decode_base64, generated_patterns, generated_records,
+    CORRUPTIONS, RunSpec, check_event_path, check_generated_records, check_linter_config,
+    check_linter_run, check_oversized_runs, check_run, decode_base64, generated_finding,
+    generated_findings, generated_patterns,
 };
 use std::collections::BTreeSet;
 
@@ -31,20 +32,22 @@ fn inputs() -> Vec<Vec<u8>> {
     return all;
 }
 
-/// Every corruption kind, and clean runs of none, one and several records, are reached.
+/// Every corruption kind, and clean runs of none, one and several findings, are reached.
 #[test]
-fn generated_records_reach_every_outcome() {
+fn generated_findings_reach_every_outcome() {
     let mut kinds: BTreeSet<&'static str> = BTreeSet::new();
     let mut clean_counts: BTreeSet<usize> = BTreeSet::new();
     for input in inputs() {
-        let (_stderr, findings, corrupted) = generated_records(input.as_slice());
-        match corrupted {
-            Some((_, kind)) => {
+        let generated = generated_findings(input.as_slice());
+        let mut corrupted: bool = false;
+        for entry in &generated {
+            if let Some(kind) = entry.corruption {
                 kinds.insert(kind);
+                corrupted = true;
             }
-            None => {
-                clean_counts.insert(findings.len());
-            }
+        }
+        if !corrupted {
+            clean_counts.insert(generated.len());
         }
         check_generated_records(input.as_slice());
     }
@@ -57,20 +60,52 @@ fn generated_records_reach_every_outcome() {
     }
 }
 
-/// Raw runs reach both verdicts, and the hard cases hold.
+/// Raw runs reach every way a run ends: a usable run and each failure status.
 #[test]
 fn raw_runs_hold_the_invariants() {
+    let mut statuses: BTreeSet<Option<u8>> = BTreeSet::new();
     for input in inputs() {
         check_linter_run(input.as_slice());
+        if let Some((&selector, _)) = input.split_first() {
+            statuses.insert(match selector {
+                0..=191 => None,
+                192..=207 => Some(1),
+                208..=223 => Some(2),
+                other => Some(other),
+            });
+        }
     }
-    let record: &[u8] = b"{\"message\":\"m\",\"code\":\"markdown/lfs-image-url\",\"severity\":\"warn\",\"labels\":[{\"span\":{\"line\":1,\"column\":2}}]}\n";
-    for stderr in [&b""[..], record, b"\n", b"x", b"{}\n", b"\xff\n"] {
-        let mut data: Vec<u8> = vec![0, 1, b'x'];
-        data.extend_from_slice(stderr);
-        check_linter_run(data.as_slice());
-        data[0] = 210;
-        check_linter_run(data.as_slice());
+    for reached in [None, Some(1), Some(2), Some(255)] {
+        assert!(statuses.contains(&reached), "{statuses:?}");
     }
+}
+
+/// The hard cases hold: a run ending in each status, an empty source for a file and for an empty file, the
+/// largest position, a second label that is not read, and a failure explanation past its bound.
+#[test]
+fn hard_runs_hold_the_invariants() {
+    let warning = generated_finding(&[3, 2, 0, b'm']).finding;
+    let largest = generated_finding(&[255, 1, 0]).finding;
+    for failure in [None, Some(1), Some(2), Some(3), Some(255)] {
+        for fixed in ["", "x"] {
+            for explanation in ["", "why", &"long ".repeat(200)] {
+                let spec: RunSpec = RunSpec {
+                    failure,
+                    explanation: String::from(explanation),
+                    fixed: String::from(fixed),
+                    findings: vec![warning.clone(), largest.clone()],
+                };
+                check_run(b"", &spec);
+                check_run(b"input", &spec);
+            }
+        }
+    }
+}
+
+/// A fixed source and findings over their size bounds are refused.
+#[test]
+fn oversized_runs_are_refused() {
+    check_oversized_runs();
 }
 
 /// The decoder reads the RFC vectors and refuses what is not padded base64.

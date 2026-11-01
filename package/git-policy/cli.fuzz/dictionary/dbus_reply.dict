@@ -1,0 +1,18 @@
+# Tokens of a D-Bus message the reply reader reads: the little-endian marker, the message types (method return and
+# error), the header field codes it looks for (error name, reply serial, signature) and common signatures and names.
+"l"
+"B"
+"\x01\x00\x01\x01"
+"\x02"
+"\x03"
+"\x04\x01s\x00"
+"\x05\x01u\x00"
+"\x08\x01g\x00"
+"\x01s\x00"
+"\x00"
+"s"
+"u"
+"o"
+"org.freedesktop.DBus.Error."
+"org.freedesktop.DBus.Error.UnknownObject"
+"org.freedesktop.systemd1.NoSuchUnit"

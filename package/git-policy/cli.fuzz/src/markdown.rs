@@ -1,57 +1,51 @@
 //! What: Generators and invariants for the boundaries `markdown/autofix` added: the
-//!       linter's output (exit status, fixed source and JSON Lines findings) the policy
-//!       reads, the event form of a pathname that is not UTF-8, and the one-rule linter
-//!       configuration built from repository-chosen exclude patterns.
-//! Why: The linter is a child process whose output is untrusted text; pathnames and
-//!      exclude patterns are chosen by whoever writes the repository and cross into JSON.
-//!      Each check states its property without calling the code under test a second time:
-//!      accepted output is re-read field by field with the JSONC parser, an event line is
-//!      parsed back and its base64 decoded by a decoder written here, and a configuration
-//!      is parsed back and compared with the patterns that built it.
+//!       in-process linter run (its failure status and explanation, its fixed source and its
+//!       findings) the policy reads, the event form of a pathname that is not UTF-8, and the
+//!       one-rule linter configuration built from repository-chosen exclude patterns.
+//! Why:  The linter's run crosses into the policy as typed values, but the policy must not trust
+//!       them: a failure status, an empty fixed source for a non-empty file, or a finding that
+//!       is not a warning of the selected rule with a position must be refused, and pathnames and
+//!       exclude patterns are chosen by whoever writes the repository and cross into JSON.
+//!       Each check states its property without calling the code under test a second time:
+//!       a run's verdict is restated from the contract in `markdown_linter_output.rs`'s module
+//!       comment, an event line is parsed back and its base64 decoded by a decoder written here,
+//!       and a configuration is parsed back and compared with the patterns that built it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // checkLinterRun(data); checkGeneratedRecords(data); checkEventPath(data); checkLinterConfig(data);
 //! ```
 
-/// Import how a bounded child ended and what it wrote.
-use git_policy_cli::bounded_child::{ChildExit, FinishedChild};
 /// Import the selectable rules.
 use git_policy_cli::config_schema::MarkdownRule;
 /// Import the event form of a pathname and its encoder.
 use git_policy_cli::event_path::{EventPath, base64_standard};
 /// Import the one-rule configuration builder.
 use git_policy_cli::markdown_linter_config::{MARKDOWN_FILE_PATTERNS, one_rule_configuration};
-/// Import the reading of one linter run.
-use git_policy_cli::markdown_linter_output::{LintRun, RemainingFinding, interpret_linter_run};
+/// Import the reading of one in-process linter run, its explanation bound and its size bounds.
+use git_policy_cli::markdown_linter_output::{
+    EXPLANATION_LIMIT, LintRun, MAX_FINDINGS_BYTES, MAX_FIXED_BYTES, RemainingFinding,
+    interpret_embedded_run,
+};
 /// Import the finding event and its renderer.
 use git_policy_cli::policy_events::{FindingEvent, PolicyEvent, render_policy_event};
 /// Import the policy and lifecycle names a finding event carries.
 use git_policy_cli::policy_registry::{PolicyId, Severity};
 use git_policy_cli::policy_trigger::Trigger;
 /// Import the JSONC parser and value model, used as an independent reader.
-use monochromatic_jsonc_edit::{
-    JsoncEntry, JsoncKey, JsoncValue, emit_jsonc_value, parse_jsonc, units_to_string,
-};
+use monochromatic_jsonc_edit::{JsoncEntry, JsoncValue, parse_jsonc, units_to_string};
+/// Import the linter's finding model and the two results of one in-process run.
+use monochromatic_lint::diagnostic::{Diagnostic, Label, Severity as LintSeverity, Span};
+use monochromatic_lint::run_embedded::{EmbeddedFailure, EmbeddedRun};
 
 /// The rules every check selects: the shipped one.
 const RULES: &[MarkdownRule] = &[MarkdownRule::LfsImageUrl];
 
+/// The finding code of the selected rule, restated from the linter's `markdown/` prefix and the rule's name.
+const SELECTED_CODE: &str = "markdown/lfs-image-url";
+
 /// The standard base64 alphabet, restated for the decoder below.
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/// The exit the first input byte selects; three quarters of inputs exit 0, so the record
-/// reader is reached most of the time.
-fn exit_of(selector: u8) -> ChildExit {
-    match selector {
-        0..=191 => return ChildExit::Code(0),
-        192..=207 => return ChildExit::Code(1),
-        208..=223 => return ChildExit::Code(2),
-        224..=231 => return ChildExit::Code(i32::from(selector)),
-        232..=247 => return ChildExit::Signal(i32::from(selector - 232)),
-        _ => return ChildExit::Unknown,
-    }
-}
 
 /// The members of a record named `key`.
 fn members<'a>(entries: &'a [JsoncEntry], key: &str) -> Vec<&'a JsoncValue> {
@@ -80,90 +74,207 @@ fn text(value: &JsoncValue) -> Option<String> {
     return units_to_string(value.text_units()?).ok();
 }
 
-/// A plain decimal whole number.
-fn count(value: &JsoncValue) -> Option<u64> {
-    return value.number_token()?.parse::<u64>().ok();
+/// The ways a generated finding can break the contract, by the byte that chooses one.
+pub const CORRUPTIONS: [&str; 6] = [
+    "other rule",
+    "no code",
+    "severity error",
+    "no labels",
+    "unprefixed rule",
+    "rule with a suffix",
+];
+
+/// What: One finding of a generated run and the corruption planted in it, if any.
+/// Why:  The oracle of the generated view is the corruption the generator planted, not a reading of the finding.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type GeneratedFinding = { finding: Diagnostic; corruption?: string };
+/// ```
+#[derive(Clone, Debug)]
+pub struct GeneratedFinding {
+    /// The finding as the linter would report it.
+    pub finding: Diagnostic,
+    /// The corruption that makes the policy refuse it, or nothing for a usable warning.
+    pub corruption: Option<&'static str>,
 }
 
-/// What: The finding one record states under the documented contract, or nothing when the
-///       record breaks it: one object; exactly one `code`, `markdown/lfs-image-url`; one
-///       `severity`, `warn`; one valid `message`; one `labels` list whose first element is an
-///       object with one `span` object holding one whole `line` and one whole `column`.
+/// What: The finding one 9-byte chunk of fuzz bytes describes.
+/// Why:  Line and column are any whole numbers (the largest `usize` included), the message carries quotes,
+///       backslashes, control and astral characters, a chooser at or above 224 plants one corruption, and an odd
+///       line adds a second label, which the policy must not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function generatedFinding(chunk: Buffer): GeneratedFinding;
+/// ```
+fn generated_finding(chunk: &[u8]) -> GeneratedFinding {
+    let first: u8 = *chunk.first().unwrap_or(&1);
+    let line: usize = if first == 255 { usize::MAX } else { usize::from(first) };
+    let column: usize = usize::from(*chunk.get(1).unwrap_or(&1)) << 20;
+    let chooser: u8 = *chunk.get(2).unwrap_or(&0);
+    let message: String =
+        String::from_utf8_lossy(chunk.get(3..).unwrap_or(&[])).into_owned() + "\"\\\u{1}😀";
+    let corruption: Option<&'static str> = if chooser >= 224 {
+        Some(CORRUPTIONS[usize::from(chooser - 224) % CORRUPTIONS.len()])
+    } else {
+        None
+    };
+    let code: &str = match corruption {
+        Some("other rule") => "markdown/no-bare-urls",
+        Some("no code") => "",
+        Some("unprefixed rule") => "lfs-image-url",
+        Some("rule with a suffix") => "markdown/lfs-image-url-extra",
+        _ => SELECTED_CODE,
+    };
+    let severity: LintSeverity = if corruption == Some("severity error") {
+        LintSeverity::Error
+    } else {
+        LintSeverity::Warn
+    };
+    let mut finding: Diagnostic = Diagnostic::new(
+        code,
+        severity,
+        message,
+        String::from("pkg/README.md"),
+        Span { offset: 0, length: 1, line, column },
+    );
+    if corruption == Some("no labels") {
+        finding.labels.clear();
+    } else if line % 2 == 1 {
+        finding.labels.push(Label {
+            span: Span { offset: 5, length: 2, line: 7, column: 9 },
+        });
+    }
+    return GeneratedFinding { finding, corruption };
+}
+
+/// The finding of a generated finding, as a named function for `map`.
+fn finding_of(generated: GeneratedFinding) -> Diagnostic {
+    return generated.finding;
+}
+
+/// What: The findings of up to six chunks of fuzz bytes.
+/// Why:  Raw bytes almost never form a finding the policy accepts; this reaches every field and every refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function generatedFindings(data: Buffer): GeneratedFinding[];
+/// ```
+pub fn generated_findings(data: &[u8]) -> Vec<GeneratedFinding> {
+    let mut found: Vec<GeneratedFinding> = Vec::new();
+    for chunk in data.chunks(9).take(6) {
+        found.push(generated_finding(chunk));
+    }
+    return found;
+}
+
+/// What: The finding a usable run may carry, restated from the contract: a warning of the selected rule, with a
+///       position taken from its first label.
 /// Why:  Restated from `markdown_linter_output.rs`'s module comment, not from its code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function contractFinding(line: string): RemainingFinding | undefined;
+/// function contractFinding(finding: Diagnostic): RemainingFinding | undefined;
 /// ```
-fn contract_finding(line: &str) -> Option<RemainingFinding> {
-    let record: JsoncValue = parse_jsonc(line).ok()?;
-    let entries: &[JsoncEntry] = record.entries()?;
-    if text(only(entries, "code")?)? != "markdown/lfs-image-url" {
+fn contract_finding(finding: &Diagnostic) -> Option<RemainingFinding> {
+    if finding.code != SELECTED_CODE || finding.severity != LintSeverity::Warn {
         return None;
     }
-    if text(only(entries, "severity")?)? != "warn" {
-        return None;
-    }
-    let message: String = text(only(entries, "message")?)?;
-    let first: &JsoncValue = only(entries, "labels")?.elements()?.first()?;
-    let span: &[JsoncEntry] = only(first.entries()?, "span")?.entries()?;
+    let label: &Label = finding.labels.first()?;
     return Some(RemainingFinding {
         rule: MarkdownRule::LfsImageUrl,
-        line: count(only(span, "line")?)?,
-        column: count(only(span, "column")?)?,
-        message,
+        line: u64::try_from(label.span.line).ok()?,
+        column: u64::try_from(label.span.column).ok()?,
+        message: finding.message.clone(),
     });
 }
 
-/// The findings a whole standard error states under the contract: empty, or UTF-8 lines
-/// each ended by LF and each a contract finding.
-fn contract_findings(stderr: &[u8]) -> Option<Vec<RemainingFinding>> {
-    let text: &str = std::str::from_utf8(stderr).ok()?;
-    if text.is_empty() {
-        return Some(Vec::new());
-    }
-    let body: &str = text.strip_suffix('\n')?;
-    let mut findings: Vec<RemainingFinding> = Vec::new();
-    for line in body.split('\n') {
-        findings.push(contract_finding(line)?);
-    }
-    return Some(findings);
-}
-
-/// What: Assert the reader's verdict on one finished run against the contract.
-/// Why:  Only exit 0 with a UTF-8 fixed source, not empty for a non-empty input, and a
-///       standard error the contract accepts is usable, and then exactly as stated.
+/// What: What one in-process run produced, as plain fields: a failure status, or a fixed source and findings.
+/// Why:  The outcome type owns its parts and is consumed by the reader, so the expectation is computed from this copy.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkRun(input: Buffer, finished: FinishedChild): void;
+/// type RunSpec = { failure?: { status: number; explanation: string }; fixed: string; findings: Diagnostic[] };
 /// ```
-fn check_run(input: &[u8], finished: &FinishedChild) {
-    let verdict: Result<LintRun, String> = interpret_linter_run(input, RULES, finished);
-    let usable_exit: bool = finished.exit == ChildExit::Code(0);
-    let usable_source: bool = std::str::from_utf8(&finished.stdout).is_ok()
-        && !(finished.stdout.is_empty() && !input.is_empty());
-    let expected: Option<Vec<RemainingFinding>> = if usable_exit && usable_source {
-        contract_findings(&finished.stderr)
-    } else {
-        None
-    };
-    match (verdict, expected) {
-        (Ok(run), Some(findings)) => {
-            assert_eq!(run.fixed, finished.stdout, "the fixed source is the output");
-            assert_eq!(run.remaining, findings, "the findings are the records");
+#[derive(Clone, Debug)]
+pub struct RunSpec {
+    /// The status of a run that did not end well, or nothing for a run the executable would end with status 0.
+    pub failure: Option<u8>,
+    /// The linter's explanation of a failed run.
+    pub explanation: String,
+    /// The source after every fix.
+    pub fixed: String,
+    /// The findings the fixes left.
+    pub findings: Vec<Diagnostic>,
+}
+
+impl RunSpec {
+    /// The result the linter library would return for these fields.
+    fn outcome(&self) -> Result<EmbeddedRun, EmbeddedFailure> {
+        if let Some(exit_status) = self.failure {
+            return Err(EmbeddedFailure { exit_status, explanation: self.explanation.clone() });
         }
-        (Err(reason), None) => assert!(!reason.is_empty(), "a refusal has a reason"),
-        (Ok(run), None) => panic!("accepted a run the contract refuses: {finished:?} -> {run:?}"),
-        (Err(reason), Some(_)) => {
-            panic!("refused a run the contract accepts: {finished:?}: {reason}")
-        }
+        return Ok(EmbeddedRun { fixed: self.fixed.clone(), findings: self.findings.clone() });
     }
 }
 
-/// What: Assert the reader's invariants over raw bytes: the first byte picks the exit,
-///       the second where standard output ends, the rest is standard error.
-/// Why:  Arbitrary output must never panic the reader or be accepted against the contract.
+/// The explanation as the policy quotes it: whole up to the bound, else the first characters and an ellipsis.
+fn quoted_explanation(explanation: &str) -> String {
+    if explanation.chars().count() <= EXPLANATION_LIMIT {
+        return String::from(explanation);
+    }
+    let kept: String = explanation.chars().take(EXPLANATION_LIMIT).collect();
+    return format!("{kept}...");
+}
+
+/// What: Assert the reader's verdict on one in-process run against the contract.
+/// Why:  Only a status-0 run with a source that is not empty for a non-empty input, and findings that are all warnings
+///       of the selected rule with a position, is usable, and then exactly as stated; every other run is refused with
+///       a reason that names what is wrong.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkRun(input: Buffer, spec: RunSpec): void;
+/// ```
+pub fn check_run(input: &[u8], spec: &RunSpec) {
+    let verdict: Result<LintRun, String> = interpret_embedded_run(input, RULES, spec.outcome());
+    if let Some(status) = spec.failure {
+        let reason: String = verdict.expect_err("a failed run is refused");
+        let quoted: String = quoted_explanation(spec.explanation.as_str());
+        assert!(reason.ends_with(quoted.as_str()), "the reason quotes the explanation: {reason}");
+        if status == 2 {
+            assert!(reason.contains("could not finish (exit status 2)"), "{reason}");
+        } else {
+            assert!(reason.contains(format!("exited with status {status}").as_str()), "{reason}");
+        }
+        return;
+    }
+    if spec.fixed.is_empty() && !input.is_empty() {
+        let reason: String = verdict.expect_err("an empty fixed source for a non-empty file is refused");
+        assert!(reason.contains("empty fixed source"), "{reason}");
+        return;
+    }
+    let mut expected: Vec<RemainingFinding> = Vec::new();
+    for (index, finding) in spec.findings.iter().enumerate() {
+        match contract_finding(finding) {
+            Some(usable) => expected.push(usable),
+            None => {
+                let reason: String =
+                    verdict.expect_err("a finding the contract refuses refuses the run");
+                assert!(reason.contains(format!("finding {} ", index + 1).as_str()), "{reason}");
+                return;
+            }
+        }
+    }
+    let run: LintRun = verdict.expect("a run the contract accepts is used");
+    assert_eq!(run.fixed, spec.fixed.as_bytes(), "the fixed source is the output");
+    assert_eq!(run.remaining, expected, "the findings are the warnings, in order");
+}
+
+/// What: Assert the reader's invariants over raw bytes: the first byte picks how the run ended, the second where the
+///       fixed source ends, the rest is the explanation of a failure or the findings of a run.
+/// Why:  Any outcome must never panic the reader or be accepted against the contract.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -177,179 +288,100 @@ pub fn check_linter_run(data: &[u8]) {
         return;
     };
     let cut: usize = usize::from(split).min(streams.len());
-    let finished: FinishedChild = FinishedChild {
-        exit: exit_of(selector),
-        stdout: streams[..cut].to_vec(),
-        stderr: streams[cut..].to_vec(),
+    let tail: &[u8] = &streams[cut..];
+    // Three quarters of inputs end well, so the findings are reached most of the time.
+    let failure: Option<u8> = match selector {
+        0..=191 => None,
+        192..=207 => Some(1),
+        208..=223 => Some(2),
+        _ => Some(selector),
+    };
+    let spec: RunSpec = RunSpec {
+        failure,
+        explanation: String::from_utf8_lossy(tail).into_owned(),
+        fixed: String::from_utf8_lossy(&streams[..cut]).into_owned(),
+        findings: generated_findings(tail)
+            .into_iter()
+            .map(finding_of)
+            .collect(),
     };
     // The input is the output itself, or empty, so both source rules are reached.
-    check_run(&finished.stdout, &finished);
-    check_run(b"", &finished);
+    check_run(spec.fixed.as_bytes(), &spec);
+    check_run(b"", &spec);
 }
 
-/// A JSON string value holding `value`.
-fn string(value: &str) -> JsoncValue {
-    return JsoncValue::text_from_units(value.encode_utf16().collect());
-}
-
-/// A record member.
-fn member(key: &str, value: JsoncValue) -> JsoncEntry {
-    return JsoncEntry {
-        key: JsoncKey::from_text(key),
-        value,
-    };
-}
-
-/// A number value.
-fn number(value: u64) -> JsoncValue {
-    return JsoncValue::number_from_token(value.to_string().as_str())
-        .expect("a decimal is a number");
-}
-
-/// The ways a generated record can break the contract, by the byte that chooses one.
-pub const CORRUPTIONS: [&str; 8] = [
-    "no code",
-    "other rule",
-    "severity note",
-    "line as text",
-    "no labels",
-    "two codes",
-    "not json",
-    "no final line feed",
-];
-
-/// What: One generated record: the linter's field order, the message from fuzz bytes, and
-///       one corruption applied when `corruption` names one.
-/// Why:  Messages carry quotes, backslashes, control and astral characters; positions are
-///       any whole numbers.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function generatedRecord(message: string, line: number, column: number, corruption?: string): string;
-/// ```
-fn generated_record(message: &str, line: u64, column: u64, corruption: Option<&str>) -> String {
-    let mut entries: Vec<JsoncEntry> = Vec::new();
-    entries.push(member("message", string(message)));
-    match corruption {
-        Some("no code") => {}
-        Some("other rule") => entries.push(member("code", string("markdown/no-bare-urls"))),
-        Some("two codes") => {
-            entries.push(member("code", string("markdown/lfs-image-url")));
-            entries.push(member("code", string("markdown/lfs-image-url")));
-        }
-        _ => entries.push(member("code", string("markdown/lfs-image-url"))),
-    }
-    let severity: &str = if corruption == Some("severity note") {
-        "note"
-    } else {
-        "warn"
-    };
-    entries.push(member("severity", string(severity)));
-    entries.push(member("causes", JsoncValue::array(Vec::new())));
-    entries.push(member("filename", string("pkg/README.md")));
-    let line_value: JsoncValue = if corruption == Some("line as text") {
-        string(line.to_string().as_str())
-    } else {
-        number(line)
-    };
-    let span: JsoncValue = JsoncValue::record(vec![
-        member("offset", number(0)),
-        member("length", number(1)),
-        member("line", line_value),
-        member("column", number(column)),
-    ]);
-    if corruption != Some("no labels") {
-        entries.push(member(
-            "labels",
-            JsoncValue::array(vec![JsoncValue::record(vec![member("span", span)])]),
-        ));
-    }
-    entries.push(member("related", JsoncValue::array(Vec::new())));
-    // The emitter may break the record over lines; a JSON Lines record is one line.
-    let rendered: String = emit_jsonc_value(&JsoncValue::record(entries)).replace('\n', "");
-    if corruption == Some("not json") {
-        return format!("{rendered}}}\n");
-    }
-    return format!("{rendered}\n");
-}
-
-/// What: Records generated from fuzz bytes, the standard error they make, the findings it
-///       states, and the corruption planted, if any.
-/// Why:  Raw bytes almost never form a record; this reaches every field and every refusal.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function generatedRecords(data: Buffer): { stderr: string; findings: RemainingFinding[]; corrupted?: [number, string] };
-/// ```
-pub fn generated_records(
-    data: &[u8],
-) -> (String, Vec<RemainingFinding>, Option<(usize, &'static str)>) {
-    let mut stderr: String = String::new();
-    let mut findings: Vec<RemainingFinding> = Vec::new();
-    let mut corrupted: Option<(usize, &'static str)> = None;
-    let chunks: Vec<&[u8]> = data.chunks(9).collect();
-    for (index, chunk) in chunks.iter().enumerate().take(6) {
-        let line: u64 = u64::from(*chunk.first().unwrap_or(&1));
-        let column: u64 = u64::from(*chunk.get(1).unwrap_or(&1)) << 20;
-        let message: String =
-            String::from_utf8_lossy(chunk.get(3..).unwrap_or(&[])).into_owned() + "\"\\\u{1}😀";
-        let chooser: u8 = *chunk.get(2).unwrap_or(&0);
-        let corruption: Option<&'static str> = if corrupted.is_none() && chooser >= 224 {
-            Some(CORRUPTIONS[usize::from(chooser - 224) % CORRUPTIONS.len()])
-        } else {
-            None
-        };
-        let mut record: String = generated_record(message.as_str(), line, column, corruption);
-        if corruption == Some("no final line feed") {
-            // Only the last record can lack its line feed; earlier ones are cut there.
-            record.pop();
-            stderr.push_str(record.as_str());
-            corrupted = Some((index, "no final line feed"));
-            break;
-        }
-        stderr.push_str(record.as_str());
-        if let Some(kind) = corruption {
-            corrupted = Some((index, kind));
-        } else {
-            findings.push(RemainingFinding {
-                rule: MarkdownRule::LfsImageUrl,
-                line,
-                column,
-                message,
-            });
-        }
-    }
-    return (stderr, findings, corrupted);
-}
-
-/// What: Assert the reader's verdict on generated records.
-/// Why:  Clean records come back exactly, in order; a corrupted one is refused, and the
-///       refusal names its line, or the missing line feed.
+/// What: Assert the reader's verdict on generated findings.
+/// Why:  Clean findings come back exactly, in order; a corrupted one is refused, and the refusal names its position.
+///       The expectation is the corruption the generator planted, not a reading of the finding.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function checkGeneratedRecords(data: Buffer): void;
 /// ```
 pub fn check_generated_records(data: &[u8]) {
-    let (stderr, findings, corrupted) = generated_records(data);
-    let finished: FinishedChild = FinishedChild {
-        exit: ChildExit::Code(0),
-        stdout: b"x".to_vec(),
-        stderr: stderr.into_bytes(),
+    let generated: Vec<GeneratedFinding> = generated_findings(data);
+    let spec: RunSpec = RunSpec {
+        failure: None,
+        explanation: String::new(),
+        fixed: String::from("x"),
+        findings: generated.iter().cloned().map(finding_of).collect(),
     };
-    check_run(b"x", &finished);
-    match (interpret_linter_run(b"x", RULES, &finished), corrupted) {
-        (Ok(run), None) => assert_eq!(run.remaining, findings),
-        (Err(reason), Some((_, "no final line feed"))) => assert_eq!(
-            reason,
-            "monochromatic-lint ended its standard error without a line feed after the last record"
-        ),
+    check_run(b"x", &spec);
+    let verdict: Result<LintRun, String> = interpret_embedded_run(b"x", RULES, spec.outcome());
+    let mut first_corrupted: Option<(usize, &'static str)> = None;
+    for (index, entry) in generated.iter().enumerate() {
+        if let Some(kind) = entry.corruption {
+            first_corrupted = Some((index, kind));
+            break;
+        }
+    }
+    match (verdict, first_corrupted) {
+        (Ok(run), None) => {
+            assert_eq!(run.remaining.len(), generated.len());
+            for (usable, entry) in run.remaining.iter().zip(generated.iter()) {
+                assert_eq!(usable.message, entry.finding.message);
+            }
+        }
         (Err(reason), Some((index, kind))) => assert!(
-            reason.contains(format!("on line {} of its standard error", index + 1).as_str()),
+            reason.contains(format!("finding {} ", index + 1).as_str()),
             "{kind}: {reason}"
         ),
-        (verdict, expected) => panic!("{verdict:?} for {expected:?}"),
+        (outcome, expected) => panic!("{outcome:?} for {expected:?}"),
     }
+}
+
+/// What: Assert that a run over the size bounds is refused whatever else it holds.
+/// Why:  The bounds are the former child's output caps; fuzz inputs are far too small to reach them, so a control
+///       builds the two oversized runs the bounds describe.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkOversizedRuns(): void;
+/// ```
+pub fn check_oversized_runs() {
+    let fixed_too_large: RunSpec = RunSpec {
+        failure: None,
+        explanation: String::new(),
+        fixed: "a".repeat(MAX_FIXED_BYTES + 1),
+        findings: Vec::new(),
+    };
+    let reason: String = interpret_embedded_run(b"a", RULES, fixed_too_large.outcome())
+        .expect_err("a fixed source over the bound is refused");
+    assert!(reason.contains(MAX_FIXED_BYTES.to_string().as_str()), "{reason}");
+    let mut large_finding: GeneratedFinding = generated_finding(&[1, 1, 0]);
+    large_finding.finding.message = "m".repeat(MAX_FINDINGS_BYTES + 1);
+    let findings_too_large: RunSpec = RunSpec {
+        failure: None,
+        explanation: String::new(),
+        fixed: String::from("x"),
+        findings: vec![large_finding.finding],
+    };
+    let findings_reason: String = interpret_embedded_run(b"x", RULES, findings_too_large.outcome())
+        .expect_err("findings over the bound are refused");
+    assert!(
+        findings_reason.contains(MAX_FINDINGS_BYTES.to_string().as_str()),
+        "{findings_reason}"
+    );
 }
 
 /// The six-bit value of one base64 alphabet character, or nothing for any other byte.

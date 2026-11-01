@@ -510,6 +510,7 @@ dependencies = [
  "libfuzzer-sys",
  "monochromatic-git-policy-cli",
  "monochromatic-jsonc-edit",
+ "monochromatic-lint",
 ]
 
 [[package]]
