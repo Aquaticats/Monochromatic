@@ -449,7 +449,11 @@ Commit `0e19cdfb44`.
 
 Gates,
 in the integration tree `tr-i406` with the keyless environment and no shim,
-at the code commit `62d42fe5d0` (the last commit that changes a code line):
+at the code commit `62d42fe5d0`,
+where the 35 unit suites of this entry ran,
+and again at `dc1cca5b66`,
+the last commit that changes a code line,
+for the two packages whose files it changed:
 - `coverage-census:build` built every family package with no error line (`gate-build-census.txt`).
 - `lint:types` and `lint:oxlint` passed for `stage`,
   `provider`,
@@ -504,7 +508,9 @@ at the code commit `62d42fe5d0` (the last commit that changes a code line):
   and the scan of top-level declarations nothing reads found `widthOf` exported by the width fixture and read by
   nothing.
   Commit `dc1cca5b66` fixes them (`scan-three-2.txt`),
-  and `test-fixture` and `provider` ran again (`gate-unit-2-*.txt`).
+  and `test-fixture` and `provider` ran again with 12 and 278 `[PASS]` lines and no `[FAIL]` line
+  (`gate-unit-2-test-unit-test-fixture.txt`,
+  `gate-unit-2-test-unit-provider.txt`).
   The whole suite is run again after the last commit of the round,
   and its result is in the hand-back.
 
@@ -563,6 +569,11 @@ Slips:
   found by the linter after the tests passed,
   and was rewritten in the repository's style before it was committed.
 - The red logs of B1371 and B1373 were taken before a destructuring edit and a layout edit of the same files.
+- The sentence of this entry that named `62d42fe5d0` as the last code commit was written before `dc1cca5b66`
+  and stood wrong for one commit.
+- The width evidence of B1376 that no allowance moved came first from a measuring script with hand-written ranges
+  (`measure-width.ts`),
+  and stands on the green allowance case with the shipped scan (`green-markdown-width.txt`).
 - The scans of leading articles,
   duplicate bodies and dead test declarations were not run alone before the first whole run,
   which is the slip B1369 records for round w408.
