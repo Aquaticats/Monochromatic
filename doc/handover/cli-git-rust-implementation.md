@@ -5077,3 +5077,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
   replace the literal tallies (`(248, 116, 12)`, `(310, 72, 10)`) with relations derived from the inputs (rule MGN: runs
   equals the enumerated cases, created and refused each above zero, some case neither). Verify with the same duration
   comparison script before and after, and with differential tests against real Git still covering every case.
+
+### Hook dispatcher removal: finished on a branch, merge pending a decision
+
+- Branch `worktree-agent-a21d6fec9d0d04797` (commits `7cd936b6bc`, `c80d57f464`, `fb800c83c3`, `9b20e24e56`; comparison with
+  measurements in `doc/planning/cli-git-no-self-invocation-dispatcher.md`). Git runs the configured preparation hooks itself
+  inside the native `git commit` (shadow `core.hooksPath` off, `post-commit` off in the shadow config, no `--work-tree`), the
+  wrapper holds the hook lock around that one child, and the pre-commit re-run after a replay is `git hook run
+  --ignore-missing pre-commit`. Removed: `hook_dispatch.rs`, `hook_dispatch_entries.rs`, the `argv[0]` branch in `main.rs`, the
+  config-parameter restoration. No shell text in production code. Budget: `ONE_CONFIG_HOOK` wrapper syncs 23 to 21 and `hook
+  run` starts 4 to 1; no-hook commit unchanged.
+- Behavior changes to decide before merging (not yet asked of the owner): (1) the hook lock is held around the whole native
+  commit, so an open message editor keeps it (a concurrent commit with hooks waits up to `CLI_GIT_LOCK_WAIT_SECONDS`, 30 min);
+  no finer scope exists without Git calling something of ours per event; mitigation exists (`hooks.concurrentCommits`, inherited
+  lease, lock taken only when a hook can run); (2) hooks no longer see `GIT_WORK_TREE`; (3) `GIT_CONFIG_PARAMETERS` no longer
+  carries the inner run's `hook.<event>.enabled=true` and transaction `core.hooksPath`; (4) a hook orphaned by a SIGKILLed
+  wrapper no longer holds the lock; (5) the Windows `<event>.exe` naming is gone with no gate replacing it.
+- Not in 0.4.7: that release (30-second push deadline, macOS signal fixes, test fixes) is gated separately; this branch gets
+  its own container gate (planted controls in `bin/native-planted-controls-entry.ts` run only in the container gate) and goes
+  in 0.4.8 or later.
+- The agent also reported load-dependent failures of `fault_remote` auto-push cases and `event_path_commit::a_commit_of_a_name_
+  that_is_not_utf8_lands_with_its_exact_bytes` from the generic "still waiting for git maintenance run" notice; the
+  `fault_remote` one is fixed on main (assertion now keys on "giving up after"); check the other for the same assertion shape.
