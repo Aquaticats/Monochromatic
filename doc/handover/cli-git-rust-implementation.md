@@ -6281,3 +6281,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - 0.5.1 wrapper: 86.0 ms (81.2 to 190.3), 1 `git-lfs push --all` per push, 7 batch requests, 42 execve;
   - plain git: 44.5 ms.
   Scratch: `~/temp/agent/hotfix/measure/` (about 2 GB, deletable after 0.5.3).
+- 0.5.2 PUBLISHED: crates.io since 2026-11-01T15:59:45Z, both Linux assets present, publish run `41323870513` on bump
+  commit `007573cef8`. The new publish-run selection picked the right run. The merge hold is lifted. `monochromatic-6e`
+  no longer exists (sessions were renamed after the reboot; this session is now `monochromatic-6c`), so I run the lock
+  bump myself under the standing "bump and publish" authorization.
+- Owner, 2026-11-01, verbatim: "Use as few locks as possible." Sent to the service-steps agent `af248a0e1f85cfae6`:
+  its pre-4d report now covers every lock-like mechanism in `src/native`, each to be deleted (made unnecessary by
+  the single writer), replaced by a lock-free mechanism, or kept with evidence. The list: push single-flight, landing
+  and owner locks, leases, recovery locks, the index-lock wait and holder machinery, `worktree_copy_lock`. Exclusive
+  create used as a one-time claim is not a lock.
