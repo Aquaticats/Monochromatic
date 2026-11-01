@@ -12,6 +12,7 @@
 //! await writeIntent(dir, intent); // file fsync, rename, directory fsync: the batch's only synchronous write
 //! ```
 
+use super::service_protocol::Cleanup;
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
@@ -55,6 +56,11 @@ pub struct Intent {
     pub commits: Vec<String>,
     /// Paths whose index entries the batch updates.
     pub paths: Vec<String>,
+    /// Whether the index entries to update are the paths that differ between `old` and `new`, read from the repository
+    ///  when they are needed (a commit Git built has no list of changes to carry, and its names are bytes).
+    pub derived: bool,
+    /// The conclusion state the landing removes after the branch moved; nothing for any other batch.
+    pub cleanup: Option<Cleanup>,
 }
 
 /// What a restart does with an open intent.
@@ -85,8 +91,11 @@ pub fn recovery_for(intent: &Intent, current: &str, new_is_ancestor_of_current: 
 
 /// The text of an intent: `key=value` lines, tabs between list items.
 pub fn intent_text(intent: &Intent) -> String {
+    let cleanup: String = intent.cleanup.as_ref().map_or_else(String::new, |found| {
+        return format!("{}\t{}\t{}", found.git_dir.display(), found.scratch.display(), u8::from(found.reftable));
+    });
     return format!(
-        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\n",
+        "seq={}\nrepository={}\ncommon={}\nref={}\nold={}\nnew={}\nids={}\ncommits={}\npaths={}\nderived={}\ncleanup={}\n",
         intent.seq,
         intent.repository.display(),
         intent.common_dir.display(),
@@ -96,6 +105,8 @@ pub fn intent_text(intent: &Intent) -> String {
         intent.ids.join("\t"),
         intent.commits.join("\t"),
         intent.paths.join("\t"),
+        u8::from(intent.derived),
+        cleanup,
     );
 }
 
@@ -123,6 +134,13 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         ids: list("ids")?,
         commits: list("commits")?,
         paths: list("paths")?,
+        // Intents written before these fields existed name neither.
+        derived: value("derived") == Some("1"),
+        cleanup: value("cleanup").and_then(|text| {
+            let mut parts = text.split('\t');
+            let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
+            return Some(Cleanup { git_dir: PathBuf::from(git_dir), scratch: PathBuf::from(scratch), reftable: reftable == "1" });
+        }),
     });
 }
 

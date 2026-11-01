@@ -21,6 +21,7 @@ fn request() -> CommitRequest {
         amend: false,
         tree: None,
         commit: None,
+        cleanup: None,
     };
 }
 

@@ -105,6 +105,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         amend: false,
         tree: None,
         commit: None,
+        cleanup: None,
     };
 }
 

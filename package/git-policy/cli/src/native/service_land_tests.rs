@@ -4,7 +4,7 @@
 use super::*;
 use crate::service_journal::{DONE_EXTENSION, batch_path, parse_intent};
 use crate::service_protocol::{ALLOWED_MODES, Change};
-use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -44,6 +44,7 @@ fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest 
         amend: false,
         tree: None,
         commit: None,
+        cleanup: None,
     };
 }
 
@@ -368,5 +369,85 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
     assert!(crate::service_journal::landed_commits(world.context.journal.as_path()).contains_key("landed"));
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    remove(world.root.as_path());
+}
+
+/// A merge conclusion has the branch tip first and the merged commits after it: the extra parents are allowed, and the
+///  index takes the commit's paths from the repository, not from a list in the request.
+#[test]
+fn a_commit_git_built_with_extra_parents_lands_and_updates_the_index_from_the_repository() {
+    let world: World = world("service-land-built-merge");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "-b", "side"]);
+    std::fs::write(world.repo.join("side.txt"), "side\n").expect("side");
+    git(world.repo.as_path(), &["add", "side.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=side"]);
+    let side: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
+    let mut merged: CommitRequest = built_request(&world, "merge", "side.txt", &[base.as_str(), side.as_str()]);
+    merged.changes = Vec::new();
+    let commit: String = merged.commit.clone().unwrap_or_default();
+    assert_eq!(land_batch(&world.context, 1, &[merged]).expect("landed"), vec![Outcome::Landed { commit: commit.clone() }]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]), format!("{commit} {base} {side}"));
+    assert_eq!(git_text(world.repo.as_path(), &["diff", "--cached", "--name-status"]), "", "the index shows the commit");
+    remove(world.root.as_path());
+}
+
+/// A commit whose first parent is not the branch tip is refused whatever else it has.
+#[test]
+fn a_commit_git_built_whose_first_parent_is_not_the_tip_is_refused_even_with_the_tip_as_a_later_parent() {
+    let world: World = world("service-land-built-first-parent");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=other"]);
+    let other: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut wrong_order: CommitRequest = built_request(&world, "order", "order.txt", &[base.as_str(), other.as_str()]);
+    wrong_order.base = other.clone();
+    assert_eq!(land_batch(&world.context, 1, &[wrong_order]), Err(FailureCode::Rejected));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), other);
+    remove(world.root.as_path());
+}
+
+/// A branch that does not exist yet is prepared against the all-zero name: the commit has no parent and lands only while
+///  the branch is still absent.
+#[test]
+fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_that_appeared() {
+    let world: World = world("service-land-unborn");
+    let zero: String = "0".repeat(40);
+    let mut first: CommitRequest = built_request(&world, "root", "root.txt", &[]);
+    first.reference = String::from("refs/heads/fresh");
+    first.base = zero;
+    let commit: String = first.commit.clone().unwrap_or_default();
+    let mut raced: CommitRequest = first.clone();
+    raced.id = String::from("raced");
+    let mut with_parent: CommitRequest = first.clone();
+    with_parent.id = String::from("parent");
+    with_parent.commit = built_request(&world, "child", "child.txt", &[commit.as_str()]).commit;
+    assert_eq!(land_batch(&world.context, 1, &[with_parent]), Err(FailureCode::Rejected), "a root commit has no parent");
+    assert_eq!(land_batch(&world.context, 2, &[first]).expect("landed"), vec![Outcome::Landed { commit: commit.clone() }]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/fresh"]), commit);
+    assert_eq!(land_batch(&world.context, 3, &[raced]).expect("answered"), vec![Outcome::BranchMoved], "the branch exists now");
+    remove(world.root.as_path());
+}
+
+/// A detached head is moved as `HEAD` itself, only while it is at the base, and never moves a branch it became.
+#[test]
+fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
+    let world: World = world("service-land-detached");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    let mut built: CommitRequest = built_request(&world, "loose", "loose.txt", &[base.as_str()]);
+    built.reference = String::from("HEAD");
+    let commit: String = built.commit.clone().unwrap_or_default();
+    // The head became a branch after the commit was prepared: the compare fails and the branch stays where it was.
+    git(world.repo.as_path(), &["checkout", "--quiet", "main"]);
+    assert_eq!(land_batch(&world.context, 1, &[built.clone()]).expect("answered"), vec![Outcome::BranchMoved], "a head that became a branch is not landed on");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base, "the branch did not move");
+    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main", "the head still names the branch");
+    git(world.repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    let outcomes = land_batch(&world.context, 2, &[built]).expect("landed");
+    assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
+    assert!(!git_output(world.repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]).status.success(), "the head is still detached");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base);
     remove(world.root.as_path());
 }

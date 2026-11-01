@@ -1212,6 +1212,9 @@ pub mod service_fault;
 /// The commit service's serialized step.
 pub mod service_land;
 
+/// What the commit service's landing does once the branch has moved: index entries and conclusion state.
+pub mod service_land_follow;
+
 /// The commit service's loop.
 pub mod service_server;
 

@@ -369,6 +369,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     amend: invocation.region.amend,
                     tree: None,
                     commit: Some(built.commit),
+                    cleanup: None,
                 };
                 (sent, parent)
             }
@@ -386,6 +387,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     amend: tree.is_some(),
                     tree: tree.clone(),
                     commit: None,
+                    cleanup: None,
                 };
                 // The new commit's first parent: the tip it was made on, or for an amend the replaced commit's own parent.
                 let parent: String = match made.source.as_ref() {
