@@ -727,8 +727,11 @@ It states what a reader could otherwise miss:
   any executable named `mpm`,
   and any executable under the install roots,
   which are inside a home directory the user can write
-  (a root that is a link counts as the place it points to only when that place is strictly inside the home,
-  and `wg-quicker-exempt` leaves any other link out and reports it),
+  (a link is never followed,
+  by the owner's choice "Refuse links":
+  `wg-quicker-exempt` ignores a toolchain folder that is a link,
+  wherever it points,
+  and reports it loudly at every start),
   so any program the user can run from such a path or under such a name leaves outside the tunnel too;
 - what is not covered:
   processes in another pid namespace (containers and sandboxes),
