@@ -298,18 +298,20 @@ fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
         let runtime: PathBuf = runtime.clone();
         move || {
             let mut old: Running = old;
-            let status = old.wait().expect("the old service exits when asked");
+            let Some(status) = old.exited_within(PATIENCE / 6) else { return (None, None) };
             std::fs::remove_file(runtime.join(SOCKET_RELATIVE)).expect("the old socket goes");
             // Dropping the old handle would remove the runtime directory the next service listens in. The process has
             //  exited and been waited for, so there is nothing left for the handle to release.
             std::mem::forget(old);
-            return (status, start_in(root.as_path(), runtime.as_path()));
+            return (Some(status), Some(start_in(root.as_path(), runtime.as_path())));
         }
     });
     let output: Output = commit(&fixture, &repo, runtime.as_path(), false);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let (status, current) = replacement.join().expect("replacement");
+    let status = status.expect("the old service exited when it was asked to retire");
     assert!(status.success(), "the old service retired by itself: {status:?}");
+    let current: Running = current.expect("the replacement started");
     assert!(String::from_utf8_lossy(&output.stderr).contains(UPDATING_NOTICE), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(subject(&fixture, &repo), "subject");
     assert_eq!(finished_batches(&fixture), 1, "the current service landed it");

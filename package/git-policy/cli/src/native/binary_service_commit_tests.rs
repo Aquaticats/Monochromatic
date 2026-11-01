@@ -44,6 +44,20 @@ impl Running {
     pub(super) fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
         return self.child.wait();
     }
+
+    /// Waits for the process to exit by itself for at most `limit`; nothing when it is still running then.
+    pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {
+        let began: Instant = Instant::now();
+        loop {
+            if let Ok(Some(status)) = self.child.try_wait() {
+                return Some(status);
+            }
+            if began.elapsed() >= limit {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
 }
 
 impl Drop for Running {
