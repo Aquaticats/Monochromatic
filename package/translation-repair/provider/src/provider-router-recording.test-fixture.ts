@@ -19,7 +19,7 @@ import {
 /**
  What the router under test wrote and where its calls went.
  */
-export type RecordingRouter = {
+type RecordingRouter = {
   /**
    Router over the stub callers.
    */
