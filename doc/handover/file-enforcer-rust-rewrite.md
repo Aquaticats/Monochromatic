@@ -959,6 +959,9 @@ each finished branch is reviewed and merged into `main`):
   not AGENTS.md (the owner's earlier preference for lessons of this session).
   Still to check after merge:
   whether the Coolify app for `docker-compose.yml` auto-deploys on push.
+  Closed 2026-11-01:
+  the owner answered "No app points at it",
+  and `764030330e` removed that compose file.
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
@@ -1784,9 +1787,28 @@ each finished branch is reviewed and merged into `main`):
   the owner was given a `!` command to apply it.
   Backup of the unit:
   `~/temp/agent/kopia-fix/kopia-snapshot-all.service.before`.
-  Queued:
-  after the owner applies it,
-  start the job once and confirm from the journal that the snapshot finished.
+  The owner applied it with `sed --in-place` and `daemon-reload`.
+  Then `systemctl --user start kopia-snapshot-all.service`:
+  `Result=success`,
+  `ExecMainStatus=0`,
+  ten "Created snapshot" lines,
+  no error lines,
+  then "Finished full maintenance"
+  (wall clock just under an hour,
+  memory peak 20.8G);
+  the hourly timer is armed for its next run.
+  Done.
+- The queued git-wrapper 0.5.2 lock bump is superseded:
+  other sessions moved the lock to 0.5.2 (`ea3d5c3599`),
+  0.5.3 (`abed43149b`)
+  and 0.5.4 (`bcf37dda6c`),
+  `git --version` reports wrapper 0.5.4,
+  and 0.5.5 is another session's work in progress.
+  Dropped from this session's queue.
+- Pushes caught up:
+  after `git fetch`,
+  `git rev-list --count origin/main..main` is 0
+  and `d79a0af4e1` is on `origin/main`.
 - Owner 2026-11-01:
   "\"xinyanchen\" - disable anything related."
   Done:
@@ -2129,6 +2151,9 @@ each finished branch is reviewed and merged into `main`):
   which does not exist.
   Whether a Coolify app still deploys it is unknown:
   it cannot be seen from this machine.
+  Closed 2026-11-01:
+  the root `Dockerfile` and `docker-compose.yml` were removed in `764030330e`,
+  and the owner answered "No app points at it" when asked whether a Coolify application uses the root compose.
   The final build was this session's own check, not the owner's requirement.
   The same check already passed once at 0.2.1
   (exit 0 after 2120 s).

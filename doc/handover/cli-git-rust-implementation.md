@@ -6670,3 +6670,355 @@ This block supersedes "State at 2026-10-29 (night, later)".
   checked (limit).
 - Next: gate 19 green, then merge integ to main, push, release 0.5.5, bump without the manual reset, verify a signed
   commit through the new service, then dispatch the e2e fix agent with every QUEUED item.
+- Gate 19 GREEN on `9bce534c5d`: 3205 passed, 9 skipped, `exit=0` (`~/temp/agent/gate/main-gate19.log`). Main had no
+  wrapper or `toolchain.lock.json` change since the merge base. Merged to main as `72893e5faa`, pushed (60 commits, no
+  LFS paths). 0.5.5 release dispatch: the first try was refused (note over 200 characters), the second is running.
+- The QUEUED items went to two agents in parallel (base `72893e5faa`, for 0.5.6), split by side so they rarely touch
+  the same file:
+  - service side `aadfd3e728b38325b`: client SIGKILL scratch directory, immediate reclaim of another instance's claimed
+    records, branch switch during a held commit, stale socket `bind --path`, the prune gap before the branch moves,
+    per-repository landing, and classifying `reservation-after-lost-races`;
+  - client side `abf5d1e9f7ca62e6a`: `external-hooks-unsupported` on the service route, one summary line naming the
+    landed commit, Git's abbreviation length, masking only URL userinfo in the push notice, and wrapped index-writing
+    commands waiting for the service's own `index.lock`.
+  - Added to the client side after a live 0.5.4 notice ("The backup push of your commit 45d1243 failed ... did not
+    finish within 30 seconds ... set CLI_GIT_PUSH_DEADLINE_SECONDS"; `45d12431e7` is another agent's worktree-branch
+    commit): the notice says "your commit" but shows in whichever worktree runs next; and its remediation cannot work
+    on the service route, whose environment a terminal variable never reaches.
+- Bump precondition checked once before the release finished: `.git/cli-git/work/pending` and `claimed` empty; main had
+  0 unpushed commits. Check again immediately before `bump-and-verify.ts`.
+
+### 2026-11-01: the `concurrent-trace-replay` mismatch is a product divergence; replay the captured change
+
+- Diagnosis agent `ab63181f7426bcbea` (commits `fc34f67294`, `143a36e675`, `a0126e571c`, detached HEAD of
+  `.claude/worktrees/agent-ab63181f7426bcbea`; branch creation there is refused by `branch-worktree-only`, and the
+  worktree's HEAD keeps them reachable until that worktree is removed): on `RetryPrepare` (`service_land.rs:219` to
+  `:229`) the client's `PrepareAgain` arm (`service_commit.rs:429` in 0.5.4) re-runs `prepare`, which re-reads the
+  worktree. Seed 4233994366: t4 landed t6's bytes under t4's message, then t6 exited 1 "no changes added to commit";
+  t10 landed t11's bytes. 0.5.4 has the same arms (code reading).
+- The agent called it a harness bug and changed the harness so a later writer waits for the earlier wrapper to exit.
+  Rejected: that hides the divergence. The accepted decision `doc/decision/cli-git-concurrent-commits.md` (owner
+  decision 2026-09-26, "cli-git never re-prepares from current worktree bytes") and `SPEC.md:1506` govern; the
+  contrary sentence in `doc/planning/cli-git-resident-service.md` (`:169`, `:373` to `:376`) was never accepted.
+- OWNER, 2026-11-01: "It's okay, you can ask me." I asked (Replay captured / Fail and re-run / Re-read file). The tool
+  returned "Replay captured (Recommended)" with the note "Whatever makes most UX sense."; the owner then said, verbatim:
+  "I didn't mean to pick it explicitly. I only meant to leave the note." So the owner did NOT pick; the decision is mine
+  under that note. Chosen on UX: replay the captured change (three-way merge, base = preparation base) onto the new
+  tip; a clean merge lands silently; overlapping edits fail with exit 1, nothing changed, message saved, naming the
+  paths and the commit that landed first. Reason: it matches native Git (bytes at invocation), keeps each edit under
+  its own author and message, and still lands edits to different parts of one file. Rejected: re-read (misattributes,
+  then fails the other commit as "nothing to commit"); fail and re-run (fails every concurrent commit to one file);
+  captured file without a merge (silently reverts the first commit).
+- Fix agent `afcbaabc8c4046584` (for 0.5.6): owns the `PrepareAgain` arm and `service_prepare.rs`; `abf5d1e9f7ca62e6a`
+  keeps the `Landed` arm's printing; `aadfd3e728b38325b` was told to keep clear of the retry block in `service_land.rs`.
+- Confirmed: the diagnosis captured the `add` exit 128 stderr, "fatal: Unable to create '.../.git/index.lock': File
+  exists", while a landing held the lock; the queued client-side fix stands.
+
+### 2026-11-01: worktree creation should be cheap on btrfs (owner intent)
+
+- My `git branch` and `git switch --create` were refused by `branch-worktree-only` (in the main checkout and in a linked
+  worktree). OWNER, verbatim, about `git worktree add -b` being heavy: "yes but that's intended and I also intended for
+  this to not be so heavy because we can take advantage of btrfs." The policy stays; worktree creation must get cheap.
+- Branch `e2e-trace-diagnosis-20261101` now holds `a0126e571c`, made with `git worktree add -b` (worktree removed after).
+- Baseline of that command through 0.5.4, one run: 7.88 s wall, 1.05 s user, 1.22 s sys, 20546 files; the worktree was
+  803.66 MiB with 803.65 MiB exclusive and 8 KiB shared (`btrfs filesystem du --summarize`). `.claude/worktrees/` holds
+  85 worktrees. The filesystem is btrfs on LUKS; `/var/home` is the subvolume (inode 256) and the repository root is an
+  ordinary directory (inode 2595895). Ignored files are already reflinked (`worktree_copy_stage.rs`); tracked files are
+  written by real Git's checkout.
+- Task #80: research agent `abc58339444bd7c9d` measures today's checkout, `--no-checkout` plus reflinking clean
+  tracked files from a source worktree, and a subvolume snapshot (plus what migrating the main checkout to a subvolume
+  takes), and writes `doc/planning/cli-git-btrfs-worktree.md`. Next: ask the owner the decisions it names, then
+  implement.
+- OWNER, 2026-11-01, verbatim: ""snapshotting isn't possible since the repo root isn't a btrfs subvolume" - so make
+  it one. Make the wrapper gracefully degrade. Make doctor say this can help with performance." Then: ""
+  user_subvol_rm_allowed isn't set, and seen that the wrapper has a doctor" - we talked about this before and we said
+  the doctor should also provide the command to set that shown to the user so the user can do it. Anyway, set it for
+  my user now." The earlier design is `doc/planning/monorepo-manager-route-research/from-scratch-inputs.md:907` to
+  `:934` (detection in `/proc/self/mountinfo`, runtime and persistent commands, the subvolume migration steps).
+- DONE at runtime: `sudo mount --options remount,user_subvol_rm_allowed /var/home` (passwordless sudo works here).
+  Every mount of superblock `0:38` (`/sysroot`, `/var`, `/var/home`) now lists `user_subvol_rm_allowed`, and also
+  `compress=zstd:1`, which `/etc/fstab` listed but was not active before; the remount turned it on for new writes. An
+  unprivileged create, write and `btrfs subvolume delete` of a non-empty subvolume on `/var/home` succeeded. The option
+  applies to the whole filesystem (every owner of a subvolume), not to one user. NOT persistent: the first mount comes
+  from the kernel argument `rootflags=subvol=root`; the host has `rpm-ostree` and `bootc`.
+- Gotcha: `~/temp` is `/var/mnt/encrypted/temp`, a different btrfs filesystem (`/dev/mapper/crypt_sda`); reflinks from
+  the repository into `~/temp/agent` fail with `Invalid cross-device link`. btrfs probes must run on `/var/home`.
+- Doctor (owner): say that a subvolume repository root speeds up `git worktree add`, and show the user the exact
+  commands for `user_subvol_rm_allowed` (runtime and persistent) and for the migration. Sent to `abc58339444bd7c9d`.
+- 0.5.5 PUBLISHED 2026-11-01T20:51:38Z (run `41348325395`, publish run `41348865252`, release commit `e6c6799185`
+  in main). Lock bump `a0d8517d55` (signed `G`, pushed) WITHOUT the manual reset: `bump-and-verify.ts 0.5.5` printed
+  "Updating the commit service...", the commit took 3617 ms, the service restarted (start 12:19:30 to 16:11:59 EST),
+  and the unit's `ExecStart` names `.../0.5.5/bin/cli-git-service`. The self-heal is verified at the user boundary.
+  `pending` and `claimed` were empty just before. The old service's log showed two 0.5.4-only review failures ("no
+  repository scratch directory"), the bug `aa3d87fdcd` fixed.
+- OWNER CORRECTION, 2026-11-01, verbatim: "I just saw something extremely bad. If I'm reading correctly, you're making
+  every different repo go through one service (server) when it shouldn't." Correct: one socket
+  `$XDG_RUNTIME_DIR/cli-git/service.sock` (`service_route.rs:23`) and one unit pair `cli-git.socket`/`cli-git.service`
+  (`service_provision.rs:34` to `:37`) serve every repository. The owner decided a resident single-writer service
+  ("ARCHITECTURE DECIDED"); "one service per user (per uid), not per repository"
+  (`doc/planning/cli-git-resident-service.md:147`) was the design agent's choice, never put to the owner, and the code
+  breaks that doc's own "Repositories do not wait on each other" (a foreign `index.lock` wait blocks other
+  repositories; the copy work shares one thread). My error: I carried the per-user scope into every brief without
+  checking that the owner chose it.
+- SUPERSEDED: I first sent "one instance per repository" to `aadfd3e728b38325b`. OWNER, verbatim: "Should it be
+  per-repo or per-worktree/". My first answer claimed the repository-wide work (refs, `packed-refs`, objects and `gc`,
+  pushes, copies) needs one writer, from memory. OWNER note: "Do more research first. ... I doubt this." Research
+  (git-scm.com git-worktree, gitrepository-layout, git-update-ref; bazel.build output-directories): worktrees share
+  objects, `refs/`, `packed-refs`, config and hooks, but each has its own `HEAD`, index, `logs/HEAD`, `refs/worktree`,
+  `refs/bisect`, `refs/rewritten`; Git refuses one branch in two worktrees; `update-ref` verifies the old value and a
+  transaction aborts when a ref cannot be locked; Bazel's output base is "the MD5 hash of the path of the workspace
+  root", so separate checkouts get separate servers. Shared state the service writes today: `cli-git/work`
+  (`work_item.rs:24`), `cli-git/notices` (`push_failure_notice.rs:26`), `refs/cli-git-service/<seq>`
+  (`service_land.rs:180`), `cli-git/review-entries` (`standards_review_append.rs:54`).
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): "Per worktree (Recommended)". One instance per worktree, keyed
+  by the worktree's own git directory; its state moves to per-worktree places (temporary refs under `refs/worktree/`);
+  the new worktree's own instance copies its ignored files; lost compare-and-swap on a shared ref retries. Sent to
+  `aadfd3e728b38325b` (top item, its per-repository landing item dropped), `ab3dd6294f9d91284` (copy by the
+  destination's instance) and `abf5d1e9f7ca62e6a` (notices per worktree). Do not re-ask.
+- OWNER, 2026-11-01, verbatim, on my note that the copy tests must fit the 5-second bound: "I mean: the copy tests would
+  auto pass after the upcoming changes." So no work goes into fitting them now; re-run them after the per-worktree
+  and btrfs changes land (caveat: tests on a non-btrfs gate filesystem take the fallback path).
+- OWNER, 2026-11-01, verbatim: "Properly support overlayfs too." Sent to the design agent `abc58339444bd7c9d`: the
+  repository on overlayfs (container roots, including this repo's gate) must be correct and use the cheapest operation
+  overlayfs offers; overlayfs as a cheap-worktree mechanism where no snapshot exists (unprivileged mounts are private to
+  a user namespace; `fuse-overlayfs` is an external program, out under "embed instead of spawning"); doctor reports it.
+- Latency 0.5.5 (one run, integ worktree, `~/temp/agent/perf/perf-0.5.5.log`): forwarded commands add about 1 ms;
+  `commit-service` wrapped median 46.8 ms (added 41.6), `commit-signed-service` 59.1 ms (added 50.5), the transaction
+  route 141.6 ms. Higher than the earlier medians (service 26.4, signed service 33.0), but the unchanged transaction
+  route roughly doubled too, so load is likely; not concluded. A paired run (0.5.4 and 0.5.5 alternating, unit
+  `gpc-perf-ab`, worktree `.claude/worktrees/perf-054`, log `~/temp/agent/perf/alternate.log`) is running.
+- Paired result (4 runs alternating 0.5.4, 0.5.5, 0.5.4, 0.5.5; 1-minute load 19 to 23; wrapped medians):
+  `commit-service` 44.7, 46.4, 46.2, 45.9 ms (difference 0.7 ms, inside 0.5.4's own 1.5 ms spread: no regression);
+  `commit-signed-service` 55.8, 58.3, 55.8, 57.7 ms (0.5.5 about +2 ms, both pairs); transaction route unchanged.
+  The earlier lower medians reflect different host conditions: both versions moved together. Worktree `perf-054`
+  removed afterwards.
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): 4d part 2, deleting the old transaction route, "After
+  per-worktree (Recommended)": start it as soon as the per-worktree service change merges and gates. Task created.
+
+### 2026-11-01: worktree copy READY after the second review (`fe2081f2a1`)
+
+- Agent `ab3dd6294f9d91284`, branch `worktree-agent-ab3dd6294f9d91284` (main merged twice). Every finding of the second
+  review fixed or answered with named tests (map in `package/git-policy/cli/doc/worktree-copy-service.md`, "What the
+  second review changed"): an intent written before Git runs and marked when Git returns (P1-1), the shipped units run
+  one instance and a second bind fails (P1-2), the admin directory's identity recorded and rechecked (P1-3), dependants
+  deferred and requests re-read per run (P1-4), durable `given-up` and `done` records with no `Settled` (P1-5), a
+  client finished on its own answers with repeated progress (P2-6), temporaries adopted not deleted (P2-7), Git's own
+  option grammar for `worktree add` and a loud failure when unattributable (P2-8), wake retires and provisions (P2-9);
+  A needed no change (installation never writes `Complete`), B publishes the token by link.
+- Counts: lib 2821 passed; binary 450 passed at `-j 6`. At default parallelism under host load 28 to 38 the 5-second
+  binary bound failed several copy tests (more disk syncs than before); not measured against a baseline. The owner's
+  5-second bound does not move without the owner, so the copy tests must fit it before integration.
+- One lib failure seen once, passing alone: `auto_push_single_flight::tests::a_lock_held_past_the_wait_limit_is_reported_and_left_in_place`.
+  Not chased: `auto_push_single_flight.rs` is on the 4d part 2 deletion list.
+- Trade-off to judge: the intent and its Git-returned mark are not synced (a sync before Git took seconds here), so
+  they survive a kill but not a power loss.
+- Not done: moving copy state to the worktree's admin directory and sending the copy to the destination's instance;
+  it waits for the per-worktree service change.
+- Replay READY `f717000a51` (agent `afcbaabc8c4046584`, branch `worktree-agent-afcbaabc8c4046584`, base
+  `72893e5faa`): new `service_replay.rs`; on `RetryPrepare` the client writes the captured tree and runs `merge-tree
+  --write-tree --merge-base=<preparation base> <tip> <captured tree>`, then `read-tree` into the private index, then
+  the usual policies; a conflict is a `core-finding` `concurrent-commit/replay-conflict` naming each path and the first
+  commit, with the saved message path and `git commit -F <file>`; adjacent edits whose capture already holds the landed
+  edit reuse `replay_subsumption`. Red `c15ef71a9d` (late write landed, first edit lost; conflict exited 0), green
+  `b31f75d1dc`. Lib 2764, binary 448, clippy clean. e2e seed 4233994366: `shared-file-*` all pass; trace-replay passes
+  in some runs and fails only on the forwarded `git add` exit 128. Choices it made (accepted): policies re-run on
+  every retry (no recorded reads on the service path; all shipped policies are unrestricted); a merged tree equal to
+  the tip ends exit 1 `already-committed`; the conflict is one JSONL `core-finding`.
+- Replay round 2 READY `78bf28090b` (red `02e33cccfa`, fix `e32f0071f5`, doc `78bf28090b`): capture order via
+  `CommitRequest.captured` (CLOCK_MONOTONIC nanoseconds at capture; a retry keeps the first stamp; 0 unknown), the
+  service keeps the last 128 landed commits per worktree with stamps (`service_captures.rs`) and sends them with
+  `retry_prepare`; the client applies "later capture wins" only to conflicting paths whose changing commits are all
+  remembered, else merges. A Git-built commit that gets `Moved` replays the captured tree (`write-tree` of its sent
+  index) and Git builds and signs it again. Pruned content now fails plainly (`ContentPruned`; the self-healing retry
+  is gone, since the captured bytes are what was removed). Protocol and service edits for the per-worktree agent:
+  `service_protocol.rs` (`captured`, `LandedCapture`, `RetryPrepare.landed`), `service_land.rs:314` (one
+  `record_landed` line), `service_server.rs:214`, `service_client.rs` (`PrepareAgain { base, landed }`). Lib 2772,
+  binary 448, e2e seed 4233994366 all four pass (t10 now `already-committed`).
+- PRODUCTION BUG CONFIRMED (round 3, red `deeb83aa70`, fix `d0e70e1ec4`): in one batch, an earlier-captured commit of a
+  file arriving second replaced the later edit, exit 0, no conflict
+  (`an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_later_one`). 0.5.5 and 0.5.4 have the
+  identical member loop (code reading; the red test was not run against a 0.5.5 binary). Fix, `service_land.rs:222`
+  to `:231`: a member overlapping an earlier member stays only when `earlier.captured != 0 && request.captured >
+  earlier.captured`, else `RetryPrepare` (the replay then keeps the landed later bytes, or names a conflict). Lib 2773,
+  binary 450, clippy clean; e2e `shared-file-*` pass, trace replay failed only on the forwarded `git add` exit 128.
+- Decision (mine, revisable): release replay plus client fixes now as 0.5.6 because of the silent lost edit, and the
+  per-worktree service and the other service-side fixes as 0.5.7. Integrator `aeded5148326713ab` merges
+  `worktree-agent-afcbaabc8c4046584` (`d0e70e1ec4`) then `worktree-agent-abf5d1e9f7ca62e6a` (`40334312d5`) onto
+  `origin/main`; next: gate 20, merge, release 0.5.6, bump, verify a signed commit.
+- Sent back to `afcbaabc8c4046584` (round 3): two same-base requests changing one path in ONE batch are not checked
+  against each other (`service_land.rs` around 209 to 229; `import_stream` writes in arrival order), so an
+  earlier-captured request landing last would overwrite a newer edit silently. Prove with a failing test, then fix
+  with the capture stamps; say whether 0.5.5 has it.
+- Sent back to `afcbaabc8c4046584`: capture order (the decision's "later capture wins" for one worktree; t10 now fails
+  as a conflict where the decision lands it), and the two paths that still re-read the worktree (`Submitted::Moved`
+  rebuild of a Git-built commit; the prune re-prepare on a first attempt).
+- Client side READY `40334312d5` (agent `abf5d1e9f7ca62e6a`, branch `worktree-agent-abf5d1e9f7ca62e6a`, base
+  `72893e5faa`), each with red then green tests:
+  1. `external-hooks-unsupported`: already printed on the service route (`service_prepare.rs:216` to `:219`, from
+     `af4564fb1c`); the e2e README line was stale and is gone; the control was shown to fail without the warning;
+  2. one summary line: every Git build quiet, `landed_summary.rs` prints `[<branch> <name>] <subject>` with
+     `(root-commit)`, `detached HEAD`, `-q`, and the diffstat for Git-built commits via one `git diff-tree`;
+  3. `object_abbreviation.rs` reproduces Git v2.56.0's length (`core.abbrev`, packed counts, multi-pack-index,
+     uniqueness across loose, packed and alternates), checked against `git ls-tree --abbrev`; the push notice asks Git
+     once (`rev-parse --short`) because it has no config snapshot (accepted: notices are rare);
+  4. the LFS line stays with only userinfo masked by the existing `mask_userinfo_text`, because the sed pattern stops
+     at the first `@` and would leak part of `user:p@ss@host` (accepted, better than the session pattern);
+  5. `service_index_wait.rs` waits on inotify for the service's marked `index.lock` with a named notice; a mark older
+     than 60 s is treated as a dead service's leftover; `service_hold_retry.rs` reruns `add`, `rm`, `mv` when Git
+     loses the race; e2e `interleaved-index-writers` passes, including the failing seed 3605007440;
+  6. notices carry the branch and show in the worktree holding it (moot once notices are per worktree);
+  7. `push_deadline_advice.rs`: on the service route the remedy is `systemctl --user set-environment
+     CLI_GIT_PUSH_DEADLINE_SECONDS=120` then `systemctl --user restart cli-git.service`.
+  Lib 2794; binary 456 passed, 2 failed at the 5-second bound under host load about 34 (both passed on rerun). The bound
+  is deliberate and documented (`package/git-policy/cli/README.md:903`,
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`); the capped container gate passes.
+  Limits: other index writers (`checkout`, `reset`, `stash`) still get Git's refusal if the service retakes the lock
+  between the wait and Git starting; a killed service's marked lock waits for the 60 s age.
+- THIRD cross-vendor review of the copy (`~/temp/agent/review-wtc/v3/sol-review.txt`): not approved. Closed: P2-6
+  (client completion and progress), P2-8 for the live wrapper. Partly closed: 1, 2, 3, 4, 5, 7, 9, A, B. New ranked:
+  1. P1 under per-worktree services: copy state (requests, journals, stage paths) is repository-wide in the common
+     dir, so two worktree instances would drain the same request and delete each other's live stage; ownership must
+     match the transaction (the planned move of copy state into the destination's admin dir answers it);
+  2. P1 `reconcile_intent` lets an intent copy into its named worktree before Git returned (`allow_locked` without
+     `git_returned`), i.e. during checkout;
+  3. P1 intents expire after an hour while a suspended wrapper still needs them; a returned intent is removed after
+     skipping its own unattributable locked destination;
+  4. P1 giving up is reset by republishing from a live intent (new id, tries 0), with a possible republish loop;
+     `terminal_of` checks pending first, so a kill inside `give_up` reruns the request;
+  5. P1 background (wake-only) notices are dropped, and a give-up with no querying client before a kill leaves no
+     notice; `write_copy_notice` removes then writes non-atomically and ignores errors;
+  6. P1 reconcile and request selection are separate snapshots, so B can copy from A before A's request exists;
+  7. P2 given-up history is matched by pathname, poisoning a later registration at the same path;
+  8. P2 root observation and identity are sampled from different moments in `find_created_worktrees`;
+  9. P2 an adopted temporary makes its publisher report failure after the service already ran it;
+  10. P2 the legacy-empty-token repair can unlink a valid winner's token; plus cached `Failed`/`Waiting` answers skip
+      a retry. Unsynced intent: fine for a process kill, not for a power loss (the copy is then forgotten).
+- Decision (mine, revisable): do not fix these on the current repository-wide layout. The copy is restructured next
+  for per-worktree state and possibly replaced on btrfs by snapshots (owner: "the copy tests would auto pass after
+  the upcoming changes"). The rework brief to `ab3dd6294f9d91284` waits for the per-worktree service change and the
+  btrfs/overlayfs design, and carries every finding above that still applies.
+- Third cross-vendor review inputs: `~/temp/agent/review-wtc/v3/` (`prepare3.ts`: the design doc and six copy
+  modules whole, the other production changes as `main...fe2081f2a1`, the second review attached), output
+  `~/temp/agent/review-wtc/v3/sol-review.txt`.
+- Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
+  --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
+  in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
+  the search guard because it stalls the disk for every session.
+
+## 2026-11-01: subvolume migration procedure (proven on a throwaway)
+
+Owner decision: the main checkout `/var/home/user/Monochromatic` becomes a btrfs subvolume.
+The procedure is `migrate.ts` in `/var/home/user/temp/agent/subvol-migrate/` (README beside it has every number).
+It was proven only on reflink copies of a clone under `/var/home/user/subvol-migration-probe-20261101` (deleted after);
+the real checkout, its `.git`, its worktrees and the commit service were not touched.
+
+- Can `.git` stay where it is behind a symlink in the new root?
+  No.
+  Real Git derives the main worktree from the real path of the common directory with the suffix `/.git` stripped
+  (`worktree.c` lines 119 to 120, Git 2.56.0), and a symlinked `.git` made `git worktree list` print the store
+  directory as the main worktree and `git rev-parse --absolute-git-dir` print the store path.
+  A symlinked `.claude/worktrees` made `git worktree add` record `main.worktrees/wt2` instead of the path given.
+  So `.git` and the linked worktrees must be physically inside the new subvolume, which means a reflink copy.
+- Procedure: new subvolume beside the root, nested subvolumes for the linked worktrees inside the root, a reflink
+  `cp`, `rsync --archive --delete` deltas, then under `.git/index.lock` a last delta and `mv --exchange` (atomic),
+  then an `rsync --update` catch-up and a rewrite of the Git index stat fields.
+- Without the index rewrite the first `git status` in the new root took 22.1 s (new inodes and change times make every
+  entry stat-dirty, so every file is hashed with the LFS clean filter); with it 0.17 s.
+  The index rewrite is part of the script; skip it with `--no-refresh-indexes`.
+- Measured at the bounds `IOWeight=10`, `CPUQuota=200%`, `MemoryMax=2G`, `TasksMax=64`, load 11 to 27:
+  68149 entries took copy 8.46 s, three `rsync` passes of about 2.4 s each, exchange under 0.01 s.
+  `btrfs filesystem du` of the new root: exclusive 0.00 B, shared 2.89 GiB; root inode 256; nested worktrees inode 256.
+  One real worktree (`integ`, read only source, 22921 entries) copied in 1.94 s.
+  Extrapolation for at least 2 million entries (86 trees of about 22.9 thousand): 5 to 8 minutes, the last
+  `rsync` pass under the lock 1 to 2.5 minutes; the real entry count was not walked.
+- Running processes: a process whose working directory is in the old tree keeps writing into
+  `<root>.before-subvolume` (proven with a loop that wrote 60 there while the new root stopped at 26).
+  Restart sessions after the exchange.
+  `cli-git.service` has working directory `/var/home/user` and no descriptor under the checkout (read only check),
+  so it needs no restart when `pending` and `claimed` are empty.
+- Crash and rollback: SIGKILL after the copy, with the lock held before the exchange, and between the exchange and the
+  rename; each `--resume` ended with inode 256 and a clean `git status`; `--rollback` restored the original tree and
+  kept a file written to the new root.
+- Exact command lines (dry run first; the dry run never walks the tree):
+
+  ```sh
+  # file: dry run
+  node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
+  ```
+
+  ```sh
+  # file: migration
+  systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G \
+    --property=TasksMax=64 node /var/home/user/temp/agent/subvol-migrate/migrate.ts \
+    --root /var/home/user/Monochromatic --apply
+  ```
+
+- The script is not in Git and lives on the other disk (`~/temp` is `/var/mnt/encrypted/temp`); copy or commit it
+  before any reboot.
+- Not proven: a wrapped (`cli-git`) commit after the migration, because it would go through the production commit
+  service; plain Git commits from the main checkout and from a linked worktree worked.
+
+## 2026-11-01: owner correction on the 5-second bound
+
+- OWNER, verbatim: "\" 5-second bound on wrapped commands\" - there is never a 5s bound on wrapped commands. The
+  measure is always just commits vs native git should not take 5s longer."
+- Plain reading: no wrapped command is required to finish within 5 seconds. The one latency requirement is paired:
+  a commit made through the wrapper must not take 5 seconds or more longer than the same commit made with native Git.
+- Retracted: every sentence in this handover, in `package/git-policy/cli/README.md` (section "Operating conditions",
+  "The shared 5-second bound on one wrapped command is deliberate") and in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md` that calls the 5-second kill in
+  `observe_raw` (`TIME_BOUND_SECONDS`, `src/native/binary_support.rs`) a requirement or "the owner's bound".
+  It is a test hang guard the agents chose (its doc comment: "so a mutant that loops fails every affected control
+  quickly"), not a product bound. The note of 2026-11-01 that "the copy tests must fit" it is retracted too.
+- Also not the owner's measure: the 2,000 ms bound on a forwarded command's added p95 in `native:perf`
+  (`README.md` near line 997, task 59). The owner's measure is commits against native Git with a 5-second margin.
+- Open: earlier owner conditions on the `observe_raw` bound (handover entries at 20:45 and 20:50: raise only after the
+  owner approves evidence, never above 10 s) were given about that same 5-second kill. Whether they still govern a
+  test hang guard is asked in the question tool, not assumed.
+- Next: reword the README and the troubleshooting note, rename the guard by role, make `native:perf` gate on the
+  paired commit delta, and tell the running agents not to fit work to the 5-second kill.
+
+## 2026-11-01: facts measured after the btrfs report
+
+- Kopia global policy (`kopia policy show --global`): "Scan one filesystem only: false", so nested subvolumes are not
+  skipped by the global policy (per-path policies not listed yet).
+- `/etc/fstab` asks for `compress=zstd:1` on `/`, `/home` and `/var`, but the boot mount comes from the kernel argument
+  `rootflags=subvol=root` alone, so compression was off until the runtime remount of 2026-11-01 turned it on with
+  `user_subvol_rm_allowed`. A persistent fix is `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; not run.
+- `rpm-ostree status`: "State: busy", a rebase to `ghcr.io/ublue-os/bazzite:testing` started from a ghostty terminal
+  (the owner's own transaction). A reboot into it would drop the runtime mount options and may lose files outside Git,
+  so the migration script under `~/temp/agent/subvol-migrate` needs a home in Git before then.
+
+## 2026-11-01: ignored state, adopted btrfs choices, 0.5.6 READY
+
+- OWNER, verbatim: "carrying over ignored files like node_modules into a new worktree is expected, because agents and
+  people frequently forget to manually install node_modules in new worktrees."
+  This answers the btrfs report's open item "accept everything the source has as the ignored state": yes. Every rung of
+  the ladder carries the source worktree's ignored state (the snapshot gets it for free; the reflink and real-Git rungs
+  keep the existing ignored-state copy). The copy cost is a feature to make cheap, not a cost to remove.
+- Adopted without asking (each follows from an owner statement; veto open): every new linked worktree is created as a
+  subvolume ("I also intended for this to not be so heavy because we can take advantage of btrfs"); the wrapper deletes
+  a worktree subvolume itself through the ioctl when `user_subvol_rm_allowed` is active, else falls back to Git's
+  removal; rung 2 (reflink plus own index writer) ships ("Properly support overlayfs too"); no `checkout.workers=-1`
+  (63 processes against "Invoke real git as rarely as possible"); the snapshot source is the creating worktree, main
+  included when clean, with the snapshot's `.git` directory renamed aside and deleted after the command returns.
+- Kopia does not skip nested subvolumes under its global policy ("Scan one filesystem only: false").
+- The test hang guard: per the advisor, kept at 5 s as a test mechanism (the owner's 20:45 and 20:50 conditions on it
+  stand); only its wording changes, and the `TIME_BOUND_SECONDS` rename waits until the open branches merge.
+- `native:perf`: the 2,000 ms bound on forwarded commands comes from `package/git-policy/cli/SPEC.md:3562` ("must remain
+  strictly less than `2,000 ms`") and stays. The commit delta is reported, not enforced (handover entry of 2026-10-20);
+  enforcing the owner's measure (a wrapped commit less than 5 s slower than native Git) is queued.
+- Migration script made durable before the owner's pending reboot:
+  [cli-git-subvolume-migration-script.md](cli-git-subvolume-migration-script.md).
+- The earlier statement that `compress=zstd:1` was off because the boot mount takes only `rootflags` is inferred from
+  the mount table before and after the remount, not from a boot log.
+- 0.5.6 integrator READY: merged head `877bdab090` (replay `d0e70e1ec4`, then client `40334312d5`, onto `7f68f745f8`),
+  clippy clean, lib 2809 passed, binary 462 all passed counting reruns, e2e six scenarios on two seeds all PASS, no
+  forwarded `git add` exit 128. Gate 20 started on it (unit `gpc-main-gate20`, log
+  `~/temp/agent/gate/main-gate20.log`).
+- Queued: `fault_signal::an_interrupt_during_the_editor_ends_the_commit_and_leaves_nothing` failed once in the full
+  binary suite under load (60.85 s, exit 1 with "Aborting commit due to empty commit message" instead of 130) and passed
+  alone in 0.79 s. Undiagnosed; to be diagnosed and fixed properly, not rerun away.
+- Migration timing: after gate 20, the 0.5.6 release and the bump, with the service agent paused. 87 processes have a
+  working directory inside the checkout, among them the owner's ghostty shell (`bash --posix`) and `brh rebase testing`;
+  that shell needs `cd "$PWD"` after the exchange.

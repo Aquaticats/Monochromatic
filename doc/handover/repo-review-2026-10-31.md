@@ -2557,6 +2557,126 @@ Wave-4 eighty-fourth checkpoint (2026-11-01, three remainders reopened):
   rr-maa-006, the android slice-1 remainder 2 rr-maa-007, and troubleshooting
   161 rr-ts-390.
 
+Wave-4 eighty-fifth checkpoint (2026-11-01, six returns, six fresh slices):
+
+- Android slice 1 is COMPLETE: rows 018 to 026 close the 53 unread paths; the
+  ledger is 26 of 26 clean, no unread paths remain. Slice 2 is COMPLETE: rows
+  024 to 028 close the five tests and the PlayerContent layout region; ledger
+  28 of 28 clean, no unread paths. Slice 3 added rows 009 to 013 and is 13 of
+  13 clean, with 72 test paths unread.
+- Desktop slice 1 is COMPLETE: rows 015 to 020 close the 21 tests, icon and four
+  licenses; the ledger is 20 of 20 clean. Two line shifts were repaired in place
+  (`None => break` 157 to 156; nextest `slow-timeout` 5 to 6).
+- Planning slice 9 added rows 076 to 084 over positions 379 to 398; ledger 84 of
+  84 clean, next id 085, positions 399 to 418, base rr-dp-011.
+- Troubleshooting added rows 161 to 181 over worklist lines 244 to 343; ledger
+  180 of 180 clean, next id 182 at `module-test-unhandled-rejection.md`, base
+  rr-ts-391.
+- Live lanes: planning 085 rr-dp-011; troubleshooting 182 rr-ts-391; android
+  slice-3 remainders 014 rr-maa-010 (72 tests); android slice 4 001 rr-maa-009
+  (paths 301 to 354); desktop slice 2 001 rr-mda-004 (101 to 200); desktop slice
+  3 001 rr-mda-005 (201 to 300). All six use absolute ledger paths, private
+  append scripts and the 100-file cap.
+
+Wave-4 eighty-sixth checkpoint (2026-11-01, android app complete, six fresh slices):
+
+- Android slice 3 is COMPLETE: rows 014 to 020 close all 72 test paths; ledger
+  20 of 20 clean, no unread. Slice 4 is COMPLETE: rows 001 to 014 cover 52 of 54
+  paths, naming the wrapper jar and Cargo.lock; ledger 14 of 14 clean. The whole
+  android-app package is now complete across slices 1 to 4 (354 files; ledgers
+  at 26, 28, 20 and 14 rows).
+- Desktop slices 2 and 3 are COMPLETE: 12 and 22 rows, 100 of 100 paths each,
+  clean. Slice 4 covers the last 62 paths, id 001, base rr-mda-006.
+- Planning slice 10 added rows 085 to 088 over positions 399 to 418; ledger 88
+  of 88 clean, next id 089, positions 419 to 438, base rr-dp-012.
+- Troubleshooting added rows 182 to 189 over worklist lines 344 to 348; ledger
+  188 of 188 clean, next id 190 at `mpm-toolchain-migration.md`, base rr-ts-391.
+- Three rows were repaired: w2 186/187 cited untracked clone/scratch lines as
+  evidence, so those lines were removed and the external controls remain in
+  `ran`; desktop-3-001 quoted summary lines, so the quotes now use the live
+  enum/struct lines.
+- Live lanes: planning 089 rr-dp-012; troubleshooting 190 rr-ts-391; desktop
+  slice 4 001 rr-mda-006; ide/app non-design slices 1 and 2 at 001 rr-ida-001
+  and rr-ida-002 (548 non-design paths, 586 design paths already reviewed);
+  terminal/app at 001 rr-ta-001 (30 files).
+
+Wave-4 eighty-seventh checkpoint (2026-11-01, desktop and terminal complete):
+
+- Desktop slice 4 is COMPLETE: rows 001 to 010 cover 61 of 62 paths and name
+  the Inter font; the ledger is 10 of 10 clean. The whole desktop-app package is
+  now complete across slices 1 to 4 (362 files; ledgers at 20, 12, 22 and 10).
+- Terminal/app is COMPLETE: 14 rows, 27 of 30 files read, the lockfile and two
+  license texts named; ledger 14 of 14 clean.
+- Ide/app non-design slice 1 added 9 rows; ledger 9 of 9 clean, 63 of 100 paths
+  read, 37 named unread. Slice 2 added 4 rows; ledger 4 of 4 clean, 100 of 100
+  paths read.
+- Planning slice 11 added rows 089 to 093 over positions 419 to 438; row 092's
+  comma-joined evidence was reformatted to newline-separated lines, and the
+  ledger is 93 of 93 clean. Next id 094, positions 439 to 458, base rr-dp-013.
+- Troubleshooting is still live at worklist line 349
+  (`mpm-toolchain-migration.md`), ledger 188 rows, base rr-ts-391.
+- Live lanes: planning 094 rr-dp-013; ide slice-1 remainder 010 rr-ida-005 (37
+  unread paths); ide non-design slice 3 001 rr-ida-004 (201 to 300); slice 4 001
+  rr-ida-006 (301 to 400); slice 5 001 rr-ida-007 (401 to 500); troubleshooting
+  190 rr-ts-391. Ide non-design slice 6 (501 to 548) remains after these.
+
+Wave-4 eighty-eighth checkpoint (2026-11-01, ide slices 3 to 5 close):
+
+- Ide/app non-design slices 3, 4 and 5 are COMPLETE: 7, 6 and 10 rows over
+  100 of 100 paths each; all three ledgers clean. Slice 1 remains at 16 rows
+  with its README only partly read; the README remainder is its own lane.
+- Planning slice 12 added rows 094 to 097 over 17 of the 20 positions 439 to
+  458; ledger 97 of 97 clean. Three files remain unread; the next lane reads
+  those plus positions 459 to 475, id 098, base rr-dp-014.
+- Troubleshooting added rows 190 to 197 over worklist lines 349 to 352; ledger
+  196 of 196 clean, next id 198 at `music-player-linux-ci-prerequisites.md`,
+  base rr-ts-391.
+- Live lanes: planning 098 rr-dp-014; troubleshooting 198 rr-ts-391; ide README
+  remainder 017 rr-ida-009; ide non-design slice 6 001 rr-ida-008 (positions 501
+  to 548); test-fixture css-imported 001 rr-tfc-001 (8 files); test-fixture
+  oxlint-test-import 001 rr-tfo-001 (29 files).
+
+Wave-4 eighty-ninth checkpoint (2026-11-01, ide/app and the app family complete):
+
+- Ide/app is COMPLETE. The README lane added rows 017 to 022 after reading all
+  6,801 lines and mechanically checking every link, path, identifier and hash;
+  non-design slice 6 added rows 001 to 012 over 48 of 48 paths. The package now
+  covers 586 design files, 548 non-design files and the README. The whole app
+  family is complete: android, desktop, file-manager, terminal, music-player
+  app/asset/truepeak and ide.
+- Planning closed the three-file gap plus positions 459 to 475; rows 098 to 106,
+  ledger 106 of 106 clean, next id 107 at positions 476 to 495, base rr-dp-015.
+- Troubleshooting added rows 198 to 213 over worklist lines 353 to 360; rows
+  210 to 212 cited an untracked nano-spawn install, so those lines were removed
+  and the external control remains in `ran`. Ledger 212 of 212 clean, next id
+  214 at line 361, base rr-ts-391.
+- Test-fixture oxlint-test-import is COMPLETE at 5 rows (27 of 29 files; two
+  licenses named). Test-fixture css-imported stopped on a tool-permission denial
+  with no ledger; it was relaunched at rr-tfc-002.
+- Live lanes: planning 107 rr-dp-015; troubleshooting 214 rr-ts-391;
+  test-fixture oxlint-no-restricted-syntax slice 1 of 113 at 001 rr-ton-001;
+  test-fixture toml-edit slice 1 of 206 at 001 rr-tte-001; test-fixture
+  css-imported retry at 001 rr-tfc-002; test-fixture oxlint-stylistic at 001
+  rr-tos-001.
+
+Wave-4 ninetieth checkpoint (2026-11-01, test-fixture slices two and three):
+
+- Planning slice 14 added rows 107 to 114 over positions 476 to 495; ledger 114
+  of 114 clean, next id 115 at positions 496 to 515, base rr-dp-016.
+- Troubleshooting added rows 214 to 227 over lines 361 to 367; ledger 226 of 226
+  clean, next id 228 at line 368 (`netavark-masquerade-mask-exempt-mark.md`),
+  base rr-ts-391.
+- Test-fixture oxlint-no-restricted-syntax slice 1 added 6 rows over 98 of 100
+  paths; slice 2 is the remaining 13 paths, id 007, base rr-ton-002.
+  toml-edit slice 1 added 6 rows over 98 of 100 paths; slice 2 is paths 101 to
+  200, id 007, base rr-tte-002.
+- Test-fixture css-imported is COMPLETE at 3 rows (6 of 8 files; two licenses
+  named); oxlint-stylistic is COMPLETE at 7 rows (51 of 53; two licenses named).
+- Live lanes: planning 115 rr-dp-016; troubleshooting 228 rr-ts-391;
+  oxlint-no-restricted-syntax slice 2 007 rr-ton-002; toml-edit slice 2 007
+  rr-tte-002; test-fixture css-imported-no-exports 001 rr-tfce-001 (8 files);
+  test-fixture data-sequence 001 rr-tds-001 (11 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
