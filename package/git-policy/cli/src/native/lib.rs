@@ -1262,3 +1262,6 @@ pub mod standards_review_append;
 
 /// The service's handler for a review work item, bounded by a call deadline and a total budget.
 pub mod service_review;
+
+/// The standards-review credential: redacted when printed, read from the wrapper's environment, sent in the work message.
+pub mod service_review_key;

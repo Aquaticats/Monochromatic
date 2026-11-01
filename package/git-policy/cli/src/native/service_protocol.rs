@@ -12,6 +12,7 @@
 //! ```
 
 use serde_json::{Map, Value};
+use super::service_review_key::ReviewKey;
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
@@ -155,6 +156,9 @@ pub enum ClientMessage {
     Work {
         /// The repository's common Git directory, which holds the work directory.
         common_dir: PathBuf,
+        /// The gateway credential for the standards review of the commits this message announces. It lives only in this
+        /// message and in the service's memory, never in a work item or on disk.
+        review_key: Option<ReviewKey>,
     },
 }
 
@@ -211,11 +215,17 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => object(vec![("type", Value::from("retire")), ("version", Value::from(PROTOCOL_VERSION))]),
-        ClientMessage::Work { common_dir } => object(vec![
-            ("type", Value::from("work")),
-            ("version", Value::from(PROTOCOL_VERSION)),
-            ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
-        ]),
+        ClientMessage::Work { common_dir, review_key } => {
+            let mut entries: Vec<(&str, Value)> = vec![
+                ("type", Value::from("work")),
+                ("version", Value::from(PROTOCOL_VERSION)),
+                ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
+            ];
+            if let Some(key) = review_key {
+                entries.push(("reviewKey", Value::from(key.expose())));
+            }
+            object(entries)
+        }
         ClientMessage::Commit(request) => object(vec![
             ("type", Value::from("commit")),
             ("version", Value::from(PROTOCOL_VERSION)),
@@ -274,7 +284,12 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             if !common_dir.is_absolute() || common_dir.to_string_lossy().contains('\0') {
                 return Err(String::from("work request is not acceptable"));
             }
-            return Ok(ClientMessage::Work { common_dir });
+            let review_key: Option<ReviewKey> = match value.get("reviewKey") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(text)) => ReviewKey::new(text.as_str()),
+                Some(_) => return Err(String::from("work request is not acceptable")),
+            };
+            return Ok(ClientMessage::Work { common_dir, review_key });
         }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),

@@ -17,6 +17,7 @@ use super::standards_review_input::has_shadow_log;
 use super::standards_review_run::{ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_within};
 use super::standards_review_source::{read_landed_commit, read_message, read_names};
 use super::standards_review_text::commit_subject;
+use super::service_review_key::{KEY_VARIABLES, ReviewKey};
 use super::service_work::Verdict;
 use super::transaction_git::GitContext;
 use super::work_item::WorkItem;
@@ -45,6 +46,30 @@ pub fn options_for(item: &WorkItem, variable: &dyn Fn(&str) -> Option<String>) -
     options.deadline = CALL_DEADLINE;
     options.spool = Some(spool_directory(Path::new(item.git_dir.as_str()), item.repository.as_str()));
     return options;
+}
+
+/// What:
+///  The variable lookup the review's options read: the credential variables answer from the key that came in the wake
+///  message and from nowhere else, and every other variable answers from the service's environment.
+/// Why:
+///   The credential is never in the service's environment or in a unit file, so a service that did not receive a key in
+///   the message must record "no key" and not pick up a stray value; the service's environment carries no secret.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (name) => keyNames.includes(name) ? fromMessage(name) : process.env[name]
+/// ```
+pub fn review_variables(key: Option<&ReviewKey>) -> impl Fn(&str) -> Option<String> {
+    let exposed: Option<String> = key.map(|held| { return held.expose().to_string(); });
+    return move |name: &str| {
+        if name == KEY_VARIABLES[0] {
+            return exposed.clone();
+        }
+        if name == KEY_VARIABLES[1] {
+            return None;
+        }
+        return std::env::var(name).ok();
+    };
 }
 
 /// The Git reads, the subject and the review, without the budget.
