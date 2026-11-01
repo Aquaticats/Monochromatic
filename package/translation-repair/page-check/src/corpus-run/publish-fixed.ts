@@ -50,6 +50,7 @@ import {
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
 import { pageGuardSteps, } from './publish-page-guard-steps.ts';
+import type { MayWrite, } from './publish-may-write.ts';
 import {
   type FallbackPolicy,
   pageThatParses,
@@ -108,8 +109,9 @@ import { shippedDefects, } from './publish-shipped-defects.ts';
  the strict grammar refuses
 
  @param mayWrite - asked once the page is composed and its checks have run, with the slices the grammar put back to the
- archive, and before anything is written or logged as shipped; false leaves the page standing at its path untouched
- (an interim page that would replace a better page, B1242). Absent means write.
+ archive and the slices whose original the composition left off the page (B1300), and before anything is written or
+ logged as shipped; false leaves the page standing at its path untouched (an interim page that would replace a better
+ page, B1242). Absent means write.
 
  @param fallback - what a page that fell back to the archive does: `ship`
  writes it with its defect named (a first publish, since a run always ships),
@@ -153,7 +155,7 @@ export async function publishFixedPage(
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
     readonly carried?: readonly CarriedInsertion[];
     readonly readGrammar?: Parameters<typeof pageThatParses>[0]['readGrammar'];
-    readonly mayWrite?: (composed: { readonly keptArchiveAt: readonly number[]; },) => boolean;
+    readonly mayWrite?: MayWrite;
     readonly fallback?: FallbackPolicy;
   },
 ): Promise<{
@@ -162,6 +164,7 @@ export async function publishFixedPage(
   readonly destinations: DestinationCheck;
   readonly defects: readonly PublishDefect[];
   readonly keptArchiveAt: readonly number[];
+  readonly sourceDroppedAt: readonly number[];
   readonly written: boolean;
 }> {
   /**
@@ -175,6 +178,11 @@ export async function publishFixedPage(
     entryId,
     l,
   },);
+  /**
+   Slices whose original the composition left off the page, since no writing of it made the page parse; none where it
+   kept every original (B1300).
+   */
+  const sourceDroppedAt = (composed.step === 'dropped') ? composed.slices : [];
   // A PAGE THE GRAMMAR REFUSES STILL SHIPS (B1207): the archive is kept at the slices that break it and they are named
   // as a defect, where `assertPageParses` used to throw here after the defects were logged and before anything was
   // written (`page-grammar-fallback.ts`).
@@ -380,13 +388,19 @@ export async function publishFixedPage(
     publishDir,
     entryId,
   },);
-  if ((mayWrite !== undefined) && (!mayWrite({ keptArchiveAt: parsing.keptArchiveAt, },))) {
+  if (
+    (mayWrite !== undefined) && (!mayWrite({
+      keptArchiveAt: parsing.keptArchiveAt,
+      sourceDroppedAt,
+    },))
+  ) {
     return {
       path,
       pageText,
       destinations,
       defects,
       keptArchiveAt: parsing.keptArchiveAt,
+      sourceDroppedAt,
       written: false,
     };
   }
@@ -434,6 +448,7 @@ export async function publishFixedPage(
     destinations,
     defects,
     keptArchiveAt: parsing.keptArchiveAt,
+    sourceDroppedAt,
     written: true,
   };
 }

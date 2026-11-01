@@ -308,28 +308,38 @@ export type InterimCounts = {
  @param keptArchiveAt - slices the page-grammar fallback put back to the archive, which the page then carries as the
  archive has them whatever the source says (B1246); none for a page that parsed as composed
 
+ @param sourceDroppedAt - slices whose original the composition left off the page because no writing of it made the page
+ parse, which the page then carries as the archive has them, a blank span where the archive has none (B1300); none for
+ a page that kept every original
+
  @returns Three counts, which add up to the number of slices
 
  @throws {@link UnansweredContestSliceError} when the lanes differ at a settled slice the contest never answered
 
  @example
  ```ts
- const { settledSlices, archiveSlices, sourceSlices, } = interimCountsOf({ source, keptArchiveAt: [], },);
+ const { settledSlices, archiveSlices, sourceSlices, } = interimCountsOf({ source, keptArchiveAt: [], sourceDroppedAt: [], },);
  ```
  */
 function interimCountsOf(
   {
     source,
     keptArchiveAt,
+    sourceDroppedAt,
   }: {
     readonly source: WouldShipSource;
     readonly keptArchiveAt: readonly number[];
+    readonly sourceDroppedAt: readonly number[];
   },
 ): InterimCounts {
   /**
-   Slices the page carries as the archive has them because the grammar refused their wording.
+   Slices the page carries as the archive has them because the grammar refused their wording or no writing of their
+   original made the page parse.
    */
-  const putBack = new Set(keptArchiveAt,);
+  const putBack = new Set([
+    ...keptArchiveAt,
+    ...sourceDroppedAt,
+  ],);
   /**
    What each slice would carry.
    */
@@ -501,13 +511,20 @@ export async function publishInterimPage(
     l,
     archiveOriginalSpans,
     ...((readGrammar === undefined) ? {} : { readGrammar, }),
-    // ASKED AFTER THE GRAMMAR HAS PUT SLICES BACK, so the settled slices counted are those of the page that would ship.
-    mayWrite: function mayReplaceStanding({ keptArchiveAt, },): boolean {
+    // ASKED AFTER THE GRAMMAR HAS PUT SLICES BACK AND THE COMPOSITION HAS LEFT ORIGINALS OFF, so the settled slices counted
+    // are those of the page that would ship.
+    mayWrite: function mayReplaceStanding(
+      {
+        keptArchiveAt,
+        sourceDroppedAt,
+      },
+    ): boolean {
       return !standingStays({
         standing,
         settledSlices: interimCountsOf({
           source,
           keptArchiveAt,
+          sourceDroppedAt,
         },)
           .settledSlices,
       },);
@@ -517,6 +534,7 @@ export async function publishInterimPage(
     ...interimCountsOf({
       source,
       keptArchiveAt: published.keptArchiveAt,
+      sourceDroppedAt: published.sourceDroppedAt,
     },),
     pageText: published.pageText,
     destinations: published.destinations,
