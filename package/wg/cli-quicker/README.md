@@ -16,8 +16,11 @@ file names and nft table names,
 so it is checked at the command line,
 before `sudo` is asked for and before anything is read:
 1 to 15 characters (Linux's limit) from letters,
-digits and `_ = + . -`,
+digits and `_ . -`,
 not starting with `-` and not `.` or `..`.
+Linux also allows `=` and `+`,
+but `nft` takes neither in a table name,
+so no block could be made for such an interface.
 Any other name,
 such as one with a space,
 a quote,

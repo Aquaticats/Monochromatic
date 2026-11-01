@@ -28,6 +28,11 @@ import {
 } from '../dist/final/node/tunnel-traffic-block.mjs';
 
 /**
+ Characters of an nft refusal that the scenario prints.
+ */
+const DIAGNOSTIC_LIMIT = 120;
+
+/**
  Interface name the block is made for.
  */
 const INTERFACE_NAME = 'wgscenario';
@@ -183,6 +188,40 @@ const removed = await trafficBlockState({ interfaceName: INTERFACE_NAME, },);
 // Removing a block that is not there is not a failure.
 await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
 /**
+ Tries to install a block for an interface name and says whether `nft` took the name of its table.
+
+ @param interfaceName - Name to try.
+
+ @returns `installed` when the block was installed,
+ which is then removed,
+ and `refused` when `nft` did not take the table name.
+
+ @example
+ ```ts
+ await tryName({ interfaceName: 'a=b' }); // 'refused'
+ ```
+ */
+async function tryName({ interfaceName, }: { readonly interfaceName: string; },): Promise<'installed' | 'refused'> {
+  try {
+    await installTrafficBlock({
+      interfaceName,
+      makeDirectory: scratchDirectory,
+    },);
+  }
+  catch (error) {
+    process.stderr
+      .write(`nft refused the table name of ${interfaceName}: ${String(error,)
+        .slice(
+          0,
+          DIAGNOSTIC_LIMIT,
+        )}\n`,);
+    return 'refused';
+  }
+  await removeTrafficBlock({ interfaceName, },);
+  return 'installed';
+}
+
+/**
  Lists the block table as `nft` prints it.
 
  @returns The listing.
@@ -250,8 +289,19 @@ const printedReplacement = await watching({ work: installAsPrinted, },);
  */
 const afterPrintedReplacement = await listing();
 await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
+/**
+ What `nft` does with the characters that the rule for interface names allows or leaves out of the name of a table.
+ */
+const tableNames = {
+  underscore: await tryName({ interfaceName: 'a_b', },),
+  dot: await tryName({ interfaceName: 'a.b', },),
+  dash: await tryName({ interfaceName: 'a-b', },),
+  equals: await tryName({ interfaceName: 'a=b', },),
+  plus: await tryName({ interfaceName: 'a+b', },),
+};
 process.stdout
   .write(`${JSON.stringify({
+    tableNames,
     replacement,
     control,
     installed,

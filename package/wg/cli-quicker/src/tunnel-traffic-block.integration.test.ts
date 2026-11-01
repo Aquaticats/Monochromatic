@@ -43,6 +43,11 @@ type Observed = {
   readonly removed: string;
 
   /**
+   What `nft` did with the characters of an interface name in the name of the block table.
+   */
+  readonly tableNames: Readonly<Record<'underscore' | 'dot' | 'dash' | 'equals' | 'plus', string>>;
+
+  /**
    Whether the printed one-argument form of the by-hand steps installs the same table as the script.
    */
   readonly sameTable: boolean;
@@ -124,6 +129,8 @@ assert.ok(
   !observed.replacement.includes('delete chain',),
   `replacing a block in place deleted a chain: ${observed.replacement}`,
 );
+// The characters the rule for interface names allows make a table; the two it leaves out, which Linux allows, do not.
+assert.deepEqual(observed.tableNames, { underscore: 'installed', dot: 'installed', dash: 'installed', equals: 'refused', plus: 'refused', },);
 assert.equal(observed.installed, 'present',);
 assert.equal(observed.removed, 'absent',);
 // The one-argument form that the by-hand steps print installs the same table as the script of wg-quicker, in one transaction.

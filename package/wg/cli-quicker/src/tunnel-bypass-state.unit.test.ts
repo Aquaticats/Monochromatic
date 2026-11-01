@@ -70,6 +70,8 @@ const HOSTILE_NAMES: readonly (readonly [label: string, name: string])[] = [
   ['a double quote', 'wg"x',],
   ['a backslash', String.raw`wg\x`,],
   ['a colon', 'wg:x',],
+  ['an equals sign', 'wg=x',],
+  ['a plus sign', 'wg+x',],
   ['a glob', 'wg*',],
   ['a redirection', 'wg>x',],
   ['a NUL', 'wg\u0000x',],

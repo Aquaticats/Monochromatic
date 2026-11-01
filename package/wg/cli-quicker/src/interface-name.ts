@@ -14,8 +14,11 @@ const MAX_INTERFACE_NAME_LENGTH = 15;
  Characters an interface name may hold.
  None of them is special to a shell or to `nft`,
  and none opens a path.
+ Linux also allows `=` and `+` in a name, but `nft` takes neither in the name of a table (it reads them as operators,
+ and a quoted name is not accepted there), so no traffic block can be made for such an interface and `down` would always refuse.
+ A name with one of them is refused here instead of failing late.
  */
-const NAME_CHARACTERS = new Set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_=+.-',);
+const NAME_CHARACTERS = new Set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-',);
 
 /**
  Names that hold only allowed characters and still name no interface:
@@ -95,7 +98,7 @@ export function interfaceNameOfArgument({ arg, }: { readonly arg: string; },): s
 
 /**
  Tells whether a name can be the name of an interface that wg-quicker puts into commands.
- It is 1 to 15 characters of letters, digits and `_ = + . -`,
+ It is 1 to 15 characters of letters, digits and `_ . -`,
  does not begin with `-` (a command would read it as an option),
  and is not `.` or `..`.
 
@@ -138,7 +141,7 @@ export function assertInterfaceName({ interfaceName, }: { readonly interfaceName
     return;
   throw new ConfigError(
     `${showable({ text: JSON.stringify(interfaceName,), },)} is not a usable interface name: `
-      + 'use 1 to 15 characters from letters, digits and _ = + . -, not starting with - and not . or .. '
-      + '(the name becomes part of commands, file names and nft table names, and Linux limits it to 15 characters)',
+      + 'use 1 to 15 characters from letters, digits and _ . -, not starting with - and not . or .. '
+      + '(the name becomes part of commands, file names and nft table names, which take no = or +, and Linux limits it to 15 characters)',
   );
 }
