@@ -538,6 +538,30 @@ Wave-4 eleventh checkpoint (2026-11-01, all rows verified against the tree befor
   residual cells remain (scan-ef, scroll-a, settings-a/b, sub-a/b, tabletop-a/b/c,
   toast-a, unf-a to unf-j).
 
+Wave-4 twelfth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- learning/rust complete: 10 of 10 files (rows `w4-learning-rust-001` to `-003` verified,
+  3 of 3 clean; headline: RESOURCES.md links to the removed `package/rust-module/` and
+  `package/desktop-app/` dirs, and only aquascope-decoder.html carries the NOTES-mandated
+  color-scheme meta). ownership-marker/foreign-borrowed complete and clean: 7 of 7 files,
+  zero rows, the empty `w4-ownership-marker.jsonl` accounts for the slice (zero-runtime
+  claim verified; the no-root-import rule honored tree-wide with a 76-reference control).
+  `w4-fe-core-tests` now on search-shadow/cli (31 files; then vm-builder/cli, vmsync/cli,
+  mvm/cli slice 2, git-policy/cli slices 9+).
+- pi-plugin auto-mode progress: rows `w4-pi-plugin-022` to `-028` verified (28 of 28
+  clean after my 027 evidence-format fix: the child omitted the space after the
+  line-number colon, which made the verifier misparse the path; briefs now carry the
+  format note). 28 of 148 files read; the package-wide link sweep is complete (126
+  links, 4 dead, all already covered by earlier rows). Headline row 027:
+  architecture.md still describes the removed native implementation as current.
+  Remaining: historical-extension-and-migration.md, the five planning docs, the review
+  HTML, and the ~120 PNGs for density coverage.
+- ide/app src/native progress: row `w4-ide-app-012` verified (12 of 12 clean;
+  frame_trace.rs:97's garbled comment obscures that wheel::note_event rides the
+  window's single winit event hook). The find family is complete and clean; 133 files
+  remain from ignored_row_tests.rs.
+- Manual slice 6 (plus the 12 orphan rows) still in flight with `w4-fm-variant-qt`.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -979,9 +1003,10 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
 5. Rust: `dependency-catalog/*` complete (core-pnpm, core-rust 22, core-native 54,
    cli-rust-update 36, cli-tighten 24, cli-tighten.matrix 12; cli-cube in flight), `wg/*`
    done through cli-quicker 138 of 138, `git-policy/cli` slices 9+ (no wave-4 child holds
-   them; re-assign when a child frees), `mvm/cli` slice 2 (in flight), `learning/rust` in
-   flight by `w4-fe-core-tests` (10 files), then `ownership-marker/foreign-borrowed`,
-   `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli`.
+   them; re-assign when a child frees), `mvm/cli` slice 2 (in flight), `learning/rust`
+   done (3 rows), `ownership-marker/foreign-borrowed` done clean (zero rows),
+   `search-shadow/cli` in flight by `w4-fe-core-tests` (31 files), then
+   `vm-builder/cli`, `vmsync/cli`.
 6. `translation-repair/*` (35 after adjudication, one per assignment); `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
    `rgffplay/cli`, `page-weight/cli`, `terminal-exec/cli`, `watch-restart/cli`,
