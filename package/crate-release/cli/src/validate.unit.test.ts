@@ -6,12 +6,13 @@ import {
 
 import { CrateReleaseError } from './error.ts';
 import {
+  parseBranchName,
   parseCommitScope,
   parseCrateName,
+  parseManifestPath,
   parseRepositoryPath,
   parseSha,
   parseSystemdValue,
-  parseTaskName,
   parseTemplate,
   parseUnitName,
   parseUserAgent,
@@ -93,6 +94,22 @@ await describe({
       }),
     }),
     describe({
+      name: parseManifestPath.name,
+      children: textCases({
+        parse: parseManifestPath,
+        accepted: ['Cargo.toml', 'package/x.fuzz/Cargo.toml', 'package/a b/Cargo.toml'],
+        rejected: ['', 'package/x/Other.toml', 'package/x/Cargo.toml.bak', 'package/x/MyCargo.toml', '../x/Cargo.toml', '/abs/Cargo.toml', 'a//Cargo.toml'],
+      }),
+    }),
+    describe({
+      name: parseBranchName.name,
+      children: textCases({
+        parse: parseBranchName,
+        accepted: ['main', 'release/0.6', 'a.b_c-d'],
+        rejected: ['', '-main', '--help', '/main', 'main/', 'a..b', 'a//b', 'a b', 'a;b', 'a$b', "a'b", 'a\nb', 'é'],
+      }),
+    }),
+    describe({
       name: parseCommitScope.name,
       children: textCases({
         parse: parseCommitScope,
@@ -114,14 +131,6 @@ await describe({
         parse: parseUnitName,
         accepted: ['cli-git-publish-dry', 'a_b-1'],
         rejected: ['', '-a', 'a b', 'a.service', 'a/b', 'a\nb', 'a@b'],
-      }),
-    }),
-    describe({
-      name: parseTaskName.name,
-      children: textCases({
-        parse: parseTaskName,
-        accepted: ['//package/git-policy/cli.fuzz:lock:members', 'lint', 'a:b'],
-        rejected: ['', '-x', '--help', 'a b', 'a\nb', 'a\0b', 'a;b', 'a$b', "a'b"],
       }),
     }),
     describe({

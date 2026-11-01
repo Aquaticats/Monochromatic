@@ -45,6 +45,48 @@ export const lockFileName = 'Cargo.lock';
 
 //endregion Release step defaults
 
+//region Release hosts, registry and dispatch
+
+/**
+ Where a release runs. `local` is a developer machine: cargo works offline, the publish dry run is capped in a transient
+ systemd unit, and a manifest that already holds the target is a safe re-run. `runner` is a fresh CI checkout: cargo
+ may use the network, the dry run needs no cap, and a manifest that already holds the target means the bump is already
+ on the branch, which is refused.
+ */
+export const releaseHosts = [
+  'local',
+  'runner',
+] as const;
+
+/**
+ Host a release runs on when `--host` is absent.
+ */
+export const defaultReleaseHost = 'local';
+
+/**
+ File, beside this package's `package.json`, that holds the arguments of every crate that can be released: the one
+ source the release command, the dispatch command, the wait command and the release workflow's choices all read.
+ */
+export const registryFileName = 'releasable-crates.json';
+
+/**
+ Workflow file that runs a release on a GitHub runner.
+ */
+export const releaseWorkflow = 'crate-release.yml';
+
+/**
+ Names of the release workflow's inputs, which the dispatch command fills and the workflow file declares.
+ */
+export const releaseWorkflowInputs = {
+  crate: 'crate',
+  from: 'from',
+  to: 'to',
+  note: 'note',
+  dryRun: 'dry-run',
+} as const;
+
+//endregion Release hosts, registry and dispatch
+
 //region Publish check defaults
 
 /**
@@ -125,11 +167,6 @@ export const maximumShaLength = 40;
  Program that type-checks the crate.
  */
 export const cargoProgram = 'cargo';
-
-/**
- Task runner that refreshes lockfiles.
- */
-export const taskRunnerProgram = 'mise';
 
 /**
  Program that starts a capped transient unit and waits for it.
@@ -224,9 +261,9 @@ export const systemdValueCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno
 export const unitNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
 
 /**
- Characters of a mise task name such as `//package/a/b.fuzz:lock:members`.
+ Characters of a branch name this package accepts: letters, digits and the separators of a path.
  */
-export const taskNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-./:';
+export const branchNameCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-/';
 
 /**
  Characters of a workflow file name.

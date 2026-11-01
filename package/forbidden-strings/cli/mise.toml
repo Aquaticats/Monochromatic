@@ -43,12 +43,12 @@ description = "Run binary and embedded scanner tests unprivileged with Git 2.56.
 run = "node bin/test-container.ts"
 
 [tasks.release]
-description = "Bump the scanner and every exact pin of it (the Git policy wrapper, the fuzz sidecar, the benchmark crate), check, dry-run the publish and commit: `-- <from> <to> <note>` (quote the note; the shared crate-release options such as --memory-max follow the same --)"
-run = "node ../../crate-release/cli/bin/release.ts --crate-name forbidden-strings --crate-dir package/forbidden-strings/cli --scope forbidden-strings/cli --pin-file package/git-policy/cli/Cargo.toml --pin-file package/forbidden-strings/cli.fuzz/Cargo.toml --pin-file package/forbidden-strings/core.bench/Cargo.toml --check-bin forbidden-strings --lock-task //package/git-policy/cli.fuzz:lock:members --unit-name forbidden-strings-publish-dry"
+description = "Start the scanner release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the scanner and every exact pin of it, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
+run = "node ../../crate-release/cli/bin/dispatch-release.ts --crate forbidden-strings"
 
 [tasks."release:wait"]
-description = "Wait for the cargo-publish run of a pushed scanner release commit, then check crates.io and the GitHub release: `-- <sha> <version>`"
-run = "node ../../crate-release/cli/bin/wait-publish.ts --crate-name forbidden-strings"
+description = "Follow the release run that `release` printed, then the cargo-publish run it started, then check crates.io and the GitHub release: `-- <run URL or id> <version>`"
+run = "node ../../crate-release/cli/bin/await-release.ts --crate forbidden-strings"
 
 [tasks.build]
 description = "Build the forbidden-strings binary in release mode"

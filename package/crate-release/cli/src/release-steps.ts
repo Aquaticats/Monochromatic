@@ -10,9 +10,11 @@ import {
   lockFileName,
   manifestFileName,
   systemdRunProgram,
-  taskRunnerProgram,
 } from './constants.ts';
-import type { ReleaseOptions } from './release-options.ts';
+import type {
+  ReleaseHost,
+  ReleaseOptions,
+} from './release-options.ts';
 
 /**
  One program call of a release, with where it runs.
@@ -86,27 +88,91 @@ export function commitPaths(options: ReleaseOptions): readonly string[] {
 }
 
 /**
- Arguments of the offline check that proves the edited crate still builds.
+ The cargo flag that keeps a call off the network, on the host that keeps it off.
+
+ @param host - where the release runs
+
+ @returns `--offline` on a local host, nothing on a runner, whose registry cache is empty and whose network is open
+
+ @example
+ ```ts
+ offlineArguments('local');
+ ```
+ */
+function offlineArguments(host: ReleaseHost): readonly string[] {
+  return host === 'local' ? ['--offline'] : [];
+}
+
+/**
+ Arguments of the check that proves the edited crate still builds.
 
  @param checkBins - binaries to build, each as its own `--bin`; empty to check the whole crate
+
+ @param host - where the release runs: a local host works offline, a runner may use the network
 
  @returns the arguments after `cargo`
 
  @example
  ```ts
- buildCheckArguments({ checkBins: ['cli-git-native'] });
+ buildCheckArguments({ checkBins: ['cli-git-native'], host: 'local' });
  ```
  */
-export function buildCheckArguments({ checkBins }: { readonly checkBins: readonly string[] }): readonly string[] {
+export function buildCheckArguments({
+  checkBins,
+  host,
+}: {
+  readonly checkBins: readonly string[];
+  readonly host: ReleaseHost;
+}): readonly string[] {
   return [
     'check',
-    '--offline',
+    ...offlineArguments(host),
     ...checkBins.flatMap(function binArguments(checkBin) {
       return [
         '--bin',
         checkBin
       ];
     }),
+  ];
+}
+
+/**
+ Arguments of the lockfile refresh that records a changed workspace member version without moving any other locked
+ version.
+
+ @param host - where the release runs: a local host works offline, a runner may use the network
+
+ @returns the arguments after `cargo`
+
+ @example
+ ```ts
+ buildLockArguments('runner');
+ ```
+ */
+export function buildLockArguments(host: ReleaseHost): readonly string[] {
+  return [
+    'update',
+    ...offlineArguments(host),
+    '--workspace',
+  ];
+}
+
+/**
+ Arguments of the publish dry run, which follow `cargo` on every host.
+
+ @returns the arguments after `cargo`; the locked lockfile must already hold the new version
+
+ @example
+ ```ts
+ buildPublishDryRunTail();
+ ```
+ */
+export function buildPublishDryRunTail(): readonly string[] {
+  return [
+    'publish',
+    '--dry-run',
+    '--locked',
+    '--allow-dirty',
   ];
 }
 
@@ -144,10 +210,7 @@ export function buildPublishDryRunArguments({
     `--working-directory=${workingDirectory}`,
     `--property=MemoryMax=${memoryMax}`,
     cargoProgram,
-    'publish',
-    '--dry-run',
-    '--locked',
-    '--allow-dirty',
+    ...buildPublishDryRunTail(),
   ];
 }
 
@@ -182,8 +245,10 @@ export function buildCommitArguments({
 }
 
 /**
- Plan the program calls of a release, in the order they run: offline check, lockfile refreshes, publish dry run,
- commit.
+ Plan the program calls of a release, in the order they run: check, lockfile refreshes, publish dry run, commit.
+
+ A local host keeps cargo offline and runs the dry run in a capped transient unit; a runner lets cargo use the network
+ and runs the dry run directly, because the runner is a disposable machine of its own.
 
  @param options - validated release options
 
@@ -206,31 +271,41 @@ export function buildReleaseSteps(options: ReleaseOptions): readonly ReleaseStep
     {
       label: 'cargo check',
       program: cargoProgram,
-      args: buildCheckArguments({ checkBins: options.checkBins }),
+      args: buildCheckArguments({
+        checkBins: options.checkBins,
+        host: options.host
+      }),
       cwd: crateRoot,
     },
-    ...options.lockTasks
-      .map(function lockStep(task): ReleaseStep {
+    ...options.lockDirectories
+      .map(function lockStep(directory): ReleaseStep {
         return {
           label: 'lock members',
-          program: taskRunnerProgram,
-          args: [
-            'run',
-            task
-          ],
-          cwd: options.root,
+          program: cargoProgram,
+          args: buildLockArguments(options.host),
+          cwd: join(
+            options.root,
+            ...directory.split(posix.sep)
+          ),
         };
       }),
-    {
-      label: 'publish dry run',
-      program: systemdRunProgram,
-      args: buildPublishDryRunArguments({
-        unitName: options.unitName,
-        workingDirectory: crateRoot,
-        memoryMax: options.memoryMax,
-      }),
-      cwd: crateRoot,
-    },
+    options.host === 'local'
+      ? {
+        label: 'publish dry run',
+        program: systemdRunProgram,
+        args: buildPublishDryRunArguments({
+          unitName: options.unitName,
+          workingDirectory: crateRoot,
+          memoryMax: options.memoryMax,
+        }),
+        cwd: crateRoot,
+      }
+      : {
+        label: 'publish dry run',
+        program: cargoProgram,
+        args: buildPublishDryRunTail(),
+        cwd: crateRoot,
+      },
     {
       label: 'commit',
       program: gitProgram,

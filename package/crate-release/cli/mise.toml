@@ -14,9 +14,21 @@ extends = "format:oxlint"
 extends = "test:unit"
 
 [tasks.release]
-description = "Bump a crate's version and its exact pins, check, dry-run publish and commit: `-- --crate-name <name> --crate-dir <dir> --scope <scope> [options] <from> <to> <note>` (see README.md)"
-run = "node bin/release.ts"
+description = "Start the release of a crate listed in releasable-crates.json on GitHub and print the run URL: `-- --crate <name> [--dry-run] <from> <to> <note>` (see README.md). Nothing compiles here"
+run = "node bin/dispatch-release.ts"
 
 [tasks."release:wait"]
+description = "Follow a release run, then the cargo-publish run it started, then verify crates.io and the GitHub release: `-- --crate <name> [options] <run URL or id> <version>` (see README.md)"
+run = "node bin/await-release.ts"
+
+[tasks."release:run"]
+description = "Run the release command itself: bump, check, dry-run the publish and commit locally. The release workflow runs it on a runner with `--host runner`; running it here compiles the crate on this machine (see README.md)"
+run = "node bin/release.ts"
+
+[tasks."release:push"]
+description = "Append the head commit of this checkout to a branch through the GraphQL API so GitHub signs it: `-- --repo <owner/name> --branch <branch> --scratch-dir <dir>`; the release workflow runs it (see README.md)"
+run = "node bin/push-release.ts"
+
+[tasks."release:wait:commit"]
 description = "Wait for the publish workflow run of a commit, then verify crates.io and the GitHub release: `-- --crate-name <name> [options] <sha> <version>` (see README.md)"
 run = "node bin/wait-publish.ts"
