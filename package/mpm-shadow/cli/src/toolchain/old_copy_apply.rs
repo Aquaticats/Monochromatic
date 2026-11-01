@@ -113,17 +113,13 @@ fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> {
 
 /// Re-points one link,
 /// recording the line or the failure.
-fn repoint(plan: &OldCopyPlan, link: &Repoint, outcome: &mut OldCopyOutcome) -> bool {
-    return match atomic_symlink(&link.link, &link.target) {
-        Ok(()) => {
-            outcome.lines.push(format!("re-pointed {} -> {}", link.link.display(), link.target.display()));
-            true
-        }
-        Err(error) => {
-            outcome.failed.push((failure_label(plan), format!("cannot re-point {}: {error}", link.link.display())));
-            false
-        }
-    };
+/// A link that could not move still resolves to the copy,
+/// and the search before the removal keeps the copy for that reason.
+fn repoint(plan: &OldCopyPlan, link: &Repoint, outcome: &mut OldCopyOutcome) {
+    match atomic_symlink(&link.link, &link.target) {
+        Ok(()) => outcome.lines.push(format!("re-pointed {} -> {}", link.link.display(), link.target.display())),
+        Err(error) => outcome.failed.push((failure_label(plan), format!("cannot re-point {}: {error}", link.link.display()))),
+    }
 }
 
 /// What:
@@ -140,18 +136,11 @@ fn repoint(plan: &OldCopyPlan, link: &Repoint, outcome: &mut OldCopyOutcome) -> 
 /// function applyPlan(ctx: Context, plans: OldCopyPlans, plan: OldCopyPlan, outcome: OldCopyOutcome): void
 /// ```
 fn apply_plan(ctx: &Context, plans: &OldCopyPlans, plan: &OldCopyPlan, outcome: &mut OldCopyOutcome) {
-    let mut every_link_moved: bool = true;
     for link in &plan.repoints {
-        if !repoint(plan, link, outcome) {
-            every_link_moved = false;
-        }
+        repoint(plan, link, outcome);
     }
     if let Some(reason) = &plan.kept {
         outcome.warnings.push(kept_warning(plan, reason));
-        return;
-    }
-    if !every_link_moved {
-        outcome.warnings.push(kept_warning(plan, "a link to it could not be re-pointed (see the failure), and removing it would leave that link dangling"));
         return;
     }
     let Some(managed) = &plan.managed else {

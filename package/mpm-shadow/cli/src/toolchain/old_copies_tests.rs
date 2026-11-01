@@ -21,6 +21,8 @@ use super::model::LockedTool;
 use super::old_copies::plan_old_copies;
 use super::old_copy_apply::{apply_old_copies, preview_lines, retire_old_copies};
 use super::plan::parse_plan;
+use super::published_archive::{current_link_of, point_current_at_newest_archive};
+use super::published_archive_tests::{BIN as ARCHIVE_BIN, ID as ARCHIVE_ID, finish_archive, release_tool};
 use super::scope::{ScopeKind, global_scope, toolchain_roots};
 use super::status_cmd::run_status;
 use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_lockfile_only, run_sync_with};
@@ -479,6 +481,38 @@ fn a_failed_install_of_a_newer_version_leaves_the_old_copy_and_its_links_even_be
     assert_eq!(fs::read_link(scene.local_git()).expect("a link"), scene.old_copy());
     assert!(report.warnings.iter().any(|warning| return warning.contains("failed in this run")), "{report:?}");
     assert_eq!(scene.uninstalls(), 0);
+}
+
+#[test]
+fn the_old_copy_of_a_release_archive_tool_is_retired_the_same_way_with_or_without_a_cargo_record() {
+    for recorded in [false, true] {
+        let rig = Rig::new();
+        rig.runner.on("cargo uninstall", fake_uninstall());
+        let lock = Lock { tools: vec![release_tool(&rig, "0.2.2")] };
+        let root = rig.scope.toolchain_root.clone();
+        finish_archive(&root, "0.2.2");
+        point_current_at_newest_archive(&root, ARCHIVE_ID, ARCHIVE_BIN).expect("point current at the newest");
+        let old_copy = rig.scope.home.join(".cargo").join("bin").join(ARCHIVE_BIN);
+        write_executable(&old_copy);
+        if recorded {
+            fs::write(
+                rig.scope.home.join(".cargo").join(".crates.toml"),
+                format!("[v1]\n\"monochromatic-mpm-shadow 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)\" = [\"{ARCHIVE_BIN}\"]\n"),
+            )
+            .expect("write the record");
+        }
+        let link = rig.scope.home.join(".local").join("bin").join("mpm");
+        make_link(&link, &old_copy);
+        rig.runner.answer("git -C", &format!("worktree {}\nHEAD 0000\n\n", rig.scope.root.display()), 0);
+        let context = Context { scope: &rig.scope, env: &rig.env, runner: &rig.runner, http: &rig.http, host: &rig.host, tools: &lock.tools };
+        let outcome = retire_old_copies(&context, &[]);
+        assert!(outcome.failed.is_empty() && outcome.warnings.is_empty(), "{outcome:?}");
+        let managed = current_link_of(&root, ARCHIVE_ID).expect("a plain id").join("release-folder").join(ARCHIVE_BIN);
+        assert_eq!(fs::read_link(&link).expect("a link"), managed, "recorded: {recorded}");
+        assert!(fs::symlink_metadata(&old_copy).is_err(), "recorded: {recorded}");
+        let uninstalls = rig.runner.lines().iter().filter(|line| return line.starts_with("cargo uninstall")).count();
+        assert_eq!(uninstalls, usize::from(recorded), "cargo is asked only when its record names the bin");
+    }
 }
 
 #[test]
