@@ -25,7 +25,13 @@ use super::child_environment::environment_value;
 use super::forwarding::{ChildOutcome, exit_code, outcome_of};
 /// The texts, the program lookup and the plan.
 use super::lfs_pre_push::{failed_message, find_program, missing_program_message};
+/// Hides the credentials in a URL of relayed text.
+use super::lfs_output_mask::{mask_userinfo, mask_userinfo_text};
+/// Which failures are run again, and after how long.
+use super::lfs_server_retry::{next_delay, retry_delays, retry_notice};
 use super::lfs_upload_plan::UploadPlan;
+/// The anonymous file the interactive upload's standard error goes to.
+use super::scratch_location::scratch_file;
 /// Relays signals to the child.
 use super::signal_relay::SignalGuard;
 /// Starts that ride out a short shortage of processes.
@@ -34,8 +40,10 @@ use super::start_retry::RetryStart;
 use std::ffi::OsString;
 /// The real Git whose directory leads `PATH`.
 use std::path::Path;
-/// The child.
-use std::process::Command;
+/// The child and its standard error.
+use std::process::{Command, Stdio};
+/// Reading the captured standard error back.
+use std::io::{Read, Seek, SeekFrom};
 
 /// `PATH` with the directory of the real Git first, so a `git` that `git-lfs` starts is the real Git and never the
 ///  wrapper (Git does the same for the hooks it starts).
@@ -103,6 +111,72 @@ pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, Os
     return variables;
 }
 
+/// Why a run with captured standard error did not produce an outcome.
+enum CaptureError {
+    /// The file for the standard error could not be made; the text says why.
+    Scratch(String),
+    /// The program could not be started.
+    Start,
+}
+
+/// The most standard error text one run keeps and relays; the rest is dropped, so a flood cannot fill memory.
+const MAX_RELAYED_BYTES: u64 = 4 * 1024 * 1024;
+
+/// What:
+///  Run the command with its standard error in an anonymous file and return how it ended with that text, the
+///  credentials of every URL in it hidden.
+/// Why:
+///   Standard output stays the caller's, so the progress meter is unchanged. The standard error is where `git-lfs`
+///  prints its errors, which the parent must read (to tell a server error from a refused credential) and which can
+///  carry the `lfs.url` token, so it is relayed only after its URLs are masked. A file needs no reader thread that a
+///  stuck helper could keep alive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { outcome, stderr } = await spawnCapturingStderr(command); return [outcome, maskUserinfo(stderr)];
+/// ```
+fn run_with_captured_stderr(
+    command: &mut Command,
+    environment: &[(OsString, OsString)],
+) -> Result<(ChildOutcome, Vec<u8>), CaptureError> {
+    let mut captured: std::fs::File = scratch_file(environment).map_err(|error| {
+        return CaptureError::Scratch(error.to_string());
+    })?;
+    let for_child: std::fs::File = captured.try_clone().map_err(|error| {
+        return CaptureError::Scratch(error.to_string());
+    })?;
+    command.stderr(Stdio::from(for_child));
+    let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
+        Ok(guard) => guard.run_child(command),
+        Err(_) => command.status_retrying().map(outcome_of),
+    };
+    let Ok(ended) = outcome else {
+        return Err(CaptureError::Start);
+    };
+    let mut bytes: Vec<u8> = Vec::new();
+    captured
+        .seek(SeekFrom::Start(0))
+        .and_then(|_| {
+            return captured.by_ref().take(MAX_RELAYED_BYTES).read_to_end(&mut bytes);
+        })
+        .map_err(|error| {
+            return CaptureError::Scratch(error.to_string());
+        })?;
+    return Ok((ended, mask_userinfo(bytes.as_slice())));
+}
+
+/// The refusal printed when the standard error of the upload cannot be captured.
+fn capture_failed_message(why: &str) -> String {
+    return format!(
+        "cli-git: this push was stopped before it sent anything. The wrapper reads the output of `git-lfs push` through \
+         a private temporary file, to run it again after a server error and to hide the credentials in the URLs it \
+         names, and that file could not be made ({why}). Ways forward: fix the cause named in the parentheses (the \
+         wrapper needs a writable `XDG_STATE_HOME`, or a `HOME`, for its private scratch directory) and push again; or \
+         skip the upload for this push with `GIT_LFS_SKIP_PUSH=1` or `git push --no-verify`, which publishes pointer \
+         files without their objects.\n"
+    );
+}
+
 /// What:
 ///  Run the upload as a child with the caller's streams and return the status to stop with, or nothing when it succeeded.
 /// Why:
@@ -133,34 +207,53 @@ pub fn run_upload_interactive(
         let _written = diagnostics.write_all(submodule_notice().as_bytes());
     }
     for remote in &plan.remotes {
-        let mut command: Command = Command::new(&program);
-        command
-            .current_dir(directory)
-            .args(plan.arguments(remote.as_os_str()))
-            .env("PATH", path_with_real_git_first(environment, real_git));
-        for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
-            command.env(name, value);
-        }
-        let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
-            Ok(guard) => guard.run_child(&mut command),
-            Err(_) => command.status_retrying().map(outcome_of),
-        };
-        let Ok(ended) = outcome else {
+        let delays: Vec<std::time::Duration> = retry_delays(environment);
+        let mut retries_done: usize = 0;
+        loop {
+            let mut command: Command = Command::new(&program);
+            command
+                .current_dir(directory)
+                .args(plan.arguments(remote.as_os_str()))
+                .env("PATH", path_with_real_git_first(environment, real_git));
+            for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
+                command.env(name, value);
+            }
+            let (ended, relayed): (ChildOutcome, Vec<u8>) = match run_with_captured_stderr(&mut command, environment) {
+                Ok(finished) => finished,
+                Err(CaptureError::Scratch(why)) => {
+                    // Terminal output error: the exit status already carries the refusal.
+                    let _written = diagnostics.write_all(capture_failed_message(why.as_str()).as_bytes());
+                    return Some(1);
+                }
+                Err(CaptureError::Start) => {
+                    // Terminal output error: see above.
+                    let _written = diagnostics.write_all(missing_program_message().as_bytes());
+                    return Some(1);
+                }
+            };
+            // Terminal output error: the program's own words are advisory; the exit status carries the result.
+            let _relayed = diagnostics.write_all(relayed.as_slice());
+            let code: i32 = exit_code(ended);
+            if code == 0 {
+                break;
+            }
+            if matches!(ended, ChildOutcome::Exited(_))
+                && let Some(delay) = next_delay(String::from_utf8_lossy(relayed.as_slice()).as_ref(), retries_done, delays.as_slice())
+            {
+                // Terminal output error: see above.
+                let _written = diagnostics.write_all(retry_notice(delay, retries_done, delays.len()).as_bytes());
+                retries_done += 1;
+                std::thread::sleep(delay);
+                continue;
+            }
+            let description: String = match ended {
+                ChildOutcome::Exited(status) => format!("exited with status {status}"),
+                ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
+            };
             // Terminal output error: see above.
-            let _written = diagnostics.write_all(missing_program_message().as_bytes());
-            return Some(1);
-        };
-        let code: i32 = exit_code(ended);
-        if code == 0 {
-            continue;
+            let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
+            return Some(code);
         }
-        let description: String = match ended {
-            ChildOutcome::Exited(status) => format!("exited with status {status}"),
-            ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
-        };
-        // Terminal output error: see above.
-        let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
-        return Some(code);
     }
     return None;
 }
@@ -204,25 +297,49 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
         return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
     };
     for remote in &plan.remotes {
-        let mut command: Command = Command::new(&program);
-        command
-            .current_dir(&git.cwd)
-            .env_clear()
-            .envs(git.environment.iter().map(|(name, value)| {
-                return (name, value);
-            }))
-            .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
-            .args(plan.arguments(remote.as_os_str()));
-        let attempt: PushAttempt =
-            match run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
-                Ok(finished) => finished,
-                Err(SingleFlightError::Start(_)) => {
-                    return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
-                }
-                Err(other) => return Err(other),
+        let delays: Vec<std::time::Duration> = retry_delays(git.environment.as_slice());
+        let mut earlier: String = String::new();
+        let mut retries_done: usize = 0;
+        loop {
+            let mut command: Command = Command::new(&program);
+            command
+                .current_dir(&git.cwd)
+                .env_clear()
+                .envs(git.environment.iter().map(|(name, value)| {
+                    return (name, value);
+                }))
+                .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
+                .args(plan.arguments(remote.as_os_str()));
+            let attempt: PushAttempt =
+                match run_bounded_push(command, push_deadline(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+                    Ok(finished) => finished,
+                    Err(SingleFlightError::Start(_)) => {
+                        return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
+                    }
+                    Err(other) => return Err(other),
+                };
+            if attempt.exit_code == 0 {
+                break;
+            }
+            let shown: String = mask_userinfo_text(attempt.output.as_str());
+            let delay: Option<std::time::Duration> = next_delay(shown.as_str(), retries_done, delays.as_slice())
+                .filter(|wait| {
+                    return attempt.exit_code != STOPPED_EXIT_CODE && super::holder_budget::remaining().is_none_or(|left| {
+                        return left > *wait;
+                    });
+                });
+            let Some(wait) = delay else {
+                let joined: String = [earlier.as_str(), shown.as_str()].concat();
+                return Ok(Some(explained(PushAttempt { exit_code: attempt.exit_code, output: joined })));
             };
-        if attempt.exit_code != 0 {
-            return Ok(Some(explained(attempt)));
+            let notice: String = retry_notice(wait, retries_done, delays.len());
+            earlier.push_str(shown.as_str());
+            if !earlier.is_empty() && !earlier.ends_with('\n') {
+                earlier.push('\n');
+            }
+            earlier.push_str(notice.as_str());
+            retries_done += 1;
+            std::thread::sleep(wait);
         }
     }
     return Ok(None);
