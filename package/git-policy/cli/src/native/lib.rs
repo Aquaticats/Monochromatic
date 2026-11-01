@@ -1248,6 +1248,9 @@ pub mod service_work;
 /// The wrapper's side of after-commit work: records and the wake.
 pub mod service_handoff;
 
+/// How a commit headed for the service notices that its prepared content was removed before it landed.
+pub mod service_pruned;
+
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
 

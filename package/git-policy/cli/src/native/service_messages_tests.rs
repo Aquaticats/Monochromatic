@@ -24,6 +24,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::CouldNotStart(String::from("the runtime directory has no space left")),
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
+        ClientFailure::ContentPruned,
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
         all.push(ClientFailure::NoActivation(platform));
@@ -52,6 +53,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::WorkNotHandedOver(_) => 14,
         ClientFailure::BranchMoved { .. } => 16,
         ClientFailure::BranchMovedMessageSaved { .. } => 17,
+        ClientFailure::ContentPruned => 18,
     };
 }
 
@@ -91,7 +93,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::BranchMovedMessageSaved { branch: String::new(), file: String::new(), amend: false }) + 1;
+    let expected: usize = variant_index(&ClientFailure::ContentPruned) + 1;
     assert_eq!(covered.len(), expected);
 }
 

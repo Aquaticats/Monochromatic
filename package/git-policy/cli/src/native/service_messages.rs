@@ -97,6 +97,8 @@ pub enum ClientFailure {
     UnitInTheWay(String),
     /// The commit is saved but the backup push and upkeep could not be handed over.
     WorkNotHandedOver(String),
+    /// The content prepared for the commit was removed from the repository before the commit landed, twice.
+    ContentPruned,
 }
 
 /// The sentence every failure ends with when nothing was changed.
@@ -182,6 +184,15 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::WorkNotHandedOver(reason) => format!(
             "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: {reason}. \
              Run `git push` when ready."
+        ),
+        ClientFailure::ContentPruned => format!(
+            "The files of this commit were removed from the repository while the commit was being made, so it was not made. \
+             Git removes content that no branch or index refers to yet when `git gc --prune=now` or `git prune` runs in the \
+             same repository, and Git's documentation says that `--prune=now` risks failures and corruption when another \
+             process writes to the repository at the same moment. The commit was prepared again once and the content was \
+             removed again. Run the commit again once the cleanup has finished, and avoid `--prune=now` while commits are \
+             being made (the default `git gc` keeps new content for two weeks). If nothing like that was running, run \
+             `git fsck` to check the repository. {NOTHING_CHANGED}"
         ),
         ClientFailure::CouldNotStart(reason) => format!(
             "The commit service could not be set up, so this commit was not made: {reason}. Fix that and run the commit \

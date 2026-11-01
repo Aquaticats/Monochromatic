@@ -19,6 +19,8 @@ fn phases_are_named_in_transaction_order() {
             "race-lost",
             "merge-intent",
             "merge-applied",
+            "service-staged",
+            "service-prepared",
         ]
     );
 }
@@ -78,7 +80,7 @@ fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
     assert_eq!(
         error.to_string(),
-        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among capture-locked, preparation-done, landing-locked, objects-migrated, ref-updated, index-installed, race-lost, merge-intent, merge-applied."
+        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among capture-locked, preparation-done, landing-locked, objects-migrated, ref-updated, index-installed, race-lost, merge-intent, merge-applied, service-staged, service-prepared."
     );
 }
 

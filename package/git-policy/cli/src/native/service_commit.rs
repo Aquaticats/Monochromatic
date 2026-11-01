@@ -40,6 +40,8 @@ use super::service_messages::{ClientFailure, render};
 use super::service_protocol::{ALLOWED_MODES, Change, CommitRequest, MAX_CHANGES, is_object_name, is_plain_path};
 use super::service_handoff::ServiceHandoff;
 use super::service_provision::provision;
+use super::service_pruned::{PRUNE_RETRIES, content_was_removed, prepared_content_missing, reach_service_phase};
+use super::transaction_phase::Phase;
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
 use super::config_snapshot::ConfigSnapshot;
 use super::transaction_git::{GitContext, run_git_checked};
@@ -184,6 +186,8 @@ fn prepare<F: RepositoryFacts>(
     };
     initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
         .map_err(|error| { return failed(error.0); })?;
+    // A test removes the staged content here, between the writing and the reading by the policies.
+    reach_service_phase(Phase::ServiceStaged)?;
     if !list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?.is_empty() {
         return Ok(Prepared::Decline);
     }
@@ -297,10 +301,23 @@ pub fn try_service_commit<F: RepositoryFacts>(
     //  it is gets decided once the preparation has passed every cheap decline (head, configuration, index, policies), so a
     //  commit the service never takes starts no Git for a message or an identity.
     let mut embedded: Option<Embedded> = None;
-    let mut decided: bool = false;    for attempt in 0..REBUILD_ATTEMPTS {
+    let mut decided: bool = false;
+    // How often the content was found removed; the commit is prepared again for the first, and the second is said plainly.
+    let mut removals: usize = 0;
+    for attempt in 0..REBUILD_ATTEMPTS {
         let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str(), allow_empty)? {
             Prepared::Decline => return Ok(None),
-            Prepared::Blocked(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
+            Prepared::Blocked(result) => {
+                // The policies could not read an object this commit had just written: something removed it meanwhile.
+                if content_was_removed(result.events.as_slice()) {
+                    removals += 1;
+                    if removals > PRUNE_RETRIES {
+                        return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
+                    }
+                    continue;
+                }
+                return Ok(Some(ServiceCommit { result, handoff: None }));
+            }
             Prepared::Ready(ready) => ready,
         };
         if !decided {
@@ -395,6 +412,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 (sent, parent)
             }
         };
+        // A test removes the prepared content here, between the preparation and the landing.
+        reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
         if let Some(host) = provisioning.as_ref().filter(|_| { return !provisioned; }) {
@@ -460,6 +479,20 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch: again })));
                 }
                 return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
+            }
+            Err(ClientFailure::Unavailable)
+                if prepared_content_missing(
+                    inputs.capture.layout.common_dir.as_path(),
+                    inputs.capture.layout.object_directory.as_path(),
+                    inputs.capture.layout.object_format.as_str(),
+                    &sent,
+                ) =>
+            {
+                // The service could not land the request because an object it names is gone from the repository.
+                removals += 1;
+                if removals > PRUNE_RETRIES {
+                    return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
+                }
             }
             Err(failure) => return Err(TransactionStop::Message(render(&failure))),
         }
