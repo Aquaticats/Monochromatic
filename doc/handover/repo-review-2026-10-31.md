@@ -2453,6 +2453,19 @@ Wave-4 seventy-sixth checkpoint (2026-11-01, asset closed):
 - Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
   troubleshooting 152 rr-ts-389, android-app slices 1/2/3 (rr-maa-001/002/003).
 
+Wave-4 seventy-seventh checkpoint (2026-11-01, android slice 1 normalized):
+
+- Android-app slice 1 returned 10 rows, 10 of 10 clean after mapping four
+  domain categories (`build-config`, `error-handling`, `lifecycle`) to `bug`.
+  The prior agent read about 65 of the 100 paths; PeakSweepCoordinator,
+  PlayerHost, PlayerController, MainActivity and three androidTest files were
+  named unread.
+- The freed slot opens a slice-1 remainder lane against the same ledger, id 011,
+  base rr-maa-004, with the exact enum categories and an unread-path report.
+- Live lanes: planning 066 rr-dp-008, desktop-app slice 1 001 rr-mda-001,
+  troubleshooting 152 rr-ts-389, android-app slices 2 and 3 (rr-maa-002/003),
+  and the android-app slice-1 remainder rr-maa-004.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
