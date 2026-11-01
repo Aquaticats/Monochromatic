@@ -2539,6 +2539,24 @@ Wave-4 eighty-third checkpoint (2026-11-01, android slice-1 remainder 2):
   troubleshooting 161 rr-ts-390, and the android-app slice-1 remainder 2
   rr-maa-007.
 
+Wave-4 eighty-fourth checkpoint (2026-11-01, three remainders reopened):
+
+- Planning is 75 of 75 clean after slice 8 added rows 070 to 075; all 20 files
+  at positions 359 to 378 were read. Row 071 was spot-read: the numbered
+  decisions run 17, 20, 19, 18 and 21. Next id 076, positions 379 to 398, base
+  rr-dp-010.
+- Desktop slice-1 remainder added rows 007 to 014; the ledger is 14 of 14 clean.
+  Unread: 21 test files, `icon.svg` and four license texts; the new remainder
+  runs id 015, base rr-mda-003.
+- Android slice-2 remainder added rows 016 to 023; the ledger is 23 of 23 clean.
+  Unread: MediaStoreSourceTest, PeakSweepCoordinatorTest, PlayerControllerTest,
+  PlayerControllerRowTest, PlayerControllerUnplayableWalkTest and the
+  PlayerContent layout region; the new remainder runs id 024, base rr-maa-008.
+- Live lanes: planning 076 rr-dp-010, the desktop test remainder rr-mda-003, the
+  android slice-2 test remainder rr-maa-008, the android slice-3 remainder
+  rr-maa-006, the android slice-1 remainder 2 rr-maa-007, and troubleshooting
+  161 rr-ts-390.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
