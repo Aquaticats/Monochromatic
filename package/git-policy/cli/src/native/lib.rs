@@ -85,6 +85,9 @@ pub mod management;
 /// The `git cli-git` argument grammar.
 pub mod management_arguments;
 
+/// The refusal of a direct command whose `--policy` selects a policy that is off.
+pub mod management_selection;
+
 /// The fixed registry of shipped policies.
 pub mod policy_registry;
 
@@ -406,6 +409,10 @@ pub mod policy_final_newline;
 /// The optional root-context policy:
 ///  no top-level `CONTEXT.md` enters the index.
 pub mod policy_root_context;
+
+/// The optional catalog-specifier policy over the shared rule crate:
+///  every dependency in a tracked `package.json` is a catalog or workspace reference.
+pub mod policy_catalog_specifiers;
 
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.
