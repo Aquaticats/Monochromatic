@@ -1584,6 +1584,58 @@ each finished branch is reviewed and merged into `main`):
   so no policy gap is shown;
   an agent is fixing the tests and dropping the stale entries,
   and the restart no longer waits for it.
+  That agent stopped on a permission refusal (an `rg` over `${HOME}/.config/monochromatic-dev/toolchain/`),
+  editing nothing;
+  its findings:
+  `MISE_TASKS` and `MPM_SHADOW_VERBS` miss no fetcher,
+  the detection moved (`verb_grammar.rs`, `runMpmShadow([...])`),
+  all 17 `PLAN_UPDATE_HOSTS` are still named,
+  and `node package/monorepo-task/core-exec/src/mpm-shadow.ts <verb>` run outside mise would be unmatched.
+  Queued:
+  resume it without the global-plan check.
+- Before the restart,
+  the user manager stopped answering ("Transport endpoint is not connected" from `systemctl --user` and `systemd-run --user`)
+  while pid 5111 stayed in state `R`;
+  cause not established.
+  Then the owner rebooted (2026-11-01 about 10:08 local).
+  After the reboot:
+  git intact (`fsck --connectivity-only`: dangling objects only),
+  `main` 69 commits ahead of `origin/main` (0.5.1 push regression),
+  0 `wg-quicker-update-*` units,
+  no `fr-par-fr1`,
+  no watchers,
+  no policy rules (traffic direct via `wlp9s0`),
+  user manager `degraded` by `kopia-snapshot-all.service` (owner's backup, not touched),
+  and the merge's builds (14:55 to 14:56 UTC) present.
+  The restart became `up` only:
+  unit `wg-restart-fr-par-fr1`,
+  log `~/temp/agent/wg-restart/restart.log`.
+  First run stopped before changing anything:
+  its start check expected `--help` to exit 0,
+  but `wg-quicker` exits 1 and `wg-quicker-exempt` exits 2 with their usage
+  (the check now looks for the usage text).
+  Second run (2026-11-01 15:14 to 15:17 UTC):
+  "UP SUCCEEDED";
+  route watcher 86238 and application watcher 86308 (`__watch fr-par-fr1 100 1000`) in
+  `/user.slice/user-0.slice/session-c4.scope`;
+  6 `wg-quicker-update-*` units,
+  all the new per-origin kind,
+  none old-style or failed,
+  steady at +30 s and +120 s;
+  `ip route get 1.1.1.1` goes `dev fr-par-fr1 table 51820`;
+  rules `fwmark 0x64 lookup 52000 proto 201` and the update-host rules present.
+  Positive control for the marks (the reviewer's unverified item):
+  during a real `mise run toolchain:outdated`,
+  272 new processes landed in shared scopes
+  and 29 of 29 socket samples from them carried `fwmark 0x64`
+  (`~/temp/agent/wg-restart/mark-positive.ts`);
+  `toolchain:outdated` exits 1 for "2 tools would move" (`npm:pagefind` 1.5.2 to 1.6.0 among them).
+  Noise to fix:
+  a process that exits between match and move is reported loudly
+  ("move failed ... busctl ... Call failed: No such process");
+  it should count as a vanish.
+  Name quirk:
+  scopes for a terminal origin end in `.scope.scope`.
   Queued after the restart (inert here:
   `ip_forward` 0,
   no guests,
