@@ -428,3 +428,8 @@ fn windows_fs_id(path: &Path) -> Option<String> {
 #[cfg(test)]
 #[path = "filesystem_identity_tests.rs"]
 mod tests;
+
+/// Controls for the macOS resolver stay out of the release executable and out of every other platform.
+#[cfg(all(test, target_os = "macos"))]
+#[path = "filesystem_identity_darwin_tests.rs"]
+mod darwin_tests;
