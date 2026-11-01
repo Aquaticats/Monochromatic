@@ -321,7 +321,8 @@ pub struct RecoveryReport {
 /// What:
 ///  Finishes or drops every batch the journal holds open.
 /// Why:
-///   Runs before the service accepts a connection, and again before each batch for an index update that had to wait.
+///   Runs before the service accepts a connection, and again before each batch (`service_server.rs`), so an index update
+///  that gave up while another program held Git's index lock is finished by the next commit and not only by a restart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

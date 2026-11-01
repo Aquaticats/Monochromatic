@@ -158,6 +158,11 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
     if fresh.is_empty() {
         return;
     }
+    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    let _settled = recover(context);
     *seq += 1;
     for (index, (_, stream)) in fresh.iter().enumerate().skip(1) {
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
