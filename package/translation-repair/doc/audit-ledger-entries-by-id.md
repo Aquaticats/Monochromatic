@@ -730,6 +730,18 @@ which lists every file of this record.
 - [B1368, the ledger index is split by subject][w408]
 - [B1369, the gates, the slips of the round and what stays open][w408]
 - [B1370, the repair lane asks its hook for each slice twice, and the case counted one][w409]
+- [B1371, a seat the recovery round lost as unreachable still counted in the denominator][w409]
+- [B1372, the own-model ask of a seat failed open when the reading was not usable][w409]
+- [B1373, every production request to a model client names its seat, and a request that names none is held][w409]
+- [B1374, every dispatch path the review named, with the case that shows it][w409]
+- [B1375, an explicitly empty refiner roster no longer revives the lane's refiners][w409]
+- [B1376, the Markdown width scan reads a fence as CommonMark does and counts columns][w409]
+- [B1377, the nits of rounds w407 and w408][w409]
+- [B1378, a round runs the suites of every package its change reaches][w409]
+- [B1379, a JSON exchange hinted off a provider ignored the hint][w409]
+- [B1380, a re-ask refused on budget after it reached a provider was marked as a refusal before any exchange][w409]
+- [B1381, the next-alternate case asserts the successor the order names][w409]
+- [B1382, the quorum retry rounds never asked the held seat, and the case reaches one][w409]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md

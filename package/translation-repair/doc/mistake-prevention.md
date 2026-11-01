@@ -60,6 +60,7 @@ named for that subject and listed here.
   Sections:
   - [Tasks, builds and bulk output](mistake-prevention-tasks-builds-and-bulk-output.md#tasks-builds-and-bulk-output)
   - [Gate trees and their tools](mistake-prevention-tasks-builds-and-bulk-output.md#gate-trees-and-their-tools)
+  - [A round runs the suites of every package its change reaches](mistake-prevention-tasks-builds-and-bulk-output.md#a-round-runs-the-suites-of-every-package-its-change-reaches)
 - [Preventing mistakes: guards, searches and claims](mistake-prevention-guards-searches-and-claims.md):
   Rules for evidence:
   guards that must be able to fail,

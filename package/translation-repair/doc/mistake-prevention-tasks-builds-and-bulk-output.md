@@ -271,3 +271,42 @@ What enforces it:
 habit,
 and the lead's `PATH` builder for gates and the tree setup that restores the lockfile,
 which are scratch tooling outside the repository.
+
+## A round runs the suites of every package its change reaches
+
+What happened:
+gate g406 at `1dd1e1af3f` failed one case of `translate-lane`,
+a package that depends on `repair`,
+because round w406 made the refine phase of `repair` ask the re-seat hook once more for each slice.
+Rounds w406 and w407 each listed the suites they had run by hand,
+the packages they had changed and the ones they thought of,
+and neither listed `translate-lane`.
+The failing case was written when the lane asked once,
+and nothing but the gate ran it (ledger B1370).
+
+The rule:
+a round runs `test:unit` of every family package its change reaches before it reports,
+one task for each package,
+and reads each log for its suite names and zero failures.
+A package is reached when a file under its folder changed,
+or when a package it declares in its `package.json` (any dependency field) is reached,
+which is the closure of the dependents of the changed packages.
+The closure is read from the manifests with a command,
+and it is not recalled from the packages the round touched,
+since the case that fails is in the package nobody edited.
+A round that cannot name the list of packages it ran,
+and the list the manifests give,
+reports that it did not run them.
+
+What enforces it:
+habit,
+and the gate.
+The family has no helper of its own for the closure of the dependents of a set of packages:
+`packagesReachingStage` of the rotation sweep
+(`source-scan/src/rotation-sweep/rotation-sweep-packages.test-fixture.ts`)
+reads one package's dependents only.
+The selector that a gate uses (`gate-select.ts` in the lead's scratch folder `branch-only`)
+reads the dependents of every changed package at the head commit through git,
+selects every package when a changed path lies outside the family's folders,
+and is scratch tooling outside the repository,
+so a round in its own tree has it as a reference and not as a task (ledger B1378).

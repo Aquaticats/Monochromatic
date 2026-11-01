@@ -854,7 +854,14 @@ and this one lists that index in their place
   and the gates and slips of the round (B1369).
 - [Audit ledger: the gate failure and the re-check of round w408](audit-ledger-the-gate-failure-and-the-re-check-of-round-w408.md):
   The fixes of round w409:
-  the case gate g406 failed (B1370).
+  the case gate g406 failed (B1370),
+  the seat the recovery round loses and the own-model ask that failed open (B1371 and B1372),
+  the seat every production request names and the first ask of a request that names none (B1373 and B1374),
+  the withdrawn refiners (B1375),
+  the Markdown width scan (B1376),
+  the nits and the rule of the suites a change reaches (B1377 and B1378),
+  the JSON hint and the exchange mark (B1379 and B1380)
+  and the two stage cases made exact (B1381 and B1382).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,
