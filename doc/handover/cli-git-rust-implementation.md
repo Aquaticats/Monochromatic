@@ -5399,3 +5399,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Gate 2 (merge trial `3d4d75c263` = commit-timeouts branch + layered image build, run in `.claude/worktrees/merge-ct`): 2 760 tests
   run, 2 760 passed, 7 skipped, clippy clean, exit 0, test phase 252.7 s. It ran before the review fixes (the assume-unchanged bug has
   no test yet), so it clears the trial merge but not the fixed branch.
+
+### Owner premise: concurrent committers will keep growing; consequences and the queued daemon prototype
+
+- User, verbatim: "Assume the chance different people/agents trying to commit at the same time is going to grow more and more."
+  Adopted as a design input. It weakens the burst-based argument of the previous section (the 24-hour count of 582 commits, one per
+  148 s, is a baseline, not a forecast): what grows is burstiness, tail latency and the cost of any failure mode under contention.
+- Capacity reasoning (inference from the reviewer's floor numbers, not a measurement of the product): a serialized section of length
+  S caps throughput at 1/S. Lock prototype 64 ms sequential; with a policy pass of about 300 ms (reviewer's figure) inside the
+  lock, S is about 364 ms, a ceiling of about 2.7 commits per second, about 410 times today's average rate. So raw throughput is
+  not the first problem; fairness, bounded and visible waits, wasted optimistic work and failure containment are. Policies outside the
+  serialized section (prepare in parallel, land short) is what the shadow design already does; the open question is the cost of its
+  replays as the number of concurrent landings grows (1.02 to 1.09 lost races per commit at concurrency 8 in `SPEC.md`).
+- Unverified, to be measured: whether wrapper waiters (20 ms polling per the review) can starve under contention, and whether a
+  kernel file lock is FIFO (not guaranteed by its semantics, so a queue or ticket is what gives fairness and "you are third").
+- Sent to agent `a6e4566588e9ec087` (after its review fixes, before any daemon work): extend the remeasurement to concurrency 1, 4,
+  8, 16, 32 with per-commit wait distribution (median, p95, max), a fairness count (commits served after a later arrival), replays
+  per commit, and the time inside the serialized section per arm.
+- QUEUED (written now per rule QWD): after those numbers, a throwaway single-writer daemon prototype in scratch, measured in the
+  same harness: unix socket, FIFO queue, same plumbing steps as the lock prototype, one journal sync per batch (group commit),
+  reported against the fixed wrapper and the lock prototype at the same concurrency levels with wait distribution and fairness, plus
+  kill-the-daemon-mid-batch recovery behavior, cold-start latency, stale-socket handling and a PID-namespace case. It is evidence
+  gathering for the owner's view that a client-server architecture has potential; no production code.
