@@ -2659,6 +2659,24 @@ Wave-4 eighty-ninth checkpoint (2026-11-01, ide/app and the app family complete)
   css-imported retry at 001 rr-tfc-002; test-fixture oxlint-stylistic at 001
   rr-tos-001.
 
+Wave-4 ninetieth checkpoint (2026-11-01, test-fixture slices two and three):
+
+- Planning slice 14 added rows 107 to 114 over positions 476 to 495; ledger 114
+  of 114 clean, next id 115 at positions 496 to 515, base rr-dp-016.
+- Troubleshooting added rows 214 to 227 over lines 361 to 367; ledger 226 of 226
+  clean, next id 228 at line 368 (`netavark-masquerade-mask-exempt-mark.md`),
+  base rr-ts-391.
+- Test-fixture oxlint-no-restricted-syntax slice 1 added 6 rows over 98 of 100
+  paths; slice 2 is the remaining 13 paths, id 007, base rr-ton-002.
+  toml-edit slice 1 added 6 rows over 98 of 100 paths; slice 2 is paths 101 to
+  200, id 007, base rr-tte-002.
+- Test-fixture css-imported is COMPLETE at 3 rows (6 of 8 files; two licenses
+  named); oxlint-stylistic is COMPLETE at 7 rows (51 of 53; two licenses named).
+- Live lanes: planning 115 rr-dp-016; troubleshooting 228 rr-ts-391;
+  oxlint-no-restricted-syntax slice 2 007 rr-ton-002; toml-edit slice 2 007
+  rr-tte-002; test-fixture css-imported-no-exports 001 rr-tfce-001 (8 files);
+  test-fixture data-sequence 001 rr-tds-001 (11 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
