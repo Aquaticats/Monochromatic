@@ -25,7 +25,10 @@ fn only_inactive_and_failed_mean_the_unit_is_gone() {
     assert!(!unit_state_means_gone("inactive active"));
 }
 
-/// A unit that is not loaded (an unaccepted unit, or one that ended and was collected) counts as gone,
+/// A unit that is not loaded
+/// (an unaccepted unit,
+/// or one that ended and was collected)
+/// counts as gone,
 /// although `systemctl stop` fails for it.
 #[test]
 #[ignore = "requires systemctl and a running system manager"]
@@ -34,7 +37,8 @@ fn a_unit_that_is_not_loaded_counts_as_gone() {
 }
 
 /// A unit that is still active after the stop was refused is an error that says so.
-/// Run with the name of a running root service in `WGTEST_RUNNING_UNIT` and as an unprivileged user,
+/// Run with the name of a running root service in `WGTEST_RUNNING_UNIT`
+/// and as an unprivileged user,
 /// who is not allowed to stop it.
 #[test]
 #[ignore = "requires a running root service named in WGTEST_RUNNING_UNIT and an unprivileged caller"]

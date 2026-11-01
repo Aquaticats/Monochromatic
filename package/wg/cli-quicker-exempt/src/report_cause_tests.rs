@@ -7,6 +7,10 @@
 use crate::report_cause::{held_suffix, normalized_cause, quote_name, without_held_suffix};
 /// The producer of lines that embed cgroup names.
 use crate::routing_support::adoptable_cgroup;
+/// The producer of lines that embed install roots.
+use crate::install_roots::RefusedRoot;
+/// The loud report for a refused root.
+use crate::update_report::refused_root_failures;
 /// The fixed phrase every loud line starts with.
 use crate::update_report::policy_failure;
 
@@ -121,4 +125,21 @@ fn backticks_that_do_not_quote_a_name_are_kept() {
     assert_eq!(normalized_cause("a ` b 5"), "a ` b #");
     assert_eq!(normalized_cause("`/a b"), "`<name> b", "the rest of an unclosed backtick is read word by word");
     assert_eq!(normalized_cause("``"), "``");
+}
+
+/// The loud report for one refused install root.
+fn refused_root_failure_for(root: &str, why: &str) -> String {
+    let refused = RefusedRoot { root: std::path::PathBuf::from(root), why: why.to_string() };
+    return refused_root_failures(&[refused]).remove(0);
+}
+
+/// The install roots in the loud reports are quoted too:
+/// two refused roots whose names differ in spaces and further words are one cause,
+/// with the link targets and the home inside the reason quoted by their producer.
+#[test]
+fn refused_install_roots_with_spaced_names_are_one_cause() {
+    let one = refused_root_failure_for("/home/tester/my toolchain one", "it points to `/home/tester/other dir`, which is not strictly inside the home `/home/tester`");
+    let two = refused_root_failure_for("/home/tester/a completely different root 9", "it points to `/home/tester/yet another place`, which is not strictly inside the home `/home/tester`");
+    assert_eq!(normalized_cause(&one), normalized_cause(&two));
+    assert!(one.contains("`/home/tester/my toolchain one`"), "{one}");
 }

@@ -9,7 +9,7 @@
 //! and that death is reported.
 //! The system counts as stopping only when `shutdown.target` is active or becoming active.
 //! `/run/nologin` is deliberately not a signal:
-//! it also exists in the minutes before a scheduled shutdown,
+//! `man 8 shutdown` documents that with a time argument it is created five minutes before the system goes down,
 //! when a real death should still be reported,
 //! and a stale or administrator-made file would hide every death.
 //! A probe that cannot tell is treated as a system that keeps running,

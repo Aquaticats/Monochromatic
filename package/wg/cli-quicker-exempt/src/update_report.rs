@@ -9,6 +9,9 @@
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
 /// Escaping of untrusted text.
 use crate::log_line::sanitize;
+/// Names a user chose,
+/// delimited so a cause ends them where the line does.
+use crate::report_cause::quote_name;
 /// The install roots that were left out,
 /// and the installed tool names.
 use crate::install_roots::{installed_tool_names, RefusedRoot};
@@ -70,7 +73,7 @@ fn refused_root_failure(entry: &RefusedRoot) -> String {
     return policy_failure(&format!(
         "the install root {} was left out of the matching: {}; programs run from there are not treated as toolchain programs, \
 and a root that is a link counts only when it points strictly inside the home",
-        entry.root.display(),
+        quote_name(&entry.root.display().to_string()),
         entry.why
     ));
 }

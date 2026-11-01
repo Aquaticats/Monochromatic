@@ -12,6 +12,9 @@
 
 /// Escaping of untrusted names.
 use crate::log_line::sanitize;
+/// Names a user chose,
+/// delimited so a cause ends them where the line does.
+use crate::report_cause::quote_name;
 /// Sorted,
 /// duplicate-free names.
 use std::collections::BTreeSet;
@@ -103,7 +106,7 @@ fn resolve_root(root: &Path, canonical_home: Option<&Path>) -> Resolution {
         return Resolution::Refused {
             why: format!(
                 "it points to {}, and the home directory cannot be resolved, so the link cannot be checked",
-                target.display()
+                quote_name(&target.display().to_string())
             ),
         };
     };
@@ -113,8 +116,8 @@ fn resolve_root(root: &Path, canonical_home: Option<&Path>) -> Resolution {
     return Resolution::Refused {
         why: format!(
             "it points to {}, which is not strictly inside the home {}",
-            target.display(),
-            home.display()
+            quote_name(&target.display().to_string()),
+            quote_name(&home.display().to_string())
         ),
     };
 }
