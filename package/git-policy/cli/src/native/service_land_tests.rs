@@ -473,6 +473,8 @@ fn a_commit_on_a_branch_that_does_not_exist_lands_once_and_never_over_a_branch_t
     let mut with_parent: CommitRequest = first.clone();
     with_parent.id = String::from("parent");
     with_parent.commit = built_request(&world, "child", "child.txt", &[commit.as_str()]).commit;
+    // The worktree is on the branch that does not exist yet, as it is after `git switch --orphan` or in a new repository.
+    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/fresh"]);
     assert_eq!(land_batch(&world.context, 1, &[with_parent]), Err(FailureCode::Rejected), "a root commit has no parent");
     assert_eq!(land_batch(&world.context, 2, &[first]).expect("landed"), vec![Outcome::Landed { commit: commit.clone() }]);
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/fresh"]), commit);

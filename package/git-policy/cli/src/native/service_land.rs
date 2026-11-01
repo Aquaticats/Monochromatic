@@ -13,6 +13,7 @@
 //! ```
 
 use super::service_fault::reach;
+use super::service_head::head_names;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
 use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -199,6 +200,11 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
         //  symbolic reference), so a head that became a branch since the commit was prepared is found here, before the move.
         if first.reference == "HEAD" && run(&git, repository, &["symbolic-ref", "--quiet", "HEAD"], None)?.succeeded() {
             return Ok(vec![Outcome::BranchMoved]);
+        }
+        // Native Git updates `HEAD`, so a worktree that switched branches while the commit waited fails the commit with nothing
+        //  changed. The named branch would move all the same, and the index built for it would replace the other branch's.
+        if first.reference != "HEAD" && !head_names(&git, repository, first.index.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+            return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         let amended_parents: Vec<String> = if alone && !unborn {
             let listing: String = checked(&git, repository, &["rev-list", "--parents", "--max-count=1", first.base.as_str()], None)?;
