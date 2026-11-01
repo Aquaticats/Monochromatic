@@ -15,6 +15,9 @@ name: playwright-image
 #   private, the last step of every run says so in a warning.
 # - The image is linux/amd64, the runner's architecture; a machine of another architecture pulls nothing and builds
 #   locally.
+# - Only runs on main publish. A workflow_dispatch from another ref skips the job, and the concurrency group is per ref
+#   so such a run cannot cancel or delay a run on main. The guard lives in this file, so a branch that edits the file
+#   is not stopped by it (doc/runbook/publish-playwright-image.md says what would be).
 
 on:
   push:
@@ -31,11 +34,12 @@ env:
   IMAGE: ghcr.io/aquaticats/monochromatic-playwright
 
 concurrency:
-  group: playwright-image
+  group: playwright-image-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
