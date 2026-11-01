@@ -568,6 +568,25 @@ each finished branch is reviewed and merged into `main`):
   search-shadow to 0.2.1,
   binstall and slopo;
   a worktree with an older lock downgrades the shared installs on its next sync.
+- Separate review of `mpm-shadow-0-2-1` (2026-10-31) found two blockers,
+  so 0.2.1 is not released:
+  tool ids and lock versions are never checked as one safe path segment
+  (executed:
+  a lock tool id `..` made `prune --toolchain` delete the whole scope root),
+  and a half-extracted or broken version counts as finished
+  (GNU tar gives the file its final mode before writing it;
+  executed:
+  a garbage newer bin made prune delete the working 0.2.0 and point `current` at the garbage).
+  Should-fix:
+  the `/proc/self/exe` launcher wiring untested and not gated off Linux;
+  repository-published decided by tag prefix alone,
+  not by `github:Aquaticats/Monochromatic`;
+  tag matching takes the first listed match rather than the highest version,
+  and a prefix not ending in `v` can match a sibling;
+  stale cargo-only help text;
+  the pooling doc lacks its hyper-util `pool.rs` citation.
+  A fresh agent is fixing all of them on the same branch (version stays 0.2.1);
+  the same reviewer re-checks the delta before the merge.
 - Order from here:
   separate reviews of the wg fixes and of `mpm-shadow-0-2-1`;
   owner's approval;
