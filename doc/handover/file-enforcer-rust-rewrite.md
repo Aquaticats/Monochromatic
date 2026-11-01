@@ -1460,6 +1460,18 @@ each finished branch is reviewed and merged into `main`):
   the first `up` sweeps about 6500 old units
   (3169 active and 3291 failed at the review),
   so the user manager stays busy for a while.
+- #2576 done and closed (merge `f580aac77b`):
+  global plan entry `llama.cpp-cpu` (`b9829`, exposed as `llama-cpu-cli`;
+  backups of the plan and lock in `~/temp/agent/issue-2576-llama/`),
+  weights `prithivMLmods/Xiaomi-OCR-0-GGUF` at `7bbfa072e0f3d70ac722e26fbccef5b9f64b7121` in `~/models/Xiaomi-OCR-0-GGUF`,
+  same text as the Transformers run on the one sample image,
+  6.97 s and about 1.2 GiB with `--ctx-size 4096`.
+  `llama-cli --no-conversation` at `b9829` wrote 16 GB to stdout;
+  the README warns.
+  Unmeasured:
+  full pages,
+  larger context,
+  fidelity beyond the sample.
 - #2576 decided 2026-11-01 in the question tool:
   "llama.cpp + GGUF (Recommended)" and "Documented command (Recommended)".
   The research note is merged (`doc/research/xiaomi-ocr-without-python.md`).
