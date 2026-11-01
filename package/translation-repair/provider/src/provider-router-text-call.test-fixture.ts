@@ -23,6 +23,8 @@ import type {
 
  @param modelId - model to ask
 
+ @param reaskSeat - seat the call names, when it names one
+
  @returns Reply text, or the error thrown
 
  @example
@@ -36,11 +38,13 @@ export async function textCallOutcome(
     messages,
     signal,
     modelId,
+    reaskSeat,
   }: {
     readonly client: ReturnType<typeof createRoutingClient>;
     readonly messages: ChatTextRequest['messages'];
     readonly signal: ChatTextRequest['signal'];
     readonly modelId: Parameters<ReturnType<typeof createRoutingClient>['chatText']>[0]['modelId'];
+    readonly reaskSeat?: ChatTextRequest['reaskSeat'];
   },
 ): Promise<{ readonly text: string; } | { readonly thrown: unknown; }> {
   try {
@@ -51,6 +55,8 @@ export async function textCallOutcome(
       modelId,
       messages,
       signal,
+      // Conditional spread keeps the seat absent for a call that names none.
+      ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
     },);
     return {
       text: reply.text,

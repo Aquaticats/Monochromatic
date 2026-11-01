@@ -20,20 +20,13 @@ import type {
   ProviderName,
   RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
-import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
-import {
-  type ChatTextReply,
-  createRoutingClient,
-  type ReaskSeat,
-} from '../dist/final/node/index.mjs';
-import {
-  holdNothing,
-  readOlderProvidersWet,
-} from './provider-router-wet-budgets.test-fixture.ts';
+import type { ReaskSeat, } from '../dist/final/node/index.mjs';
+import { routerRecordingProviders, } from './provider-router-recording.test-fixture.ts';
+import { readOlderProvidersWet, } from './provider-router-wet-budgets.test-fixture.ts';
 
 /**
  Abort signal every routed call carries.
@@ -44,61 +37,6 @@ const SIGNAL = new AbortController().signal;
  Conversation reused across the re-asks.
  */
 const MESSAGES = [{ role: 'user' as const, content: '这只猫睡在哪里？', },];
-
-/**
- Builds a router over stub callers that record which provider each call reached.
-
- @returns Router and the providers its calls reached, in order
-
- @example
- ```ts
- const { client, reached, } = routerRecordingProviders();
- ```
- */
-function routerRecordingProviders(): {
-  readonly client: ReturnType<typeof createRoutingClient>;
-  readonly reached: ProviderName[];
-} {
-  /**
-   Providers the calls reached.
-   */
-  const reached: ProviderName[] = [];
-
-  /**
-   Builds one provider's caller.
-
-   @param provider - provider this caller stands for
-
-   @returns Caller that records its provider and answers
-   */
-  function callerFor(provider: ProviderName,): { readonly chatText: () => Promise<ChatTextReply>; } {
-    return {
-      chatText: async function chatText(): Promise<ChatTextReply> {
-        reached.push(provider,);
-        return { text: `${provider} answers`, };
-      },
-    };
-  }
-  return {
-    reached,
-    client: createRoutingClient({
-      callers: {
-        neuralwatt: callerFor('neuralwatt',),
-        synthetic: callerFor('synthetic',),
-        hyper: callerFor('hyper',),
-        openrouter: callerFor('openrouter',),
-      },
-      budgets: {
-        read: readOlderProvidersWet,
-        markRefused: async function markNothingRefused(): Promise<void> {
-          return undefined;
-        },
-        holds: holdNothing,
-      },
-      l: levelCapturingLogger({ lines: [], },),
-    },),
-  };
-}
 
 /**
  Re-asks a model of the provider that served it first, as the nudged re-ask does, and says where it went.
@@ -116,7 +54,7 @@ function routerRecordingProviders(): {
 async function reaskedElsewhere(
   { modelId, reaskSeat, }: { readonly modelId: RosterModelId; readonly reaskSeat?: ReaskSeat; },
 ): Promise<{ readonly servedBy?: ProviderName; readonly refusal?: unknown; readonly reached: readonly ProviderName[]; }> {
-  const { client, reached, } = routerRecordingProviders();
+  const { client, reached, } = routerRecordingProviders({ read: readOlderProvidersWet, },);
   try {
     const reply = await client.chatText({
       modelId,
@@ -174,7 +112,7 @@ await describe({
         + '(ledger B1350): the whole nudged re-ask of the same model, through the router\'s own JSON exchange, reaches '
         + 'Synthetic once',
       fn: async () => {
-        const { client, reached, } = routerRecordingProviders();
+        const { client, reached, } = routerRecordingProviders({ read: readOlderProvidersWet, },);
         const outcome = await client.chatJson({
           modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
           messages: MESSAGES,

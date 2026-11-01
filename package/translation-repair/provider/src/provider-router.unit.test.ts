@@ -385,6 +385,8 @@ function isNapSpot(value: unknown,): value is { readonly spot: string; } {
 
  @param signal - abort the call carries, one that never fires unless a case that fakes the clock hands its own
 
+ @param reaskSeat - seat the call names, when it names one; the cases of the routing policy name none
+
  @returns Reply text, or the error thrown
 
  @example
@@ -397,10 +399,12 @@ function ask(
     client,
     modelId = SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
     signal = SIGNAL,
+    reaskSeat,
   }: {
     readonly client: ReturnType<typeof createRoutingClient>;
     readonly modelId?: Parameters<ReturnType<typeof createRoutingClient>['chatText']>[0]['modelId'];
     readonly signal?: AbortSignal;
+    readonly reaskSeat?: Parameters<ReturnType<typeof createRoutingClient>['chatText']>[0]['reaskSeat'];
   },
 ): Promise<{ readonly text: string; } | { readonly thrown: unknown; }> {
   return textCallOutcome({
@@ -408,6 +412,8 @@ function ask(
     modelId,
     messages: MESSAGES,
     signal,
+    // Conditional spread keeps the seat absent for a call that names none.
+    ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
   },);
 }
 
@@ -513,6 +519,45 @@ await describe({
         expect(await ask({ client, },),).toEqual({ text: '{"spot":"radiator"}', },);
         expect(called,).toEqual(['synthetic', 'hyper',],);
         expect(refused,).toEqual(['synthetic',],);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT FORWARD A HELD SEAT\'S REFUSED CALL TO HYPER (ledger B1365): Synthetic refuses Qwen3.8-27B for an '
+        + 'editor seat after the call was made, the next decision lands on Hyper, the provider the card\'s hold keeps it '
+        + 'off, and the seat is lost with the refusal marked as raised after a call; a measurement is forwarded',
+      fn: async () => {
+        /**
+         What the forwarding of a refused call came to for a seat in one mode of re-ask.
+         */
+        async function forwardedFor(reask: 'measured-model' | 'other-model',) {
+          const { callers, called, } = stubProviders({ status: { synthetic: 429, }, },);
+          const { budgets, refused, } = stubBudgets({},);
+          const client = createRoutingClient({
+            callers,
+            budgets,
+          },);
+          return {
+            outcome: await ask({
+              client,
+              reaskSeat: { role: 'editor', bench: [], reask, },
+            },),
+            called,
+            refused,
+          };
+        }
+        const held = await forwardedFor('other-model',);
+        expect(held.called,).toEqual(['synthetic',],);
+        expect(held.refused,).toEqual(['synthetic',],);
+        /**
+         What the held seat's call threw, when it threw.
+         */
+        const thrown = ('thrown' in held.outcome) ? held.outcome.thrown : undefined;
+        expect(thrown,).toBeInstanceOf(NoProviderForModelError,);
+        expect((thrown instanceof NoProviderForModelError) ? thrown.afterExchange : undefined,).toBe(true,);
+        const measured = await forwardedFor('measured-model',);
+        expect(measured.outcome,).toEqual({ text: '{"spot":"radiator"}', },);
+        expect(measured.called,).toEqual(['synthetic', 'hyper',],);
       },
     },),
 
