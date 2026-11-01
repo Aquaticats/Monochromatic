@@ -852,16 +852,26 @@ It is started outside the cgroup of the watcher:
 as its own transient service of the system manager,
 `wg-quicker-sentinel-<watcher pid>-<start time>`,
 through `systemd-run --collect` with `ManagedOOMPreference=omit`,
+with the program (`node`) behind `/usr/bin/env`,
 and with the sudo identity passed as `--setenv` because a service does not inherit it.
+The program is started behind `/usr/bin/env` because an SELinux-enforcing host does not let the system manager
+(`init_t`) execute files under a home directory,
+and the toolchain `node` sits in one:
+the unit was accepted and then failed with `status=203/EXEC`.
+The cause and the measurements are in `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
 The watcher runs in the cgroup of the terminal or session that ran `wg-quicker up`,
 and a kill of that whole cgroup,
 for example by `systemd-oomd`,
 would take a sentinel in the same cgroup with it and leave nothing to report.
 A service in its own root-owned cgroup survives that,
 and `systemd-oomd` is asked not to choose the service itself.
-If the manager refuses the unit or `systemd-run` is missing,
-the sentinel starts detached beside the watcher instead,
+If the manager refuses the unit,
+`systemd-run` is missing or hangs (it is ended after ten seconds),
+or the manager accepts the unit and the sentinel never confirms (its program can still fail to execute after the start was accepted),
+the unit is stopped and the sentinel starts detached beside the watcher instead,
 and `up` says loudly that a kill of the watcher's whole cgroup then ends both without a report.
+`systemd-run` and `systemctl` run with a cleared environment and a fixed search path (`/usr/bin:/bin`),
+never the caller's.
 It checks every half second that the process with the watcher's pid and start time still exists,
 so a reused pid is not mistaken for the watcher.
 When the watcher is gone it waits one and a half seconds and reads the identity record:
@@ -883,12 +893,17 @@ while the sentinel's process still exists with that start time.
 If none appears,
 or if the sentinel cannot be started at all,
 `up` says so loudly,
-with `systemctl status wg-quicker-sentinel-<pid>-<start time>` as the place to look,
+with `journalctl --unit=wg-quicker-sentinel-<pid>-<start time>` as the place to look
+(the unit is collected when it ends,
+so `systemctl status` shows nothing for it),
 and goes on with the tunnel.
-The service is created by `systemd-run` as root,
-so the real service start cannot be exercised without root;
-the arguments are checked in tests,
-and their option grammar was checked on a throwaway transient unit of the user manager.
+The marker is written to a new file that is renamed over `<state>.sentinel.json`,
+so a link planted at that path is replaced and never followed.
+The service start was exercised on the real host with a throwaway unit and a stand-in watcher process:
+the sentinel ran in `unconfined_service_t` in `system.slice` with `ManagedOOMPreference=omit`,
+wrote its marker,
+and exited when the stand-in watcher died;
+the unit that names `node` directly failed with `status=203/EXEC` in the same test.
 The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,

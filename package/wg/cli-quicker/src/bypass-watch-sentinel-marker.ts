@@ -1,5 +1,7 @@
 import {
   readFile,
+  rename,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 
@@ -70,6 +72,8 @@ export function sentinelMarkerPath({ statePath, }: { readonly statePath: string;
 
 /**
  Writes the marker of the running sentinel.
+ The text goes to a new file that is renamed over the marker,
+ so a link planted at the marker's path is replaced and never followed.
 
  @param statePath - Persisted bypass state path.
 
@@ -97,15 +101,43 @@ export async function writeSentinelMarker(
   const own = await readLinuxProcessIdentity({ pid: process.pid, },);
   if (own === PROCESS_ABSENT)
     throw new Error('The sentinel process is not in procfs.',);
-  await writeFile(
-    sentinelMarkerPath({ statePath, },),
-    JSON.stringify({
-      watcherPid,
-      pid: process.pid,
-      startTime: own.startTime,
-    } satisfies SentinelMarker,),
-    { mode: 0o600, },
+  /**
+   Path of the marker.
+   */
+  const markerPath = sentinelMarkerPath({ statePath, },);
+  /**
+   Path of the new file that is renamed over the marker.
+   */
+  const temporaryPath = `${markerPath}.${String(process.pid,)}.tmp`;
+  await rm(
+    temporaryPath,
+    { force: true, },
   );
+  try {
+    await writeFile(
+      temporaryPath,
+      JSON.stringify({
+        watcherPid,
+        pid: process.pid,
+        startTime: own.startTime,
+      } satisfies SentinelMarker,),
+      {
+        flag: 'wx',
+        mode: 0o600,
+      },
+    );
+    await rename(
+      temporaryPath,
+      markerPath,
+    );
+  }
+  catch (error) {
+    await rm(
+      temporaryPath,
+      { force: true, },
+    );
+    throw error;
+  }
 }
 
 /**
