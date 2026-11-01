@@ -836,8 +836,15 @@ each finished branch is reviewed and merged into `main`):
   both units failed at exec with "Unable to locate executable '<path under /var/home/user>': Permission denied",
   `status=203/EXEC`,
   started by PID 1 in `init_t`;
-  likely SELinux refusing system services the execution of files under the home (unverified;
-  sent to the wg agent to confirm with labels and AVC records,
+  SELinux refusing system services the execution of these files:
+  `getenforce` is Enforcing,
+  the node is labelled `data_home_t`,
+  and the watcher binary `container_file_t:s0:c311,c738`
+  (a container mount relabelled its `target/` directory);
+  root's discretionary permissions cannot deny an exec,
+  and no AVC record was logged for that minute (a dontaudit rule could explain it;
+  unverified).
+  Sent to the wg agent to confirm,
   write a troubleshooting doc,
   and find a placement that runs on this host,
   ideally applied without another tunnel gap).
