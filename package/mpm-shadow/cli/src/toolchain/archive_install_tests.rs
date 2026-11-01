@@ -11,10 +11,12 @@ use std::path::{Path, PathBuf};
 
 use super::archive_staging::{COMPLETE_MARKER, has_complete_marker, publish_staged, staging_dir_of, write_complete_marker};
 use super::fakes::{Rig, write_executable};
-use super::layout::{is_executable, tool_directory};
+use super::layout::{is_executable, tool_directory, tool_downloads_dir};
 use super::lock::Lock;
 use super::prune_cargo::prune_toolchain;
-use super::published_archive::{is_finished, newest_installed_archive, point_current_at_newest_archive, running_version_archive};
+use super::published_archive::{
+    is_finished, newest_installed_archive, point_current_at_newest_archive, remove_downloads, running_version_archive,
+};
 use super::published_archive_tests::{
     BIN, ID, context_of, finish_archive, lock_at, named_lock, release_body, release_url, serve_releases, tar_lines, unmarked_archive,
 };
@@ -269,4 +271,24 @@ fn names_of(directory: &Path) -> Vec<String> {
         .collect();
     names.sort();
     return names;
+}
+
+#[test]
+fn removing_the_downloads_of_one_version_never_touches_another_tools_with_a_similar_name() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    // Under the earlier flat names `<id>-<version>-<file>`, `a` at 1-b and `a-1` at b made the same prefix `a-1-b-`.
+    for (id, version) in [("a", "1-b"), ("a-1", "b"), ("a", "2")] {
+        let directory = tool_downloads_dir(&root, id, version).expect("a plain name");
+        fs::create_dir_all(&directory).expect("make");
+        fs::write(directory.join("file"), "x").expect("write");
+    }
+    remove_downloads(&root, "a", "1-b").expect("removed");
+    assert!(!tool_downloads_dir(&root, "a", "1-b").expect("a plain name").exists());
+    assert!(tool_downloads_dir(&root, "a-1", "b").expect("a plain name").join("file").is_file(), "the other tool's download stays");
+    assert!(tool_downloads_dir(&root, "a", "2").expect("a plain name").join("file").is_file(), "so does another version of the same tool");
+    remove_downloads(&root, "a", "2").expect("removed");
+    assert!(!root.join("downloads").join("a").exists(), "the tool's downloads directory goes with its last version");
+    remove_downloads(&root, "never-installed", "1.0.0").expect("nothing to remove is not an error");
+    assert!(remove_downloads(&root, "..", "1.0.0").is_err(), "a crafted id is refused");
 }

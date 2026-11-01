@@ -172,14 +172,15 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
     let first = sync_tools(&context_of(&rig, &rig.scope, &lock_old), None);
     assert_eq!(first.installed, vec![ID.to_string()], "{first:?}");
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.0"));
-    let old_download = root.join("downloads").join(format!("{ID}-0.2.0-mpm-shadow-0.2.0.tar.gz"));
+    let old_download = root.join("downloads").join(ID).join("0.2.0").join("mpm-shadow-0.2.0.tar.gz");
     assert!(old_download.is_file());
 
     let second = sync_tools(&context_of(&rig, &rig.scope, &lock_new), None);
     assert_eq!(second.installed, vec![ID.to_string()], "{second:?}");
     assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists(), "installing 0.2.1 removed 0.2.0");
     assert!(!old_download.exists(), "and the archive downloaded for it");
-    assert!(root.join("downloads").join(format!("{ID}-0.2.1-mpm-shadow-0.2.1.tar.gz")).is_file());
+    assert!(root.join("downloads").join(ID).join("0.2.1").join("mpm-shadow-0.2.1.tar.gz").is_file());
+    assert!(!root.join("downloads").join(ID).join("0.2.0").exists(), "the superseded version's download directory is gone too");
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.1"));
 
     // This tree's exposed link goes through its launcher to the program behind `current`, which resolves.

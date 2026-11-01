@@ -34,6 +34,8 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 /// Imports `fs` from `std`.
 use std::fs;
+/// Imports `ErrorKind` from `std::io`.
+use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
@@ -55,7 +57,7 @@ use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{find_bin_under, install_dir_name, tool_directory, tool_install_dir};
+use super::layout::{find_bin_under, tool_directory, tool_downloads_dir, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Request, Route};
 /// Imports `PresentVersion` from `super::prune_cargo`.
@@ -217,20 +219,33 @@ pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bi
     return Ok(Some(newest));
 }
 
+/// What:
 /// Removes the downloaded archives of one version of the tool,
-/// which `install` keeps under `<toolchain root>/downloads` as `<id>-<version>-<file>`.
-fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Result<(), ToolchainError> {
-    let stem: String = format!("{}-{}-", install_dir_name(id), install_dir_name(version));
-    let Ok(entries) = fs::read_dir(toolchain_root.join("downloads")) else {
-        return Ok(());
-    };
-    for entry in entries.flatten() {
-        if !entry.file_name().to_string_lossy().starts_with(&stem) {
-            continue;
+/// which `install` keeps under `<toolchain root>/downloads/<tool>/<version>/`.
+/// Why:
+/// One directory per tool and version:
+/// the earlier flat names (`<id>-<version>-<file>`) were matched by prefix,
+/// and the ids `a` and `a-1` can make the same prefix.
+/// Archives an earlier release downloaded under the flat names stay where they are;
+/// nothing reads them and they can be deleted by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removeDownloads(root: string, id: string, version: string): void
+/// ```
+pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Result<(), ToolchainError> {
+    let directory: PathBuf = tool_downloads_dir(toolchain_root, id, version)?;
+    match fs::remove_dir_all(&directory) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(ToolchainError::failure(format!("cannot remove the superseded downloads {}: {error}", directory.display())));
         }
-        if let Err(error) = fs::remove_file(entry.path()) {
-            return Err(ToolchainError::failure(format!("cannot remove the superseded download {}: {error}", entry.path().display())));
-        }
+    }
+    if let Some(tool_downloads) = directory.parent() {
+        // Best effort: the tool's downloads directory goes once its last version's downloads are gone, and stays when
+        // another version's downloads are still in it.
+        let _ = fs::remove_dir(tool_downloads);
     }
     return Ok(());
 }

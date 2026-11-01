@@ -186,7 +186,7 @@ fn an_archive_is_verified_then_unpacked_with_tar() {
     rig.http.serve(url, body);
     set_artifact(&mut rig, "node", url, &sha256_hex(body));
     install_tool(&rig.context(), &rig.tool("node")).expect("installed");
-    let download = rig.scope.toolchain_root.join("downloads").join("node-1.2.3-node-v1.2.3-linux-x64.tar.gz");
+    let download = rig.scope.toolchain_root.join("downloads").join("node").join("1.2.3").join("node-v1.2.3-linux-x64.tar.gz");
     let install_dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3").expect("a plain name");
     // The archive is unpacked into the hidden staging directory, which is renamed to the version's name afterwards.
     let staging = staging_dir_of(&install_dir);

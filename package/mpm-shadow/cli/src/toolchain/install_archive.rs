@@ -38,7 +38,7 @@ use super::install_support::{
     ARCHIVE_SUFFIXES, artifact_for_host, download_verified, extract_archive, extract_conda, make_executable, restore_exec_bits,
 };
 /// Imports what this module uses from `super::layout`.
-use super::layout::{find_bin_under, install_dir_name, tool_install_dir};
+use super::layout::{find_bin_under, install_dir_name, tool_downloads_dir, tool_install_dir};
 /// Imports the suffix check.
 use super::util::ends_with_any;
 /// Imports `LockedTool` from `super::model`.
@@ -198,12 +198,7 @@ fn unpack_into(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path
 fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let artifact = artifact_for_host(tool, &ctx.host.platform)?;
     let file_name: String = safe_file_name(&artifact.url);
-    let download_path: PathBuf = ctx.scope.toolchain_root.join("downloads").join(format!(
-        "{}-{}-{}",
-        install_dir_name(&tool.declaration.id),
-        install_dir_name(&tool.version),
-        file_name
-    ));
+    let download_path: PathBuf = tool_downloads_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?.join(&file_name);
     download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
     let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     let staging: PathBuf = staging_dir_of(&install_dir);
