@@ -23,6 +23,16 @@ const releaseBin = resolve(import.meta.dirname, '..', 'bin', 'release.ts');
 const waitBin = resolve(import.meta.dirname, '..', 'bin', 'wait-publish.ts');
 
 /**
+ Path of the dispatch executable.
+ */
+const dispatchBin = resolve(import.meta.dirname, '..', 'bin', 'dispatch-release.ts');
+
+/**
+ Path of the await executable.
+ */
+const awaitBin = resolve(import.meta.dirname, '..', 'bin', 'await-release.ts');
+
+/**
  Note that holds every character a shell treats as syntax.
  */
 const hostileNote = `it's "done"; $HOME \`id\` $(id) && touch pwned`;
@@ -42,6 +52,35 @@ async function writeRepository(fixture: StubFixture): Promise<void> {
     text: '[package]\nname = "fuzz"\nversion = "0.0.0"\n\n[dependencies]\n'
       + 'demo-cli = { path = "../cli", version = "=0.4.9" }\n',
   });
+}
+
+/**
+ Write the fixture repository of the `forbidden-strings` registry entry at 0.6.0: the scanner, the wrapper that pins it,
+ and the fuzz and benchmark crates that pin it too.
+
+ @param fixture - fixture to fill
+ */
+async function writeRegistryRepository(fixture: StubFixture): Promise<void> {
+  await fixture.write({
+    path: 'package/forbidden-strings/cli/Cargo.toml',
+    text: '[package]\nname = "forbidden-strings"\nversion = "0.6.0"\n',
+  });
+  // The lock directory must exist, because the lock step starts cargo inside it.
+  await fixture.write({
+    path: 'package/git-policy/cli.fuzz/Cargo.toml',
+    text: '[package]\nname = "fuzz"\nversion = "0.0.0"\n',
+  });
+  await Promise.all([
+    'package/git-policy/cli/Cargo.toml',
+    'package/forbidden-strings/cli.fuzz/Cargo.toml',
+    'package/forbidden-strings/core.bench/Cargo.toml',
+  ].map(async function writePin(path) {
+    await fixture.write({
+      path,
+      text: '[package]\nname = "pinning"\nversion = "0.0.0"\n\n[dependencies]\n'
+        + 'forbidden-strings = { path = "../cli", version = "=0.6.0" }\n',
+    });
+  }));
 }
 
 /**
@@ -72,8 +111,8 @@ function runRelease({
     'package/demo/cli.fuzz/Cargo.toml',
     '--check-bin',
     'demo-bin',
-    '--lock-task',
-    '//package/demo/cli.fuzz:lock:members',
+    '--lock-dir',
+    'package/demo/cli.fuzz',
     '--unit-name',
     'demo-publish-dry',
     ...extra,
@@ -127,9 +166,11 @@ await describe({
             const calls = await fixture.calls();
             expect(calls.map(function programOf(call) {
               return call.program;
-            })).toEqual(['cargo', 'mise', 'systemd-run', 'git']);
+            })).toEqual(['cargo', 'cargo', 'systemd-run', 'git']);
             expect(calls[0]?.args).toEqual(['check', '--offline', '--bin', 'demo-bin']);
             expect(calls[0]?.cwd).toBe(`${fixture.directory}/package/demo/cli`);
+            expect(calls[1]?.args).toEqual(['update', '--offline', '--workspace']);
+            expect(calls[1]?.cwd).toBe(`${fixture.directory}/package/demo/cli.fuzz`);
             expect(calls[3]?.args).toEqual([
               'commit',
               '--message',
@@ -141,6 +182,84 @@ await describe({
               'package/demo/cli.fuzz/Cargo.lock',
             ]);
             expect(calls[3]?.cwd).toBe(fixture.directory);
+          },
+        }),
+        it({
+          name: 'releases a crate of the registry on a runner with cargo only, the network open and no unit',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
+            const child = spawnSync('node', [
+              releaseBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '--host',
+              'runner',
+              '0.6.0',
+              '0.6.1',
+              hostileNote,
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.stderr).toBe('');
+            expect(child.status).toBe(0);
+            expect(child.stdout).toContain('RELEASE COMMITTED');
+            expect(await fixture.read('package/forbidden-strings/cli/Cargo.toml')).toContain('version = "0.6.1"');
+            expect(await fixture.read('package/git-policy/cli/Cargo.toml')).toContain('version = "=0.6.1"');
+            const calls = await fixture.calls();
+            expect(calls.map(function programOf(call) {
+              return call.program;
+            })).toEqual(['cargo', 'cargo', 'cargo', 'git']);
+            expect(calls[0]?.args).toEqual(['check', '--bin', 'forbidden-strings']);
+            expect(calls[1]?.args).toEqual(['update', '--workspace']);
+            expect(calls[2]?.args).toEqual(['publish', '--dry-run', '--locked', '--allow-dirty']);
+            expect(calls[1]?.cwd).toBe(`${fixture.directory}/package/git-policy/cli.fuzz`);
+            expect(calls[3]?.args.slice(0, 3)).toEqual([
+              'commit',
+              '--message',
+              `chore(forbidden-strings/cli): release 0.6.1: ${hostileNote}`,
+            ]);
+          },
+        }),
+        it({
+          name: 'refuses on a runner a crate that already holds the target and starts no program',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writeRegistryRepository(fixture);
+            const child = spawnSync('node', [
+              releaseBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'forbidden-strings',
+              '--host',
+              'runner',
+              '0.5.9',
+              '0.6.0',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('package/forbidden-strings/cli/Cargo.toml already holds 0.6.0');
+            expect(await fixture.calls()).toEqual([]);
+          },
+        }),
+        it({
+          name: 'refuses a crate the registry does not list, naming the crates it lists',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            const child = spawnSync('node', [
+              releaseBin,
+              '--root',
+              fixture.directory,
+              '--crate',
+              'nope',
+              '0.1.0',
+              '0.1.1',
+              'n',
+            ], { env: fixture.environment(), encoding: 'utf8' });
+            expect(child.status).toBe(2);
+            expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
+            expect(await fixture.calls()).toEqual([]);
           },
         }),
         it({

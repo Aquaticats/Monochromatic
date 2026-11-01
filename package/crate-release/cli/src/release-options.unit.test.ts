@@ -8,8 +8,26 @@ import {
   defaultMemoryMax,
   defaultUnitSuffix,
 } from './constants.ts';
+import { parseCrateRegistry } from './crate-registry.ts';
 import { CrateReleaseError } from './error.ts';
 import { parseReleaseArguments } from './release-options.ts';
+
+/**
+ Registry the `--crate` tests read: one crate with every field, one with only the required fields.
+ */
+const testRegistry = parseCrateRegistry(JSON.stringify({
+  'monochromatic-git-policy-cli': {
+    crateDir: 'package/git-policy/cli',
+    scope: 'git-policy/cli',
+    pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
+    checkBins: ['cli-git-native'],
+    lockDirs: ['package/git-policy/cli.fuzz'],
+  },
+  'plain-crate': {
+    crateDir: 'package/plain/cli',
+    scope: 'plain/cli',
+  },
+}));
 
 /**
  Required options of the usual crate.
@@ -30,7 +48,7 @@ const requiredOptions: readonly string[] = [
  @returns the parsed options
  */
 function parse(argv: readonly string[]) {
-  return parseReleaseArguments({ argv, root: '/repo' });
+  return parseReleaseArguments({ argv, root: '/repo', registry: () => testRegistry });
 }
 
 /**
@@ -86,7 +104,8 @@ await describe({
               note: 'fix it',
               pinFiles: [],
               checkBins: [],
-              lockTasks: [],
+              lockDirectories: [],
+              host: 'local',
               memoryMax: defaultMemoryMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
             });
@@ -107,10 +126,12 @@ await describe({
               'cli-git-native',
               '--check-bin',
               'second-bin',
-              '--lock-task',
-              '//package/a:lock',
-              '--lock-task',
-              '//package/b:lock',
+              '--lock-dir',
+              'package/a',
+              '--lock-dir',
+              'package/b',
+              '--host',
+              'runner',
               '--memory-max',
               '8G',
               '--unit-name',
@@ -122,7 +143,8 @@ await describe({
             expect(options.root).toBe('/other');
             expect(options.pinFiles).toEqual(['package/git-policy/cli.fuzz/Cargo.toml', 'package/x/Cargo.toml']);
             expect(options.checkBins).toEqual(['cli-git-native', 'second-bin']);
-            expect(options.lockTasks).toEqual(['//package/a:lock', '//package/b:lock']);
+            expect(options.lockDirectories).toEqual(['package/a', 'package/b']);
+            expect(options.host).toBe('runner');
             expect(options.memoryMax).toBe('8G');
             expect(options.unitName).toBe('cli-git-publish-dry');
           },
@@ -244,9 +266,21 @@ await describe({
           },
         }),
         it({
-          name: 'refuses a lock task that mise would read as an option',
+          name: 'refuses a lock directory that leaves the repository',
           fn: async () => {
-            expectRefusal({ argv: [...requiredOptions, '--lock-task', '--help', '0.4.2', '0.4.3', 'n'], mention: '--lock-task' });
+            expectRefusal({ argv: [...requiredOptions, '--lock-dir', '../x', '0.4.2', '0.4.3', 'n'], mention: '--lock-dir' });
+          },
+        }),
+        it({
+          name: 'refuses a host that is neither local nor runner and lists the hosts',
+          fn: async () => {
+            expectRefusal({ argv: [...requiredOptions, '--host', 'cloud', '0.4.2', '0.4.3', 'n'], mention: 'local, runner' });
+          },
+        }),
+        it({
+          name: 'refuses the retired lock task option, because the lockfile refresh is a cargo call in a directory now',
+          fn: async () => {
+            expectRefusal({ argv: [...requiredOptions, '--lock-task', '//package/a:lock', '0.4.2', '0.4.3', 'n'], mention: '--lock-task' });
           },
         }),
         it({
@@ -265,6 +299,76 @@ await describe({
           name: 'refuses a unit name with characters systemd would reject',
           fn: async () => {
             expectRefusal({ argv: [...requiredOptions, '--unit-name', 'a b', '0.4.2', '0.4.3', 'n'], mention: '--unit-name' });
+          },
+        }),
+        it({
+          name: 'reads every argument of a crate from the registry with --crate and keeps the defaults of the rest',
+          fn: async () => {
+            expect(parse(['--crate', 'monochromatic-git-policy-cli', '--host', 'runner', '0.4.2', '0.4.3', 'fix it'])).toEqual({
+              root: '/repo',
+              crateName: 'monochromatic-git-policy-cli',
+              crateDirectory: 'package/git-policy/cli',
+              scope: 'git-policy/cli',
+              from: '0.4.2',
+              to: '0.4.3',
+              note: 'fix it',
+              pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
+              checkBins: ['cli-git-native'],
+              lockDirectories: ['package/git-policy/cli.fuzz'],
+              host: 'runner',
+              memoryMax: defaultMemoryMax,
+              unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
+            });
+          },
+        }),
+        it({
+          name: 'reads a registry entry that has only the required fields as a crate without pins, binaries or lock directories',
+          fn: async () => {
+            const options = parse(['--crate', 'plain-crate', '0.1.0', '0.1.1', 'n']);
+            expect(options.pinFiles).toEqual([]);
+            expect(options.checkBins).toEqual([]);
+            expect(options.lockDirectories).toEqual([]);
+          },
+        }),
+        it({
+          name: 'still lets --memory-max and --unit-name tune a local dry run of a registry crate',
+          fn: async () => {
+            const options = parse(['--crate', 'plain-crate', '--memory-max', '4G', '--unit-name', 'u', '0.1.0', '0.1.1', 'n']);
+            expect(options.memoryMax).toBe('4G');
+            expect(options.unitName).toBe('u');
+          },
+        }),
+        it({
+          name: 'refuses a crate that the registry does not list and names the crates it lists',
+          fn: async () => {
+            expectRefusal({ argv: ['--crate', 'nope', '0.1.0', '0.1.1', 'n'], mention: 'monochromatic-git-policy-cli, plain-crate' });
+          },
+        }),
+        it({
+          name: 'refuses --crate beside any option that spells the crate out, and names every one given',
+          fn: async () => {
+            const caught = thrownBy(['--crate', 'plain-crate', '--scope', 's', '--pin-file', 'package/x/Cargo.toml', '0.1.0', '0.1.1', 'n']);
+            expect(caught).toBeInstanceOf(CrateReleaseError);
+            expect((caught as Error).message).toContain('--scope, --pin-file');
+          },
+        }),
+        it({
+          name: 'refuses a note that does not fit the commit subject of a registry crate before any file changes',
+          fn: async () => {
+            expectRefusal({ argv: ['--crate', 'plain-crate', '0.1.0', '0.1.1', 'a\nb'], mention: 'note' });
+          },
+        }),
+        it({
+          name: 'does not read the registry when the crate is spelled out',
+          fn: async () => {
+            const options = parseReleaseArguments({
+              argv: [...requiredOptions, '0.4.2', '0.4.3', 'n'],
+              root: '/repo',
+              registry: function unreadable(): never {
+                throw new Error('the registry must not be read');
+              },
+            });
+            expect(options.crateName).toBe('monochromatic-git-policy-cli');
           },
         }),
         it({

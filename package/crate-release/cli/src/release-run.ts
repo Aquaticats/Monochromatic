@@ -8,6 +8,7 @@ import {
   manifestFileName,
 } from './constants.ts';
 import { formatCommandLine } from './command-line.ts';
+import { CrateReleaseError } from './error.ts';
 import {
   type ManifestEdit,
   replaceDependencyPin,
@@ -41,6 +42,42 @@ type PlannedEdit = {
 };
 
 /**
+ Run one manifest edit and name the manifest in its refusal, because a bare "the pin is wrong" does not say which file.
+
+ @param label - repository-relative path of the manifest
+
+ @param action - computes the edit
+
+ @returns the edit
+
+ @throws CrateReleaseError with the label in front of the edit's own message
+
+ @example
+ ```ts
+ namedEdit({ label: 'package/a/Cargo.toml', action: () => replacePackageVersion({ text, from, to }) });
+ ```
+ */
+function namedEdit({
+  label,
+  action,
+}: {
+  readonly label: string;
+  readonly action: () => ManifestEdit;
+}): ManifestEdit {
+  try {
+    return action();
+  }
+  catch (error) {
+    if (error instanceof CrateReleaseError)
+      throw new CrateReleaseError(
+        `${label}: ${error.message}`,
+        { cause: error }
+      );
+    throw error;
+  }
+}
+
+/**
  Compute every manifest edit of a release before any file is written, so a refused manifest leaves all files as they
  were.
 
@@ -52,7 +89,8 @@ type PlannedEdit = {
 
  @returns the files whose text changes; files that already hold the target are reported and left out
 
- @throws CrateReleaseError when a manifest does not hold the current version or an exact pin of it
+ @throws CrateReleaseError when a manifest does not hold the current version or an exact pin of it, or, on a runner,
+ when the crate already holds the target version
 
  @example
  ```ts
@@ -77,37 +115,68 @@ async function planEdits({
     manifestFileName
   );
   /**
+   Text of the crate manifest.
+   */
+  const crateText = await readText(cratePath);
+  /**
+   Repository-relative path of the crate manifest, which names it in a refusal.
+   */
+  const crateLabel = posix.join(
+    options.crateDirectory,
+    manifestFileName
+  );
+  /**
    Edits in the order they are reported: the crate first, then each pin file.
    */
   const edits: readonly PlannedEdit[] = [
     {
       path: cratePath,
-      edit: replacePackageVersion({
-        text: await readText(cratePath),
-        from: options.from,
-        to: options.to
+      edit: namedEdit({
+        label: crateLabel,
+        action: function editCrate() {
+          return replacePackageVersion({
+            text: crateText,
+            from: options.from,
+            to: options.to
+          });
+        },
       }),
     },
     ...await Promise.all(options.pinFiles
       .map(async function planPin(pinFile): Promise<PlannedEdit> {
-      /**
-       Absolute path of the pin file.
-       */
+        /**
+         Absolute path of the pin file.
+         */
         const path = join(
           options.root,
           ...pinFile.split(posix.sep)
         );
+        /**
+         Text of the pin file.
+         */
+        const pinText = await readText(path);
         return {
           path,
-          edit: replaceDependencyPin({
-            text: await readText(path),
-            crateName: options.crateName,
-            from: options.from,
-            to: options.to,
+          edit: namedEdit({
+            label: pinFile,
+            action: function editPin() {
+              return replaceDependencyPin({
+                text: pinText,
+                crateName: options.crateName,
+                from: options.from,
+                to: options.to,
+              });
+            },
           }),
         };
       })),
   ];
+  // A runner starts from a fresh checkout, so a crate that already holds the target is a bump that is already on the
+  // branch: committing it again would find nothing to commit, and publishing it again would repeat a release.
+  if ((options.host === 'runner') && (!edits[0]?.edit.changed))
+    throw new CrateReleaseError(
+      `${crateLabel} already holds ${options.to}, so the checkout already has this release's version bump and nothing was changed. If that bump's publish never started, dispatch the publish workflow for ${options.crateName} instead of releasing again; otherwise check <to>.`,
+    );
   for (const {
     path,
     edit

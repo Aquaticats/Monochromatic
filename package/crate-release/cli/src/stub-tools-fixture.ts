@@ -18,11 +18,10 @@ import { scratchSegments } from './constants.ts';
 
 /**
  Programs the release and wait commands start; the fixture shadows every one of them, so a test can never reach a
- real `cargo`, `git`, `gh`, `curl`, `mise` or `systemd-run`.
+ real `cargo`, `git`, `gh`, `curl` or `systemd-run`.
  */
 export const stubbedPrograms: readonly string[] = [
   'cargo',
-  'mise',
   'systemd-run',
   'git',
   'gh',

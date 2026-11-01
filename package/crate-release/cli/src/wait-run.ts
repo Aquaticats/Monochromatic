@@ -46,7 +46,7 @@ type LookInput = {
 /**
  Repository argument of every `gh` call: the named repository, or none so `gh` reads the working directory.
 
- @param options - validated wait options
+ @param options - anything that may name the repository
 
  @returns an object to spread into a builder call
 
@@ -55,7 +55,7 @@ type LookInput = {
  repositoryScope(options);
  ```
  */
-function repositoryScope(options: WaitOptions): { readonly repo?: string } {
+export function repositoryScope(options: { readonly repo?: string }): { readonly repo?: string } {
   return options.repo === undefined ? {} : { repo: options.repo };
 }
 
@@ -71,7 +71,7 @@ function repositoryScope(options: WaitOptions): { readonly repo?: string } {
  failureReason({ status: 1, stdout: '', stderr: 'not logged in' });
  ```
  */
-function failureReason(result: ProgramResult): string {
+export function failureReason(result: ProgramResult): string {
   return result.stderr
     .trim()
     === '' ? `gh exited with status ${String(result.status)}` : result.stderr
@@ -159,17 +159,24 @@ function releaseAssets(release: ProgramResult): Lookup<readonly string[]> {
 }
 
 /**
- Wait for the publish workflow run of a commit, then check crates.io and the GitHub release.
+ The settings the check of a found publish run reads.
+ */
+export type PublishCheckInput = Pick<
+  WaitOptions,
+  'root' | 'crateName' | 'version' | 'repo' | 'tagTemplate' | 'assetTemplates' | 'userAgent' | 'maxTimeSeconds'
+>;
 
- The wait is bounded by the attempt limit and the poll interval. A failed workflow run does not skip the checks, so the
- report shows everything that is and is not in place. The result is zero only when the workflow succeeded, crates.io
- has the version, and the release holds every expected asset.
+/**
+ Watch a publish workflow run to its end, then check crates.io and the GitHub release.
 
- @param options - validated wait options
+ A failed workflow run does not skip the checks, so the report shows everything that is and is not in place. The result
+ is zero only when the workflow succeeded, crates.io has the version, and the release holds every expected asset.
+
+ @param options - the crate, its version and the check settings
 
  @param run - runs a program call and reports its status and output
 
- @param sleep - waits the given milliseconds
+ @param runId - numeric identifier of the publish run
 
  @param print - prints one line
 
@@ -177,46 +184,28 @@ function releaseAssets(release: ProgramResult): Lookup<readonly string[]> {
 
  @example
  ```ts
- await waitForPublish({ options, run, sleep, print: console.log });
+ await checkPublishedRun({ options, run, runId: '77', print: console.log });
  ```
  */
-export async function waitForPublish({
+export async function checkPublishedRun({
   options,
   run,
-  sleep,
+  runId,
   print,
 }: {
-  readonly options: WaitOptions;
+  readonly options: PublishCheckInput;
   readonly run: WaitRunner;
-  readonly sleep: (milliseconds: number) => Promise<void>;
+  readonly runId: string;
   readonly print: (line: string) => void;
 }): Promise<number> {
-  /**
-   The run of the commit, or why none turned up.
-   */
-  const runLookup = await findRun({
-    input: {
-      options,
-      run,
-      sleep
-    },
-    attempt: 1
-  });
-  if (!runLookup.found) {
-    print(
-      `no ${options.workflow} run for ${options.sha} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
-    );
-    print(`last result: ${runLookup.reason}`);
-    return failureExitCode;
-  }
-  print(`run ${runLookup.value}`);
+  print(`run ${runId}`);
   /**
    Outcome of watching the run to its end.
    */
   const watched = await run({
     program: ghProgram,
     args: buildRunWatchArguments({
-      runId: runLookup.value,
+      runId,
       ...repositoryScope(options)
     }),
     cwd: options.root,
@@ -274,4 +263,63 @@ export async function waitForPublish({
   for (const line of report.lines)
     print(line);
   return report.ok ? 0 : failureExitCode;
+}
+
+/**
+ Wait for the publish workflow run of a commit, then check crates.io and the GitHub release.
+
+ The wait is bounded by the attempt limit and the poll interval. A failed workflow run does not skip the checks, so the
+ report shows everything that is and is not in place. The result is zero only when the workflow succeeded, crates.io
+ has the version, and the release holds every expected asset.
+
+ @param options - validated wait options
+
+ @param run - runs a program call and reports its status and output
+
+ @param sleep - waits the given milliseconds
+
+ @param print - prints one line
+
+ @returns zero when the publish is complete, the failure status otherwise
+
+ @example
+ ```ts
+ await waitForPublish({ options, run, sleep, print: console.log });
+ ```
+ */
+export async function waitForPublish({
+  options,
+  run,
+  sleep,
+  print,
+}: {
+  readonly options: WaitOptions;
+  readonly run: WaitRunner;
+  readonly sleep: (milliseconds: number) => Promise<void>;
+  readonly print: (line: string) => void;
+}): Promise<number> {
+  /**
+   The run of the commit, or why none turned up.
+   */
+  const runLookup = await findRun({
+    input: {
+      options,
+      run,
+      sleep
+    },
+    attempt: 1
+  });
+  if (!runLookup.found) {
+    print(
+      `no ${options.workflow} run for ${options.sha} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
+    );
+    print(`last result: ${runLookup.reason}`);
+    return failureExitCode;
+  }
+  return await checkPublishedRun({
+    options,
+    run,
+    runId: runLookup.value,
+    print
+  });
 }

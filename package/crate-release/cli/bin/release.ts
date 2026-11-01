@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 /**
  Move a Rust crate to a new version, check it, dry-run the publish and commit the bump. Run without arguments for the
- options, or see the README. Nothing is pushed or published.
+ options, or see the README. Nothing is pushed or published. This is what the release workflow runs on a GitHub runner;
+ start a release with the dispatch command, not by running this on a developer machine.
  */
-import { existsSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+} from 'node:fs';
 import {
   readFile,
   writeFile,
@@ -11,6 +15,7 @@ import {
 import { resolve } from 'node:path';
 
 import { runCli } from '../src/cli-main.ts';
+import { loadCrateRegistry } from '../src/crate-registry.ts';
 import { parseReleaseArguments } from '../src/release-options.ts';
 import { runRelease } from '../src/release-run.ts';
 import type { ReleaseStep } from '../src/release-steps.ts';
@@ -30,6 +35,26 @@ function findRoot(): string {
       '..',
     ),
     exists: existsSync,
+  });
+}
+
+/**
+ Read the registry of releasable crates that sits in this package.
+
+ @returns the validated registry
+ */
+function readRegistry() {
+  return loadCrateRegistry({
+    packageDirectory: resolve(
+      import.meta.dirname,
+      '..'
+    ),
+    readText: function readRegistryText(path) {
+      return readFileSync(
+        path,
+        'utf8'
+      );
+    },
   });
 }
 
@@ -95,6 +120,7 @@ async function execute(argv: readonly string[]): Promise<number> {
     options: parseReleaseArguments({
       argv,
       root: findRoot,
+      registry: readRegistry,
     }),
     readText,
     writeText,

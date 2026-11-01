@@ -11,7 +11,6 @@ import {
   parseRepositoryPath,
   parseSha,
   parseSystemdValue,
-  parseTaskName,
   parseTemplate,
   parseUnitName,
   parseUserAgent,
@@ -114,14 +113,6 @@ await describe({
         parse: parseUnitName,
         accepted: ['cli-git-publish-dry', 'a_b-1'],
         rejected: ['', '-a', 'a b', 'a.service', 'a/b', 'a\nb', 'a@b'],
-      }),
-    }),
-    describe({
-      name: parseTaskName.name,
-      children: textCases({
-        parse: parseTaskName,
-        accepted: ['//package/git-policy/cli.fuzz:lock:members', 'lint', 'a:b'],
-        rejected: ['', '-x', '--help', 'a b', 'a\nb', 'a\0b', 'a;b', 'a$b', "a'b"],
       }),
     }),
     describe({

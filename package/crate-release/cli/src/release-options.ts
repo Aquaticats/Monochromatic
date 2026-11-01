@@ -3,11 +3,19 @@ import { resolve } from 'node:path';
 import { buildCommitMessage } from './commit-message.ts';
 import {
   defaultMemoryMax,
+  defaultReleaseHost,
   defaultUnitSuffix,
-  manifestFileName,
+  releaseHosts,
 } from './constants.ts';
+import {
+  type CrateEntry,
+  type CrateRegistry,
+  findCrate,
+} from './crate-registry.ts';
 import { CrateReleaseError } from './error.ts';
 import {
+  optionValue,
+  type RawArguments,
   repeatedValues,
   requiredValue,
   rootOf,
@@ -17,12 +25,17 @@ import {
 import {
   parseCommitScope,
   parseCrateName,
+  parseManifestPath,
   parseRepositoryPath,
   parseSystemdValue,
-  parseTaskName,
   parseUnitName,
 } from './validate.ts';
 import { assertReleaseVersion } from './version.ts';
+
+/**
+ Where a release runs; see `releaseHosts`.
+ */
+export type ReleaseHost = (typeof releaseHosts)[number];
 
 /**
  Everything a release needs, validated.
@@ -61,19 +74,25 @@ export type ReleaseOptions = {
    */
   readonly pinFiles: readonly string[];
   /**
-   Binaries the offline check builds; empty to check the whole crate.
+   Binaries the check builds; empty to check the whole crate.
    */
   readonly checkBins: readonly string[];
   /**
-   Mise tasks that refresh lockfiles after the edit, in order.
+   Repository-relative directories whose lockfile records the changed version of a workspace member after the edit, in
+   order.
    */
-  readonly lockTasks: readonly string[];
+  readonly lockDirectories: readonly string[];
   /**
-   Systemd `MemoryMax` of the publish dry run.
+   Where the release runs, which decides how cargo is called and whether a manifest that already holds the target is
+   accepted.
+   */
+  readonly host: ReleaseHost;
+  /**
+   Systemd `MemoryMax` of the publish dry run on a local host.
    */
   readonly memoryMax: string;
   /**
-   Name of the transient unit of the publish dry run.
+   Name of the transient unit of the publish dry run on a local host.
    */
   readonly unitName: string;
 };
@@ -83,6 +102,7 @@ export type ReleaseOptions = {
  */
 const releaseOptionDefinitions = {
   'root': { type: 'string' },
+  'crate': { type: 'string' },
   'crate-name': { type: 'string' },
   'crate-dir': { type: 'string' },
   'scope': { type: 'string' },
@@ -94,34 +114,191 @@ const releaseOptionDefinitions = {
     type: 'string',
     multiple: true
   },
-  'lock-task': {
+  'lock-dir': {
     type: 'string',
     multiple: true
   },
+  'host': { type: 'string' },
   'memory-max': { type: 'string' },
   'unit-name': { type: 'string' },
 } as const;
 
 /**
- Check that a pin file names a manifest, because its lockfile is found beside it.
+ Options that spell out a crate, which `--crate` replaces by reading the registry file.
+ */
+const crateSpellingOptions: readonly string[] = [
+  'crate-name',
+  'crate-dir',
+  'scope',
+  'pin-file',
+  'check-bin',
+  'lock-dir',
+];
 
- @param value - repository-relative path already checked as a path
+/**
+ The crate's arguments, either spelled out on the command line or read from the registry by `--crate`.
+ */
+type CrateArguments = CrateEntry & { readonly crateName: string };
 
- @returns the value unchanged
+/**
+ Read the arguments of the crate from the registry, refusing a command line that also spells them out.
 
- @throws CrateReleaseError when the path does not end in the manifest file name
+ @param raw - split command line
+
+ @param crate - the `--crate` value
+
+ @param registry - the registry, read only when `--crate` is given
+
+ @returns the crate's name and arguments
+
+ @throws CrateReleaseError when a spelled-out option is given beside `--crate`, or the crate is not in the registry
 
  @example
  ```ts
- assertManifestPath('package/a.fuzz/Cargo.toml');
+ registryArguments({ raw, crate: 'forbidden-strings', registry });
  ```
  */
-function assertManifestPath(value: string): string {
-  if ((value !== manifestFileName) && (!value.endsWith(`/${manifestFileName}`)))
+function registryArguments({
+  raw,
+  crate,
+  registry,
+}: {
+  readonly raw: RawArguments;
+  readonly crate: string;
+  readonly registry: () => CrateRegistry;
+}): CrateArguments {
+  /**
+   Spelled-out options that were given beside `--crate`.
+   */
+  const conflicting = crateSpellingOptions.filter(function isGiven(name) {
+    return raw.singles.has(name) || (repeatedValues({
+      raw,
+      name
+    }).length > 0);
+  });
+  if (conflicting.length > 0)
     throw new CrateReleaseError(
-      `--pin-file must name a ${manifestFileName} file, because its lockfile is committed beside it, got ${JSON.stringify(value)}.`,
+      `--crate reads the crate's arguments from the registry, so ${
+        conflicting.map(function dashed(name) {
+          return `--${name}`;
+        })
+          .join(', ')
+      } must not be given with it; drop them, or drop --crate to spell the crate out.`,
     );
-  return value;
+  return {
+    crateName: parseCrateName({
+      option: '--crate',
+      value: crate
+    }),
+    ...findCrate({
+      registry: registry(),
+      name: crate
+    }),
+  };
+}
+
+/**
+ Read the arguments of the crate as spelled out on the command line.
+
+ @param raw - split command line
+
+ @returns the crate's name and arguments
+
+ @throws CrateReleaseError naming the argument and the valid form when a required option is missing or unsafe
+
+ @example
+ ```ts
+ spelledArguments(raw);
+ ```
+ */
+function spelledArguments(raw: RawArguments): CrateArguments {
+  return {
+    crateName: parseCrateName({
+      option: '--crate-name',
+      value: requiredValue({
+        raw,
+        name: 'crate-name'
+      })
+    }),
+    crateDirectory: parseRepositoryPath({
+      option: '--crate-dir',
+      value: requiredValue({
+        raw,
+        name: 'crate-dir'
+      })
+    }),
+    scope: parseCommitScope({
+      option: '--scope',
+      value: requiredValue({
+        raw,
+        name: 'scope'
+      })
+    }),
+    pinFiles: repeatedValues({
+      raw,
+      name: 'pin-file'
+    })
+      .map(function parsePinFile(value) {
+        return parseManifestPath({
+          option: '--pin-file',
+          value
+        });
+      }),
+    checkBins: repeatedValues({
+      raw,
+      name: 'check-bin'
+    })
+      .map(function parseCheckBin(value) {
+        return parseCrateName({
+          option: '--check-bin',
+          value
+        });
+      }),
+    lockDirectories: repeatedValues({
+      raw,
+      name: 'lock-dir'
+    })
+      .map(function parseLockDirectory(value) {
+        return parseRepositoryPath({
+          option: '--lock-dir',
+          value
+        });
+      }),
+  };
+}
+
+/**
+ Read the release host.
+
+ @param raw - split command line
+
+ @returns the host named by `--host`, or the default
+
+ @throws CrateReleaseError listing the hosts when the value is none of them
+
+ @example
+ ```ts
+ parseReleaseHost(raw);
+ ```
+ */
+function parseReleaseHost(raw: RawArguments): ReleaseHost {
+  /**
+   The value as given, or the default.
+   */
+  const value = valueOr({
+    raw,
+    name: 'host',
+    fallback: defaultReleaseHost
+  });
+  /**
+   The host the value names, when it names one.
+   */
+  const host = releaseHosts.find(function isNamed(candidate) {
+    return candidate === value;
+  });
+  if (host === undefined)
+    throw new CrateReleaseError(`--host must be one of ${releaseHosts.join(', ')}, got ${JSON.stringify(value)}.`);
+  return host;
 }
 
 /**
@@ -131,21 +308,25 @@ function assertManifestPath(value: string): string {
 
  @param root - repository root used when `--root` is absent, or a function that finds it only when needed
 
+ @param registry - the registry of releasable crates, read only when `--crate` is given
+
  @returns the validated options
 
  @throws CrateReleaseError naming the argument and the valid form when anything is missing, malformed or unsafe
 
  @example
  ```ts
- parseReleaseArguments({ argv: ['--crate-name', 'c', '--crate-dir', 'p', '--scope', 's', '0.1.0', '0.1.1', 'n'], root: '/r' });
+ parseReleaseArguments({ argv: ['--crate', 'forbidden-strings', '0.1.0', '0.1.1', 'n'], root: '/r', registry });
  ```
  */
 export function parseReleaseArguments({
   argv,
   root,
+  registry,
 }: {
   readonly argv: readonly string[];
   readonly root: string | (() => string);
+  readonly registry: () => CrateRegistry;
 }): ReleaseOptions {
   /**
    Options and positionals, split but not yet validated.
@@ -176,28 +357,25 @@ export function parseReleaseArguments({
   if (from === to)
     throw new CrateReleaseError(`<to> must differ from <from>; both are ${JSON.stringify(from)}.`);
   /**
-   Crate name, checked.
+   The `--crate` value, when given.
    */
-  const crateName = parseCrateName({
-    option: '--crate-name',
-    value: requiredValue({
-      raw,
-      name: 'crate-name'
-    })
+  const crate = optionValue({
+    raw,
+    name: 'crate'
   });
   /**
-   Commit scope, checked.
+   The crate's name and arguments, from the registry or spelled out.
    */
-  const scope = parseCommitScope({
-    option: '--scope',
-    value: requiredValue({
+  const crateArguments = crate.found
+    ? registryArguments({
       raw,
-      name: 'scope'
+      crate: crate.value,
+      registry
     })
-  });
+    : spelledArguments(raw);
   // Building the subject here refuses a bad note before any file changes.
   buildCommitMessage({
-    scope,
+    scope: crateArguments.scope,
     version: to,
     note
   });
@@ -206,48 +384,11 @@ export function parseReleaseArguments({
       raw,
       root
     })),
-    crateName,
-    crateDirectory: parseRepositoryPath({
-      option: '--crate-dir',
-      value: requiredValue({
-        raw,
-        name: 'crate-dir'
-      })
-    }),
-    scope,
+    ...crateArguments,
     from,
     to,
     note,
-    pinFiles: repeatedValues({
-      raw,
-      name: 'pin-file'
-    })
-      .map(function parsePinFile(value) {
-        return assertManifestPath(parseRepositoryPath({
-          option: '--pin-file',
-          value
-        }));
-      }),
-    checkBins: repeatedValues({
-      raw,
-      name: 'check-bin'
-    })
-      .map(function parseCheckBin(value) {
-        return parseCrateName({
-          option: '--check-bin',
-          value
-        });
-      }),
-    lockTasks: repeatedValues({
-      raw,
-      name: 'lock-task'
-    })
-      .map(function parseLockTask(value) {
-        return parseTaskName({
-          option: '--lock-task',
-          value
-        });
-      }),
+    host: parseReleaseHost(raw),
     memoryMax: parseSystemdValue({
       option: '--memory-max',
       value: valueOr({
@@ -261,7 +402,7 @@ export function parseReleaseArguments({
       value: valueOr({
         raw,
         name: 'unit-name',
-        fallback: `${crateName}${defaultUnitSuffix}`
+        fallback: `${crateArguments.crateName}${defaultUnitSuffix}`
       }),
     }),
   };

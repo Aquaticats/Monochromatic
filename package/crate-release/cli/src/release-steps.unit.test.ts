@@ -10,7 +10,9 @@ import type { ReleaseOptions } from './release-options.ts';
 import {
   buildCheckArguments,
   buildCommitArguments,
+  buildLockArguments,
   buildPublishDryRunArguments,
+  buildPublishDryRunTail,
   buildReleaseSteps,
   commitPaths,
   lockFileBeside,
@@ -29,7 +31,8 @@ const gitPolicyOptions: ReleaseOptions = {
   note: 'fix the thing',
   pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
   checkBins: ['cli-git-native'],
-  lockTasks: ['//package/git-policy/cli.fuzz:lock:members'],
+  lockDirectories: ['package/git-policy/cli.fuzz'],
+  host: 'local',
   memoryMax: '12G',
   unitName: 'cli-git-publish-dry',
 };
@@ -92,9 +95,9 @@ await describe({
       name: buildCheckArguments.name,
       children: [
         it({
-          name: 'checks the named binary offline',
+          name: 'checks the named binary offline on a local host',
           fn: async () => {
-            expect(buildCheckArguments({ checkBins: ['cli-git-native'] })).toEqual([
+            expect(buildCheckArguments({ checkBins: ['cli-git-native'], host: 'local' })).toEqual([
               'check',
               '--offline',
               '--bin',
@@ -105,13 +108,55 @@ await describe({
         it({
           name: 'builds each named binary with its own --bin',
           fn: async () => {
-            expect(buildCheckArguments({ checkBins: ['a', 'b'] })).toEqual(['check', '--offline', '--bin', 'a', '--bin', 'b']);
+            expect(buildCheckArguments({ checkBins: ['a', 'b'], host: 'local' })).toEqual([
+              'check',
+              '--offline',
+              '--bin',
+              'a',
+              '--bin',
+              'b',
+            ]);
           },
         }),
         it({
           name: 'checks the whole crate offline when no binary is named',
           fn: async () => {
-            expect(buildCheckArguments({ checkBins: [] })).toEqual(['check', '--offline']);
+            expect(buildCheckArguments({ checkBins: [], host: 'local' })).toEqual(['check', '--offline']);
+          },
+        }),
+        it({
+          name: 'leaves cargo free to use the network on a runner, whose registry cache is empty',
+          fn: async () => {
+            expect(buildCheckArguments({ checkBins: ['a'], host: 'runner' })).toEqual(['check', '--bin', 'a']);
+            expect(buildCheckArguments({ checkBins: [], host: 'runner' })).toEqual(['check']);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: buildLockArguments.name,
+      children: [
+        it({
+          name: 'records only the workspace members, offline on a local host',
+          fn: async () => {
+            expect(buildLockArguments('local')).toEqual(['update', '--offline', '--workspace']);
+          },
+        }),
+        it({
+          name: 'records only the workspace members, with the network open on a runner',
+          fn: async () => {
+            expect(buildLockArguments('runner')).toEqual(['update', '--workspace']);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: buildPublishDryRunTail.name,
+      children: [
+        it({
+          name: 'is the locked dry-run publish that allows the edited manifests',
+          fn: async () => {
+            expect(buildPublishDryRunTail()).toEqual(['publish', '--dry-run', '--locked', '--allow-dirty']);
           },
         }),
       ],
@@ -194,9 +239,9 @@ await describe({
               },
               {
                 label: 'lock members',
-                program: 'mise',
-                args: ['run', '//package/git-policy/cli.fuzz:lock:members'],
-                cwd: '/repo',
+                program: 'cargo',
+                args: ['update', '--offline', '--workspace'],
+                cwd: '/repo/package/git-policy/cli.fuzz',
               },
               {
                 label: 'publish dry run',
@@ -236,15 +281,65 @@ await describe({
           },
         }),
         it({
-          name: 'plans one lock step per lock task and none when there is no task',
+          name: 'plans the steps of a runner with the network open and the dry run in no unit',
           fn: async () => {
-            const two = buildReleaseSteps({ ...gitPolicyOptions, lockTasks: ['//a:lock', '//b:lock'] });
+            expect(buildReleaseSteps({ ...gitPolicyOptions, host: 'runner' })).toEqual([
+              {
+                label: 'cargo check',
+                program: 'cargo',
+                args: ['check', '--bin', 'cli-git-native'],
+                cwd: '/repo/package/git-policy/cli',
+              },
+              {
+                label: 'lock members',
+                program: 'cargo',
+                args: ['update', '--workspace'],
+                cwd: '/repo/package/git-policy/cli.fuzz',
+              },
+              {
+                label: 'publish dry run',
+                program: 'cargo',
+                args: ['publish', '--dry-run', '--locked', '--allow-dirty'],
+                cwd: '/repo/package/git-policy/cli',
+              },
+              {
+                label: 'commit',
+                program: 'git',
+                args: [
+                  'commit',
+                  '--message',
+                  'chore(git-policy/cli): release 0.4.3: fix the thing',
+                  '--',
+                  'package/git-policy/cli/Cargo.toml',
+                  'package/git-policy/cli/Cargo.lock',
+                  'package/git-policy/cli.fuzz/Cargo.toml',
+                  'package/git-policy/cli.fuzz/Cargo.lock',
+                ],
+                cwd: '/repo',
+              },
+            ]);
+          },
+        }),
+        it({
+          name: 'never starts mise or a systemd unit on a runner, whatever the unit options say',
+          fn: async () => {
+            const programs = buildReleaseSteps({ ...gitPolicyOptions, host: 'runner', memoryMax: '1G', unitName: 'u' })
+              .map(function programOf(step) {
+                return step.program;
+              });
+            expect(programs).toEqual(['cargo', 'cargo', 'cargo', 'git']);
+          },
+        }),
+        it({
+          name: 'plans one lock step per lock directory, in its own directory, and none when there is no directory',
+          fn: async () => {
+            const two = buildReleaseSteps({ ...gitPolicyOptions, lockDirectories: ['package/a', 'package/b c'] });
             expect(two.filter(function isLock(step) {
-              return step.program === 'mise';
-            }).map(function taskOf(step) {
-              return step.args[1];
-            })).toEqual(['//a:lock', '//b:lock']);
-            const none = buildReleaseSteps({ ...gitPolicyOptions, lockTasks: [] });
+              return step.label === 'lock members';
+            }).map(function directoryOf(step) {
+              return step.cwd;
+            })).toEqual(['/repo/package/a', '/repo/package/b c']);
+            const none = buildReleaseSteps({ ...gitPolicyOptions, lockDirectories: [] });
             expect(none.map(function labelOf(step) {
               return step.label;
             })).toEqual(['cargo check', 'publish dry run', 'commit']);
