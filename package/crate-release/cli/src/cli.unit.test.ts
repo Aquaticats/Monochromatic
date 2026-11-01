@@ -12,6 +12,7 @@ import {
   commitType,
   failureExitCode,
   gitProgram,
+  releaseWorkflow,
   systemdRunProgram,
   usageExitCode,
 } from './constants.ts';
@@ -251,7 +252,7 @@ await describe({
               '0.6.0',
               'n',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('package/forbidden-strings/cli/Cargo.toml already holds 0.6.0');
             expect(await fixture.calls()).toEqual([]);
           },
@@ -270,7 +271,7 @@ await describe({
               '0.1.1',
               'n',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
             expect(await fixture.calls()).toEqual([]);
           },
@@ -385,7 +386,7 @@ await describe({
               '0.6.1',
               'n',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
             expect(await fixture.calls()).toEqual([]);
           },
@@ -405,8 +406,8 @@ await describe({
               '0.6.1',
               'n',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(1);
-            expect(child.stdout).toContain('FAILED crate-release.yml was not started (gh exited 1)');
+            expect(child.status).toBe(failureExitCode);
+            expect(child.stdout).toContain(`FAILED ${releaseWorkflow} was not started (gh exited 1)`);
           },
         }),
         it({
@@ -414,7 +415,7 @@ await describe({
           fn: async () => {
             await using fixture = await createStubFixture();
             const child = spawnSync('node', [dispatchBin], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('Usage: crate-release-dispatch');
           },
         }),
@@ -481,7 +482,7 @@ await describe({
               '500',
               '0.6.1',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(1);
+            expect(child.status).toBe(failureExitCode);
             expect(child.stdout).toContain('RELEASE RUN FAILED');
             expect(await fixture.calls()).toHaveLength(1);
           },
@@ -499,7 +500,7 @@ await describe({
               'https://github.com/o/r/pull/3',
               '0.6.1',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('<run>');
             expect(await fixture.calls()).toEqual([]);
           },
@@ -509,7 +510,7 @@ await describe({
           fn: async () => {
             await using fixture = await createStubFixture();
             const child = spawnSync('node', [awaitBin], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('Usage: crate-release-await');
           },
         }),
@@ -583,7 +584,7 @@ await describe({
               '--scratch-dir',
               `${fixture.directory}/scratch`,
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(1);
+            expect(child.status).toBe(failureExitCode);
             expect(child.stdout).toContain('PUSH REFUSED: Expected branch to point to aaa but it did not.');
             expect(child.stdout).toContain('nothing was pushed');
           },
@@ -603,7 +604,7 @@ await describe({
               '--scratch-dir',
               'scratch',
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('--scratch-dir');
             expect(await fixture.calls()).toEqual([]);
           },
@@ -613,7 +614,7 @@ await describe({
           fn: async () => {
             await using fixture = await createStubFixture();
             const child = spawnSync('node', [pushBin], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(2);
+            expect(child.status).toBe(usageExitCode);
             expect(child.stderr).toContain('Usage: crate-release-push');
           },
         }),

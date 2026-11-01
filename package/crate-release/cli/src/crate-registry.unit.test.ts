@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import {
   describe,
@@ -13,6 +13,10 @@ import {
   parseCrateRegistry,
   registryCrateNames,
 } from './crate-registry.ts';
+import {
+  manifestFileName,
+  registryFileName,
+} from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 
 /**
@@ -119,7 +123,7 @@ await describe({
           fn: async () => {
             const caught = thrownBy('{"a":');
             expect(caught).toBeInstanceOf(CrateReleaseError);
-            expect((caught as Error).message).toContain('releasable-crates.json is not JSON');
+            expect((caught as Error).message).toContain(`${registryFileName} is not JSON`);
           },
         }),
         it({
@@ -173,7 +177,7 @@ await describe({
           name: 'refuses paths that leave the repository or are not manifests, and binary names with shell syntax',
           fn: async () => {
             expectRefusal({ registry: { a: { crateDir: '../x', scope: 's' } }, mention: '"crateDir"' });
-            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', pinFiles: ['p/Other.toml'] } }, mention: 'Cargo.toml' });
+            expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', pinFiles: ['p/Other.toml'] } }, mention: manifestFileName });
             expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', lockDirs: ['/abs'] } }, mention: '"lockDirs"' });
             expectRefusal({ registry: { a: { crateDir: 'p', scope: 's', checkBins: ['a;b'] } }, mention: '"checkBins"' });
             expectRefusal({ registry: { a: { crateDir: 'p', scope: 'a):b' } }, mention: '"scope"' });
@@ -205,7 +209,7 @@ await describe({
             expect(caught).toBeInstanceOf(CrateReleaseError);
             expect((caught as Error).message).toContain('"nope"');
             expect((caught as Error).message).toContain('monochromatic-git-policy-cli, plain-crate');
-            expect((caught as Error).message).toContain('releasable-crates.json');
+            expect((caught as Error).message).toContain(registryFileName);
           },
         }),
       ],
@@ -224,7 +228,7 @@ await describe({
                 return JSON.stringify(validRegistry);
               },
             });
-            expect(paths).toEqual(['/pkg/releasable-crates.json']);
+            expect(paths).toEqual([join('/pkg', registryFileName)]);
             expect(registryCrateNames(registry)).toEqual(['monochromatic-git-policy-cli', 'plain-crate']);
           },
         }),
@@ -238,7 +242,7 @@ await describe({
               },
             }));
             expect(caught).toBeInstanceOf(CrateReleaseError);
-            expect((caught as Error).message).toContain('/pkg/releasable-crates.json could not be read');
+            expect((caught as Error).message).toContain(`${join('/pkg', registryFileName)} could not be read`);
             expect((caught as Error).message).toContain('ENOENT');
           },
         }),
@@ -251,7 +255,7 @@ await describe({
                 return '{}';
               },
             }));
-            expect((caught as Error).message).toBe('releasable-crates.json lists no crate.');
+            expect((caught as Error).message).toBe(`${registryFileName} lists no crate.`);
           },
         }),
         it({

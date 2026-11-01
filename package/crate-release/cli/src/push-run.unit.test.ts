@@ -1,12 +1,21 @@
+import { join } from 'node:path';
+
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { commitType, failureExitCode } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import type { PushOptions } from './push-options.ts';
-import { pushRelease } from './push-run.ts';
+import {
+  headParentsArguments,
+  headPathsArguments,
+  headSubjectArguments,
+  pushRelease,
+  requestFileName,
+} from './push-run.ts';
 import type {
   ProgramCall,
   ProgramResult,
@@ -27,6 +36,11 @@ const options: PushOptions = {
  */
 const headName = 'b'.repeat(40);
 const parentName = 'a'.repeat(40);
+
+/**
+ The subject the head commit carries, built the way a release builds it.
+ */
+const headline = `${commitType}(a): release 0.1.1: n`;
 
 /**
  A canned answer of a program; a field left out takes the default answer's.
@@ -61,7 +75,7 @@ type Recording = {
 async function record(answers: Answers = {}): Promise<Recording> {
   const defaults: Record<string, ProgramResult> = {
     'rev-list': { status: 0, stdout: `${headName} ${parentName}\n`, stderr: '' },
-    'log': { status: 0, stdout: 'chore(a): release 0.1.1: n\n', stderr: '' },
+    'log': { status: 0, stdout: `${headline}\n`, stderr: '' },
     'diff-tree': { status: 0, stdout: 'package/a/Cargo.toml\0package/a/Cargo.lock\0', stderr: '' },
     'api': {
       status: 0,
@@ -120,11 +134,11 @@ await describe({
             const result = await record();
             expect(result.status).toBe(0);
             expect(result.written).toHaveLength(1);
-            expect(result.written[0]?.path).toBe('/runner/temp/crate-release-commit-request.json');
+            expect(result.written[0]?.path).toBe(join(options.scratchDirectory, requestFileName));
             const request = JSON.parse(result.written[0]?.text ?? '') as { variables: { input: Record<string, unknown> } };
             expect(request.variables.input).toEqual({
               branch: { repositoryNameWithOwner: 'Aquaticats/Monochromatic', branchName: 'main' },
-              message: { headline: 'chore(a): release 0.1.1: n' },
+              message: { headline },
               expectedHeadOid: parentName,
               fileChanges: {
                 additions: [
@@ -138,7 +152,7 @@ await describe({
             });
             expect(gh).toEqual({
               program: 'gh',
-              args: ['api', 'graphql', '--input=/runner/temp/crate-release-commit-request.json'],
+              args: ['api', 'graphql', `--input=${join(options.scratchDirectory, requestFileName)}`],
               cwd: '/work',
             });
             expect(result.printed.at(-1)).toBe('PUSHED cccc https://github.com/o/r/commit/cccc');
@@ -154,10 +168,10 @@ await describe({
             expect(git.map(function argsOf(call) {
               return call.args.join(' ');
             }).toSorted()).toEqual([
-              'diff-tree -z --no-commit-id --name-only -r HEAD',
-              'log --max-count=1 --format=%s HEAD',
-              'rev-list --parents --max-count=1 HEAD',
-            ]);
+              headPathsArguments.join(' '),
+              headSubjectArguments.join(' '),
+              headParentsArguments.join(' '),
+            ].toSorted());
             expect(git.every(function inRoot(call) {
               return call.cwd === '/work';
             })).toBe(true);
@@ -173,7 +187,7 @@ await describe({
                 stderr: 'gh: Expected branch',
               },
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.some(function isRefusal(line) {
               return line.startsWith('PUSH REFUSED: Expected branch to point to');
             })).toBe(true);
@@ -185,7 +199,7 @@ await describe({
           name: 'reports an answer that is not JSON as a refusal and still names gh status',
           fn: async () => {
             const result = await record({ api: { status: 4, stdout: '', stderr: 'gh: authentication required' } });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.join('\n')).toContain('PUSH REFUSED: The text is not JSON');
             expect(result.printed.join('\n')).toContain('gh exited 4: gh: authentication required');
           },
@@ -219,7 +233,7 @@ await describe({
           fn: async () => {
             const caught = await thrownBy({ log: { status: 128, stderr: 'fatal: bad object HEAD\n' } });
             expect(caught).toBeInstanceOf(CrateReleaseError);
-            expect((caught as Error).message).toContain('git log --max-count=1 --format=%s HEAD failed with status 128');
+            expect((caught as Error).message).toContain(`git ${headSubjectArguments.join(' ')} failed with status 128`);
             expect((caught as Error).message).toContain('fatal: bad object HEAD');
           },
         }),

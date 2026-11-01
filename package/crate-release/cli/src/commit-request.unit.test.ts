@@ -6,6 +6,7 @@ import {
 
 import {
   buildCommitRequest,
+  objectNameLength,
   parseCommitResponse,
 } from './commit-request.ts';
 import { CrateReleaseError } from './error.ts';
@@ -13,7 +14,7 @@ import { CrateReleaseError } from './error.ts';
 /**
  A full object name.
  */
-const head = 'a'.repeat(40);
+const head = 'a'.repeat(objectNameLength);
 
 /**
  Two files, one with bytes that are not UTF-8 text.
@@ -112,10 +113,10 @@ await describe({
         it({
           name: 'refuses an expected head that is not a full lower-case object name, because GitHub needs the whole name',
           fn: async () => {
-            for (const expectedHeadOid of ['', 'abcdef0', 'A'.repeat(40), 'g'.repeat(40), `${head}0`]) {
+            for (const expectedHeadOid of ['', 'abcdef0', 'A'.repeat(objectNameLength), 'g'.repeat(objectNameLength), `${head}0`]) {
               const caught = thrownBy({ ...valid, expectedHeadOid });
               expect(caught).toBeInstanceOf(CrateReleaseError);
-              expect((caught as Error).message).toContain('full 40-digit');
+              expect((caught as Error).message).toContain(`full ${String(objectNameLength)}-digit`);
             }
           },
         }),

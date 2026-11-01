@@ -9,7 +9,13 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  defaultReleaseHost,
+  defaultWorkflow,
+  lockFileName,
+  manifestFileName,
+  maximumShaLength,
   registryFileName,
+  releaseHosts,
   releaseWorkflow,
   releaseWorkflowInputs,
 } from './constants.ts';
@@ -71,7 +77,14 @@ const releaseLines = (await readRepositoryFile(`.github/workflows/${releaseWorkf
 /**
  Lines of the publish workflow.
  */
-const publishLines = (await readRepositoryFile('.github/workflows/cargo-publish.yml')).split('\n');
+const publishLines = (await readRepositoryFile(`.github/workflows/${defaultWorkflow}`)).split('\n');
+
+/**
+ The host of the release workflow: the one that is not a developer machine.
+ */
+const runnerHost = releaseHosts.find(function isNotLocal(host) {
+  return host !== defaultReleaseHost;
+}) ?? defaultReleaseHost;
 
 /**
  Indentation of a line: the count of leading spaces.
@@ -288,7 +301,7 @@ await describe({
           fn: async () => {
             const options = choiceOptions({ lines: publishLines, input: 'crate' });
             expect(options.length).toBeGreaterThan(5);
-            expect(options).toContain('forbidden-strings');
+            expect(options).toContain(registryCrateNames(registry)[0] ?? '');
           },
         }),
       ],
@@ -330,7 +343,7 @@ await describe({
         it({
           name: 'the publish workflow can be dispatched for every crate of the registry',
           fn: async () => {
-            const publishable = choiceOptions({ lines: publishLines, input: 'crate' });
+            const publishable = choiceOptions({ lines: publishLines, input: releaseWorkflowInputs.crate });
             for (const name of registryCrateNames(registry))
               expect(publishable).toContain(name);
           },
@@ -344,7 +357,7 @@ await describe({
           const entry = registry.get(name);
           if (entry === undefined)
             throw new Error(`${name} vanished from the registry`);
-          const manifestPath = `${entry.crateDirectory}/Cargo.toml`;
+          const manifestPath = `${entry.crateDirectory}/${manifestFileName}`;
           return describe({
             name,
             children: [
@@ -410,14 +423,14 @@ await describe({
                       existsSync(join(
                         root,
                         directory,
-                        'Cargo.toml'
+                        manifestFileName
                       )),
                     ).toBe(true);
                     expect(
                       existsSync(join(
                         root,
                         directory,
-                        'Cargo.lock'
+                        lockFileName
                       )),
                     ).toBe(true);
                   }
@@ -491,7 +504,7 @@ await describe({
             expect(targets.length).toBeGreaterThan(0);
             for (const target of targets) {
               const hash = target.slice(target.indexOf('@') + 1);
-              expect(target.startsWith('./') || ((hash.length === 40) && (target.includes('@')))).toBe(true);
+              expect(target.startsWith('./') || ((hash.length === maximumShaLength) && (target.includes('@')))).toBe(true);
             }
           },
         }),
@@ -522,7 +535,7 @@ await describe({
             expect(releaseLines.map(function trimmed(line) {
               return line.trim();
             })).toContain(
-              'run: node package/crate-release/cli/bin/release.ts --crate "$CRATE" --host runner -- "$FROM" "$TO" "$NOTE"',
+              `run: node package/crate-release/cli/bin/release.ts --crate "$CRATE" --host ${runnerHost} -- "$FROM" "$TO" "$NOTE"`,
             );
           },
         }),
@@ -531,8 +544,7 @@ await describe({
           fn: async () => {
             const pushAt = releaseLines.indexOf('    - name: Push the bump to main as a signed commit');
             expect(pushAt).toBeGreaterThan(-1);
-            // oxlint-disable-next-line no-template-curly-in-string -- the text is a workflow expression, compared literally
-            expect(releaseLines[pushAt + 1]).toBe('      if: ${{ !inputs.dry-run }}');
+            expect(releaseLines[pushAt + 1]).toBe(`      if: \${{ !inputs.${releaseWorkflowInputs.dryRun} }}`);
             expect(releaseLines.join('\n')).toContain(
               'run: node package/crate-release/cli/bin/push-release.ts --repo "$GITHUB_REPOSITORY" --branch main --scratch-dir "$RUNNER_TEMP"',
             );
@@ -549,20 +561,19 @@ await describe({
             expect(releaseLines.slice(
               publishAt + 1,
               publishAt + 3
-            // oxlint-disable-next-line no-template-curly-in-string -- the text is a workflow expression, compared literally
-            )).toEqual(['    needs: release', '    if: ${{ !inputs.dry-run }}']);
+            )).toEqual(['    needs: release', `    if: \${{ !inputs.${releaseWorkflowInputs.dryRun} }}`]);
             expect(releaseLines.map(function trimmed(line) {
               return line.trim();
             })).toContain(
-              'run: gh workflow run cargo-publish.yml --repo "$GITHUB_REPOSITORY" --ref main --raw-field "crate=$CRATE" --raw-field dry-run=false',
+              `run: gh workflow run ${defaultWorkflow} --repo "$GITHUB_REPOSITORY" --ref main --raw-field "${releaseWorkflowInputs.crate}=$CRATE" --raw-field ${releaseWorkflowInputs.dryRun}=false`,
             );
           },
         }),
         it({
           name: 'targets a dry-run input and a crate input that the publish workflow declares',
           fn: async () => {
-            expect(publishLines).toContain('      dry-run:');
-            expect(publishLines).toContain('      crate:');
+            expect(publishLines).toContain(`      ${releaseWorkflowInputs.dryRun}:`);
+            expect(publishLines).toContain(`      ${releaseWorkflowInputs.crate}:`);
           },
         }),
       ],

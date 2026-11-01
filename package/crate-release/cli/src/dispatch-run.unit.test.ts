@@ -5,6 +5,11 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { adversarialLines } from './adversarial-fixture.ts';
+import {
+  failureExitCode,
+  releaseWorkflow,
+  releaseWorkflowInputs,
+} from './constants.ts';
 import type { DispatchOptions } from './dispatch-options.ts';
 import { dispatchRelease } from './dispatch-run.ts';
 import type {
@@ -23,6 +28,14 @@ const options: DispatchOptions = {
   note: 'Skip the generated rule sources.',
   dryRun: false,
 };
+
+/**
+ Inputs every dispatch sends: the workflow file names them and a dry run adds one more.
+ */
+const requiredInputCount = Object.keys(releaseWorkflowInputs)
+  .filter(function isRequired(name) {
+    return name !== 'dryRun';
+  }).length;
 
 /**
  Run a dispatch against a canned `gh`.
@@ -76,11 +89,11 @@ await describe({
                 args: [
                   'workflow',
                   'run',
-                  'crate-release.yml',
-                  '--raw-field=crate=forbidden-strings',
-                  '--raw-field=from=0.6.0',
-                  '--raw-field=to=0.6.1',
-                  '--raw-field=note=Skip the generated rule sources.',
+                  releaseWorkflow,
+                  `--raw-field=${releaseWorkflowInputs.crate}=${options.crate}`,
+                  `--raw-field=${releaseWorkflowInputs.from}=${options.from}`,
+                  `--raw-field=${releaseWorkflowInputs.to}=${options.to}`,
+                  `--raw-field=${releaseWorkflowInputs.note}=${options.note}`,
                 ],
                 cwd: '/repo',
               },
@@ -94,7 +107,7 @@ await describe({
           fn: async () => {
             const result = await record();
             expect(result.printed[0]).toBe(
-              "$ gh workflow run crate-release.yml --raw-field=crate=forbidden-strings --raw-field=from=0.6.0 --raw-field=to=0.6.1 '--raw-field=note=Skip the generated rule sources.'",
+              `$ gh workflow run ${releaseWorkflow} --raw-field=${releaseWorkflowInputs.crate}=${options.crate} --raw-field=${releaseWorkflowInputs.from}=${options.from} --raw-field=${releaseWorkflowInputs.to}=${options.to} '--raw-field=${releaseWorkflowInputs.note}=${options.note}'`,
             );
           },
         }),
@@ -105,7 +118,7 @@ await describe({
               dispatchOptions: { ...options, dryRun: true },
               result: { status: 0, stdout: 'https://github.com/o/r/actions/runs/7\n', stderr: '' },
             });
-            expect(result.calls[0]?.args).toContain('--raw-field=dry-run=true');
+            expect(result.calls[0]?.args).toContain(`--raw-field=${releaseWorkflowInputs.dryRun}=true`);
             expect(result.printed.at(-1)).toBe('RELEASE DRY RUN STARTED https://github.com/o/r/actions/runs/7');
           },
         }),
@@ -124,7 +137,7 @@ await describe({
             });
             expect(result.status).toBe(0);
             expect(result.printed.at(-1)).toContain('RELEASE STARTED, but gh did not print the address of the created run.');
-            expect(result.printed.at(-1)).toContain('gh run list --workflow=crate-release.yml --limit=1');
+            expect(result.printed.at(-1)).toContain(`gh run list --workflow=${releaseWorkflow} --limit=1`);
           },
         }),
         it({
@@ -133,9 +146,9 @@ await describe({
             const result = await record({
               result: { status: 1, stdout: '', stderr: "could not find any workflows named crate-release.yml\n" },
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed).toContain('could not find any workflows named crate-release.yml');
-            expect(result.printed.at(-1)).toBe('FAILED crate-release.yml was not started (gh exited 1)');
+            expect(result.printed.at(-1)).toBe(`FAILED ${releaseWorkflow} was not started (gh exited 1)`);
             expect(result.printed.some(function isStarted(line) {
               return line.startsWith('RELEASE STARTED');
             })).toBe(false);
@@ -146,8 +159,8 @@ await describe({
             name: `passes the note ${JSON.stringify(note)} to gh as one argument`,
             fn: async () => {
               const result = await record({ dispatchOptions: { ...options, note } });
-              expect(result.calls[0]?.args.at(6)).toBe(`--raw-field=note=${note}`);
-              expect(result.calls[0]?.args).toHaveLength(7);
+              expect(result.calls[0]?.args.at(-1)).toBe(`--raw-field=${releaseWorkflowInputs.note}=${note}`);
+              expect(result.calls[0]?.args).toHaveLength(3 + requiredInputCount);
             },
           });
         }),

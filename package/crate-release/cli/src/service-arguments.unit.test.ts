@@ -4,7 +4,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { cratesIoApiBase } from './constants.ts';
+import {
+  cratesIoApiBase,
+  releaseWorkflow,
+  releaseWorkflowInputs,
+} from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import {
   buildCratesIoArguments,
@@ -103,7 +107,7 @@ await describe({
           name: 'adds the dry-run input only for a dry run, so a real release sends exactly the four inputs',
           fn: async () => {
             const input = { crate: 'c', from: '0.1.0', to: '0.1.1', note: 'n' };
-            expect(buildReleaseDispatchArguments({ ...input, dryRun: true })).toContain('--raw-field=dry-run=true');
+            expect(buildReleaseDispatchArguments({ ...input, dryRun: true })).toContain(`--raw-field=${releaseWorkflowInputs.dryRun}=true`);
             expect(buildReleaseDispatchArguments({ ...input, dryRun: false }).join(' ')).not.toContain('dry-run');
           },
         }),

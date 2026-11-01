@@ -19,7 +19,7 @@ import {
 /**
  Length of a full Git object name, which the commit mutation requires for the head it expects.
  */
-const objectNameLength = 40;
+export const objectNameLength = 40;
 
 /**
  One file the commit adds or replaces.

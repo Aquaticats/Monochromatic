@@ -6,6 +6,7 @@ import {
 
 import {
   defaultMemoryMax,
+  defaultReleaseHost,
   defaultUnitSuffix,
 } from './constants.ts';
 import { parseCrateRegistry } from './crate-registry.ts';
@@ -105,7 +106,7 @@ await describe({
               pinFiles: [],
               checkBins: [],
               lockDirectories: [],
-              host: 'local',
+              host: defaultReleaseHost,
               memoryMax: defaultMemoryMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
             });

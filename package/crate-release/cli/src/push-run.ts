@@ -26,12 +26,12 @@ export type PushRunner = (call: ProgramCall) => Promise<ProgramResult>;
 /**
  Name of the request file inside the scratch directory.
  */
-const requestFileName = 'crate-release-commit-request.json';
+export const requestFileName = 'crate-release-commit-request.json';
 
 /**
  Arguments of the `git` call that lists the head commit and its parents.
  */
-const headParentsArguments: readonly string[] = [
+export const headParentsArguments: readonly string[] = [
   'rev-list',
   '--parents',
   '--max-count=1',
@@ -41,7 +41,7 @@ const headParentsArguments: readonly string[] = [
 /**
  Arguments of the `git` call that prints the subject of the head commit.
  */
-const headSubjectArguments: readonly string[] = [
+export const headSubjectArguments: readonly string[] = [
   'log',
   '--max-count=1',
   '--format=%s',
@@ -51,7 +51,7 @@ const headSubjectArguments: readonly string[] = [
 /**
  Arguments of the `git` call that lists, NUL-separated, the files the head commit changes.
  */
-const headPathsArguments: readonly string[] = [
+export const headPathsArguments: readonly string[] = [
   'diff-tree',
   '-z',
   '--no-commit-id',

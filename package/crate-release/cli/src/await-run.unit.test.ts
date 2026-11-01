@@ -6,6 +6,15 @@ import {
 
 import type { AwaitOptions } from './await-options.ts';
 import { awaitRelease } from './await-run.ts';
+import {
+  failureExitCode,
+  millisecondsPerSecond,
+  releaseWorkflow,
+} from './constants.ts';
+import {
+  describeDuration,
+  expandTemplate,
+} from './publish-results.ts';
 import type {
   ProgramCall,
   ProgramResult,
@@ -30,11 +39,21 @@ const options: AwaitOptions = {
 };
 
 /**
+ When the release run reports it was created.
+ */
+const releaseCreatedAt = '2026-11-01T10:00:00Z';
+
+/**
+ Milliseconds the await sleeps between two looks, as the production poll computes it.
+ */
+const pollSleepMilliseconds = options.pollIntervalSeconds * millisecondsPerSecond;
+
+/**
  Answers of the stubbed programs, in the order a successful await asks for them.
  */
 const happy = {
   watchRelease: { status: 0, stdout: '', stderr: '' },
-  view: { status: 0, stdout: '{"createdAt":"2026-11-01T10:00:00Z","status":"completed"}', stderr: '' },
+  view: { status: 0, stdout: `{"createdAt":"${releaseCreatedAt}","status":"completed"}`, stderr: '' },
   list: {
     status: 0,
     stdout: JSON.stringify([
@@ -128,12 +147,12 @@ await describe({
             })).toEqual([
               'run watch 500',
               'run view 500',
-              'run list --workflow=cargo-publish.yml',
+              `run list --workflow=${options.workflow}`,
               'run watch 902',
               '--silent --show-error --max-time',
-              'release view forbidden-strings-v0.6.1',
+              `release view ${expandTemplate({ template: options.tagTemplate, crateName: options.crateName, version: options.version })}`,
             ]);
-            expect(result.printed).toContain('crate-release.yml run 500');
+            expect(result.printed).toContain(`${releaseWorkflow} run ${options.releaseRunId}`);
             expect(result.printed).toContain(`publish run built from ${'b'.repeat(40)}`);
             expect(result.printed).toContain('run 902');
             expect(result.printed.at(-1)).toBe('PUBLISHED');
@@ -158,7 +177,7 @@ await describe({
           name: 'stops at a failed release run, names its log, and looks for no publish run',
           fn: async () => {
             const result = await record({ answers: { watchRelease: { status: 1, stdout: '', stderr: '' } } });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.at(-1)).toContain('RELEASE RUN FAILED: no publish was started');
             expect(result.printed.at(-1)).toContain('gh run view 500 --log-failed');
             expect(result.calls).toHaveLength(1);
@@ -168,7 +187,7 @@ await describe({
           name: 'stops when the release run cannot be read, with the reason',
           fn: async () => {
             const result = await record({ answers: { view: { status: 1, stdout: '', stderr: 'HTTP 404' } } });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.at(-1)).toBe('RELEASE RUN UNREADABLE: HTTP 404');
             expect(result.calls.some(function isList(call) {
               return call.args[1] === 'list';
@@ -201,27 +220,27 @@ await describe({
               print: function print() {},
             });
             expect(status).toBe(0);
-            expect(lists).toBe(3);
-            expect(sleeps).toEqual([20_000, 20_000]);
+            expect(lists).toBe(options.attempts);
+            expect(sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
           },
         }),
         it({
           name: 'gives up after the last look without sleeping after it, names the bound and the last reason',
           fn: async () => {
             const result = await record({ answers: { list: { status: 0, stdout: '[]', stderr: '' } } });
-            expect(result.status).toBe(1);
-            expect(result.sleeps).toEqual([20_000, 20_000]);
+            expect(result.status).toBe(failureExitCode);
+            expect(result.sleeps).toEqual([pollSleepMilliseconds, pollSleepMilliseconds]);
             expect(result.printed).toContain(
-              'no cargo-publish.yml run was started since 2026-11-01T10:00:00Z within 1 minute',
+              `no ${options.workflow} run was started since ${releaseCreatedAt} within ${describeDuration(options.attempts * options.pollIntervalSeconds)}`,
             );
-            expect(result.printed.at(-1)).toBe('last result: No listed run was created at or after 2026-11-01T10:00:00Z.');
+            expect(result.printed.at(-1)).toBe(`last result: No listed run was created at or after ${releaseCreatedAt}.`);
           },
         }),
         it({
           name: 'shows the gh error when listing the publish runs failed every time',
           fn: async () => {
             const result = await record({ answers: { list: { status: 1, stdout: '', stderr: 'rate limit exceeded' } } });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.at(-1)).toBe('last result: rate limit exceeded');
           },
         }),
@@ -247,7 +266,7 @@ await describe({
                 curl: { status: 0, stdout: '{"errors":[]}', stderr: '' },
               },
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
             expect(result.printed.at(-1)).toContain('PUBLISH CHECK FAILED');
             expect(result.printed.some(function isCrates(line) {
               return line.startsWith('crates.io 0.6.1: not found');

@@ -5,6 +5,16 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { parseAwaitArguments } from './await-options.ts';
+import {
+  defaultAssetTemplates,
+  defaultAttempts,
+  defaultCurlMaxTimeSeconds,
+  defaultPollIntervalSeconds,
+  defaultRunListLimit,
+  defaultTagTemplate,
+  defaultUserAgent,
+  defaultWorkflow,
+} from './constants.ts';
 import { parseCrateRegistry } from './crate-registry.ts';
 import { CrateReleaseError } from './error.ts';
 
@@ -76,17 +86,14 @@ await describe({
               crateName: 'forbidden-strings',
               releaseRunId: '123456789',
               version: '0.6.1',
-              workflow: 'cargo-publish.yml',
-              attempts: 45,
-              pollIntervalSeconds: 20,
-              runLimit: 10,
-              tagTemplate: '{crate}-v{version}',
-              assetTemplates: [
-                '{crate}-{version}-x86_64-unknown-linux-gnu.tar.gz',
-                '{crate}-{version}-aarch64-unknown-linux-gnu.tar.gz',
-              ],
-              userAgent: 'crate-release-check',
-              maxTimeSeconds: 30,
+              workflow: defaultWorkflow,
+              attempts: defaultAttempts,
+              pollIntervalSeconds: defaultPollIntervalSeconds,
+              runLimit: defaultRunListLimit,
+              tagTemplate: defaultTagTemplate,
+              assetTemplates: defaultAssetTemplates,
+              userAgent: defaultUserAgent,
+              maxTimeSeconds: defaultCurlMaxTimeSeconds,
             });
           },
         }),
