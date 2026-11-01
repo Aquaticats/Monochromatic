@@ -1,18 +1,17 @@
 # @monochromatic-dev/crate-release-cli
 
-Product-neutral release helpers for Rust crates that are published to crates.io by a GitHub Actions workflow and
+Release helpers for Rust crates that are published to crates.io by a GitHub Actions workflow and
 ship tarballs as GitHub release assets.
-Anything specific to one crate (its name,
-directory,
-commit scope,
-fuzz crate,
-lock task) is an option here,
-never a constant.
-A product keeps its values in a mise task of its own,
-for example `native:release` in the git-policy package.
+A release runs on a GitHub runner,
+not on a developer machine:
+the person releasing dispatches the `crate-release.yml` workflow and watches it.
+Nothing compiles locally.
+The decision,
+with the owner's words,
+is `doc/decision/releases-run-in-ci.md`.
 
 The package is private and has no build output:
-its two executables run as TypeScript,
+its executables run as TypeScript,
 and tests import the sources
 directly.
 
@@ -24,52 +23,181 @@ directly.
   not a product,
   because the code serves every crate that publishes
   through `.github/workflows/cargo-publish.yml`.
-- The sibling `package/mutation-test/cli-cargo-mutants` is the precedent for product-neutral tooling that products wrap
-  in their own mise task,
-  so configuration is command-line options,
-  not a config file.
-  A config file would add a second place where a crate's name and paths live next to the task that already names them.
+- The commands are product-neutral:
+  anything specific to one crate (its name,
+  directory,
+  commit scope,
+  pins,
+  check binaries,
+  lock directories) is an option of the release command,
+  never a constant in the code.
+- The arguments of every releasable crate live in one data file,
+  [`releasable-crates.json`](releasable-crates.json),
+  because several readers need them and a copy in each would drift:
+  the release command on the runner,
+  the dispatch command and the await command on the developer machine,
+  and the `crate` choices of the workflow,
+  which a unit test compares with the file.
+  The alternatives were to read the arguments out of each package's `mise.toml` release task,
+  and to keep a data file in each package.
+  The first parses a shell command line out of TOML,
+  and stops working once the local task only dispatches.
+  The second needs a scan of the repository to find a crate,
+  and the workflow's `choice` list needs one enumeration of the crates anyway.
 - The package reuses `shellQuote` and the character-set helpers of `@monochromatic-dev/shell-argument-core`
   through its `./ts/*` subpath.
   That neutral package is shared with `@monochromatic-dev/mutation-test-cli-cargo-mutants`,
   so neither tool depends
   on the other.
 
+## How a release runs
+
+1.  The person runs the crate's `release` mise task with `<from> <to> <note>`.
+    It runs the dispatch command,
+    which starts `.github/workflows/crate-release.yml` with `gh workflow run` and prints the run URL.
+2.  The `release` job of the workflow checks out `main`,
+    installs Node,
+    pnpm and the Rust toolchain without mise,
+    and runs the release command with `--host runner`.
+    The job fails at once,
+    naming the manifest,
+    when the crate does not hold `<from>`.
+3.  The job appends the bump to `main` with the push command,
+    through the GraphQL API,
+    so GitHub signs the commit:
+    `main` requires signed commits,
+    and a runner has no signing key.
+4.  The `publish` job dispatches `.github/workflows/cargo-publish.yml` on `main` for the crate with its `dry-run` input off.
+    A push made with the repository's `GITHUB_TOKEN` starts no workflow
+    ([GitHub documents][token-trigger-rule] that events triggered by the `GITHUB_TOKEN` create no workflow run,
+    except `workflow_dispatch` and `repository_dispatch`),
+    so the dispatch is what starts the publish,
+    and the push of the bump runs no other workflow either.
+    `cargo-publish.yml` publishes the crate named by a dispatch whatever changed,
+    reading the version from the commit the dispatch runs on,
+    which is `main` after the bump.
+5.  The person runs the crate's `release:wait` task with the run URL and the version.
+    It follows the release run,
+    finds the publish run that it started,
+    follows that,
+    and checks crates.io and the GitHub release.
+
+A release that fails before the push leaves `main` as it was.
+A release that fails after the push,
+or a publish that fails,
+leaves the bump on `main`.
+When the publish run never uploaded the crate,
+start it again with
+`gh workflow run cargo-publish.yml --ref main -f crate=<crate> -f dry-run=false`.
+Once the upload succeeded,
+re-run the failed jobs of that publish run with `gh run rerun <run id> --failed` instead:
+the `forbidden-strings` block of `cargo-publish.yml` has no skip for a version that is already on crates.io,
+so a fresh dispatch for it fails at `cargo publish`,
+unlike the blocks of the other crates.
+The release command refuses to bump a crate that already holds `<to>`
+when it runs with `--host runner`,
+so dispatching the release again cannot repeat it.
+
+Add `--dry-run` to the dispatch to run everything except the push and the publish.
+A dry run is the way to prove a new runner setup before a real release,
+and it is followed with `gh run watch <run URL>`,
+because no publish run follows it.
+
+## Starting a release
+
+```bash
+# mise task of the crate: dispatches the workflow and prints the run URL
+mise run //package/forbidden-strings/cli:release -- 0.6.0 0.6.1 "what changed"
+
+# follows the release run, then the publish run it started, then crates.io and the GitHub release
+mise run //package/forbidden-strings/cli:release:wait -- <run URL or id> 0.6.1
+```
+
+The git-policy wrapper has the same two tasks under the names `native:release` and `native:release:wait`.
+`mise run //package/crate-release/cli:release -- --crate <name> ...` does the same for any crate in the registry.
+
+## The registry
+
+`releasable-crates.json` is an object of crates by their crates.io name,
+which is also the `crate` choice of `cargo-publish.yml` and of `crate-release.yml`.
+Each entry holds
+
+- `crateDir`,
+  the repository-relative directory of the crate with its `Cargo.toml` and `Cargo.lock`;
+- `scope`,
+  the commit scope of the release commit;
+- `pinFiles`,
+  the manifests that pin the crate exactly,
+  such as a fuzz crate,
+  each moved with the crate and committed with the `Cargo.lock` beside it;
+- `checkBins`,
+  the binaries the check builds,
+  empty to check the whole crate;
+- `lockDirs`,
+  the directories whose lockfile records the changed version of a workspace member.
+
+Only `crateDir` and `scope` are required.
+Unknown fields are refused.
+To make another crate releasable,
+add its entry,
+add its name to the `crate` choices of `crate-release.yml`
+(a unit test fails until both match),
+and give its package `release` and `release:wait` tasks like those of `package/forbidden-strings/cli`.
+
 ## Release command
 
 ```bash
-# mise task: any crate, with its own values (see the git-policy example below)
-mise run //package/crate-release/cli:release -- \
-  --crate-name <name> --crate-dir <dir> --scope <scope> \
-  [--pin-file <Cargo.toml>]... [--check-bin <name>]... [--lock-task <task>]... \
-  <from> <to> <note>
+# what the workflow runs on the runner
+node bin/release.ts --crate <name> --host runner -- <from> <to> <note>
+
+# the same with every argument spelled out, for a crate that is not in the registry
+node bin/release.ts --crate-name <name> --crate-dir <dir> --scope <scope> \
+  [--pin-file <Cargo.toml>]... [--check-bin <name>]... [--lock-dir <dir>]... \
+  [--host <local|runner>] <from> <to> <note>
 ```
 
 The command moves a crate from `<from>` to `<to>` and records the bump as a local commit.
-It never pushes and never publishes:
-the push that triggers the publish workflow is a separate,
-deliberate step.
+It never pushes and never publishes.
 In order,
 it
 
 1.  edits the `version` of the `[package]` table in `<crate-dir>/Cargo.toml`;
 2.  edits the exact pin (`version = "=<from>"`) of the crate in each `--pin-file` manifest;
-3.  runs `cargo check --offline` (with one `--bin` per `--check-bin`) in the crate directory;
-4.  runs `mise run <task>` for each `--lock-task`,
+3.  runs `cargo check` (with one `--bin` per `--check-bin`) in the crate directory;
+4.  runs `cargo update --workspace` in each `--lock-dir`,
     in order,
-    at the repository root;
-5.  runs `cargo publish --dry-run --locked --allow-dirty` in a capped transient `systemd-run --user --wait --pipe` unit;
+    which records the new version of the workspace member without moving any other locked version;
+5.  runs `cargo publish --dry-run --locked --allow-dirty` in the crate directory;
 6.  commits the manifests and the `Cargo.lock` beside each of them,
     with the message
     `chore(<scope>): release <to>: <note>`.
 
 Every edit is computed before the first file is written,
 so a refused manifest leaves all files as they were.
-A manifest that already holds `<to>` is reported and not rewritten,
-which makes a run that failed at a later step safe
-to run again.
 The first failing step stops the run with `FAILED <step> (<status>)` and exit status 1.
 Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a shell.
+
+### Hosts
+
+`--host` says where the release runs.
+
+- `runner` is a fresh CI checkout.
+  Cargo may use the network,
+  because the registry cache is empty,
+  and the dry run runs directly.
+  A manifest that already holds `<to>` is refused with the manifest named,
+  because the bump is already on the branch and committing it again would find nothing to commit.
+- `local` is the default.
+  Cargo works with `--offline`,
+  the dry run is capped in a transient `systemd-run --user --wait --pipe` unit (`--memory-max`,
+  default `12G`,
+  and `--unit-name`,
+  default `<crate-name>-publish-dry`),
+  and a manifest that already holds `<to>` is reported and not rewritten,
+  which makes a run that failed at a later step safe to run again.
+  It compiles the crate on the machine that runs it.
+  The owner's decision is that releases do not run there,
+  so the tasks do not use it.
 
 ### What the edits accept
 
@@ -77,10 +205,11 @@ Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a
   A `rust-version` key,
   a `version` key in any other table and a dependency's version are never touched.
 - The current value must equal `<from>` exactly,
-  or `<to>` (no change).
+  or `<to>` (no change,
+  accepted on a local host only).
   Any other value,
   including a longer one that starts with `<from>` such as `0.4.21` for `0.4.2`,
-  is refused with both
+  is refused with the manifest and both
   values named.
 - A pin is the inline-table dependency `<crate> = { ..., version = "=<version>" }`.
   A loose requirement such as `"0.4.2"` is refused,
@@ -92,7 +221,7 @@ Each step is printed as `== <step>` and a `$ ...` line that can be pasted into a
   `$`,
   `;`,
   backticks and `--looks-like-an-option` are kept verbatim,
-  because the message reaches Git as one
+  because the message reaches Git and `gh` as one
   argument and no shell reads it.
   Put a lone `--` before a note that starts with a hyphen.
 
@@ -102,38 +231,113 @@ Run the command without arguments,
 or with `--help`,
 for the same list with defaults.
 
+- `--crate <name>` reads the crate directory,
+  scope,
+  pins,
+  check binaries and lock directories from the registry.
+  It cannot be combined with the options that spell them out.
 - `--crate-name`,
-  `--crate-dir` and `--scope` are required:
+  `--crate-dir` and `--scope` are required without `--crate`:
   the crate name,
   its repository-relative directory,
   and the
   scope of the commit subject.
 - `--pin-file <Cargo.toml>`,
   repeatable,
-  names a manifest that pins the crate exactly,
-  such as a fuzz crate.
-  The `Cargo.lock` in the same directory is committed with it.
+  names a manifest that pins the crate exactly.
 - `--check-bin <name>`,
   repeatable,
-  narrows the offline check to those binaries.
-- `--lock-task <task>`,
+  narrows the check to those binaries.
+- `--lock-dir <dir>`,
   repeatable,
-  names a mise task that refreshes lockfiles after the edit.
-- `--memory-max <value>` (default `12G`) and `--unit-name <name>` (default `<crate-name>-publish-dry`) shape the
-  dry-run unit.
+  names a directory whose lockfile is refreshed after the edit.
+- `--host`,
+  `--memory-max` and `--unit-name` are described under hosts.
 - `--root <dir>` overrides the repository root,
   which is otherwise found by walking up from the package to the nearest
   `pnpm-workspace.yaml`.
 
+## Dispatch command
+
+```bash
+node bin/dispatch-release.ts --crate <name> [--dry-run] [--repo <owner/name>] <from> <to> <note>
+```
+
+The command refuses what the workflow would refuse,
+before it spends a run:
+a crate that is not in the registry,
+versions that are not release versions or are equal,
+and a note that cannot be a commit subject for the crate's scope.
+Then it runs `gh workflow run crate-release.yml` with the inputs as `--raw-field` arguments,
+shows what `gh` printed,
+and ends with `RELEASE STARTED <run URL>`.
+The branch is the default branch of the repository.
+When `gh` prints no run address,
+the closing line says so and shows `gh run list --workflow=crate-release.yml --limit=1`.
+
+## Await command
+
+```bash
+node bin/await-release.ts --crate <name> [options] <run URL or id> <version>
+```
+
+The command
+
+1.  watches the release run with `gh run watch --exit-status`,
+    and stops with `RELEASE RUN FAILED` and the `gh run view <id> --log-failed` command when it failed,
+    because a failed release run starts no publish;
+2.  reads when the release run was created,
+    and finds the publish run:
+    the earliest manually started run of `cargo-publish.yml` created at or after it,
+    so a manual publish dry run started earlier is never taken for it;
+3.  watches the publish run,
+    then checks crates.io for `<version>` and the GitHub release for the expected assets,
+    as the wait command does.
+
+It exits 0 only when every part succeeded.
+Its publish check options (`--workflow`,
+`--repo`,
+`--attempts`,
+`--poll-interval`,
+`--run-limit`,
+`--tag-template`,
+`--asset-template`,
+`--user-agent`,
+`--max-time`) are those of the wait command.
+
+## Push command
+
+```bash
+node bin/push-release.ts --repo <owner/name> --branch <branch> --scratch-dir <dir>
+```
+
+The release workflow runs this after the release command.
+It reads the head commit of the checkout:
+its parent,
+which must be the only parent,
+its subject,
+and the files it changes.
+It writes a `createCommitOnBranch` GraphQL request that adds exactly those files,
+with their whole contents,
+on top of that parent,
+and sends it with `gh api graphql --input`.
+GitHub signs a commit made through that mutation,
+which a branch that requires signed commits accepts,
+and refuses it when the branch has moved since the checkout,
+so nothing lands on top of work the release did not see.
+The environment must hold `GH_TOKEN`.
+
 ## Wait command
 
 ```bash
-mise run //package/crate-release/cli:release:wait -- --crate-name <name> [options] <sha> <version>
+mise run //package/crate-release/cli:release:wait:commit -- --crate-name <name> [options] <sha> <version>
 ```
 
 The command waits for the publish workflow run of commit `<sha>` (a prefix of at least seven hexadecimal digits),
 watches it,
 then checks crates.io for `<version>` and the GitHub release for the expected assets.
+It is for a publish that something other than the release workflow started,
+such as a push to `main`.
 It prints
 
 ```text
@@ -178,39 +382,38 @@ the hash is never placed in a `gh --jq` program.
   request.
 - `--root <dir>` as for the release command.
 
-## Example: the git-policy crate
-
-```bash
-mise run //package/git-policy/cli:native:release -- 0.4.2 0.4.3 "fix the thing"
-git push
-mise run //package/git-policy/cli:native:release:wait -- <sha> 0.4.3
-```
-
-The tasks in `package/git-policy/cli/mise.toml` supply the crate name,
-directory,
-scope,
-the fuzz crate pin,
-the
-`cli-git-native` binary and the fuzz crate lock task.
-
 ## Source layout
 
-- `bin/release.ts` and `bin/wait-publish.ts` only read the process state and spawn;
+- `bin/` holds the executables:
+  `release.ts`,
+  `dispatch-release.ts`,
+  `push-release.ts`,
+  `await-release.ts` and `wait-publish.ts`.
+  They only read the process state and spawn;
   they hold no logic.
 - `src/` holds the pure builders and parsers,
   each with a unit test:
   version and name validation (`version.ts`,
   `validate.ts`),
+  the registry (`crate-registry.ts`),
   the manifest edits (`manifest-edit.ts`,
   `toml-line.ts`),
   the commit message (`commit-message.ts`),
+  the commit request of the push command (`commit-request.ts`),
   the program arguments (`release-steps.ts`,
   `service-arguments.ts`),
   the result parsing and formatting
-  (`publish-results.ts`),
+  (`publish-results.ts`,
+  `run-results.ts`),
   and the option parsers (`release-options.ts`,
+  `dispatch-options.ts`,
+  `push-options.ts`,
+  `await-options.ts`,
   `wait-options.ts`).
-- `release-run.ts` and `wait-run.ts` orchestrate through injected readers,
+- `release-run.ts`,
+  `dispatch-run.ts`,
+  `push-run.ts`,
+  `await-run.ts` and `wait-run.ts` orchestrate through injected readers,
   writers,
   program runners and sleepers,
   so
@@ -219,10 +422,14 @@ the
   `cli.unit.test.ts` starts the real executables with stand-in `cargo`,
   `git`,
   `gh`,
-  `curl`,
-  `mise` and `systemd-run`
+  `curl` and `systemd-run`
   programs first on the search path,
   in a disposable directory under `<home>/temp/agent`.
+- `release-workflow.unit.test.ts` reads the workflow files and the repository:
+  it compares the `crate` choices of `crate-release.yml` with the registry and with `cargo-publish.yml`,
+  checks that each registry entry names real manifests,
+  an exact pin at the crate's current version and the files a release commits,
+  and keeps the workflow within the repository's shell budget and permission rules.
 - No program is started through a shell.
   The only shell-facing text is the `$ ...` line printed for people,
   and it is built with `shellQuote`.
@@ -230,4 +437,10 @@ the
 ## Tasks
 
 [`mise.toml`](mise.toml) defines this package's tasks.
-Run one with `mise run //package/crate-release/cli:<task>`.
+Run one with `mise run //package/crate-release/cli:<task>`:
+`release` dispatches,
+`release:wait` follows a release,
+`release:run` and `release:push` run the release and push commands,
+and `release:wait:commit` waits for the publish run of a commit.
+
+[token-trigger-rule]: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#:~:text=events%20triggered%20by%20the%20GITHUB_TOKEN%20will%20not%20create%20a%20new%20workflow%20run

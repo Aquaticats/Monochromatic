@@ -502,6 +502,9 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
      `package/crate-release/cli/bin/release.ts` moves only inline `name = { ... version = "=x" }` lines, not table-style
      `[dependencies.name]`) and its own `release` and `release:wait` mise tasks like `package/forbidden-strings/cli/mise.toml`.
   2. 7a releases the wrapper (`native:release`, `native:release:wait`) once the policy, its tests and the mutation and fuzz gates pass.
+     Since 2026-11-01 those tasks only dispatch the `crate-release` workflow and follow its run, and nothing compiles on the
+     developer machine (`doc/decision/releases-run-in-ci.md`); the shared crate of step 1 also needs an entry in
+     `package/crate-release/cli/releasable-crates.json` and in the `crate` choices of `.github/workflows/crate-release.yml`.
   3. `toolchain:update` bumps the wrapper in `toolchain.lock.json`; it has no per-tool filter, so it also moves every other floating
      tool, and the user decides each time.
   4. `toolchain:sync` installs it as the production `git`.
