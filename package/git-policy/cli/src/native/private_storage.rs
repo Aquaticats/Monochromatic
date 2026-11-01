@@ -673,3 +673,8 @@ fn open_refusal(error: std::io::Error) -> ReadRefusal {
 #[cfg(test)]
 #[path = "private_storage_tests.rs"]
 mod tests;
+
+/// Publication controls stay out of the release executable.
+#[cfg(test)]
+#[path = "private_storage_publish_tests.rs"]
+mod publish_tests;
