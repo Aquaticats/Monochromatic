@@ -2367,6 +2367,17 @@ Wave-4 seventieth checkpoint (2026-11-01, node-domexception shim closed):
   ungap shim 001 rr-pus-001, stub-silent 001 rr-pss-001, stub-throwing 001
   rr-pst-001, and truepeak bench 001 rr-tpb-001.
 
+Wave-4 seventy-first checkpoint (2026-11-01, troubleshooting continues):
+
+- `w2-logger-src` is 140 of 140 clean after rows 137 to 141 over worklist
+  lines 121 to 139. Row 140 was spot-read: the CSS-tooling record says the
+  lockfile has no `oxc-resolver` and cites a missing `package/build/css`, while
+  the lock carries three `oxc-resolver` entries and the path does not exist.
+  Next id 142, worklist line 131 then 140, base rr-ts-388.
+- Live lanes: planning 061 rr-dp-007, troubleshooting 142 rr-ts-388,
+  ungap shim 001 rr-pus-001, stub-silent 001 rr-pss-001, stub-throwing 001
+  rr-pst-001, and truepeak bench 001 rr-tpb-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
