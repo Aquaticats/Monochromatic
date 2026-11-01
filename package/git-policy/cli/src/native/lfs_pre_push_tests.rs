@@ -57,21 +57,21 @@ fn other_configuration_does_not_mark_the_repository_as_using_lfs() {
 #[test]
 fn the_callers_switch_off_is_read_from_the_last_setting() {
     let prefix = |words: &[&str]| -> Vec<OsString> { return words.iter().map(OsString::from).collect() };
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false"])));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=no"])));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=0"])));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=off"])));
-    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled="])));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=false"]), &[]));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=no"]), &[]));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=0"]), &[]));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled=off"]), &[]));
+    assert!(hook_switched_off(&prefix(&["-c", "hook.cli-git-lfs-pre-push.enabled="]), &[]));
     assert!(!hook_switched_off(&prefix(&[
         "-c",
         "hook.cli-git-lfs-pre-push.enabled=false",
         "-c",
         "hook.cli-git-lfs-pre-push.enabled=true"
-    ])));
-    assert!(!hook_switched_off(&prefix(&["-c", "hook.other.enabled=false"])));
-    assert!(!hook_switched_off(&prefix(&["-C", "dir"])));
-    assert!(!hook_switched_off(&prefix(&["-c"])));
-    assert!(!hook_switched_off(&[]));
+    ]), &[]));
+    assert!(!hook_switched_off(&prefix(&["-c", "hook.other.enabled=false"]), &[]));
+    assert!(!hook_switched_off(&prefix(&["-C", "dir"]), &[]));
+    assert!(!hook_switched_off(&prefix(&["-c"]), &[]));
+    assert!(!hook_switched_off(&[], &[]));
 }
 
 /// The lookup finds an executable file in any `PATH` directory and refuses a directory, a plain file and nothing.
@@ -136,7 +136,7 @@ fn the_skip_variable_is_read_as_a_boolean() {
     let with = |value: &str| -> Vec<(OsString, OsString)> {
         return vec![(OsString::from("GIT_LFS_SKIP_PUSH"), OsString::from(value))];
     };
-    for truthy in ["1", "true", "TRUE", "yes", "on"] {
+    for truthy in ["1", "t", "T", "true", "TRUE", "y", "yes", "on"] {
         assert!(skip_requested(with(truthy).as_slice()), "{truthy}");
     }
     for other in ["0", "false", "", "no", "off", "2"] {

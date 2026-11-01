@@ -171,6 +171,6 @@ fn a_bare_push_and_a_directory_option_select_the_remote_branch_and_directory() {
     let pushed: Observed = observe(&mut command, b"");
     assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
     let seen: Vec<String> = std::fs::read_to_string(&record).expect("the stand-in ran").lines().map(str::to_owned).collect();
-    assert_eq!(seen, vec![world.repo.to_string_lossy().into_owned(), String::from("push origin main")]);
+    assert_eq!(seen, vec![world.repo.to_string_lossy().into_owned(), String::from("push origin refs/heads/main")]);
     remove_settled(&fixture);
 }

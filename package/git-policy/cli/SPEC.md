@@ -823,17 +823,26 @@ The step:
   clone's remote-tracking refs already reference, reads no update lines, and needs no value advertised by the remote.
   Objects are content addressed, so an upload that sends a superset is idempotent.
   The child runs with the real Git's directory first on `PATH`, so a `git` that `git-lfs` starts is the real Git and not
-  the wrapper, and in the directory a `-C` option selects.
+  the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds. It runs in the directory a `-C`
+  option selects and receives the global options as Git would pass them: `-c` pairs as `GIT_CONFIG_COUNT` variables
+  after any pairs already set, `--git-dir`, `--work-tree` and `--namespace` as their variables. A signal sent to the
+  wrapper is relayed to it.
 - What is uploaded.
   The remote and refs come from the push's own arguments, read with the same option table as the rest of the wrapper:
   an explicit repository (or `--repo`) and explicit refspecs name them (the source side of each refspec; a deletion
   names nothing; `tag <name>` is `refs/tags/<name>`).
-  `--all`, `--branches`, `--tags`, `--mirror` and a refspec with a glob upload everything (`--all`).
-  A bare push resolves its remote the way Git does (`branch.<name>.pushRemote`, `remote.pushDefault`,
-  `branch.<name>.remote`, then `origin`) and uploads the current branch (`HEAD` when it has no name); with
-  `push.default=matching` it uploads everything.
+  `--all`, `--branches`, `--tags` and a refspec with a glob upload the refs they expand to (one `git for-each-ref`),
+  never every branch; `--mirror` uploads everything (`--all`).
+  The first positional is the repository whatever `--repo` says; `--repo` and its abbreviations fill in only when none is
+  typed. A path typed as the remote (`/`, `./` or `../`) is handed to `git-lfs` as a `file://` URL.
+  A bare push (or a remote with no refspec) resolves its remote the way Git does (`branch.<name>.pushRemote`,
+  `remote.pushDefault`, `branch.<name>.remote`, then `origin`) and uploads what `remote.<name>.push` names, else the
+  current branch from the full ref `HEAD` names (`HEAD` when it is not a branch); with `push.default=matching` it
+  uploads everything, because narrowing needs the remote's own refs.
   Those answers cost two short Git queries, made only for a push that needs them in a repository with LFS keys.
   A push that only deletes uploads nothing.
+  A push with `--recurse-submodules=on-demand` or `only` uploads only this repository's refs and prints a notice that
+  a submodule's LFS objects must be uploaded from the submodule, because Git pushes the submodule itself.
 - The explanation.
   A push of a repository with LFS keys runs as a child of the wrapper, in every case (a push that is neither stackable
   nor eligible for integration included), so a parent exists to explain.
@@ -856,8 +865,10 @@ The step:
   No `git cli-git` subcommand pushes.
 - Bypass.
   `git push --no-verify` (any accepted abbreviation), `--dry-run`, `GIT_LFS_SKIP_PUSH` set to a true value, and
-  `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options (the switch an earlier version used for its
-  hook) skip the upload and the pre-check.
+  `-c hook.cli-git-lfs-pre-push.enabled=false` among the global options or in `GIT_CONFIG_COUNT` pairs (the switch an
+  earlier version used for its hook) skip the upload and the pre-check. A repository or account configuration file
+  is not read for that switch, since reading it would cost a Git start for every push; `GIT_LFS_SKIP_PUSH` accepts
+  `1`, `t`, `true`, `y`, `yes` and `on`.
 - Shims.
   `git lfs filter-process` and `git lfs clean` write the four shim files into the hooks directory whenever they run
   (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is cleaned by
@@ -3557,6 +3568,9 @@ Manual push runs a Git `git push --dry-run --porcelain` probe with every hook of
 reads local objects the report does not name with one `git rev-parse`,
 and validates the reported remote OIDs with `git ls-remote --refs` before policy evaluation;
 a report that does not state the remote's value (a deletion, a refusal) takes it from `ls-remote` alone.
+The probe adds `--no-quiet` to its copy of the options, because `-q` empties the report, and skips the line Git adds for
+`-u`, `--set-upstream` and `push.autoSetupRemote`; any other line outside the report format stops the probe and is named.
+A single destination's printed location is used as it is, which saves the query for the push URLs.
 The probe starts no program of the wrapper's, writes no hook or script, and every Git child of it is bounded by the
 query deadline.
 Do not infer destination ref values from cached tracking refs,

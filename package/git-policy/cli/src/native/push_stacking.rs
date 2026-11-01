@@ -35,7 +35,8 @@ use super::command_push::stackable_option_tokens;
 use super::diagnostic_log::debug;
 /// The check that the upload can start, what the upload sends, and its run.
 use super::lfs_push_precheck::lfs_refusal;
-use super::lfs_upload::{plan_upload, run_upload_interactive};
+use super::lfs_upload::run_upload_interactive;
+use super::lfs_upload_plan::plan_upload;
 /// The merge push, planned and run inside this process.
 use super::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
@@ -215,10 +216,12 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
             }
             return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
         };
-        if let Some(plan) = plan_upload(prefix, region, forward.environment.as_slice(), &mut query)
+        let directory: std::path::PathBuf = effective_directory(std::env::current_dir().unwrap_or_default().as_path(), prefix);
+        if let Some(plan) = plan_upload(prefix, region, forward.environment.as_slice(), directory.as_path(), &mut query)
             && let Some(code) = run_upload_interactive(
                 &plan,
-                effective_directory(std::env::current_dir().unwrap_or_default().as_path(), prefix).as_path(),
+                prefix,
+                directory.as_path(),
                 forward.real_git.as_path(),
                 forward.environment.as_slice(),
                 forward.overlay.as_slice(),

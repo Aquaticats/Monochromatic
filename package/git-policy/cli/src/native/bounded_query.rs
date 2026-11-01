@@ -98,7 +98,7 @@ pub fn run_bounded_query(
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
     if super::holder_budget::exhausted() {
-        return Err(SingleFlightError::TimedOut { arguments: arguments.to_owned(), seconds: 0 });
+        return Err(SingleFlightError::BudgetSpent { arguments: arguments.to_owned() });
     }
     let deadline: Duration = super::holder_budget::clamp(requested_deadline);
     let mut stdout: File = scratch_file(environment).map_err(SingleFlightError::Start)?;

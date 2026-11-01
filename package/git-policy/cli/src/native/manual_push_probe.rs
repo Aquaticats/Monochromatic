@@ -17,7 +17,7 @@
 /// The probe's Git runner, its bounded queries and its environment.
 use super::auto_push_single_flight::{PushGit, run_query};
 /// The destination Git would pick for a bare push, and the porcelain report's parser.
-use super::lfs_upload::resolve_push_remote;
+use super::lfs_upload_plan::resolve_push_remote;
 use super::manual_push_porcelain::{PorcelainUpdate, RemoteBefore, parse_porcelain};
 /// The push's own reading of its destination.
 use super::command_push::push_shape;
@@ -107,6 +107,9 @@ pub fn probe_arguments(global_prefix: &[OsString], post_subcommand: &[OsString])
     }
     arguments.push(OsString::from("push"));
     arguments.extend(post_subcommand[..insertion].iter().cloned());
+    // A `-q` written by the caller silences the report this probe reads, so it is cancelled here; the caller's own
+    //  push keeps its `-q`.
+    arguments.push(OsString::from("--no-quiet"));
     arguments.push(OsString::from("--dry-run"));
     arguments.push(OsString::from("--porcelain"));
     arguments.extend(post_subcommand[insertion..].iter().cloned());
@@ -261,7 +264,12 @@ pub fn probe_manual_push_updates(
         return answer(git, owned.as_slice());
     };
     let remote_name: String = resolve_push_remote(named, &mut asking).to_string_lossy().into_owned();
-    let locations: Vec<String> = locations_of(git, global_prefix, remote_name.as_str());
+    // The location Git printed for a single destination is the push URL after every rewrite; it is used as it is
+    //  unless it could have had credentials removed (an `@` in a URL is where they were), which costs one query.
+    let locations: Vec<String> = match blocks.as_slice() {
+        [only] if !only.shown.contains('@') => vec![only.shown.clone()],
+        _ => locations_of(git, global_prefix, remote_name.as_str()),
+    };
     if locations.len() != blocks.len() {
         return Err(probe_error(format!(
             "Git reported {} destinations but {remote_name} has {} push locations",

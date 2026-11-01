@@ -19,7 +19,8 @@ use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, r
 /// The check that the program can start.
 use super::lfs_push_precheck::lfs_refusal;
 /// What to upload and the bounded run of it.
-use super::lfs_upload::{plan_upload, run_upload_bounded};
+use super::lfs_upload::run_upload_bounded;
+use super::lfs_upload_plan::plan_upload;
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
 
@@ -52,7 +53,7 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
             }
             return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
         };
-        if let Some(plan) = plan_upload(&[], region, git.environment.as_slice(), &mut query)
+        if let Some(plan) = plan_upload(&[], region, git.environment.as_slice(), git.cwd.as_path(), &mut query)
             && let Some(failed) = run_upload_bounded(git, &plan)?
         {
             return Ok(failed);

@@ -650,7 +650,10 @@ pub mod doctor;
 /// When a push needs the Git LFS upload, and the texts the parent prints around it.
 pub mod lfs_pre_push;
 
-/// What the Git LFS upload sends and the parent's bounded or interactive run of it.
+/// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
+pub mod lfs_upload_plan;
+
+/// The parent's bounded or interactive run of the Git LFS upload.
 pub mod lfs_upload;
 
 /// The check that `git-lfs` can start, made before a push that is preceded by the upload.

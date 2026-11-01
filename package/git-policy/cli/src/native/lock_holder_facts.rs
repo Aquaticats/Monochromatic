@@ -17,25 +17,55 @@ use std::time::Duration;
 /// File locations.
 use std::path::Path;
 
-/// The longest command text shown, in characters.
-const MAX_COMMAND_CHARACTERS: usize = 120;
+/// Global options that take their value as the next argument.
+const VALUE_OPTIONS: [&str; 5] = ["-c", "-C", "--git-dir", "--work-tree", "--namespace"];
 
 /// What:
-///  The holder's command line from the kernel's record, with the arguments separated by spaces and the text cut to a
-///  readable length, or nothing when the record cannot be read.
+///  The program and subcommand of a command line, with every other argument left out.
 /// Why:
-///   The notice must stay one line; the `NUL` separators of the record become spaces.
+///   Arguments can hold secrets (`-c http.extraHeader=...`), and the notice repeats at an interval into logs, so only
+///  the program's name and the subcommand are shown. Global options are skipped to find the subcommand.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').join(' ').trim().slice(0, 120)
+/// `${basename(argv[0])} ${argv.slice(1).find((word, i) => !word.startsWith('-') && !valueOptions.includes(argv[i]))}`
+/// ```
+pub fn program_and_subcommand(words: &[&str]) -> Option<String> {
+    let program: &str = words.first()?.rsplit('/').next()?;
+    let mut rest = words.iter().skip(1);
+    while let Some(word) = rest.next() {
+        if VALUE_OPTIONS.contains(word) {
+            rest.next();
+            continue;
+        }
+        if !word.starts_with('-') {
+            return Some(format!("{program} {word}"));
+        }
+    }
+    return Some(program.to_owned());
+}
+
+/// What:
+///  The holder's program and subcommand from the kernel's record, and the repository it runs in.
+/// Why:
+///   The repository is the holder's working directory, which `/proc` records without any argument.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${programAndSubcommand(cmdline)} in ${readlink(`/proc/${pid}/cwd`)}`
 /// ```
 #[cfg(target_os = "linux")]
 fn holder_command(pid: i64) -> Option<String> {
     let bytes: Vec<u8> = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
-    let text: String = String::from_utf8_lossy(bytes.as_slice()).replace('\0', " ").replace(['\n', '\r'], " ");
-    let shown: String = text.trim().chars().take(MAX_COMMAND_CHARACTERS).collect();
-    return if shown.is_empty() { None } else { Some(shown) };
+    let text: String = String::from_utf8_lossy(bytes.as_slice()).into_owned();
+    let words: Vec<&str> = text.split('\0').filter(|word| {
+        return !word.is_empty();
+    }).collect();
+    let shown: String = program_and_subcommand(words.as_slice())?;
+    return Some(match std::fs::read_link(format!("/proc/{pid}/cwd")) {
+        Ok(directory) => format!("{shown} in {}", directory.display()),
+        Err(_) => shown,
+    });
 }
 
 /// Only Linux records the command of another process in a file; elsewhere none is named.

@@ -54,9 +54,14 @@ pub struct PorcelainUpdate {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PorcelainBlock {
+    /// The location Git printed after `To`, with any credentials removed.
+    pub shown: String,
     /// The reported updates of this destination, up-to-date refs left out.
     pub updates: Vec<PorcelainUpdate>,
 }
+
+/// The start of the line Git adds to the report when the push would set an upstream.
+const SET_UPSTREAM_PREFIX: &str = "Would set upstream of ";
 
 /// What:
 ///  Split an update's summary into what the remote held and what is sent.
@@ -97,11 +102,12 @@ fn parse_summary(summary: &str) -> (RemoteBefore, Option<String>) {
 pub fn parse_porcelain(output: &str) -> Result<Vec<PorcelainBlock>, String> {
     let mut blocks: Vec<PorcelainBlock> = Vec::new();
     for line in output.lines() {
-        if line.starts_with("To ") {
-            blocks.push(PorcelainBlock { updates: Vec::new() });
+        if let Some(shown) = line.strip_prefix("To ") {
+            blocks.push(PorcelainBlock { shown: shown.to_owned(), updates: Vec::new() });
             continue;
         }
-        if line == "Done" || line.is_empty() {
+        // `-u`, `--set-upstream` and `push.autoSetupRemote` make Git add this line to the report (measured on 2.56.0).
+        if line == "Done" || line.is_empty() || line.starts_with(SET_UPSTREAM_PREFIX) {
             continue;
         }
         let mut fields = line.splitn(3, '\t');

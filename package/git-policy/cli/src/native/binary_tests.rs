@@ -155,6 +155,10 @@ mod lfs_pre_push;
 #[path = "binary_lfs_parent_tests.rs"]
 mod lfs_parent;
 
+/// The manual-push probe through the whole wrapper: verbosity cannot bypass a policy, and upstream options publish.
+#[path = "binary_push_probe_tests.rs"]
+mod push_probe;
+
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;

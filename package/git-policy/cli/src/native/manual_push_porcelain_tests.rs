@@ -48,8 +48,19 @@ fn up_to_date_refs_are_left_out_and_destinations_are_separate() {
 /// Text that is not in the format is an error naming the line, never a guess.
 #[test]
 fn text_outside_the_format_is_refused() {
-    assert!(parse_porcelain("no tab here\n").is_err());
+    let refusal: String = parse_porcelain("no tab here\n").expect_err("a line outside the format");
+    assert!(refusal.contains("no tab here"), "the message names the line: {refusal}");
     assert!(parse_porcelain("To x\n*\tno-colon\t[new branch]\n").is_err());
     assert!(parse_porcelain("*\ta:b\t[new branch]\n").is_err(), "a line before any destination");
     assert_eq!(parse_porcelain("").expect("empty output"), Vec::new());
+}
+
+/// The line Git adds when the push would set an upstream is skipped, and the real updates around it still read.
+#[test]
+fn the_set_upstream_line_is_skipped() {
+    let output: &str = "To /srv/origin.git\n*\trefs/heads/main:refs/heads/main\t[new branch]\n\
+                        Would set upstream of 'main' to 'main' of '/srv/origin.git'\nDone\n";
+    let blocks: Vec<PorcelainBlock> = parse_porcelain(output).expect("parses");
+    assert_eq!(blocks[0].updates.len(), 1);
+    assert_eq!(blocks[0].shown, "/srv/origin.git");
 }

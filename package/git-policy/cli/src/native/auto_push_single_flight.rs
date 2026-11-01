@@ -76,6 +76,11 @@ pub enum SingleFlightError {
         /// The deadline it exceeded, in whole seconds.
         seconds: u64,
     },
+    /// A Git query was not started because the time the lock holder may spend was already spent.
+    BudgetSpent {
+        /// Arguments of the query, for the diagnostic.
+        arguments: String,
+    },
 }
 
 impl std::fmt::Display for SingleFlightError {
@@ -97,6 +102,11 @@ impl std::fmt::Display for SingleFlightError {
             Self::TimedOut { arguments, seconds } => write!(
                 formatter,
                 "git {arguments} did not finish within {seconds} seconds and was stopped; \
+                 {PUSH_DEADLINE_VARIABLE} sets the limit"
+            ),
+            Self::BudgetSpent { arguments } => write!(
+                formatter,
+                "git {arguments} was not started: the time this process may hold the push lock is spent; \
                  {PUSH_DEADLINE_VARIABLE} sets the limit"
             ),
         };
@@ -502,7 +512,7 @@ pub fn run_single_flight_push_repeating(
     )
     .map_err(SingleFlightError::Lock)?;
     // Everything the holder does from here on shares one time budget, so the waiters' limit can be derived from it.
-    let _budget = super::holder_budget::enter(super::bounded_push::holder_budget(&git.environment));
+    let budget = super::holder_budget::enter(super::bounded_push::holder_budget(&git.environment));
     let after = read_record(&paths.record_path)?;
     let late = match &after {
         LastPushedRead::Record(record)
@@ -551,6 +561,9 @@ pub fn run_single_flight_push_repeating(
             attempt.output.clone()
         },
     };
+    // The budget ends with the push: recording the outcome and the one query that follows are bounded on their own, and
+    //  a push that succeeded in the last moments must not be reported as a failure for want of time.
+    drop(budget);
     write_last_pushed_record(&paths.record_path, &record).map_err(SingleFlightError::Io)?;
     let covered = tip_contains(git, landed_oid, &tip)?;
     drop(lock);

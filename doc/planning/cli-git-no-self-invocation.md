@@ -296,6 +296,32 @@ the wrapper waits for the push tree only through bounded waits.
 The waiter's notice now also says how long the holder has held the lock, the holder's command line (Linux), and that its
 push is stopped at the push deadline (`lock_holder_facts.rs`).
 
+## Review follow-up and corrective note
+
+An independent review of head `02b4862916` (text: `review-lfs.md` in the scratch directory) found, and this branch fixed
+on new commits, the gaps that the earlier commit messages do not mention. Commit messages are not amended; this note is
+their correction.
+
+- `6e747cd1a4`, `26627b5bcc` and `156415d696` describe a plain hook command with a trace2 reading. That design was
+  removed by `9a03d59467`; no injected hook or trace reading exists at head.
+- `9a03d59467` says the remote and refs come from the push arguments. It also needed `remote.<name>.push`, the first
+  positional winning over `--repo`, `--repo` abbreviations, path remotes, tag and glob expansion, the full-ref branch
+  name, the global `-c` options and `--git-dir` reaching `git-lfs`, signals reaching it, and the caller's `PATH` order
+  for `git-lfs`. All are read or passed now (`lfs_upload_plan.rs`, `lfs_upload.rs`).
+- `02b4862916` says the probe parses Git's own report and keeps the race check. The report was refused when Git added
+  its `Would set upstream` line (`-u`, `--set-upstream`, `push.autoSetupRemote` all failed), and `-q` emptied it, which
+  skipped every manual-push policy. Both are fixed with tests (`binary_push_probe_tests.rs`, the probe unit tests);
+  the race check does not cover a deletion or a refusal, as the commit says.
+- A holder-budget guard had no test; three now fail when the guard is removed (`enter`, the query guard, the early
+  end of the budget). A step the budget left no time for now says so instead of "did not finish".
+- The wait notice shows only the holder's program, its subcommand and its working directory.
+- Submodules: with `--recurse-submodules=on-demand` or `only` Git pushes the submodule itself and the wrapper does not
+  upload a submodule's LFS objects; it prints a notice naming the way forward instead of refusing a push Git accepts.
+- Git starts per manual push, new branch, fast-forward, bare push: measured in the review at 20, 21 and 23 against
+  baselines 18, 20 and 20. This branch drops the push URL query for a single destination; the numbers after that
+  change are in the follow-up report. The probe's dry run and `ls-remote` are bounded by the push deadline (30 seconds
+  by default, `CLI_GIT_PUSH_DEADLINE_SECONDS`), which is the same bound the push itself would get.
+
 ## The bans
 
 - `clippy.toml` in `package/git-policy/cli` bans `std::env::current_exe` (the file also repeats the repository root

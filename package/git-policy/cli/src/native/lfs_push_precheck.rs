@@ -35,7 +35,7 @@ pub fn lfs_refusal(
     region: &[OsString],
     environment: &[(OsString, OsString)],
 ) -> Option<String> {
-    if hook_switched_off(global_prefix) || skip_requested(environment) {
+    if hook_switched_off(global_prefix, environment) || skip_requested(environment) {
         return None;
     }
     let parsed = parse_push_region(region, &[]).ok()?;

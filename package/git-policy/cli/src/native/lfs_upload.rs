@@ -1,219 +1,41 @@
 //! What:
-//!  The Git LFS upload that runs before a push: what to upload (`git lfs push <remote> <refs>`) and how the parent runs
-//!  it as one child of its own, before it starts the push.
+//!  The parent's run of the Git LFS upload before a push: `git-lfs push <remote> <refs>` as one child it owns.
 //! Why:
 //!  Without an upload step a push publishes pointer files whose objects the LFS server never received.
-//!  The wrapper runs `git-lfs push` itself, as a child it owns, so a failure is explained by the process that saw it
-//!  and the push, which then carries no hook at all, is never started. Nothing here starts the wrapper, writes shell
-//!  text or injects Git configuration (`doc/planning/cli-git-no-self-invocation.md`).
-//!  `git lfs push` takes refs and no ref-update lines, needs no value advertised by the remote, and sends objects the
-//!  local clone does not already know the remote to have; objects are content addressed, so a superset is harmless.
+//!  The wrapper runs `git-lfs push` itself, so a failure is explained by the process that saw it and the push, which
+//!  then carries no hook, is never started. Nothing here starts the wrapper, writes shell text or injects Git
+//!  configuration (`doc/planning/cli-git-no-self-invocation.md`). What to upload is decided in `lfs_upload_plan`.
+//!  The child sees what the caller gave Git: the global `-c` options travel as `GIT_CONFIG_COUNT` pairs, `--git-dir`,
+//!  `--work-tree` and `--namespace` as their variables, `-C` as the working directory, and the real Git's directory
+//!  leads its `PATH` so a `git` it starts is never the wrapper while `git-lfs` itself is the one the caller's `PATH`
+//!  finds first.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const plan = planUpload(region); if (plan) { const code = await run('git-lfs', ['push', plan.remote, ...plan.refs]); if (code) return code; }
+//! const code = await spawn(findProgram(env.PATH), plan.arguments(), { env: withPrefix(env, globalPrefix), stdio: 'inherit' });
 //! ```
 
 /// The attempt record, the coordinator's Git and its error type.
 use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError};
 /// The deadline, the grace and the push runner.
-use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, push_deadline, run_bounded_push};
-/// The destination and the named refs of a push.
-use super::command_push::push_shape;
+use super::bounded_push::{STOPPED_EXIT_CODE, STOP_GRACE, budget_spent_message, push_deadline, run_bounded_push};
 /// The invocation's environment values.
 use super::child_environment::environment_value;
 /// How a child ended, as a status.
 use super::forwarding::{ChildOutcome, exit_code, outcome_of};
-/// The texts, the switch and the program name.
-use super::lfs_pre_push::{LFS_PROGRAM, failed_message, hook_switched_off, missing_program_message, skip_requested};
+/// The texts, the program lookup and the plan.
+use super::lfs_pre_push::{failed_message, find_program, missing_program_message};
+use super::lfs_upload_plan::UploadPlan;
+/// Relays signals to the child.
+use super::signal_relay::SignalGuard;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
 /// Owned OS text for arguments.
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 /// The real Git whose directory leads `PATH`.
 use std::path::Path;
 /// The child.
 use std::process::Command;
-
-/// What an upload sends.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type UploadPlan = { remote: string; refs: string[]; everything: boolean };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct UploadPlan {
-    /// The remote name or URL `git lfs push` takes first.
-    pub remote: OsString,
-    /// The refs whose objects are uploaded; empty with `everything`.
-    pub refs: Vec<OsString>,
-    /// Upload everything reachable from every local ref (`--all`).
-    pub everything: bool,
-}
-
-impl UploadPlan {
-    /// The arguments of `git-lfs`: `push`, `--all` when everything is sent, the remote, then the refs.
-    pub fn arguments(&self) -> Vec<OsString> {
-        let mut arguments: Vec<OsString> = vec![OsString::from("push")];
-        if self.everything {
-            arguments.push(OsString::from("--all"));
-        }
-        arguments.push(self.remote.clone());
-        if !self.everything {
-            arguments.extend(self.refs.iter().cloned());
-        }
-        return arguments;
-    }
-}
-
-/// The source side of a refspec, or nothing for a deletion (`:dst`); a leading `+` is dropped.
-fn refspec_source(spec: &OsStr) -> Option<OsString> {
-    let bytes: &[u8] = spec.as_encoded_bytes();
-    let unforced: &[u8] = bytes.strip_prefix(b"+").unwrap_or(bytes);
-    let source: &[u8] = unforced
-        .split(|byte| {
-            return *byte == b':';
-        })
-        .next()
-        .unwrap_or_default();
-    if source.is_empty() {
-        return None;
-    }
-    return Some(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(source.to_vec()));
-}
-
-/// Settings Git reads to pick a push remote and a bare push's refs: `(key, value)` pairs from one configuration read.
-fn settings(query: &mut dyn FnMut(&[&str]) -> Option<String>) -> Vec<(String, String)> {
-    let listing: String = query(&[
-        "config",
-        "--get-regexp",
-        "^(branch\\..*\\.(pushremote|remote)|remote\\.pushdefault|push\\.default)$",
-    ])
-    .unwrap_or_default();
-    return listing
-        .lines()
-        .filter_map(|line| {
-            return line.split_once(' ').map(|(key, value)| {
-                return (key.to_owned(), value.trim().to_owned());
-            });
-        })
-        .collect();
-}
-
-/// The value of a setting, the last one written winning as in Git.
-fn setting<'a>(all: &'a [(String, String)], key: &str) -> Option<&'a str> {
-    return all
-        .iter()
-        .rev()
-        .find(|(name, _)| {
-            return name == key;
-        })
-        .map(|(_, value)| {
-            return value.as_str();
-        });
-}
-
-/// The remote Git pushes to when the caller names none: the branch's push remote, the default push remote, the
-///  branch's remote, then `origin`.
-fn default_remote(branch: Option<&str>, all: &[(String, String)]) -> String {
-    let named = |variable: &str| -> Option<String> {
-        return branch.and_then(|name| {
-            return setting(all, &format!("branch.{name}.{variable}")).map(str::to_owned);
-        });
-    };
-    return named("pushremote")
-        .or_else(|| {
-            return setting(all, "remote.pushdefault").map(str::to_owned);
-        })
-        .or_else(|| {
-            return named("remote");
-        })
-        .unwrap_or_else(|| {
-            return String::from("origin");
-        });
-}
-
-/// What:
-///  The remote a push goes to: the one the caller named, or the one Git picks for a bare push.
-/// Why:
-///   The manual-push probe and the upload plan must agree on the destination, so both read it here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// named ?? defaultRemote(branch, settings)
-/// ```
-pub fn resolve_push_remote(named: Option<OsString>, query: &mut dyn FnMut(&[&str]) -> Option<String>) -> OsString {
-    if let Some(found) = named {
-        return found;
-    }
-    let branch: Option<String> = query(&["symbolic-ref", "--quiet", "--short", "HEAD"]).filter(|name| {
-        return !name.is_empty();
-    });
-    let all: Vec<(String, String)> = settings(query);
-    return OsString::from(default_remote(branch.as_deref(), all.as_slice()));
-}
-
-/// What:
-///  What to upload for a push, or nothing when the push uploads nothing.
-///  `query` runs a read-only Git query and returns its trimmed standard output when it exits with status zero.
-/// Why:
-///   A push that bypasses the upload (`--no-verify`, `GIT_LFS_SKIP_PUSH`, the caller's switch), sends nothing (a dry
-///  run, only deletions) or names no remote and branch Git could resolve uploads nothing; a push that names refs uploads
-///  those refs; a bare push uploads the branch Git would send (`HEAD` when the branch has no name), and a push that
-///  may send any ref uploads everything.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function planUpload(globalPrefix, region, environment, query): UploadPlan | undefined;
-/// ```
-pub fn plan_upload(
-    global_prefix: &[OsString],
-    region: &[OsString],
-    environment: &[(OsString, OsString)],
-    query: &mut dyn FnMut(&[&str]) -> Option<String>,
-) -> Option<UploadPlan> {
-    if hook_switched_off(global_prefix) || skip_requested(environment) {
-        return None;
-    }
-    let region_facts = super::command_push::parse_push_region(region, &[]).ok()?;
-    if region_facts.no_verify || region_facts.dry_run {
-        return None;
-    }
-    let shape = push_shape(region)?;
-    if shape.deletes {
-        return None;
-    }
-    let mut everything: bool = shape.everything;
-    let mut refs: Vec<OsString> = shape
-        .refspecs
-        .iter()
-        .filter_map(|spec| {
-            return refspec_source(spec.as_os_str());
-        })
-        .collect();
-    let mut remote: Option<OsString> = shape.repository.clone();
-    let bare: bool = shape.refspecs.is_empty() && !everything;
-    if remote.is_none() || bare {
-        let branch: Option<String> = query(&["symbolic-ref", "--quiet", "--short", "HEAD"]).filter(|name| {
-            return !name.is_empty();
-        });
-        let all: Vec<(String, String)> = settings(query);
-        if remote.is_none() {
-            remote = Some(OsString::from(default_remote(branch.as_deref(), all.as_slice())));
-        }
-        if bare {
-            if setting(all.as_slice(), "push.default") == Some("matching") {
-                everything = true;
-            } else {
-                refs.push(OsString::from(branch.as_deref().unwrap_or("HEAD")));
-            }
-        }
-    }
-    if refs.is_empty() && !everything {
-        return None;
-    }
-    return Some(UploadPlan { remote: remote?, refs, everything });
-}
 
 /// `PATH` with the directory of the real Git first, so a `git` that `git-lfs` starts is the real Git and never the
 ///  wrapper (Git does the same for the hooks it starts).
@@ -228,9 +50,65 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
 }
 
 /// What:
+///  The variables that carry the global options of a push into a child that reads Git's configuration.
+/// Why:
+///   `-c name=value` becomes `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` after any pairs the environment already holds
+///  (a `-c` without `=` is the boolean true), `--git-dir`, `--work-tree` and `--namespace` become `GIT_DIR`,
+///  `GIT_WORK_TREE` and `GIT_NAMESPACE`; `-C` is the working directory and is applied by the caller.
+///  No shell is involved, and an `-c http.extraHeader=...` or `-c lfs.url=...` reaches `git-lfs` as it reached the
+///  Git that used to run the hook.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function prefixVariables(globalPrefix: string[], environment): [string, string][];
+/// ```
+pub fn prefix_variables(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Vec<(OsString, OsString)> {
+    let mut pairs: Vec<(OsString, OsString)> = Vec::new();
+    let mut variables: Vec<(OsString, OsString)> = Vec::new();
+    let mut tokens = global_prefix.iter();
+    while let Some(token) = tokens.next() {
+        let text: String = token.to_string_lossy().into_owned();
+        if text == "-c" {
+            if let Some(setting) = tokens.next() {
+                let setting_text: String = setting.to_string_lossy().into_owned();
+                let (name, value) = setting_text.split_once('=').unwrap_or((setting_text.as_str(), "true"));
+                pairs.push((OsString::from(name), OsString::from(value)));
+            }
+            continue;
+        }
+        for (option, variable) in [("--git-dir", "GIT_DIR"), ("--work-tree", "GIT_WORK_TREE"), ("--namespace", "GIT_NAMESPACE")] {
+            if text == option {
+                if let Some(value) = tokens.next() {
+                    variables.push((OsString::from(variable), value.clone()));
+                }
+            } else if let Some(value) = text.strip_prefix(format!("{option}=").as_str()) {
+                variables.push((OsString::from(variable), OsString::from(value)));
+            }
+        }
+    }
+    let existing: usize = environment_value(environment, "GIT_CONFIG_COUNT")
+        .and_then(|value| {
+            return value.to_str().and_then(|count| {
+                return count.parse::<usize>().ok();
+            });
+        })
+        .unwrap_or(0);
+    if !pairs.is_empty() {
+        variables.push((OsString::from("GIT_CONFIG_COUNT"), OsString::from((existing + pairs.len()).to_string())));
+    }
+    for (offset, (name, value)) in pairs.into_iter().enumerate() {
+        variables.push((OsString::from(format!("GIT_CONFIG_KEY_{}", existing + offset)), name));
+        variables.push((OsString::from(format!("GIT_CONFIG_VALUE_{}", existing + offset)), value));
+    }
+    return variables;
+}
+
+/// What:
 ///  Run the upload as a child with the caller's streams and return the status to stop with, or nothing when it succeeded.
 /// Why:
 ///   The parent saw the child end, so it prints the explanation after the program's own output; the push is not started.
+///  A signal sent to the wrapper is relayed to the child, so stopping the wrapper stops the upload. A push that also
+///  pushes submodules gets a notice, because their objects are not part of this upload.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -238,55 +116,91 @@ fn path_with_real_git_first(environment: &[(OsString, OsString)], real_git: &Pat
 /// ```
 pub fn run_upload_interactive(
     plan: &UploadPlan,
+    global_prefix: &[OsString],
     directory: &Path,
     real_git: &Path,
     environment: &[(OsString, OsString)],
     overlay: &[(OsString, OsString)],
     diagnostics: &mut dyn std::io::Write,
 ) -> Option<i32> {
-    let mut command: Command = Command::new(LFS_PROGRAM);
+    let Some(program) = find_program(environment_value(environment, "PATH").unwrap_or_default().as_os_str()) else {
+        // Terminal output error: the exit status already carries the refusal.
+        let _written = diagnostics.write_all(missing_program_message().as_bytes());
+        return Some(1);
+    };
+    if plan.submodules {
+        // Terminal output error: the notice is advisory.
+        let _written = diagnostics.write_all(submodule_notice().as_bytes());
+    }
+    let mut command: Command = Command::new(program);
     command
         .current_dir(directory)
         .args(plan.arguments())
         .env("PATH", path_with_real_git_first(environment, real_git));
-    for (name, value) in overlay {
+    for (name, value) in prefix_variables(global_prefix, environment).into_iter().chain(overlay.iter().cloned()) {
         command.env(name, value);
     }
-    let status = match command.status_retrying() {
-        Ok(finished) => finished,
-        Err(_) => {
-            // Terminal output error: the exit status already carries the refusal.
-            let _written = diagnostics.write_all(missing_program_message().as_bytes());
-            return Some(1);
-        }
+    let outcome: std::io::Result<ChildOutcome> = match SignalGuard::install() {
+        Ok(guard) => guard.run_child(&mut command),
+        Err(_) => command.status_retrying().map(outcome_of),
     };
-    if status.success() {
+    let Ok(ended) = outcome else {
+        // Terminal output error: see above.
+        let _written = diagnostics.write_all(missing_program_message().as_bytes());
+        return Some(1);
+    };
+    let code: i32 = exit_code(ended);
+    if code == 0 {
         return None;
     }
-    let outcome: ChildOutcome = outcome_of(status);
-    let description: String = match outcome {
-        ChildOutcome::Exited(code) => format!("exited with status {code}"),
+    let description: String = match ended {
+        ChildOutcome::Exited(status) => format!("exited with status {status}"),
         ChildOutcome::Signaled(signal) => format!("was ended by signal {signal}"),
     };
     // Terminal output error: see above.
     let _written = diagnostics.write_all(failed_message(description.as_str()).as_bytes());
-    let code: i32 = exit_code(outcome);
-    return Some(if code == 0 { 1 } else { code });
+    return Some(code);
+}
+
+/// What:
+///  The notice for a push that also pushes submodules.
+/// Why:
+///   Git pushes a submodule's commits itself; their LFS objects are not uploaded by the wrapper, and the pointer files
+///  would be published without them. Every way forward is named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// 'cli-git: this push also pushes submodules, ...'
+/// ```
+pub fn submodule_notice() -> String {
+    return String::from(
+        "cli-git: this push also pushes submodules (`--recurse-submodules`), and the wrapper uploads Git LFS objects only \\
+         for this repository's own refs. If a submodule uses Git LFS, upload its objects first by running \\
+         `git lfs push --all <remote>` inside it, or push the submodule on its own; otherwise its pointer files are \\
+         published without their objects.\\n",
+    );
 }
 
 /// What:
 ///  Run the upload as a bounded child whose output is captured, and return the failed attempt to stop with, or nothing
 ///  when it succeeded.
 /// Why:
-///   The auto-push records and shows a failed attempt's output; the explanation is part of it. A stop by deadline keeps
-///  its own words, because the program did not exit by itself.
+///   The auto-push records and shows a failed attempt's output; the explanation is part of it. A stop by deadline says
+///  so, and a step the holder's time budget left no time for is not started and says that instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const attempt = await runBoundedPush({ command: gitLfs(plan), deadlineMs }); return attempt.exitCode ? withExplanation(attempt) : undefined;
 /// ```
 pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
-    let mut command: Command = Command::new(LFS_PROGRAM);
+    if super::holder_budget::exhausted() {
+        return Ok(Some(PushAttempt { exit_code: STOPPED_EXIT_CODE, output: budget_spent_message() }));
+    }
+    let Some(program) = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str())
+    else {
+        return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
+    };
+    let mut command: Command = Command::new(program);
     command
         .current_dir(&git.cwd)
         .env_clear()
@@ -317,7 +231,7 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
     return Ok(Some(PushAttempt { exit_code: attempt.exit_code, output }));
 }
 
-/// The plan and the runs are controlled in the test module.
+/// The runs are controlled in the test module.
 #[cfg(test)]
 #[path = "lfs_upload_tests.rs"]
 mod tests;

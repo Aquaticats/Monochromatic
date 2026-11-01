@@ -55,19 +55,48 @@ pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
     });
 }
 
+/// Whether a value of the switch reads as false the way Git reads a boolean (an empty value counts as false).
+fn reads_as_false(value: &str) -> bool {
+    return ["false", "no", "off", "0", ""].iter().any(|spelling| {
+        return value.eq_ignore_ascii_case(spelling);
+    });
+}
+
 /// What:
-///  Whether the global options before `push` switch the upload off for this push.
+///  Whether the caller switched the upload off for this push, with `-c hook.cli-git-lfs-pre-push.enabled=false` among
+///  the global options or the same pair in `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`.
 /// Why:
-///   The caller's `-c hook.cli-git-lfs-pre-push.enabled=false` is a documented way to push without the upload, so a
-///  missing `git-lfs` must not stop such a push; the last such `-c` decides, as Git reads them.
+///   It is a documented way to push without the upload, so a missing `git-lfs` must not stop such a push. The last
+///  setting decides, as Git reads them, and `-c` options come after the environment's pairs. A repository or account
+///  configuration file is not read: that would cost a Git start for every push; use `--no-verify` or
+///  `GIT_LFS_SKIP_PUSH` for a standing choice in the environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// lastEnabledSetting(prefix, `hook.${name}.enabled`) === 'false'
+/// lastEnabledSetting([...envPairs, ...cPairs], `hook.${name}.enabled`) is false
 /// ```
-pub fn hook_switched_off(global_prefix: &[OsString]) -> bool {
-    let key: String = format!("hook.{SWITCH_NAME}.enabled=");
+pub fn hook_switched_off(global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> bool {
+    let key: String = format!("hook.{SWITCH_NAME}.enabled");
     let mut off: bool = false;
+    let count: usize = super::child_environment::environment_value(environment, "GIT_CONFIG_COUNT")
+        .and_then(|value| {
+            return value.to_str().and_then(|text| {
+                return text.parse::<usize>().ok();
+            });
+        })
+        .unwrap_or(0);
+    for index in 0..count {
+        let name_of = |kind: &str| -> Option<OsString> {
+            return super::child_environment::environment_value(environment, &format!("GIT_CONFIG_{kind}_{index}"));
+        };
+        if name_of("KEY").is_some_and(|name| {
+            return name.eq_ignore_ascii_case(key.as_str());
+        }) {
+            off = name_of("VALUE").is_some_and(|value| {
+                return reads_as_false(&value.to_string_lossy());
+            });
+        }
+    }
     let mut tokens = global_prefix.iter();
     while let Some(token) = tokens.next() {
         if token.as_os_str() != "-c" {
@@ -78,35 +107,46 @@ pub fn hook_switched_off(global_prefix: &[OsString]) -> bool {
         }) else {
             continue;
         };
-        if let Some(value) = setting.strip_prefix(key.as_str()) {
-            // Git reads these spellings, and an empty value, as false.
-            off = ["false", "no", "off", "0", ""].iter().any(|spelling| {
-                return value.eq_ignore_ascii_case(spelling);
-            });
+        if let Some(value) = setting.strip_prefix(format!("{key}=").as_str()) {
+            off = reads_as_false(value);
         }
     }
     return off;
 }
 
 /// What:
-///  Whether `git-lfs` is an executable file in one of the directories of a `PATH` value.
+///  The first executable file named `git-lfs` in the directories of a `PATH` value, in order.
 /// Why:
 ///   A stat per directory answers it without starting any process; an empty entry means the current directory, as
-///  `PATH` lookup treats it.
+///  `PATH` lookup treats it. The upload starts exactly this file, so the pre-check and the start agree about which
+///  `git-lfs` runs even though the child's `PATH` leads with the real Git's directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// path.split(':').some((dir) => isExecutableFile(join(dir || '.', 'git-lfs')))
+/// path.split(':').map((dir) => join(dir || '.', 'git-lfs')).find(isExecutableFile)
 /// ```
-pub fn program_on_path(path: &OsStr) -> bool {
+pub fn find_program(path: &OsStr) -> Option<std::path::PathBuf> {
     use std::os::unix::fs::PermissionsExt;
-    return std::env::split_paths(path).any(|directory| {
-        let base: &Path = if directory.as_os_str().is_empty() { Path::new(".") } else { directory.as_path() };
-        return std::fs::metadata(base.join(LFS_PROGRAM))
-            .is_ok_and(|found| {
+    return std::env::split_paths(path)
+        .map(|directory| {
+            let base: &Path = if directory.as_os_str().is_empty() { Path::new(".") } else { directory.as_path() };
+            return base.join(LFS_PROGRAM);
+        })
+        .find(|candidate| {
+            return std::fs::metadata(candidate).is_ok_and(|found| {
                 return found.is_file() && found.permissions().mode() & 0o111 != 0;
             });
-    });
+        });
+}
+
+/// Whether `git-lfs` is an executable file in one of the directories of a `PATH` value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// findProgram(path) !== undefined
+/// ```
+pub fn program_on_path(path: &OsStr) -> bool {
+    return find_program(path).is_some();
 }
 
 /// What:
@@ -117,12 +157,12 @@ pub fn program_on_path(path: &OsStr) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ['1', 'true', 'yes', 'on'].includes(env.GIT_LFS_SKIP_PUSH?.toLowerCase())
+/// ['1', 't', 'true', 'y', 'yes', 'on'].includes(env.GIT_LFS_SKIP_PUSH?.toLowerCase())
 /// ```
 pub fn skip_requested(environment: &[(std::ffi::OsString, std::ffi::OsString)]) -> bool {
     return super::child_environment::environment_value(environment, "GIT_LFS_SKIP_PUSH").is_some_and(|value| {
         let text: String = value.to_string_lossy().to_ascii_lowercase();
-        return ["1", "true", "yes", "on"].contains(&text.as_str());
+        return ["1", "t", "true", "y", "yes", "on"].contains(&text.as_str());
     });
 }
 
