@@ -780,6 +780,24 @@ The shared 5-second bound on one wrapped command is deliberate;
 its measurements and the evidence needed to change it are in
 [the troubleshooting note](../../../doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md).
 
+### Flushing the migrated pack
+
+Before the compare-and-swap, a commit's new objects reach the real object store as one pack, written by
+`git index-pack --stdin --keep=...` (see "Object migration" in `SPEC.md`).
+That one child runs with `-c core.fsync=-pack,-pack-metadata`, which takes the pack and its index and reverse index out
+of the files Git flushes: the child makes no `fsync` call, where it made three by default
+(`src/native/binary_budget_tests.rs`, `src/native/binary_index_pack_fsync_tests.rs`).
+The setting comes after the invocation's own `-c` options on that child's command line, so it replaces a `core.fsync`
+you configured, for the migration `index-pack` only; every other Git child of the wrapper keeps your configuration.
+
+The cost is durability.
+After a power loss on a filesystem that does not write file data before the later flush of `landing-<n>.json`
+(XFS and btrfs make no such promise; ext4 in `data=ordered` mode does), the branch could name a commit whose pack is
+missing, and recovery would not notice.
+Direct Git has the same exposure for its loose objects under its default `core.fsync`.
+The repository owner accepted this risk on purpose: "Real gain real risk. We're high rollers."
+The measurement behind the choice is in `doc/handover/wrapper-sync-attribution.md` (item 4).
+
 ## State on disk
 
 The wrapper keeps its state beside the repository's Git data under `cli-git*` paths in the common Git directory.

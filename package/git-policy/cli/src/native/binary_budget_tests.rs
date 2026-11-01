@@ -72,7 +72,7 @@ const NO_HOOKS: Budget = Budget {
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
     wrapper_syncs: 33,
-    git_syncs: &[("index-pack", 3)],
+    git_syncs: &[("index-pack", 0)],
 };
 
 /// A commit with one hook defined in the configuration (`hook.early.event` and `hook.early.command`):
@@ -107,7 +107,7 @@ const ONE_CONFIG_HOOK: Budget = Budget {
     ],
     other_starts: &[("findmnt", 0), ("sh", 1), ("stat", 0)],
     wrapper_syncs: 37,
-    git_syncs: &[("index-pack", 3)],
+    git_syncs: &[("index-pack", 0)],
 };
 
 /// An amending commit with no hooks.
@@ -141,7 +141,7 @@ const AMEND: Budget = Budget {
     ],
     other_starts: &[("findmnt", 0), ("sh", 0), ("stat", 0)],
     wrapper_syncs: 33,
-    git_syncs: &[("index-pack", 3)],
+    git_syncs: &[("index-pack", 0)],
 };
 //endregion
 

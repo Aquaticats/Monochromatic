@@ -2068,7 +2068,7 @@ into the real object store:
 
 ```text
 git --git-dir=<shadow> pack-objects --revs --local --stdout --quiet
-  | git index-pack --stdin --keep=<keep message>
+  | git -c core.fsync=-pack,-pack-metadata index-pack --stdin --keep=<keep message>
 ```
 
 - `pack-objects` reads `<new>` and,
@@ -2093,6 +2093,12 @@ git --git-dir=<shadow> pack-objects --revs --local --stdout --quiet
   which `landing-<n>.json` records.
 - The keep message is `cli-git <transaction-id>`,
   so recovery finds a `.keep` even when a crash preceded `landing-<n>.json`.
+- `-c core.fsync=-pack,-pack-metadata` is given to this one `index-pack` only,
+  after the invocation's own `-c` options,
+  so it replaces a `core.fsync` the user configured for that child
+  and the child makes no `fsync` call.
+  The pack could then be lost in a power failure that preserves the later `landing-<n>.json`;
+  the repository owner accepted that risk.
 
 The `.keep` is removed once `ref-updated.json` is written,
 after a failed compare-and-swap,

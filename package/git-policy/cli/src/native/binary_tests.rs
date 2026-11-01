@@ -123,6 +123,10 @@ mod budget_trace;
 #[path = "binary_budget_tests.rs"]
 mod budget;
 
+/// The migration's `index-pack` runs with the `core.fsync` override that removes its pack flushes, and no other child does.
+#[path = "binary_index_pack_fsync_tests.rs"]
+mod index_pack_fsync;
+
 /// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
 #[path = "binary_known_content_tests.rs"]
 mod known_content;
