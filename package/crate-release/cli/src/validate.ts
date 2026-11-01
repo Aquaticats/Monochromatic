@@ -381,7 +381,8 @@ export function parseWorkflowName({
 
  @returns the value unchanged
 
- @throws CrateReleaseError when the value is not exactly two plain parts separated by one slash
+ @throws CrateReleaseError when the value is not exactly two plain parts separated by one slash, or a part is `.` or
+ `..`, which would leave the endpoint the repository is written into
 
  @example
  ```ts
@@ -400,11 +401,14 @@ export function parseRepository({
     return usesOnly({
       text: part,
       allowed: repositoryPartCharacters
-    }) && (!part.startsWith('-'));
+    })
+      && (!part.startsWith('-'))
+      && (part !== '.')
+      && (part !== '..');
   })))
     throw refusal({
       option,
-      expectation: 'a repository such as owner/name',
+      expectation: 'a repository such as owner/name, whose parts are not . or ..',
       value
     });
   return value;
