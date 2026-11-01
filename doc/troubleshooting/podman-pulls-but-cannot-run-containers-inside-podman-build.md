@@ -1,4 +1,4 @@
-# Podman inside an unprivileged `podman build`: pulling an image works with a single ID mapping, running a container does not (2026-11-01)
+# Podman in an unprivileged `podman build` pulls an image with a single ID mapping but cannot run a container
 
 The repository `Dockerfile` ended with `RUN mise run prepare`,
 which runs `prepare:playwright`,
@@ -84,9 +84,9 @@ Pull works:
 Pull fails:
 
 - `root:100000:65536` without `uidmap`:
-  the first error above.
+  the `newuidmap: executable file not found` error of the Symptom section.
 - `root:100000:65536` with `uidmap`:
-  the second error above.
+  the `newuidmap: write to uid_map failed` error of the Symptom section.
 - Empty `/etc/subuid` and `/etc/subgid` without `ignore_chown_errors`,
   pulling the same Playwright image:
   the layer that holds `/etc/gshadow` (group 42) fails with
