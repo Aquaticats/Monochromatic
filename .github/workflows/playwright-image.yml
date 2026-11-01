@@ -39,12 +39,16 @@ concurrency:
 
 jobs:
   publish:
+    name: Publish the Playwright image
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      # Reads this repository to check out playwright.Dockerfile.
       contents: read
-      packages: write
+      # Pushes the image to ghcr.io/aquaticats/monochromatic-playwright with the workflow's own token. The package is
+      # linked to this repository by the org.opencontainers.image.source label, so no other credential is involved.
+      packages: write # Pushes the image with the workflow's token
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
