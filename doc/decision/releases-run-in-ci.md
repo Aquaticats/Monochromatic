@@ -146,6 +146,12 @@ and settles a refusal for a moved branch as follows.
   and the manifest and lockfile of each workspace root.
   The closure is read from the checkout the check and the dry run built,
   not guessed from directory names.
+  Run for the registered crates on 2026-11-01,
+  `cargo metadata --locked` answered in well under a second for each manifest,
+  and for `forbidden-strings` the path dependencies it listed were
+  `package/forbidden-strings/core`,
+  `package/git-policy/cli` and `package/jsonc-edit/core-rust`,
+  none of them a directory of the crate itself.
 - On a refusal it reads the new head with the reference endpoint and compares the checkout base with it through the
   compare endpoint.
   A changed path counts when it is a watched file,
