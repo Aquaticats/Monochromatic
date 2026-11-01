@@ -6857,3 +6857,45 @@ This block supersedes "State at 2026-10-29 (night, later)".
   --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
   in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
   the search guard because it stalls the disk for every session.
+
+## 2026-11-01: subvolume migration procedure (proven on a throwaway)
+
+Owner decision: the main checkout `/var/home/user/Monochromatic` becomes a btrfs subvolume.
+The procedure is `migrate.ts` in `/var/home/user/temp/agent/subvol-migrate/` (README beside it has every number).
+It was proven only on reflink copies of a clone under `/var/home/user/subvol-migration-probe-20261101` (deleted after);
+the real checkout, its `.git`, its worktrees and the commit service were not touched.
+
+- Can `.git` stay where it is behind a symlink in the new root?
+  No.
+  Real Git derives the main worktree from the real path of the common directory with the suffix `/.git` stripped
+  (`worktree.c` lines 119 to 120, Git 2.56.0), and a symlinked `.git` made `git worktree list` print the store
+  directory as the main worktree and `git rev-parse --absolute-git-dir` print the store path.
+  A symlinked `.claude/worktrees` made `git worktree add` record `main.worktrees/wt2` instead of the path given.
+  So `.git` and the linked worktrees must be physically inside the new subvolume, which means a reflink copy.
+- Procedure: new subvolume beside the root, nested subvolumes for the linked worktrees inside the root, a reflink
+  `cp`, `rsync --archive --delete` deltas, then under `.git/index.lock` a last delta and `mv --exchange` (atomic),
+  then an `rsync --update` catch-up and a rewrite of the Git index stat fields.
+- Without the index rewrite the first `git status` in the new root took 22.1 s (new inodes and change times make every
+  entry stat-dirty, so every file is hashed with the LFS clean filter); with it 0.17 s.
+  The index rewrite is part of the script; skip it with `--no-refresh-indexes`.
+- Measured at the bounds `IOWeight=10`, `CPUQuota=200%`, `MemoryMax=2G`, `TasksMax=64`, load 11 to 27:
+  68149 entries took copy 8.46 s, three `rsync` passes of about 2.4 s each, exchange under 0.01 s.
+  `btrfs filesystem du` of the new root: exclusive 0.00 B, shared 2.89 GiB; root inode 256; nested worktrees inode 256.
+  One real worktree (`integ`, read only source, 22921 entries) copied in 1.94 s.
+  Extrapolation for at least 2 million entries (86 trees of about 22.9 thousand): 5 to 8 minutes, the last
+  `rsync` pass under the lock 1 to 2.5 minutes; the real entry count was not walked.
+- Running processes: a process whose working directory is in the old tree keeps writing into
+  `<root>.before-subvolume` (proven with a loop that wrote 60 there while the new root stopped at 26).
+  Restart sessions after the exchange.
+  `cli-git.service` has working directory `/var/home/user` and no descriptor under the checkout (read only check),
+  so it needs no restart when `pending` and `claimed` are empty.
+- Crash and rollback: SIGKILL after the copy, with the lock held before the exchange, and between the exchange and the
+  rename; each `--resume` ended with inode 256 and a clean `git status`; `--rollback` restored the original tree and
+  kept a file written to the new root.
+- Exact command line (dry run first; the dry run never walks the tree):
+  `node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic`, then
+  `systemd-run --user --scope --property=IOWeight=10 --property=CPUQuota=200% --property=MemoryMax=2G
+  --property=TasksMax=64 node /var/home/user/temp/agent/subvol-migrate/migrate.ts --root /var/home/user/Monochromatic
+  --apply`.
+- Not proven: a wrapped (`cli-git`) commit after the migration, because it would go through the production commit
+  service; plain Git commits from the main checkout and from a linked worktree worked.
