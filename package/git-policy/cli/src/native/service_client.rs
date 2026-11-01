@@ -4,8 +4,9 @@
 //!  every failure into the plain text of `service_messages.rs`.
 //! Why:
 //!  A failure the system can resolve is resolved here without the user: a service that is starting is waited for, one
-//!  that crashed is reconnected to with the same request identity, one that is older than this wrapper is asked to retire
-//!  and is reached again once the manager has started the new one. Only what cannot be resolved ends the command.
+//!  that crashed is reconnected to with the same request identity, one that was started from another release of the
+//!  wrapper (older or newer, found by the release its welcome names) is asked to retire and is reached again once the
+//!  manager has started the current one. Only what cannot be resolved ends the command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -14,7 +15,7 @@
 
 use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING_NOTICE, position_notice};
 use super::service_protocol::{
-    ClientMessage, CommitRequest, FailureCode, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client,
+    ClientMessage, CommitRequest, FailureCode, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_service, encode_client,
 };
 use super::service_review_key::ReviewKey;
 use super::service_server::Bind;
@@ -33,9 +34,6 @@ pub const COMMIT_WAIT: Duration = Duration::from_secs(10 * 60);
 
 /// How many times a request is sent again after the connection broke before the client says it cannot be sure.
 pub const RECONNECTS: usize = 5;
-
-/// How many times the client asks an older service to retire.
-pub const REPLACEMENTS: usize = 2;
 
 /// The pause between connection tries while the service starts.
 const CONNECT_PAUSE: Duration = Duration::from_millis(25);
@@ -105,16 +103,16 @@ fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
 /// ```ts
 /// const { stream, version } = await reach(config, notices)
 /// ```
-fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<(BufReader<UnixStream>, u32), ClientFailure> {
+fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let started: Instant = Instant::now();
     loop {
         match connect(&config.address) {
             Ok(stream) => {
                 let _timeout = stream.set_read_timeout(Some(config.start_wait));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
-                if let Some(ServiceMessage::Welcome { version }) = read_message(&mut reader) {
+                if let Some(ServiceMessage::Welcome { version, release }) = read_message(&mut reader) {
                     let _widened = reader.get_ref().set_read_timeout(Some(config.commit_wait));
-                    return Ok((reader, version));
+                    return Ok((reader, version, release));
                 }
             }
             Err(_) => match config.activation {
@@ -130,6 +128,45 @@ fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -
             let _written = writeln!(notices, "{STARTING_NOTICE}");
         }
         std::thread::sleep(CONNECT_PAUSE);
+    }
+}
+
+/// What:
+///  Reaches a service that speaks this wrapper's protocol and was started from this wrapper's release, asking any other to
+///  retire first.
+/// Why:
+///   The manager keeps its socket across an upgrade or a downgrade, so a service from the other release may answer: one
+///  whose program was since removed, or one that behaves as the other release did. It is asked to finish its batch and
+///  exit, and the next connection makes the manager start the program the rewritten unit names. The asking is bounded by
+///  the start wait from the first ask (the same wait the manager's start gets), because the retiring service still accepts connections until it has exited, and
+///  each connection it accepts in that time is asked again. A service of a newer protocol cannot be asked (it refuses a
+///  message it cannot read as its own), so that ends the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reader = await reachCurrent(config, notices, announced)
+/// ```
+fn reach_current(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<BufReader<UnixStream>, ClientFailure> {
+    let mut give_up_at: Option<Instant> = None;
+    loop {
+        let (mut reader, version, release) = reach(config, notices, announced)?;
+        if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
+            return Ok(reader);
+        }
+        if version > PROTOCOL_VERSION {
+            return Err(ClientFailure::NoCommonVersion);
+        }
+        let deadline: Instant = *give_up_at.get_or_insert_with(|| {
+            let _written = writeln!(notices, "{UPDATING_NOTICE}");
+            return Instant::now() + config.start_wait;
+        });
+        if Instant::now() >= deadline {
+            return Err(ClientFailure::OtherRelease);
+        }
+        let mut retire: String = encode_client(&ClientMessage::Retire);
+        retire.push('\n');
+        let _sent = reader.get_mut().write_all(retire.as_bytes());
+        std::thread::sleep(CONNECT_PAUSE * 4);
     }
 }
 
@@ -164,27 +201,13 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let waiting_since: Instant = Instant::now();
     let mut announced: bool = false;
-    let mut replacements: usize = 0;
     let mut breaks: usize = 0;
     let mut last_position: Option<usize> = None;
     loop {
         if waiting_since.elapsed() >= config.commit_wait {
             return Err(ClientFailure::WaitedTooLong { minutes: config.commit_wait.as_secs() / 60 });
         }
-        let (mut reader, version) = reach(config, notices, &mut announced)?;
-        if version != PROTOCOL_VERSION {
-            // An older service is asked to finish and exit; the manager starts the current one for the next connection.
-            if version > PROTOCOL_VERSION || replacements >= REPLACEMENTS {
-                return Err(ClientFailure::NoCommonVersion);
-            }
-            replacements += 1;
-            let _written = writeln!(notices, "{UPDATING_NOTICE}");
-            let mut retire: String = encode_client(&ClientMessage::Retire);
-            retire.push('\n');
-            let _sent = reader.get_mut().write_all(retire.as_bytes());
-            std::thread::sleep(CONNECT_PAUSE * 4);
-            continue;
-        }
+        let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced)?;
         let mut payload: String = line.clone();
         payload.push('\n');
         if reader.get_mut().write_all(payload.as_bytes()).is_err() {
@@ -235,25 +258,11 @@ pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, review_key: Opt
     let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
-    let mut replacements: usize = 0;
-    loop {
-        let (mut reader, version) = reach(config, notices, &mut announced)?;
-        if version != PROTOCOL_VERSION {
-            if version > PROTOCOL_VERSION || replacements >= REPLACEMENTS {
-                return Err(ClientFailure::NoCommonVersion);
-            }
-            replacements += 1;
-            let mut retire: String = encode_client(&ClientMessage::Retire);
-            retire.push('\n');
-            let _sent = reader.get_mut().write_all(retire.as_bytes());
-            std::thread::sleep(CONNECT_PAUSE * 4);
-            continue;
-        }
-        if reader.get_mut().write_all(line.as_bytes()).is_err() {
-            return Err(ClientFailure::Unavailable);
-        }
-        // The service closes the connection after it has read the line.
-        while read_message(&mut reader).is_some() {}
-        return Ok(());
+    let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced)?;
+    if reader.get_mut().write_all(line.as_bytes()).is_err() {
+        return Err(ClientFailure::Unavailable);
     }
+    // The service closes the connection after it has read the line.
+    while read_message(&mut reader).is_some() {}
+    return Ok(());
 }

@@ -345,7 +345,7 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
         }
     });
     let (stream, _) = old.accept().expect("the client connects to the old service");
-    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION - 1 });
+    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION - 1, release: None });
     greeting.push('\n');
     (&stream).write_all(greeting.as_bytes()).expect("greet");
     let mut asked = String::new();
@@ -361,6 +361,52 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
     remove_settled(&fixture);
 }
 
+/// A service of another release that goes on answering after it was asked to retire ends the command in plain words,
+///  within the start wait and not after it, with the command that restarts the service; nothing is sent to it but the request
+///  to retire.
+#[test]
+fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
+    let fixture: Fixture = fixture("service-stubborn");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "stubborn");
+    let sent: CommitRequest = request(&fixture, &repo, "stubborn-1", "t.txt", "t\n");
+    let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let stubborn: UnixListener = UnixListener::bind_addr(&socket).expect("bind");
+    stubborn.set_nonblocking(true).expect("non-blocking");
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let acceptor = std::thread::spawn({
+        let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+        move || {
+            let mut asked: Vec<String> = Vec::new();
+            let mut held: Vec<UnixStream> = Vec::new();
+            while !finished.load(std::sync::atomic::Ordering::SeqCst) {
+                let Ok((stream, _)) = stubborn.accept() else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                stream.set_nonblocking(false).expect("blocking");
+                let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from("0.0.1-earlier")) });
+                greeting.push('\n');
+                let _sent = (&stream).write_all(greeting.as_bytes());
+                let mut line: String = String::new();
+                let _read = BufReader::new(&stream).read_line(&mut line);
+                asked.push(line.trim_end().to_string());
+                held.push(stream);
+            }
+            return asked;
+        }
+    });
+    let impatient: ClientConfig = ClientConfig { start_wait: Duration::from_millis(400), ..config(name.as_str()) };
+    let began: Instant = Instant::now();
+    assert_eq!(submit_quietly(&impatient, &sent), Err(ClientFailure::OtherRelease));
+    assert!(began.elapsed() < Duration::from_secs(5), "bounded by the start wait: {:?}", began.elapsed());
+    finished.store(true, std::sync::atomic::Ordering::SeqCst);
+    let asked: Vec<String> = acceptor.join().expect("acceptor");
+    assert!(!asked.is_empty() && asked.iter().all(|line| { return *line == encode_client(&ClientMessage::Retire); }), "{asked:?}");
+    git(&fixture, &repo, &["status", "--short"]);
+    remove_settled(&fixture);
+}
+
 /// A service newer than the wrapper cannot be talked to, and the user is told what to do, in plain words.
 #[test]
 fn a_newer_service_leaves_the_user_a_plain_instruction() {
@@ -372,7 +418,7 @@ fn a_newer_service_leaves_the_user_a_plain_instruction() {
     let future: UnixListener = UnixListener::bind_addr(&socket).expect("bind");
     let acceptor = std::thread::spawn(move || {
         if let Ok((stream, _)) = future.accept() {
-            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION + 1 });
+            let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION + 1, release: Some(String::from(git_policy_cli::service_protocol::RELEASE)) });
             greeting.push('\n');
             let _sent = (&stream).write_all(greeting.as_bytes());
             std::thread::sleep(Duration::from_millis(200));

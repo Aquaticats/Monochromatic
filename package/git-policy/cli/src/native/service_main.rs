@@ -4,10 +4,11 @@
 //!  A separate program, never started by the wrapper: the operating system starts it on demand and hands it the
 //!  listening socket (socket activation). Development and test runs name an address instead.
 //!  Options: `--journal <directory>` (required), `--git <path>` (default `/usr/bin/git`), and one of
-//!  `--abstract <name>` or `--path <socket>`; with neither, the socket comes from the service manager.
+//!  `--abstract <name>` or `--path <socket>`; with neither, the socket comes from the service manager. Test runs may also
+//!  give `--idle-seconds <n>` and `--release <text>` (the release announced to clients; default this build's).
 
 use git_policy_cli::service_land::LandContext;
-use git_policy_cli::service_server::{Bind, IDLE_EXIT, bind, serve};
+use git_policy_cli::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
 use git_policy_cli::transaction_git::GitContext;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -47,6 +48,10 @@ fn main() {
     let idle: Duration = option(&arguments, "--idle-seconds")
         .and_then(|text| { return text.parse::<u64>().ok(); })
         .map_or(IDLE_EXIT, Duration::from_secs);
+    let mut settings: ServeSettings = ServeSettings::new(idle);
+    if let Some(release) = option(&arguments, "--release") {
+        settings.release = release;
+    }
     eprintln!("cli-git-service: ready");
-    serve(listener, &context, idle);
+    serve(listener, &context, &settings);
 }

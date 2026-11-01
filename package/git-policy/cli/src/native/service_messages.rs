@@ -20,6 +20,9 @@ pub const LOG_COMMAND: &str = "journalctl --user --unit cli-git.service";
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
+/// The command that restarts the commit service, so the manager starts the one the installed units name (Linux with systemd).
+pub const RESTART_COMMAND: &str = "systemctl --user restart cli-git.service";
+
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 
@@ -71,6 +74,8 @@ pub enum ClientFailure {
     MayNotHaveLanded,
     /// The installed service speaks no protocol this wrapper speaks, after a replacement attempt.
     NoCommonVersion,
+    /// A service started from another release of the wrapper is still running after it was asked to exit.
+    OtherRelease,
     /// The repository has no room left.
     RepositoryFull(String),
     /// The repository cannot be written.
@@ -133,6 +138,10 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::NoCommonVersion => format!(
             "This git is older than the installed commit service and cannot work with it, so this commit was not made. \
              Update the git wrapper with the tool that installed it, and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::OtherRelease => format!(
+            "The commit service that is running was started from another release of this git wrapper and did not stop when \
+             asked, so this commit was not made. Restart it with `{RESTART_COMMAND}`, and run the commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
             "There is no space left for {path}, so this commit was not made. Free some space and run the commit again. \

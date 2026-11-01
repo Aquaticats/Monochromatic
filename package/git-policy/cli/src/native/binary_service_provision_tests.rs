@@ -9,10 +9,10 @@
 //!  to start the socket, as the manager's socket activation would.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::service_commit::{Running, start_in};
+use super::service_commit::{Running, start_in, start_in_release};
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
-use git_policy_cli::service_messages::LINGER_COMMAND;
+use git_policy_cli::service_messages::{LINGER_COMMAND, UPDATING_NOTICE};
 use git_policy_cli::service_provision::{OWN_MARKERS, SERVICE_UNIT_NAME, SOCKET_UNIT_NAME};
 use git_policy_cli::service_route::SOCKET_RELATIVE;
 use std::ffi::OsStr;
@@ -79,62 +79,79 @@ fn return_for(serial: u32) -> Vec<u8> {
     return message;
 }
 
-/// A stand-in for the session bus: it authenticates (or refuses), answers every call, and when asked to start a unit it
-///  runs `on_start`, as the manager's socket activation would. It returns the names of the methods it was asked for.
-fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<String>> {
-    let listener: UnixListener = UnixListener::bind(runtime.join("bus")).expect("the bus socket");
-    return std::thread::spawn(move || {
-        let mut asked: Vec<String> = Vec::new();
-        let Ok((mut stream, _)) = listener.accept() else { return asked };
-        let mut one: [u8; 1] = [0];
-        let mut line: Vec<u8> = Vec::new();
-        while !line.ends_with(b"\r\n") {
-            if stream.read_exact(&mut one).is_err() {
-                return asked;
-            }
-            line.push(one[0]);
-        }
-        if refuse {
-            let _sent = stream.write_all(b"REJECTED EXTERNAL\r\n");
+/// One connection to the stand-in bus: it authenticates (or refuses) and answers every call, and when asked to start a
+///  unit it runs the starter if one is left. It returns the names of the methods it was asked for.
+fn serve_connection(mut stream: std::os::unix::net::UnixStream, refuse: bool, on_start: &mut Option<Box<dyn FnOnce() + Send>>) -> Vec<String> {
+    let mut asked: Vec<String> = Vec::new();
+    let mut one: [u8; 1] = [0];
+    let mut line: Vec<u8> = Vec::new();
+    while !line.ends_with(b"\r\n") {
+        if stream.read_exact(&mut one).is_err() {
             return asked;
         }
-        let _sent = stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n");
-        let mut begin: Vec<u8> = Vec::new();
-        while !begin.ends_with(b"\r\n") {
-            if stream.read_exact(&mut one).is_err() {
-                return asked;
-            }
-            begin.push(one[0]);
+        line.push(one[0]);
+    }
+    if refuse {
+        let _sent = stream.write_all(b"REJECTED EXTERNAL\r\n");
+        return asked;
+    }
+    let _sent = stream.write_all(b"OK 00112233445566778899aabbccddeeff\r\n");
+    let mut begin: Vec<u8> = Vec::new();
+    while !begin.ends_with(b"\r\n") {
+        if stream.read_exact(&mut one).is_err() {
+            return asked;
         }
+        begin.push(one[0]);
+    }
+    loop {
+        let mut header: Vec<u8> = vec![0; 16];
+        if stream.read_exact(&mut header).is_err() {
+            return asked;
+        }
+        let body: usize = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
+        let fields: usize = u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
+        let serial: u32 = u32::from_le_bytes([header[8], header[9], header[10], header[11]]);
+        let mut rest: Vec<u8> = vec![0; (16 + fields).div_ceil(8) * 8 + body - 16];
+        if stream.read_exact(&mut rest).is_err() {
+            return asked;
+        }
+        header.extend(rest);
+        let member: &str = ["Hello", "Reload", "ResetFailedUnit", "StartUnit"]
+            .into_iter()
+            .find(|name| { return header.windows(name.len()).any(|window| { return window == name.as_bytes(); }); })
+            .unwrap_or("Unknown");
+        asked.push(member.to_string());
+        if member == "StartUnit"
+            && let Some(start) = on_start.take()
+        {
+            start();
+        }
+        if stream.write_all(&return_for(serial)).is_err() {
+            return asked;
+        }
+    }
+}
+
+/// A stand-in for the session bus that serves `connections` wrapper connections one after another, as the manager's bus
+///  would serve several commits, and returns the methods each was asked for, in the order the connections came. The starter
+///  runs at the first start of a unit, as the manager's socket activation would.
+fn fake_bus_many(runtime: &Path, refuse: bool, connections: usize, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<Vec<String>>> {
+    let listener: UnixListener = UnixListener::bind(runtime.join("bus")).expect("the bus socket");
+    return std::thread::spawn(move || {
         let mut on_start: Option<Box<dyn FnOnce() + Send>> = Some(starter);
-        loop {
-            let mut header: Vec<u8> = vec![0; 16];
-            if stream.read_exact(&mut header).is_err() {
-                return asked;
-            }
-            let body: usize = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
-            let fields: usize = u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
-            let serial: u32 = u32::from_le_bytes([header[8], header[9], header[10], header[11]]);
-            let mut rest: Vec<u8> = vec![0; (16 + fields).div_ceil(8) * 8 + body - 16];
-            if stream.read_exact(&mut rest).is_err() {
-                return asked;
-            }
-            header.extend(rest);
-            let member: &str = ["Hello", "Reload", "StartUnit"]
-                .into_iter()
-                .find(|name| { return header.windows(name.len()).any(|window| { return window == name.as_bytes(); }); })
-                .unwrap_or("Unknown");
-            asked.push(member.to_string());
-            if member == "StartUnit"
-                && let Some(start) = on_start.take()
-            {
-                start();
-            }
-            if stream.write_all(&return_for(serial)).is_err() {
-                return asked;
-            }
+        let mut all: Vec<Vec<String>> = Vec::new();
+        for _ in 0..connections {
+            let Ok((stream, _)) = listener.accept() else { return all };
+            all.push(serve_connection(stream, refuse, &mut on_start));
         }
+        return all;
     });
+}
+
+/// A stand-in for the session bus for one wrapper connection: the methods it was asked for.
+fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<String>> {
+    let many = fake_bus_many(runtime, refuse, 1, starter);
+    return std::thread::spawn(move || { return many.join().expect("bus").into_iter().flatten().collect(); });
 }
 
 /// Starts the real service at the socket the wrapper looks for, the way socket activation would, and keeps it alive.
@@ -197,6 +214,103 @@ fn the_first_commit_provisions_and_the_second_does_not() {
     // The stand-in's connection ends with the wrapper's; it saw one hello and one start (a new unit file needs no reload).
     assert_eq!(bus.join().expect("bus"), vec!["Hello", "StartUnit"]);
     keep.lock().expect("lock").clear();
+    finish(&fixture, runtime.as_path());
+}
+
+/// What an upgrade leaves behind, rebuilt: the units a release installed, naming a program that was removed when the next
+///  release was installed. The text is the installed service unit with its program path replaced.
+const REMOVED_PROGRAM: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bin/cli-git-service";
+
+fn point_unit_at_removed_program(runtime: &Path, fixture: &Fixture) {
+    let unit: PathBuf = runtime.join("systemd/user").join(SERVICE_UNIT_NAME);
+    let text: String = std::fs::read_to_string(&unit).expect("service unit");
+    let program: String = fixture.root.join("wrapper/cli-git-service").display().to_string();
+    assert!(text.contains(program.as_str()), "{text}");
+    std::fs::write(&unit, text.replace(program.as_str(), REMOVED_PROGRAM)).expect("older unit");
+}
+
+/// An upgrade removes the program the installed service unit names, while the manager's socket stays. The next commit
+///  finds the unit differs from what the wrapper would write, rewrites it, has the manager reload, clears failed state, and
+///  starts the socket, and the commit lands without the person doing anything. The bus is asked for those and nothing else.
+#[test]
+fn a_unit_naming_a_removed_program_heals_on_the_next_commit() {
+    let (fixture, repo, runtime) = prepared("provision-heal");
+    let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
+    let bus = fake_bus_many(runtime.as_path(), false, 2, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let first: Output = commit(&fixture, &repo, runtime.as_path(), true);
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    point_unit_at_removed_program(runtime.as_path(), &fixture);
+    std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
+    let second: Output = commit(&fixture, &repo, runtime.as_path(), true);
+    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    assert_eq!(finished_batches(&fixture), 2, "both commits landed through the service");
+    let unit: String = std::fs::read_to_string(runtime.join("systemd/user").join(SERVICE_UNIT_NAME)).expect("service unit");
+    assert!(!unit.contains(REMOVED_PROGRAM), "the unit names the program that exists: {unit}");
+    assert!(unit.contains(&fixture.root.join("wrapper/cli-git-service").display().to_string()), "{unit}");
+    assert_eq!(
+        bus.join().expect("bus"),
+        vec![
+            vec!["Hello", "StartUnit"],
+            vec!["Hello", "Reload", "ResetFailedUnit", "ResetFailedUnit", "StartUnit"],
+        ]
+    );
+    keep.lock().expect("lock").clear();
+    finish(&fixture, runtime.as_path());
+}
+
+/// When the installed units are what the wrapper would write and the socket is there, a commit rewrites nothing, reloads
+///  nothing and does not connect to the bus at all: the stand-in saw one connection, the first commit's.
+#[test]
+fn matching_units_cost_no_rewrite_no_reload_and_no_bus_call() {
+    let (fixture, repo, runtime) = prepared("provision-fast");
+    let keep: Arc<Mutex<Vec<Running>>> = Arc::new(Mutex::new(Vec::new()));
+    let bus = fake_bus_many(runtime.as_path(), false, 1, activation(fixture.root.clone(), runtime.clone(), Arc::clone(&keep)));
+    let first: Output = commit(&fixture, &repo, runtime.as_path(), true);
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    let units: PathBuf = runtime.join("systemd/user");
+    let stamps = |names: [&str; 2]| -> Vec<std::time::SystemTime> {
+        return names.map(|name| { return std::fs::metadata(units.join(name)).expect("unit").modified().expect("time"); }).to_vec();
+    };
+    let before = stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]);
+    for round in 0..3 {
+        std::fs::write(repo.join("a.txt"), format!("base\nmore\nround {round}\n")).expect("edit again");
+        let next: Output = commit(&fixture, &repo, runtime.as_path(), true);
+        assert!(next.status.success(), "{}", String::from_utf8_lossy(&next.stderr));
+    }
+    assert_eq!(finished_batches(&fixture), 4);
+    assert_eq!(stamps([SOCKET_UNIT_NAME, SERVICE_UNIT_NAME]), before, "no unit was rewritten");
+    // Had a later commit connected, the stand-in would have been asked again, or the connection refused.
+    assert_eq!(bus.join().expect("bus"), vec![vec!["Hello", "StartUnit"]]);
+    keep.lock().expect("lock").clear();
+    finish(&fixture, runtime.as_path());
+}
+
+/// A service that is running from another release (here one left from before an upgrade, with its socket in place) is never
+///  the one that serves this wrapper's commit: the wrapper asks it to retire, the next connection reaches the current
+///  release, and the commit lands there, with the one notice and nothing else for the person to do.
+#[test]
+fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
+    let (fixture, repo, runtime) = prepared("provision-retire");
+    let old: Running = start_in_release(fixture.root.as_path(), runtime.as_path(), Some("0.0.1-earlier"));
+    // The manager starts the next service on the socket when the old one has gone; the test plays that part.
+    let replacement = std::thread::spawn({
+        let root: PathBuf = fixture.root.clone();
+        let runtime: PathBuf = runtime.clone();
+        move || {
+            let mut old: Running = old;
+            let status = old.wait().expect("the old service exits when asked");
+            std::fs::remove_file(runtime.join(SOCKET_RELATIVE)).expect("the old socket goes");
+            return (status, start_in(root.as_path(), runtime.as_path()));
+        }
+    });
+    let output: Output = commit(&fixture, &repo, runtime.as_path(), false);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let (status, current) = replacement.join().expect("replacement");
+    assert!(status.success(), "the old service retired by itself: {status:?}");
+    assert!(String::from_utf8_lossy(&output.stderr).contains(UPDATING_NOTICE), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(subject(&fixture, &repo), "subject");
+    assert_eq!(finished_batches(&fixture), 1, "the current service landed it");
+    drop(current);
     finish(&fixture, runtime.as_path());
 }
 

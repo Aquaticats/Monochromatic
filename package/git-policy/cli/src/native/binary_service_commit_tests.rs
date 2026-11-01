@@ -56,11 +56,18 @@ impl Drop for Running {
 
 /// Starts the service on the socket the wrapper looks for in `runtime`, with the settings a service manager would give it.
 pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
+    return start_in_release(root, runtime, None);
+}
+
+/// Starts the service as `start_in` does, announcing `release` to its clients instead of its own, so a test can stand a
+///  service of another release where the manager would have left one from before an upgrade.
+pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str>) -> Running {
     let socket: PathBuf = runtime.join(SOCKET_RELATIVE);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let journal: PathBuf = root.join("journal");
     let child: Child = Command::new(SERVICE)
         .args(["--journal", journal.to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+        .args(release.map(|text| { return ["--release", text]; }).into_iter().flatten())
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", root.join("home"))

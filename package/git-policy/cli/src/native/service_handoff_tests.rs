@@ -153,7 +153,7 @@ fn the_wake_message_carries_the_key_to_the_service() {
         use std::io::{BufRead, Write};
         for _ in 0..2 {
             let Ok((mut stream, _)) = listener.accept() else { return };
-            let welcome: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION });
+            let welcome: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from(crate::service_protocol::RELEASE)) });
             let _written = writeln!(stream, "{welcome}");
             let mut line: String = String::new();
             let _read = std::io::BufReader::new(&stream).read_line(&mut line);
