@@ -343,7 +343,7 @@ await describe({
             },);
             expect(printed.lines,).toEqual([
               `TALLY Cat status=INCOMPLETE ${STAMP} ms=5 aborted=false class=UnansweredContestSliceError `
-              + 'error=slice 3 differs across lanes and the contest names it nowhere',
+                + 'error=slice 3 differs across lanes and the contest names it nowhere',
             ],);
           },
         },),

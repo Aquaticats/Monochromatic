@@ -60,6 +60,7 @@ export {
   shipInterimOnStop,
   startEntryProgress,
 } from './corpus-run/pass-entry-interim.ts';
+export { shipPageOfStop, } from './corpus-run/pass-entry-interim-page.ts';
 export {
   persistSettledEntry,
   printSettledLines,

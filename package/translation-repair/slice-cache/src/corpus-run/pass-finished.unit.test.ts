@@ -21,7 +21,9 @@ import {
 
 import {
   DECLINED_DIR,
+  INTERIM_DIR,
   writeDeclinedEntry,
+  writeInterimEntry,
 } from '@monochromatic-dev/translation-repair-glossary';
 import {
   entriesFinishedThisRun,
@@ -107,6 +109,34 @@ async function decline(
 await describe({
   name: entriesFinishedThisRun.name,
   children: [
+    it({
+      name: 'LEAVES AN ENTRY WITH AN INTERIM RECORD AND NO ARTIFACT OUT OF THE FINISHED, so the next pass attempts it '
+        + 'again and replaces the interim page (B1225): only an artifact or a decline record says an entry is done',
+      fn: async () => {
+        await using runs = await throwawayRuns();
+        await writeInterimEntry({
+          interimDir: join(
+            runs.artifactsDir,
+            '..',
+            INTERIM_DIR,
+          ),
+          record: {
+            id: 'Tabby',
+            tip: 'abc',
+            pipelineDigest: 'sha256-tree-v1:0',
+            corpusSha: 'def',
+            timestamp: '2026-11-01T00:00:00.000Z',
+            reason: 'entry-error',
+            errorClass: 'SliceSpliceError',
+            settledSlices: 0,
+            archiveSlices: 2,
+            sourceSlices: 0,
+            pageSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+          },
+        },);
+        expect(await finishedEntryIds(runs,),).toStrictEqual(new Set(),);
+      },
+    },),
     it({
       name: 'COUNTS a new artifact and a new decline, and never subtracts a decline from before the run',
       fn: async () => {

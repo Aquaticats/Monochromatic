@@ -88,7 +88,9 @@ export function taggedWithoutParentIn({ file, }: { readonly file: SourceText; },
         },);
       return !properties.some(function carriesParent(property,): boolean {
         return isSpread({ property, },)
-          || ((property.type === 'Property') && (identifierName({ node: property.key, },) === 'l'));
+          || ((property.type === 'Property') && (identifierName({ node: property.key, },) === 'l')
+            // `l: undefined` hands `tagged` no parent either (B1237).
+            && (identifierName({ node: property.value, },) !== 'undefined'));
       },);
     },)
     .map(function lineOf(call,): number {

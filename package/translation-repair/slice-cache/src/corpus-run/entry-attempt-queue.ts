@@ -61,7 +61,7 @@ function neverStopped(): boolean {
  const field = classFieldOf({ errorClass: 'SliceSpliceError', },); // => ' class=SliceSpliceError'
  ```
  */
-function classFieldOf({ errorClass, }: { readonly errorClass: string | undefined; },): string {
+function classFieldOf({ errorClass, }: { readonly errorClass?: string; },): string {
   return (errorClass === undefined) ? '' : ` class=${errorClass}`;
 }
 
@@ -208,7 +208,7 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     if ((verdict.kind === 'stalled') && (!runEnded)) {
       printRunLine({
         line: `STALLED ${entry.id} ${stampOf({ entry, },)}${
-          classFieldOf({ errorClass: verdict.errorClass, },)
+          classFieldOf(((verdict.errorClass === undefined) ? {} : { errorClass: verdict.errorClass, }),)
         }: its ${String(verdict.cached,)} cache ${
           wordForCount({
             count: verdict.cached,
@@ -221,7 +221,7 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     if (verdict.kind === 'stopped') {
       printRunLine({
         line: `INCOMPLETE ${entry.id} ${stampOf({ entry, },)}${
-          classFieldOf({ errorClass: verdict.errorClass, },)
+          classFieldOf(((verdict.errorClass === undefined) ? {} : { errorClass: verdict.errorClass, }),)
         }: stage-local work remains; whole entry will not restart in `
           + 'this invocation',
       },);

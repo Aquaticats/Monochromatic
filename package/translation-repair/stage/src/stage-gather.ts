@@ -99,7 +99,7 @@ export function seatOrderOf(
      Its place on the bench.
      */
     const place = modelIds.indexOf(seat,);
-    if (place === -1)
+    if (place === (-1))
       throw new Error(`unreachable: the voice of seat ${seat} is on no seat of the bench`,);
     return place;
   }

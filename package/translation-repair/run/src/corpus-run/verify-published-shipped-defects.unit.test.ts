@@ -44,7 +44,7 @@ await describe({
           missing: [],
         },),).toEqual([
           'CatEntry1: page-unparseable, the strict grammar refuses the page on disk; the publisher ships such a page '
-          + 'with this defect, and the site build will not take it',
+            + 'with this defect, and the site build will not take it',
         ],);
       },
     },),
@@ -61,8 +61,8 @@ await describe({
           missing: [4, 7,],
         },),).toEqual([
           'CatEntry1: page-grammar-archive-kept, the strict grammar refuses the artifact\'s wordings composed as one page, '
-          + 'so the publisher keeps the archive at the slices that break it; the slices named MISSING, [4, 7], are '
-          + 'among them',
+            + 'so the publisher keeps the archive at the slices that break it; the slices named MISSING, [4, 7], are '
+            + 'among them',
         ],);
       },
     },),

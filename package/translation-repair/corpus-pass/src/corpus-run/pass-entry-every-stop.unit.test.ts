@@ -380,7 +380,7 @@ await describe({
         const prepared = preparation();
         const first = prepared.slices[0]?.target.sliceIndex ?? 0;
         /**
-         One row, which the comparison below names twice.
+         One row, which the comparison names twice.
          */
         const row = {
           ...catRow({

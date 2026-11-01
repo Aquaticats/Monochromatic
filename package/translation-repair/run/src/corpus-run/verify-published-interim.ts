@@ -70,7 +70,7 @@ function stopOf(
     errorClass,
   }: {
     readonly reason: InterimEntryRecord['reason'];
-    readonly errorClass: string | undefined;
+    readonly errorClass?: string;
   },
 ): string {
   if (reason === 'dry-stop')
@@ -125,7 +125,7 @@ export async function interimLine(
   return `  INTERIM PAGE: ${record.id}. ${
     stopOf({
       reason: record.reason,
-      errorClass: record.errorClass,
+      ...((record.errorClass === undefined) ? {} : { errorClass: record.errorClass, }),
     },)
   } shipped it with ${
     slicesOf({

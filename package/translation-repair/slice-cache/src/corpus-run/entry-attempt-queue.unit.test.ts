@@ -456,9 +456,9 @@ await describe({
         },);
         expect(printed.lines,).toEqual([
           `INCOMPLETE siamese ${AT} attempt=1 class=SliceSpliceError: stage-local work remains; whole entry will not `
-          + 'restart in this invocation',
+            + 'restart in this invocation',
           `STALLED sphynx ${AT} attempt=1 class=PromptPayloadStoreError: its 310 cache records are what it started `
-          + 'with, so a further attempt in this invocation would repeat it',
+            + 'with, so a further attempt in this invocation would repeat it',
         ],);
       },
     },),

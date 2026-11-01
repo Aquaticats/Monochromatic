@@ -65,5 +65,7 @@ export {
   type RefusalHolds,
 } from './provider-budget-refusal-holds.ts';
 export { reachPastHoldsOrRefusal, } from './reach-past-holds.ts';
+export { markingAfterExchange, } from './provider-router-exchange-mark.ts';
+export { createReachReaders, } from './provider-router-reach.ts';
 
 //endregion Hold public index

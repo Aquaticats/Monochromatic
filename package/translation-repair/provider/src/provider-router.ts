@@ -7,10 +7,10 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
-  markedAfterExchange,
   monotonicMs,
   NoProviderForModelError,
 } from '@monochromatic-dev/translation-repair-markup/ts';
+import { markingAfterExchange, } from './provider-router-exchange-mark.ts';
 import {
   HOLD_POLL_MS,
   NOBODY_REFUSED,
@@ -26,17 +26,14 @@ import {
   callHoldingRefusedCredential,
   type CredentialHolds,
   createCredentialHolds,
-  reachPastCredentialHolds,
 } from './credential-hold.ts';
 import {
   createDarkWarnings,
   refuseDarkModel,
 } from './model-dark-reason.ts';
 import { routedDecide, } from './provider-router-decide.ts';
-import {
-  reachOfRequest,
-  reachPastHoldsOrRefusal,
-} from './reach-past-holds.ts';
+import { reachOfRequest, } from './reach-past-holds.ts';
+import { createReachReaders, } from './provider-router-reach.ts';
 import type {
   Decider,
   DecisionReply,
@@ -226,102 +223,15 @@ export function createRoutingClient(
   },);
 
   /**
-   Providers that can serve one call, narrowed to vision where it carries a
-   picture, less any whose credential was refused.
-
-   @param request - call whose reach is read
-
-   @returns Reach for the policy, or for a re-ask, to decide on
-
-   @example
-   ```ts
-   const reach = reachFor({ request, },);
-   ```
+   The two readings of which providers may take a call, with the holds taken out (`provider-router-reach.ts`).
    */
-  function reachFor(
-    { request, }: { readonly request: ForeignBorrowed<ChatTextRequest>; },
-  ): ModelReach {
-    /**
-     Reach of the call less the providers whose credential was refused.
-     */
-    const { reach, } = reachPastCredentialHolds({
-      reach: reachOfRequest({ request, },),
-      holds: credentialHolds,
-    },);
-    return reach;
-  }
-
-  /**
-   Reads which providers may take one call once the credential holds and the
-   stream bound holds are taken out, refusing where the holds leave nobody.
-
-   ASKED IN TWO PLACES, so a call ends with one reason whichever of them
-   finds every serving provider held: before each attempt, and after the last
-   one a call has.
-
-   @param request - call being routed, read for its model and its pictures
-
-   @returns Providers serving the model that hold nothing against it
-
-   @throws {@link NoProviderForModelError} when every provider serving the
-   model has its credential refused, or holds the model out on its stream bound
-
-   @example
-   ```ts
-   const reach = reachPastBoundHoldsOrRefusal({ request, },);
-   ```
-   */
-  function reachPastBoundHoldsOrRefusal(
-    { request, }: { readonly request: ForeignBorrowed<ChatTextRequest>; },
-  ): ModelReach {
-    return reachPastHoldsOrRefusal({
-      reach: reachOfRequest({ request, },),
-      modelId: request.modelId,
-      credentialHolds,
-      boundHolds,
-    },);
-  }
-
-  /**
-   Decides which provider takes one call, marking a no-provider refusal as raised after an exchange when an earlier
-   attempt of the same request already made a call (B1230).
-
-   @param request - call being routed, read for its model and its pictures
-
-   @param refused - provider that has just refused us, or nobody
-
-   @param exchanged - whether an earlier attempt of this request made a call
-
-   @returns Provider to ask
-
-   @throws {@link NoProviderForModelError} when nowhere can take it, marked when a call was made first
-
-   @example
-   ```ts
-   const provider = await chooseProviderMarked({ request, refused: NOBODY_REFUSED, exchanged: false, },);
-   ```
-   */
-  async function chooseProviderMarked(
-    {
-      request,
-      refused,
-      exchanged,
-    }: {
-      readonly request: ForeignBorrowed<ChatTextRequest>;
-      readonly refused: ProviderName | typeof NOBODY_REFUSED;
-      readonly exchanged: boolean;
-    },
-  ): Promise<ProviderName> {
-    try {
-      return await chooseProvider({
-        request,
-        refused,
-      },);
-    }
-    catch (error) {
-      throw exchanged ? markedAfterExchange({ error, },) : error;
-    }
-  }
+  const {
+    reachFor,
+    reachPastBoundHoldsOrRefusal,
+  } = createReachReaders({
+    credentialHolds,
+    boundHolds,
+  },);
 
   /**
    Decides which provider takes one call, given what is known right now.
@@ -540,10 +450,7 @@ export function createRoutingClient(
      A RECORD RATHER THAN A ROOT `let`, so the one thing that changes
      between attempts is named and scoped to the loop that changes it.
      */
-    const last: { refused: ProviderName | typeof NOBODY_REFUSED; exchanged: boolean; } = {
-      refused: NOBODY_REFUSED,
-      exchanged: false,
-    };
+    const last: { refused: ProviderName | typeof NOBODY_REFUSED; } = { refused: NOBODY_REFUSED, };
 
     // REFUSED WITHOUT A CALL while the model's own hold runs, so a round counts the seat unreachable and neither
     // asks nor waits for it (class sixty-four).
@@ -587,14 +494,15 @@ export function createRoutingClient(
       /**
        Provider the policy picked on what is known before this attempt.
        */
-      const provider = await chooseProviderMarked({
+      const provider = await markingAfterExchange({
+        // EVERY ATTEMPT BUT THE FIRST FOLLOWS A CALL that was cut or refused (B1230).
+        exchanged: attempt > 0,
+        choose: chooseProvider,
         request,
         refused: last.refused,
-        exchanged: last.exchanged,
       },);
       /* oxlint-enable no-await-in-loop */
 
-      last.exchanged = true;
       try {
         return {
           provider,
@@ -660,13 +568,11 @@ export function createRoutingClient(
     // its last serving provider. The holds are read here in that decision's
     // place, so every serving provider cut in turn ends with the reason one
     // fewer would.
-    try {
-      reachPastBoundHoldsOrRefusal({ request, },);
-    }
-    catch (error) {
-      // CALLS WERE MADE AND CUT before this decision, so the refusal is one raised after an exchange (B1230).
-      throw markedAfterExchange({ error, },);
-    }
+    // CALLS WERE MADE AND CUT before this decision, so its refusal is one raised after an exchange (B1230).
+    reachPastBoundHoldsOrRefusal({
+      request,
+      afterExchange: true,
+    },);
 
     // NOT EVERY ONE WAS CUT, then: a provider before the last refused the call
     // on its budget, which sends the call on without a stream bound hold, and

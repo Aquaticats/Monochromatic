@@ -56,7 +56,7 @@ export function shippedDefectLinesOf(
     readonly entryId: string;
     readonly naturalness: readonly PublishDefect[];
     readonly pageGrammar: PageGrammarReading;
-    readonly composedGrammar: PageGrammarReading | undefined;
+    readonly composedGrammar?: PageGrammarReading;
     readonly missing: readonly number[];
   },
 ): readonly string[] {
@@ -67,14 +67,15 @@ export function shippedDefectLinesOf(
     ...((pageGrammar.kind === 'refused')
       ? [
         `${entryId}: page-unparseable, the strict grammar refuses the page on disk; the publisher ships such a page `
-        + 'with this defect, and the site build will not take it',
+          + 'with this defect, and the site build will not take it',
       ]
       : []),
-    ...(((pageGrammar.kind === 'parses') && (composedGrammar?.kind === 'refused') && (missing.length > 0))
+    ...(((pageGrammar.kind === 'parses') && (composedGrammar?.kind === 'refused')
+      && (missing.length > 0))
       ? [
         `${entryId}: page-grammar-archive-kept, the strict grammar refuses the artifact's wordings composed as one page, `
-        + 'so the publisher keeps the archive at the slices that break it; the slices named MISSING, '
-        + `${namedSlices({ indices: missing, },)}, are among them`,
+          + 'so the publisher keeps the archive at the slices that break it; the slices named MISSING, '
+          + `${namedSlices({ indices: missing, },)}, are among them`,
       ]
       : []),
   ];
@@ -177,7 +178,7 @@ export function shippedDefectLinesFor(
     entryId,
     naturalness,
     pageGrammar,
-    composedGrammar,
+    ...((composedGrammar === undefined) ? {} : { composedGrammar, }),
     missing,
   },);
 }

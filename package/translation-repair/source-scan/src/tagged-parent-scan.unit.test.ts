@@ -119,6 +119,11 @@ await describe({
             'const l = tagged({\n  tag: \'cat\',\n},);\n',
             1,
           ],
+          // A PARENT GIVEN AS `undefined` IS NONE (B1237).
+          [
+            'const l = tagged({ tag: \'cat\', l: undefined, },);\n',
+            1,
+          ],
         ];
         expect(spellings.map(function found([text,],): number {
           return taggedWithoutParentIn({ file: planted({ text, },), },)

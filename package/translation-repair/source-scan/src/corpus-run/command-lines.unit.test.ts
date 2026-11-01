@@ -324,10 +324,71 @@ function invocationEnd({ typed, }: { readonly typed: string; },): number {
         open = '';
     } else if (QUOTES.has(character,))
       open = character;
+    else if (isPlaceholderOpening({ typed, at, },))
+      // A placeholder runs to its closing `>`, which is no redirection either.
+      at = placeholderEnd({ typed, at, },);
     else if (CONTROL_CHARACTERS.has(character,))
       return at;
   }
   return typed.length;
+}
+
+/**
+ What `indexOf` answers for a text it does not find.
+ */
+const NOT_FOUND = -1;
+
+/**
+ Where a placeholder that opens at an offset ends: its closing `>`, or the text's end when none closes it.
+
+ @param typed - what a doc types after a runner, on one line
+
+ @param at - offset of the `<` that opens it
+
+ @returns Offset of the closing `>`, the text's length when there is none
+
+ @example
+ ```ts
+ placeholderEnd({ typed: '--baseline <census.json> --source', at: 11, },); // 23
+ ```
+ */
+function placeholderEnd({ typed, at, }: { readonly typed: string; readonly at: number; },): number {
+  /**
+   Offset of the closing `>`, negative when none follows.
+   */
+  const closing = typed.indexOf(
+    '>',
+    at,
+  );
+  return (closing === NOT_FOUND) ? typed.length : closing;
+}
+
+/**
+ Whether a `<` at an offset opens a placeholder a doc writes, `<runs dir>`, and not a redirection of input (B1238).
+
+ A redirection of input is a `<` followed by white space, a `(` of a process substitution, or the text's end; a `<`
+ that touches the word after it is read as the opening of a placeholder, as the docs of this family write them, so the
+ flags after it stay the runner's. The limit: `cmd <file` with no space is a redirection no doc of the family types.
+
+ @param typed - what a doc types after a runner, on one line
+
+ @param at - offset of the character
+
+ @returns True for a `<` followed by a word character
+
+ @example
+ ```ts
+ isPlaceholderOpening({ typed: '--baseline <census.json> --source', at: 11, },); // true
+ ```
+ */
+function isPlaceholderOpening({ typed, at, }: { readonly typed: string; readonly at: number; },): boolean {
+  if (typed.charAt(at,) !== '<')
+    return false;
+  /**
+   The character after the `<`, empty at the text's end.
+   */
+  const next = typed.charAt(at + 1,);
+  return (next !== '') && (next !== '(') && (next.trim() !== '');
 }
 
 /**
@@ -647,6 +708,13 @@ await describe({
           undeclared: [],
           invocations: operators.length,
         },);
+
+        // A PLACEHOLDER IS NO REDIRECTION (B1238): `<census.json>` touches its word, so the flag after it is still the
+        // runner's and is found.
+        expect(undeclaredFlagsIn({
+          path: 'doc/cat.md',
+          text: '    mise run corpus-pass -- --plan <runs dir> --not-a-flag-of-the-runner',
+        },).undeclared,).toContain('doc/cat.md:1 corpus-pass --not-a-flag-of-the-runner',);
 
         // A line continued into a pipe: the next line is not read as the runner's.
         expect(undeclaredFlagsIn({

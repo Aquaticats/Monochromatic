@@ -46,6 +46,25 @@ export function errorName(
 }
 
 /**
+ Whether a character may stand in a one-token field of a log line.
+
+ @param character - one character of a class name
+
+ @returns True for an ASCII letter or digit and for the marks `_`, `$`, `.` and `-`
+
+ @example
+ ```ts
+ const kept = isTokenCharacter({ character: 'E', },); // => true
+ ```
+ */
+function isTokenCharacter({ character, }: { readonly character: string; },): boolean {
+  return ((character >= 'a') && (character <= 'z'))
+    || ((character >= 'A') && (character <= 'Z'))
+    || ((character >= '0') && (character <= '9'))
+    || '_$.-'.includes(character,);
+}
+
+/**
  Class a stop record carries for the error that ended an entry, as one token.
 
  THE FIELD OF A LOG LINE A PERSON COUNTS BY (B1223). `errorName` answers a sentence for a thrown value that is no Error,
@@ -70,10 +89,13 @@ export function errorClassOf(
   /**
    The class name with every character a field cannot hold written as an underscore, in one pass.
    */
-  const token = error.name.replaceAll(
-    /[^A-Za-z0-9_$.-]/gu,
-    '_',
-  );
+  const token = Array.from(
+    error.name,
+    function tokenCharacter(character,): string {
+      return isTokenCharacter({ character, },) ? character : '_';
+    },
+  )
+    .join('',);
   return (token === '') ? 'Error' : token;
 }
 

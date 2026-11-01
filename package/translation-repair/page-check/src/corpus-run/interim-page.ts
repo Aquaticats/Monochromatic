@@ -150,7 +150,7 @@ function interimSource(
   /**
    Slices the caller keeps at the archive whatever their records say.
    */
-  const keptAtArchive = new Set(stop.keepArchiveAt ?? [],);
+  const keptAtArchive = new Set(stop.keepArchiveAt,);
   /**
    Slices a consolidation record settled, less those kept at the archive.
    */

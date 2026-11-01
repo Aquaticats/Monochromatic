@@ -2,6 +2,7 @@ import { mkdir, } from 'node:fs/promises';
 import { dirname, } from 'node:path';
 
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication/ts';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
@@ -47,6 +48,33 @@ export type ShippedStop = InterimCounts & {
 };
 
 /**
+ The slicing the ladder composes over, or that none could be cut.
+ */
+type Slicing =
+  | {
+    /**
+     A slicing exists.
+     */
+    readonly kind: 'cut';
+
+    /**
+     Preparation the page addresses.
+     */
+    readonly prepared: PreparedDocumentPair;
+
+    /**
+     Archive the preparation addresses.
+     */
+    readonly archiveText: string;
+  }
+    | {
+    /**
+     Not even the deterministic preparation of the two texts could be made.
+     */
+      readonly kind: 'uncut';
+    };
+
+/**
  Slicing and archive the ladder composes over: the entry's own where it held them, otherwise cut from the texts.
 
  @param progress - what the entry had finished
@@ -59,7 +87,7 @@ export type ShippedStop = InterimCounts & {
 
  @param l - entry logger
 
- @returns Preparation and archive the page addresses, none where even the deterministic preparation threw
+ @returns Preparation and archive the page addresses, or that even the deterministic preparation threw
 
  @example
  ```ts
@@ -80,13 +108,14 @@ function slicingOf(
     readonly entryId: string;
     readonly l: Logger;
   },
-): { readonly prepared: PreparedDocumentPair; readonly archiveText: string; } | undefined {
+): Slicing {
   /**
    What the entry held.
    */
   const { prepared, } = progress;
   if (prepared !== undefined) {
     return {
+      kind: 'cut',
       prepared,
       archiveText: progress.archiveText ?? prepared.targetText,
     };
@@ -101,6 +130,7 @@ function slicingOf(
       sealArchiveOriginal: true,
     },);
     return {
+      kind: 'cut',
       prepared: cut,
       archiveText: cut.targetText,
     };
@@ -110,14 +140,18 @@ function slicingOf(
       `entry ${entryId}: the two texts could not be sliced for the archive's page (class=${errorClassOf({ error, },)}; `
         + `${refusalText({ error, },)}), so the archive's text is written as it stands`,
     );
-    return undefined;
+    return { kind: 'uncut', };
   }
 }
 
 /**
  What an interim page is composed from, in the shape the publisher takes.
 
- @param progress - what the entry had finished
+ @param projected - comparison both lanes derived, once they returned
+
+ @param contestSlices - what the contest decided per slice, once it returned
+
+ @param consolidated - consolidation records, in the order the slices finished
 
  @param keepArchiveAt - slices kept at the archive whatever their records say
 
@@ -125,26 +159,22 @@ function slicingOf(
 
  @example
  ```ts
- const stop = stopOf({ progress, keepArchiveAt: [], },);
+ const stop = stopOf({ projected, contestSlices, consolidated, keepArchiveAt: [], },);
  ```
  */
 function stopOf(
   {
-    progress,
-    keepArchiveAt,
-  }: {
-    readonly progress: EntryProgress;
-    readonly keepArchiveAt: readonly number[];
-  },
-): InterimStop {
-  /**
-   What the entry settled before the stop.
-   */
-  const {
     projected,
     contestSlices,
     consolidated,
-  } = progress;
+    keepArchiveAt,
+  }: ForeignBorrowed<{
+    readonly projected: EntryProgress['projected'];
+    readonly contestSlices: EntryProgress['contestSlices'];
+    readonly consolidated: EntryProgress['consolidated'];
+    readonly keepArchiveAt: readonly number[];
+  }>,
+): InterimStop {
   return {
     consolidateSlices: [...consolidated,],
     ...((projected === undefined) ? {} : { comparison: projected.comparison, }),
@@ -211,12 +241,15 @@ export async function shipPageOfStop(
     entryId,
     l,
   },);
-  if (sliced === undefined)
+  if (sliced.kind === 'uncut')
     return await archiveTextAsPage({
       text: progress.archiveText ?? targetText,
       entryId,
       publishDir,
     },);
+  /**
+   The slicing and the archive it addresses.
+   */
   const {
     prepared,
     archiveText,
@@ -240,12 +273,16 @@ export async function shipPageOfStop(
    */
   const keepArchiveAt: number[] = [];
   /* oxlint-disable no-await-in-loop -- each page is composed after the slice the last refused is kept at the archive */
-  for (const _round of Array.from({ length: prepared.slices.length + 1, },)) {
+  for (const _round of Array.from({ length: prepared.slices
+    .length
+    + 1, },)) {
     try {
       return await publishInterimPage({
         ...publishing,
         stop: stopOf({
-          progress,
+          projected: progress.projected,
+          contestSlices: progress.contestSlices,
+          consolidated: progress.consolidated,
           keepArchiveAt,
         },),
       },);

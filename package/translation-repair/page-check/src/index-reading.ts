@@ -94,5 +94,10 @@ export {
   type ReadingDifference,
   readingDifferenceOf,
 } from './corpus-run/source-reading-difference.ts';
+export {
+  type InterimCounts,
+  type InterimShip,
+  type InterimStop,
+} from './corpus-run/interim-page.ts';
 
 //endregion Public index of the reading comparison and the fresh tails
