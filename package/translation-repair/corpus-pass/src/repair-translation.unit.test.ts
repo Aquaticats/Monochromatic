@@ -476,6 +476,65 @@ const MISTRANSLATION_ISSUE = {
   targetQuote: 'The cat hates butterflies.',
 };
 
+/**
+ Models asked for a refinement and keys of the refinement records written by one lane over the long section.
+
+ @param models - roster the lane starts on
+
+ @param hookRoster - roster the hook hands each slice, when it hands one
+
+ @returns Models asked, and the sorted keys of the refinement records
+
+ @example
+ ```ts
+ const { asked, keys, } = await runRefineLane({ models, hookRoster, },);
+ ```
+ */
+async function runRefineLane(
+  { models, hookRoster, }: { readonly models: RepairModels; readonly hookRoster?: RepairModels; },
+): Promise<{ readonly asked: readonly string[]; readonly keys: readonly string[]; }> {
+  /**
+   Models asked, in order.
+   */
+  const asked: string[] = [];
+  /**
+   Keys of the refinement records persisted.
+   */
+  const keys: string[] = [];
+  /**
+   The scripted client with its calls recorded.
+   */
+  const scripted = scriptedClient({ criticIssues: [], },);
+  await repairPreparedDocument({
+    client: {
+      ...scripted,
+      chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+        if (request.responseFormat?.json_schema.name === 'refine_report')
+          asked.push(request.modelId,);
+        return await scripted.chatJson(request,);
+      },
+    },
+    prepared: prepareDocumentPair({
+      sourceText: SOURCE_LONG_SECTION,
+      targetText: TARGET_LONG_SECTION,
+    },),
+    models,
+    signal: new AbortController().signal,
+    perCallTimeoutMs: HANG_STOP_MS,
+    refineCache: {
+      resumed: new Map<string, RefinedSliceSettlement>(),
+      persist: async ({ key, },) => {
+        keys.push(key,);
+      },
+    },
+    ...((hookRoster === undefined) ? {} : {
+      beforeSlice: async (): Promise<RepairSliceSeating> => ({ repairModels: hookRoster, }),
+    }),
+    stageSettings: SCRIPTED_STAGE_SETTINGS,
+  },);
+  return { asked, keys: keys.toSorted(), };
+}
+
 await describe({
   name: repairTranslation.name,
   children: [
@@ -1391,10 +1450,6 @@ Meow meow meow meow.
         + 'refiner bench re-derived after the lane started is the one asked, and the records written are those of a '
         + 'lane that started on it',
       fn: async () => {
-        const prepared = prepareDocumentPair({
-          sourceText: SOURCE_LONG_SECTION,
-          targetText: TARGET_LONG_SECTION,
-        },);
         /**
          Roster the lane starts on, with one refiner nothing else in the roster asks.
          */
@@ -1409,62 +1464,66 @@ Meow meow meow meow.
           ...started,
           refinerModelIds: ['gemma-4-26b-a4b-it',],
         };
-        /**
-         Models asked and refinement keys written by one lane.
-
-         @param models - roster the lane starts on
-
-         @param hookRoster - roster the hook hands each slice, when it hands one
-
-         @returns Models asked, and the sorted keys of the refinement records
-         */
-        async function runLane(
-          { models, hookRoster, }: { readonly models: RepairModels; readonly hookRoster?: RepairModels; },
-        ): Promise<{ readonly asked: readonly string[]; readonly keys: readonly string[]; }> {
-          /**
-           Models asked, in order.
-           */
-          const asked: string[] = [];
-          /**
-           Keys of the refinement records persisted.
-           */
-          const keys: string[] = [];
-          /**
-           The scripted client with its calls recorded.
-           */
-          const scripted = scriptedClient({ criticIssues: [], },);
-          await repairPreparedDocument({
-            client: {
-              ...scripted,
-              chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
-                if (request.responseFormat?.json_schema.name === 'refine_report')
-                  asked.push(request.modelId,);
-                return await scripted.chatJson(request,);
-              },
-            },
-            prepared,
-            models,
-            signal: new AbortController().signal,
-            perCallTimeoutMs: HANG_STOP_MS,
-            refineCache: {
-              resumed: new Map<string, RefinedSliceSettlement>(),
-              persist: async ({ key, },) => {
-                keys.push(key,);
-              },
-            },
-            ...((hookRoster === undefined) ? {} : {
-              beforeSlice: async (): Promise<RepairSliceSeating> => ({ repairModels: hookRoster, }),
-            }),
-            stageSettings: SCRIPTED_STAGE_SETTINGS,
-          },);
-          return { asked, keys: keys.toSorted(), };
-        }
-        const hooked = await runLane({ models: started, hookRoster: reseated, },);
-        const startedOn = await runLane({ models: reseated, },);
+        const hooked = await runRefineLane({ models: started, hookRoster: reseated, },);
+        const startedOn = await runRefineLane({ models: reseated, },);
         expect(hooked.asked,).toContain('gemma-4-26b-a4b-it',);
         expect(hooked.asked,).not.toContain('minimax-m3',);
         expect(startedOn.keys.length,).toBeGreaterThan(0,);
         expect(hooked.keys,).toEqual(startedOn.keys,);
+      },
+    },),
+
+    it({
+      name: 'KEYS A REFINEMENT UNDER THE JUDGES AND THE CHECKERS THE HOOK RETURNS (ledger B1348): the key hashes both '
+        + 'lists of the roster the slice ran on, so a lane re-seated in either writes the records of a lane that '
+        + 'started on the re-seated roster, and not the ones of the roster at the lane\'s start',
+      fn: async () => {
+        /**
+         Roster the lane starts on, with a refiner of its own.
+         */
+        const started: RepairModels = {
+          ...MODELS,
+          refinerModelIds: ['minimax-m3',],
+        };
+        /**
+         Keys of a lane that stayed on the roster it started on.
+         */
+        const stayed = await runRefineLane({ models: started, },);
+        // POSITIVE CONTROL: each list moves the key, or the equalities below would hold of keys that ignore the list.
+        /**
+         The same roster with the judges in another order, which the key hashes in order.
+         */
+        const otherJudges: RepairModels = {
+          ...started,
+          judgeModelIds: [...started.judgeModelIds,].toReversed(),
+        };
+        /**
+         The same roster with the checkers in another order.
+         */
+        const otherCheckers: RepairModels = {
+          ...started,
+          checkerModelIds: [...started.checkerModelIds,].toReversed(),
+        };
+        /**
+         Each lane has its own client and cache, so the four run side by side: for each re-seated roster, a lane that
+         started on it and a lane that started on the first roster and was re-seated to it by the hook for every slice.
+         */
+        const [
+          judgesStartedOn,
+          judgesByHook,
+          checkersStartedOn,
+          checkersByHook,
+        ] = await Promise.all([
+          runRefineLane({ models: otherJudges, },),
+          runRefineLane({ models: started, hookRoster: otherJudges, },),
+          runRefineLane({ models: otherCheckers, },),
+          runRefineLane({ models: started, hookRoster: otherCheckers, },),
+        ],);
+        expect(judgesStartedOn?.keys.length,).toBeGreaterThan(0,);
+        expect(stayed.keys,).not.toEqual(judgesStartedOn?.keys,);
+        expect(judgesByHook?.keys,).toEqual(judgesStartedOn?.keys,);
+        expect(stayed.keys,).not.toEqual(checkersStartedOn?.keys,);
+        expect(checkersByHook?.keys,).toEqual(checkersStartedOn?.keys,);
       },
     },),
 
