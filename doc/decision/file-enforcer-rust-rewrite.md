@@ -231,15 +231,15 @@ and accepted with this record:
   the exact mpm-shadow the lock names,
   with its archive fetched and checked against the lock's SHA-256 when missing,
   and never the one on `PATH`.
-  The owner then amended it to "At least the lock's version":
-"Run the newest installed copy of this repository's mpm-shadow whose version is at or above the lock's,
-with the 'locked at X,
-Y runs,
-upgrade' warning when it's newer.
-Fetch and verify the lock's archive only when no such copy exists.
-A copy older than the lock never runs."
+  The owner then amended it on 2026-11-01 (answered about 02:45 UTC) to "At least the lock's version":
+  "Run the newest installed copy of this repository's mpm-shadow whose version is at or above the lock's,
+  with the 'locked at X,
+  Y runs,
+  upgrade' warning when it's newer.
+  Fetch and verify the lock's archive only when no such copy exists.
+  A copy older than the lock never runs."
   That is the newest-wins rule for this repository's tools (the bullet "This repository's tools are one set across both toolchain roots") applied to the program that runs the tasks,
-and the wiring lives on the switch branch.
+  and the wiring lives on the switch branch.
 - cargo-binstall tools install under a version-keyed directory in the toolchain root
   (for example `<toolchain root>/cargo/<crate>/<version>`),
   never the shared `$CARGO_HOME/bin`,
@@ -282,69 +282,69 @@ and the wiring lives on the switch branch.
 - Old copies of this repository's tools outside the managed roots are removed by mpm-shadow,
   automatically and deterministically (decided 2026-11-01).
   The retired TypeScript sync had placed `cli-git-native` (production git,
-reached through `~/.local/bin/git` and each checkout's `.cache/cli-git-bin/git`),
-`mpm-shadow` 0.2.0,
-`search-shadow`,
-`monochromatic-lint` and `monochromatic-nested-wayland-session` in `~/.cargo/bin`,
-and `~/.cargo/.crates2.json` was stale (the git wrapper listed as 0.2.13,
-no `mpm-shadow` entry).
+  reached through `~/.local/bin/git` and each checkout's `.cache/cli-git-bin/git`),
+  `mpm-shadow` 0.2.0,
+  `search-shadow`,
+  `monochromatic-lint` and `monochromatic-nested-wayland-session` in `~/.cargo/bin`,
+  and `~/.cargo/.crates2.json` was stale (the git wrapper listed as 0.2.13,
+  no `mpm-shadow` entry).
   A plan to remove them by hand drew the owner's question:
-"Shouldn't the old copies be removed automatically and deterministically?"
+  "Shouldn't the old copies be removed automatically and deterministically?"
   The owner chose "Re-point,
-then remove":
-"After its own newest copy is installed:
-links in known places (~/.local/bin,
-every checkout's .cache/*-bin,
-the global farm) that target an old copy are re-pointed to the managed copy;
-then the old copy and its cargo record are removed,
-each action printed."
+  then remove":
+  "After its own newest copy is installed:
+  links in known places (~/.local/bin,
+  every checkout's .cache/*-bin,
+  the global farm) that target an old copy are re-pointed to the managed copy;
+  then the old copy and its cargo record are removed,
+  each action printed."
   The con the owner accepted:
-"mpm-shadow edits links it didn't create (only ones that point at a copy of this repository's own tool)."
+  "mpm-shadow edits links it didn't create (only ones that point at a copy of this repository's own tool)."
   The preview the owner saw:
-`installed cli-git-native 0.4.5 (managed) / re-pointed ~/.local/bin/git -> <toolchain>/cargo/.../current / removed ~/.cargo/bin/cli-git-native (old copy) / removed ~/.cargo/bin/mpm-shadow 0.2.0 (old copy)`.
+  `installed cli-git-native 0.4.5 (managed) / re-pointed ~/.local/bin/git -> <toolchain>/cargo/.../current / removed ~/.cargo/bin/cli-git-native (old copy) / removed ~/.cargo/bin/mpm-shadow 0.2.0 (old copy)`.
   The rule behind it is an invariant that the owning tool enforces and no runbook step does by hand.
   The behaviour is in `package/mpm-shadow/cli/README.md`,
-section "Old copies of this repository's tools".
+  section "Old copies of this repository's tools".
 - This repository's tools are one set across both toolchain roots (decided 2026-11-01).
   A per-root newest-only rule leaves two copies when the repository scope and the machine-global scope both manage a tool (the owner's global lock names `cargo:monochromatic-git-policy-cli`),
-so the owner was asked which managed copy a link outside every checkout should run.
+  so the owner was asked which managed copy a link outside every checkout should run.
   The owner chose "Newest across roots":
-"Treat this repository's tools as one set across both roots:
-the newest copy wins wherever it is.
-A scope whose lock pins an older version runs the newer copy and prints the 'locked at X,
-Y runs,
-upgrade' warning (as worktrees already do).
-~/.local/bin and the global farm link to the newest.
-The older managed copy is removed."
+  "Treat this repository's tools as one set across both roots:
+  the newest copy wins wherever it is.
+  A scope whose lock pins an older version runs the newer copy and prints the 'locked at X,
+  Y runs,
+  upgrade' warning (as worktrees already do).
+  ~/.local/bin and the global farm link to the newest.
+  The older managed copy is removed."
   The con the owner accepted:
-"the global postinstall must follow the same rule;
-more code."
+  "the global postinstall must follow the same rule;
+  more code."
   The preview the owner saw:
-`global lock: git wrapper 0.4.4; repo lock: 0.4.5 / mpm-shadow install -g / warning: global lock pins 0.4.4, 0.4.5 runs; upgrade with mise run toolchain:update:global / ~/.local/bin/git -> repo root 0.4.5 (newest) / 0.4.4 not installed / removed`.
+  `global lock: git wrapper 0.4.4; repo lock: 0.4.5 / mpm-shadow install -g / warning: global lock pins 0.4.4, 0.4.5 runs; upgrade with mise run toolchain:update:global / ~/.local/bin/git -> repo root 0.4.5 (newest) / 0.4.4 not installed / removed`.
   So the warning's remedy names the scope's own command,
-`mise run toolchain:update` for a tree and `mise run toolchain:update:global` for the global lock,
-and the global scope's remedy no longer says "merge main".
+  `mise run toolchain:update` for a tree and `mise run toolchain:update:global` for the global lock,
+  and the global scope's remedy no longer says "merge main".
   The behaviour is in `package/mpm-shadow/cli/README.md`,
-section "One set across both toolchain roots".
+  section "One set across both toolchain roots".
 - The implementer's design,
   not the owner's words,
   and open to the owner's veto:
   removing an older managed copy leaves the emptied root's `current` link in place,
   forwarding to the winning root's `current`.
   A launcher record,
-or a link that names the emptied root's `current`,
-then keeps running the newest copy instead of dangling,
-including in a clone that git does not list.
+  or a link that names the emptied root's `current`,
+  then keeps running the newest copy instead of dangling,
+  including in a clone that git does not list.
   A scope that later installs a newer version replaces the forward with a real `current`,
-and `prune --toolchain` leaves a crate directory that holds only a forward.
+  and `prune --toolchain` leaves a crate directory that holds only a forward.
   Other implementer choices in the same work:
-only a regular file in the shared cargo bin directory counts as an old copy;
-`.crates.toml` is consulted only to skip a bin that cargo attributes to another crate,
-to keep a copy it records as newer than the managed one,
-and to choose `cargo uninstall --bin` over deleting the file;
-an `install --global` keeps the repository root's older copies until an install inside a checkout,
-because it cannot see the checkouts' links;
-and `prune --toolchain` does not remove old copies.
+  only a regular file in the shared cargo bin directory counts as an old copy;
+  `.crates.toml` is consulted only to skip a bin that cargo attributes to another crate,
+  to keep a copy it records as newer than the managed one,
+  and to choose `cargo uninstall --bin` over deleting the file;
+  an `install --global` keeps the repository root's older copies until an install inside a checkout,
+  because it cannot see the checkouts' links;
+  and `prune --toolchain` does not remove old copies.
 - Command names follow pnpm's verbs
   (amended 2026-10-31 after the user noted "Wait, pnpm doesn't have a "sync" keyword."):
   `sync` becomes `install` (`--frozen-lockfile`,
