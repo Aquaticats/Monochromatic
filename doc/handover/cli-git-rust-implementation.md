@@ -4801,3 +4801,27 @@ This block supersedes "State at 2026-10-29 (night, later)".
   untested; Windows clippy not run.
 - Next: gate result, then release 0.4.6, lock update and sync, tell `monochromatic-6e`. Remove worktree
   `.claude/worktrees/agent-ad2d4960413134304` and `agent-a2e7b44c2c901235d` after confirming both are on main.
+
+## Release 0.4.6 and the m045 survivors
+
+- Container gate on the merged tree (`f0f6e9476d`): 2729 run, 2729 passed, 7 skipped (log
+  `~/temp/agent/gate/conv-gate.log`).
+- Wrapper 0.4.6 released: commit `1604b0d012`, crates.io 0.4.6, GitHub release
+  `monochromatic-git-policy-cli-v0.4.6`. `release:wait` needs `<sha> <version>` arguments after the task name.
+- Lock commit `b896deca0d` (wrapper 0.4.6, `monochromatic-mpm-shadow` 0.2.1, `nightly-2026-11-01`); `toolchain:sync`
+  installed them (3 installed, 0 failed); the production `git --version` banner reads 0.4.6. `monochromatic-6e` told.
+- An empty duplicate commit `cd0b2de000` exists beside the real handover commit `dff9887136` (a retry raced the
+  original); not amended.
+- Peer notice from `monochromatic-6e` (owner decided 2026-11-01): after its cutover, `toolchain:sync` goes away and
+  `mise run toolchain:install` runs mpm-shadow, which installs the wrapper version-keyed under
+  `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/<version>` with a `current` link; from
+  mpm-shadow 0.2.2 it re-points `~/.cargo/bin` links and the newest copy wins, so an older lock no longer downgrades a
+  shared install. It will message when the merge lands. This closes the shared-install downgrade hazard.
+- m045 survivors still open (units `filesystem-identity`, `private-storage`, `process-tree` still running at the time of
+  writing; `announced_query` and `filesystem_identity_fsid` are clean):
+  - `real_index_lock.rs`: 7 (241, 261, 280, 284 twice, 334, 598). `owner_lock.rs:703` `announces_at_start`: 1.
+  - `private_storage.rs`: 5 (191 three, 235, 419). `process_tree.rs`: 4 (93 twice, 109 twice).
+  - `filesystem_identity.rs:360` `darwin_fs_id`: 2.
+- Three agents in worktrees are writing the killing tests (one per group above), each proving its guards by applying the
+  mutant by hand. Next: merge their branches, run the container gate, rerun the mutation scope for the touched files,
+  update this section.
