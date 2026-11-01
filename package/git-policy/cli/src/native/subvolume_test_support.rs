@@ -1,0 +1,185 @@
+//! What:
+//!  The stand-in platform and the fixture checkouts of the subvolume migration controls.
+//! Why:
+//!  The migration's journal, resume, rollback, refusal and index logic does not need btrfs, only the five operations
+//!  of `Platform` do. The stand-in answers them on a plain directory tree: a "subvolume" is a directory registered by
+//!  its device and inode (an identity that survives the exchange and a rename, as a real subvolume root's does), file
+//!  clones are refused so the byte-copy path runs, and the exchange is the real `renameat2`. These controls therefore
+//!  run on the container gate's overlay too. The controls that need the real ioctls use `btrfs_fixture`.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const platform = new PlainPlatform({ removalAllowed: true });
+//! const root = makeCheckout(parent, 'checkout');
+//! ```
+
+use super::fs_clone_exchange::exchange_paths;
+use super::fs_kind::FilesystemKind;
+use super::fs_primitive_error::PrimitiveError;
+use super::subvolume_arguments::{MigrateArguments, MigrateMode};
+use super::subvolume_command::execute;
+use super::subvolume_error::Interrupt;
+use super::subvolume_platform::Platform;
+use crate::test_support::{git, repository};
+use std::cell::RefCell;
+use std::collections::HashSet;
+use std::fs::File;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+
+/// What:
+///  A platform on plain directories.
+/// Why:
+///   See the module description. `kind` and `free` let a control make the filesystem look unsuitable; `removal`
+///  decides what `removal_allowed` answers and whether `destroy_subvolume` works; `real_clone` forwards clones to the
+///  kernel (true on a reflink filesystem only).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PlainPlatform implements Platform { subvolumes = new Set<string>(); ... }
+/// ```
+pub(crate) struct PlainPlatform {
+    /// Device and inode of every directory made by `create_subvolume`.
+    pub subvolumes: RefCell<HashSet<(u64, u64)>>,
+    /// What `filesystem_facts` reports as the kind.
+    pub kind: FilesystemKind,
+    /// What `filesystem_facts` reports as free bytes; `None` asks the real filesystem.
+    pub free: Option<u64>,
+    /// Whether subvolume destroy by the kernel call is allowed.
+    pub removal: bool,
+    /// Whether file clones go to the kernel.
+    pub real_clone: bool,
+    /// Whether `is_mount_point` answers true.
+    pub mount_point: bool,
+}
+
+impl PlainPlatform {
+    /// A platform that looks like btrfs with plenty of room, with removal allowed and clones refused.
+    pub(crate) fn new() -> PlainPlatform {
+        return PlainPlatform {
+            subvolumes: RefCell::new(HashSet::new()),
+            kind: FilesystemKind::Btrfs,
+            free: Some(u64::MAX / 2),
+            removal: true,
+            real_clone: false,
+            mount_point: false,
+        };
+    }
+
+    /// Register a directory as a subvolume root.
+    pub(crate) fn register(&self, path: &Path) {
+        let metadata: std::fs::Metadata = std::fs::metadata(path).expect("registered path exists");
+        self.subvolumes.borrow_mut().insert((metadata.dev(), metadata.ino()));
+    }
+}
+
+/// The five operations on plain directories.
+impl Platform for PlainPlatform {
+    fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {
+        let (_, real_free) = super::fs_kind::filesystem_facts(path)?;
+        return Ok((self.kind, self.free.unwrap_or(real_free)));
+    }
+
+    fn is_subvolume_root(&self, path: &Path) -> Result<bool, PrimitiveError> {
+        let Ok(metadata) = std::fs::metadata(path) else { return Ok(false) };
+        return Ok(self.subvolumes.borrow().contains(&(metadata.dev(), metadata.ino())));
+    }
+
+    fn create_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+        std::fs::create_dir(path).map_err(|error: std::io::Error| {
+            return PrimitiveError { operation: "BTRFS_IOC_SUBVOL_CREATE", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) };
+        })?;
+        self.register(path);
+        return Ok(());
+    }
+
+    fn destroy_subvolume(&self, path: &Path) -> Result<(), PrimitiveError> {
+        if !self.removal {
+            return Err(PrimitiveError { operation: "BTRFS_IOC_SNAP_DESTROY", path: path.to_path_buf(), errno: libc::EPERM });
+        }
+        let metadata: std::fs::Metadata = std::fs::metadata(path).map_err(|error: std::io::Error| {
+            return PrimitiveError { operation: "BTRFS_IOC_SNAP_DESTROY", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) };
+        })?;
+        std::fs::remove_dir_all(path).map_err(|error: std::io::Error| {
+            return PrimitiveError { operation: "BTRFS_IOC_SNAP_DESTROY", path: path.to_path_buf(), errno: error.raw_os_error().unwrap_or(0) };
+        })?;
+        self.subvolumes.borrow_mut().remove(&(metadata.dev(), metadata.ino()));
+        return Ok(());
+    }
+
+    fn removal_allowed(&self, _path: &Path) -> bool {
+        return self.removal;
+    }
+
+    fn is_mount_point(&self, _path: &Path) -> bool {
+        return self.mount_point;
+    }
+
+    fn clone_file(&self, source: &File, destination: &File, path: &Path) -> Result<(), PrimitiveError> {
+        if self.real_clone {
+            return super::fs_clone_exchange::clone_file(source, destination, path);
+        }
+        return Err(PrimitiveError { operation: "FICLONE", path: path.to_path_buf(), errno: libc::EOPNOTSUPP });
+    }
+
+    fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError> {
+        return exchange_paths(first, second);
+    }
+}
+
+/// What:
+///  A real Git repository at `parent/name` with tracked files of the shapes the copy must carry: nested directories,
+///  an executable, a symbolic link, an empty file, two names of one file, a read-only directory, and an ignored
+///  directory; committed with real Git so its index is real.
+/// Why:
+///   Real Git writes the index the stat rewrite must keep valid, and checks the result afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const root = makeCheckout(parent, 'checkout');
+/// ```
+pub(crate) fn make_checkout(parent: &Path, name: &str) -> PathBuf {
+    let root: PathBuf = repository(parent, name);
+    std::fs::create_dir_all(root.join("src/deep/er")).expect("directories");
+    std::fs::write(root.join("README.md"), b"readme\n").expect("readme");
+    std::fs::write(root.join("src/main.rs"), b"fn main() {}\n").expect("main");
+    std::fs::write(root.join("src/deep/er/leaf.txt"), vec![b'x'; 70_000]).expect("leaf");
+    std::fs::write(root.join("empty"), b"").expect("empty");
+    std::fs::write(root.join("script.sh"), b"#!/bin/sh\n").expect("script");
+    std::fs::set_permissions(root.join("script.sh"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
+    std::os::unix::fs::symlink("src/main.rs", root.join("link")).expect("symlink");
+    std::fs::write(root.join(".gitignore"), b"ignored/\n").expect("gitignore");
+    git(root.as_path(), &["add", "--all"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=files"]);
+    std::fs::create_dir_all(root.join("ignored/node_modules/pkg")).expect("ignored tree");
+    std::fs::write(root.join("ignored/node_modules/pkg/index.js"), b"module.exports = 1;\n").expect("ignored file");
+    std::fs::hard_link(root.join("src/main.rs"), root.join("ignored/main-link.rs")).expect("hard link");
+    return root;
+}
+
+/// The arguments of a plain migration run.
+pub(crate) fn migrate_arguments() -> MigrateArguments {
+    return MigrateArguments {
+        mode: MigrateMode::Migrate,
+        dry_run: false,
+        nested_worktrees: true,
+        refresh_indexes: true,
+        discard_unreadable: false,
+        help: false,
+    };
+}
+
+/// What:
+///  Run the command to completion against a platform and collect its exit status and every progress line.
+/// Why:
+///   The controls assert on the status and the words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, lines } = runCommand(platform, args, root, interrupt);
+/// ```
+pub(crate) fn run_command(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt) -> (i32, Vec<String>) {
+    let mut lines: Vec<String> = Vec::new();
+    let code: i32 = execute(platform, arguments, root, interrupt, &mut |text: &str| { lines.push(text.to_string()); });
+    return (code, lines);
+}

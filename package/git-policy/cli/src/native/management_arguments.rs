@@ -24,6 +24,8 @@
 /// // string[] argv, but byte-preserving.
 /// ```
 use std::ffi::OsString;
+/// The grammar of the subvolume migration command, parsed apart.
+use super::subvolume_arguments::{MigrateArguments, parse_migrate_arguments};
 
 /// What:
 ///  The complete grammar shown when an invocation is refused.
@@ -40,6 +42,7 @@ pub const MANAGEMENT_USAGE: &str = "\
 Usage: git cli-git check (--all | -- <pathspec>...) [--policy <id>]...
        git cli-git fix (--all | -- <pathspec>...) [--policy <id>]...
        git cli-git doctor
+       git cli-git migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git cli-git --help
 ";
 
@@ -56,6 +59,8 @@ Commands:
   service  status: whether the commit service answers (it sets itself up when a commit needs it).
   doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
            1 when any other hook is found, 2 outside a repository.
+  migrate-to-subvolume
+           Convert the main checkout into a btrfs subvolume (see `git cli-git migrate-to-subvolume --help`).
 
 Scope (exactly one):
   --all             The whole repository.
@@ -121,6 +126,8 @@ pub enum ManagementAction {
     /// `doctor`:
     ///  list the traditional hooks the repository holds.
     Doctor,
+    /// `migrate-to-subvolume`: the parsed options, or the reason they were refused.
+    MigrateToSubvolume(Result<MigrateArguments, String>),
     /// `service status`: whether the commit service answers (a diagnostic; the wrapper sets the service up itself).
     ServiceStatus,
     /// `check` or `fix` over exactly one scope.
@@ -406,6 +413,9 @@ pub fn parse_management_arguments(
             return Err(ManagementRefusal::Usage);
         }
         return Ok(ManagementAction::Doctor);
+    }
+    if name == "migrate-to-subvolume" {
+        return Ok(ManagementAction::MigrateToSubvolume(parse_migrate_arguments(rest)));
     }
     if name == "service" {
         return match rest {

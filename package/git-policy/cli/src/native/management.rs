@@ -57,6 +57,9 @@ use super::transaction_gate::{Gate, recover_for_command};
 use super::transaction_git::GitContext;
 use super::index_writer_coordination::hold_landing_lock;
 use super::owner_lock::OwnerLock;
+use super::subvolume_arguments::MigrateArguments;
+#[cfg(target_os = "linux")]
+use super::subvolume_command::migrate_action;
 use super::unported::{unported_from_unavailable, unported_notice};
 /// The worktree's top level,
 ///  where a fix installs corrected files.
@@ -342,6 +345,46 @@ fn plan_service(environment: &[(OsString, OsString)]) -> Action {
     return Action::Exit { code: report.code, stdout: report.stdout, stderr: report.stderr };
 }
 
+/// What:
+///  Decide the action of `git cli-git migrate-to-subvolume`: a refused invocation prints its reason, anything else runs
+///  from the working directory.
+/// Why:
+///   The command needs neither configuration nor Git: it reads `.git` itself and calls the filesystem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planMigrate(parsed: MigrateArguments | string): Action;
+/// ```
+fn plan_migrate(parsed: Result<MigrateArguments, String>) -> Action {
+    let arguments: MigrateArguments = match parsed {
+        Ok(found) => found,
+        Err(reason) => {
+            return Action::Exit {
+                code: ENGINE_FAILURE_EXIT_CODE,
+                stdout: String::new(),
+                stderr: format!("git cli-git migrate-to-subvolume: {reason}\n"),
+            };
+        }
+    };
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(found) => found,
+        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    };
+    return run_migrate(&arguments, cwd.as_path());
+}
+
+/// Run the migration command where the platform has btrfs subvolumes.
+#[cfg(target_os = "linux")]
+fn run_migrate(arguments: &MigrateArguments, cwd: &Path) -> Action {
+    return migrate_action(arguments, cwd);
+}
+
+/// Other platforms have no btrfs subvolumes, so the command says so.
+#[cfg(not(target_os = "linux"))]
+fn run_migrate(_arguments: &MigrateArguments, _cwd: &Path) -> Action {
+    return failure("git cli-git migrate-to-subvolume works on Linux with btrfs only");
+}
+
 fn plan_doctor(
     git_global_arguments: &[OsString],
     environment: &[(OsString, OsString)],
@@ -431,6 +474,7 @@ pub fn plan_management(
         }
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs),
         ManagementAction::ServiceStatus => return plan_service(environment),
+        ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::Direct {
             fix,
             all,
