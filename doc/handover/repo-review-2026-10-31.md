@@ -2557,6 +2557,27 @@ Wave-4 eighty-fourth checkpoint (2026-11-01, three remainders reopened):
   rr-maa-006, the android slice-1 remainder 2 rr-maa-007, and troubleshooting
   161 rr-ts-390.
 
+Wave-4 eighty-fifth checkpoint (2026-11-01, six returns, six fresh slices):
+
+- Android slice 1 is COMPLETE: rows 018 to 026 close the 53 unread paths; the
+  ledger is 26 of 26 clean, no unread paths remain. Slice 2 is COMPLETE: rows
+  024 to 028 close the five tests and the PlayerContent layout region; ledger
+  28 of 28 clean, no unread paths. Slice 3 added rows 009 to 013 and is 13 of
+  13 clean, with 72 test paths unread.
+- Desktop slice 1 is COMPLETE: rows 015 to 020 close the 21 tests, icon and four
+  licenses; the ledger is 20 of 20 clean. Two line shifts were repaired in place
+  (`None => break` 157 to 156; nextest `slow-timeout` 5 to 6).
+- Planning slice 9 added rows 076 to 084 over positions 379 to 398; ledger 84 of
+  84 clean, next id 085, positions 399 to 418, base rr-dp-011.
+- Troubleshooting added rows 161 to 181 over worklist lines 244 to 343; ledger
+  180 of 180 clean, next id 182 at `module-test-unhandled-rejection.md`, base
+  rr-ts-391.
+- Live lanes: planning 085 rr-dp-011; troubleshooting 182 rr-ts-391; android
+  slice-3 remainders 014 rr-maa-010 (72 tests); android slice 4 001 rr-maa-009
+  (paths 301 to 354); desktop slice 2 001 rr-mda-004 (101 to 200); desktop slice
+  3 001 rr-mda-005 (201 to 300). All six use absolute ledger paths, private
+  append scripts and the 100-file cap.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
