@@ -622,6 +622,24 @@ Wave-4 fifteenth checkpoint (2026-11-01, all rows verified against the tree befo
   CLI runs on node via nano-spawn). `w4-android-app` now on page-weight/cli (17 files;
   then terminal-exec 27, watch-restart 43, kwin/key-helper 25).
 
+Wave-4 sixteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- vm-builder/cli complete: all 17 tracked files (rows `w4-vm-builder-001` to `-008`
+  verified, 8 of 8 clean after my 005 relocation, Flatpak line 372 to 373; headline row
+  001, blocker: `.containerignore` un-ignores the plural `packages/` where the
+  directory is `package/`, a live FROM-scratch podman repro fails at the Containerfile
+  COPY and the singular variant builds, so the primary run task is red at HEAD; row 008
+  joins the Aquaticat/Aquaticats spelling family). `w4-fe-core-tests` now on vmsync/cli
+  (28 files; then mvm/cli slice 2, git-policy/cli slices 9+).
+- pi-plugin openai-fast complete: 53 of 53 files, one finding (row `w4-pi-plugin-031`
+  verified, 31 of 31 clean; the README's present-tense pi 1.0.0 claim against the
+  installed 1.4.0 host). `w4-cc-statusline` now on goal (51 files; then bash-poke 48,
+  advisor 23, current-time-context 12, cost-dismissal 8).
+- desktop-e2e progress: rows `pkg-observable-115` to `-119` verified (118 of 118
+  clean; the loadRunConfig example missing defaultCompositorPath, the OMEGA_TONE_FILE
+  folder-name mismatch pinned by its test, the narrow-session module-doc enumeration
+  gap). 54 files remain from dialog-session.ts; the ansi.ts gap was found and closed.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
