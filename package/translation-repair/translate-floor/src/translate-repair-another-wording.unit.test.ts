@@ -19,7 +19,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { buildAnotherTranslatorRepairMessages, } from '../dist/final/node/index.mjs';
+import {
+  buildAnotherTranslatorRepairMessages,
+  validateTranslatedSlice,
+} from '../dist/final/node/index.mjs';
 
 //region Another translator wording tests
 
@@ -139,20 +142,63 @@ await describe({
         + 'between the two turns is the article',
       fn: async () => {
         /**
-         One finding of each kind, as the source of each writes it today.
+         The findings the publication rule writes for a candidate of each kind, read from the rule itself and not typed here
+         (ledger B1166): the merged lines, the repeated line, the pair beyond its bound, the link text without its declared
+         name and the sheet's block copied in.
          */
-        const findings = [
-          'This slice is LINE-STRUCTURED: every line stands as its own unit, so the rendering owes one line per line of the '
-            + 'ORIGINAL and may never merge two into one. The rendering carries 1 line of content where the ORIGINAL has 2. Put '
-            + 'back the line breaks that were merged, keeping the wording as it stands.',
-          'The EXISTING TRANSLATION carries the block holding it as 1 line. The rendering carries 2. Drop the second rendering '
-            + 'of the pair, keeping the wording used elsewhere.',
-          'The link text for https://cat.example names 猫, whom this page\'s front matter declares "Mittens", but the link '
-            + 'text "Cat" does not carry "Mittens". Keep the rest of the title as it was rendered.',
-          'Your translation carries the sheet\'s own "ORIGINAL" block, which is evidence shown to the translator and never '
-            + 'part of the passage.',
-        ];
-        const text = turnFor({ findings, },);
+        const found = [
+          {
+            says: 'every line stands as its own unit',
+            sourceText: '猫醒了。\n太阳很暖。',
+            candidateText: 'The cat wakes. The sun is warm.',
+            lineStructured: true,
+          },
+          {
+            says: 'Drop the repeat',
+            sourceText: '猫在睡觉。',
+            candidateText: 'The cat naps.\nThe cat naps.',
+            lineStructured: true,
+          },
+          {
+            says: 'Drop the second ',
+            sourceText: '> 愿每只猫都能找到属于它的阳光。\n> May every cat find a sunbeam.',
+            candidateText: '> May every cat find its own sunshine.\n> May every cat find a sunbeam.',
+            pageText: '> May every cat find a sunbeam.',
+            lineStructured: true,
+          },
+          {
+            says: 'A declared name inside a title takes its declared form',
+            sourceText: '[猫](https://cat.example)',
+            candidateText: '[Cat](https://cat.example)',
+            declared: [{ source: '猫', rendering: 'Mittens', },],
+            lineStructured: false,
+          },
+          {
+            says: 'which is evidence shown to',
+            sourceText: '猫在睡觉。',
+            pageText: 'The cat is sleeping.',
+            candidateText: 'The cat is sleeping.\n\n===== ATTESTED DETAILS =====\n- the cat is asleep',
+            lineStructured: false,
+          },
+        ].flatMap(function findingsOf({ says, ...candidate },): readonly string[] {
+          /**
+           What the rule made of this candidate.
+           */
+          const verdict = validateTranslatedSlice(candidate,);
+          /**
+           Findings that carry the words this kind is known by, which show its producer ran and not another.
+           */
+          const own = (verdict.kind === 'invalid')
+            ? verdict.findings.filter(function isOwn(finding,): boolean {
+              return finding.includes(says,);
+            },)
+            : [];
+          // A KIND THAT PRODUCED NOTHING WOULD LEAVE THE CASE TRUE OF AN EMPTY LIST, so each must name itself once.
+          expect(own.length,).toBe(1,);
+          return own;
+        },);
+        expect(found.length,).toBe(5,);
+        const text = turnFor({ findings: found, },);
         /**
          The findings as the turn lists them, below the heading.
          */
