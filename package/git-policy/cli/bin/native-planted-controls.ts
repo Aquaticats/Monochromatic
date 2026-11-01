@@ -82,8 +82,13 @@ const plantedControls: readonly PlantedControl[] = [
  @param index - position of the control, which names its planted source and log files
 
  @returns control with its container's exit status and whether the named test failed
+
+ @example
+ ```ts
+ const result = await runPlantedControl({ base, limits, context, evidence, control, index: 0 });
+ ```
  */
-async function runPlantedControl({
+export async function runPlantedControl({
   base,
   limits,
   context,
