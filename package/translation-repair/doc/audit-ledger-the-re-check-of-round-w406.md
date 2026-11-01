@@ -485,6 +485,12 @@ in the note of B1313,
 in the header of the test and in the mistake-prevention entry.
 The message of `6e71fe3e8e` stays and is corrected in B1360.
 
+Note of 2026-11-01 (round w409d,
+B1400):
+`spec-m2.json` and `red-m2-0.txt` to `red-m2-8.txt` are in `/var/home/user/temp/agent/tr-fan/w406-fix/`,
+with `mutate.ts`,
+and not in the folder of the logs of round w407 that the header of this file names.
+
 ## B1356: the originals of the entries round w406 rewrote are restored
 
 Round w406 rewrote the text of B1270,

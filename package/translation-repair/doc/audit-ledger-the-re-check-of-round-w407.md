@@ -295,7 +295,27 @@ The rule that this entry corrects is
 [A limit of a tool is measured on the file][tool-limit],
 which now holds the recipe.
 
+## B1400: the files B1355 cites are in the folder of the round before
+
+The finding:
+B1355 cites `spec-m2.json` and `red-m2-0.txt` to `red-m2-8.txt` with no folder,
+and the header of that ledger says the logs of its round are in `w407-fix`.
+They are in `/var/home/user/temp/agent/tr-fan/w406-fix/`
+(`ls` of the ten paths there printed all ten,
+and `ls` of `spec-m2.json` in `w407-fix` printed that the file does not exist).
+`mutate.ts`,
+which B1327 names as "in the agent folder",
+is in the same folder.
+The reader was right.
+
+The fix:
+B1355 gains a note of 2026-11-01 with the folder.
+The rule that a cited file is named with its folder is in
+[Evidence a ledger cites][evidence-cited],
+where the case of `count-cases.ts` (B1359) already stands.
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+[evidence-cited]: mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites
 [tool-limit]: mistake-prevention-commit-checks-and-figures-told-to-others.md#a-limit-of-a-tool-is-measured-on-the-file
 [launch-checks]: mistake-prevention.md#before-a-run-launches
 [records-read]: mistake-prevention-stored-files-and-cached-decisions.md#a-version-stays-only-after-the-stored-records-are-read

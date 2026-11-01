@@ -137,10 +137,16 @@ habit and review only.
 A scan cannot check a path outside the repository,
 so the entry that cites such a file also states what it read,
 which is what B1295 now does.
-A script that a ledger cites by name lives in the folder of the round whose logs the entry cites,
+A script or a log that a ledger cites by name lives in the folder of the round whose logs the entry cites,
 or the entry names the folder it is in (`count-cases.ts` of B1327 is in `w405-fix`,
 and the entry first said the folder of its own round's logs,
-ledger B1359).
+ledger B1359;
+`spec-m2.json` and `red-m2-0.txt` to `red-m2-8.txt` of B1355 are in `w406-fix`,
+and the header of that ledger names `w407-fix`,
+ledger B1400).
+A bare name does not find its file:
+`rg --files --glob "spec-m2.json" /var/home/user/temp/agent/tr-fan` lists three folders that hold one,
+so the entry is written with the folder after that search has named the one it means.
 
 ## A limit of a tool is measured on the file
 
