@@ -5854,3 +5854,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `monochromatic-c0` with version, commit and the behavior changes; the `toolchain.lock.json` bump and install are theirs. Next on my
   side: merge the linter embedding when `a19be37e1bd9ea63d` reports READY after its review fixes, release the linter (old route), bump
   the wrapper and `monochromatic-lint.fuzz` pins, gate, release the wrapper again; merge service slices and the test-store fix as READY.
+  Linter route, read from `.github/workflows/cargo-publish.yml`: a push to `main` that changes the version in
+  `package/linter/monochromatic-lint/Cargo.toml` publishes it (manual dispatch with `crate=monochromatic-lint` also exists, with a dry
+  run). Plan: one commit after the merge sets the linter to 0.5.0 (new public API `run_embedded` and feature `semantic`) and both pins
+  (`package/git-policy/cli/Cargo.toml`, `package/linter/monochromatic-lint.fuzz/Cargo.toml`) to `=0.5.0`; local builds use the path, so
+  nothing breaks before crates.io has it; wait for crates.io, then gate and dispatch the wrapper release.
