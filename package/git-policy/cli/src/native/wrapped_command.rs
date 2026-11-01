@@ -473,7 +473,6 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
             stderr: String::new(),
         };
     }
-    show_push_failures(stripped, checks);
     // `String::from_utf8_lossy` renders the command word for messages, replacing bytes that
     // are not UTF-8; `.into_owned()` makes it owned text.
     let command: String = String::from_utf8_lossy(command_word(stripped)).into_owned();
@@ -488,6 +487,9 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
             Err(ending) => return ending,
         }
     };
+    // After the configuration step, so a command that had Git answer the repository location shows from that answer, and
+    //  before the commit, so a failure shows ahead of the commit's own output.
+    show_push_failures(stripped, checks);
     if let Some(config) = &loaded
         && let Some(ending) = run_commit_if_real(stripped, environment, checks, config)
     {
