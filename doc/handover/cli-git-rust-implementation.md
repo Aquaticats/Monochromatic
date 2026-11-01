@@ -5849,3 +5849,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `a19be37e1bd9ea63d` (resumed). Cross-vendor review of the flaky-test fix (`~/temp/agent/ct/pi-review.out`): pruning race, build
   identity by length plus mtime, `st_dev` equality is not link capability, weak concurrency test, skipped relocated-root case, `/proc`
   assumption. Sent to `a54d6b24f9cf91c20` together with the lock-free request. `sol-service` (design review) still running.
+- PUBLISHED: `monochromatic-git-policy-cli 0.5.0` on crates.io at 2026-11-01T13:21:46Z, GitHub release
+  `monochromatic-git-policy-cli-v0.5.0` with x86_64 and aarch64 linux-gnu assets; release commit `069e45a200`. Messaged
+  `monochromatic-c0` with version, commit and the behavior changes; the `toolchain.lock.json` bump and install are theirs. Next on my
+  side: merge the linter embedding when `a19be37e1bd9ea63d` reports READY after its review fixes, release the linter (old route), bump
+  the wrapper and `monochromatic-lint.fuzz` pins, gate, release the wrapper again; merge service slices and the test-store fix as READY.
