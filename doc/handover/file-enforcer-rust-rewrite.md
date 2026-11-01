@@ -778,6 +778,21 @@ each finished branch is reviewed and merged into `main`):
   as before this branch;
   the branch had made it continue with a loud error,
   which the owner never decided).
+  Fixed 2026-11-01,
+  tip `557ea24e24` (12 commits on `e1ef91dbb1`;
+  156 Rust tests and 89 TypeScript suites passed;
+  `monochromatic-lint` clean for both packages):
+  linked install roots accepted only strictly below the resolved home,
+  others reported as not in force;
+  `WatcherMissingError` aborts and rolls back `up`;
+  the reporter built after the signal descriptor;
+  four distinct causes per kind per interval (global cap 32),
+  startup reports unlimited in `up`'s output;
+  wider escapes;
+  sentinels as transient system services with `ManagedOOMPreference=omit`,
+  confirmed by a marker.
+  The author notes the sentinels run user-writable executables as root in long-lived services.
+  The same reviewer is re-checking `e1ef91dbb1..557ea24e24`.
 - Separate review of the switch branch (2026-11-01,
   `82bc287a8c..cc96e34a54`):
   no new blocker.
