@@ -71,6 +71,14 @@ export type BypassState = {
 export const BYPASS_ROUTE_PROTOCOL = 201;
 
 /**
+ First table tried for application bypass routes,
+ and the lowest table a bypass state may claim:
+ the allocator never goes below it,
+ so a state that names a lower table (such as `main`, 254, or any table under 256 that `ip` could read from a shorter spelling) is not ours.
+ */
+export const BASE_BYPASS_TABLE = 52_000;
+
+/**
  Families covered by socket-mark policy rules.
  */
 export const BYPASS_PROTOS: readonly BypassProto[] = [

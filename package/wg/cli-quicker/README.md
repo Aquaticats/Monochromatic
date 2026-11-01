@@ -35,9 +35,15 @@ a disposable fixture sets the variable inside the root command.
 The state file is still not trusted, because whoever can write the directory can write the file:
 the name in it must pass the same rule,
 and a state file with another name is refused.
-The routes in it are deleted as root, so each must be a default route (or the unreachable fallback default)
-of the claimed table with the private route protocol `201`, in plain tokens with no option;
-a state file with any other route is refused.
+The routes in it are deleted as root, and `ip` reads a keyword by any prefix and lets a later one overwrite an earlier one,
+so each route must match the grammar the route writers use and nothing else:
+`default` or `unreachable default`, then `via <address>`, `dev <name>`, `onlink` and `metric <number>`,
+and `table <claimed table>` and `proto 201`, each at most once and in that one spelling.
+The claimed table must be at least the first table the allocator hands out (52000).
+A route copied by an earlier version with a preferred source or a router preference is read with those dropped;
+any other route is refused.
+The bypass table copies only those attributes of a physical default route,
+so a physical default route with another form (such as a nexthop object) stops the application bypass with an error that names it.
 The other places that read a name back do not trust it either:
 the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
 and every other name comes from the config,
