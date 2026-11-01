@@ -172,7 +172,7 @@ fn amends_through_the_service_equal_the_native_amend() {
             let output: Output = if through {
                 through_service(&fixture, &repo, name.as_str(), entry.command)
             } else {
-                wrapped_commit(&fixture, &repo, entry.command).output().expect("native")
+                wrapped_commit(&fixture, &repo, entry.command).env_remove("XDG_RUNTIME_DIR").output().expect("native")
             };
             if through {
                 let expected: usize = before + usize::from(entry.lands);

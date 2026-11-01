@@ -845,10 +845,14 @@ Delete, because the single-writer service makes it unnecessary (landing moves to
   limit can be derived), `lock_holder_facts.rs`, the waits for it in `bounded_push.rs`, and the environment variable
   `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`. Pushes become service work items coalesced per branch (`push_once`). Manual `git push`
   never took this lock, so nothing changes for it.
-- The index-lock holder evidence: `index_lock_wait.rs`, `index_lock_wait_host.rs`, `index_lock_holders.rs`,
-  `index_lock_holder_parsers.rs`, `index_lock_evidence.rs`: 2 926 and 2 081 lines with the coordination above. They exist
-  to decide how long to wait for a foreign `index.lock`; the service's own bounded retry replaces them. The environment
-  variables `CLI_GIT_LOCK_WAIT_SECONDS` and `CLI_GIT_WAIT_NOTICE_SECONDS` go with them.
+- Correction (coordinator decision, after the concurrent end-to-end scenarios `foreign-index-lock-holder` and
+  `foreign-index-lock-unproven` failed): the foreign `index.lock` waiting and holder-evidence family is NOT deletable. It
+  moves into the service landing, which takes `index.lock` first (see "Landing every command line", below). Kept:
+  `index_lock_holders.rs`, `index_lock_holder_parsers.rs`, `index_lock_evidence.rs` (the evidence and the holder lines),
+  `live_lock.rs` for `live_wait_limit` and `LIVE_WAIT_VARIABLE` only, and the environment variable
+  `CLI_GIT_LOCK_WAIT_SECONDS` (read by the service, so it belongs in the unit's environment). Deletable from the old family:
+  the polling loop of `index_lock_wait.rs` and `index_lock_wait_host.rs` (backoff, jitter, tickers, `WaitEffects`), which
+  the inotify wait in `service_index_lock.rs` replaces, and `CLI_GIT_WAIT_NOTICE_SECONDS`.
 
 Replace with a lock-free mechanism:
 - The transaction directory of the preparation that stays (unborn and detached heads, conclusions, policy rewrites): its
@@ -882,3 +886,94 @@ in the manager's memory, never on disk, and visible to every unit of the account
 credential the manager passes with `LoadCredential`, which needs the key in a file the account owns. Neither is
 implemented. The first is one more call on the same bus connection, with the cost that other units of the account can read
 the value; that exposure is the decision.
+
+## Landing every command line (step 4d, part 1)
+
+Every command line lands through the service. The preparation (`service_prepare.rs`) never declines: a selection by
+`--include`, `--patch`, `--interactive` or `--pathspec-from-file` is made in the private index by real Git; a conclusion, a
+detached head, a branch that does not exist yet, an unmerged index, nothing to commit, a policy rewrite and a change list the
+embedded route cannot carry are built by real Git in the scratch repository (so its words and its exit status are the
+person's) and landed as Git made them. Only a machine with no user manager keeps the earlier path, until part 2.
+
+Landing rules of a commit Git built (`service_land.rs`), protocol version 5:
+- The first parent is the branch tip the client read (none for a branch that does not exist yet, compared against the
+  all-zero name); later parents are a merge conclusion's. An amend has the replaced commit's parents.
+- A detached head is the reference `HEAD`, updated with `option no-deref`. Measured: Git's no-deref update of a symbolic
+  `HEAD` replaces the symbolic reference instead of failing the compare, so the service checks `symbolic-ref` first.
+- The index entries are the paths that differ between the old branch and the new commit, read as bytes and handed to
+  `reset --pathspec-from-file=- --pathspec-file-nul`, so names that are not text, gitlinks and lists past 4096 need no list.
+- A conclusion's state (`MERGE_HEAD`, `MERGE_MSG`, `MERGE_MODE`, `SQUASH_MSG`, `AUTO_MERGE`, `CHERRY_PICK_HEAD`,
+  `REVERT_HEAD`, `MERGE_RR`, `sequencer/`) is removed by the landing exactly as native Git removed it in the scratch
+  repository, each entry only while it still holds the bytes copied at preparation (`reproduce_conclusion_cleanup`), and the
+  cleanup is journaled with the batch. Any commit made while such state exists is built by Git, so a squash message is
+  removed too. A failed cleanup cannot be redone after the client removed its scratch directory.
+- A rewrite a policy made is installed into the worktree by the client after the landing; a crash in between leaves the
+  person's own content in the worktree and the rewrite in the commit and the index (shown as a modification).
+
+Index lock, first (found by the concurrent end-to-end scenarios; ships in the 0.5.5 hotfix): the landing creates
+`index.lock` exclusively before it reads the branch, holds it across the compare-and-swap, builds the new index beside the
+real one and installs it by renaming the lock over `index`, as Git's own `commit` does. A foreign holder is waited for on
+an inotify watch of the Git directory (no polling; the only timers are the limit `CLI_GIT_LOCK_WAIT_SECONDS` and the
+ten-second repetition of the holder's line), the holder's line from `index_lock_evidence.rs` reaches the client as a
+`Waiting` message, and a holder that outlives the limit ends the commit before anything moved with a plain message naming
+the process (`Holder` message). While the service holds the lock it carries `cli-git-service <batch>`, so a restart removes
+its own stale lock and no other. Platforms without inotify fail at once when the lock is held. While the service waits it
+serves no other repository (one serialized step); the limit bounds that.
+
+A lock that carries the service's marker and is found by a landing is a dead instance's (one service runs and it holds no
+lock between two landings), so the landing removes it and takes its own; measured: without this rule a service killed while it
+held the lock made every later landing wait out the whole limit for a holder that was gone.
+
+Not covered: a service killed between taking the lock and writing its marker leaves an empty `index.lock`, which is a
+foreign lock to every reader, exactly as a killed Git leaves one.
+
+### Suite with the service as the only route, after part 1
+
+`CLI_GIT_TEST_SERVICE=1`, whole binary target, one run (436 tests, 221 s): 365 passed, 71 failed. Three of the failures
+(`wait_notice` for the index lock) were then restated for the service's wait and pass singly; the other 68 remain. Each
+remaining failure asserts machinery that part 2 deletes:
+- `recovery_tearing` (24): damaged or lost records of the transaction directory, owner locks, shadow refs, phases.
+- `wait_notice` (5): the landing lock, the reservation and two real wrappers queueing behind each other.
+- `commit` (4): replay after a lost race, a replay conflict, the reservation threshold, and the pack-per-landing migration that
+  a maintenance control counts (the service writes loose objects, so nothing reaches the pack limit).
+- `event_path_commit` (4): replayed commits and recovery of a killed transaction with names that are not text.
+- `fault_enospc` (6), `fault_filesystem` (4), `fault_kill` (7), `fault_limits` (3), `fault_signal` (1), `fork_failure` (2):
+  faults injected into the wrapper at each call of the earlier landing and then a check that its transaction directory
+  recovers. The service needs its own equivalents where a fault still applies (the journal's kill points are in
+  `binary_service_tests.rs`).
+- `budget` (5): process and sync budgets of the earlier transaction; the service route needs its own.
+- `merge_isolation` (1): a commit waiting for a running merge under the landing lock.
+- `index_pack_fsync` (2): the migration `index-pack` of the earlier landing, which no longer exists. The service writes
+  objects with the person's own `core.fsync`; whether it should override it as the migration did is a decision for the owner.
+
+The push tests were restated, not retired: the push runs after the command returned, in the service's environment. The
+harness waits for the work records to settle, gives the fixture service the variables a control sets for the push, and
+reads a failed push from the notice. Variables only the terminal has do not reach the push (documented limit).
+`push_once` runs the same `run_push_command` path as the wrapper's push, so the in-process pointer scan and the `git-lfs`
+upload before the ref moves run in the service (shown by `lfs_pre_push` and `lfs_server` with the service).
+
+Two end-to-end scenarios named by the coordinator: `lint-staged-stash-concurrent` passes with the rebuild from the saved
+message; `reservation-after-lost-races` now lands every commit (exits 0) but asserts the earlier reservation counters, so it
+belongs with the machinery part 2 deletes.
+
+### What part 2 can delete, and what it must keep
+
+Delete: `owner_lock*`, `commit_landing_lock`, `transaction_lease`, `transaction_owner`, `ownerless_directory`,
+`replay_*`, `landing_*`, `commit_landing_loop`, `post_landing`, `landed_disposal`, `commit_recovery`, `recovery_*` (but see
+below), `transaction_registry`, `transaction_gate`, `commit_workspace`, `capture_store`, `capture_records`, the capture lock
+and sequence of `capture_order.rs`, `real_index_lock`, `index_writer_coordination` and `index_writer_forward`, the lock of
+`auto_push_single_flight.rs`, `holder_budget`, `lock_holder_facts`, the polling loop of `index_lock_wait*`, `run_commit_transaction`
+and `conclude_commit_transaction`, and the earlier route in `commit_command.rs` once a machine without a user manager gets the
+plain stop.
+
+Keep or move (used by the service route): `CaptureIndexes` and `indexed_request` (`capture_order.rs`); `Selection`,
+`decide_selection`, `TransactionResult`, `TransactionStop`, `failed`, `private_checks`, `staged_at_base`, `base_object`,
+`settled_passes` and `CommitInvocation` (`commit_transaction.rs`); `events_with_changed_summary` and `events_with_summary`
+(`commit_conclusion.rs`); the no-change constants and `no_change_message` (`commit_no_change.rs`); `recovery_error.rs` and
+`recovery_files.rs` (used by `conclusion_cleanup.rs` and `worktree_completion.rs`); `conclusion_copy.rs`,
+`conclusion_cleanup.rs`, `shadow_create.rs`, `shadow_config.rs`, `shadow_links.rs`, `shadow_refs.rs`, `shadow_skeleton.rs`,
+`shadow_git.rs`, `commit_preparation.rs` (`run_native_commit`, `read_prepared_commit`), `commit_index.rs`,
+`worktree_completion.rs`, `commit_worktree_records.rs`, the types of `transaction_journal.rs` (`Base`, `Conclusion`,
+`SymbolicHead`, `TransactionMode`, `RefFormat`, `AddedPath`), `PushGit` and `git_command` of `auto_push_single_flight.rs`,
+`index_lock_holders*`, `index_lock_evidence.rs`, and `live_wait_limit` with `LIVE_WAIT_VARIABLE` of `live_lock.rs`. This
+list was read from the imports of the new files, not from a deletion build; the deletion itself is the check.

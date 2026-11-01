@@ -16,7 +16,7 @@ use super::service_review_key::ReviewKey;
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// The release of this build: the crate version, which the wrapper and the service program share because they are built
 ///  and installed together. A service from another release is retired even when it speaks the same protocol, since the
@@ -50,6 +50,28 @@ pub struct Change {
     pub mode: u32,
     /// Object name of the content, or nothing for a deletion.
     pub blob: Option<String>,
+}
+
+/// What:
+///  What the landing of a merge, cherry-pick or revert conclusion removes from the worktree's Git directory once the
+///  commit is on the branch.
+/// Why:
+///   Native `git commit` removes `MERGE_HEAD` and its siblings when it concludes; the client built the commit with real
+///  Git in a scratch repository that holds the state it was given, so the entries real Git removed there are the ones the
+///  landing removes here, each only while it still holds the bytes copied at preparation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Cleanup = { gitDir: string; scratch: string; reftable: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Cleanup {
+    /// The Git directory of the worktree the commit is made in.
+    pub git_dir: PathBuf,
+    /// The commit's scratch directory, which holds the conclusion copies and the scratch repository Git committed in.
+    pub scratch: PathBuf,
+    /// Whether the repository stores references in reftable tables, which hold three of the entries in the ref store.
+    pub reftable: bool,
 }
 
 /// What:
@@ -91,6 +113,15 @@ pub struct CommitRequest {
     ///  service lands it as it is, only while the branch tip is still the base, and ignores the message, the identities
     ///  and the tree of the request.
     pub commit: Option<String>,
+    /// The state files a conclusion removes once the commit has landed; only with a commit built elsewhere.
+    pub cleanup: Option<Cleanup>,
+    /// The real index of the worktree, whose lock the landing holds from before the branch moves until the new index is in place.
+    pub index: PathBuf,
+}
+
+/// Whether `name` is the all-zero object name, which stands for a branch that does not exist yet.
+pub fn is_zero_object(name: &str) -> bool {
+    return is_object_name(name) && name.bytes().all(|byte| { return byte == b'0'; });
 }
 
 impl CommitRequest {
@@ -181,6 +212,10 @@ pub enum ServiceMessage {
     RetryPrepare { id: String, base: String },
     /// The request was not landed.
     Failed { id: String, code: FailureCode },
+    /// The landing waits for another program that holds the repository's index: a line for the person's terminal.
+    Waiting { text: String },
+    /// Who held the index when the wait ran out, in words that fit "... is using this repository's index".
+    Holder { who: String },
 }
 
 fn field<'a>(value: &'a Value, name: &str) -> Result<&'a str, String> {
@@ -262,6 +297,17 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("amend", Value::from(request.amend)),
             ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
             ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
+            ("index", Value::from(request.index.to_string_lossy().as_ref())),
+            (
+                "cleanup",
+                request.cleanup.as_ref().map_or(Value::Null, |cleanup| {
+                    return Value::Object(Map::from_iter([
+                        (String::from("gitDir"), Value::from(cleanup.git_dir.to_string_lossy().as_ref())),
+                        (String::from("scratch"), Value::from(cleanup.scratch.to_string_lossy().as_ref())),
+                        (String::from("reftable"), Value::from(cleanup.reftable)),
+                    ]));
+                }),
+            ),
         ]),
     };
 }
@@ -332,21 +378,43 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
+        index: PathBuf::from(field(&value, "index")?),
+        cleanup: match value.get("cleanup").filter(|entry| { return !entry.is_null(); }) {
+            None => None,
+            Some(entry) => Some(Cleanup {
+                git_dir: PathBuf::from(field(entry, "gitDir")?),
+                scratch: PathBuf::from(field(entry, "scratch")?),
+                reftable: entry.get("reftable").and_then(Value::as_bool).unwrap_or(false),
+            }),
+        },
     };
     let well_formed: bool = !request.id.is_empty()
         && request.id.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
-        && request.reference.starts_with("refs/")
+        // A detached head is moved as `HEAD` itself.
+        && (request.reference.starts_with("refs/") || request.reference == "HEAD")
         && !request.reference.contains(['\0', '\n', ' '])
         && is_object_name(&request.base)
+        // A branch that does not exist yet has no commit to build the tree from, so only a commit built elsewhere names it.
+        && (!is_zero_object(&request.base) || request.commit.is_some())
         && request.repository.is_absolute()
         && request.common_dir.is_absolute()
+        && request.index.is_absolute()
+        && !request.index.to_string_lossy().contains('\0')
         && !request.committer.contains(['\0', '\n'])
         && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); })
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
         //  names neither, so the three cannot be mixed up.
         && (request.amend && request.commit.is_none()) == request.tree.is_some()
         && request.tree.as_deref().is_none_or(is_object_name)
-        && request.commit.as_deref().is_none_or(is_object_name);
+        && request.commit.as_deref().is_none_or(is_object_name)
+        && request.cleanup.as_ref().is_none_or(|cleanup| {
+            return request.commit.is_some()
+                && cleanup.git_dir.is_absolute()
+                && cleanup.scratch.is_absolute()
+                && cleanup.scratch.starts_with(&cleanup.git_dir)
+                && !cleanup.git_dir.to_string_lossy().contains('\0')
+                && !cleanup.scratch.to_string_lossy().contains('\0');
+        });
     if !well_formed {
         return Err(String::from("request is not acceptable"));
     }
@@ -383,6 +451,8 @@ pub fn encode_service(message: &ServiceMessage) -> String {
         ServiceMessage::RetryPrepare { id, base } => {
             object(vec![("type", Value::from("retry-prepare")), ("id", Value::from(id.as_str())), ("base", Value::from(base.as_str()))])
         }
+        ServiceMessage::Waiting { text } => object(vec![("type", Value::from("waiting")), ("text", Value::from(text.as_str()))]),
+        ServiceMessage::Holder { who } => object(vec![("type", Value::from("holder")), ("who", Value::from(who.as_str()))]),
         ServiceMessage::Failed { id, code } => {
             object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
         }
@@ -419,6 +489,8 @@ pub fn decode_service(line: &str) -> Result<ServiceMessage, String> {
             already: value.get("already").and_then(Value::as_bool).unwrap_or(false),
         }),
         "retry-prepare" => Ok(ServiceMessage::RetryPrepare { id: field(&value, "id")?.to_string(), base: field(&value, "base")?.to_string() }),
+        "waiting" => Ok(ServiceMessage::Waiting { text: field(&value, "text")?.to_string() }),
+        "holder" => Ok(ServiceMessage::Holder { who: field(&value, "who")?.to_string() }),
         "failed" => Ok(ServiceMessage::Failed {
             id: field(&value, "id")?.to_string(),
             code: FailureCode::from_word(field(&value, "code")?).ok_or("unknown failure code")?,

@@ -27,6 +27,7 @@ fn named_paths_and_the_separator_are_left_out_for_git() {
         &strings(&["a.txt", "dir/b.txt"]),
         TransactionMode::ExplicitPath,
         false,
+        false,
     );
     assert!(globals.is_empty());
     assert_eq!(commit, strings(&["-m", "subject"]));
@@ -40,15 +41,26 @@ fn global_options_that_redirect_git_are_dropped() {
         &[],
         TransactionMode::Index,
         false,
+        false,
     );
     assert_eq!(globals, strings(&["-c", "core.editor=true"]));
     assert_eq!(commit, strings(&["-S", "-m", "signed"]));
+}
+
+/// A selection the private index already holds is not given to Git again, with its pathspec file and its pathspecs.
+#[test]
+fn a_selection_the_private_index_holds_is_not_given_to_git_again() {
+    let line: Vec<OsString> = arguments(&["commit", "-i", "-m", "all", "--pathspec-from-file=list", "--pathspec-file-nul", "--", "a.txt"]);
+    assert_eq!(private_invocation(&line, &strings(&["a.txt"]), TransactionMode::Index, false, true).1, strings(&["-m", "all"]));
+    let patch: Vec<OsString> = arguments(&["commit", "--patch", "-m", "p"]);
+    assert_eq!(private_invocation(&patch, &[], TransactionMode::Index, false, true).1, strings(&["-m", "p"]));
+    assert_eq!(private_invocation(&patch, &[], TransactionMode::Index, false, false).1, strings(&["--patch", "-m", "p"]));
 }
 
 /// `-a` is removed once it has staged into the private index, whether alone or in a cluster, and not otherwise.
 #[test]
 fn commit_all_is_removed_only_when_the_index_already_holds_it() {
     let line: Vec<OsString> = arguments(&["commit", "-am", "all"]);
-    assert_eq!(private_invocation(&line, &[], TransactionMode::Index, true).1, strings(&["-m", "all"]));
-    assert_eq!(private_invocation(&line, &[], TransactionMode::Index, false).1, strings(&["-am", "all"]));
+    assert_eq!(private_invocation(&line, &[], TransactionMode::Index, true, false).1, strings(&["-m", "all"]));
+    assert_eq!(private_invocation(&line, &[], TransactionMode::Index, false, false).1, strings(&["-am", "all"]));
 }

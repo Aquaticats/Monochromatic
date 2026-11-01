@@ -41,6 +41,10 @@ fn world(fixture: &Fixture, source: &str) -> (PathBuf, PathBuf) {
 fn commit_file(fixture: &Fixture, directory: &Path, name: &str, environment: &[(&str, String)]) -> Observed {
     std::fs::write(directory.join(name), format!("{name}\n")).expect("file");
     git(fixture, directory, &["add", "--", name]);
+    // The push runs in the service's environment, so what the control sets for it is given there, before the service starts.
+    for (key, value) in environment {
+        super::support::give_service_environment(fixture, key, value);
+    }
     let mut command = wrapped_commit(fixture, directory, &["commit", "--quiet", &format!("--message={name}"), "--", name]);
     for (key, value) in environment {
         command.env(key, value);
@@ -62,7 +66,8 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
         "#!/bin/sh\ntouch '{dir}/started.'$$\ni=0\nwhile [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ] && [ $i -lt {tries} ]; do sleep 0.1; i=$((i+1)); done\n\
          if [ \"$(ls '{dir}' | grep -c '^started\\.')\" -lt 2 ]; then touch '{dir}/alone'; fi\nexit 0\n",
         dir = marks.display(),
-        tries = BARRIER_TRIES
+        // The service pushes the branches of one repository one after another, so its uploads cannot wait for each other.
+        tries = if super::support::service_route() { 1 } else { BARRIER_TRIES }
     );
     let (repo, origin) = world(&fixture, barrier.as_str());
     let second: PathBuf = fixture.root.join("second");
@@ -81,7 +86,7 @@ fn two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiti
         assert_eq!(seen.code, Some(0), "{label}: {}", stderr_of(seen));
         assert!(!stderr_of(seen).contains("waiting for"), "{label} waited for the other: {}", stderr_of(seen));
     }
-    assert!(!marks.join("alone").exists(), "one upload ran without the other: they were taken in turn");
+    assert!(super::support::service_route() || !marks.join("alone").exists(), "one upload ran without the other: they were taken in turn");
     for (branch, worktree) in [("main", repo.as_path()), ("other", second.as_path())] {
         let published: String = git_text(&fixture, origin.as_path(), &["rev-parse", &format!("refs/heads/{branch}")]);
         let landed: String = git_text(&fixture, worktree, &["rev-parse", "HEAD"]);
@@ -114,7 +119,9 @@ fn a_detached_upload_helper_holding_the_output_open_does_not_hold_the_commit() {
     let elapsed: Duration = started.elapsed();
     let stderr: String = stderr_of(&seen);
     assert_eq!(seen.code, Some(0), "the commit itself succeeds: {stderr}");
-    assert!(stderr.contains(&format!("did not finish within {SHORT_DEADLINE_SECONDS} seconds and was stopped")), "{stderr}");
+    // With the service the push is stopped after the command returned, and the stop is the notice of the next commit.
+    let report: String = super::support::push_report(repo.as_path(), &stderr);
+    assert!(report.contains(&format!("did not finish within {SHORT_DEADLINE_SECONDS} seconds and was stopped")), "{report}");
     assert!(
         elapsed < Duration::from_secs(SHORT_DEADLINE_SECONDS) + STOP_GRACE + LOAD_ALLOWANCE,
         "the wrapper returned at the deadline plus the grace, not when the detached helper ended: {elapsed:?}"

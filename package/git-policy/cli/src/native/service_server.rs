@@ -13,7 +13,8 @@
 //! ```
 
 use super::service_journal::landed_commits;
-use super::service_land::{LandContext, Outcome, land_batch, recover};
+use super::service_index_lock::Announce;
+use super::service_land::{LandContext, Outcome, land_batch_announcing, recover};
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -185,7 +186,15 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
     let requests: Vec<CommitRequest> = fresh.iter().map(|(request, _)| { return (**request).clone(); }).collect();
-    match land_batch(context, *seq, &requests) {
+    let announce = |note: Announce| {
+        for (_, stream) in &fresh {
+            match &note {
+                Announce::Waiting(text) => send(stream, &ServiceMessage::Waiting { text: text.clone() }),
+                Announce::Holder(who) => send(stream, &ServiceMessage::Holder { who: who.clone() }),
+            }
+        }
+    };
+    match land_batch_announcing(context, *seq, &requests, &announce) {
         Ok(outcomes) => {
             super::service_fault::reach("before-ack");
             for ((request, _), outcome) in fresh.iter().zip(&outcomes) {
@@ -289,7 +298,13 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
                 Job::Commit(request, stream) => {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
-                    let key = (request.common_dir.clone(), request.reference.clone(), request.lands_alone());
+                    // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
+                    let queue_reference: String = if request.reference == "HEAD" {
+                        format!("HEAD@{}", request.repository.display())
+                    } else {
+                        request.reference.clone()
+                    };
+                    let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
                     let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
                     match joins {
                         Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),
