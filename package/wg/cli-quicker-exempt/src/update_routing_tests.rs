@@ -191,7 +191,7 @@ fn mise(pid: i32) -> Fake<'static> {
     return Fake {
         pid,
         exe: "/usr/bin/mise",
-        args: &["mise", "run", "toolchain:sync"],
+        args: &["mise", "run", "toolchain:install"],
         uid: UID,
         cgroup: SCOPE,
         parent: 1,
@@ -261,7 +261,7 @@ fn an_executable_under_the_install_roots_is_adopted() {
 fn a_process_that_only_claims_the_name_is_not_moved() {
     let mut fixture = fixture("forged", vec![]);
     make_process(&fixture.proc_root, &Fake { pid: 25, exe: "/usr/bin/curl", args: &["mpm", "https://example.org"], ..mise(25) });
-    make_process(&fixture.proc_root, &Fake { pid: 26, exe: "/usr/bin/curl", args: &["mise", "run", "toolchain:sync"], ..mise(26) });
+    make_process(&fixture.proc_root, &Fake { pid: 26, exe: "/usr/bin/curl", args: &["mise", "run", "toolchain:install"], ..mise(26) });
     assert_eq!(fixture.routing.consider(25), Outcome::Ignored);
     assert_eq!(fixture.routing.consider(26), Outcome::Ignored);
     assert!(fixture.requests.borrow().is_empty());

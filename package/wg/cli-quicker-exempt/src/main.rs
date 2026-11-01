@@ -96,6 +96,9 @@ mod application_targets_tests;
 /// Unit tests for the update entry-point list.
 #[cfg(test)]
 mod update_entry_points_tests;
+/// Unit tests that check the update entry-point list against the repository's tasks, verbs and launcher.
+#[cfg(test)]
+mod update_entry_points_source_tests;
 /// Unit tests for the install roots.
 #[cfg(test)]
 mod install_roots_tests;

@@ -970,7 +970,8 @@ and a test fails if one appears in either wg package.
    `mpm-shadow install`,
    `update` and `outdated` with or without `-g`,
    the `mpm` shadow,
-   and the TypeScript toolchain `sync.ts` and `update.ts`.
+   and `node` running the TypeScript `mpm-shadow` launcher (`package/monorepo-task/core-exec/src/mpm-shadow.ts` or its built entry),
+   which downloads the locked `mpm-shadow` archive when no installed copy is new enough.
    A process is recognized by the file name of its resolved executable (`mise`,
    `mpm-shadow`,
    `mpm`,
@@ -981,8 +982,9 @@ and a test fails if one appears in either wg package.
 2. The update hosts:
    Traffic to the hosts in `src/update-hosts.data.ts` bypasses the tunnel for every program,
    browsers included.
-   The list holds every host named by `toolchain.lock.json`,
-   the toolchain resolvers and `mpm-shadow`'s network client,
+   The list holds every host named by `toolchain.plan.jsonc`,
+   `toolchain.lock.json`,
+   the Rust resolvers and installers under `package/mpm-shadow/cli/src/toolchain` and `package/file-enforcer/core-rust/src`,
    and the redirect hosts the plan never names:
    `objects.githubusercontent.com`,
    `release-assets.githubusercontent.com`,

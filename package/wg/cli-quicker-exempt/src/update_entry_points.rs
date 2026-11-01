@@ -1,7 +1,10 @@
 //! Recognizes the processes whose network traffic the wg tools keep outside the tunnel.
 //! This list is owned by the wg packages,
 //! and the toolchain knows nothing about it.
-//! A test reads the toolchain's task names and `mpm-shadow` verbs and fails when this list falls behind.
+//! A test reads the root and package `mise.toml` tasks,
+//! the `mpm-shadow` verb grammar
+//! and the launcher script,
+//! and fails when this list falls behind or names something that no longer exists.
 
 /// Raw Unix path bytes for argument comparison.
 use std::os::unix::ffi::OsStrExt;
@@ -10,10 +13,9 @@ use std::path::{Path, PathBuf};
 
 /// `mise` task names that fetch from the network.
 /// The `:global` forms and the aliases that run a fetching task are listed too.
-/// The names `install` and `outdated` are the post-cutover spellings of today's `sync` and `status`.
+/// The tasks `toolchain:list`, `toolchain:list:global` and `toolchain:lock:check` stay off the list:
+/// they read the lock and the file system and open no connection.
 pub const MISE_TASKS: &[&str] = &[
-    "toolchain:sync",
-    "toolchain:sync:global",
     "toolchain:update",
     "toolchain:update:global",
     "toolchain:install",
@@ -29,10 +31,14 @@ pub const MISE_TASKS: &[&str] = &[
 /// including the short alias of `install`.
 pub const MPM_SHADOW_VERBS: &[&str] = &["install", "i", "update", "outdated"];
 
-/// Path tails of the TypeScript toolchain scripts that fetch from the network.
+/// Path tails of the TypeScript launcher that every root `toolchain:*` task runs to find or download `mpm-shadow`:
+/// the source,
+/// and the built entry that the tasks prefer when it exists.
+/// Run directly, outside `mise`,
+/// it downloads the locked archive before any `mpm-shadow` process exists.
 pub const TOOLCHAIN_SCRIPT_TAILS: &[&str] = &[
-    "/file-enforcer/core/src/toolchain/sync.ts",
-    "/file-enforcer/core/src/toolchain/update.ts",
+    "/monorepo-task/core-exec/src/mpm-shadow.ts",
+    "/monorepo-task/core-exec/dist/final/node/mpm-shadow.mjs",
 ];
 
 /// Why a process is kept outside the tunnel.
@@ -44,7 +50,7 @@ pub enum MatchReason {
     MpmShadowVerb,
     /// The `mpm` shadow.
     MpmShim,
-    /// A TypeScript toolchain script run by `node`.
+    /// The TypeScript `mpm-shadow` launcher run by `node`.
     ToolchainScript,
     /// An executable under the toolchain install roots.
     ToolchainPath,
@@ -58,7 +64,7 @@ impl MatchReason {
             MatchReason::MiseTask => "a mise toolchain task that fetches from the network",
             MatchReason::MpmShadowVerb => "an mpm-shadow command that fetches from the network",
             MatchReason::MpmShim => "the mpm shadow",
-            MatchReason::ToolchainScript => "a TypeScript toolchain script that fetches from the network",
+            MatchReason::ToolchainScript => "the TypeScript mpm-shadow launcher, which downloads from the network",
             MatchReason::ToolchainPath => "an executable under the toolchain install roots",
         };
     }
