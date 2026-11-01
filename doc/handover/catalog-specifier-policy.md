@@ -802,6 +802,16 @@ The user confirmed the shared understanding and the order below, after the third
   contains the text `mono/catalog-specifiers` (eight-hour deadline). The last twelve releases of the crate came 25 minutes to about
   24.5 hours apart (measured from crates.io), so no completion time can be forecast; 7a has given none.
 
+- 2026-11-01, `monochromatic-8c` status (a peer's report, now the session sending cli-git release news):
+  the wrapper branch for `mono/catalog-specifiers` (against `monochromatic-catalog-specifier` 0.1.0, `off_unless_listed`, default
+  severity `error`, no options, not listed in `cli-git.config.jsonc`) is being merged to main after fixing a gap (a selected policy
+  that is on but not run for the command still exited 0).
+  The 0.4.7 cut was abandoned; the policy ships in the next wrapper release with the 30-second push deadline, the commit-path
+  stat-index and timeout fixes, the layered gate image, and, when they merge, the LFS rework, the removal of external hook support
+  and the in-process linter. 8c will message the version and release commit once it is on crates.io with archives.
+  8c asked who owns the crate-release path; the answer sent: git history names only the author Aquaticat, and
+  `doc/decision/releases-run-in-ci.md` records the owner's choice "Release from CI", with `native:release` dispatching the workflow.
+
 ## Open items
 
 - Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
