@@ -7,12 +7,6 @@
  */
 
 import {
-  holdAt,
-  reached,
-  releaseAt,
-  settleWithin,
-} from './barrier-fixture.ts';
-import {
   joinLines,
   splitLines,
 } from './content-fixture.ts';
@@ -22,22 +16,21 @@ import {
   repositoryOptions,
 } from './scenario-helper-fixture.ts';
 import {
+  type QueuedAttempt,
+  queuedExpectation,
+  startQueued,
+} from './scenario-queue-fixture.ts';
+import {
   allSucceeded,
   type ScenarioContext,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
 import {
   readWorktree,
-  startAttempt,
   writeWorktree,
 } from './worker-fixture.ts';
 
 //region Constants
-
-/**
- Window the second agent gets to start and capture before the first is released.
- */
-const CAPTURE_WINDOW_MS = 1_500;
 
 /**
  Lines in the shared file.
@@ -123,15 +116,17 @@ async function editSharedLines({
 }
 
 /**
- The first agent is held in `pre-commit` after capturing,
- the second edits and starts committing,
- then the first is released.
+ Both agents prepare against the branch as it is, while the service is frozen:
+ the first agent has edited its hunk and is queued,
+ the second then edits its hunk and is queued behind it,
+ and the service runs again.
+ The first lands, and the second, which saw the branch before the first landed, prepares again from the worktree.
 
  @param context - scenario context
 
  @param secondFrom - first line the second agent edits
 
- @returns both finished attempts
+ @returns both finished attempts and the queue facts
 
  @example
  ```ts
@@ -144,32 +139,26 @@ async function runSharedFilePair({
 }: Readonly<{
   context: ScenarioContext;
   secondFrom: number;
-}>,): Promise<readonly AttemptRecord[]> {
+}>,): Promise<Readonly<{
+  attempts: readonly AttemptRecord[];
+  queued: readonly QueuedAttempt[];
+}>> {
   await editSharedLines({
     context,
     from: context.random
       .integer(FIRST_HUNK,),
     label: 'first',
   },);
+  context.repository
+    .service
+    .stall();
   /**
-   First agent.
+   First agent, prepared and queued.
    */
-  const first = await startAttempt({
-    ...context,
+  const first = await startQueued({
+    context,
     label: 'first',
     paths: ['shared.txt',],
-    mode: 'explicit',
-  },);
-  await holdAt({
-    repository: context.repository,
-    token: first.token,
-    event: 'pre-commit',
-  },);
-  await reached({
-    repository: context.repository,
-    token: first.token,
-    running: first.running,
-    event: 'pre-commit',
   },);
   await editSharedLines({
     context,
@@ -177,27 +166,26 @@ async function runSharedFilePair({
     label: 'second',
   },);
   /**
-   Second agent.
+   Second agent, prepared and queued behind the first.
    */
-  const second = await startAttempt({
-    ...context,
+  const second = await startQueued({
+    context,
     label: 'second',
     paths: ['shared.txt',],
-    mode: 'explicit',
   },);
-  await settleWithin({
-    running: second.running,
-    windowMs: CAPTURE_WINDOW_MS,
-  },);
-  await releaseAt({
-    repository: context.repository,
-    token: first.token,
-    event: 'pre-commit',
-  },);
-  return await finishAll([
-    first,
-    second,
-  ],);
+  context.repository
+    .service
+    .resume();
+  return {
+    attempts: await finishAll([
+      first.attempt,
+      second.attempt,
+    ],),
+    queued: [
+      first,
+      second,
+    ],
+  };
 }
 
 /**
@@ -205,7 +193,7 @@ async function runSharedFilePair({
 
  @param random - seeded source
 
- @returns options with a hooked `pre-commit` and the shared file
+ @returns options with the shared file
 
  @example
  ```ts
@@ -229,8 +217,6 @@ function sharedRepository(random: Parameters<ScenarioDefinition['repository']>[0
         },
       ),),
     },],
-    hooks: 'config',
-    hookEvents: ['pre-commit',],
   },);
 }
 
@@ -244,23 +230,27 @@ function sharedRepository(random: Parameters<ScenarioDefinition['repository']>[0
 const sharedNonOverlapping: ScenarioDefinition = {
   name: 'shared-file-non-overlapping-hunks',
   group: 'concurrency',
-  summary: 'two agents commit the same file with far-apart hunks while the first is still preparing',
-  // The first agent is held in a config `pre-commit` hook (Git 2.54.0).
-  minimumGit: '2.54.0',
+  summary: 'two agents commit the same file with far-apart hunks while the service is frozen, so both prepared before either landed',
   repository: sharedRepository,
   async run(context,) {
     /**
-     Finished attempts.
+     Finished attempts and queue facts.
      */
-    const attempts = await runSharedFilePair({
+    const {
+      attempts,
+      queued,
+    } = await runSharedFilePair({
       context,
       secondFrom: context.random
         .integer(FAR_HUNK,),
     },);
-    return [allSucceeded({
-      name: 'all-commits-succeed',
-      attempts,
-    },),];
+    return [
+      queuedExpectation(queued,),
+      allSucceeded({
+        name: 'all-commits-succeed',
+        attempts,
+      },),
+    ];
   },
 };
 
@@ -270,15 +260,16 @@ const sharedNonOverlapping: ScenarioDefinition = {
 const sharedOverlapping: ScenarioDefinition = {
   name: 'shared-file-overlapping-hunks',
   group: 'concurrency',
-  summary: 'two agents rewrite the same lines; one may fail only as a reported replay conflict',
-  // The first agent is held in a config `pre-commit` hook (Git 2.54.0).
-  minimumGit: '2.54.0',
+  summary: 'two agents rewrite the same lines while the service is frozen; one may fail only as a reported conflict',
   repository: sharedRepository,
   async run(context,) {
     /**
-     Finished attempts.
+     Finished attempts and queue facts.
      */
-    const attempts = await runSharedFilePair({
+    const {
+      attempts,
+      queued,
+    } = await runSharedFilePair({
       context,
       secondFrom: OVERLAPPING_HUNK,
     },);
@@ -291,6 +282,7 @@ const sharedOverlapping: ScenarioDefinition = {
         !== 0;
     },);
     return [
+      queuedExpectation(queued,),
       {
         name: 'one-lands',
         holds: failed.length < attempts.length,

@@ -1,6 +1,7 @@
 //! Controls for the service's after-commit work consumer, with handlers that record what they are asked.
 
 use super::*;
+use crate::push_failure_notice::{push_failure_text, take_push_failures};
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, state_directory};
 use std::cell::RefCell;
@@ -119,7 +120,7 @@ fn different_branches_push_separately_and_upkeep_runs_once() {
     remove(repo.root.as_path());
 }
 
-/// A failed push is settled as failed and leaves one notice that names the commit and what Git said, shown once.
+/// A failed push is settled as failed and leaves one record that names the branch, the commit and what Git said, shown once.
 #[test]
 fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     let repo: Repo = repo("work-notice");
@@ -127,9 +128,25 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), SystemTime::now());
     assert_eq!(names(&repo, FAILED).len(), 1);
-    let shown: Vec<String> = take_notices(repo.common.as_path());
-    assert_eq!(shown, vec![push_failed_notice(OID, said)]);
-    assert!(take_notices(repo.common.as_path()).is_empty(), "a notice is shown once");
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown, vec![push_failure_text(BRANCH, OID, said)]);
+    assert!(take_push_failures(repo.common.as_path()).is_empty(), "a notice is shown once");
+    remove(repo.root.as_path());
+}
+
+/// A later push of the branch that goes through removes the branch's records that nobody has seen yet; another branch's
+///  record stays.
+#[test]
+fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
+    let repo: Repo = repo("work-notice-cleared");
+    let other_branch: &str = "refs/heads/other";
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH), item(&repo, WorkKind::Push, OTHER_OID, other_branch)]);
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(String::from("remote: rejected"))), SystemTime::now());
+    let third: &str = "fedcba9876543210fedcba9876543210fedcba98";
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, third, BRANCH)]);
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), SystemTime::now());
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown, vec![push_failure_text(other_branch, OTHER_OID, "remote: rejected")], "only the branch that went through is cleared");
     remove(repo.root.as_path());
 }
 
@@ -166,7 +183,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
     drain(repo.common.as_path(), &recorder, SystemTime::now());
     assert_eq!(names(&repo, FAILED), vec![review.id()]);
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
-    assert!(take_notices(repo.common.as_path()).is_empty(), "a shadow review never nags the person");
+    assert!(take_push_failures(repo.common.as_path()).is_empty(), "a shadow review never nags the person");
     drain(repo.common.as_path(), &recorder, SystemTime::now());
     assert_eq!(recorder.reviews.borrow().len(), 1, "a failed review is not retried");
     remove(repo.root.as_path());
@@ -242,4 +259,56 @@ fn a_round_forgets_the_credentials_it_was_given() {
     assert_eq!(handlers.review_key_of(second.common.as_path()), None);
     remove(first.root.as_path());
     remove(second.root.as_path());
+}
+
+/// A review runs end to end through the real handlers with the context the service really has, which names no
+/// repository: the work item is claimed, the commit is read with real Git (the patch, and the file texts through a
+/// Git command that takes input), the loopback gateway is asked with the key from the wake, and the entry is appended.
+#[test]
+fn a_review_runs_through_the_real_handlers_in_a_service_context() {
+    use crate::standards_review_input::LOG_RELATIVE;
+    use crate::standards_review_mock::{Answer, Mock, http_reply};
+    use crate::test_support::{git, git_context, git_text, repository};
+    const SECRET: &str = "test-key-not-a-secret";
+    const ANSWER: &str = r#"{"answers":[{"choice":"no","probabilities":[{"value":"no","probability":1}]}]}"#;
+    let parent: PathBuf = fixture("work-real-review");
+    let root: PathBuf = repository(parent.as_path(), "repo");
+    let log: PathBuf = root.join(LOG_RELATIVE);
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("directories");
+    std::fs::write(log.as_path(), "# Log\n").expect("log");
+    std::fs::create_dir_all(root.join("src")).expect("source directory");
+    std::fs::write(root.join("src/a.ts"), "export const a = 1\n").expect("code");
+    git(root.as_path(), &["add", "--", LOG_RELATIVE, "src/a.ts"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=feat(a): add a"]);
+    let common: PathBuf = root.join(".git");
+    let review: WorkItem = WorkItem {
+        kind: WorkKind::Review,
+        repository: root.display().to_string(),
+        git_dir: common.display().to_string(),
+        branch_ref: BRANCH.to_string(),
+        oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
+        parent: String::new(),
+        created: String::from("2026-01-01T00:00:00.000Z"),
+        tries: 0,
+    };
+    enqueue(work_directory(common.as_path()).as_path(), &review).expect("enqueue");
+    let mock: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", ANSWER)));
+    // The service's own context: no repository is named, because one service serves many.
+    let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
+    let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
+    run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, SystemTime::now());
+    let seen: String = mock.finish().to_ascii_lowercase();
+    let settled = |state: &str| -> Vec<String> {
+        return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
+            .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
+            .unwrap_or_default();
+    };
+    assert_eq!(settled(FAILED), Vec::<String>::new(), "the review must not fail");
+    assert_eq!(settled(DONE), vec![review.id()]);
+    assert!(seen.contains(&format!("authorization: bearer {SECRET}\r\n")), "{seen}");
+    assert!(seen.contains("src/a.ts"), "the request carries the changed file");
+    let written: String = std::fs::read_to_string(log.as_path()).expect("log");
+    assert!(written.starts_with("# Log\n") && written.contains("cost_verdict: no"), "{written}");
+    assert!(!written.contains(SECRET));
+    remove(parent.as_path());
 }

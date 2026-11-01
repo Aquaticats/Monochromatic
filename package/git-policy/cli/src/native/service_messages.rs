@@ -20,6 +20,9 @@ pub const LOG_COMMAND: &str = "journalctl --user --unit cli-git.service";
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
+/// The command that restarts the commit service, so the manager starts the one the installed units name (Linux with systemd).
+pub const RESTART_COMMAND: &str = "systemctl --user restart cli-git.service";
+
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 
@@ -71,6 +74,8 @@ pub enum ClientFailure {
     MayNotHaveLanded,
     /// The installed service speaks no protocol this wrapper speaks, after a replacement attempt.
     NoCommonVersion,
+    /// A service started from another release of the wrapper is still running after it was asked to exit.
+    OtherRelease,
     /// The repository has no room left.
     RepositoryFull(String),
     /// The repository cannot be written.
@@ -97,6 +102,8 @@ pub enum ClientFailure {
     UnitInTheWay(String),
     /// The commit is saved but the backup push and upkeep could not be handed over.
     WorkNotHandedOver(String),
+    /// The content prepared for the commit was removed from the repository before the commit landed, twice.
+    ContentPruned,
 }
 
 /// The sentence every failure ends with when nothing was changed.
@@ -133,6 +140,10 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::NoCommonVersion => format!(
             "This git is older than the installed commit service and cannot work with it, so this commit was not made. \
              Update the git wrapper with the tool that installed it, and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::OtherRelease => format!(
+            "The commit service that is running was started from another release of this git wrapper and did not stop when \
+             asked, so this commit was not made. Restart it with `{RESTART_COMMAND}`, and run the commit again. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
             "There is no space left for {path}, so this commit was not made. Free some space and run the commit again. \
@@ -182,6 +193,15 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::WorkNotHandedOver(reason) => format!(
             "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: {reason}. \
              Run `git push` when ready."
+        ),
+        ClientFailure::ContentPruned => format!(
+            "The files of this commit were removed from the repository while the commit was being made, so it was not made. \
+             Git removes content that no branch or index refers to yet when `git gc --prune=now` or `git prune` runs in the \
+             same repository, and Git's documentation says that `--prune=now` risks failures and corruption when another \
+             process writes to the repository at the same moment. The commit was prepared again once and the content was \
+             removed again. Run the commit again once the cleanup has finished, and avoid `--prune=now` while commits are \
+             being made (the default `git gc` keeps new content for two weeks). If nothing like that was running, run \
+             `git fsck` to check the repository. {NOTHING_CHANGED}"
         ),
         ClientFailure::CouldNotStart(reason) => format!(
             "The commit service could not be set up, so this commit was not made: {reason}. Fix that and run the commit \
@@ -241,26 +261,6 @@ pub fn position_notice(number: usize, of: usize) -> String {
         1 => String::from("Waiting for 1 earlier commit."),
         many => format!("Waiting for {many} earlier commits."),
     };
-}
-
-/// What:
-///  The notice for a backup push that failed after its commit was saved.
-/// Why:
-///   The push runs after the commit returned, so the person learns of a failure at their next commit. The service has
-///  its own environment, which is the first thing to check when a push that works in a terminal fails here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pushFailedNotice(commit, said)
-/// ```
-pub fn push_failed_notice(commit: &str, said: &str) -> String {
-    let short: &str = commit.get(..7).unwrap_or(commit);
-    let detail: String = if said.is_empty() { String::from("Git gave no reason.") } else { format!("Git said: {said}") };
-    return format!(
-        "The backup push of your commit {short} failed, so it exists only on this computer for now. {detail} The commit \
-         service runs with its own settings, not your terminal's, so a push that works in your terminal can fail here \
-         when it needs a variable your terminal has. Run `git push` when ready."
-    );
 }
 
 /// The texts that must never reach a user: implementation terms the system should have resolved itself.

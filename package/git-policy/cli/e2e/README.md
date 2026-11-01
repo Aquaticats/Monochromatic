@@ -59,6 +59,95 @@ and `--limit` and `--revision` adjust the window.
 mise run //package/git-policy/cli:e2e:concurrent:trace
 ```
 
+## Commit service
+
+Every commit the scenarios make lands through the resident `cli-git-service`.
+The image build compiles it beside the wrapper as `/opt/native/cli-git-service`.
+Each scenario starts its own service (`service-fixture.ts`) with its own runtime directory (`XDG_RUNTIME_DIR`)
+and journal under `<scenario root>/service/`,
+and stops it when the scenario ends,
+so a scenario can freeze, kill and restart its service without touching another scenario.
+The container has no service manager,
+so `restart` and `restartAfterExit` play the manager:
+they remove the stale socket file (the service does not replace one) and start a clean process on the same journal.
+The scenario's wrapper environment names the runtime directory.
+
+A commit the service landed returns before its push.
+The wrapper writes a `push-<oid>` and a `maintenance-<oid>` record under `<common git dir>/cli-git/work/pending`,
+and the service runs them on its own thread and moves them to `done` or `failed`.
+`settleServiceWork` therefore waits until no record is pending or claimed
+before the observation compares the remote with the local branch,
+and the checker control waits before it tampers with the landed commit.
+Records that are still pending or claimed after the wait are reported as the `after-commit-work-settles` invariant.
+
+### Instruments
+
+The wrapper runs no external hook program and no program a configuration names
+(`doc/planning/cli-git-no-self-invocation-dispatcher.md`),
+so hooks are no longer the suite's instrument for pausing, killing or observing a commit.
+The instruments that replace them add nothing to the release executables:
+
+- The message editor (`SCRIPTED_EDITOR_PROGRAM` in `hook-program-fixture.ts`, selected with `-e` and `GIT_EDITOR`).
+  The wrapper runs real Git in a scratch repository while it prepares a commit that asks for an editor,
+  before anything is sent to the service,
+  so the editor marks and holds two points of preparation, `editor-open` and `editor-written`,
+  and can append a trailer to the message.
+  A commit built with an editor is never sent for another tip:
+  when the branch moved while the editor was open, the commit fails with the saved-message notice,
+  so no scenario races a landing against a held editor.
+- A frozen service (`SIGSTOP`, `scenario-queue-fixture.ts`).
+  A client prepares before it connects, so an open socket in the wrapper process (`client-connection-fixture.ts`)
+  proves that its preparation ended and its commit waits at the service.
+  Starting two agents under a freeze pins "both prepared before either landed";
+  resuming lets them land in the order they connected.
+  A freeze must stay under the client's ten-second start wait.
+- The branch moving (`landing-kill-fixture.ts`).
+  The harness reads the loose reference file of the branch and freezes the service the moment it changes,
+  so the agent is still alive in its exchange with the service when it is killed.
+- The work records (`work-record-fixture.ts`).
+  The `push-<oid>` record is the durable trace of the after-commit work that the `post-commit` hook once observed:
+  one settled record per landed commit stands for "post-commit ran once".
+- External `SIGKILL` of the client's process group, or of the service, at a seeded offset or at an observable instant.
+- The fault points of the release service (`CLI_GIT_TEST_ONLY_SERVICE_FAULT`, `src/native/service_fault.rs`):
+  `after-objects`, `after-intent`, `after-ref`, `after-index` and `before-ack`.
+  The variable is armed only by the harness, and only on the process a scenario starts for it.
+
+A declared `postCommit` action in `cli-git.config.jsonc` is not an instrument:
+that facility was built and deleted on the owner's instruction, and the key is a configuration error
+(`src/native/config_parse.rs`, `SPEC.md` "External hooks").
+
+### Open product findings
+
+These scenarios fail because of the product, not the harness.
+Each is for its owner and is not worked around here:
+
+- `baseline-hooks-config` and `hooks-config-concurrent`:
+  the service route never prints the `external-hooks-unsupported` warning,
+  because `warn_external_hooks` runs only in the retired transaction path (`src/native/commit_transaction.rs`).
+- `sigkill-editor-open`, `sigkill-editor-written`, `sigkill-queued` and `sigkill-after-landing`:
+  a `SIGKILL`ed client leaves its scratch directory `<git dir>/cli-git-service-<id>` behind, and nothing removes it
+  (a design gap: neither `SPEC.md` nor `doc/planning/cli-git-resident-service.md` says who removes a dead client's scratch).
+- `sigkill-service-during-work`:
+  a service killed while it holds a claimed `push` or `maintenance` record leaves it claimed until its 30-minute lease
+  ends, and a restarted service does not take it back.
+- `branch-switch-during-commit`:
+  a commit held in its editor while real Git switches branches lands on the branch it started on,
+  but the service updates the real index of the new `HEAD` and the push goes to the checked-out branch
+  (`plan_push` reads the symbolic `HEAD`, so `push_once` plans from the checked-out branch, not from the record's `branch_ref`).
+- `foreign-index-lock-holder`, `foreign-index-lock-unproven`, `gc-prune-during-commits`,
+  `lint-staged-stash-concurrent`, `reservation-after-lost-races` and `amend-during-commits`
+  belong to other owners; `gc-prune-during-commits` still holds its commit in a `pre-commit` hook that no longer runs.
+
+### Retired scenarios
+
+- `sigkill-prepare-commit-msg` is retired:
+  between the `pre-commit` and `commit-msg` hooks it marked a point that the editor alone marks now,
+  and `sigkill-editor-open` already kills there.
+- The five `sigkill-phase-*` scenarios named transaction phases that the service path never reaches
+  (the capture lock, the landing lock, the kept pack, the transaction journal).
+  Their properties (no lost commit, no stray state, a consistent index, a pushed remote) are held by
+  the `sigkill-service-*` scenarios and by `sigkill-queued`.
+
 ## Container
 
 `concurrent-commits.Containerfile` builds `cli-git-concurrent-e2e`:
@@ -109,8 +198,8 @@ Each scenario declares how it depends on replay plumbing
   because none of its commits can lose a landing race:
   the baselines,
   `branch-switch-during-commit`,
-  the hook-phase `sigkill-*` scenarios,
-  and the `sigkill-phase-*` scenarios;
+  the `sigkill-*` scenarios,
+  and the `sigkill-service-*` scenarios;
 - `absent` runs it only on 2.39.5,
   to prove the degradation:
   the `replay-unavailable-*` scenarios.
@@ -161,7 +250,8 @@ binary sizes at 8 KiB).
 Paths that must pre-exist are committed by real Git before the window.
 Text always ends with exactly one LF,
 so the default `final-newline` normalization never changes captured bytes.
-A worker that touches a path another in-flight worker selected waits until that worker's `pre-commit` hook ran,
+A worker that touches a path another in-flight worker selected waits until that worker's wrapper holds a socket to the service
+(`client-connection-fixture.ts`; preparation, which captures the bytes, is over by then),
 so every attempt commits exactly the bytes the harness wrote for it.
 A worker that deletes or renames away a path an in-flight worker creates
 (or a path created by an in-flight worker before that one)
@@ -190,15 +280,16 @@ Baselines prove the harness sound and must pass on today's build:
   lint-staged's backup stash and hide-unstaged sequence on a partially staged index commit,
   in a linked worktree.
 - `baseline-hooks-config`:
-  `pre-commit`,
-  `prepare-commit-msg`,
-  `commit-msg`,
-  and `post-commit` hooks on sequential commits.
+  two sequential commits in a repository that configures all four commit hooks.
+  The commits land, each warns `external-hooks-unsupported`, the hook program never runs,
+  and the service settles one push record per landed commit.
+- `baseline-editor-trailer`:
+  two sequential commits whose message editor appends a trailer;
+  the landed messages carry it and each settles one push record.
 - `baseline-ssh-signing`:
   sequential SSH-signed commits.
-- `baseline-sigkill-post-commit`:
-  `SIGKILL` inside `post-commit`,
-  after native Git released every lock,
+- `baseline-sigkill-after-landing`:
+  `SIGKILL` once the commit landed and its push record exists, timed as well as polling allows,
   then `git status` and a follow-up commit.
 - `baseline-checker-positive-control`:
   one commit lands,
@@ -219,37 +310,27 @@ Design scenarios exercise the accepted concurrent-commit design:
 - `concurrent-trace-replay`:
   16 trace commits with 4 in flight.
 - `shared-file-non-overlapping-hunks` and `shared-file-overlapping-hunks`:
-  the first agent is held in `pre-commit` after capturing,
-  the second edits the same file and gets a 1.5 s window to start,
-  then the first is released.
+  the first agent edits its hunk and is queued at a frozen service,
+  the second edits the same file and is queued behind it,
+  and the service resumes.
+  `agents-queued-in-order` fails when either agent settled before it connected.
   Far-apart hunks must both land;
   overlapping hunks may fail only with exit `1` and a `core-finding` event.
-  Under capture order both captures come from one worktree,
-  so the second capture's bytes land and both commits succeed.
+  The first lands, and the second, which prepared against the branch before that, prepares again from the worktree.
 - `shared-file-adjacent-edits`:
-  the first agent edits one line and pauses after preparation
-  (phase marker `preparation-done`),
-  the second edits the line after it,
-  the line before it,
-  or inserts a line right after it
-  (seeded),
-  so its captured bytes hold both edits,
-  and pauses the same way;
-  then the first is released and lands,
-  and the second is released.
-  Both must land,
-  the second through a replay that keeps its captured bytes
-  (capture order,
-  since both captures come from one worktree,
-  `SPEC.md` "Capture order";
-  subsumption reaches the same bytes for a change from elsewhere,
-  `SPEC.md` "Subsumption").
+  the first agent edits one line and is queued at a frozen service,
+  the second edits the line after it, the line before it, or inserts a line right after it (seeded)
+  and is queued behind it,
+  so its captured bytes hold both edits.
+  Both must land and the tip must hold the bytes the second captured.
 - `interleaved-index-writers`:
   4 commits and 4 `git add` runs of new files in a seeded interleaving;
   every add must succeed and its staged entry must survive.
-- `hooks-config-concurrent`
-  and `ssh-signing-concurrent`:
-  4 agents at once with all four hooks or with signing.
+- `hooks-config-concurrent`:
+  4 agents commit at once in a repository that configures all four commit hooks;
+  none runs, each commit warns, and each settles one push record.
+- `ssh-signing-concurrent`:
+  4 agents sign their commits at once.
 - `lint-staged-stash-concurrent`:
   the lint-staged hook while 3 explicit-path agents and 1 partially staged index commit run,
   in a linked worktree.
@@ -279,8 +360,10 @@ Design scenarios exercise the accepted concurrent-commit design:
   `reservation-blocks-landing`,
   and `reserved-lands-first`.
 - `branch-switch-during-commit`:
-  `git switch side` while a commit is held in `pre-commit`;
-  the switch and the commit must not both succeed.
+  a commit is held in its message editor while the wrapper refuses a switch (tracked files are modified)
+  and real Git then switches to another branch.
+  The commit must not land on the branch switched to,
+  and the checker judges the index and the remote after the held commit finishes.
 - `foreign-index-lock-holder`:
   real Git by absolute path with `-c core.lockfilePid=true` runs `commit --all`
   with an editor that holds `index.lock` for 1.5 s while 3 agents commit;
@@ -296,27 +379,36 @@ Design scenarios exercise the accepted concurrent-commit design:
   and the holder's own commit succeeds.
 - `gc-prune-during-commits`:
   `git gc --prune=now` while one commit is held in `pre-commit` and 3 others commit.
-- `sigkill-pre-commit`,
-  `sigkill-prepare-commit-msg`,
-  `sigkill-commit-msg`,
-  and `sigkill-post-commit`:
-  `SIGKILL` to one agent's whole process group inside that hook while a bystander commits,
-  then `git status` for recovery and a follow-up commit.
+- `sigkill-editor-open` and `sigkill-editor-written`:
+  `SIGKILL` to one agent's process group while its editor is open, or after it wrote the final message,
+  while a bystander commits, then `git status` and a follow-up commit.
+  Nothing was sent to the service, so the victim's commit must not appear.
+- `sigkill-queued`:
+  the victim's prepared commit and the bystander's wait at a frozen service,
+  the victim is killed, and the service resumes.
+  The victim's commit must not appear and the bystander's must land.
+- `sigkill-after-landing`:
+  the service is frozen the moment the branch moves, so the agent is still in its exchange with it,
+  and the agent is killed there.
+  The commit landed and must appear exactly once.
 - `sigkill-offset`:
-  the same with the kill at a seeded 20 to 600 ms offset instead of a hook.
-- `sigkill-phase-preparation-done`,
-  `sigkill-phase-landing-locked`,
-  `sigkill-phase-objects-migrated`,
-  `sigkill-phase-ref-updated`,
-  and `sigkill-phase-index-installed`:
-  the victim pauses at that landing phase through the test-only phase marker
-  (see "Phase markers"),
-  the bystander starts and gets 500 ms to reach its landing wait,
-  then the victim's process group is killed,
-  followed by `git status` for recovery and a follow-up commit.
-  At `landing-locked` the victim holds the landing lock and the real `index.lock`,
-  so the bystander must recover both from a dead owner.
-  `victim-reached-phase` fails when the victim settled before its marker appeared.
+  the same with the kill at a seeded 20 to 600 ms offset;
+  a kill that comes after the agent exited kills nothing.
+- `sigkill-service-after-objects`,
+  `sigkill-service-after-intent`,
+  `sigkill-service-after-ref`,
+  `sigkill-service-after-index`
+  and `sigkill-service-before-ack`:
+  the service ends itself at that point of the first batch while two agents commit;
+  the harness restarts it and the clients retry with their request identity.
+  Both commits must land exactly once, the index and worktree must agree with the branch,
+  and `service-fault-fired` fails when the service never reached the point.
+- `sigkill-service-offset`:
+  six agents are queued at a frozen service, the service resumes, and the harness kills it
+  0 to 5 ms later, inside the batch, then restarts it.
+  `service-killed-with-agents-waiting` fails when every agent had its answer before the kill.
+- `sigkill-service-during-work`:
+  the service is killed once it claimed the landed commit's push record, then restarted.
 - `replay-unavailable-fails-fast`,
   on 2.39.5 only:
   a commit held in its editor while another lands must exit `1`
@@ -337,24 +429,23 @@ which is how scenarios pin interleavings and inject kills.
 
 ### Hook kinds
 
-Every scenario that needs a hook registers it as a config hook
+Only `baseline-hooks-config`, `hooks-config-concurrent`, `baseline-lint-staged`, `lint-staged-stash-concurrent`
+and `gc-prune-during-commits` register a config hook
 (`hooks: 'config'` in `RepositoryOptions`, `repository-model-fixture.ts`),
 which `repository-setup-fixture.ts` writes with
 `git config hook.e2e-<event>.command "<hook program> <event>"` and
 `git config --add hook.e2e-<event>.event <event>`.
-The command runs the shared hook program of `hook-program-fixture.ts`,
-so its logging, markers, holds, trailer and lint-staged mode are the same for every event.
-Config hooks need Git 2.54.0,
-so every hooked scenario declares `minimumGit: '2.54.0'` and skips on older Git.
-The native task runs Git 2.55.0 only, so that skip does not occur there.
+The wrapper runs no external hook,
+so the hook program is a canary:
+the first two scenarios assert that it never ran (`hooks-ignored-fixture.ts`).
+The canary has no positive control inside the suite, because no wrapper run can make a hook fill its log.
+The other three still drive their instrument (a lint-staged sequence, a hold for `git gc`) through a hook that no longer runs,
+so what they check is not what they were written for.
+Every other scenario installs no hook and uses the instruments of "Commit service".
 
 Traditional hooks (executable files in `.git/hooks` or a `core.hooksPath` directory)
 are unsupported by the wrapper, and any use is undefined behavior,
 so the suite installs none and `RepositoryOptions` cannot express them.
-Two scenarios that existed only as the traditional-hook twin of a config-hook scenario,
-`baseline-hooks-hookdir` and `hooks-hookdir-concurrent`, were removed;
-`baseline-hooks-config` and `hooks-config-concurrent` run the same workload and assertions.
-No other scenario's meaning depended on a traditional-hook behavior.
 
 Fixture setup commits made with real Git (`seedTracePaths` and `commitAmendBase` in `scenario-setup-fixture.ts`)
 pass `-c hook.e2e-<event>.enabled=false` for every event through `hookDisableArguments`,
@@ -365,49 +456,10 @@ it silences only traditional hooks and leaves config hooks running
 
 ### Phase markers
 
-Landing phases run no hook,
-so the wrapper exposes them through a test-only environment variable
-(`src/native/transaction_phase.rs`,
-`SPEC.md` "Container end-to-end suite"):
-
-```sh
-# package/git-policy/cli/e2e: environment of one wrapper invocation
-CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill                # SIGKILL itself at the phase
-CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill:<directory>    # write <directory>/<phase>.reached first
-CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:pause:<directory>   # write the marker, wait for <directory>/<phase>.release
-```
-
-The phases,
-in transaction order,
-are `capture-locked`
-(capture lock held,
-before the capture sequence number is allocated),
-`preparation-done`
-(after `prepared.json`),
-`landing-locked`
-(landing lock and real `index.lock` held,
-`index-lock-<n>.json` written),
-`objects-migrated`
-(kept pack written,
-before `landing-<n>.json`),
-`ref-updated`
-(after `ref-updated.json`),
-and `index-installed`
-(after the `index-installed` marker,
-before conclusion cleanup and worktree completion),
-and `race-lost`
-(after each lost race and any reservation it earned,
-before the replay,
-outside both locks),
-whose files carry the occurrence:
-`race-lost-<n>.reached` and `race-lost-<n>.release`.
-The variable name says it is for tests only,
-nothing else sets it,
-and a malformed value fails the invocation instead of being ignored.
-A nested wrapper invocation from a hook inherits the variable,
-so scenarios arm it only on commits whose hooks start no nested commit.
-The kill scenarios use `pause` and kill the whole process group from the harness,
-so the harness records the attempt as deliberately killed.
+The wrapper's landing phases (`CLI_GIT_TEST_ONLY_PHASE_SIGNAL`, `src/native/transaction_phase.rs`) belong to the
+retired transaction path, which the service route never reaches.
+Only `scenario-reservation-fixture.ts` still arms the `race-lost` phase, and that scenario is a product finding.
+No other scenario uses a phase marker.
 
 ## Invariants
 
@@ -443,7 +495,10 @@ so the harness records the attempt as deliberately killed.
 - `push-rejection-surfaced`:
   a commit that exited `0` on top of a landed amend of a commit the remote already had
   and that the remote does not contain must have surfaced Git's `non-fast-forward` push rejection and either cli-git's
-  `auto-push to origin failed` note or its `cli-git: auto-push: not published:` line
+  `auto-push to origin failed` note or its `cli-git: auto-push: not published:` line,
+  on its own stderr or, because the service pushes after the commit returns, on the stderr of a later wrapped command
+  in the same repository
+  (the observation runs one `git status --short` when the service left a notice, so the notice reaches a stderr)
   (owner decision,
   `doc/decision/cli-git-concurrent-commits.md` "Amending published history",
   narrowed on 2026-10-19 to merges that conflict).
@@ -451,6 +506,7 @@ so the harness records the attempt as deliberately killed.
   no `refs/cli-git/` ref,
   lock file or lock directory
   (the capture lock included),
+  client scratch directory `cli-git-service-<id>`,
   transaction directory under `cli-git-transactions/`,
   legacy `cli-git-transaction` directory,
   shadow repository under `cli-git/shadow/`,
@@ -467,13 +523,15 @@ so the harness records the attempt as deliberately killed.
   wrapper stderr JSONL decodes,
   sequences start at `0`,
   and exit codes agree with the events (`SPEC.md` "Stream and exit contract").
-- `commit-msg-hook`,
-  `post-commit-once`,
+- `editor-trailer`,
+  `after-commit-work-once`,
   and `signature-valid`:
-  in hooked or signed scenarios,
-  the landed message carries the hook trailer,
-  `post-commit` ran once per successful attempt,
+  in the scenarios that ask for them,
+  the landed message carries the trailer the message editor appended,
+  the service settled exactly one `push-<oid>` record for every commit whose wrapper exited `0`,
   and `git verify-commit` accepts the commit.
+- `after-commit-work-settles`:
+  no `push` or `maintenance` record is still pending or claimed when the wait for the service ends.
 - Scenario expectations such as `all-commits-succeed`,
   `command-succeeds`,
   `staged-entries-kept`,
@@ -498,7 +556,7 @@ and captured bytes.
 Two consecutive runs of seed 1 printed identical digests for all 54 non-skipped runs,
 and the two seed-1 runs of 2026-09-26 against `09b0eb07b` and `9b5f66c40`
 printed identical digests for `concurrent-trace-replay`.
-Hook barriers make the pinned interleavings identical on replay;
+Editor holds and frozen-service queues make the pinned interleavings identical on replay;
 free-running starts and the `sigkill-offset` kill still depend on process scheduling,
 so a replay reproduces the workload exactly but can land a free-running race differently.
 
@@ -583,11 +641,12 @@ so they detect the regression.
 
 ## Open problems
 
-- The shared-file scenarios give the second agent a fixed 1.5 s start window,
-  because the accepted design has no hook-visible point between capture and the hook lock.
-  A heavily loaded host could release the first agent before the second captured.
-- The `race-lost` marker sits between a lost race and its replay,
-  but no scenario kills a transaction there yet.
+- A frozen service has to be resumed within the client's ten-second start wait,
+  so a scenario that freezes it must reach its resume without long waits in between.
+- `sigkill-offset` kills at a seeded time, and a kill that comes after the agent exited kills nothing;
+  `sigkill-after-landing` and `sigkill-queued` are the exact kills.
+- A kill while the service pushes is pinned only by `sigkill-service-during-work`, which waits for the claim;
+  the push to the local remote is too short to hold, so that kill can land after the push finished.
 - The lint-staged scenarios run in a linked worktree,
   because the `linked-worktree-only` core policy rejects the hook's `git stash` in a main worktree.
   lint-staged in a main worktree is therefore blocked by cli-git today,

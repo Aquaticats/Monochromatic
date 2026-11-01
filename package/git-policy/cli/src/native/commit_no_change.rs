@@ -94,7 +94,7 @@ fn base_tree(input: &NoChangeInput<'_>, base: &str) -> Result<String, GitFailure
 /// ```ts
 /// hasConflicts ? `No commit created: ... ${JSON.stringify(conflicted)}. Compare them with HEAD before retrying.` : '...'
 /// ```
-fn no_change_message(conflicted: &[Vec<u8>]) -> String {
+pub fn no_change_message(conflicted: &[Vec<u8>]) -> String {
     if conflicted.is_empty() {
         return String::from(
             "No commit created: normalization removed every selected change; matching worktree and index copies were reconciled. Hint: if you were committing only whitespace or final-newline edits, they were normalized away, so there is nothing to commit; run `git status` to confirm.",

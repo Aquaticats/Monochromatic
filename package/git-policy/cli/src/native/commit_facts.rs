@@ -24,7 +24,7 @@ use super::rule_commit_sequencer::SequencerState;
 use super::rule_worktree_dirty::DirtyScope;
 use super::transaction_git::GitContext;
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The variable that names the index a Git child reads.
 const INDEX_FILE_VARIABLE: &str = "GIT_INDEX_FILE";
@@ -167,6 +167,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn asked_location(&self) -> Option<Result<RepositoryLocation, String>> {
         return (**self).asked_location();
+    }
+
+    fn known_common_dir(&mut self) -> Option<PathBuf> {
+        return (**self).known_common_dir();
     }
 
     fn transaction_context(&self) -> GitContext {

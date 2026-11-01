@@ -2,6 +2,7 @@
  Classifies Git administrative entries that must not survive a finished run
  (`SPEC.md` "Transaction directory and journal"):
  lock files and lock directories,
+ client scratch directories of the commit service route,
  published or staging transaction directories under `cli-git-transactions/`,
  the legacy single `cli-git-transaction` directory,
  shadow repositories under `cli-git/shadow/`,
@@ -23,6 +24,13 @@ const PERSISTENT_CAPTURE_ENTRIES: ReadonlySet<string> = new Set([
   'sequence',
   'landed',
 ],);
+
+/**
+ Name prefix of the scratch directory a commit client prepares in (`cli-git-service-<id>`).
+ A client removes it when it ends,
+ so one that remains belongs to a client that died.
+ */
+const CLIENT_SCRATCH_PREFIX = 'cli-git-service-';
 
 /**
  Returns the leftover root an entry belongs to.
@@ -51,6 +59,7 @@ function leftoverRoot(entry: string,): readonly string[] {
     index,
   ) {
     return segment.endsWith('.lock',)
+      || segment.startsWith(CLIENT_SCRATCH_PREFIX,)
       || (segment === 'cli-git-transaction')
       || (segments[index - 1] === 'cli-git-transactions')
       || ((segments[index - 1] === 'shadow') && (segments[index - 2] === 'cli-git'))

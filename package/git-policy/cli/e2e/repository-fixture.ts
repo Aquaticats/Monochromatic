@@ -27,7 +27,7 @@ import {
   createSeededRepository,
   installExtras,
 } from './repository-setup-fixture.ts';
-import { SERVICE_RUNTIME, } from './service-fixture.ts';
+import type { ScenarioService, } from './service-model-fixture.ts';
 import {
   WRAPPER_BINS,
   WRAPPER_KIND,
@@ -67,21 +67,25 @@ const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
 
  @param options - setup options
 
+ @param service - the scenario's commit service, whose runtime directory the wrapper environment names
+
  @returns ready repository
 
  @example
  ```ts
- await createScenarioRepository({ root: '/work/2.55.0/baseline', gitVersion: '2.55.0', options });
+ await createScenarioRepository({ root: '/work/2.55.0/baseline', gitVersion: '2.55.0', options, service });
  ```
  */
 export async function createScenarioRepository({
   root,
   gitVersion,
   options,
+  service,
 }: Readonly<{
   root: string;
   gitVersion: string;
   options: RepositoryOptions;
+  service: ScenarioService;
 }>,): Promise<ScenarioRepository> {
   /**
    Directory holding the selected Git.
@@ -215,11 +219,13 @@ export async function createScenarioRepository({
     markerDir: directories.markers,
     logDir: directories.logs,
     editorProgram: programs.editor,
+    scriptedEditorProgram: programs.scriptedEditor,
+    service,
     wrapperEnv: {
       ...baseEnv,
       PATH: `${WRAPPER_BIN}:${gitBin}:${SYSTEM_PATH}`,
-      // The suite's commit service listens here; the wrapper finds it through the runtime directory, as it does for a person.
-      XDG_RUNTIME_DIR: SERVICE_RUNTIME,
+      // The scenario's commit service listens here; the wrapper finds it through the runtime directory, as it does for a person.
+      XDG_RUNTIME_DIR: service.runtime,
     },
     realEnv: bootstrap.realEnv,
     options,

@@ -1212,6 +1212,15 @@ pub mod service_fault;
 /// The commit service's serialized step.
 pub mod service_land;
 
+/// What the commit service's landing does once the branch has moved: index entries and conclusion state.
+pub mod service_land_follow;
+
+/// The commit service's hold on Git's index lock across a landing.
+pub mod service_index_lock;
+
+/// The preparation of a commit that the service lands, for every command line.
+pub mod service_prepare;
+
 /// The commit service's loop.
 pub mod service_server;
 
@@ -1245,8 +1254,14 @@ pub mod service_native;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
-/// The wrapper's side of after-commit work: records, wake and notices.
+/// The wrapper's side of after-commit work: records and the wake.
 pub mod service_handoff;
+
+/// How a commit headed for the service notices that its prepared content was removed before it landed.
+pub mod service_pruned;
+
+/// The record of a failed backup push and the rule for when a wrapper command shows it.
+pub mod push_failure_notice;
 
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]

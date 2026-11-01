@@ -286,9 +286,17 @@ fn a_failing_upload_keeps_the_auto_pushed_commit_local() {
     let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
     let stderr: String = stderr_of(&landed);
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
-    assert!(stderr.contains("auto-push to origin failed"), "{stderr}");
-    assert!(stderr.contains("`git-lfs push` exited with status 4"), "{stderr}");
-    assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{stderr}");
+    // With the service the push ends after the command returned, and its failure is the notice the next commit shows.
+    let report: String = super::support::push_report(world.repo.as_path(), &stderr);
+    assert!(report.contains(super::support::push_failed_words()), "{report}");
+    if super::support::service_route() {
+        // The notice leaves out every line that names the LFS server setting (it can hold a credential), and the wrapper's own
+        //  explanation of a failed upload names that setting, so the notice shows the placeholder for it, not the status.
+        assert!(report.contains("a line about the Git LFS server setting is left out"), "{report}");
+    } else {
+        assert!(report.contains("`git-lfs push` exited with status 4"), "{report}");
+    }
+    assert_eq!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent", "{report}");
     assert_eq!(git_text(&fixture, world.repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2");
     remove_settled(&fixture);
 }

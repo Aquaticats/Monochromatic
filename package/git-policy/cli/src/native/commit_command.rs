@@ -15,7 +15,7 @@
 use super::auto_push_single_flight::PushGit;
 use super::child_environment::environment_with_overlay;
 use super::service_commit::{ServiceCommit, try_service_commit};
-use super::service_handoff::{ServiceHandoff, hand_over, show_notices};
+use super::service_handoff::{ServiceHandoff, hand_over};
 use super::service_messages::render;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, run_commit_transaction};
 use super::config_schema::CliGitConfig;
@@ -249,7 +249,7 @@ fn post_commit(
 }
 
 /// What:
-///  The post-commit lifecycle of a commit the service landed: earlier notices, the gate, then the handoff of the push and
+///  The post-commit lifecycle of a commit the service landed: the gate, then the handoff of the push and
 ///  the upkeep.
 /// Why:
 ///   The push runs after the command returns, so the commit never waits for the network; a blocked gate keeps the commit
@@ -257,11 +257,10 @@ fn post_commit(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// showNotices(); const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
+/// const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
 /// ```
 fn post_commit_handed(request: &PostCommitRequest<'_>, handoff: &ServiceHandoff, landed: &str) -> CommitEnding {
     let mut stderr = std::io::stderr();
-    show_notices(handoff, &mut stderr);
     let gate = run_post_commit_gate(request);
     write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
     if gate.blocked {

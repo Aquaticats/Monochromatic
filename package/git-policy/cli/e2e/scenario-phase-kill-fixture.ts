@@ -1,32 +1,43 @@
 /**
- `SIGKILL` at each landing phase cli-git exposes through its test-only phase marker,
- while another agent commits,
- followed by recovery through an ordinary wrapper invocation and a follow-up commit.
+ `SIGKILL` to the commit service itself, at each instant of a landing batch that the service exposes,
+ while two agents commit, followed by the service manager's restart, the clients' retries, and a follow-up commit.
 
- The victim runs with `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:pause:<marker directory>`,
- so it writes `<phase>.reached` and waits there;
- the harness then starts the bystander and kills the victim's whole process group.
- At `landing-locked` the victim holds the landing lock and the real `index.lock`,
- so the bystander must recover them from a dead owner.
+ The service lands a batch in a fixed order: it writes the batch's objects, journals the intent, moves the branch by
+ one compare-and-swap, updates the real index, and acknowledges the clients.
+ The service ends itself at a named point of that order when `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it
+ (`src/native/service_fault.rs`, which the release executable already carries; this suite adds no hook).
+ The container has no service manager, so the harness restarts the service after it ended, as socket activation
+ restarts a crashed unit, and the clients retry with their request identity.
+ Whatever the instant, each commit must land exactly once, the index and worktree must agree with the branch,
+ the repository must hold no stray state, and the push must reach the remote.
 
  @module
  */
 
-import { join, } from 'node:path';
 import { setTimeout as sleep, } from 'node:timers/promises';
 
-import { BARRIER_TIMEOUT_MS, } from './barrier-fixture.ts';
 import { synthesizeText, } from './content-fixture.ts';
-import { waitForMarker, } from './process-fixture.ts';
 import {
+  disjointPlans,
+  finishAll,
   repositoryOptions,
+  rewritePaths,
   seedTexts,
+  workerPaths,
 } from './scenario-helper-fixture.ts';
 import {
   allSucceeded,
+  type Expectations,
   type ScenarioContext,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
+import {
+  type QueuedAttempt,
+  queuedExpectation,
+  startQueued,
+} from './scenario-queue-fixture.ts';
+import { planFaultOffset, } from './seeded-schedule-fixture.ts';
+import { waitForPushRecord, } from './work-record-fixture.ts';
 import {
   runWrapper,
   startAttempt,
@@ -36,106 +47,54 @@ import {
 //region Constants
 
 /**
- Landing phases the wrapper marks, in transaction order.
+ Fault points of a batch, in the order the service reaches them,
+ each with the instant it names.
  */
-const PHASES = [
-  'preparation-done',
-  'landing-locked',
-  'objects-migrated',
-  'ref-updated',
-  'index-installed',
+const FAULT_POINTS = [
+  {
+    point: 'after-objects',
+    instant: 'the batch\'s objects exist and nothing is journaled',
+  },
+  {
+    point: 'after-intent',
+    instant: 'the intent is journaled and the branch has not moved',
+  },
+  {
+    point: 'after-ref',
+    instant: 'the branch moved and the real index is not updated',
+  },
+  {
+    point: 'after-index',
+    instant: 'the real index is updated and the intent is open',
+  },
+  {
+    point: 'before-ack',
+    instant: 'everything is done and no client is told',
+  },
 ] as const;
 
 /**
- Window that lets the bystander reach its landing wait before the victim dies.
+ Text size of rewritten files.
  */
-const BYSTANDER_START_MS = 500;
+export const FILE_BYTES = 400;
 
 //endregion Constants
 
 //region Workload
 
 /**
- Pauses the victim at a phase,
- starts a bystander,
- kills the victim,
- recovers,
- and commits again.
+ Recovery that follows a kill: a status through the wrapper, then a follow-up commit.
 
  @param context - scenario context
 
- @param phase - landing phase
-
- @returns expectations
+ @returns the follow-up expectation
 
  @example
  ```ts
- await killAtPhase({ context, phase: 'ref-updated' });
+ await recoverAndCommit(context);
  ```
  */
-async function killAtPhase({
-  context,
-  phase,
-}: Readonly<{
-  context: ScenarioContext;
-  phase: typeof PHASES[number];
-}>,): Promise<Awaited<ReturnType<ScenarioDefinition['run']>>> {
-  await Promise.all([
-    'victim.txt',
-    'bystander.txt',
-  ].map(async function rewrite(path,) {
-    await writeWorktree({
-      ...context,
-      path,
-      bytes: synthesizeText({
-        random: context.random
-          .fork(path,),
-        size: 800,
-      },),
-    },);
-  },),);
-  /**
-   Victim paused at the phase.
-   */
-  const victim = await startAttempt({
-    ...context,
-    label: 'victim',
-    paths: ['victim.txt',],
-    mode: 'explicit',
-    env: { CLI_GIT_TEST_ONLY_PHASE_SIGNAL: `${phase}:pause:${context.repository
-      .markerDir}`, },
-  },);
-  /**
-   Whether the victim reached the phase before settling.
-   */
-  const reached = await waitForMarker({
-    path: join(
-      context.repository
-        .markerDir,
-      `${phase}.reached`,
-    ),
-    timeoutMs: BARRIER_TIMEOUT_MS,
-    isSettled: victim.running
-      .isSettled,
-  },);
-  /**
-   Bystander started while the victim is paused.
-   */
-  const bystander = await startAttempt({
-    ...context,
-    label: 'bystander',
-    paths: ['bystander.txt',],
-    mode: 'explicit',
-  },);
-  await sleep(BYSTANDER_START_MS,);
-  victim.kill();
-  /**
-   Settled bystander.
-   */
-  const [, bystanderRecord,] = await Promise.all([
-    victim.finished,
-    bystander.finished,
-  ],);
+export async function recoverAndCommit(context: ScenarioContext,): Promise<Expectations> {
   await runWrapper({
     ...context,
     label: 'recovery status',
@@ -151,7 +110,7 @@ async function killAtPhase({
     bytes: synthesizeText({
       random: context.random
         .fork('follow-up',),
-      size: 400,
+      size: FILE_BYTES,
     },),
   },);
   /**
@@ -163,43 +122,128 @@ async function killAtPhase({
     paths: ['follow-up.txt',],
     mode: 'explicit',
   },)).finished;
+  return [allSucceeded({
+    name: 'follow-up-commit-succeeds',
+    attempts: [followUp,],
+  },),];
+}
+
+/**
+ Arms the service with a fault, lets two agents commit through it, restarts it when it ended, and recovers.
+
+ @param context - scenario context
+
+ @param point - fault point
+
+ @returns expectations
+
+ @example
+ ```ts
+ await killServiceAt({ context, point: 'after-ref' });
+ ```
+ */
+async function killServiceAt({
+  context,
+  point,
+}: Readonly<{
+  context: ScenarioContext;
+  point: string;
+}>,): Promise<Expectations> {
+  /**
+   The scenario's service.
+   */
+  const { service, } = context.repository;
+  await service.restart(point,);
+  await Promise.all([
+    'victim.txt',
+    'bystander.txt',
+  ].map(async function rewrite(path,) {
+    await writeWorktree({
+      ...context,
+      path,
+      bytes: synthesizeText({
+        random: context.random
+          .fork(path,),
+        size: FILE_BYTES,
+      },),
+    },);
+  },),);
+  /**
+   The restart, which is the service manager's: it follows the end of the armed process, however long the agents take.
+   */
+  const restarted = service.restartAfterExit();
+  /**
+   Both agents start together; the one whose batch reaches the point loses its service.
+   */
+  const [victim, bystander,] = await Promise.all([
+    startAttempt({
+      ...context,
+      label: 'victim',
+      paths: ['victim.txt',],
+      mode: 'explicit',
+    },),
+    startAttempt({
+      ...context,
+      label: 'bystander',
+      paths: ['bystander.txt',],
+      mode: 'explicit',
+    },),
+  ],);
+  /**
+   Settled agents.
+   */
+  const settled = await finishAll([
+    victim,
+    bystander,
+  ],);
+  /**
+   Whether the armed service ended itself at the point.
+   */
+  const fired = service.log()
+    .includes(`test fault at ${point}`,);
+  if (fired)
+    await restarted;
   return [
     {
-      name: 'victim-reached-phase',
-      holds: reached === 'marker',
-      detail: reached === 'marker' ? '' : `victim ${reached} before reaching ${phase}`,
+      name: 'service-fault-fired',
+      holds: fired,
+      detail: `the service never reached ${point}: ${service.log()}`,
     },
     allSucceeded({
-      name: 'bystander-succeeds',
-      attempts: [bystanderRecord,],
+      name: 'agents-succeed-after-restart',
+      attempts: settled,
     },),
-    allSucceeded({
-      name: 'follow-up-commit-succeeds',
-      attempts: [followUp,],
-    },),
+    ...await recoverAndCommit(context,),
   ];
 }
 
 /**
- Builds the kill scenario for one phase.
+ Builds the scenario for one fault point.
 
- @param phase - landing phase
+ @param point - fault point
+
+ @param instant - the instant of a batch that the point names
 
  @returns scenario definition
 
  @example
  ```ts
- phaseKillScenario('landing-locked');
+ faultScenario({ point: 'after-ref', instant: 'the branch moved' });
  ```
  */
-function phaseKillScenario(phase: typeof PHASES[number],): ScenarioDefinition {
+function faultScenario({
+  point,
+  instant,
+}: Readonly<{
+  point: string;
+  instant: string;
+}>,): ScenarioDefinition {
   return {
-    name: `sigkill-phase-${phase}`,
+    name: `sigkill-service-${point}`,
     group: 'concurrency',
-    // The bystander starts while the victim pauses: before its ref update the victim never lands,
-    // and after it the bystander's base already holds the victim's commit, so no race is lost.
+    // The agents' commits touch different files, so a retry after the restart never has a branch to lose a race on.
     replayPlumbing: 'unused',
-    summary: `SIGKILL one committing agent paused at the ${phase} phase marker while another commits, then recover`,
+    summary: `SIGKILL the commit service at ${point} (${instant}) while two agents commit, restart it, recover`,
     repository(random,) {
       return repositoryOptions({
         seedFiles: seedTexts({
@@ -210,12 +254,13 @@ function phaseKillScenario(phase: typeof PHASES[number],): ScenarioDefinition {
             'follow-up.txt',
           ],
         },),
+        afterCommitRecords: true,
       },);
     },
     async run(context,) {
-      return await killAtPhase({
+      return await killServiceAt({
         context,
-        phase,
+        point,
       },);
     },
   };
@@ -224,6 +269,6 @@ function phaseKillScenario(phase: typeof PHASES[number],): ScenarioDefinition {
 //endregion Workload
 
 /**
- Phase-marker kill scenarios in transaction order.
+ Service fault-point scenarios in the order a batch reaches its points.
  */
-export const PHASE_KILL_SCENARIOS: readonly ScenarioDefinition[] = PHASES.map(phaseKillScenario,);
+export const PHASE_KILL_SCENARIOS: readonly ScenarioDefinition[] = FAULT_POINTS.map(faultScenario,);

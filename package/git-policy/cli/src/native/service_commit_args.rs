@@ -57,16 +57,16 @@ pub enum FixupKind {
 }
 
 /// Short option letters that take no value and change nothing the service must do.
-const FLAG_LETTERS: [char; 5] = ['q', 'n', 'o', 'a', 's'];
+const FLAG_LETTERS: [char; 7] = ['q', 'n', 'o', 'a', 's', 'i', 'p'];
 
 /// Long options that take no value and change nothing the service must do.
-const FLAG_WORDS: [&str; 12] = [
+const FLAG_WORDS: [&str; 16] = [
     "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-edit", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author",
+    "--amend", "--reset-author", "--include", "--patch", "--interactive", "--pathspec-file-nul",
 ];
 
 /// Long options that take one value, with the field they fill.
-const VALUE_WORDS: [&str; 8] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup"];
+const VALUE_WORDS: [&str; 9] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup", "--pathspec-from-file"];
 
 /// The value of a long option given as `--name=value` or `--name value`; `index` moves past a separate value.
 fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: &mut usize) -> Option<Option<&'a str>> {
@@ -121,6 +121,8 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
                         "--date" => parsed.date = Some(value.to_string()),
                         "--trailer" => parsed.trailers.push(value.to_string()),
                         "--reuse-message" => parsed.reuse = Some(value.to_string()),
+                        // The private index already holds the paths the file names; the message does not depend on them.
+                        "--pathspec-from-file" => {}
                         "--fixup" => {
                             // `amend:` and `reword:` open an editor or change parents; only a plain commit name is covered.
                             if value.contains(':') || value.is_empty() {
@@ -190,13 +192,13 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
 }
 
 /// Long options with no value that never decide whether an editor opens.
-const NEUTRAL_LONG: [&str; 13] = [
+const NEUTRAL_LONG: [&str; 15] = [
     "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author", "--allow-empty-message", "--verbose",
+    "--amend", "--reset-author", "--allow-empty-message", "--verbose", "--include", "--pathspec-file-nul",
 ];
 
 /// Long options with a value that never decide whether an editor opens.
-const NEUTRAL_VALUE_LONG: [&str; 6] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template"];
+const NEUTRAL_VALUE_LONG: [&str; 7] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template", "--pathspec-from-file"];
 
 /// What:
 ///  Whether `git commit` with these arguments may open an editor.
@@ -270,7 +272,7 @@ pub fn opens_editor(arguments: &[OsString]) -> bool {
                         at = letters.len();
                     }
                     'S' => at = letters.len(),
-                    'q' | 'n' | 'o' | 'a' | 's' | 'v' => {}
+                    'q' | 'n' | 'o' | 'a' | 's' | 'v' | 'i' => {}
                     _ => return true,
                 }
             }
@@ -312,6 +314,93 @@ pub fn cleanup_message(messages: &[String]) -> Option<String> {
         return None;
     }
     return Some(format!("{}\n", lines.join("\n")));
+}
+
+/// Long options that name where the message comes from, or edit it, or add to it.
+const MESSAGE_VALUE_LONG: [&str; 5] = ["--message", "--file", "--template", "--trailer", "--cleanup"];
+
+/// Long options without a value that open the editor or add a sign-off.
+const MESSAGE_FLAG_LONG: [&str; 4] = ["--edit", "--no-edit", "--signoff", "--no-signoff"];
+
+/// Long options that take the author, or the parents, or the whole commit from another commit.
+const BORROWING_LONG: [&str; 5] = ["--reedit-message", "--reuse-message", "--squash", "--fixup", "--amend"];
+
+/// What:
+///  The arguments of a commit Git built, rewritten so that the message the person already typed is used as it is and no
+///  editor opens.
+/// Why:
+///   After the editor has run the message is fixed, so a commit built on a tip that has since moved is built again from
+///  `-F <file>` with the message kept verbatim. A line that takes its author or its parents from another commit (`-c`, `-C`,
+///  `--fixup`, `--squash`, `--amend`) cannot be rebuilt that way, and an abbreviated option that may be one of the dropped
+///  ones is not guessed at: both give nothing, and the caller saves the message and stops.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withFixedMessage(args, subcommandIndex, file) // undefined when the line cannot be rebuilt from the message alone
+/// ```
+pub fn with_fixed_message(arguments: &[OsString], subcommand_index: usize, file: &std::path::Path) -> Option<Vec<OsString>> {
+    let text: Vec<String> = arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
+    let region: Vec<String> = super::commit_args::normalise_commit_args(text.get(subcommand_index + 1..)?);
+    let split: usize = region.iter().position(|token| { return token == "--"; }).unwrap_or(region.len());
+    let (options, tail): (&[String], &[String]) = region.split_at(split);
+    let mut kept: Vec<OsString> = arguments[..=subcommand_index].to_vec();
+    let mut index: usize = 0;
+    while index < options.len() {
+        let token: &str = options[index].as_str();
+        index += 1;
+        if let Some(long) = token.strip_prefix("--") {
+            let (name, attached): (String, bool) = match long.split_once('=') {
+                Some((name, _)) => (format!("--{name}"), true),
+                None => (format!("--{long}"), false),
+            };
+            let all: Vec<&str> = MESSAGE_VALUE_LONG.iter().chain(&MESSAGE_FLAG_LONG).chain(&BORROWING_LONG).copied().collect();
+            if BORROWING_LONG.contains(&name.as_str()) || (!all.contains(&name.as_str()) && all.iter().any(|known| { return known.starts_with(name.as_str()); })) {
+                return None;
+            }
+            if MESSAGE_VALUE_LONG.contains(&name.as_str()) {
+                if !attached {
+                    index += 1;
+                }
+                continue;
+            }
+            if MESSAGE_FLAG_LONG.contains(&name.as_str()) {
+                continue;
+            }
+            kept.push(OsString::from(token));
+            continue;
+        }
+        if token.starts_with('-') && token.len() > 1 {
+            let mut cluster: String = String::from("-");
+            let mut value_next: bool = false;
+            let letters: Vec<char> = token.chars().skip(1).collect();
+            for (at, letter) in letters.iter().enumerate() {
+                match letter {
+                    'c' | 'C' => return None,
+                    'm' | 'F' | 't' => value_next = true,
+                    'e' | 's' => {}
+                    'S' => {
+                        cluster.extend(letters[at..].iter());
+                        break;
+                    }
+                    other => cluster.push(*other),
+                }
+            }
+            if cluster != "-" {
+                kept.push(OsString::from(cluster));
+            }
+            if value_next {
+                index += 1;
+            }
+            continue;
+        }
+        kept.push(OsString::from(token));
+    }
+    kept.push(OsString::from("-F"));
+    kept.push(file.as_os_str().to_os_string());
+    kept.push(OsString::from("--cleanup=verbatim"));
+    kept.push(OsString::from("--no-edit"));
+    kept.extend(tail.iter().map(OsString::from));
+    return Some(kept);
 }
 
 /// Argument controls stay out of the release executable.

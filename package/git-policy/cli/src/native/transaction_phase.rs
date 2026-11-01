@@ -59,10 +59,15 @@ pub enum Phase {
     MergeIntent,
     /// The checkout was updated and the branch moved for an isolated merge, whose intent record is still on disk.
     MergeApplied,
+    /// A commit headed for the service has staged its content in a private index and has not yet read it back for the
+    ///  policies; repeatable, numbered by occurrence (a commit prepared again reaches it again).
+    ServiceStaged,
+    /// A commit headed for the service is fully prepared and has not yet been sent; repeatable, numbered by occurrence.
+    ServicePrepared,
 }
 
 /// Every phase in transaction order, which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 9] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 11] = [
     Phase::CaptureLocked,
     Phase::PreparationDone,
     Phase::LandingLocked,
@@ -72,6 +77,8 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 9] = [
     Phase::RaceLost,
     Phase::MergeIntent,
     Phase::MergeApplied,
+    Phase::ServiceStaged,
+    Phase::ServicePrepared,
 ];
 
 /// Phase names in transaction order.
@@ -96,6 +103,8 @@ impl Phase {
             Phase::RaceLost => return "race-lost",
             Phase::MergeIntent => return "merge-intent",
             Phase::MergeApplied => return "merge-applied",
+            Phase::ServiceStaged => return "service-staged",
+            Phase::ServicePrepared => return "service-prepared",
         }
     }
 }

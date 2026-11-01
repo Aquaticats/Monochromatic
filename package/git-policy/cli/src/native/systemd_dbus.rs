@@ -4,8 +4,8 @@
 //! Why:
 //!  The wrapper provisions socket activation itself, and may start no program to do it (`systemctl` would be one). The
 //!  supported surface of the user manager is its D-Bus API (`org.freedesktop.systemd1(5)`), reached through the session
-//!  bus; the manager's own private socket is documented as private to systemd. Only `Reload` and `StartUnit` are needed,
-//!  both with at most two string arguments, so the writer and the reader below cover exactly the types those calls and
+//!  bus; the manager's own private socket is documented as private to systemd. Only `Reload`, `ResetFailedUnit` and
+//!  `StartUnit` are needed, all with at most two string arguments, so the writer and the reader below cover exactly the types those calls and
 //!  the bus's replies use (`s`, `o`, `g`, `u`) and stop at anything else. The reader is total over arbitrary bytes (a
 //!  fuzz target holds it to that). The comparison with a D-Bus crate is in `doc/planning/cli-git-resident-service.md`,
 //!  "Provisioning".
@@ -141,6 +141,10 @@ pub const RELOAD: Target = Target { destination: MANAGER_NAME, path: MANAGER_PAT
 
 /// `StartUnit` on the user manager.
 pub const START_UNIT: Target = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
+
+/// `ResetFailedUnit` on the user manager.
+pub const RESET_FAILED_UNIT: Target =
+    Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "ResetFailedUnit" };
 
 /// What:
 ///  The bytes of a method call with string arguments.
@@ -398,6 +402,11 @@ impl Bus {
     /// Reloads the user manager's unit files.
     pub fn reload(&mut self) -> Result<(), CallError> {
         return self.call(&RELOAD, &[]).map(drop);
+    }
+
+    /// Clears a unit's failed state and its start-rate counter, so a start is not refused as "repeated too quickly".
+    pub fn reset_failed(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call(&RESET_FAILED_UNIT, &[name]).map(drop);
     }
 
     /// Starts a unit, replacing a queued job for it.

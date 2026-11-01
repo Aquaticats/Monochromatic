@@ -16,6 +16,10 @@ import {
 } from 'node:path';
 
 import { NativeVerificationError } from '../../cli/bin/native-verification-process.ts';
+import {
+  copySnapshotEntries,
+  wrapperSnapshotEntries,
+} from '../../cli/bin/native-wrapper-snapshot.ts';
 
 /**
  Error codes that mean a PATH entry does not hold a usable candidate.
@@ -131,7 +135,7 @@ export async function copyInputs({
   readonly context: string;
 }): Promise<void> {
   /**
-   Every package whose inputs the build reads, with the entries of each.
+   The inputs of this package itself, with the entries of each.
    */
   const sets: readonly InputSet[] = [
     {
@@ -144,70 +148,12 @@ export async function copyInputs({
         'fuzz_targets',
       ],
     },
-    {
-      from: '../cli',
-      to: 'package/git-policy/cli',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'README.md',
-        'src/native',
-      ],
-    },
-    {
-      from: '../../jsonc-edit/core-rust',
-      to: 'package/jsonc-edit/core-rust',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-        'fixtures',
-      ],
-    },
-    // The subject links the catalog specifier rule behind the `mono/catalog-specifiers` policy.
-    {
-      from: '../../catalog-specifier/core-rust',
-      to: 'package/catalog-specifier/core-rust',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-        'fixtures',
-      ],
-    },
-    // The subject links the Markdown linter library without its default feature; a library build reads the
-    // manifest, the lockfile and `src`, as the native gate's snapshot copies them.
-    {
-      from: '../../linter/monochromatic-lint',
-      to: 'package/linter/monochromatic-lint',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-      ],
-    },
-    // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
-    {
-      from: '../../forbidden-strings/cli',
-      to: 'package/forbidden-strings/cli',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'build.rs',
-        'src',
-        'data',
-      ],
-    },
-    {
-      from: '../../forbidden-strings/core',
-      to: 'package/forbidden-strings/core',
-      names: [
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-      ],
-    },
   ];
+  // The subject and every crate it links come from the one list every container snapshot of the wrapper shares.
+  await copySnapshotEntries({
+    context,
+    entries: wrapperSnapshotEntries({ context }),
+  });
   await Promise.all(sets.flatMap(function copiesOf({
     from,
     to,

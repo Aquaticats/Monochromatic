@@ -18,7 +18,7 @@
    Full recovery of these four phases is proven live by `crash-matrix.mjs`.
  - `completed`: two finished incumbent commits left the capture store and landed-capture records; a native commit
    must land and advance the capture sequence.
- - `hook-lock-dead`: the incumbent died holding the hook lock; a native commit must retire the lock, run the hook and land.
+ - `hook-lock-dead`: the incumbent died holding the hook lock; a native commit must retire the lock and land, and the configured hook must not run but be reported as unsupported.
  */
 import {
   checkIdentityBoundPhase,

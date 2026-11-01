@@ -75,6 +75,19 @@ use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 use std::rc::Rc;
 
 /// What:
+///  The start of the message for a candidate object that Git does not have; the object name follows.
+/// Why:
+///   A commit the service takes reads its content back through the policies, and an object removed meanwhile (a pruning
+///  `git gc`) fails there. The commit path recognizes that message by this start, so the producer and the reader of
+///  the text cannot drift apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const OBJECT_MISSING_PREFIX = 'cli-git could not read candidate content: Git has no object ';
+/// ```
+pub const OBJECT_MISSING_PREFIX: &str = "cli-git could not read candidate content: Git has no object ";
+
+/// What:
 ///  The request and reply pipes of a running reader.
 /// Why:
 ///   Both are closed together:
@@ -358,7 +371,7 @@ impl ObjectReader {
                 return Err(CandidateError::new(
                     CandidateFailure::ObjectMissing,
                     format!(
-                        "cli-git could not read candidate content: Git has no object {}. \
+                        "{OBJECT_MISSING_PREFIX}{}. \
                          Run `git fsck` to check the object store.",
                         object.as_str()
                     )

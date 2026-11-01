@@ -28,6 +28,21 @@ await describe({
       },
     },),
     it({
+      name: 'reports a commit client scratch directory once, in the common directory and in a linked worktree directory',
+      fn: async () => {
+        expect(classifyLeftovers([
+          'cli-git-service-7321ec41',
+          'cli-git-service-7321ec41/captured.index',
+          'worktrees/linked/cli-git-service-0f0f',
+          'worktrees/linked/cli-git-service-0f0f/commit.index',
+          'cli-git/work/done/push-abc',
+        ],),).toEqual([
+          'cli-git-service-7321ec41',
+          'worktrees/linked/cli-git-service-0f0f',
+        ],);
+      },
+    },),
+    it({
       name: 'reports locks, lock directories, transactions, staging directories, legacy directories, shadow repositories, and transient capture-store entries once each',
       fn: async () => {
         expect(classifyLeftovers([

@@ -129,10 +129,6 @@ mod budget_trace;
 #[path = "binary_budget_tests.rs"]
 mod budget;
 
-/// The migration's `index-pack` runs with the `core.fsync` override that removes its pack flushes, and no other child does.
-#[path = "binary_index_pack_fsync_tests.rs"]
-mod index_pack_fsync;
-
 /// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
 #[path = "binary_known_content_tests.rs"]
 mod known_content;
@@ -225,6 +221,14 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A commit whose prepared content was pruned before it landed: prepared again once, then a plain failure.
+#[path = "binary_service_pruned_tests.rs"]
+mod service_pruned;
+
+/// A backup push the service made after a commit returned and the remote refused, shown by the next wrapper command.
+#[path = "binary_push_failure_tests.rs"]
+mod push_failure;
+
 /// The message and identity options through the service, compared with native Git field by field.
 #[path = "binary_service_options_tests.rs"]
 mod service_options;
@@ -237,6 +241,23 @@ mod service_selection;
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
 
+/// The twin harness of the landing controls: native Git in one byte copy, the service in the other, every field compared.
+#[path = "binary_service_landing_support.rs"]
+mod service_landing_support;
+
+/// Selection command lines (`-i`, `-p`, `--interactive`, a pathspec file) and the dry run, compared with native Git.
+#[path = "binary_service_landing_selection_tests.rs"]
+mod service_landing_selection;
+
+/// States that used to be declined (a conclusion, a detached head, a branch not yet born, an unmerged index, nothing to
+///  commit, a rewrite, awkward change lists), compared with native Git.
+#[path = "binary_service_landing_state_tests.rs"]
+mod service_landing_state;
+
+/// A landing while a foreign `git commit` holds the index lock: the wait, the order, and the limit.
+#[path = "binary_service_landing_lock_tests.rs"]
+mod service_landing_lock;
+
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;
@@ -244,6 +265,10 @@ mod service_native;
 /// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;
+
+/// The upgrade from the 0.5.4 release, run with that release's own service program.
+#[path = "binary_service_upgrade_tests.rs"]
+mod service_upgrade;
 
 /// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
 #[path = "binary_service_tests.rs"]

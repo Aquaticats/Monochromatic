@@ -88,6 +88,9 @@ fn push_world(fixture: &Fixture) -> PushWorld {
 
 /// A wrapped command for the fixture's `bin/git` that also carries the marker in its environment.
 fn wrapped_with_marker(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Command {
+    // The push runs in the service's environment, so the marker is given to the service as the user manager's environment would be,
+    //  before the service starts with the first wrapped command.
+    super::support::give_service_environment(fixture, MARKER_NAME, MARKER_VALUE);
     let mut command: Command = bounded_for(
         fixture,
         fixture.root.join("bin/git").as_path(),
@@ -132,8 +135,12 @@ fn assert_inherited(fixture: &Fixture, started: &[Start]) {
         assert_eq!(start.marker, MARKER_VALUE, "the marker reaches {start:?}");
         assert_eq!(start.home, expected_home, "HOME reaches {start:?}");
         assert!(start.path.contains(expected_path.as_str()), "PATH reaches {start:?}");
-        assert_ne!(start.forward_target, "unset", "the forward-target marker is added to {start:?}");
-        assert_ne!(start.config_count, "unset", "the lock PID injection is added to {start:?}");
+        // The forward-target marker and the lock PID injection are the wrapper's own additions; the service push has neither, since
+        //  it takes no lock and never re-enters the wrapper.
+        if !super::support::service_route() {
+            assert_ne!(start.forward_target, "unset", "the forward-target marker is added to {start:?}");
+            assert_ne!(start.config_count, "unset", "the lock PID injection is added to {start:?}");
+        }
     }
 }
 
@@ -168,6 +175,8 @@ fn an_auto_push_needs_no_system_temporary_directory() {
     let fixture: Fixture = fixture("push-env-auto-tmpdir");
     let world: PushWorld = push_world(&fixture);
     let unusable: PathBuf = fixture.root.join("no-such-tmpdir");
+    // The push runs in the service's environment, so the unusable directory is given there too.
+    super::support::give_service_environment(&fixture, "TMPDIR", unusable.to_str().expect("UTF-8"));
     let landed: Observed = observe(
         wrapped_with_marker(&fixture, world.repo.as_path(), &["commit", "--message=second", "a.txt"])
             .env("TMPDIR", &unusable),
@@ -179,7 +188,8 @@ fn an_auto_push_needs_no_system_temporary_directory() {
     let head: String = git_head(&fixture, world.repo.as_path());
     assert_eq!(git_head_of(&fixture, world.bare.as_path(), "refs/heads/main"), head, "the landed commit is on origin: {stderr}");
     let directory: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
-    assert_eq!(std::fs::read_dir(&directory).expect("the per-user scratch directory exists").count(), 0);
+    // The service push makes no probe directory at all, so a missing directory is as empty as an empty one.
+    assert_eq!(std::fs::read_dir(&directory).map_or(0, Iterator::count), 0);
     assert!(!unusable.exists(), "nothing created the unusable temporary directory");
     remove(&fixture);
 }
@@ -267,6 +277,7 @@ fn a_stalled_auto_push_is_stopped_and_the_commit_stays_saved() {
     let shim: PathBuf = fixture.root.join("shim.sh");
     executable(shim.as_path(), b"#!/bin/sh\nexec sleep 8\n");
     let started: std::time::Instant = std::time::Instant::now();
+    super::support::give_service_environment(&fixture, "CLI_GIT_PUSH_DEADLINE_SECONDS", "1");
     let landed: Observed = observe(
         wrapped_with_marker(&fixture, world.repo.as_path(), &["commit", "--message=second", "a.txt"])
             .env("CLI_GIT_PUSH_DEADLINE_SECONDS", "1"),
@@ -275,8 +286,10 @@ fn a_stalled_auto_push_is_stopped_and_the_commit_stays_saved() {
     let stderr: String = stderr_of(&landed);
     assert!(started.elapsed() < std::time::Duration::from_secs(60), "{:?}", started.elapsed());
     assert_eq!(landed.code, Some(0), "{stderr}");
-    assert!(stderr.contains("git push did not finish within 1 seconds and was stopped"), "{stderr}");
-    assert!(stderr.contains("auto-push to origin failed"), "{stderr}");
+    // With the service the push is stopped after the command returned, and the stop is the notice of the next commit.
+    let report: String = super::support::push_report(world.repo.as_path(), &stderr);
+    assert!(report.contains("git push did not finish within 1 seconds and was stopped"), "{report}");
+    assert!(report.contains(super::support::push_failed_words()), "{report}");
     let head: String = git_head(&fixture, world.repo.as_path());
     assert_ne!(head, "", "the commit is saved locally: {stderr}");
     assert_eq!(git_head_of(&fixture, world.bare.as_path(), "refs/heads/main"), "", "nothing reached origin");

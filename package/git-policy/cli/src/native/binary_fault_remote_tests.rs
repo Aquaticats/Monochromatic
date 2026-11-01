@@ -167,6 +167,8 @@ fn locks_left(repo: &Path) -> Vec<String> {
 /// Commit through the wrapper with the push deadline set and the tripwire armed.
 fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Observed, Tripwire) {
     let tripwire: Tripwire = Tripwire::new();
+    // The push runs in the service's environment, so its deadline is given there, before the service starts.
+    super::support::give_service_environment(fixture, "CLI_GIT_PUSH_DEADLINE_SECONDS", deadline);
     let mut command: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=one", "--", "a.txt"]);
     command.env("CLI_GIT_PUSH_DEADLINE_SECONDS", deadline);
     tripwire.arm(&mut command);
@@ -178,9 +180,9 @@ fn commit_with_tripwire(fixture: &Fixture, repo: &Path, deadline: &str) -> (Obse
 ///  the commit succeeded and is saved, the failure is reported in words, no process the push started is alive,
 ///  no lock is held, and the next commit lands.
 fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Observed, tripwire: Tripwire, expected: &[&str]) {
-    let stderr: String = stderr_of(landed);
+    let stderr: String = super::support::push_report(repo, &stderr_of(landed));
     assert_eq!(landed.code, Some(0), "the commit itself succeeds: {stderr}");
-    assert!(stderr.contains("auto-push to origin failed"), "the failure is reported: {stderr}");
+    assert!(stderr.contains(super::support::push_failed_words()), "the failure is reported: {stderr}");
     assert!(
         expected.iter().any(|words| { return stderr.contains(words); }),
         "the report names the cause (one of {expected:?}): {stderr}"

@@ -62,6 +62,9 @@ pub struct BuildInput<'a> {
     pub mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
     pub staged_all: bool,
+    /// Whether the private index already holds a selection made with `--include`, `--patch` or `--interactive`, so that Git
+    ///  is not given those options again.
+    pub selected_privately: bool,
     /// Whether Git is told to print no summary, for a build made again on a new tip after the first one printed its own.
     pub quiet: bool,
 }
@@ -85,9 +88,15 @@ pub fn parents_of(raw: &[u8]) -> Vec<String> {
 /// ```ts
 /// privateInvocation({ arguments, pathspecs, mode, stagedAll })
 /// ```
-pub fn private_invocation(arguments: &[OsString], pathspecs: &[String], mode: TransactionMode, staged_all: bool) -> (Vec<String>, Vec<String>) {
+pub fn private_invocation(
+    arguments: &[OsString],
+    pathspecs: &[String],
+    mode: TransactionMode,
+    staged_all: bool,
+    selected_privately: bool,
+) -> (Vec<String>, Vec<String>) {
     let text: Vec<String> = arguments.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect();
-    let private_args: Vec<String> = resolve_private_commit_args(text.as_slice(), pathspecs, mode, false);
+    let private_args: Vec<String> = resolve_private_commit_args(text.as_slice(), pathspecs, mode, selected_privately);
     let owned: Vec<OsString> = private_args.iter().map(OsString::from).collect();
     let index: usize = global_layout(owned.as_slice()).prefix_len;
     let (globals, commit_args): (Vec<String>, Vec<String>) = split_commit_invocation(private_args.as_slice(), index);
@@ -112,7 +121,7 @@ pub fn private_invocation(arguments: &[OsString], pathspecs: &[String], mode: Tr
 pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
     let shadow = input.scratch.join("shadow");
     create_shadow_repository_at(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch)?;
-    let (globals, mut commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all);
+    let (globals, mut commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
     if input.quiet {
         commit_args.push(String::from("--quiet"));
     }
