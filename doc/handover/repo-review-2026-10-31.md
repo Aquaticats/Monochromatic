@@ -908,6 +908,49 @@ recording):
   KNOWN_ARTIFACT_SCHEMA_VERSIONS is pinned only through generation 9), 19 of 178 files
   covered, prior-row do-not-re-file ledger built.
 
+Wave-4 twenty-sixth checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package slice completion: `w4-mp-design` finished the ide/app src/native slice, 153 of
+  153 tracked files, zero remaining by the coverage formula. Findings
+  `w4-ide-app.jsonl` stands at 18 rows, 18 of 18 clean by my own run. Headline rows:
+  the hardcoded `monochromatic_ide` log-target cluster (013/014/017 with rewrap.rs:230)
+  against the crate name `ide_app`, the TileWorker Drop-detach vs documented
+  join-on-shutdown pair (015/016), and the wrap_resize_tests.rs:920 comment arithmetic
+  (018: the comment's own numbers give 24 MB where it claims about 70 MB; the real tile
+  is 61.6 MB so the test expectations hold; comment-only). The
+  tall_window_tests.rs:325 issue-1785 note stays ledgered for the filer
+  (network-dependent). The child moves to the ide/app tests slice (about 83 files,
+  re-measured live).
+- Returns verified since the twenty-fifth checkpoint: `w4-android-app` rows
+  `w4-git-policy-b-014` to `-017`, 17 of 17 clean. b-014: the quadratic staged lookup at
+  merge_isolation_recovery.rs:227 (my control read the loop). b-015 (warning, bug):
+  is_ignorable swallows `--no-summary`, which this host's `git merge -h` documents as a
+  synonym to `--stat`, so native Git's diffstat suppression is lost (my live probe
+  confirmed). b-016/b-017: owner-lock stale citations, zero-tracked matches proven.
+  The markdown_linter and merge_isolation clusters adjudicated clean; open leads carried:
+  parse_merge_intent's skipped emptiness checks (confirm at transaction_owner.rs) and
+  apply()'s RecoveryPlace common_dir vs the identity's common dir (adjudicate at
+  recovery_landing.rs and transaction_git.rs).
+- `w4-cc-statusline` rows `w4-git-policy-024` to `-026`, 26 of 26 clean (three
+  stale-citation nits in both family forms, controls run), then a clean 11-file config
+  parse/validate/snapshot chain turn (2^53-1 ceilings, traversal protection, 60-case
+  differential harness against real Git).
+- `w4-desktop-app` rows `pkg-observable-124` to `-127`, 126 of 126 clean: the ring check
+  counts the Play circle's own fill, the same-filesystem guard is vacuous by
+  construction, the scenario-table ids are hand-mirrored, and the created
+  `<label>-home` directory has no consumer (my control: session.ts:277 is the only
+  creation site and every HOME-shaped variable in desktop-e2e is XDG-prefixed). The
+  deferred context.ts startSession @throws lead closed clean. 31 files remain from
+  states-conditions.ts.
+- `w4-fe-core-tests` on artifact: 33 of 178 files covered, rows 001 and 002 stand (2 of
+  2 clean), the coverage ledger was repaired to a clean 145-file list; next file
+  consolidate-archive-flawed.ts.
+- In flight: `w4-android-app` (git-policy tail, owner_lock.rs line 231; 246 remain),
+  `w4-desktop-app` (desktop-e2e, states-conditions.ts; 31 remain), `w4-cc-statusline`
+  (git-policy head, config_values.rs; 407 remain), `w4-fe-core-tests` (artifact; 145
+  remain), `w4-fm-variant-qt` (adjudication slice 5, indexes 240 to 299).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
