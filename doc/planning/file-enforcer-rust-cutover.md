@@ -1642,9 +1642,10 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     `mv --no-clobber D/toolchain.lock.json D/toolchain.lock.json.old-format`
     after step 2's hashes matched
     (the `.pre-cutover` copy is the record).
-    Then `MS update --global`
-    (real environment).
-    It reads `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`.
+    Then `MS install --global` (the real run, 2026-11-01, used this):
+    with no lock present it resolves every plan entry, writes `D/toolchain.lock.json` and installs;
+    `MS update --global` writes the same lock without installing, and also works.
+    Both read `D/toolchain.plan.jsonc`.
     Export `GITHUB_TOKEN` first to avoid API rate limits.
     It is not purely a lookup in the real environment:
     when an npm or PyPI lookup fails for a tool that is in the lock but not installed,
