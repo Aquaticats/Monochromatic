@@ -14,7 +14,9 @@
 //! ```
 use super::auto_push_single_flight::PushGit;
 use super::child_environment::environment_with_overlay;
-use super::service_commit::try_service_commit;
+use super::service_commit::{ServiceCommit, try_service_commit};
+use super::service_handoff::{ServiceHandoff, hand_over, show_notices};
+use super::service_messages::render;
 use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, run_commit_transaction};
 use super::config_schema::CliGitConfig;
 use super::command_commit::CommitRegion;
@@ -25,7 +27,7 @@ use super::policy_checks::ShippedChecks;
 use super::policy_engine::StageRequest;
 use super::policy_events::{PolicyEvent, render_policy_events};
 use super::policy_trigger::Trigger;
-use super::post_commit::{PostCommitOutcome, PostCommitRequest, run_post_commit};
+use super::post_commit::{POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitOutcome, PostCommitRequest, run_post_commit, run_post_commit_gate};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::GitContext;
 use super::wrapper_controls::Controls;
@@ -183,11 +185,11 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     };
     // A plain scoped commit goes through the resident service when the person opted in; everything else, and every
     // command line the service does not cover, runs through the transaction as before.
-    let served: Result<Option<TransactionResult>, TransactionStop> = try_service_commit(&invocation, checks, &request);
-    let result: TransactionResult = match served {
-        Ok(Some(found)) => found,
+    let served: Result<Option<ServiceCommit>, TransactionStop> = try_service_commit(&invocation, checks, &request);
+    let (result, handoff): (TransactionResult, Option<ServiceHandoff>) = match served {
+        Ok(Some(found)) => (found.result, found.handoff),
         Ok(None) => match run_commit_transaction(&invocation, checks, &request) {
-            Ok(found) => found,
+            Ok(found) => (found, None),
             Err(stop) => return report_stop(stop),
         },
         Err(stop) => return report_stop(stop),
@@ -196,7 +198,7 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     let Some(landed) = result.landed_oid else {
         return CommitEnding { code: result.exit_code };
     };
-    return post_commit(command, &invocation, landed.as_str(), result.uses_lfs);
+    return post_commit(command, &invocation, landed.as_str(), result.uses_lfs, handoff.as_ref());
 }
 
 /// What:
@@ -208,7 +210,13 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 /// ```ts
 /// const post = await runPostCommitLifecycle({ ... }); if (post.blocked) throw new PolicyDecisionError(2); await autoPush({ ... });
 /// ```
-fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, landed: &str, uses_lfs: bool) -> CommitEnding {
+fn post_commit(
+    command: &CommitCommand<'_>,
+    invocation: &CommitInvocation<'_>,
+    landed: &str,
+    uses_lfs: bool,
+    handoff: Option<&ServiceHandoff>,
+) -> CommitEnding {
     let request: PostCommitRequest<'_> = PostCommitRequest {
         real_git: command.context.real_git.as_path(),
         landed_oid: landed,
@@ -219,6 +227,10 @@ fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, l
         config: command.config.policies.clone(),
         controls: command.controls.clone(),
     };
+    // A commit the service landed leaves its push and upkeep to the service; the gate still runs here.
+    if let Some(handed) = handoff {
+        return post_commit_handed(&request, handed, landed);
+    }
     let git: PushGit = PushGit {
         real_git: command.context.real_git.clone(),
         cwd: invocation.cwd.to_path_buf(),
@@ -234,6 +246,31 @@ fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, l
             return CommitEnding { code: 1 };
         }
     }
+}
+
+/// What:
+///  The post-commit lifecycle of a commit the service landed: earlier notices, the gate, then the handoff of the push and
+///  the upkeep.
+/// Why:
+///   The push runs after the command returns, so the commit never waits for the network; a blocked gate keeps the commit
+///  local and exits 2 exactly as before, and a handoff that fails is said plainly without changing the exit status.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// showNotices(); const gate = await runGate(); if (gate.blocked) return 2; await handOver(); return 0;
+/// ```
+fn post_commit_handed(request: &PostCommitRequest<'_>, handoff: &ServiceHandoff, landed: &str) -> CommitEnding {
+    let mut stderr = std::io::stderr();
+    show_notices(handoff, &mut stderr);
+    let gate = run_post_commit_gate(request);
+    write_stderr(render_policy_events(0, gate.events.as_slice()).as_str());
+    if gate.blocked {
+        return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
+    }
+    if let Err(failure) = hand_over(handoff, landed, &mut stderr) {
+        write_stderr(format!("{}\n", render(&failure)).as_str());
+    }
+    return CommitEnding { code: 0 };
 }
 
 /// Controls for this module stay out of the release executable.

@@ -94,6 +94,8 @@ pub enum ClientFailure {
     InstallProgramMissing(String),
     /// A step of the install or removal failed for a reason the person can act on.
     InstallCommandFailed(String),
+    /// The commit is saved but the backup push and upkeep could not be handed over.
+    WorkNotHandedOver(String),
 }
 
 /// The sentence every failure ends with when nothing was changed.
@@ -166,6 +168,10 @@ pub fn render(failure: &ClientFailure) -> String {
              git wrapper with the tool that installed it, so that the program sits next to it, then run \
              `{INSTALL_COMMAND}` again. {NOTHING_CHANGED}"
         ),
+        ClientFailure::WorkNotHandedOver(reason) => format!(
+            "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: {reason}. \
+             Run `git push` when ready."
+        ),
         ClientFailure::InstallCommandFailed(reason) => format!(
             "The commit service could not be installed: {reason}. Fix that and run `{INSTALL_COMMAND}` again."
         ),
@@ -223,6 +229,26 @@ pub fn position_notice(number: usize, of: usize) -> String {
         1 => String::from("Waiting for 1 earlier commit."),
         many => format!("Waiting for {many} earlier commits."),
     };
+}
+
+/// What:
+///  The notice for a backup push that failed after its commit was saved.
+/// Why:
+///   The push runs after the commit returned, so the person learns of a failure at their next commit. The service has
+///  its own environment, which is the first thing to check when a push that works in a terminal fails here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pushFailedNotice(commit, said)
+/// ```
+pub fn push_failed_notice(commit: &str, said: &str) -> String {
+    let short: &str = commit.get(..7).unwrap_or(commit);
+    let detail: String = if said.is_empty() { String::from("Git gave no reason.") } else { format!("Git said: {said}") };
+    return format!(
+        "The backup push of your commit {short} failed, so it exists only on this computer for now. {detail} The commit \
+         service runs with its own settings, not your terminal's, so a push that works in your terminal can fail here \
+         when it needs a variable your terminal has. Run `git push` when ready."
+    );
 }
 
 /// The texts that must never reach a user: implementation terms the system should have resolved itself.

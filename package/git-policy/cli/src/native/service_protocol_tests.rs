@@ -91,3 +91,17 @@ fn unacceptable_requests_are_refused() {
 fn retire_round_trips() {
     assert_eq!(decode_client(encode_client(&ClientMessage::Retire).as_str()), Ok(ClientMessage::Retire));
 }
+
+/// A work message survives encoding; a relative or empty directory, and a missing one, are refused.
+#[test]
+fn a_work_message_round_trips_and_hostile_directories_are_refused() {
+    let sent: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git") };
+    assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
+    let line: String = encode_client(&sent);
+    for bad in ["relative/.git", "", "\\u0000/.git"] {
+        let hostile: String = line.replace("/srv/repo/.git", bad);
+        assert!(decode_client(hostile.as_str()).is_err(), "{bad:?}");
+    }
+    let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
+    assert!(decode_client(missing.as_str()).is_err());
+}
