@@ -5898,3 +5898,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `a21d6fec9d0d04797` lands the githooks docs in the image: `every_documented_hook_event_is_listed`.
   After linter 0.5.0 is on crates.io and the gate is green: dispatch the wrapper release (0.5.1 or 0.6.0; the embedding changes no
   user-facing interface beyond the Markdown policy's failure texts, the service is opt-in, so 0.5.1 fits; decide at dispatch).
+- Merged the lock-free test store `5e652a6628` from `a54d6b24f9cf91c20` (finished): link the build directly, on `EXDEV` link one
+  stored copy published by `hard_link(partial, final)` (no lock), content-hash name with read-back, prune only copies idle over 24 h,
+  three link attempts if a copy vanishes; all seven review findings handled, six guards shown failing. Its second review
+  `ct-pi-review2` (output `~/temp/agent/ct/pi-review2.out`) reviews the tree before its last two merges; read it when done.
+- It also found `binary_catalog_specifiers_tests::the_repository_configuration_loads_and_leaves_the_catalog_policy_off` failing on
+  main: `monochromatic-c0` turned the policy on in `cli-git.config.jsonc` (`d0d1a8bc35`) and the test hard-coded "off". Rewritten by me
+  to read the shipped file and expect accordingly (`the_repository_configuration_loads_and_the_catalog_policy_follows_it`); host run of
+  `catalog_specifiers` in progress (log `~/temp/agent/catalog-test-run.log`). Gate 6 (on `af7e0fb33b`) predates both, so it will show
+  this test and the githooks test failing; gate 7 after `a21d6fec9d0d04797`'s READY.
