@@ -212,10 +212,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rust',
     request: { channel: 'nightly' },
-    version: 'nightly-2026-10-31',
+    version: 'nightly-2026-11-01',
     route: 'rustup-toolchain',
     manager: 'rustup',
-    packageId: 'nightly-2026-10-31',
+    packageId: 'nightly-2026-11-01',
     bins: [
       'cargo',
       'cargo-clippy',
@@ -241,7 +241,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
         'x86_64-linux-android'
       ],
     },
-    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-31' },
+    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-11-01' },
     artifacts: {},
   },
   {
@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.4.5',
+    version: '0.4.6',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -387,7 +387,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-mpm-shadow',
     request: { track: 'latest' },
-    version: '0.2.0',
+    version: '0.2.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-mpm-shadow',
