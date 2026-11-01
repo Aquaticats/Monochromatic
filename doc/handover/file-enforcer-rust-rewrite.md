@@ -1512,8 +1512,9 @@ each finished branch is reviewed and merged into `main`):
   and a "table absent" check that does not read nft's English error text).
   Sent to the wg agent with a request for the exact live-apply sequence.
   Probed:
-  `sudo --non-interactive true` exited 0
-  (possibly a cached credential, so re-probe right before the restart);
+  `sudo --non-interactive true` exited 0,
+  and `sudo --non-interactive --list` shows `(ALL) NOPASSWD: ALL`,
+  so the restart needs no password;
   `wg-quicker` resolves to `/var/home/user/Monochromatic/node_modules/.bin/wg-quicker`.
   Sent to the wg agent earlier:
   the block table accepts traffic the routing already sends to clearnet
