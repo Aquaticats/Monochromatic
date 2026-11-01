@@ -218,6 +218,9 @@ The only controls that need a second file with the wrapper's bytes are the byte-
 `fixture` now hard-links the built executable (`link_built_wrapper` in
 `package/git-policy/cli/src/native/binary_support.rs`) and falls back to a data copy where a hard link is impossible
 (a fixture root moved to another filesystem with `CLI_GIT_TEST_ROOT`).
+That fallback was superseded on 2026-11-01: it also applied to every fixture on a host that relocates
+`build.build-dir`, and the link failure now leads to one stored copy of the build instead of a copy per fixture (section
+"The hard link failed on the development host, so every fixture copied the wrapper").
 All fixtures of all test processes, which `cargo nextest` runs one per process, then share one inode and one set of
 cached pages, so a cold read of the executable is paid once per machine state and not once per test.
 A per-process copy (a `OnceLock`) would not have shared anything, because each test is its own process.
