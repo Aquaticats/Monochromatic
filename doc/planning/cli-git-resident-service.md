@@ -882,3 +882,61 @@ ten-second repetition of the holder's line), the holder's line from `index_lock_
 the process (`Holder` message). While the service holds the lock it carries `cli-git-service <batch>`, so a restart removes
 its own stale lock and no other. Platforms without inotify fail at once when the lock is held. While the service waits it
 serves no other repository (one serialized step); the limit bounds that.
+
+A lock that carries the service's marker and is found by a landing is a dead instance's (one service runs and it holds no
+lock between two landings), so the landing removes it and takes its own; measured: without this rule a service killed while it
+held the lock made every later landing wait out the whole limit for a holder that was gone.
+
+Not covered: a service killed between taking the lock and writing its marker leaves an empty `index.lock`, which is a
+foreign lock to every reader, exactly as a killed Git leaves one.
+
+### Suite with the service as the only route, after part 1
+
+`CLI_GIT_TEST_SERVICE=1`, whole binary target, one run (436 tests, 221 s): 365 passed, 71 failed. Three of the failures
+(`wait_notice` for the index lock) were then restated for the service's wait and pass singly; the other 68 remain. Each
+remaining failure asserts machinery that part 2 deletes:
+- `recovery_tearing` (24): damaged or lost records of the transaction directory, owner locks, shadow refs, phases.
+- `wait_notice` (5): the landing lock, the reservation and two real wrappers queueing behind each other.
+- `commit` (4): replay after a lost race, a replay conflict, the reservation threshold, and the pack-per-landing migration that
+  a maintenance control counts (the service writes loose objects, so nothing reaches the pack limit).
+- `event_path_commit` (4): replayed commits and recovery of a killed transaction with names that are not text.
+- `fault_enospc` (6), `fault_filesystem` (4), `fault_kill` (7), `fault_limits` (3), `fault_signal` (1), `fork_failure` (2):
+  faults injected into the wrapper at each call of the earlier landing and then a check that its transaction directory
+  recovers. The service needs its own equivalents where a fault still applies (the journal's kill points are in
+  `binary_service_tests.rs`).
+- `budget` (5): process and sync budgets of the earlier transaction; the service route needs its own.
+- `merge_isolation` (1): a commit waiting for a running merge under the landing lock.
+- `index_pack_fsync` (2): the migration `index-pack` of the earlier landing, which no longer exists. The service writes
+  objects with the person's own `core.fsync`; whether it should override it as the migration did is a decision for the owner.
+
+The push tests were restated, not retired: the push runs after the command returned, in the service's environment. The
+harness waits for the work records to settle, gives the fixture service the variables a control sets for the push, and
+reads a failed push from the notice. Variables only the terminal has do not reach the push (documented limit).
+`push_once` runs the same `run_push_command` path as the wrapper's push, so the in-process pointer scan and the `git-lfs`
+upload before the ref moves run in the service (shown by `lfs_pre_push` and `lfs_server` with the service).
+
+Two end-to-end scenarios named by the coordinator: `lint-staged-stash-concurrent` passes with the rebuild from the saved
+message; `reservation-after-lost-races` now lands every commit (exits 0) but asserts the earlier reservation counters, so it
+belongs with the machinery part 2 deletes.
+
+### What part 2 can delete, and what it must keep
+
+Delete: `owner_lock*`, `commit_landing_lock`, `transaction_lease`, `transaction_owner`, `ownerless_directory`,
+`replay_*`, `landing_*`, `commit_landing_loop`, `post_landing`, `landed_disposal`, `commit_recovery`, `recovery_*` (but see
+below), `transaction_registry`, `transaction_gate`, `commit_workspace`, `capture_store`, `capture_records`, the capture lock
+and sequence of `capture_order.rs`, `real_index_lock`, `index_writer_coordination` and `index_writer_forward`, the lock of
+`auto_push_single_flight.rs`, `holder_budget`, `lock_holder_facts`, the polling loop of `index_lock_wait*`, `run_commit_transaction`
+and `conclude_commit_transaction`, and the earlier route in `commit_command.rs` once a machine without a user manager gets the
+plain stop.
+
+Keep or move (used by the service route): `CaptureIndexes` and `indexed_request` (`capture_order.rs`); `Selection`,
+`decide_selection`, `TransactionResult`, `TransactionStop`, `failed`, `private_checks`, `staged_at_base`, `base_object`,
+`settled_passes` and `CommitInvocation` (`commit_transaction.rs`); `events_with_changed_summary` and `events_with_summary`
+(`commit_conclusion.rs`); the no-change constants and `no_change_message` (`commit_no_change.rs`); `recovery_error.rs` and
+`recovery_files.rs` (used by `conclusion_cleanup.rs` and `worktree_completion.rs`); `conclusion_copy.rs`,
+`conclusion_cleanup.rs`, `shadow_create.rs`, `shadow_config.rs`, `shadow_links.rs`, `shadow_refs.rs`, `shadow_skeleton.rs`,
+`shadow_git.rs`, `commit_preparation.rs` (`run_native_commit`, `read_prepared_commit`), `commit_index.rs`,
+`worktree_completion.rs`, `commit_worktree_records.rs`, the types of `transaction_journal.rs` (`Base`, `Conclusion`,
+`SymbolicHead`, `TransactionMode`, `RefFormat`, `AddedPath`), `PushGit` and `git_command` of `auto_push_single_flight.rs`,
+`index_lock_holders*`, `index_lock_evidence.rs`, and `live_wait_limit` with `LIVE_WAIT_VARIABLE` of `live_lock.rs`. This
+list was read from the imports of the new files, not from a deletion build; the deletion itself is the check.
