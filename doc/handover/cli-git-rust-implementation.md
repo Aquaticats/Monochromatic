@@ -6367,3 +6367,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - Two items sent to `af248a0e1f85cfae6`: (1) `identity()` starts 2 `git var` before the decline, about 4 to 5 ms;
     order the cheap declines first. (2) `native:perf` never measures the service route or signing; add arms.
   - The harness `rm` race is fixed by `97c5cad2c8` (`bin/native-perf-scratch.ts`), which is in gate 16.
+- Gate 16 GREEN on `f96cdf42e4` (reads and LFS follow-ups, the reads fix, main): 3093 of 3093 passed, 8 skipped.
+  Merged into main as `5d3fa5b9bb` and pushed (checked; 28 commits, no LFS path). 0.5.3 dispatched (logs
+  `~/temp/agent/release-053.log` and `-wait.log`). HOLD merges touching the wrapper or its path crates until its bump
+  commit is on main. Then I bump the lock myself (no toolchain owner since the reboot) and verify a real commit.
