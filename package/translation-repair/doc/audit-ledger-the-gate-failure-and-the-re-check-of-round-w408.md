@@ -494,8 +494,19 @@ at the code commit `62d42fe5d0` (the last commit that changes a code line):
   and a stored record names the model and no provider;
   and every change of the round was made after the newest record,
   which is the exception in the rule of the launch checks.
-- The whole `source-scan` suite is run once after the last commit,
-  and its result is in the hand-back of the round.
+- The first whole `source-scan` run,
+  at `c283bb4809`,
+  had 80 `[PASS]` lines and 3 failed suites (6 `[FAIL]` lines;
+  `gate-unit-source-scan-whole.txt`):
+  the scan of leading articles found four TSDoc descriptions of the round that opened with one,
+  the scan of duplicate bodies found `startsWithSpread` of the seat fixture to be the body of `isSpread` in
+  `reask-role-call.test-fixture.ts`,
+  and the scan of top-level declarations nothing reads found `widthOf` exported by the width fixture and read by
+  nothing.
+  Commit `dc1cca5b66` fixes them (`scan-three-2.txt`),
+  and `test-fixture` and `provider` ran again (`gate-unit-2-*.txt`).
+  The whole suite is run again after the last commit of the round,
+  and its result is in the hand-back.
 
 The gate found two cases of the round's own work that failed,
 and they are the failure B1370 describes:
@@ -552,6 +563,9 @@ Slips:
   found by the linter after the tests passed,
   and was rewritten in the repository's style before it was committed.
 - The red logs of B1371 and B1373 were taken before a destructuring edit and a layout edit of the same files.
+- The scans of leading articles,
+  duplicate bodies and dead test declarations were not run alone before the first whole run,
+  which is the slip B1369 records for round w408.
 - The commit `bb1b749b2a` is typed `fix(stage)` and holds test files beside the module;
   `a0a6e8141b` and `16e87d22f3` are `fix(*)` with a body per package.
   No message is amended.
