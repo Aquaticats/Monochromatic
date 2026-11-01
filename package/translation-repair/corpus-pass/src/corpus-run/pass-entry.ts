@@ -317,6 +317,11 @@ export async function runEntryPipeline(
      Archive after preparation-stage review corrections.
      */
     const settledArchiveText = paired.targetText;
+    // THE PREPARATION'S SLICING AND ITS REVIEWED ARCHIVE ARE WHAT A STOP FROM HERE SHIPS (B1221), before the fold of
+    // carried passages replaces them: a stop in the picture readings, the seat reading or the insertion admission
+    // would otherwise find no slicing and ship the archive as the entry read it, not as the preparation corrected it.
+    progress.prepared = paired;
+    progress.archiveText = settledArchiveText;
 
     /**
      Complete reviewed visual evidence required before insertion and lanes,
@@ -569,6 +574,9 @@ export async function runEntryPipeline(
         artifactsDir,
         l: el,
         carried: translateInsertionAdmission.carried ?? [],
+        onPageWritten: function keepSettledPage(): void {
+          progress.settledPageWritten = true;
+        },
         ...((prepared.archiveOriginalSpans === undefined)
           ? {}
           : { archiveOriginalSpans: prepared.archiveOriginalSpans, }),
@@ -584,14 +592,16 @@ export async function runEntryPipeline(
     return { kind: 'settled', };
   }
   catch (error) {
-    // EVERY PROVIDER DRY IN THE MIDDLE OF THE PAGE, OR A STAGE THAT HEARD NO VOICE (B1183), ships what the entry has (the
-    // owner's answer of 2026-10-29, "Ship interim, resumable") and leaves the entry open: the tally still files the stop
-    // as it did, no artifact is written, and a later run repeats the entry and replaces the page.
+    // EVERY STOP SHIPS WHAT THE ENTRY HAS (the owner's answer of 2026-10-29, "Ship interim, resumable", and "no matter
+    // what, we must ship"; B1183, B1220) and leaves the entry open: the tally still files the stop as it did, no
+    // artifact is written, and a later run repeats the entry and replaces the page. Before the slicing exists the
+    // archive ships as the page.
     await shipInterimOnStop({
       error,
       progress,
       entryId: entry.id,
       sourceText: entry.sourceText,
+      targetText: entry.targetText,
       publishDir,
       interimDir,
       tip,

@@ -11,8 +11,8 @@ import {
 //region Page grammar
 // A PAGE THE GRAMMAR REFUSES is not shipped as composed, whatever every slice
 // floor said of its slices: `publishFixedPage` keeps the archive at the slices
-// that break it (`page-grammar-fallback.ts`, B1207), and `assertPageParses`
-// remains for a caller that wants the refusal. Every slice is read under the strict MDX grammar before it is
+// that break it (`page-grammar-fallback.ts`, B1207). `assertPageParses` has no production caller; it is kept as a
+// tested seam for a caller that wants the refusal (B1236). Every slice is read under the strict MDX grammar before it is
 // admitted, but the would-ship reading runs AFTER those floors, so a rewrite
 // applied there reaches the page unread. On 2026-09-06 the yulianNyanner page
 // carried a JSX string literal in curly quotes, `{[“…”]}`, because the

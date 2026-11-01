@@ -45,9 +45,11 @@ const RECORD_SUFFIX = '.json';
 
 /**
  Why a page was shipped before its entry settled: every provider went dry (the owner's answer of 2026-10-29, "Ship
- interim, resumable"), or a stage heard no voice at all, which is an outage the same rule covers (B1183).
+ interim, resumable"), a stage heard no voice at all, which is an outage the same rule covers (B1183), or any other
+ error ended the entry's work, which "no matter what, we must ship" covers (B1220); the record's `errorClass` then
+ names the error.
  */
-export type InterimReason = 'dry-stop' | 'provider-unavailable';
+export type InterimReason = 'dry-stop' | 'entry-error' | 'provider-unavailable';
 
 /**
  What an interim record carries.
@@ -98,6 +100,12 @@ export type InterimEntryRecord = {
    Why the page is interim.
    */
   readonly reason: InterimReason;
+
+  /**
+   Class of the error that ended the entry, as one token (`errorClassOf`); absent in a record written before the class
+   was kept.
+   */
+  readonly errorClass?: string;
 
   /**
    Slices of the page that carry a wording a consolidation record settled.
@@ -283,7 +291,8 @@ function isInterimRecord(fields: Readonly<Record<string, unknown>>,): fields is 
     && ((typeof fields.pipelineDigest) === 'string')
     && ((typeof fields.corpusSha) === 'string')
     && ((typeof fields.timestamp) === 'string')
-    && ((fields.reason === 'dry-stop') || (fields.reason === 'provider-unavailable'))
+    && ((fields.reason === 'dry-stop') || (fields.reason === 'entry-error') || (fields.reason === 'provider-unavailable'))
+    && ((fields.errorClass === undefined) || ((typeof fields.errorClass) === 'string'))
     && isCount(fields.settledSlices,)
     && isCount(fields.archiveSlices,)
     && isCount(fields.sourceSlices,)

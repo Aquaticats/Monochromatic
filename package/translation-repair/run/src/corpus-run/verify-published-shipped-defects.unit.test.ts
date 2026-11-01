@@ -1,6 +1,6 @@
 /**
  Tests for the lines `verify-published` prints for the defects a page ships with that its agreement with the artifact
- cannot show (B1231): a page the grammar refuses, an archive kept where the grammar refused a wording, and a body
+ cannot show (B1231), without quoting the grammar's refusal, which names a place in corpus text: a page the grammar refuses, an archive kept where the grammar refused a wording, and a body
  without naturalness approval.
 
  Fixtures are cat-themed invention. No corpus content appears here.
@@ -43,8 +43,8 @@ await describe({
           composedGrammar: { kind: 'refused', refusal: 'at 3:12 (mdx-jsx)', },
           missing: [],
         },),).toEqual([
-          'CatEntry1: page-unparseable, the strict grammar refuses the page on disk (at 3:12 (mdx-jsx)); the publisher '
-          + 'ships such a page with this defect, and the site build will not take it',
+          'CatEntry1: page-unparseable, the strict grammar refuses the page on disk; the publisher ships such a page '
+          + 'with this defect, and the site build will not take it',
         ],);
       },
     },),
@@ -60,9 +60,9 @@ await describe({
           composedGrammar: { kind: 'refused', refusal: 'at 9:2 (mdx-jsx)', },
           missing: [4, 7,],
         },),).toEqual([
-          'CatEntry1: page-grammar-archive-kept, the strict grammar refuses the artifact\'s wordings composed as one page '
-          + '(at 9:2 (mdx-jsx)), so the publisher keeps the archive at the slices that break it; the slices named '
-          + 'MISSING, [4, 7], are among them',
+          'CatEntry1: page-grammar-archive-kept, the strict grammar refuses the artifact\'s wordings composed as one page, '
+          + 'so the publisher keeps the archive at the slices that break it; the slices named MISSING, [4, 7], are '
+          + 'among them',
         ],);
       },
     },),

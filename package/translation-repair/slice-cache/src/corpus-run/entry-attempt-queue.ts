@@ -50,6 +50,22 @@ function neverStopped(): boolean {
 }
 
 /**
+ The field a scheduler line carries for the class of the error that ended the attempt, none where it carried none.
+
+ @param errorClass - class token of the outcome
+
+ @returns The field with its leading space, or an empty string
+
+ @example
+ ```ts
+ const field = classFieldOf({ errorClass: 'SliceSpliceError', },); // => ' class=SliceSpliceError'
+ ```
+ */
+function classFieldOf({ errorClass, }: { readonly errorClass: string | undefined; },): string {
+  return (errorClass === undefined) ? '' : ` class=${errorClass}`;
+}
+
+/**
  Runs every pending entry once, then re-runs the ones that earned it.
 
  RE-ATTEMPTS GO TO THE BACK. Coverage of the corpus is what a first attempt
@@ -191,7 +207,9 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     }
     if ((verdict.kind === 'stalled') && (!runEnded)) {
       printRunLine({
-        line: `STALLED ${entry.id} ${stampOf({ entry, },)}: its ${String(verdict.cached,)} cache ${
+        line: `STALLED ${entry.id} ${stampOf({ entry, },)}${
+          classFieldOf({ errorClass: verdict.errorClass, },)
+        }: its ${String(verdict.cached,)} cache ${
           wordForCount({
             count: verdict.cached,
             one: 'record is',
@@ -202,7 +220,9 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     }
     if (verdict.kind === 'stopped') {
       printRunLine({
-        line: `INCOMPLETE ${entry.id} ${stampOf({ entry, },)}: stage-local work remains; whole entry will not restart in `
+        line: `INCOMPLETE ${entry.id} ${stampOf({ entry, },)}${
+          classFieldOf({ errorClass: verdict.errorClass, },)
+        }: stage-local work remains; whole entry will not restart in `
           + 'this invocation',
       },);
     }

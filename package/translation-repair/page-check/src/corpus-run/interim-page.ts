@@ -55,6 +55,12 @@ export type InterimStop = {
    Consolidation records written before the stop, which are the slices that count as settled.
    */
   readonly consolidateSlices: readonly ArtifactConsolidateSlice[];
+
+  /**
+   Slices that read as the archive's text although a consolidation record exists, for a reading of what ships that
+   refused them (`UnansweredContestSliceError`, B1222); none when absent.
+   */
+  readonly keepArchiveAt?: readonly number[];
 };
 
 /**
@@ -142,11 +148,19 @@ function interimSource(
    */
   const { consolidateSlices, } = stop;
   /**
-   Slices a consolidation record settled.
+   Slices the caller keeps at the archive whatever their records say.
    */
-  const settled = new Set(consolidateSlices.map(function indexOf({ sliceIndex, },): number {
-    return sliceIndex;
-  },),);
+  const keptAtArchive = new Set(stop.keepArchiveAt ?? [],);
+  /**
+   Slices a consolidation record settled, less those kept at the archive.
+   */
+  const settled = new Set(consolidateSlices
+    .map(function indexOf({ sliceIndex, },): number {
+      return sliceIndex;
+    },)
+    .filter(function isKept(sliceIndex,): boolean {
+      return !keptAtArchive.has(sliceIndex,);
+    },),);
   return {
     comparison,
     consolidation: (consolidateSlices.length === 0)

@@ -67,6 +67,11 @@ const TARGET_DOC = '## Section one\n\nThe cat sleeps on the sill.\n\n## Section 
 const SETTLED_FIRST = '## Section one\n\nThe cat naps on the sill.\n';
 
 /**
+ A page whose front matter is no YAML, which the deterministic preparation refuses.
+ */
+const BROKEN_FRONT_MATTER = '---\n: [\n---\nThe cat sleeps.\n';
+
+/**
  Built pipeline the cases claim to have run under.
  */
 const DIGEST = `sha256-tree-v1:${'c'.repeat(64,)}` as PipelineDigest;
@@ -309,13 +314,13 @@ await describe({
          Preparation both slices of the page address.
          */
         const prepared = preparation();
-        const [first, second,] = prepared.slices.map(function indexOf({ target, },): number {
-          return target.sliceIndex;
-        },);
+        const [firstSlice, secondSlice,] = prepared.slices;
+        if ((firstSlice === undefined) || (secondSlice === undefined))
+          throw new Error('the archive has two slices',);
         /**
          The slice the contest was bound to decide and named nowhere.
          */
-        const unanswered = second ?? 1;
+        const unanswered = secondSlice.target.sliceIndex;
         await shipOver({
           dirs,
           error: new UnansweredContestSliceError({ sliceIndex: unanswered, },),
@@ -323,22 +328,28 @@ await describe({
             ...slicedProgress(),
             projected: {
               comparison: [
-                catRow({
-                  sliceIndex: first ?? 0,
-                  repairText: SETTLED_FIRST,
-                  translateText: SETTLED_FIRST,
-                },),
-                catRow({
-                  sliceIndex: unanswered,
-                  repairText: 'The cat has a dish.',
-                  translateText: 'The cat has a saucer.',
-                },),
+                {
+                  ...catRow({
+                    sliceIndex: firstSlice.target.sliceIndex,
+                    repairText: SETTLED_FIRST,
+                    translateText: SETTLED_FIRST,
+                  },),
+                  incumbentText: firstSlice.target.text,
+                },
+                {
+                  ...catRow({
+                    sliceIndex: unanswered,
+                    repairText: 'The cat has a dish.',
+                    translateText: 'The cat has a saucer.',
+                  },),
+                  incumbentText: secondSlice.target.text,
+                },
               ],
             },
             contestSlices: [],
             consolidated: [
               recordAt({
-                sliceIndex: first ?? 0,
+                sliceIndex: firstSlice.target.sliceIndex,
                 shipped: {
                   kind: 'consolidated',
                   text: SETTLED_FIRST,
@@ -371,11 +382,14 @@ await describe({
         /**
          One row, which the comparison below names twice.
          */
-        const row = catRow({
-          sliceIndex: first,
-          repairText: SETTLED_FIRST,
-          translateText: SETTLED_FIRST,
-        },);
+        const row = {
+          ...catRow({
+            sliceIndex: first,
+            repairText: SETTLED_FIRST,
+            translateText: SETTLED_FIRST,
+          },),
+          incumbentText: prepared.slices[0]?.target.text ?? '',
+        };
         await shipOver({
           dirs,
           error: new SliceSpliceError({ message: 'two replacements name one slice', },),
@@ -477,9 +491,9 @@ await describe({
           error: new Error('scripted',),
           progress: startEntryProgress(),
           entryId: 'CatEntry1',
-          // A source and an archive the preparation cannot take: a lone surrogate is no text.
-          sourceText: SOURCE_DOC,
-          targetText: `${TARGET_DOC}\uD800`,
+          // A front matter that is no YAML, which the preparation refuses with FrontMatterParseError.
+          sourceText: BROKEN_FRONT_MATTER,
+          targetText: BROKEN_FRONT_MATTER,
           publishDir: dirs.publishDir,
           interimDir: dirs.interimDir,
           tip: 'a'.repeat(40,),
@@ -488,7 +502,10 @@ await describe({
           attempt: 1,
           l: capturingLogger({ messages, },),
         },);
-        expect((await pageOf({ dirs, },)).startsWith('## Section one',),).toBe(true,);
+        expect(await pageOf({ dirs, },),).toBe(BROKEN_FRONT_MATTER,);
+        expect(messages.some(function namesTheClass(message,): boolean {
+          return message.includes('class=FrontMatterParseError',);
+        },),).toBe(true,);
       },
     },),
 

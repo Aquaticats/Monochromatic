@@ -100,6 +100,12 @@ export type StageVoice<ValueT,> =
      smaller than it looks.
      */
       readonly unreachable: boolean;
+
+    /**
+     Whether the refusal came after a call of the request was cut or refused (B1230), so the model was asked and its
+     claim on the question stays; absent for a loss that is no such refusal and for one raised before any call.
+     */
+      readonly afterExchange?: true;
     }
     | {
     /**
@@ -512,6 +518,7 @@ export async function attemptStageCall<ValueT,>(
       heard: false,
       answered: false,
       unreachable,
+      ...(((error instanceof NoProviderForModelError) && error.afterExchange) ? { afterExchange: true as const, } : {}),
     };
   }
 }

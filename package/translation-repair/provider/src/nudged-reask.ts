@@ -2,7 +2,10 @@ import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
-import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  NoProviderForModelError,
+  refusedBeforeAnyExchange,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import type {
   ProviderName,
   RosterModelId,
@@ -341,11 +344,14 @@ export async function reaskElsewhereNudged<ValueT,>(
         if (error instanceof NoProviderForModelError) {
           // THE ROUTER (OR THE RUN'S REFUSAL OF A WITHHELD SEAT) REFUSED BEFORE ANY EXCHANGE, so the model was not asked
           // and is no voice of the question: its claim is given back for another seat of it (ledger B1201). A model whose
-          // exchange failed stays claimed, below.
-          releaseFor({
-            seat: reaskSeat,
-            modelId,
-          },);
+          // exchange failed stays claimed, below, and so does one the router refused AFTER a call of the request was cut
+          // at its stream bound or refused (B1230): that model was asked.
+          if (refusedBeforeAnyExchange({ error, },)) {
+            releaseFor({
+              seat: reaskSeat,
+              modelId,
+            },);
+          }
           ol.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);
           continue;
         }

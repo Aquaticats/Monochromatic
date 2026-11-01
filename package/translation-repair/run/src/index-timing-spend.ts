@@ -85,6 +85,7 @@ export {
   type JudgedEntry,
   judgePublishedEntry,
 } from './corpus-run/verify-published-entry.ts';
+export { shippedDefectLinesOf, } from './corpus-run/verify-published-shipped-defects.ts';
 export { sourceDroppedLinesOf, } from './corpus-run/verify-published-source-dropped.ts';
 export {
   judgePublishedEntries,

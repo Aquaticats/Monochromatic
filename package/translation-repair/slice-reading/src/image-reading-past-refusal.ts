@@ -4,7 +4,10 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
-import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  NoProviderForModelError,
+  refusedBeforeAnyExchange,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   describeLeftOut,
   EveryProviderDryError,
@@ -411,10 +414,13 @@ async function reaskCut(
           throw error;
         if (error instanceof NoProviderForModelError) {
           // REFUSED BEFORE ANY EXCHANGE: the model was not asked, so its claim goes back for another reader of the picture.
-          releaseFor({
-            seat,
-            modelId: other,
-          },);
+          // One the router refused after a call was cut (B1230) was asked, and stays claimed.
+          if (refusedBeforeAnyExchange({ error, },)) {
+            releaseFor({
+              seat,
+              modelId: other,
+            },);
+          }
           rl.debug(`${modelId}: ${other} cannot take the re-ask of ${assetName}, no provider serves it with budget`,);
         }
         else {

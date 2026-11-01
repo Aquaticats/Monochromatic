@@ -34,7 +34,7 @@ import {
  ```
  */
 export function assertFinalNaturalnessComplete(
-  { artifact, }: { readonly artifact: SettledArtifact; },
+  { artifact, }: { readonly artifact: Pick<SettledArtifact, 'consolidation' | 'laneSelection'>; },
 ): void {
   /**
    Deciding stages artifact records.

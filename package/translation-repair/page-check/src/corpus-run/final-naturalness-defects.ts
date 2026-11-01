@@ -30,7 +30,7 @@ import {
  ```
  */
 export function finalNaturalnessDefects(
-  { artifact, }: { readonly artifact: SettledArtifact; },
+  { artifact, }: { readonly artifact: Pick<SettledArtifact, 'consolidation' | 'laneSelection'>; },
 ): readonly PublishDefect[] {
   return publishDefects({
     steps: [{

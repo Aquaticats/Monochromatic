@@ -71,12 +71,22 @@ export type ReattemptVerdict =
      Slices it holds, which is what it held before this attempt too.
      */
       readonly cached: number;
+
+    /**
+     Class of the error that ended the attempt, absent where the outcome carried none.
+     */
+      readonly errorClass?: string;
     }
     | {
     /**
      Incomplete work explicitly forbids fresh whole-entry attempt.
      */
       readonly kind: 'stopped';
+
+    /**
+     Class of the error that ended the attempt, absent where the outcome carried none.
+     */
+      readonly errorClass?: string;
     }
     | {
     /**
@@ -199,8 +209,12 @@ export function readAttemptOutcome(
 ): ReattemptVerdict {
   if (outcome.kind === 'settled')
     return { kind: 'settled', };
-  if (outcome.kind === 'stopped')
-    return { kind: 'stopped', };
+  if (outcome.kind === 'stopped') {
+    return {
+      kind: 'stopped',
+      ...((outcome.errorClass === undefined) ? {} : { errorClass: outcome.errorClass, }),
+    };
+  }
   if (outcome.kind === 'declined')
     return { kind: 'declined', };
 
@@ -221,6 +235,7 @@ export function readAttemptOutcome(
   return {
     kind: 'stalled',
     cached: cachedAfter,
+    ...((outcome.errorClass === undefined) ? {} : { errorClass: outcome.errorClass, }),
   };
 }
 

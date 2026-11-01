@@ -386,6 +386,7 @@ export async function publishFixedPage(
         archiveText,
         artifact,
         slices,
+        keptArchiveAt: parsing.keptArchiveAt,
         carried,
         l,
       },),

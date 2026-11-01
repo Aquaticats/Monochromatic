@@ -66,6 +66,24 @@ await describe({
             },),).toEqual(['early', 'middle', 'late',],);
           },
         },),
+        it({
+          name: 'THROWS FOR A VOICE WHOSE SEAT IS ON NO BENCH (B1235) instead of placing it before every seat, since a '
+            + 'position of -1 sorted a voice nobody seated first with no sign that anything was wrong',
+          fn: async () => {
+            /**
+             Bench in roster order.
+             */
+            const modelIds = ['glm-5.3', 'minimax-m3',] as const;
+            /**
+             Voices, the second answered by a model on no bench and standing for no seat of it.
+             */
+            const voices = [
+              { modelId: 'glm-5.3', value: 'early', },
+              { modelId: 'hf:moonshotai/Kimi-K3', value: 'stranger', },
+            ] as const;
+            expect(() => voices.toSorted(seatOrderOf({ modelIds, },),),).toThrow('on no seat of the bench',);
+          },
+        },),
       ],
     },),
   ],

@@ -49,6 +49,9 @@ import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/
  @param carried - source-only passages proven rendered in the archive before the lanes, whose evidence the page must
  still carry; a region it lost is reported on the defects line and the page ships (B1181)
 
+ @param onPageWritten - told once the settled page is written and before the artifact is, so a stop between the two does
+ not replace that page with an interim one (B1220)
+
  @returns Destination comparison from the published page, and the content
  checks it shipped failing
 
@@ -69,6 +72,7 @@ export async function persistSettledEntry(
     l,
     archiveOriginalSpans,
     carried = [],
+    onPageWritten,
   }: ForeignBorrowed<{
     readonly artifact: SettledArtifact;
     readonly slices: readonly ChunkPair[];
@@ -80,6 +84,7 @@ export async function persistSettledEntry(
     readonly l: Logger;
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
     readonly carried?: readonly CarriedInsertion[];
+    readonly onPageWritten?: () => void;
   }>,
 ): Promise<{
   readonly destinations: DestinationCheck;
@@ -115,6 +120,7 @@ export async function persistSettledEntry(
     carried,
     ...((archiveOriginalSpans === undefined) ? {} : { archiveOriginalSpans, }),
   },);
+  onPageWritten?.();
   await writeFileAtomic({
     path: join(
       artifactsDir,

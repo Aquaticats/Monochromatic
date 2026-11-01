@@ -19,11 +19,23 @@ export type EntryOutcome = {
    Operational failure or hard ceiling may resume from newly cached work.
    */
   readonly kind: 'resumable-failure';
+
+  /**
+   Class of the error that ended the attempt, as one token, which the scheduler's lines name; absent where the outcome
+   was made without an error.
+   */
+  readonly errorClass?: string;
 } | {
   /**
    Work remains incomplete but same invocation must not start whole entry again.
    */
   readonly kind: 'stopped';
+
+  /**
+   Class of the error that ended the attempt, as one token, which the scheduler's lines name; absent where the outcome
+   was made without an error.
+   */
+  readonly errorClass?: string;
 } | {
   /**
    The archive's note says the whole page is the author's own English, so the

@@ -21,6 +21,11 @@
 const NAMELESS_THROW = 'a thrown value that is not an Error';
 
 /**
+ Class token of a thrown value that is no Error.
+ */
+const NON_ERROR_CLASS = 'NotAnError';
+
+/**
  Names the class of whatever was caught.
 
  @param error - caught value, of unknown type by construction
@@ -38,6 +43,38 @@ export function errorName(
   if (Error.isError(error,))
     return error.name;
   return NAMELESS_THROW;
+}
+
+/**
+ Class a stop record carries for the error that ended an entry, as one token.
+
+ THE FIELD OF A LOG LINE A PERSON COUNTS BY (B1223). `errorName` answers a sentence for a thrown value that is no Error,
+ and a sentence with spaces splits into several fields when a line is read by field, so this answers `NotAnError` for
+ it. A class name holding anything but letters, digits and the marks `_`, `$`, `.` and `-` has each such character
+ written as `_`, and an empty name reads as `Error`, so the token is never empty and never splits.
+
+ @param error - caught value, of unknown type by construction
+
+ @returns One token naming the class
+
+ @example
+ ```ts
+ console.log(`TALLY Cat status=ERROR class=${errorClassOf({ error, },)}`,);
+ ```
+ */
+export function errorClassOf(
+  { error, }: { readonly error: unknown; },
+): string {
+  if (!Error.isError(error,))
+    return NON_ERROR_CLASS;
+  /**
+   The class name with every character a field cannot hold written as an underscore, in one pass.
+   */
+  const token = error.name.replaceAll(
+    /[^A-Za-z0-9_$.-]/gu,
+    '_',
+  );
+  return (token === '') ? 'Error' : token;
 }
 
 /**

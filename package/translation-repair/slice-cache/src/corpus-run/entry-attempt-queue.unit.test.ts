@@ -60,8 +60,8 @@ function fixedWallClock(): Date {
  */
 type AttemptOutcome =
   | { readonly kind: 'settled'; }
-    | { readonly kind: 'resumable-failure'; }
-    | { readonly kind: 'stopped'; };
+    | { readonly kind: 'resumable-failure'; readonly errorClass?: string; }
+    | { readonly kind: 'stopped'; readonly errorClass?: string; };
 
 /**
  What one stub entry does on each successive attempt.

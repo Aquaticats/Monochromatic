@@ -7,6 +7,7 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
+  markedAfterExchange,
   monotonicMs,
   NoProviderForModelError,
 } from '@monochromatic-dev/translation-repair-markup/ts';
@@ -282,6 +283,47 @@ export function createRoutingClient(
   }
 
   /**
+   Decides which provider takes one call, marking a no-provider refusal as raised after an exchange when an earlier
+   attempt of the same request already made a call (B1230).
+
+   @param request - call being routed, read for its model and its pictures
+
+   @param refused - provider that has just refused us, or nobody
+
+   @param exchanged - whether an earlier attempt of this request made a call
+
+   @returns Provider to ask
+
+   @throws {@link NoProviderForModelError} when nowhere can take it, marked when a call was made first
+
+   @example
+   ```ts
+   const provider = await chooseProviderMarked({ request, refused: NOBODY_REFUSED, exchanged: false, },);
+   ```
+   */
+  async function chooseProviderMarked(
+    {
+      request,
+      refused,
+      exchanged,
+    }: {
+      readonly request: ForeignBorrowed<ChatTextRequest>;
+      readonly refused: ProviderName | typeof NOBODY_REFUSED;
+      readonly exchanged: boolean;
+    },
+  ): Promise<ProviderName> {
+    try {
+      return await chooseProvider({
+        request,
+        refused,
+      },);
+    }
+    catch (error) {
+      throw exchanged ? markedAfterExchange({ error, },) : error;
+    }
+  }
+
+  /**
    Decides which provider takes one call, given what is known right now.
 
    @param request - call being routed, read for its model and its pictures
@@ -498,7 +540,10 @@ export function createRoutingClient(
      A RECORD RATHER THAN A ROOT `let`, so the one thing that changes
      between attempts is named and scoped to the loop that changes it.
      */
-    const last: { refused: ProviderName | typeof NOBODY_REFUSED; } = { refused: NOBODY_REFUSED, };
+    const last: { refused: ProviderName | typeof NOBODY_REFUSED; exchanged: boolean; } = {
+      refused: NOBODY_REFUSED,
+      exchanged: false,
+    };
 
     // REFUSED WITHOUT A CALL while the model's own hold runs, so a round counts the seat unreachable and neither
     // asks nor waits for it (class sixty-four).
@@ -542,12 +587,14 @@ export function createRoutingClient(
       /**
        Provider the policy picked on what is known before this attempt.
        */
-      const provider = await chooseProvider({
+      const provider = await chooseProviderMarked({
         request,
         refused: last.refused,
+        exchanged: last.exchanged,
       },);
       /* oxlint-enable no-await-in-loop */
 
+      last.exchanged = true;
       try {
         return {
           provider,
@@ -613,7 +660,13 @@ export function createRoutingClient(
     // its last serving provider. The holds are read here in that decision's
     // place, so every serving provider cut in turn ends with the reason one
     // fewer would.
-    reachPastBoundHoldsOrRefusal({ request, },);
+    try {
+      reachPastBoundHoldsOrRefusal({ request, },);
+    }
+    catch (error) {
+      // CALLS WERE MADE AND CUT before this decision, so the refusal is one raised after an exchange (B1230).
+      throw markedAfterExchange({ error, },);
+    }
 
     // NOT EVERY ONE WAS CUT, then: a provider before the last refused the call
     // on its budget, which sends the call on without a stream bound hold, and
@@ -621,6 +674,7 @@ export function createRoutingClient(
     throw new NoProviderForModelError({
       modelId: request.modelId,
       reason: 'every provider serving this model refused this call or ran past its stream bound on it',
+      afterExchange: true,
     },);
   }
 

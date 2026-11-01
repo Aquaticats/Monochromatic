@@ -17,6 +17,9 @@ import {
   PEOPLE_DIR,
 } from '@monochromatic-dev/translation-repair-page-check/ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import {
+  shippedDefectLinesFor,
+} from './verify-published-shipped-defects.ts';
 import { sourceDroppedLinesOf, } from './verify-published-source-dropped.ts';
 
 //region Verify published entry
@@ -294,6 +297,14 @@ export async function judgePublishedEntry(
       ...sourceDroppedLinesOf({
         entryId,
         slices: sourceDropped,
+      },),
+      ...shippedDefectLinesFor({
+        entryId,
+        artifact: read.artifact,
+        pageText: read.pageText,
+        missing: missing.map(function indexOf({ sliceIndex, },): number {
+          return sliceIndex;
+        },),
       },),
       ...missing.map(function missingLine(gone,): string {
         return `  MISSING slice ${String(gone.sliceIndex,)}, ${String(gone.characters,)} ${

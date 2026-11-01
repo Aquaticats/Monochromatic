@@ -41,6 +41,9 @@ import {
 
  @param slices - preparation defining replacement spans
 
+ @param keptArchiveAt - slices the grammar fallback put back to the archive, which ship no original whatever the artifact
+ records for them
+
  @param carried - source-only passages proven rendered in the archive before the lanes
 
  @param l - logger the lost carried regions are written to, which a defect's message does not hold
@@ -59,6 +62,7 @@ export function pageGuardSteps(
     archiveText,
     artifact,
     slices,
+    keptArchiveAt,
     carried,
     l,
   }: {
@@ -67,6 +71,7 @@ export function pageGuardSteps(
     readonly archiveText: string;
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
+    readonly keptArchiveAt: readonly number[];
     readonly carried: readonly CarriedInsertion[];
     readonly l: Logger;
   },
@@ -88,7 +93,7 @@ export function pageGuardSteps(
               sliceIndex,
               reading,
             },): readonly ShippedOriginal[] {
-              return (reading.kind === 'source-ships')
+              return ((reading.kind === 'source-ships') && (!keptArchiveAt.includes(sliceIndex,)))
                 ? [{
                   sliceIndex,
                   text: textOnPage({ reading, },),

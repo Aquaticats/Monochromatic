@@ -262,10 +262,13 @@ async function recoverRunaway<ValueT,>(
     const { voice, } = asked;
     if ((!voice.heard) && voice.unreachable) {
       // REFUSED BEFORE ANY EXCHANGE: the model was not asked, so its claim goes back for another seat (ledger B1201).
-      releaseFor({
-        seat: named,
-        modelId: alternate,
-      },);
+      // One the router refused after a call was cut (B1230) was asked, and stays claimed.
+      if (voice.afterExchange !== true) {
+        releaseFor({
+          seat: named,
+          modelId: alternate,
+        },);
+      }
       rl.debug(`${roundRequest.stage}: ${seat}: ${alternate} cannot take the re-ask, no provider serves it with budget`,);
       continue;
     }

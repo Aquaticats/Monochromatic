@@ -30,6 +30,7 @@ export {
   type SpliceEdit,
 } from './disjoint-splice.ts';
 export {
+  errorClassOf,
   errorName,
   failureName,
 } from './error-name.ts';
@@ -150,7 +151,11 @@ export {
   STACK_OVERFLOW_ACCOUNT,
   STACK_OVERFLOW_MESSAGE,
 } from './nesting-vocabulary.ts';
-export { NoProviderForModelError, } from './no-provider-for-model-error.ts';
+export {
+  markedAfterExchange,
+  NoProviderForModelError,
+  refusedBeforeAnyExchange,
+} from './no-provider-for-model-error.ts';
 export {
   clusterReadings,
   ReadingClusterError,

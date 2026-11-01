@@ -71,7 +71,7 @@ export type VoiceOrder = (
 
  @param modelIds - bench the voices were asked on, in roster order
 
- @returns Comparison for `toSorted`, the earlier seat first
+ @returns Comparison for `toSorted`, the earlier seat first; it throws for a voice whose seat is on no seat of the bench
 
  @example
  ```ts
@@ -81,11 +81,33 @@ export type VoiceOrder = (
 export function seatOrderOf(
   { modelIds, }: { readonly modelIds: readonly RosterModelId[]; },
 ): VoiceOrder {
+  /**
+   Place of a voice's seat on the bench.
+
+   @param voice - heard voice
+
+   @returns Index of the seat it answered for
+
+   @throws Error when the seat is on no seat of the bench, which a gather over this bench cannot produce
+   */
+  function placeOf(voice: HeardVoice<unknown>,): number {
+    /**
+     Seat the voice answered for.
+     */
+    const seat = seatOfVoice({ voice, },);
+    /**
+     Its place on the bench.
+     */
+    const place = modelIds.indexOf(seat,);
+    if (place === -1)
+      throw new Error(`unreachable: the voice of seat ${seat} is on no seat of the bench`,);
+    return place;
+  }
   return function bySeat(
     left: HeardVoice<unknown>,
     right: HeardVoice<unknown>,
   ): number {
-    return modelIds.indexOf(seatOfVoice({ voice: left, },),) - modelIds.indexOf(seatOfVoice({ voice: right, },),);
+    return placeOf(left,) - placeOf(right,);
   };
 }
 

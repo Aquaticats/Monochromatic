@@ -46,9 +46,15 @@ await describe({
         expect(seat.role,).toBe('reader',);
         expect(seat.bench,).toEqual([READER,],);
         expect(seat.reask,).toBe('other-model',);
-        expect(leftOut.filter(function readsNone({ why, },): boolean {
+        /**
+         The models named as reading no picture.
+         */
+        const namedAsReadingNone = leftOut.filter(function readsNone({ why, },): boolean {
           return why === 'reads no picture';
-        },).every(function readsNoPicture({ modelId, },): boolean {
+        },);
+        // A LIST THAT COULD BE EMPTY PASSES `every` WHATEVER IT HOLDS (B1234): the roster has models that read none.
+        expect(namedAsReadingNone.length,).toBeGreaterThan(0,);
+        expect(namedAsReadingNone.every(function readsNoPicture({ modelId, },): boolean {
           return !readsImages({ modelId, },);
         },),).toBe(true,);
       },

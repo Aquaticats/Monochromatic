@@ -20,6 +20,7 @@ import {
   PromptPayloadStoreError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
+  errorClassOf,
   lifecycleStamp,
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
@@ -157,7 +158,11 @@ export function tallyCaughtEntry(
     readonly wallClock?: () => Date;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
   },
-): EntryErrorOutcome['outcome'] {
+): EntryErrorOutcome['outcome'] & { readonly errorClass: string; } {
+  /**
+   Class of the error as one token, which every record of this stop carries (B1223).
+   */
+  const errorClass = errorClassOf({ error, },);
   /**
    Failure text for the TALLY line, named or quoted per its class and capped.
    */
@@ -179,7 +184,7 @@ export function tallyCaughtEntry(
             attempt,
             wallClock,
           },)
-        }: ${finding}`,
+        } class=${errorClass}: ${finding}`,
       },);
   }
   printRunLine({
@@ -189,9 +194,12 @@ export function tallyCaughtEntry(
         wallClock,
       },)
     } ms=${String(durationMs,)} aborted=${String(aborted,)} `
-      + `error=${message}`,
+      + `class=${errorClass} error=${message}`,
   },);
-  return classified.outcome;
+  return {
+    ...classified.outcome,
+    errorClass,
+  };
 }
 
 //endregion Entry failure scheduling
