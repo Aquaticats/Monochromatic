@@ -304,3 +304,19 @@ fn help_says_in_its_first_line_that_it_is_a_shadow_of_mpm_and_lists_the_pnpm_nam
     let version = fixture.run(&["--version"]);
     assert_eq!(text(&version.stdout), format!("mpm-shadow {}\n", env!("CARGO_PKG_VERSION")));
 }
+
+#[test]
+fn the_toolchain_prune_says_it_covers_release_archives_and_words_an_empty_result_for_both() {
+    let fixture = Fixture::new();
+    let help = fixture.run(&["prune", "--help"]);
+    assert_eq!(help.status.code(), Some(0), "{}", text(&help.stderr));
+    assert!(text(&help.stdout).contains("release-archive versions"), "{}", text(&help.stdout));
+
+    // A dry run in a disposable home with nothing installed: nothing to list, nothing deleted.
+    let empty = fixture.run(&["prune", "--toolchain", "--global", "--dry-run"]);
+    assert_eq!(empty.status.code(), Some(0), "{}", text(&empty.stderr));
+    let stdout = text(&empty.stdout);
+    assert!(stdout.starts_with("nothing to delete under "), "{stdout}");
+    assert!(stdout.contains("release archive"), "the empty result names the release archives as well: {stdout}");
+    assert!(!stdout.contains("no unnamed cargo version"), "{stdout}");
+}

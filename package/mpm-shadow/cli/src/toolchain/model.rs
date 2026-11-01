@@ -212,8 +212,12 @@ pub struct Options {
     pub asset: Option<String>,
     /// Tag prefix that selects one program's releases in a repository that tags several programs
     /// (`github:` requests only):
-    /// the newest non-prerelease release whose tag starts with it,
-    /// the version being the rest of the tag.
+    /// the highest-versioned non-draft,
+    /// non-prerelease release among the newest 1000 whose tag is the prefix and then
+    /// one whole version (`1.2.3`,
+    /// `1.2.3-rc.1`;
+    /// a `v` before it only when the prefix does not end in `v`),
+    /// the version being that rest of the tag.
     pub tag_prefix: Option<String>,
     /// Packages whose install scripts `pnpm add --global` may run.
     pub allow_builds: Option<Vec<String>>,

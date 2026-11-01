@@ -228,6 +228,11 @@ pub fn reverse_applies(hunks: &[PatchHunk], prepared: &[u8]) -> bool {
     return true;
 }
 
+/// Batched Git work for the seeded differential control.
+#[cfg(test)]
+#[path = "replay_reverse_apply_test_support.rs"]
+mod test_support_batch;
+
 #[cfg(test)]
 #[path = "replay_reverse_apply_tests.rs"]
 mod tests;

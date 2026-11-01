@@ -553,6 +553,9 @@ mod scanner_test_support;
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
 
+/// One journal record written whole, followed by the syncs its durability level names.
+pub mod journal_record;
+
 /// Where short-lived private files live:
 ///  the per-user scratch directory and the repository scratch directory,
 ///  never the system temporary directory.

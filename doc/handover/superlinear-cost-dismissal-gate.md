@@ -769,16 +769,31 @@ default route `openai/gpt-6-luna-decisions` through the Decisions API,
 the pinned full review kept behind `SHADOW_REVIEW_ALLOW=1`),
 and graduation stays held:
 keep shadowing.
+Fixed 2026-10-31 at the owner's "why do I keep seeing this in codex":
+Codex rejects the cost-dismissal hook's stdout,
+which carried a logger record behind the protocol JSON,
+and fails every event as "hook returned invalid post-tool-use JSON output"
+(`doc/troubleshooting/codex-hook-stdout-strict-json.md`).
+`runHookPlugin` now installs `MONOCHROMATIC_LOG_CONSOLE=stderr`,
+with the matching logger-core knob in the same commit
+(`21015b9adf`),
+verified with one bounded `codex exec` session
+whose `PreToolUse`,
+`PostToolUse`,
+and `Stop` events all completed with no failure cards.
 Queue
 (written here because an unwritten queue item is lost):
 live verification of the first Luna entries
 on real code landings in `doc/audit/standards-review-gate-shadow.md`,
 the owner's later graduation call
 (`AGENTS.md` rule versus git-policy landing check),
-and site fixes of the named real costs
+site fixes of the named real costs
 (the cost-dismissal hook's own `readRecordedKeys` whole-log rescan per event
 among them),
-which need a separate request.
+which need a separate request,
+and a rebuild of the other eight `package/claude-code-plugin/*` bundles
+so every committed bundle carries the stderr routing;
+their polluted stdout is invisible in Claude Code today.
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof

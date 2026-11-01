@@ -203,23 +203,31 @@ fn publish_exclusive(staged: &Path, path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
-///  Write `bytes` to a staging file beside `path`, sync it, and publish it at `path`; any failure removes the staging
-///  file, so `path` holds all the bytes or does not exist.
+///  Write `bytes` to a staging file beside `path`, sync it when `durable`, and publish it at `path`; any failure
+///  removes the staging file, so `path` holds all the bytes or does not exist.
 ///  `mode` is applied to the file before it is published, when given.
 /// Why:
 ///   A file created at its final name and then written is a record that a kill, or a full disk, between the two
 ///  steps leaves empty or cut: recovery then stops every guarded command until a person removes it. Publishing a
-///  complete, synced file by link makes the record appear whole or not at all.
+///  complete file by link makes the record appear whole or not at all, whether or not its bytes are synced; a record
+///  that the tearing table shows to be benign when a power loss tears it skips the sync.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const staged = stagingPath(path); try { await writeAndSync(staged, bytes); await publishExclusive(staged, path); } finally { await rm(staged, { force: true }); }
 /// ```
-fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>) -> std::io::Result<()> {
+fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>, durable: bool) -> std::io::Result<()> {
     let staged: PathBuf = staging_path(path)?;
     let mut file: File = exclusive_options().open(staged.as_path())?;
-    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
-    let filled: std::io::Result<()> = file.write_all(bytes).and_then(|()| { return file.sync_all(); });
+    let filled: std::io::Result<()> = file.write_all(bytes).and_then(|()| {
+        if !durable {
+            return Ok(());
+        }
+        #[cfg(test)]
+        record_file_sync(path);
+        // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
+        return file.sync_all();
+    });
     drop(file);
     let published: std::io::Result<()> = filled
         .and_then(|()| {
@@ -260,7 +268,23 @@ fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>) -> std::io::
 /// async function writePrivateFile({ path, bytes }): Promise<void>;
 /// ```
 pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    return write_then_publish(path, bytes, Some(PRIVATE_FILE_MODE));
+    return write_then_publish(path, bytes, Some(PRIVATE_FILE_MODE), true);
+}
+
+/// What:
+///  Write one private file exclusively and publish it whole,
+///  without syncing its bytes.
+/// Why:
+///   A record that recovery completes or discards whatever a power loss left of it (the tearing table in
+///  `doc/planning/cli-git-spawn-and-sync-reduction.md`) gains nothing from a flush that makes every commit wait for the
+///  disk; a kill still leaves it whole or absent, because it is published by link as `write_private_file` does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writePrivateFile({ path, bytes, sync: false });
+/// ```
+pub fn write_private_file_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    return write_then_publish(path, bytes, Some(PRIVATE_FILE_MODE), false);
 }
 
 /// What:
@@ -280,7 +304,21 @@ pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// const handle = await open(path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600); await handle.writeFile(bytes); await handle.sync();
 /// ```
 pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    return write_then_publish(path, bytes, None);
+    return write_then_publish(path, bytes, None, true);
+}
+
+/// What:
+///  Write one file exclusively with mode `0600` and publish it whole,
+///  without syncing its bytes.
+/// Why:
+///   The unsynced counterpart of `write_exclusive_synced`, for records whose torn state recovery treats as benign.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeExclusive({ path, bytes, sync: false });
+/// ```
+pub fn write_exclusive_unsynced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    return write_then_publish(path, bytes, None, false);
 }
 
 /// What:
@@ -429,6 +467,44 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     #[cfg(not(unix))]
     let _ = path;
     return Ok(());
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Paths of the files this thread asked `write_then_publish` to sync, in call order.
+    static FILE_SYNCS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  Remember that this thread synced a file it published at `path`.
+/// Why:
+///   Unit tests pin which records keep their file sync, which no file on disk shows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// syncedFiles.push(path);
+/// ```
+#[cfg(test)]
+fn record_file_sync(path: &Path) {
+    FILE_SYNCS.with(|syncs| {
+        syncs.borrow_mut().push(path.to_path_buf());
+    });
+}
+
+/// What:
+///  Take and clear the files this thread has synced so far.
+/// Why:
+///   A test calls it before the step under test to drop earlier syncs, and after it to read exactly that step's syncs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const synced = syncedFiles.splice(0);
+/// ```
+#[cfg(test)]
+pub fn take_file_syncs() -> Vec<std::path::PathBuf> {
+    return FILE_SYNCS.with(|syncs| {
+        return std::mem::take(&mut *syncs.borrow_mut());
+    });
 }
 
 #[cfg(test)]

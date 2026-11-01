@@ -500,7 +500,7 @@
     },
     "cargo-binstall": {
       "request": "github:cargo-bins/cargo-binstall@latest",
-      "version": "1.26.1",
+      "version": "1.26.2",
       "route": "bin-sourced",
       "bins": [
         "cargo-binstall"
@@ -509,20 +509,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-aarch64-unknown-linux-gnu.tgz",
-          "sha256": "5e1413cda21a619b9eb66477c9a78904aadc70e724855d2b3572209ed12f67c3"
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-aarch64-unknown-linux-gnu.tgz",
+          "sha256": "027438af19e7d9d90accabbb047101c8636c40253f760e92e84cf2f90feddad3"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-aarch64-unknown-linux-musl.tgz",
-          "sha256": "243dbea9976495f0a5640f856283b5b3d934113381c9a1fba347c9e4b1fea142"
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-aarch64-unknown-linux-musl.tgz",
+          "sha256": "a235250cd684af9bf1e3a1e4c216b1d36e6c553553d5d789744f27689d81c2d6"
         },
         "linux-x64": {
-          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-gnu.tgz",
-          "sha256": "97d3fe139df2eb0947e9db09c129e4381847440a4622d2a94fc38ce4bd52f378"
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-x86_64-unknown-linux-gnu.tgz",
+          "sha256": "4f28eba175325f67f7c4bb8ae8686914d2d88fead279c0b8c4d3125264d7a512"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-musl.tgz",
-          "sha256": "43d379fef8cb450961a14ff113e7bce7b5e1e52db709c776d186f928d8a20a40"
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-x86_64-unknown-linux-musl.tgz",
+          "sha256": "9e0e064f189a9abb9f8df5fb93c3c810ef5cc19e7212d998c7a64c9e4d3527d5"
         }
       }
     },
@@ -594,7 +594,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "cargo:monochromatic-git-policy-cli@latest",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "route": "cargo-binstall",
       "bins": [
         "cli-git-native"
@@ -642,7 +642,7 @@
     },
     "mpm-shadow": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "route": "archive",
       "bins": [
         "mpm-shadow"
@@ -664,20 +664,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "f353b52336c8e7c88f79cb91705cc6194c1a803d5edc0ec0855e40f940b6780c"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.1/monochromatic-mpm-shadow-0.2.1-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "021d4ae4959bba155ec1c497a4a8039c4eb0019562b2b2025f6817fbaabe5157"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "f353b52336c8e7c88f79cb91705cc6194c1a803d5edc0ec0855e40f940b6780c"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.1/monochromatic-mpm-shadow-0.2.1-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "021d4ae4959bba155ec1c497a4a8039c4eb0019562b2b2025f6817fbaabe5157"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "0d278802c31126c54511a5d02eb0465b629b63492e6941bda5851c2509d5c9ed"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.1/monochromatic-mpm-shadow-0.2.1-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ed7224fa85c7dca7c7eb670097cd847be10f6642fc9888322676b83d419d504f"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.0/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "0d278802c31126c54511a5d02eb0465b629b63492e6941bda5851c2509d5c9ed"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-mpm-shadow-v0.2.1/monochromatic-mpm-shadow-0.2.1-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ed7224fa85c7dca7c7eb670097cd847be10f6642fc9888322676b83d419d504f"
         }
       }
     },
@@ -1469,7 +1469,7 @@
     },
     "pipx:slopo": {
       "request": "pipx:slopo@latest",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "route": "mpm-uvx",
       "bins": [
         "slopo"
@@ -1479,5 +1479,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:2486fe871b416f522985ccf65adf48e35488f32e3eb95f27f4b4856e0e241eb6"
+  "digest": "sha256:8720c3f66c210a30caddf4d5a8db59fc81d23b181acae2b0e29a4cc0036da6b9"
 }

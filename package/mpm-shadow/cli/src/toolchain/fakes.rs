@@ -294,7 +294,7 @@ impl Rig {
     /// Writes an executable stand-in at `<install dir of tool>/<name>`.
     pub(crate) fn install_binary(&self, tool_id: &str, name: &str) -> std::path::PathBuf {
         let tool = self.tool(tool_id);
-        let path = super::layout::tool_install_dir(&self.scope.toolchain_root, tool_id, &tool.version).join(name);
+        let path = super::layout::tool_install_dir(&self.scope.toolchain_root, tool_id, &tool.version).expect("a plain directory name").join(name);
         write_executable(&path);
         return path;
     }

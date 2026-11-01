@@ -460,6 +460,465 @@ each finished branch is reviewed and merged into `main`):
   merge,
   build both wg packages in `main`,
   then the full restart the owner chose and the live checks from the agent's first report.
+  Two items were this session's own inferences,
+  so under the new `BRQ` they were asked rather than briefed;
+  owner's answers 2026-10-31:
+  runtime failures "Notification + journal" (journal at error level plus a rate-limited desktop notification),
+  and moved processes "Keep origin caps" (the new scope copies the origin unit's CPU and memory limits).
+  The wg agent had built both as separate commits (`4295964a4d` and `023bf20581`;
+  `01baa1f667` and `085e7acf48`),
+  so both stay.
+  wg fixes reported 2026-10-31,
+  tip `0174850d6d`:
+  host answers come only from systemd-resolved's varlink `ResolveRecord` on the tunnel link
+  (keeps that link's DNS over TLS;
+  Node's resolver is no longer used);
+  caps 64 per host and 384 in total with a loud cut report
+  (measured 132 answers,
+  92 distinct,
+  at most 24 for `registry.npmjs.org`);
+  the tunnel's DNS servers and endpoint are protected
+  (a late fix reads the second line `resolvectl dns` wraps onto when piped);
+  `WG_QUICKER_EXEMPT_COMMAND` and `WG_QUICKER_EXEMPT_UID` removed,
+  with a class test over every environment access form;
+  the process watch matches the executable file name only,
+  and skips and reports processes in another pid namespace
+  (a `bwrap --unshare-pid` probe showed the old argv0 match could be forged from a sandbox);
+  failed moves retry with backoff;
+  startup failures are relayed into `up`.
+  Not exercised:
+  the root paths,
+  notification and journal delivery end to end.
+  Open from the agent:
+  `WG_QUICKER_CALLER_PATH` still crosses sudo and,
+  on a packaged install with no sibling build or secure-path binary,
+  lets the caller's PATH choose the watcher binary,
+  the same class as the removed overrides;
+  sent back to the agent as following the owner's "shouldn't have a toggle".
+- mpm-shadow 0.2.1 branch `mpm-shadow-0-2-1` (worktree `.claude/worktrees/mpm-shadow-0-2-1`,
+  cut from `main` at `4998b72f2c`,
+  tip `98541bde6c`,
+  pushed as a branch,
+  no tag):
+  `options.tagPrefix` for `github:` requests (`eb202865fc`),
+  the pooled-connection fix with `doc/troubleshooting/mpm-shadow-download-fails-with-sendrequest-after-a-long-install-step.md` (`30f1019822`),
+  the archive route now covered by the newest-only rule (`current` link,
+  older versions and their archives deleted,
+  older-lock warnings on `install`,
+  `list`,
+  `update`,
+  `outdated`,
+  `bin` and every launcher run,
+  `prune --toolchain`),
+  and a self-upgrade fix (the launcher is copied through `/proc/self/exe`) (`9a81e783f5`),
+  then the bump (`98541bde6c`).
+  369 tests passed;
+  an end-to-end run in a disposable home upgraded 0.1.1 to 0.2.0 and left only `current -> 0.2.0`.
+  Merging the bump into `main` starts the release,
+  so it waits for a separate review and the owner's approval.
+- Dockerfile on the switch branch (tip `e792cbaa10`):
+  the pre-branch Dockerfile (`048459c73d`) failed earlier,
+  at the TypeScript sync (20 of 63 tools,
+  no rustup or cargo);
+  the branch installs all 64 tools,
+  then fails at `mise run prepare` in `prepare:playwright`,
+  a nested `podman build` that an unprivileged image build refuses
+  (measured five ways:
+  missing `newuidmap`,
+  subuid range outside the build's IDs,
+  `devpts` mount,
+  chroot cgroup remount,
+  `/proc` remount).
+  The agent's options,
+  ranked A > C > D > B:
+  A replaces `RUN mise run prepare` with `mise run prepare:pnpm`;
+  C builds the Playwright image at container start;
+  D publishes it to a registry;
+  B a privileged build.
+  Asked of the owner.
+  Also measured:
+  inside the image the tree's own `mpm-shadow` link is the lock's 0.2.0,
+  which cannot read `tagPrefix`,
+  so the final build needs the released 0.2.1 in the lock.
+- Owner's answers 2026-10-31 (question tool):
+  the Dockerfile's Playwright step:
+  "Publish to a registry",
+  with GitHub Container Registry (`ghcr.io/aquaticats/monochromatic-playwright`,
+  pushed by a GitHub Actions job with the workflow's `GITHUB_TOKEN`),
+  "Public" (no login),
+  "Tag by content hash" (`sha256(playwright.Dockerfile)[:16]`;
+  CI pushes when that file changes;
+  `prepare:playwright` pulls the same tag),
+  and "Fall back to local build" when the pull fails.
+  mpm-shadow 0.2.1:
+  "Approve after clean review"
+  (if the separate review finds no blockers and any should-fix items are fixed and re-checked,
+  merge and let the release run,
+  then verify the published binary).
+  Sent to the switch agent:
+  the publish workflow on its own branch `playwright-image-publish` from `main` first,
+  the pull-then-fallback `prepare:playwright` on the switch branch,
+  a measurement that `podman pull` works inside the unprivileged image build,
+  and GitHub's docs on a new package's default visibility.
+- From monochromatic-7a 2026-10-31:
+  git wrapper 0.4.5 is published and installed as the production git
+  (`git --version` appends `monochromatic-git-policy-cli 0.4.5, shadowing git at /usr/bin/git`),
+  locked in `75ea3adee5`,
+  which also moved mpm-shadow to 0.2.0,
+  search-shadow to 0.2.1,
+  binstall and slopo;
+  a worktree with an older lock downgrades the shared installs on its next sync.
+- Separate review of `mpm-shadow-0-2-1` (2026-10-31) found two blockers,
+  so 0.2.1 is not released:
+  tool ids and lock versions are never checked as one safe path segment
+  (executed:
+  a lock tool id `..` made `prune --toolchain` delete the whole scope root),
+  and a half-extracted or broken version counts as finished
+  (GNU tar gives the file its final mode before writing it;
+  executed:
+  a garbage newer bin made prune delete the working 0.2.0 and point `current` at the garbage).
+  Should-fix:
+  the `/proc/self/exe` launcher wiring untested and not gated off Linux;
+  repository-published decided by tag prefix alone,
+  not by `github:Aquaticats/Monochromatic`;
+  tag matching takes the first listed match rather than the highest version,
+  and a prefix not ending in `v` can match a sibling;
+  stale cargo-only help text;
+  the pooling doc lacks its hyper-util `pool.rs` citation.
+  A fresh agent is fixing all of them on the same branch (version stays 0.2.1);
+  the same reviewer re-checks the delta before the merge.
+  Fixed 2026-11-01,
+  tip `8e017174ea` (12 commits on `98541bde6c`;
+  403 tests passed;
+  each new guard shown to fail a named test when removed):
+  names checked as one plain segment at decode,
+  in the cleanup and in the path builders;
+  archive installs unpack into a staging directory,
+  are checked,
+  then marked finished with `.mpm-shadow-installed`;
+  repository-published means `github:Aquaticats/Monochromatic` plus the `monochromatic-` prefix;
+  the highest whole version wins,
+  with a message when the 10-page cap stops the search;
+  downloads kept per version.
+  Behaviour changes the author named:
+  an unmarked archive directory from 0.2.0 or earlier is reinstalled once;
+  `bin` and `node` stay usable as tool ids.
+  The same reviewer is re-checking `98541bde6c..8e017174ea`,
+  plus the crate's lint gate and what `cargo-publish.yml` runs before publishing.
+  Re-check 2026-11-01:
+  no blocker,
+  F1 to F8 closed (F1 and F2 executed in disposable homes).
+  Should-fix:
+  `monochromatic-lint package/mpm-shadow/cli` exits 1 with 33 `markdown/semantic-line-breaks` errors the range introduced
+  (the release workflow runs no lint,
+  test or clippy step,
+  only `cargo package`,
+  `cargo publish --no-verify` and the two-architecture build with a `--version` smoke run).
+  Minor:
+  `publish_staged` keeps a marked directory whose program is gone,
+  and the repository comparison is case-sensitive.
+  All three sent back to the fix agent;
+  then a short re-check,
+  then the merge that releases 0.2.1.
+  Fixed 2026-11-01,
+  tip `5e301c751d` (lint task exit 0 with no findings,
+  `lint:clippy` exit 0,
+  406 tests passed);
+  final re-check of `8e017174ea..5e301c751d` running.
+  Final re-check clean (no blocker,
+  no should-fix;
+  lint exit 0 confirmed on an export with a positive control).
+  Merged into `main` as `f345b6c271` and pushed by hand
+  (a merge does not trigger the wrapper's auto-push;
+  `main` was 21 commits ahead until `git push origin main`);
+  release run `41262166385` started 2026-11-01T01:42:03Z.
+  Released 2026-11-01:
+  run `41262166385` succeeded (crate published,
+  both architectures built,
+  release created);
+  crates.io `max_version` is 0.2.1;
+  release `monochromatic-mpm-shadow-v0.2.1` has the x86_64 and aarch64 linux-gnu archives and `monochromatic-mpm-shadow-0.2.1-sha256sums.txt`;
+  the x86_64 archive passed `sha256sum --check`,
+  and its binary printed `mpm-shadow 0.2.1` in a throwaway home.
+  The switch agent was told to run item 3 (merge `main` with `package/mpm-shadow` resolved to `main`'s,
+  the lock regenerated with 0.2.1,
+  the final no-overlay Dockerfile build).
+- Second separate wg review (2026-10-31,
+  range `8dbd3e47da..0174850d6d`):
+  no blocker.
+  Should-fix,
+  sent to the wg agent:
+  journal at warning instead of error level;
+  `eprintln!` panics once the unbounded `/run` log fills,
+  killing the watcher unreported;
+  the notification rate limit keyed on text that embeds cgroup names,
+  an unbounded map,
+  and notifications that never expire;
+  an unbounded exec-event drain;
+  no total deadline or size cap on the resolved varlink reply;
+  unescaped cgroup names in root-built lines;
+  stalls of up to about 12 s;
+  and minors (root `read_dir` following symlinks in user-writable roots,
+  uncanonicalized roots,
+  a fail-open pid-namespace skip,
+  scope-name reuse,
+  the per-host cap applied before filtering,
+  five more reserved IPv6 ranges,
+  a hardcoded tool list in the TypeScript notice,
+  no report of the watcher's own death).
+  The full restart waits for these fixes,
+  so the owner's tunnel goes unprotected once rather than twice.
+- Owner's answers 2026-10-31 on two config cases the reviewer raised:
+  no `ExemptMark` "Keep as is",
+  owner's note:
+  "Warn if ExemptMark is unset but continue to up, because sometimes for some configs we want no exemptions.";
+  `Table = off` "Keep loud not-in-force".
+  Sent to the wg agent to record in the README so later reviews don't flag it.
+- Playwright image (switch agent,
+  2026-10-31):
+  branch `playwright-image-publish` (worktree `.claude/worktrees/playwright-image-publish`,
+  from `658b372099`,
+  tip `590a8a5b4a`) adds `.github/workflows/playwright-image.yml` and `doc/runbook/publish-playwright-image.md`;
+  the tag for today's `playwright.Dockerfile` is `e802ff364dc61464`.
+  On the switch branch (tip `994cac6f4d`),
+  `prepare:playwright` calls a new `task-playwright-image` bin in `package/monorepo-task/core-exec`:
+  keep a local image of the tag,
+  else pull from GHCR,
+  else build locally with the printed reason.
+  A new GHCR package is private by default,
+  and only someone with admin rights can make it public in its settings,
+  which GitHub documents as one-way;
+  the REST API has no endpoint for it,
+  so that step is the owner's after the first push.
+  Measured:
+  `podman pull` works inside the unprivileged image build only with empty subuid files plus `ignore_chown_errors`,
+  and it added 8.4 GB that nothing in the image can run.
+  Owner's answer:
+  "Skip in repo image"
+  (the Dockerfile runs `mise run prepare:pnpm` and drops the podman workaround;
+  developers and CI still pull from GHCR);
+  sent to the switch agent.
+  A separate reviewer is checking the workflow branch before the merge.
+- Overlap noted 2026-10-31:
+  `doc/handover/repo-review-2026-10-31.md` (another session) already tracks `docker-compose.yml` running a nonexistent `ai-proxy:start` task
+  (since the Moon-to-Mise migration),
+  `.dockerignore` baking the local secrets appendix into images,
+  and the Dockerfile exporting a nonexistent `.env.local`;
+  left to that session.
+- Switch branch 2026-11-01:
+  the owner's "Skip in repo image" landed as `cc96e34a54`
+  (`RUN mise run prepare:pnpm`;
+  the vfs,
+  subuid and `ignore_chown_errors` setup removed,
+  and the `podman` apt package too,
+  since nothing else in that image uses it:
+  its only other user,
+  the inference canary,
+  is in `package-paused/`;
+  owner confirmed "Remove podman" 2026-11-01).
+  The image now skips `prepare:playwright` and `prepare:android`
+  (the latter is `mpm-shadow install`,
+  which the Dockerfile already runs).
+  A separate reviewer started on the whole switch branch at the fixed range `82bc287a8c..cc96e34a54`
+  (378 files,
+  +3,209 / -87,302),
+  so only item 3's delta (the lock regenerated with 0.2.1,
+  `main` merged,
+  the final build) needs a short check later.
+- wg fixes for the second review reported 2026-11-01,
+  tip `e1ef91dbb1` (12 commits on `0174850d6d`):
+  journal at error level;
+  non-panicking writes with a log budget (256 KiB an hour,
+  4 MiB in total);
+  rate limits keyed by failure kind,
+  notifications that replace the previous one and expire after 10 minutes;
+  a bounded exec-event drain;
+  a 10 s total deadline and 1 MiB cap on the resolved varlink reply;
+  one escape function for root-built lines;
+  shorter stalls;
+  the watcher binary resolved only from root-controlled locations (`WG_QUICKER_CALLER_PATH` no longer chooses it);
+  sentinels that report a watcher's death;
+  TypeScript runtime failures reaching the journal and notification;
+  and a test that `up` continues after the `ExemptMark` and `Table = off` warnings,
+  with the owner's words in the README.
+  Both packages' `buildAndTest` passed (126 Rust tests;
+  82 TypeScript suites).
+  Not exercised:
+  root paths,
+  real journal and desktop delivery.
+  The same reviewer is re-checking the delta `0174850d6d..e1ef91dbb1`;
+  then merge,
+  build both packages in `main`,
+  the full restart,
+  and the live checks
+  (rules with pref 50 protocol 201,
+  the slice,
+  the watcher log,
+  `journalctl --identifier=wg-quicker-exempt` and `--identifier=wg-quicker`,
+  one sentinel per watcher).
+- Delta re-check of `0174850d6d..e1ef91dbb1` (2026-11-01) found a blocker:
+  `install_roots` accepts the canonical target of a linked install root with no home check,
+  so a link from `.../monochromatic-dev/toolchain` to `/` made `classify(/usr/bin/curl)` return `ToolchainPath`
+  (the reviewer compiled the real matcher),
+  which would move every adoptable process of the user out of the tunnel.
+  Should-fix:
+  the per-kind repeat limit hides distinct failures of one kind,
+  including startup outcomes in `up`'s output.
+  Minor:
+  the notification worker thread starts before the signals are blocked;
+  sentinels share the watcher's cgroup;
+  a short escape set;
+  a directory swap window;
+  the log budget silencing success lines.
+  All sent to the wg agent;
+  the restart waits for its fixes and one more delta check.
+  Owner's answer 2026-11-01 on a missing watcher binary with `ExemptMark` set:
+  "Abort up as before"
+  (`up` fails and rolls back,
+  as before this branch;
+  the branch had made it continue with a loud error,
+  which the owner never decided).
+- Separate review of the switch branch (2026-11-01,
+  `82bc287a8c..cc96e34a54`):
+  no new blocker.
+  Verified clean:
+  `file-enforcer 0.1.1 check --outputs committed` on an export exits 0,
+  every old generator has a disposition,
+  all 63 old tools carried with nothing this repository publishes pinned,
+  no secret echoed in CI,
+  the lock's archive checksums match the releases.
+  Should-fix,
+  sent to the switch agent:
+  an existing checkout's `.cache/toolchain-bin/mpm-shadow` links to `~/.cargo/bin/mpm-shadow` 0.2.0,
+  which exits 2 on the plan's `tagPrefix` even after the lock names 0.2.1,
+  so the README needs an existing-checkout path;
+  the branch's own tagPrefix and pooling commits duplicate the reviewed 0.2.1 code,
+  so its `package/mpm-shadow` resolves to `main`'s in the item 3 merge;
+  references to the Playwright workflow and runbook require `playwright-image-publish` to merge first;
+  stale instruction-bearing docs;
+  drift steps are `continue-on-error`,
+  although the decision calls them a gate;
+  `FILE_ENFORCER_IDLE_SECONDS` unset in CI and the Dockerfile.
+  Also noted:
+  `config.yaml` changes three lines (header,
+  package count 170 to 169,
+  the deleted `file-enforcer-core` leaves the trust list),
+  so the merge redeploys pnpr and starts its publish run.
+  Post-merge steps this session first listed
+  (run 0.2.1 by absolute path for the first `install`,
+  then remove `~/.cargo/bin/mpm-shadow` 0.2.0 by hand)
+  are withdrawn.
+  Corrected 2026-11-01,
+  owner:
+  "Shouldn't the old copies be removed automatically and deterministically?"
+  Measured:
+  `~/.cargo/bin` holds `cli-git-native` (production git,
+  reached through `~/.local/bin/git` and `.cache/cli-git-bin/git`),
+  `mpm-shadow` 0.2.0,
+  `search-shadow`,
+  `monochromatic-lint` and `monochromatic-nested-wayland-session`,
+  placed by the retired TypeScript sync;
+  `~/.cargo/.crates2.json` is stale (git wrapper listed as 0.2.13,
+  no mpm-shadow entry).
+  Owner's answers:
+  bootstrap "Run the lock's version"
+  (`toolchain:install` makes sure the exact mpm-shadow the lock names is installed,
+  fetching the lock's archive and checking its sha256 if missing,
+  then runs that copy,
+  never the one on PATH;
+  sent to the switch agent);
+  old copies "Re-point, then remove"
+  (after the managed newest copy is installed,
+  links in `~/.local/bin`,
+  every checkout's `.cache/*-bin` and the global farm that target an old copy are re-pointed to it,
+  then the old copy and its cargo record are removed,
+  each action printed);
+  timing "Ship 0.2.1, add in 0.2.2"
+  (0.2.1 releases after its re-check;
+  a new agent builds 0.2.2 on branch `mpm-shadow-0-2-2` from `8e017174ea`;
+  the switch merges only after its lock names 0.2.2).
+  Lesson:
+  an invariant the owner states ("should ever exist") is enforced by the owning tool,
+  never by a manual step in a plan;
+  to be recorded in `package/mpm-shadow/cli/README.md` with the 0.2.2 work,
+  not AGENTS.md (the owner's earlier preference for lessons of this session).
+  Still to check after merge:
+  whether the Coolify app for `docker-compose.yml` auto-deploys on push.
+- Separate review of `playwright-image-publish` (2026-11-01,
+  `658b372099..590a8a5b4a`):
+  no blocker.
+  Should-fix,
+  sent to the switch agent:
+  any non-200 answer on an existing tag rebuilds and overwrites it;
+  an arm64 machine pulls the single amd64 image with exit 0 and a warning,
+  then fails at exec instead of reaching the owner's local-build fallback;
+  `workflow_dispatch` has no ref guard and one concurrency group for every ref.
+  Minor:
+  curl timeouts and the fail-open comment,
+  the minted token on curl's command line,
+  the warning's "HTTP 000",
+  zizmor cosmetics,
+  provenance attestation (repo precedent),
+  and runbook fixes (an MD8 split bold span,
+  GitHub's delete and restore limits,
+  check 3's preconditions).
+- Queued 2026-11-01,
+  owner:
+  "gh issue #2576. But prioritize cutover first."
+  Issue #2576 asks for a global CPU-only `xiaomi-ocr` command through mpm:
+  Python selection,
+  torch backend and extra requirements on `mpm-uvx`,
+  an owned wrapper package,
+  a local-source representation in the toolchain,
+  then the global entry and install.
+  It starts after the cutover,
+  which deletes the TypeScript provider the issue also names
+  and settles the global plan owner through the global conversion.
+  Meanwhile a read-only agent writes `${HOME}/temp/agent/issue-2576/design-research.md`
+  (dependencies first,
+  then the open decisions with pnpm and uv precedent);
+  written 2026-11-01.
+  Its main points:
+  `--from` is hidden in uv 0.13.6's `uv tool install` (a local wheel goes in the positional argument,
+  as mpm-shadow's wheel bootstrap already does);
+  uv's tool receipt cannot record a torch backend,
+  and mpm-shadow's `changed_fields` and `observe_mpm_uvx` would miss a changed Python,
+  backend or source,
+  so drift needs an mpm-shadow marker;
+  suggested options `uvPython` and `uvTorchBackend` (flat,
+  like the existing ones),
+  with `uvWith` deferred;
+  for the wrapper source it ranks a local wheel with its sha256 in the lock first,
+  then PyPI,
+  a GitHub release asset,
+  and a directory source
+  (PyPI and release assets are publishing,
+  an owner question);
+  the repository has no Python precedent,
+  so the test runner,
+  linter,
+  formatter and type checker are unpicked;
+  the change lands after 0.2.1 and needs another mpm-shadow release.
+  It also found the cutover procedure in `doc/planning/file-enforcer-rust-cutover.md` still uses the old verbs
+  (`sync`,
+  `status`,
+  `lock --check`);
+  sent to the switch agent to update before the global conversion runs from it.
+  after the cutover,
+  grill the owner on the dependency picks,
+  then the decisions,
+  then implement (it needs another mpm-shadow release).
+- Order from here:
+  separate reviews of the wg fixes and of `mpm-shadow-0-2-1`;
+  owner's approval;
+  merge and release 0.2.1;
+  the switch agent regenerates the lock with the released 0.2.1,
+  merges `main`,
+  and runs one final Dockerfile build without the verification overlay;
+  separate review of the switch branch;
+  merge;
+  `mise run toolchain:install` in `main`;
+  the global plan conversion.
 - AGENTS.md rule for concerns leaking out of their owning component:
   two drafts (`CWN`,
   `LKF`) were not approved;
@@ -544,8 +1003,17 @@ each finished branch is reviewed and merged into `main`):
   user:
   "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
   Last estimate given:
-  3 to 6 hours at about 45% confidence (after publication),
-  a judgement from today's agent run times (14 to 47 minutes each),
+  3.5 to 5.5 hours after the old-copy answers (about 35% confidence;
+  mpm-shadow 0.2.2 joined the critical path);
+  before that,
+  3 to 4.5 hours when the owner asked again after the image-size answer (about 40% confidence;
+  each separate review has found something to fix,
+  so the date keeps slipping);
+  before that,
+  3 to 5 hours from the owner's Playwright answers at about 40% confidence,
+  later than the earlier 2.5 to 5.5 hours because the wg blocker,
+  the mpm-shadow 0.2.1 release and the Playwright image publishing joined the path;
+  a judgement from today's agent run times (14 to 87 minutes each),
   not a measured rate.
 - Fixed 2026-10-31:
   `fec-create-release` was skipped in run `41171845290`

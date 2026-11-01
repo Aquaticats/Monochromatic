@@ -4630,3 +4630,147 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - After a green gate: release 0.4.4 to 0.4.5 (`native:release`, `native:release:wait`), then `toolchain:update` (user
   decision each time) and `toolchain:sync`, then tell `monochromatic-6e` the version. Remove the agent worktree
   `.claude/worktrees/agent-a4ffc547354389095` once merged work is confirmed on main.
+
+## Wrapper 0.4.5 released and installed (2026-10-31)
+
+- Container gate on the merged tree plus the config-test fix: 2677 run, 2677 passed, 7 skipped (the first run failed at
+  `the_repository_configuration_sets_rules_file`, which my own config switch `ad9fe75d05` had left asserting the old
+  value; fixed in the next commit).
+- Release commit `0aaaa6ca16`; PUBLISHED on crates.io and as GitHub release `monochromatic-git-policy-cli-v0.4.5` (two
+  Linux assets). `native:release:wait` timed out with "no run for 0aaaa6ca16" because the push run (41178765641) was built
+  from the later commit `36864ce1b8`, which contains the release commit; the wait tool matches the exact SHA only, so a
+  later push before CI starts defeats it. Check crates.io and the release directly in that case.
+- Lock `75ea3adee5` (user chose "check and update even if drift is huge"; drift was binstall, the search and mpm shadows,
+  slopo) and `toolchain:sync` installed it. Real wrapper output checked: the banner line after `git --version` and the
+  five-line section after `git --help`.
+- `monochromatic-6e` was told. The agent worktree `.claude/worktrees/agent-a4ffc547354389095` can be removed (its work is
+  on main as `567103bb3f`).
+
+## In progress: batching Git starts in the two replay unit tests (2026-10-31)
+
+- Worktree agent running (brief quotes the synthetic-load ban): `strict_reverse_agrees_with_git_apply_on_seeded_cases`
+  (about nine Git starts per case over 120 cases, the cause of the over-420-second hangs under the host stall) and
+  `shared_paths_list_the_paths_both_sides_changed`. Plan: one `git fast-import` for all cases' commits, few patch reads,
+  one `git apply --reverse --check` per case on at most four worker threads; same seeded inputs and assertions.
+- On its report: verify patch equality evidence and the guard failure, merge, run the container gate, then release with the
+  next wrapper fix (tests only, so a release is optional; fold into the next functional change).
+
+## Replay unit tests batched and merged (2026-10-31)
+
+- Merged the worktree agent's branch (merge commit on main). `strict_reverse_agrees_with_git_apply_on_seeded_cases` now
+  starts Git 114 times instead of 1221 (1 init, 1 fast-import, 1 diff-tree, 111 apply; the old 1221 included 333
+  `git maintenance run --auto` children spawned by the commits), and runs in 0.25 s unstraced. Counts came from
+  `strace -f -e trace=execve` around the host test task. The batched patches were proved byte-equal to the old
+  per-repository patches for all 111 cases in a scratch test (removed). The guard (`ours` forced true) failed with the
+  case message and was restored. Helpers are in the new `replay_reverse_apply_test_support.rs`.
+- `shared_paths_list_the_paths_both_sides_changed` was left unchanged: one fixed scenario, about 13 Git starts plus the
+  code's own diffs, no per-case loop. It hung only because the whole host stalled.
+- Container gate on the merged tree: 2677 run, 2677 passed, 7 skipped, 211.8 s.
+- Not exercised: the worker-thread panic path (a `case N:` message from a failed write inside a worker).
+- Tests only; no release needed. Fold into the next wrapper change.
+
+## Mutation campaign m045 started (2026-10-31)
+
+- Seven units, `cli-git-mutpar-m045-<file>`: `announced_query`, `filesystem_identity_fsid`, `filesystem_identity`,
+  `owner_lock`, `private_storage`, `process_tree`, `real_index_lock`. Tree = main after the replay-test merge and the 0.4.5
+  release. Launcher log: `~/temp/agent/gate/mutpar-m045.log`. Per-file logs follow the earlier `mutpar-<file>.log.N`
+  pattern under `~/temp/agent`. Read the results from the logs or `mutants.out/outcomes.json` in each unit's output
+  directory, never from the unit's reported `Result=` (a `--collect` unit reports defaults after it ends).
+- Expect survivors to need new tests, not code changes, unless a survivor shows dead logic. Kill each survivor and
+  timeout, as in earlier waves; commit tests with the mutant name in the message.
+- Check with `systemctl --user is-active cli-git-mutpar-m045-*` before reading logs.
+
+- Correction to the m045 entry: the first launch failed in seconds on every unit ("image not known:
+  `localhost/git-policy-native-test:m0453`"). `native:mutation:parallel` runs each unit against its own image tag
+  `<label><index>` and does not build it; the image comes from a gate run. Fix used: tag the latest gate image once per
+  unit, `podman tag localhost/git-policy-native-test:development localhost/git-policy-native-test:m0450 ... :m0456`
+  (the `development` image was built by the gate on the merged tree), then relaunch. Seven units active after the
+  relaunch; launcher log `~/temp/agent/gate/mutpar-m045b.log`. For a future campaign: run the gate first, tag per unit,
+  then launch; the first sign of success is `is-active` still true after a minute.
+
+## Task 78 started: sync attribution (2026-10-31)
+
+- A worktree agent (measure only, no product code) runs three wrapped explicit-path commits and a read-only baseline
+  under `strace -f`, attributes each fsync, fdatasync, sync_file_range and msync to the wrapper or a child Git
+  subcommand by pid, and writes `doc/handover/wrapper-sync-attribution.md` with a ranked list of candidate removals.
+  Counts only, no timings. Its brief quotes the synthetic-load ban.
+- On its report: merge the document, then pick removals with the user (journal syncs at barriers only is task 69 and the
+  user already chose that with the risk accepted; anything beyond it is a new decision).
+
+## Sync attribution answered; every removal ordered (2026-10-31)
+
+- Report merged: `doc/handover/wrapper-sync-attribution.md`. Release wrapper 0.4.5, counts with zero spread over three
+  runs, only `fsync` appears. Cold commit 36 syncs (33 wrapper, 3 child `index-pack`); warm 35 (28 wrapper, 3
+  `index-pack`, 3 `pack-objects`, 1 `multi-pack-index` from the maintenance repack after the commit). `git status` and a
+  direct `git commit` make 0.
+- I wrongly put the removal choice to the user as a question. The user had already decided ("Real gain real risk. We're
+  high rollers." on journal syncs) and answered: "I already said pretend we are the hunk and do everything even when
+  don't think are likely possible." Standing rule from that: durability-for-speed removals the measurements support are
+  done without asking; build the proof (crash-injection cases, guards shown to fail) and report non-convergence loudly.
+- Two worktree agents running, briefs quote the synthetic-load ban. Agent one: removals 1 to 3 (nine benign record
+  syncs, shadow `packed-refs`, four directory syncs) with new crash-injection cases and updated cold and warm budget
+  constants. Agent two: the migration `index-pack` with `-c core.fsync=-pack,-pack-metadata` (3 syncs) and a measured
+  loose-object experiment (kept only if it beats the override). Both edit `binary_budget_tests.rs` constants; expect a
+  small merge conflict to resolve by hand, then rerun the budget tests.
+- After both merge: container gate, then one wrapper release (0.4.6) with the 0.4.5 banner, then lock update and sync as
+  before. This subsumes task 69 (journal syncs at barriers only) where the same records are affected; check task 69's
+  remaining scope against the merged result before closing it.
+
+## m045 campaign: first results (2026-10-31)
+
+- `announced_query`: 10 mutants, 9 caught, 1 unviable, no survivors (baseline 329 s of tests).
+- Five units (`filesystem_identity_fsid`, `filesystem_identity`, `owner_lock`, `private_storage`, `process_tree`) failed
+  their unmutated baseline, not on a mutant: with seven containers plus two agents' test runs sharing the host, the
+  suite took over 900 s and hit the campaign's default 900 s timeout, SIGTERM-ing the two tests still running
+  (`recovery_tearing::damage_at_index_installed`, `damage_at_capture_locked`; 2642 of 2677 tests had run, 2640 passed).
+  Not a product bug and not the 5-second bound. Relaunched with `--timeout 2400` (log
+  `~/temp/agent/gate/mutpar-m045c.log`, same image tags). For future campaigns on this host: use `--timeout 2400` or
+  fewer simultaneous units; a baseline that normally takes 330 s took over 900 s with seven.
+- `real_index_lock` (46 mutants) still running at the time of writing; first survivor
+  `src/native/real_index_lock.rs:241: same_file_identity -> Result<(), String> with Ok(())`. Needs a test that makes
+  the identity check fail and asserts the release refuses; read the rest from its log when it ends.
+
+## Pack fsync override merged; loose objects measured and rejected (2026-10-31)
+
+- Merged (commit `0ffd1e4` on the agent branch): the migration `index-pack` child runs with
+  `-c core.fsync=-pack,-pack-metadata` (new `INDEX_PACK_FSYNC_OVERRIDE` in `landing_objects.rs`; two argv tokens after
+  the invocation's own `-c` prefix, so it overrides a user's `core.fsync` for that one child). Cold commit 36 to 33
+  syncs, warm 35 to 32, zero spread over three runs. Tests: `binary_index_pack_fsync_tests.rs` (trace2 `def_param` shows
+  the override is the effective value; strace shows 0 syncs by `index-pack`); budget constants `("index-pack", 3)` became
+  `("index-pack", 0)`. Guard shown to fail by removing the tokens (three budget tests and the trace2 test failed), then
+  restored. README "Flushing the migrated pack" and SPEC "Object migration" document the override and its risk (a power
+  loss on btrfs or XFS could leave the branch pointing at a missing pack that recovery never verifies; accepted by the
+  owner).
+- Loose objects instead of one pack per commit: NOT kept. Measured with `unpack-objects -q` replacing `index-pack`:
+  cold 33 (no gain over the override), warm 28 against 32 (4 fewer, the maintenance repack that starts from the second
+  pack), steady 28 against 32. It breaks three tests that encode the keep and journal design
+  (`landing::a_failed_landing_record_releases_the_lock`, `landing::a_landed_commit_leaves_the_journal_recovery_reads`,
+  `commit::a_landing_returns_after_its_automatic_maintenance_finished`) and drops the `.keep` that protects migrated
+  objects until the compare-and-swap. A real version needs optional pack names in the journal, a size threshold such as
+  `transfer.unpackLimit`, and a decision at gc.auto's 6700 loose-object limit: a separate design. Not done despite the
+  do-everything rule because it removes a safety property, not just a sync; if the owner wants it anyway it is a new task
+  with those changes. Maintenance trigger finding: Git 2.56.0 runs the repack only from two packs on, so the one-pack
+  per commit design feeds it.
+- Agent one (removals 1 to 3) still running; expect a small conflict in `binary_budget_tests.rs` at its merge.
+
+## Sync removals 1 to 3 merged; two lost-name gaps; convergence agent (2026-10-31)
+
+- Merged as `5c56372103` (agent commits `047380ba3d`, `664820231f`, `782e1cd2cd`, `62a4642ec8` and docs). Wrapper syncs, with
+  the pack override already merged: cold 33 to 19 (total 22 with the three children left), warm 28 to 14 (total 21), one
+  config hook 37 to 23, amend 33 to 19. New `journal_record.rs` (`RecordSync` levels), unsynced writers in
+  `private_storage.rs`, lost-name and shadow-refs tearing tests. The 247 recorded tearing outcomes are unchanged. Budget
+  conflict resolved by hand (wrapper syncs from this branch, `index-pack` 0 from the override, including the new warm
+  scenario).
+- Two cases do NOT converge after a lost directory entry (real cause would be a power loss that keeps file bytes but not
+  the name; simulated by deleting the file; no real power loss was tested): (A) a lost `owner.json` stops every guarded
+  command ("Transaction owner record is missing: <dir>", no way out in the message); (B) a lost `preparing.json` or
+  `index-lock-1.json` next to a held `index.lock` makes every commit exit 2 (`index-lock-unproven-owner`) until the lock
+  is removed by hand; the window widened because the directory sync after `index-lock-1.json` is gone. Detail in
+  `doc/planning/cli-git-spawn-and-sync-reduction.md`, "J4 outcome".
+- The owner's governing requirement is never stuck, so a convergence agent is running (no sync put back): it must make A
+  and B converge by liveness proofs on surviving records, keep every refusal for a live or unknown holder (negative
+  controls), improve the remaining messages to name the path and the safe condition, and show the 247-case table unchanged
+  except intentionally improved cells. If it reports a case it cannot make converge safely, the choice is then the
+  owner's: accept, or restore the one directory sync after `index-lock-1.json` (and the candidate sync for A).
+- Container gate on the merged tree running in unit `gpc-sync-gate`, log `~/temp/agent/gate/sync-gate.log`.
+- Then: one wrapper release 0.4.6 carrying the removals, the override and the convergence fix; lock update, sync.

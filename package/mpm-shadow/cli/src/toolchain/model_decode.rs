@@ -20,6 +20,10 @@ use serde_json::{Map, Value};
 
 /// Imports the shared decoding checks.
 use super::model_decode_support::{DecodeResult, as_nonempty_text, as_object, as_text, as_text_list, reject_unknown_keys};
+/// Imports the package name a declaration installs.
+use super::observe::declared_package_name;
+/// Imports the checks that a name is one plain directory name.
+use super::segment::{check_bin_name, check_directory_name, check_tool_id, check_version};
 
 /// Imports the model types the decoders build.
 use super::model::{
@@ -150,7 +154,14 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
         let alias_map = as_object(aliases, &alias_path)?;
         let mut pairs: Vec<(String, String)> = Vec::new();
         for (alias, primary) in alias_map {
-            pairs.push((alias.clone(), as_nonempty_text(primary, &format!("{alias_path}.{alias}"))?));
+            let primary_path: String = format!("{alias_path}.{alias}");
+            let primary_name: String = as_nonempty_text(primary, &primary_path)?;
+            for name in [alias, &primary_name] {
+                if let Err(message) = check_bin_name(name) {
+                    return Err(format!("{primary_path}: {message}"));
+                }
+            }
+            pairs.push((alias.clone(), primary_name));
         }
         options.bin_aliases = Some(pairs);
     }
@@ -177,6 +188,10 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
 /// The declaration fields of the tool `id` in `map`;
 /// `extra` lists the field names the lock adds on top.
 fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> DecodeResult<Declaration> {
+    // The id becomes a directory name under the toolchain root, and a name such as `..` would leave it.
+    if let Err(message) = check_tool_id(id) {
+        return Err(format!("{path}: {message}"));
+    }
     let Some(request_value) = map.get("request") else {
         return Err(format!("{path}.request is required"));
     };
@@ -204,6 +219,11 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
         Some(value) => as_text_list(value, &format!("{path}.bins"))?,
         None => Vec::new(),
     };
+    for (index, name) in bins.iter().enumerate() {
+        if let Err(message) = check_bin_name(name) {
+            return Err(format!("{path}.bins[{index}]: {message}"));
+        }
+    }
     let os: Option<Vec<OsFamily>> = match map.get("os") {
         Some(value) => {
             let names: Vec<String> = as_text_list(value, &format!("{path}.os"))?;
@@ -229,7 +249,7 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
         Some(value) => decode_options(value, &format!("{path}.options"))?,
         None => Options::default(),
     };
-    return Ok(Declaration {
+    let declaration: Declaration = Declaration {
         id: id.to_string(),
         request,
         route,
@@ -239,7 +259,14 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
         os,
         env,
         options,
-    });
+    };
+    // The `cargo-binstall` route installs under `<toolchain root>/cargo/<package name>`.
+    if declaration.route == Route::CargoBinstall
+        && let Err(message) = check_directory_name("the package name", &declared_package_name(&declaration))
+    {
+        return Err(format!("{path}: {message}"));
+    }
+    return Ok(declaration);
 }
 
 /// What:
@@ -324,6 +351,10 @@ pub fn decode_lock_entry(id: &str, value: &Value, path: &str) -> DecodeResult<Lo
         return Err(format!("{path}.version is required"));
     };
     let version: String = as_nonempty_text(version_value, &format!("{path}.version"))?;
+    // The version becomes the name of the install directory, and a version such as `../x` would leave the tool's own.
+    if let Err(message) = check_version(&version) {
+        return Err(format!("{path}.version: {message}"));
+    }
     let artifacts: Vec<(String, Artifact)> = match map.get("artifacts") {
         Some(rows) => decode_artifacts(rows, &format!("{path}.artifacts"))?,
         None => Vec::new(),

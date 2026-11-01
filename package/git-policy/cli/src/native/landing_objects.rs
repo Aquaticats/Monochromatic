@@ -6,6 +6,17 @@
 //!  in the real store first, and the keep stops prune or repack from removing them mid-landing
 //!  (`src/policy-engine/commit-landing-objects.ts`).
 //!
+//! Durability of the migrated pack:
+//!  The `index-pack` child runs with `-c core.fsync=-pack,-pack-metadata`, which removes the pack and its index files
+//!  (and the reverse index) from the components Git flushes, so the child makes no `fsync` call
+//!  (measured: three per commit by default, none with the override, `doc/handover/wrapper-sync-attribution.md`, item 4).
+//!  The override applies to this one child only and wins over a `core.fsync` the user configured,
+//!  because it comes after the invocation's own `-c` options on the child's command line.
+//!  After a power loss on a filesystem that does not order data before the later `landing-<n>.json` flush,
+//!  the target ref could name a commit whose pack is missing, and recovery does not notice that.
+//!  Direct Git carries the same exposure for its loose objects under its default `core.fsync`.
+//!  The repository owner accepted this risk ("Real gain real risk. We're high rollers.").
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await migrateShadowObjects({ gitPath, cwd, shadowPath, newOid, oldBase, keepMessage });
@@ -19,6 +30,15 @@ use super::transaction_journal::Base;
 use super::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+
+/// What:
+///  The `core.fsync` setting of the migration's `index-pack` child:
+///  Git's default components minus the pack and its metadata files.
+/// Why:
+///   The child then makes no `fsync` call (three by default);
+///  the repository owner accepted the durability risk, see the module documentation.
+///  It overrides the user's own `core.fsync` for that child alone.
+pub const INDEX_PACK_FSYNC_OVERRIDE: &str = "core.fsync=-pack,-pack-metadata";
 
 /// What:
 ///  Packs the commit's objects that the shadow holds and the real store lacks,
@@ -51,7 +71,12 @@ pub fn migrate_shadow_objects(
     );
     pack_request.input = Some(revisions.into_bytes());
     let pack = run_git_checked(context, &pack_request)?;
-    let mut index_arguments: Vec<String> = vec!["index-pack".to_string(), "--stdin".to_string()];
+    let mut index_arguments: Vec<String> = vec![
+        "-c".to_string(),
+        INDEX_PACK_FSYNC_OVERRIDE.to_string(),
+        "index-pack".to_string(),
+        "--stdin".to_string(),
+    ];
     if let Some(message) = keep_message {
         index_arguments.push(format!("--keep={message}"));
     }

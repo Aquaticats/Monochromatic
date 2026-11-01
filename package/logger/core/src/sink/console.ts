@@ -134,6 +134,51 @@ function isWarnSuppressed(): boolean {
 }
 
 /**
+ Destination every console-sink run takes, selected by the
+ `MONOCHROMATIC_LOG_CONSOLE` environment variable.
+
+ Machine-protocol consumers (such as a hook's stdin/stdout codec) must keep
+ their output streams clean, and `debug` runs already avoid stdout for that
+ reason. `off` drops console-sink records so only the remaining sinks receive
+ them; `stderr` writes every formatted run to process stderr (falling back to
+ the level's console method when no process stream exists); any other value,
+ or an absent variable, keeps the default `console.*` routing. Read on each
+ call (not memoized) so a host can toggle it between logs.
+
+ @returns Where this sink's runs go.
+
+ @example
+ ```ts
+ // With MONOCHROMATIC_LOG_CONSOLE=stderr in environment
+ consoleSinkDestination(); // 'stderr'
+ ```
+ */
+function consoleSinkDestination(): 'console' | 'drop' | 'stderr' {
+  try {
+    if ((typeof process) === 'undefined')
+      return 'console';
+
+    /**
+     Raw setting read fresh on every call.
+     */
+    const setting = process.env
+      .MONOCHROMATIC_LOG_CONSOLE;
+    if (setting === 'off')
+      return 'drop';
+    if (setting === 'stderr')
+      return 'stderr';
+    return 'console';
+  }
+  catch (error: unknown) {
+    reportLoggerInternalError({
+      context: 'MONOCHROMATIC_LOG_CONSOLE environment probe failed during console sink destination detection',
+      error,
+    },);
+    return 'console';
+  }
+}
+
+/**
  Maps log levels to the name of the console method that handles them.
  Names rather than function references so tests (and other hot patches)
  that replace `console.info` etc. after module load still see their
@@ -204,21 +249,21 @@ function hasProcessStderr(): boolean {
 }
 
 /**
- Writes a formatted debug run to process stderr when the host exposes a
- process stream. Falling back to `console.debug` keeps browser and restricted
- runtimes working when `process` is absent or unusable.
- 
- @param text - Formatted debug run text that should stay off stdout.
- 
- @returns Whether process stderr accepted the debug run.
- 
+ Writes a formatted run to process stderr when the host exposes a process
+ stream. Falling back to the level's console method keeps browser and
+ restricted runtimes working when `process` is absent or unusable.
+
+ @param text - Formatted run text that should stay off stdout.
+
+ @returns Whether process stderr accepted the run.
+
  @example
  ```ts
- writeDebugRunToProcessStderr('[debug] [1970-01-01T00:00:00.000Z] hi');
+ writeRunToProcessStderr('[debug] [1970-01-01T00:00:00.000Z] hi');
  // => true when process.stderr.write is available
  ```
  */
-function writeDebugRunToProcessStderr(text: string,): boolean {
+function writeRunToProcessStderr(text: string,): boolean {
   try {
     if (!hasProcessStderr())
       return false;
@@ -238,8 +283,10 @@ function writeDebugRunToProcessStderr(text: string,): boolean {
 
 /**
  Emits a contiguous run of same-level records as a single console call,
- joining formatted lines with `\n`. Debug records write to process stderr
- when `process.stderr.write` is available, keeping stdout clean in CLI hosts.
+ joining formatted lines with `\n`. Runs write to process stderr when
+ {@link consoleSinkDestination} says `stderr`, and `debug` records write
+ there whenever `process.stderr.write` is available, keeping stdout clean
+ in CLI hosts and machine-protocol hosts alike.
  
  @param records - Records that all share `level`.
  
@@ -269,7 +316,15 @@ function emitRun(
       return formatRecord(r,);
     },)
     .join('\n',);
-  if ((level === 'debug') && writeDebugRunToProcessStderr(text,))
+  /**
+   Destination chosen per flush so a host can retune routing between logs.
+   */
+  const destination = consoleSinkDestination();
+  if (destination === 'drop')
+    return;
+  if ((destination === 'stderr') && writeRunToProcessStderr(text,))
+    return;
+  if ((level === 'debug') && writeRunToProcessStderr(text,))
     return;
   try {
     /**
@@ -514,8 +569,9 @@ export function createConsoleSink(): Sink {
   /**
    Enqueues a record for microtask-batched emission. Silently discards
    `debug`/`trace` unless {@link getVerbose} reports verbose mode is active
-   (via `MONOCHROMATIC_VERBOSE=true` env var, `--verbose` argv, or browser environment), and
-   drops `warn` when {@link isWarnSuppressed}.
+   (via `MONOCHROMATIC_VERBOSE=true` env var, `--verbose` argv, or browser environment),
+   drops `warn` when {@link isWarnSuppressed}, and drops every level when
+   {@link consoleSinkDestination} reports `drop`.
    
    @param record - Log record to write.
    */
@@ -525,6 +581,9 @@ export function createConsoleSink(): Sink {
       return completedWrite;
 
     if ((record.level === 'warn') && isWarnSuppressed())
+      return completedWrite;
+
+    if (consoleSinkDestination() === 'drop')
       return completedWrite;
 
     state.buffer

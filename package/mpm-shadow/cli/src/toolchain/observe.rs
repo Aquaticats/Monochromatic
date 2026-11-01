@@ -33,9 +33,11 @@ use super::cargo_installs::{is_repository_published, observed_cargo_version};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{applies_to_family, tool_install_dir};
+use super::layout::{applies_to_family, tool_directory, tool_install_dir};
 /// Imports what this module uses from `super::model`.
-use super::model::{LockedTool, Origin, Route};
+use super::model::{Declaration, LockedTool, Origin, Route};
+/// Imports what this module uses from `super::published_archive`.
+use super::published_archive::{first_bin_of_tool, is_published_archive, newest_installed_archive};
 /// Imports what this module uses from `super::parse_output`.
 use super::parse_output::{
     global_pnpm_versions, parse_bin_list, parse_uv_tool_list, version_matches,
@@ -77,12 +79,21 @@ fn uv_key(tool: &LockedTool) -> String {
 /// export function packageName(tool: LockedTool): string
 /// ```
 pub fn package_name(tool: &LockedTool) -> String {
-    if let Some(package_id) = &tool.declaration.package_id {
+    return declared_package_name(&tool.declaration);
+}
+
+/// The package a declaration installs,
+/// from its declaration alone (the plan decoder asks this before there is a lock entry):
+/// `packageId`,
+/// else the name in the request,
+/// else the tool id.
+pub fn declared_package_name(declaration: &Declaration) -> String {
+    if let Some(package_id) = &declaration.package_id {
         return package_id.clone();
     }
-    return match tool.declaration.request.origin() {
+    return match declaration.request.origin() {
         Origin::Npm(name) | Origin::Cargo(name) | Origin::Pipx(name) | Origin::Conda(name) | Origin::GoModule(name) => name,
-        _ => tool.declaration.id.clone(),
+        _ => declaration.id.clone(),
     };
 }
 
@@ -147,7 +158,9 @@ fn observe_rustup_toolchain(ctx: &Context, tool: &LockedTool) -> Option<String> 
 /// The Android command-line tools directory for the locked version,
 /// for the android-sdk route.
 fn observe_android_sdk(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let install: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
+    // A name that is not one plain directory name is refused where the lock is decoded; for any other value the
+    // answer "not installed" is the safe one.
+    let install: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version).ok()?;
     if install.join("cmdline-tools").join(&tool.version).exists() {
         return Some(tool.version.clone());
     }
@@ -162,7 +175,7 @@ fn observe_android_sdk(ctx: &Context, tool: &LockedTool) -> Option<String> {
 /// otherwise the first other version directory,
 /// otherwise `None`.
 fn observe_version_directory(ctx: &Context, tool: &LockedTool) -> Option<String> {
-    let tool_root: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, "");
+    let tool_root: PathBuf = tool_directory(&ctx.scope.toolchain_root, &tool.declaration.id).ok()?;
     let entries = fs::read_dir(&tool_root).ok()?;
     let mut names: Vec<String> = Vec::new();
     for entry in entries.flatten() {
@@ -198,6 +211,10 @@ pub fn observe_tool(ctx: &Context, tool: &LockedTool) -> Option<String> {
         Route::MpmUvx => return observe_mpm_uvx(ctx, tool),
         Route::RustupToolchain => return observe_rustup_toolchain(ctx, tool),
         Route::AndroidSdk => return observe_android_sdk(ctx, tool),
+        // A release archive of this repository: the newest finished version, as for a `monochromatic-` crate.
+        Route::Archive if is_published_archive(tool) => {
+            return newest_installed_archive(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin_of_tool(tool));
+        }
         Route::Archive | Route::CargoGit | Route::GoInstall | Route::RustupComponents => {
             return observe_version_directory(ctx, tool);
         }
