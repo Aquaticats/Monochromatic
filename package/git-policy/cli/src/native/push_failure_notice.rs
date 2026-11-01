@@ -38,9 +38,6 @@ const LONGEST_REASON: usize = 4000;
 /// How many characters of the commit name a record shows.
 const SHORT_COMMIT: usize = 7;
 
-/// Stands in for a line of Git's output that names the Git LFS endpoint setting, whose value can carry a credential.
-const LEFT_OUT_LINE: &str = "(a line about the Git LFS server setting is left out because it can hold a credential)";
-
 /// Said when Git gave no words at all.
 const NO_REASON: &str = "Git gave no reason.";
 
@@ -72,11 +69,13 @@ pub fn record_name(branch_ref: &str, commit: &str) -> String {
 }
 
 /// What:
-///  Git's words for the person: credentials in URLs and the Git LFS endpoint setting removed, control characters
-///  dropped, and the length bounded.
+///  Git's words for the person: the user name and password of every URL masked, control characters dropped, and the
+///  length bounded.
 /// Why:
-///   The text came from a remote and from Git, and is printed on a terminal; a URL with a user name and password, a
-///  setting that holds a token, or an escape sequence must not reach the screen or a log of it.
+///   The text came from a remote and from Git, and is printed on a terminal; a URL with a user name and password, or an
+///  escape sequence, must not reach the screen or a log of it. Only the credentials are masked, never the line around them,
+///  because the line often says why the push failed (the wrapper's own Git LFS failure line names the endpoint setting and
+///  carries the exit status).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,10 +85,6 @@ pub fn clean_reason(said: &str) -> String {
     let masked: String = mask_userinfo_text(said);
     let mut kept: Vec<String> = Vec::new();
     for line in masked.lines() {
-        if line.to_ascii_lowercase().contains("lfs.url") {
-            kept.push(LEFT_OUT_LINE.to_string());
-            continue;
-        }
         let plain: String = line.chars().filter(|character| { return *character == '\t' || !character.is_control(); }).collect();
         let trimmed: &str = plain.trim_end();
         if !trimmed.is_empty() {
