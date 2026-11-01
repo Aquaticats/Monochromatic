@@ -12,7 +12,7 @@
 const MAIN_SOURCE: &str = include_str!("main.rs");
 
 /// Every source of the commit path that decides what Git is started with or what the hooks directory holds.
-const COMMIT_PATH_SOURCES: [(&str, &str); 9] = [
+const COMMIT_PATH_SOURCES: &[(&str, &str)] = &[
     ("commit_conclusion.rs", include_str!("commit_conclusion.rs")),
     ("commit_preparation.rs", include_str!("commit_preparation.rs")),
     ("commit_revalidation.rs", include_str!("commit_revalidation.rs")),
@@ -26,7 +26,7 @@ const COMMIT_PATH_SOURCES: [(&str, &str); 9] = [
 
 /// What a commit-path source must never contain: a way to write an entry, a way to name this executable, a hooks
 ///  path inside a transaction directory, or the former entry vocabulary.
-const FORBIDDEN_IN_COMMIT_PATH: [&str; 8] = [
+const FORBIDDEN_IN_COMMIT_PATH: &[&str] = &[
     "symlink(",
     "hard_link(",
     "current_exe",
@@ -63,9 +63,9 @@ fn main_does_not_dispatch_on_its_start_name() {
 /// No source of the commit path can write an entry, name this executable, or build a hooks path of the transaction.
 #[test]
 fn the_commit_path_writes_no_entry_and_names_no_hooks_path_of_its_own() {
-    for (name, source) in COMMIT_PATH_SOURCES {
+    for (name, source) in COMMIT_PATH_SOURCES.iter().copied() {
         let joined: String = code_lines(source).join("\n");
-        for forbidden in FORBIDDEN_IN_COMMIT_PATH {
+        for forbidden in FORBIDDEN_IN_COMMIT_PATH.iter().copied() {
             assert!(!joined.contains(forbidden), "{name} contains {forbidden}");
         }
     }

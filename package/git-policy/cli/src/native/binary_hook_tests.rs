@@ -14,6 +14,7 @@
 
 use super::commit::{remove_settled, run_commit, wrapped_commit};
 use super::support::{Fixture, executable, fixture, git, observe, repository};
+use git_policy_cli::hook_dispatch_plan::PLAN_FILENAME;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -126,7 +127,7 @@ fn a_hook_that_changes_directory_finds_the_top_level_and_no_entry_in_the_hooks_d
     assert!(lines.contains(&format!("cwd={}", repo.display())), "{lines:?}");
     assert!(lines.contains(&String::from("work=[]")), "Git leaves GIT_WORK_TREE unset for the hook: {lines:?}");
     assert!(lines.contains(&format!("top={}", repo.display())), "{lines:?}");
-    assert!(lines.contains(&String::from("entries=plan.json ")), "{lines:?}");
+    assert!(lines.contains(&format!("entries={PLAN_FILENAME} ")), "{lines:?}");
     remove_settled(&fixture);
 }
 

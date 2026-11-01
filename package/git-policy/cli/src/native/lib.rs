@@ -630,6 +630,9 @@ pub mod transaction_lease;
 /// The hook plan of one commit transaction, its JSON spelling and the config reads it makes.
 pub mod hook_dispatch_plan;
 
+/// The user's `hook.<event>.enabled` switches for the commit events.
+pub mod hook_event_switches;
+
 /// The hooks directory of one transaction: its plan record, which holds the preparation lease.
 pub mod hook_plan_record;
 
