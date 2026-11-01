@@ -12,6 +12,7 @@ import {
   releaseAt,
 } from './barrier-fixture.ts';
 import { synthesizeText, } from './content-fixture.ts';
+import { editorOptions, } from './editor-attempt-fixture.ts';
 import { realGit, } from './repository-fixture.ts';
 import { MAX_JITTER_MS, } from './scenario-concurrent-paths-fixture.ts';
 import {
@@ -137,19 +138,15 @@ const amendDuringCommits: ScenarioDefinition = {
 const branchSwitch: ScenarioDefinition = {
   name: 'branch-switch-during-commit',
   group: 'concurrency',
-  // The held commit fails with branch-switched before any replay.
+  // Nothing else commits, so the held commit never loses a landing race.
   replayPlumbing: 'unused',
-  summary: 'git switch to another branch while a commit is held in pre-commit; the commit must not land on the new branch',
-  // Config hooks need Git 2.54.0.
-  minimumGit: '2.54.0',
+  summary: 'the checked-out branch changes while a commit is held in its message editor; the commit must not land on the new branch and the repository must stay consistent',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({
         random,
         paths: ['a.txt',],
       },),
-      hooks: 'config',
-      hookEvents: ['pre-commit',],
     },);
   },
   async run(context,) {
@@ -196,20 +193,34 @@ const branchSwitch: ScenarioDefinition = {
       label: 'held',
       paths: ['a.txt',],
       mode: 'explicit',
+      ...editorOptions({ repository: context.repository, },),
     },);
     await holdAt({
       repository: context.repository,
       token: held.token,
-      event: 'pre-commit',
+      event: 'editor-open',
     },);
-    await reached({
+    /**
+     Whether the editor was reached before the commit settled.
+     */
+    const arrival = await reached({
       repository: context.repository,
       token: held.token,
       running: held.running,
-      event: 'pre-commit',
+      event: 'editor-open',
     },);
     /**
-     Branch switch through the wrapper.
+     Tip of the branch switched to, before the switch.
+     */
+    const sideBefore = (await realGit({
+      repository: context.repository,
+      args: [
+        'rev-parse',
+        'refs/heads/side',
+      ],
+    },)).trim();
+    /**
+     Branch switch through the wrapper, which refuses it while tracked files are modified.
      */
     const switched = await runWrapper({
       ...context,
@@ -220,22 +231,52 @@ const branchSwitch: ScenarioDefinition = {
       ],
       mustSucceed: false,
     },);
+    // The wrapper's policy refuses that switch, so a person or a tool that bypasses the wrapper switches with real Git.
+    await realGit({
+      repository: context.repository,
+      args: [
+        'switch',
+        '--quiet',
+        'side',
+      ],
+    },);
     await releaseAt({
       repository: context.repository,
       token: held.token,
-      event: 'pre-commit',
+      event: 'editor-open',
     },);
     /**
      Finished held commit.
      */
     const record = await held.finished;
-    return [{
-      name: 'switch-invalidates-commit',
-      holds: (switched.exitCode !== 0) || (record.outcome
-        .exitCode
-        !== 0),
-      detail: 'both the branch switch and the held commit exited 0',
-    },];
+    /**
+     Tip of the branch switched to, after the held commit finished.
+     */
+    const sideAfter = (await realGit({
+      repository: context.repository,
+      args: [
+        'rev-parse',
+        'refs/heads/side',
+      ],
+    },)).trim();
+    return [
+      {
+        name: 'held-commit-reached-editor',
+        holds: arrival === 'marker',
+        detail: `the held commit ${arrival} before its editor opened`,
+      },
+      {
+        name: 'wrapper-switch-refused',
+        holds: switched.exitCode !== 0,
+        detail: 'the wrapper switched branches while tracked files were modified',
+      },
+      {
+        name: 'commit-not-on-switched-branch',
+        holds: sideAfter === sideBefore,
+        detail: `the branch switched to moved from ${sideBefore} to ${sideAfter}; the held commit exited ${String(record.outcome
+          .exitCode,)}`,
+      },
+    ];
   },
 };
 

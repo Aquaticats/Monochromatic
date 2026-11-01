@@ -7,6 +7,7 @@
  */
 
 import { synthesizeText, } from './content-fixture.ts';
+import { hooksIgnored, } from './hooks-ignored-fixture.ts';
 import { MAX_JITTER_MS, } from './scenario-concurrent-paths-fixture.ts';
 import {
   disjointPlans,
@@ -109,21 +110,42 @@ function hookedRepository(overrides: RepositoryOverrides,): ScenarioDefinition['
 //region Scenarios
 
 /**
- Config-based hooks under concurrency.
- The former `hooks-hookdir-concurrent` twin (traditional hooks in the hooks directory) is removed:
- traditional hooks are unsupported by the wrapper,
- and this scenario ran the identical workload and assertions.
+ Configured hooks under concurrency.
+ The wrapper runs no external hook program,
+ so the scenario holds the new contract:
+ every concurrent commit lands, warns that configured hooks are unsupported, and settles one push record,
+ and the hook program never runs.
  */
 const configConcurrent: ScenarioDefinition = {
   name: 'hooks-config-concurrent',
   group: 'concurrency',
-  summary: `${String(HOOKED_WORKERS,)} agents commit at once with all four commit hooks registered in config`,
+  summary: `${String(HOOKED_WORKERS,)} agents commit at once in a repository that configures all four commit hooks; none runs, each commit warns`,
   minimumGit: '2.54.0',
   repository: hookedRepository({
     hooks: 'config',
     hookEvents: ALL_HOOK_EVENTS,
+    afterCommitRecords: true,
   },),
-  run: runHookedConcurrent,
+  async run(context,) {
+    /**
+     Finished attempts.
+     */
+    const attempts = await runDisjointWorkers({
+      context,
+      plans: disjointPlans(HOOKED_WORKERS,),
+      maxJitterMs: MAX_JITTER_MS,
+    },);
+    return [
+      allSucceeded({
+        name: 'all-commits-succeed',
+        attempts,
+      },),
+      ...await hooksIgnored({
+        context,
+        attempts,
+      },),
+    ];
+  },
 };
 
 /**

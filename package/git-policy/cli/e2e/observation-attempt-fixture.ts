@@ -7,6 +7,7 @@
  @module
  */
 
+import { readdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
@@ -34,26 +35,24 @@ import {
   type CapturedPath,
   contentOf,
 } from './ledger-fixture.ts';
-import {
-  readOptionalText,
-  runProcess,
-} from './process-fixture.ts';
+import { runProcess, } from './process-fixture.ts';
 import type { ScenarioRepository, } from './repository-fixture.ts';
 
 //region Types
 
 /**
- Hook facts the scenario's setup makes checkable.
+ Facts the scenario's setup makes checkable.
  */
 export type HookChecks = Readonly<{
   /**
-   A `commit-msg` hook appends a trailer.
+   The scenario's message editor appends a trailer.
    */
-  commitMsgTrailer: boolean;
+  editorTrailer: boolean;
   /**
-   A `post-commit` hook logs each run.
+   The service settles one push record per landed commit,
+   the durable trace of the after-commit work the retired `post-commit` hook stood for.
    */
-  postCommitRuns: boolean;
+  afterCommitRecords: boolean;
   /**
    Commits are SSH-signed.
    */
@@ -61,9 +60,22 @@ export type HookChecks = Readonly<{
 }>;
 
 /**
- Trailer the shared `commit-msg` hook appends.
+ Trailer the scripted message editor appends (`hook-program-fixture.ts`).
  */
-const HOOK_TRAILER = 'E2E-Hook-Checked: yes';
+const EDITOR_TRAILER = 'E2E-Editor-Checked: yes';
+
+/**
+ Name prefix of a push record in the service's work directory.
+ */
+const PUSH_RECORD_PREFIX = 'push-';
+
+/**
+ Work directories whose records the service has finished with.
+ */
+const SETTLED_STATES: readonly string[] = [
+  'done',
+  'failed',
+];
 
 /**
  Git's reason for refusing a push that does not fast-forward the remote branch.
@@ -284,55 +296,73 @@ async function laterCaptureContents({
 //region Attempts
 
 /**
- Counts `post-commit` hook runs per token.
+ Lists the file names in a directory, none when it does not exist.
 
- @param repository - scenario repository
+ @param directory - directory to list
 
- @returns runs per token
+ @returns entry names
 
  @example
  ```ts
- await postCommitRuns(repository);
+ await readNames('/work/s1/repo/.git/cli-git/work/done');
  ```
  */
-export async function postCommitRuns(repository: ScenarioRepository,): Promise<ReadonlyMap<string, number>> {
+async function readNames(directory: string,): Promise<readonly string[]> {
+  try {
+    return await readdir(directory,);
+  }
+  catch (error: unknown) {
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
+      return [];
+    throw error;
+  }
+}
+
+/**
+ Counts the settled push records the service holds per landed commit.
+ The wrapper writes one `push-<oid>` record under `cli-git/work/pending` for every commit that landed,
+ and the service moves it to `done`, or to `failed` after too many tries.
+
+ @param repository - scenario repository
+
+ @returns settled push records per commit ID
+
+ @example
+ ```ts
+ await settledPushRecords(repository);
+ ```
+ */
+export async function settledPushRecords(repository: ScenarioRepository,): Promise<ReadonlyMap<string, number>> {
   /**
-   Hook log text, empty before any hook ran.
+   Names of every settled record.
    */
-  const text = await readOptionalText(join(
-    repository.logDir,
-    'hooks.jsonl',
-  ),);
+  const names = (await Promise.all(SETTLED_STATES.map(async function listState(state,) {
+    return await readNames(join(
+      repository.commonDir,
+      'cli-git',
+      'work',
+      state,
+    ),);
+  },),)).flat();
   /**
-   Token of every post-commit run.
+   Commit IDs the push records name.
    */
-  const tokens = text
-    .split('\n',)
-    .filter(function nonEmpty(line,) {
-      return line !== '';
-    },)
-    .map(function parse(line,): unknown {
-      return JSON.parse(line,);
-    },)
-    .flatMap(function postCommitToken(entry,): readonly string[] {
-      if (((typeof entry) !== 'object') || (entry === null)
-        || (!('event' in entry))
-        || (!('token' in entry)))
-        return [];
-      return (entry.event === 'post-commit') && ((typeof entry.token) === 'string') ? [entry.token,] : [];
-    },);
+  const oids = names.flatMap(function pushOid(name,): readonly string[] {
+    return name.startsWith(PUSH_RECORD_PREFIX,) ? [name.slice(PUSH_RECORD_PREFIX.length,),] : [];
+  },);
   return new Map([...Map.groupBy(
-    tokens,
-    function byToken(token,) {
-      return token;
+    oids,
+    function byOid(oid,) {
+      return oid;
     },
-  ),].map(function runCount([token, tokenRuns,]: readonly [
+  ),].map(function recordCount([oid, records,]: readonly [
     string,
     readonly string[]
   ],) {
     return [
-      token,
-      tokenRuns.length,
+      oid,
+      records.length,
     ] as const;
   },),);
 }
@@ -348,7 +378,7 @@ export async function postCommitRuns(repository: ScenarioRepository,): Promise<R
 
  @param checks - hook facts to collect
 
- @param runs - post-commit runs per token
+ @param records - settled push records per commit ID
 
  @param amendedPublished - landed amends that replaced an already-published commit
 
@@ -358,7 +388,7 @@ export async function postCommitRuns(repository: ScenarioRepository,): Promise<R
 
  @example
  ```ts
- await observeAttempt({ repository, attempt, attempts, history, checks, runs, amendedPublished });
+ await observeAttempt({ repository, attempt, attempts, history, checks, records, amendedPublished });
  ```
  */
 export async function observeAttempt({
@@ -366,7 +396,7 @@ export async function observeAttempt({
   attempt,
   history,
   checks,
-  runs,
+  records,
   amendedPublished,
   attempts,
 }: Readonly<{
@@ -375,7 +405,7 @@ export async function observeAttempt({
   attempts: readonly AttemptRecord[];
   history: readonly HistoryCommit[];
   checks: HookChecks;
-  runs: ReadonlyMap<string, number>;
+  records: ReadonlyMap<string, number>;
   amendedPublished: readonly string[];
 }>,): Promise<AttemptObservation> {
   /**
@@ -477,9 +507,9 @@ export async function observeAttempt({
         ref: `refs/heads/${attempt.expectedBranch}`,
       },),
       hooks: {
-        ...(checks.commitMsgTrailer ? { commitMsgTrailer: commit.message
-          .includes(HOOK_TRAILER,), } : {}),
-        ...(checks.postCommitRuns ? { postCommitRuns: runs.get(attempt.token,) ?? 0, } : {}),
+        ...(checks.editorTrailer ? { editorTrailer: commit.message
+          .includes(EDITOR_TRAILER,), } : {}),
+        ...(checks.afterCommitRecords ? { afterCommitRecords: records.get(commit.oid,) ?? 0, } : {}),
         ...(signatureValid === undefined ? {} : { signatureValid, }),
       },
     };

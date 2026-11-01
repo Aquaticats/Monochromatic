@@ -5,6 +5,7 @@
  */
 
 import type { HookEvent, } from './hook-program-fixture.ts';
+import type { ScenarioService, } from './service-model-fixture.ts';
 
 //region Types
 
@@ -36,6 +37,14 @@ export type RepositoryOptions = Readonly<{
    Whether every commit is SSH-signed.
    */
   signing: boolean;
+  /**
+   Whether the scenario's message editor appends a trailer that every landed message must carry.
+   */
+  editorTrailer?: boolean;
+  /**
+   Whether every landed commit must have exactly one settled push record in the service's work directory.
+   */
+  afterCommitRecords?: boolean;
   /**
    Files committed and pushed before the scenario starts.
    */
@@ -85,6 +94,14 @@ export type ScenarioRepository = Readonly<{
    Holding editor program.
    */
   editorProgram: string;
+  /**
+   Scripted editor program that marks and holds two points of a commit's preparation.
+   */
+  scriptedEditorProgram: string;
+  /**
+   The scenario's commit service.
+   */
+  service: ScenarioService;
   /**
    Environment whose PATH puts the wrapper first.
    */

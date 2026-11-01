@@ -38,7 +38,7 @@ import {
 import {
   type HookChecks,
   observeAttempt,
-  postCommitRuns,
+  settledPushRecords,
 } from './observation-attempt-fixture.ts';
 import {
   runBytes,
@@ -48,7 +48,7 @@ import {
   realGit,
   type ScenarioRepository,
 } from './repository-fixture.ts';
-import { settleServiceWork, } from './service-fixture.ts';
+import { settleServiceWork, } from './service-settle-fixture.ts';
 import { readWorktree, } from './worker-fixture.ts';
 
 //region Repository state
@@ -272,7 +272,7 @@ async function findAmendedPublished({
 
  @param ledger - scenario ledger
 
- @param checks - hook facts to collect
+ @param checks - facts to collect
 
  @param expectations - scenario-specific expectations
 
@@ -295,7 +295,10 @@ export async function observeRun({
   expectations: RunObservation['expectations'];
 }>,): Promise<RunObservation> {
   // The remote reaches a commit the service landed only after the commit returned, so the run is observed afterwards.
-  await settleServiceWork(repository.commonDir,);
+  /**
+   Records the service did not finish.
+   */
+  const unsettledWork = await settleServiceWork(repository.commonDir,);
   /**
    Ledger contents.
    */
@@ -305,9 +308,9 @@ export async function observeRun({
    */
   const history = await readHistory(repository,);
   /**
-   Post-commit runs per token.
+   Settled push records per landed commit.
    */
-  const runs = await postCommitRuns(repository,);
+  const records = await settledPushRecords(repository,);
   /**
    Landed amends that replaced a commit the remote already had.
    */
@@ -327,7 +330,7 @@ export async function observeRun({
         attempts: snapshot.attempts,
         history,
         checks,
-        runs,
+        records,
         amendedPublished,
       },);
     },),);
@@ -436,6 +439,7 @@ export async function observeRun({
       replaced,
     },),
     leftovers: await findLeftovers(repository,),
+    unsettledWork,
     fsck: {
       exitCode: fsck.exitCode,
       output: `${fsck.stdout}${fsck.stderr}`,

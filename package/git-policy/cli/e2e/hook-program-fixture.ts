@@ -91,6 +91,40 @@ while (!fs.existsSync(release) && Date.now() < deadline) Atomics.wait(new Int32A
 fs.writeFileSync(process.argv[2], 'e2e editor commit [' + token + ']\n');
 `;
 
+/**
+ Message editor that marks two points of a commit's preparation and can hold at either.
+ The wrapper runs the editor while it prepares the commit,
+ before anything is sent to the service,
+ so the editor is the suite's instrument for pausing or killing a commit during preparation.
+ At `editor-open` it writes `<token>.editor-open`;
+ at `editor-written`, after it rewrote the message, it writes `<token>.editor-written`.
+ At each point it blocks while `<token>.<point>.hold` exists, until `<token>.<point>.release` appears.
+ `E2E_EDITOR_TRAILER=1` makes it append the trailer `E2E-Editor-Checked: yes` to the message.
+ */
+export const SCRIPTED_EDITOR_PROGRAM: string = String.raw`#!/usr/bin/env node
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const token = process.env.E2E_TOKEN || 'untokened';
+const markers = process.env.E2E_MARKER_DIR;
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const point = (name) => {
+  fs.writeFileSync(path.join(markers, token + '.' + name), '');
+  if (!fs.existsSync(path.join(markers, token + '.' + name + '.hold'))) return;
+  const release = path.join(markers, token + '.' + name + '.release');
+  const deadline = Date.now() + 120000;
+  while (!fs.existsSync(release)) {
+    if (Date.now() > deadline) { process.stderr.write('e2e editor barrier timed out\n'); process.exit(1); }
+    pause(10);
+  }
+};
+point('editor-open');
+const message = fs.readFileSync(process.argv[2], 'utf8').split('\n').filter((line) => !line.startsWith('#')).join('\n').trim();
+const trailer = process.env.E2E_EDITOR_TRAILER === '1' ? '\n\nE2E-Editor-Checked: yes' : '';
+fs.writeFileSync(process.argv[2], message + trailer + '\n');
+point('editor-written');
+`;
+
 //endregion Programs
 
 //region Installation
@@ -120,6 +154,7 @@ const EXECUTABLE_MODE = 0o755;
 export async function installPrograms(toolsDir: string,): Promise<Readonly<{
   hook: string;
   editor: string;
+  scriptedEditor: string;
 }>> {
   await mkdir(
     toolsDir,
@@ -138,6 +173,22 @@ export async function installPrograms(toolsDir: string,): Promise<Readonly<{
   const editor = join(
     toolsDir,
     'holding-editor.cjs',
+  );
+  /**
+   Scripted editor path.
+   */
+  const scriptedEditor = join(
+    toolsDir,
+    'scripted-editor.cjs',
+  );
+  await writeFile(
+    scriptedEditor,
+    SCRIPTED_EDITOR_PROGRAM,
+    { mode: EXECUTABLE_MODE, },
+  );
+  await chmod(
+    scriptedEditor,
+    EXECUTABLE_MODE,
   );
   await writeFile(
     hook,
@@ -160,6 +211,7 @@ export async function installPrograms(toolsDir: string,): Promise<Readonly<{
   return {
     hook,
     editor,
+    scriptedEditor,
   };
 }
 
