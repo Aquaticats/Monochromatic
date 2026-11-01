@@ -28,6 +28,7 @@
 "\"markdown/autofix\""
 "\"mono/forbidden-root-context\""
 "\"mono/dependent-version-bump\""
+"\"mono/catalog-specifiers\""
 "\"security/forbidden-strings\""
 "\"lfs-image-url\""
 "true"

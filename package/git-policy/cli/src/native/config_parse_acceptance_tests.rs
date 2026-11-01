@@ -472,7 +472,8 @@ fn concurrency_keys_apply_independently() {
     assert_eq!(all.policies, CliGitConfig::defaults().policies);
     let hooks_only: CliGitConfig =
         parse_config(r#"{ "hooks": { "concurrentCommits": false } }"#).expect("hooks");
-    assert_eq!(hooks_only, CliGitConfig::defaults());
+    assert!(hooks_only.concurrency.hooks.present && !hooks_only.concurrency.hooks.concurrent_commits);
+    assert_eq!(hooks_only.policies, CliGitConfig::defaults().policies);
     let lock_only: CliGitConfig =
         parse_config(r#"{ "indexLock": { "unprovenOwnerTimeoutMs": 2.5e3 } }"#).expect("lock");
     assert_eq!(

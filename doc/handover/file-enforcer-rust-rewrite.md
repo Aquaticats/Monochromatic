@@ -1441,6 +1441,43 @@ each finished branch is reviewed and merged into `main`):
   rebuild on the new head when none changed,
   refuse loudly when one did.
   Re-dispatch 0.6.1 after that merges.
+  The fix merged as `7aaa29a740`
+  (watched paths include the `cargo metadata --locked` closure,
+  for forbidden-strings `package/forbidden-strings/core`,
+  `package/git-policy/cli`
+  and `package/jsonc-edit/core-rust`;
+  up to 6 sends;
+  a dry run skips the push step, so only a real run tests it).
+  Real run 2:
+  `41306407444` succeeded.
+  The push step lost the race once
+  ("main moved after the checkout"),
+  compared `7aaa29a740...09717e1413` (1 changed file, no watched path),
+  resent,
+  and pushed `55f3a1634e` (GitHub: verified, valid).
+  Publish run `41306795688` succeeded;
+  0.6.1 on crates.io at 2026-11-01T12:33:50Z with every platform's release assets.
+  The git-wrapper session was told.
+  forbidden-strings is not in the toolchain plan or lock:
+  `.github/workflows/forbidden-strings.yml` downloads the release matching `Cargo.toml`,
+  so no lock bump;
+  the runs that failed started before the assets existed;
+  run `41307405996` (12:37) is the first after,
+  and it succeeded (`scan=success`):
+  the forbidden-strings check on `main` is green.
+  Of the three red CI workflows,
+  `forbidden-strings` and `env-local-json` are fixed;
+  `pnpr-publish` stays red by the owner's "Hold for the migration".
+  The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
+  queued:
+  send it the result of run `41306407444`.
+  Earlier queue item, done:
+  when the retry-onto-new-head fix is on `main`,
+  message the git-wrapper session (`monochromatic-8c`).
+  It will release the wrapper through `crate-release.yml` then,
+  with no local release
+  ("it can wait for the fix ... dispatch through the workflow, no local release").
+  Its `hook.standards-review-shadow` dependence is known and handled on its side.
 - wg re-review (`15db705ec1..f7217a7b5b`):
   no blockers;
   two should-fix items sent back:
@@ -1448,12 +1485,59 @@ each finished branch is reviewed and merged into `main`):
   (a retried `down` leaves a gap with no block today),
   and a block that fails to lift must be reported
   (`removeTrafficBlock` never throws).
+  Owner 2026-11-01:
+  "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
+  Done in `dd293b2f82` (with `4337ec78ba` atomic replace,
+  `73502c7fff` loud lift failure,
+  `26377527b9`,
+  `c324bc2cfc`; under re-review):
+  the block accepts `meta mark 0x64` and the update-host destinations from `ip rule show`
+  ahead of the drop in the output chain;
+  forward stays a pure drop.
+  Limit:
+  `down` stops the application watcher before the block,
+  which detaches the marker links,
+  so only open connections and update-host destinations pass during `down`.
+  Veto-open:
+  if ownership state or the rule listing cannot be read,
+  `down` refuses with the tunnel fully up.
+  Final re-review (`f7217a7b5b..c324bc2cfc`):
+  no blockers and no should-fix items.
+  Owner answers, 2026-11-01, in the question tool:
+  restart "I run it" (this session runs `down` then `up`);
+  "Accept the gap (Recommended)";
+  "Pass forwarded update hosts" (update-host accepts in the forward chain too);
+  "Keep refusing + manual steps (Recommended)"
+  (exact manual steps in the refusal,
+  and a "table absent" check that does not read nft's English error text).
+  Sent to the wg agent with a request for the exact live-apply sequence.
+  Probed:
+  `sudo --non-interactive true` exited 0,
+  and `sudo --non-interactive --list` shows `(ALL) NOPASSWD: ALL`,
+  so the restart needs no password;
+  `wg-quicker` resolves to `/var/home/user/Monochromatic/node_modules/.bin/wg-quicker`.
+  Sent to the wg agent earlier:
+  the block table accepts traffic the routing already sends to clearnet
+  (matched the way the policy rules match it),
+  during `down` and in a leftover block.
   Cautions for the apply:
   run `down` from the owner's local terminal,
-  since the block drops all non-loopback output during removal;
+  since the block still drops tunnel-bound output during removal;
   the first `up` sweeps about 6500 old units
   (3169 active and 3291 failed at the review),
   so the user manager stays busy for a while.
+- #2576 done and closed (merge `f580aac77b`):
+  global plan entry `llama.cpp-cpu` (`b9829`, exposed as `llama-cpu-cli`;
+  backups of the plan and lock in `~/temp/agent/issue-2576-llama/`),
+  weights `prithivMLmods/Xiaomi-OCR-0-GGUF` at `7bbfa072e0f3d70ac722e26fbccef5b9f64b7121` in `~/models/Xiaomi-OCR-0-GGUF`,
+  same text as the Transformers run on the one sample image,
+  6.97 s and about 1.2 GiB with `--ctx-size 4096`.
+  `llama-cli --no-conversation` at `b9829` wrote 16 GB to stdout;
+  the README warns.
+  Unmeasured:
+  full pages,
+  larger context,
+  fidelity beyond the sample.
 - #2576 decided 2026-11-01 in the question tool:
   "llama.cpp + GGUF (Recommended)" and "Documented command (Recommended)".
   The research note is merged (`doc/research/xiaomi-ocr-without-python.md`).

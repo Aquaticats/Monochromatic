@@ -18,8 +18,6 @@
 use super::commit::{remove_settled, wrapped_commit};
 use super::fault::{staged_repository, verify_recovery};
 use super::support::{Fixture, bounded, close_on_exec_pipe, direct, fixture, git, repository, wrapper_first_path};
-use git_policy_cli::hook_dispatch_plan::{ConfigParameters, HookDispatchPlan, PLAN_FILENAME, encode_hook_dispatch_plan};
-use git_policy_cli::transaction_registry::TRANSACTION_ROOT_NAME;
 use std::os::fd::{FromRawFd, OwnedFd};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
@@ -203,43 +201,5 @@ fn a_forwarded_command_with_closed_streams_ends_as_git_does() {
     let repo: PathBuf = repository_with_a_big_file(&fixture);
     let (wrapped, straight) = show_both_ways(&fixture, repo.as_path(), StreamFault::Closed);
     assert_eq!(wrapped, straight);
-    remove_settled(&fixture);
-}
-
-/// A hook entry that cannot start Git reports it on standard error and exits with status 1, also when standard
-///  error has no reader: a failure to print must not turn the documented status into a panic.
-#[test]
-fn a_hook_entry_that_cannot_report_still_exits_with_its_status() {
-    let fixture: Fixture = fixture("stream-hook-entry");
-    let hooks: PathBuf = fixture.root.join(TRANSACTION_ROOT_NAME).join("0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10").join("hooks");
-    std::fs::create_dir_all(&hooks).expect("hooks directory");
-    let plan: HookDispatchPlan = HookDispatchPlan {
-        git_path: String::from("/nonexistent/git"),
-        disabled_events: Vec::new(),
-        config_parameters: ConfigParameters::Absent,
-        worktree_root: String::from("/repo"),
-        lease: String::from("lease"),
-        hook_lock_path: String::from("/nonexistent/lock"),
-        skip_hook_lock: true,
-        named_hooks_possible: true,
-    };
-    std::fs::write(hooks.join(PLAN_FILENAME), format!("{}\n", encode_hook_dispatch_plan(&plan))).expect("plan");
-    let entry: PathBuf = hooks.join("pre-commit");
-    std::os::unix::fs::symlink(&fixture.wrapper, &entry).expect("hook entry link");
-    let readable: std::process::Output = Command::new(&entry)
-        .env_clear()
-        .stdin(Stdio::null())
-        .output()
-        .expect("the hook entry starts");
-    assert_eq!(readable.status.code(), Some(1), "the control: a reachable standard error carries the report");
-    assert!(String::from_utf8_lossy(&readable.stderr).contains("cannot start /nonexistent/git"));
-    let unreadable: ExitStatus = Command::new(&entry)
-        .env_clear()
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::from(broken_pipe()))
-        .status()
-        .expect("the hook entry starts");
-    assert_eq!(unreadable.code(), Some(1), "{unreadable:?}: standard error had no reader");
     remove_settled(&fixture);
 }

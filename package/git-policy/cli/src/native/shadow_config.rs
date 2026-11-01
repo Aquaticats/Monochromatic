@@ -7,7 +7,8 @@
 //!  The shadow names no hooks directory (traditional hooks are unsupported, and every shadow command passes its own
 //!  `core.hooksPath`);
 //!  `core.worktree`, `gc.auto` and `maintenance.auto` follow the include,
-//!  so the real config cannot redirect the worktree or start maintenance in the shadow
+//!  so the real config cannot redirect the worktree or start maintenance in the shadow;
+//!  `hook.<event>.enabled = false` for every hook event follows it too, because the wrapper supports no external hook
 //!  (`src/shadow-repository/shadow-config.ts`).
 //!
 //! In TS you'd write (pseudocode):
@@ -15,6 +16,8 @@
 //! formatShadowConfig({ format, commonDir, worktreeRoot });
 //! ```
 
+/// Every hook event, switched off in the shadow.
+use super::hooks_off::HOOK_EVENTS;
 /// The one configuration read the commit shares.
 use super::config_snapshot::ConfigSnapshot;
 /// One required Git start, and its failure text.
@@ -204,6 +207,12 @@ pub fn format_shadow_config(format: &RepositoryFormat, common_dir: &Path, worktr
     lines.push(String::from("\tauto = 0"));
     lines.push(String::from("[maintenance]"));
     lines.push(String::from("\tauto = false"));
+    // After the include, so it beats the real config: no hook of any event runs in the shadow, whatever the real
+    // config defines (the wrapper supports no external hook).
+    for event in HOOK_EVENTS {
+        lines.push(format!("[hook \"{event}\"]"));
+        lines.push(String::from("\tenabled = false"));
+    }
     lines.push(String::new());
     return lines.join("\n");
 }

@@ -83,6 +83,43 @@ pub fn finding_hint(policy: &str, code: &str, fix_available: bool) -> Option<&'s
                  dependents by hand in the same commit; the message names the file.",
             );
         }
+        ("mono/catalog-specifiers", "disallowed-specifier", _) => {
+            return Some(
+                "Hint: if you are adding or changing a dependency, move its version into the catalog section of \
+                 pnpm-workspace.yaml and write catalog: here, or write workspace:* for a package of this workspace; \
+                 peerDependencies take * or catalog:.",
+            );
+        }
+        ("mono/catalog-specifiers", "non-string-specifier", _) => {
+            return Some(
+                "Hint: if you are writing a dependency version, make it a string such as catalog: or workspace:*; \
+                 a number, list, object or null is not a specifier.",
+            );
+        }
+        ("mono/catalog-specifiers", "malformed-section", _) => {
+            return Some(
+                "Hint: if you are editing a dependency section, write it as an object that maps package names to \
+                 specifiers; the message names the section.",
+            );
+        }
+        ("mono/catalog-specifiers", "duplicate-key", _) => {
+            return Some(
+                "Hint: if you are editing this manifest by hand, keep one copy of the repeated section or \
+                 dependency name; pnpm keeps the last copy, which may not be the one you meant.",
+            );
+        }
+        ("mono/catalog-specifiers", "invalid-manifest", _) => {
+            return Some(
+                "Hint: if you are committing this package.json, make it a JSON object that parses and is UTF-8 \
+                 text (a stray character, an empty file or a link instead of a file shows here), then stage it again.",
+            );
+        }
+        ("mono/catalog-specifiers", "unsupported-manifest-format", _) => {
+            return Some(
+                "Hint: if you are adding a package.json5, package.yaml or package.yml, use package.json instead, \
+                 because the catalog rule reads only that format; rename or convert the file and stage it again.",
+            );
+        }
         ("security/forbidden-strings", "forbidden-string", _) => {
             return Some(
                 "Hint: if you are committing text or a path that contains a secret or a banned term, remove or \
@@ -168,9 +205,9 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
         }
         "traditional-hooks-unsupported" => {
             return Some(
-                "Hint: if scripts in the hooks directory still do work for you, move each into a config hook with \
-                 `git config hook.<name>.event <event>` and `git config hook.<name>.command <command>`; \
-                 `git cli-git doctor` lists the scripts it finds and exits 1 while any remain.",
+                "Hint: scripts in the hooks directory never run through cli-git. If one still checks something for you, \
+                 express it as a policy under policies in cli-git.config.jsonc; `git cli-git doctor` lists the \
+                 scripts it finds and exits 1 while any remain.",
             );
         }
         _ => return None,

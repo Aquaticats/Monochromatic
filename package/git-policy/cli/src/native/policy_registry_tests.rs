@@ -35,6 +35,7 @@ fn registry_order_and_names_are_stable() {
             "markdown/autofix",
             "mono/forbidden-root-context",
             "mono/dependent-version-bump",
+            "mono/catalog-specifiers",
             "security/forbidden-strings",
         ]
     );
@@ -50,7 +51,7 @@ fn registry_order_and_names_are_stable() {
 #[test]
 fn every_identity_resolves_to_its_declared_row() {
     // (identity, name, incumbent defaultSeverity, warnSafe, accepts options, off unless listed)
-    let expected: [(PolicyId, &str, Severity, bool, bool, bool); 9] = [
+    let expected: [(PolicyId, &str, Severity, bool, bool, bool); 10] = [
         (
             PolicyId::RequireRoot,
             "require-root",
@@ -110,6 +111,14 @@ fn every_identity_resolves_to_its_declared_row() {
         (
             PolicyId::DependentVersionBump,
             "mono/dependent-version-bump",
+            Severity::Error,
+            false,
+            false,
+            true,
+        ),
+        (
+            PolicyId::CatalogSpecifiers,
+            "mono/catalog-specifiers",
             Severity::Error,
             false,
             false,
@@ -177,6 +186,9 @@ fn unknown_policy_names_are_absent() {
         "security/forbidden-strings/extra",
         "../security/forbidden-strings",
         "mono\\forbidden-root-context",
+        "mono/catalog-specifier",
+        "mono/catalog-specifiers ",
+        "Mono/catalog-specifiers",
         "final-newline\0",
     ] {
         assert_eq!(policy_by_name(name), None, "{name:?}");

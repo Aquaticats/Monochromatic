@@ -24,7 +24,7 @@ use super::candidate_object::ObjectId;
 /// Import the shared child-command builder.
 use super::forwarding::git_command;
 /// The watch that announces a request that takes long and stops the process at the bound.
-use super::child_watch::{ChildWatch, WatchTerms, watched_timeout_text};
+use super::child_watch::{ChildWatch, WatchTerms, reader_subject, watched_timeout_text};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,
@@ -231,7 +231,7 @@ pub fn start_object_reader_with(
         return Err(reader_ended("started without its request and reply pipes"));
     };
     // `Ok(...)` is the success variant; `Some(...)` is the "present" variant.
-    let watch: ChildWatch = ChildWatch::start("git cat-file --batch", child.id(), terms);
+    let watch: ChildWatch = ChildWatch::start(reader_subject().as_str(), child.id(), terms);
     return Ok(ObjectReader {
         child,
         pipes: Some(ReaderPipes {
@@ -284,7 +284,7 @@ impl ObjectReader {
                 CandidateFailure::ReaderEnded,
                 format!(
                     "cli-git could not read a Git object: {}",
-                    watched_timeout_text("git cat-file --batch", self.watch.limit())
+                    watched_timeout_text(reader_subject().as_str(), self.watch.limit())
                 )
                 .as_str(),
             ));

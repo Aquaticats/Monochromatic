@@ -33,7 +33,7 @@ fn git_for(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment,
-        lfs_pre_push: None,
+        lfs: false,
     };
 }
 

@@ -22,9 +22,10 @@ use super::diagnostics::render_configuration_warning;
 /// The configuration the commit read once.
 use super::config_snapshot::ConfigSnapshot;
 /// The name of the absent hooks directory the wrapper's own overrides use.
-use super::shadow_git::NO_HOOKS_DIRECTORY;
+use super::hooks_off::NO_HOOKS_DIRECTORY;
+use super::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 /// How the wrapper names its transaction directories.
-use super::transaction_registry::{TRANSACTION_ROOT_NAME, is_transaction_id};
+use super::transaction_registry::is_transaction_id;
 /// A stream the warning is written to.
 use std::io::Write;
 /// `OsStr` is operating-system text; `Path` is a borrowed filesystem path.
@@ -37,44 +38,45 @@ pub const TRADITIONAL_HOOKS_UNSUPPORTED_CODE: &str = "traditional-hooks-unsuppor
 /// Canonical (lowercase) snapshot key of the setting that triggers the warning.
 const HOOKS_PATH_KEY: &str = "core.hookspath";
 
-/// Name of the dispatcher directory inside a transaction directory.
-const DISPATCHER_DIRECTORY_NAME: &str = "hooks";
-
 /// Module tag for diagnostics.
 const TAG: &str = "traditionalHookWarning";
 
 /// What:
-///  Whether a `core.hooksPath` value is one of the wrapper's own per-transaction overrides.
+///  Whether a `core.hooksPath` value is one of the wrapper's own hooks-off values.
 /// Why:
-///   The wrapper passes `core.hooksPath=<tx>/hooks` and `core.hooksPath=<tx>/no-hooks` to the Git processes it
-///  starts, and those reach hooks the user configured as `-c` values in `GIT_CONFIG_PARAMETERS`.
-///  A command such as `git commit` run by such a hook must not warn about a path the user never chose.
+///   Every real Git the wrapper starts carries `core.hooksPath=/dev/null/cli-git-no-hooks`, and its shadow commands
+///  carry `<git-common-dir>/cli-git/shadow/<transaction>/no-hooks`; a Git child that reads `GIT_CONFIG_PARAMETERS`
+///  sees them as `-c` values.
+///  A command such as `git commit` run by such a child must not warn about a path the user never chose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /\/cli-git-transactions\/[0-9a-f-]{36}\/(hooks|no-hooks)$/.test(value)
+/// value === NO_HOOKS_DIRECTORY || /\/cli-git\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
 pub fn is_wrapper_hooks_path(value: &str) -> bool {
+    if value == NO_HOOKS_DIRECTORY {
+        return true;
+    }
     let path: &Path = Path::new(value);
     let Some(name) = path.file_name().and_then(OsStr::to_str) else {
         return false;
     };
-    if name != NO_HOOKS_DIRECTORY && name != DISPATCHER_DIRECTORY_NAME {
+    if name != SHADOW_NO_HOOKS_NAME {
         return false;
     }
-    let Some(transaction) = path.parent() else {
+    let Some(shadow) = path.parent() else {
         return false;
     };
-    let Some(identifier) = transaction.file_name().and_then(OsStr::to_str) else {
+    let Some(identifier) = shadow.file_name().and_then(OsStr::to_str) else {
         return false;
     };
     if !is_transaction_id(identifier) {
         return false;
     }
-    return transaction
+    return shadow
         .parent()
         .and_then(Path::file_name)
-        .is_some_and(|root| { return root == TRANSACTION_ROOT_NAME; });
+        .is_some_and(|root| { return root == SHADOW_ROOT_NAME; });
 }
 
 /// What:
@@ -118,8 +120,9 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
     let value: String = configured_hooks_path(snapshot?)?;
     let message: String = format!(
         "`core.hooksPath` is set to {value}, so this repository may use traditional Git hooks (executable scripts in \
-         a hooks directory). cli-git does not support traditional hooks and their behavior with it is undefined; \
-         only hooks configured with `hook.<name>.event` and `hook.<name>.command` are supported. \
+         a hooks directory). cli-git supports no external hook program, traditional or configured: every Git it \
+         starts has the hooks directory switched off, so these scripts never run. Express what a script checked as a \
+         policy under policies in cli-git.config.jsonc instead. \
          Run `git cli-git doctor` to list the traditional hooks it can find."
     );
     return Some(render_configuration_warning(

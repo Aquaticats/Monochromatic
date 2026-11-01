@@ -15,11 +15,13 @@
 
 /// The coordinator's Git, its command builder, queries and error type.
 use super::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, git_command, git_output, push_command, run_query,
+    PushAttempt, PushGit, SingleFlightError, git_command, git_output, run_query,
 };
 /// The deadline-bound runner of network commands and the limits it applies.
 use super::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
 use super::bounded_push::{STOP_GRACE, apply_low_speed_defaults, push_deadline, run_bounded_push};
+/// The auto-push's bounded `git push` with the Git LFS upload.
+use super::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::{debug, warn};
 /// Owned OS strings for Git arguments.
@@ -506,9 +508,7 @@ pub fn reconcile_divergent_push(
             &target.remote,
             &format!("{merge_oid}:{}", target.merge_ref),
         ]);
-        let mut command = push_command(git, &arguments);
-        apply_low_speed_defaults(&mut command, &git.environment);
-        return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice());
+        return run_push(git, &arguments);
     };
     return Ok(match integrate_and_push(git, &plan, rejected, &mut push_merge)? {
         Integrated::NotDivergent(attempt) | Integrated::Finished(attempt) => attempt,

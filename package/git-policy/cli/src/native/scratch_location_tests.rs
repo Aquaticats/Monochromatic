@@ -215,7 +215,9 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
 /// The staleness bound outlasts every wait the wrapper runs: a live process must never lose its file.
 #[test]
 fn the_staleness_bound_outlasts_the_longest_wait() {
-    assert!(SCRATCH_STALE_AFTER > crate::child_watch::DEFAULT_CHILD_WAIT);
+    for class in [crate::child_class::ChildClass::Plumbing, crate::child_class::ChildClass::Object] {
+        assert!(SCRATCH_STALE_AFTER > class.default_limit(), "{class:?}");
+    }
     assert!(SCRATCH_STALE_AFTER > crate::live_lock::DEFAULT_LIVE_WAIT);
 }
 

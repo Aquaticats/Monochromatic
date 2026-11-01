@@ -19,14 +19,15 @@ use super::auto_push_reconcile::{
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome, push_command,
+    PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome,
     resolve_push_coordination_paths, run_query, run_single_flight_push_repeating,
 };
 /// The deadline-bound push runner and the limits it applies.
-use super::bounded_push::{
-    LOCK_WAIT_VARIABLE, STOP_GRACE, apply_low_speed_defaults, lock_wait_limit, push_deadline,
-    run_bounded_push,
-};
+use super::bounded_push::{LOCK_WAIT_VARIABLE, lock_wait_limit, push_deadline};
+/// What a waiting notice says about the process it waits for.
+use super::lock_holder_facts::holder_facts;
+/// The auto-push's bounded `git push` with the Git LFS upload.
+use super::lfs_bounded_push::run_push;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
 /// The lock record whose owner the waiting notice names.
@@ -168,9 +169,7 @@ fn read_symbolic_head(git: &PushGit) -> Result<Option<String>, SingleFlightError
 /// ```
 fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, SingleFlightError> {
     let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    let mut command = push_command(git, &argv);
-    apply_low_speed_defaults(&mut command, &git.environment);
-    return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice());
+    return run_push(git, &argv);
 }
 
 /// What:
@@ -184,8 +183,15 @@ fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, Si
 /// `cli-git: waiting for process ${pid} to finish pushing ${branchRef}; giving up after ${seconds} seconds`
 /// ```
 fn waiting_line(git: &PushGit, branch_ref: &str, waited: Option<std::time::Duration>) -> String {
-    let holder: String = match holder_pid(git, branch_ref) {
-        Some(pid) => format!("process {pid}"),
+    let (pid, facts): (Option<i64>, String) = match holder(git, branch_ref) {
+        Some((pid, lock_directory)) => (
+            Some(pid),
+            holder_facts(pid, lock_directory.as_path(), push_deadline(&git.environment)),
+        ),
+        None => (None, String::new()),
+    };
+    let holder: String = match pid {
+        Some(number) => format!("process {number}"),
         None => String::from("another cli-git process"),
     };
     // A repeat names how long the wait has lasted; the first line has just begun.
@@ -195,21 +201,21 @@ fn waiting_line(git: &PushGit, branch_ref: &str, waited: Option<std::time::Durat
     };
     return format!(
         "cli-git: waiting for {holder} to finish pushing {branch_ref}{progress}; giving up after {} seconds \
-         ({LOCK_WAIT_VARIABLE} changes this). The commit is already saved.",
+         ({LOCK_WAIT_VARIABLE} changes this). The commit is already saved.{facts}",
         lock_wait_limit(&git.environment).as_secs()
     );
 }
 
-/// The process that holds the branch's push lock, when its record can be read.
+/// The process that holds the branch's push lock and the lock's directory, when the record can be read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// (await readOwnerLockRecord(lockDirectory))?.ownerPid
 /// ```
-fn holder_pid(git: &PushGit, branch_ref: &str) -> Option<i64> {
+fn holder(git: &PushGit, branch_ref: &str) -> Option<(i64, std::path::PathBuf)> {
     let paths = resolve_push_coordination_paths(git, branch_ref).ok()?;
     return match read_owner_lock_record(&paths.lock_directory) {
-        Ok(PublishedOwner::Owner(record)) => Some(record.owner_pid),
+        Ok(PublishedOwner::Owner(record)) => Some((record.owner_pid, paths.lock_directory)),
         Ok(PublishedOwner::Busy) | Err(_) => None,
     };
 }

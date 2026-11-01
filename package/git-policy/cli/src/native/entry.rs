@@ -19,7 +19,8 @@
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
 use super::announced_query::{WRAPPER_VERSION, announced_query, announcement, printable_after};
 use super::command_push::stackable_option_tokens;
-use super::lfs_pre_push::{hook_entry_arguments, run_hook_entry, uses_lfs, with_lfs_hook};
+use super::external_hooks::external_hooks_warning;
+use super::lfs_pre_push::uses_lfs;
 use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use super::command_push::parse_push_region;
@@ -253,7 +254,6 @@ pub fn plan_invocation(
                     &mut checks,
                 ),
                 environment,
-                inputs.own_executable.as_path(),
             );
         }
         WrappedOutcome::Exit { code, stderr } => {
@@ -285,10 +285,6 @@ pub fn plan_invocation(
 pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
     // From here on every real-Git start of this process runs with traditional hooks off.
     super::hooks_off::activate();
-    // Git starts the LFS pre-push hook as `cli-git lfs-pre-push <remote> <url>`; it needs no repository facts.
-    if let Some(hook_arguments) = hook_entry_arguments(arguments) {
-        return run_hook_entry(hook_arguments);
-    }
     let action: Action = match process_resolution_inputs(environment) {
         Ok(inputs) => plan_invocation(arguments, environment, &inputs),
         Err(error) => failure(
@@ -600,31 +596,30 @@ fn forward_action(
 }
 
 /// What:
-///  The executable the Git LFS pre-push hook names, when `command` is a push that must upload LFS objects first.
-///  `Option<&Path>` is "the executable, or nothing to add".
+///  Whether `command` is a push that must upload LFS objects first, and the configuration warning for configured
+///  external hooks, when the same read shows any, as empty text otherwise.
+///  A dry-run push reads the configuration too, for the warning, but uploads nothing.
 /// Why:
 ///   A push that sends nothing (`--dry-run`) needs no upload, and a repository without LFS keys needs none either.
 ///  One configuration read answers it, made with the invocation's own global options; when Git cannot list its
 ///  configuration the hook is added anyway, because it then decides with Git's own answers.
+///  The warning costs no read of its own: a push is the one forwarded command that already holds the snapshot.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function lfsHookExecutable(command, realGit, overlay, ownExecutable): string | undefined;
+/// function needsLfsUpload(command, realGit, overlay): [boolean, string];
 /// ```
-fn lfs_hook_executable<'executable>(
+fn needs_lfs_upload(
     command: &ResolvedCommand,
     real_git: &Path,
     overlay: &[(OsString, OsString)],
-    own_executable: &'executable Path,
-) -> Option<&'executable Path> {
+) -> (bool, String) {
     if command.word() != b"push" {
-        return None;
+        return (false, String::new());
     }
-    if parse_push_region(command.region(), &[]).is_ok_and(|region| {
+    let dry_run: bool = parse_push_region(command.region(), &[]).is_ok_and(|region| {
         return region.dry_run;
-    }) {
-        return None;
-    }
+    });
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
@@ -635,9 +630,13 @@ fn lfs_hook_executable<'executable>(
         Ok(directory) => read_config_snapshot(&context, directory.as_path()),
         Err(_) => None,
     };
+    let warning: String = external_hooks_warning(snapshot.as_ref()).unwrap_or_default();
+    if dry_run {
+        return (false, warning);
+    }
     return match snapshot {
-        Some(found) if !uses_lfs(&found) => None,
-        Some(_) | None => Some(own_executable),
+        Some(found) => (uses_lfs(&found), warning),
+        None => (true, warning),
     };
 }
 
@@ -648,15 +647,16 @@ fn lfs_hook_executable<'executable>(
 ///   A push that lost a race to another session cannot succeed again, and the wrapper can only look at its status
 ///  while it is alive;
 ///  the stacked push itself carries `STACKED_PUSH_MARKER`, so it is forwarded as it is and never stacks again.
-///   A real push in a repository with LFS keys carries the pre-push hook of `lfs_pre_push`, the stacked push too;
-///  the integration step's own dry-run queries run without it, because they would upload objects.
+///   A real push in a repository with LFS keys also runs as a child that the Git LFS upload (`lfs_upload`) precedes,
+///  the stacked push too, so the parent can explain a failed upload;
+///  the integration step's own dry-run queries never upload.
 ///   Every other action is returned unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stackIfPush(action: Action, environment, ownExecutable): Action;
+/// function stackIfPush(action: Action, environment): Action;
 /// ```
-fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_executable: &Path) -> Action {
+fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action {
     let (real_git, arguments, overlay, copy, stderr) = match action {
         Action::Forward {
             real_git,
@@ -681,10 +681,14 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_execu
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
-    let lfs_executable: Option<&Path> =
-        lfs_hook_executable(&command, real_git.as_path(), overlay.as_slice(), own_executable);
+    let (lfs, hook_warning): (bool, String) = needs_lfs_upload(&command, real_git.as_path(), overlay.as_slice());
+    let stderr_with_warning: String = format!("{stderr}{hook_warning}");
     let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
-    if !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some() {
+    let stack: bool =
+        !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some();
+    // A push that uploads LFS objects runs as a child like a stackable one: the parent that owns the push is the one
+    // that explains a failed upload, and no wrapper is started for it.
+    if stack || lfs {
         return Action::ForwardPush {
             forward: Box::new(PushForward {
                 real_git,
@@ -693,28 +697,26 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_execu
                 overlay,
                 copy,
                 environment: environment.to_vec(),
-                lfs_pre_push: lfs_executable.map(Path::to_path_buf),
+                lfs,
+                stack,
             }),
-            stderr,
+            stderr: stderr_with_warning,
         };
     }
-    let forwarded: Vec<OsString> = match lfs_executable {
-        Some(executable) => with_lfs_hook(arguments.as_slice(), executable),
-        None => arguments,
-    };
+    let forwarded: Vec<OsString> = arguments;
     return match copy {
         Some(facts) => Action::ForwardSettled {
             real_git,
             arguments: forwarded,
             overlay,
             copy: facts,
-            stderr,
+            stderr: stderr_with_warning,
         },
         None => Action::Forward {
             real_git,
             arguments: forwarded,
             overlay,
-            stderr,
+            stderr: stderr_with_warning,
         },
     };
 }

@@ -66,7 +66,6 @@ use super::repository_location::RepositoryLocation;
 /// Startup recovery as a command step.
 use super::transaction_gate::{Gate, recover_for_command};
 /// A valid preparation lease marks a command started by a hook of a live transaction.
-use super::transaction_lease::has_valid_preparation_lease;
 use super::unported::{Unported, unported_from_unavailable, unported_notice};
 use super::worktree_identity::worktree_root;
 use super::wrapper_controls::is_escaped;
@@ -263,7 +262,6 @@ fn every_policy() -> Vec<PolicyId> {
 /// ```
 fn prepare_guarded_command<F: RepositoryFacts>(
     stripped: &StrippedInvocation,
-    environment: &[(OsString, OsString)],
     checks: &mut ShippedChecks<F>,
 ) -> Result<CliGitConfig, WrappedOutcome> {
     // `match` unpacks the location answer; a failure to ask Git stops the command.
@@ -280,16 +278,13 @@ fn prepare_guarded_command<F: RepositoryFacts>(
     // Dead transactions are recovered before configuration loads. A live transaction no longer
     // refuses a guarded command: an index writer waits for its landing lock when it is forwarded,
     // and a commit still stops at its own frontier below.
-    // A command inside a live transaction's hook inherits its preparation lease; recovery would only find that live owner.
-    if !has_valid_preparation_lease(environment) {
-        match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
-            Gate::Clear | Gate::Live(_) => {}
-            Gate::Stop(stderr) => {
-                return Err(WrappedOutcome::Exit {
-                    code: ENGINE_FAILURE_EXIT_CODE,
-                    stderr,
-                });
-            }
+    match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
+        Gate::Clear | Gate::Live(_) => {}
+        Gate::Stop(stderr) => {
+            return Err(WrappedOutcome::Exit {
+                code: ENGINE_FAILURE_EXIT_CODE,
+                stderr,
+            });
         }
     }
     let config: CliGitConfig = match load_identity_config(&location.identity) {
@@ -461,7 +456,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     let loaded: Option<CliGitConfig> = if skips_config {
         None
     } else {
-        match prepare_guarded_command(stripped, environment, checks) {
+        match prepare_guarded_command(stripped, checks) {
             Ok(found) => Some(found),
             Err(ending) => return ending,
         }
@@ -488,7 +483,6 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         return ending;
     }
     if skips_config
-        && !has_valid_preparation_lease(environment)
         && let Some(ending) = recover_before_read_only(checks)
     {
         return ending;
@@ -567,7 +561,7 @@ fn prepare_manual_push<F: RepositoryFacts>(
         cwd,
         environment: environment_with_overlay(environment, context.overlay.as_slice()),
         // The scope probe is a dry-run push; an upload during it would run before any policy has decided.
-        lfs_pre_push: None,
+        lfs: false,
     };
     let scope = manual_push_scope(&git, context.global_prefix.as_slice(), post_subcommand)?;
     checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(scope));

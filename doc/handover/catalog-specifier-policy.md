@@ -802,6 +802,50 @@ The user confirmed the shared understanding and the order below, after the third
   contains the text `mono/catalog-specifiers` (eight-hour deadline). The last twelve releases of the crate came 25 minutes to about
   24.5 hours apart (measured from crates.io), so no completion time can be forecast; 7a has given none.
 
+- 2026-11-01, `monochromatic-8c` status (a peer's report, now the session sending cli-git release news):
+  the wrapper branch for `mono/catalog-specifiers` (against `monochromatic-catalog-specifier` 0.1.0, `off_unless_listed`, default
+  severity `error`, no options, not listed in `cli-git.config.jsonc`) is being merged to main after fixing a gap (a selected policy
+  that is on but not run for the command still exited 0).
+  The 0.4.7 cut was abandoned; the policy ships in the next wrapper release with the 30-second push deadline, the commit-path
+  stat-index and timeout fixes, the layered gate image, and, when they merge, the LFS rework, the removal of external hook support
+  and the in-process linter. 8c will message the version and release commit once it is on crates.io with archives.
+  8c asked who owns the crate-release path; the answer sent: git history names only the author Aquaticat, and
+  `doc/decision/releases-run-in-ci.md` records the owner's choice "Release from CI", with `native:release` dispatching the workflow.
+
+- 2026-11-01, `monochromatic-8c` after reading all of `doc/decision/releases-run-in-ci.md` (a peer's report): `native:release` dispatches
+  the CI workflow and `native:release:wait` follows it through `cargo-publish.yml` to crates.io and the GitHub release.
+  The workflow has never run on a runner (the first release is its first run), and three things are unproven: that a runner
+  compiles the crates, that the token may call `createCommitOnBranch` on the protected branch, and that GitHub signs that commit
+  under `GITHUB_TOKEN`. 8c dry-runs first, so the first real wrapper release may need a retry.
+  The linter crate is not in `releasable-crates.json` (only forbidden-strings and the wrapper are); if the wrapper embeds the linter,
+  the linter publishes first by the old route. Consequence for my wait: no release time can be forecast, and a retry may delay it.
+
+- 2026-11-01, `monochromatic-8c` relaying `monochromatic-6e` (file-enforcer and toolchain verbs), a peer's advice that I checked against the repo:
+  scope the update to the wrapper's row, `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`, because the task appends its
+  arguments to `mpm-shadow update` (read in `mise.toml`, task `toolchain:update`, `usage ... var=#true`) and an unscoped run moves every
+  `@latest` and channel tool (rule `UPN` names the tool). The row id exists in `toolchain.plan.jsonc` (`request`
+  `cargo:monochromatic-git-policy-cli@latest`, route `cargo-binstall`).
+  Adopted: this narrows the earlier plan of an unscoped `toolchain:update`; the user's delegation ("I decide? No, just do it.")
+  still covers running it. Steps: the scoped update, `mise run toolchain:install`, review the `toolchain.lock.json` diff, commit only
+  that file by explicit pathspec, and report separately any other row the diff shows.
+  Also from 6e: the CI release workflow has a known bug (the bump commit is refused when main moves during the run, seen on
+  forbidden-strings run 41303293802; nothing pushed) and a fix is in progress, so the wrapper release waits for it.
+
+- 2026-11-01, `monochromatic-8c` result report (a peer's report; the policy is merged to main, not released): id
+  `mono/catalog-specifiers`, default severity `error`, no options, `off_unless_listed: true`, not listed in this repository's
+  `cli-git.config.jsonc`, older configs load unchanged.
+  It reads staged or index bytes (never the worktree) of every `package.json`; the allowed specifiers match the agreed policy;
+  tracked `package.json5`, `package.yaml` and `package.yml` are reported by file name without being read.
+  JSONL codes are `mono/catalog-specifiers/<code>`; the six codes it lists equal the six `as_str()` values in
+  `package/catalog-specifier/core-rust/src/finding.rs` lines 96 to 101 (checked), so nothing differs from the specification.
+  It runs at commit and add, after a landed commit, on a manual push and for `check`, never for `fix`;
+  `--no-enforce-mono/catalog-specifiers` skips it. A direct `git cli-git check|fix --policy <id>` that would run nothing now exits 2
+  with a `config-invalid` event. It depends on `monochromatic-catalog-specifier` `=0.1.0` by path plus exact pin.
+  The release waits for the LFS and hook-removal branches and the CI release fix.
+  Consequence for the CI workflow: the check reads index bytes, so the negative-control fixture must be staged (`git add`) in a
+  throwaway repository before `check --all --policy mono/catalog-specifiers`; an unstaged file proves nothing. The CI run on a
+  checkout reads the real index, which equals the worktree there. Both must be exercised when the workflow is written.
+
 ## Open items
 
 - Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.

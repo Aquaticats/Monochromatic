@@ -93,10 +93,14 @@ fn read_back(file: &mut File) -> Result<Vec<u8>, SingleFlightError> {
 pub fn run_bounded_query(
     mut command: Command,
     arguments: &str,
-    deadline: Duration,
+    requested_deadline: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
+    if super::holder_budget::exhausted() {
+        return Err(SingleFlightError::BudgetSpent { arguments: arguments.to_owned() });
+    }
+    let deadline: Duration = super::holder_budget::clamp(requested_deadline);
     let mut stdout: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let mut stderr: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = stdout.try_clone().map_err(SingleFlightError::Start)?;

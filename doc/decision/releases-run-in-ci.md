@@ -7,8 +7,13 @@ Accepted,
 owner-chosen.
 This decision is in force.
 It is implemented by `.github/workflows/crate-release.yml` and `package/crate-release/cli`.
-The first real release through it is not yet run,
-so the workflow is untested on a runner (see "Limits").
+Its first two runs,
+read with `gh run view` on 2026-11-01:
+the dry run `41287463221` of forbidden-strings 0.6.1 succeeded,
+and the real run `41303293802` failed at its push step,
+about five minutes after it was created,
+because `main` had moved ("Why a moved main is settled by a comparison").
+The retry that answers that failure has not yet run on a runner (see "Limits").
 
 ## Context
 
@@ -116,6 +121,81 @@ so GitHub refuses it when `main` moved.
 The commit is authored by the credential that sends it,
 which is `github-actions[bot]`.
 
+## Why a moved main is settled by a comparison
+
+The real run `41303293802` was refused with
+`Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not.  Pull and try again.`
+Nothing was pushed or published,
+which is the guard working,
+but other sessions push to `main` every few minutes,
+so a plain re-dispatch usually loses the same race.
+The owner chose "Release from CI",
+so it must work on a busy `main`.
+
+The release verified the crate at the commit the checkout started from.
+A commit rebuilt on a newer head is as safe as that verification only if nothing the release depends on changed
+between the two.
+`push-release.ts` therefore records those paths before it sends anything,
+and settles a refusal for a moved branch as follows.
+
+- The watched paths are the files of the release commit,
+  the directory of the crate,
+  the directories whose lockfile the release refreshed,
+  every path dependency in the closure of the crate and of each lock directory as `cargo metadata --locked` reports it
+  at the checkout,
+  and the manifest and lockfile of each workspace root.
+  The closure is read from the checkout the check and the dry run built,
+  not guessed from directory names.
+  Run for the registered crates on 2026-11-01,
+  `cargo metadata --locked` answered in well under a second for each manifest,
+  and for `forbidden-strings` the path dependencies it listed were
+  `package/forbidden-strings/core`,
+  `package/git-policy/cli` and `package/jsonc-edit/core-rust`,
+  none of them a directory of the crate itself.
+- On a refusal it reads the new head with the reference endpoint and compares the checkout base with it through the
+  compare endpoint.
+  A changed path counts when it is a watched file,
+  or is or lies below a watched directory,
+  and a renamed file counts by its old and its new path.
+- When none counts,
+  it sends the same commit again,
+  expecting the new head.
+  Each send is preceded by a fresh comparison from the checkout base,
+  and the sends are bounded (six by default,
+  the first included).
+- When one counts,
+  when the head or the comparison cannot be read,
+  when the branch is not ahead of the checkout,
+  or when the branch moved before every allowed send,
+  it pushes nothing,
+  names the cause and fails the run:
+  dispatch the release again.
+- Every step is printed:
+  the base,
+  the watched paths,
+  each new head,
+  the comparison and the decision.
+
+The compare endpoint lists at most three hundred files for a whole comparison
+([GitHub documents][compare-file-limit]:
+"The list of changed files is only shown on the first page of results,
+and it includes up to 300 changed files for the entire comparison".
+The link is the section anchor,
+which a browser check on 2026-11-01 confirmed scrolls to the section;
+a text fragment on the sentence did not scroll there).
+Measured on 2026-11-01 over the latest hundred commits of `main`,
+a thirty-minute window ending at one commit held 108 commits and reached the limit,
+and the other four sampled windows held between two and 165 files.
+A list that reaches the limit may have been cut and cannot show a path unchanged,
+so then the decision uses the object names of the watched paths instead:
+one GraphQL query reads each path at the base and at the new head,
+and equal names prove a path unchanged whatever else changed,
+because the name of a tree covers everything below it.
+A query for a directory,
+a file and a missing path was run read-only on 2026-11-01 and answered as described:
+a name for each that exists,
+`null` for the one that does not.
+
 ## Why the publish is dispatched
 
 Events caused by the repository's `GITHUB_TOKEN` start no workflow,
@@ -175,8 +255,28 @@ because the repository rule is to use `GITHUB_TOKEN` and the existing secrets on
 - Rulesets and branch protection were read,
   not exercised.
   A rule that this record does not list would refuse the push.
+- The retry is proved against a fake GitHub in unit tests:
+  the unchanged case sends again and lands,
+  a changed path of each kind refuses,
+  the send limit refuses,
+  the path filter is exact,
+  and a list at the limit is decided by object names.
+  Each of those tests was shown to fail when its guard was removed.
+  The retry has not run against the real API.
+  Its first real use is the next release.
+- Files that a build script or `include_str!` reads from outside the crate and its path dependency directories are not
+  in `cargo metadata`,
+  so a change to them on a moved `main` is not seen.
+  `cargo publish --dry-run` packages the crate directory only,
+  so such a read in code it compiles would already fail it.
+  The one found in the two registered crates,
+  with `rg` on 2026-11-01,
+  is in a `#[cfg(test)]` module
+  (`package/forbidden-strings/cli/src/rule/frx/compile_tests.rs` reads the repository's `forbidden-strings.append.txt`),
+  which neither the check nor the dry run compiles.
 - Only the two crates with release tasks are in the registry.
   The other crates of `cargo-publish.yml` are released by a bump pushed to `main`,
   as before.
 
+[compare-file-limit]: https://docs.github.com/en/rest/commits/commits#compare-two-commits
 [token-trigger-rule]: https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#:~:text=events%20triggered%20by%20the%20GITHUB_TOKEN%20will%20not%20create%20a%20new%20workflow%20run

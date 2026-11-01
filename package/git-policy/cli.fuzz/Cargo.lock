@@ -875,6 +875,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "monochromatic-catalog-specifier"
+version = "0.1.0"
+dependencies = [
+ "monochromatic-jsonc-edit",
+]
+
+[[package]]
 name = "monochromatic-git-policy-cli"
 version = "0.4.6"
 dependencies = [
@@ -882,6 +889,7 @@ dependencies = [
  "getrandom",
  "ignore",
  "libc",
+ "monochromatic-catalog-specifier",
  "monochromatic-jsonc-edit",
  "serde_json",
  "tempfile",

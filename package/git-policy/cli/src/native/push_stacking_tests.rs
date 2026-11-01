@@ -32,7 +32,7 @@ fn push_git(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment,
-        lfs_pre_push: None,
+        lfs: false,
     };
 }
 
@@ -112,13 +112,31 @@ fn region(race: &Race) -> Vec<OsString> {
         .collect();
 }
 
+/// Publish the merge with plain Git in the clone, as the planner's forwarded push does once the gates pass.
+fn plain_git_merge_push(
+    git: &PushGit,
+    global_prefix: &[OsString],
+    tokens: &[OsString],
+    destination: &[String],
+) -> Result<i32, SingleFlightError> {
+    let status = std::process::Command::new("/usr/bin/git")
+        .current_dir(&git.cwd)
+        .args(global_prefix)
+        .arg("push")
+        .args(tokens)
+        .args(destination)
+        .status()
+        .map_err(SingleFlightError::Io)?;
+    return Ok(status.code().unwrap_or(1));
+}
+
 /// Integrate a failed push of `HEAD` from the local clone; plain Git publishes the merge.
 fn stack(race: &Race, region: &[OsString]) -> (Option<i32>, String) {
     let git_for_local = push_git(&race.local);
     let request = StackRequest {
         git: &git_for_local,
-        own_executable: Path::new("/usr/bin/git"),
         global_prefix: &[],
+        merge_push: &plain_git_merge_push,
         region,
     };
     let mut err: Vec<u8> = Vec::new();
