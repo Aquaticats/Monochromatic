@@ -69,7 +69,7 @@ const TIP_B = '2'.repeat(40,);
 
  @param message - commit message, which also names the commit in a failure
 
- @returns The new commit's id
+ @returns New commit's id
 
  @example
  ```ts
@@ -115,7 +115,7 @@ type ThrowawayHistory = { readonly path: string; readonly root: string; readonly
  built here and not read off the checkout the test runs in, which a gate that
  reached only this package may hold at any depth, shallow among them.
 
- @returns The repository's path with its root commit and its head, removed
+ @returns Repository's path with its root commit and its head, removed
  when its `await using` scope ends
 
  @example

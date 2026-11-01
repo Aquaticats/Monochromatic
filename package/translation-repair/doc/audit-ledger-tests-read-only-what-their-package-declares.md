@@ -417,6 +417,14 @@ Slips:
 - The first draft of the scan declared its absence as `undefined` in four places,
   which the repository's lint refuses;
   the final one marks absence with a value of the type.
+- The one run of the whole source-scan suite found two scans red on the files of this round:
+  `tsdoc-leading-articles` listed 24 `@returns` and `@param` descriptions that open with an article in four files,
+  and `dead-test-declarations` listed `SharedBuilder`,
+  a type exported and imported by no file.
+  Both come from the files written in the round,
+  which had been linted and tested alone and not run beside the other scans before the docs commit.
+  The commit after the docs removes the articles and the export;
+  the two scans and the three new ones pass when run alone.
 
 Open:
 

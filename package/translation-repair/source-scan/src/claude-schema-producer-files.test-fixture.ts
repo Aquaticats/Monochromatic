@@ -25,7 +25,7 @@ const PRODUCERS_CONSTANT = 'CLAUDE_SCHEMA_PRODUCERS';
 
  @param entry - object node, one element of the list
 
- @returns The text of its `file` property
+ @returns Text of its `file` property
 
  @throws {@link Error} when the entry has no `file` written as a string literal, since a producer the scan cannot place
  would leave its file out of the comparison
@@ -57,7 +57,7 @@ function fileOfEntry({ entry, }: { readonly entry: TreeNode; }): string {
 
  @param text - text of `claude-schema-producers.ts`
 
- @returns The file of each producer, in the order written
+ @returns File of each producer, in the order written
 
  @throws {@link Error} when the text declares no array under the list's name, or an entry names no file
 

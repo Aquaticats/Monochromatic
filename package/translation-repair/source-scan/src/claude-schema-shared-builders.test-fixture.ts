@@ -7,7 +7,7 @@
 /**
  One shared builder, the file that declares it and the files that call it.
  */
-export type SharedBuilder = {
+type SharedBuilder = {
   /**
    The function's name.
    */

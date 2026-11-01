@@ -319,7 +319,7 @@ function afterText({ reach, text, }: { readonly reach: Reach; readonly text: str
 
  @param level - level the chain starts at
 
- @returns The chain, not yet inherited from a constant
+ @returns Chain, not yet inherited from a constant
 
  @example
  ```ts
@@ -397,7 +397,7 @@ function isImportMeta({ node, member, }: { readonly node: unknown; readonly memb
 
  @param node - call or new expression
 
- @returns The identifier or the member's name, empty for any other callee
+ @returns Identifier or member name, empty for any other callee
 
  @example
  ```ts
@@ -437,9 +437,9 @@ function argumentsOf({ node, }: { readonly node: TreeNode; }): readonly unknown[
 
  @param depth - levels between the file's folder and the package folder: 1 for a file directly under `src`
 
- @param held - the constants of the file that hold a chain, by name
+ @param held - constants of the file that hold a chain, by name
 
- @returns The chain the name stands for, none for a name that is no anchor and holds no chain
+ @returns Chain the name stands for, none for a name that is no anchor and holds no chain
 
  @example
  ```ts
@@ -480,7 +480,7 @@ function nameReach(
 
  @param depth - levels between the file's folder and the package folder: 1 for a file directly under `src`
 
- @param held - the constants of the file that hold a chain, by name
+ @param held - constants of the file that hold a chain, by name
 
  @returns Where the chain ends, `NOT_A_CHAIN` for an expression that is none
 
@@ -758,7 +758,7 @@ function shownOf({ file, node, }: { readonly file: SourceText; readonly node: Tr
 
  @param node - argument read
 
- @returns The strings, empty text for an element that is not a literal
+ @returns Strings, empty text for an element that is not a literal
 
  @example
  ```ts
@@ -782,7 +782,7 @@ function patternsOf({ node, }: { readonly node: unknown; }): readonly string[] {
 
  @param node - argument read
 
- @returns The path text, with the mark that it is not written where a variable starts it
+ @returns Path text, with the mark that it is not written where a variable starts it
 
  @example
  ```ts
@@ -852,7 +852,7 @@ function writtenPath({ node, }: { readonly node: unknown; }): WrittenPath {
 
  @param held - constants of the file that hold a chain
 
- @returns The chain the folder is
+ @returns Chain the folder is
 
  @example
  ```ts
@@ -896,7 +896,7 @@ function globBase(
 
  @param held - constants of the file that hold a chain
 
- @returns The finding kinds the call earns
+ @returns Finding kinds the call earns
 
  @example
  ```ts
@@ -1075,7 +1075,7 @@ function mentionsGitIn({ node, }: { readonly node: unknown; }): boolean {
 
  @param node - call node
 
- @returns The option's value, none where the call has none
+ @returns Option's value, none where the call has none
 
  @example
  ```ts
@@ -1157,7 +1157,7 @@ function gitCallOf({ node, }: { readonly node: TreeNode; }): { readonly isGit: b
 
  @param node - node read
 
- @returns The specifier it loads, empty for any other node
+ @returns Specifier it loads, empty for any other node
 
  @example
  ```ts
@@ -1399,7 +1399,7 @@ const BOUNDARY_READS: readonly BoundaryRead[] = [
 
  @param files - files read
 
- @param listed - the reads of files that belong to no package
+ @param listed - reads of files that belong to no package
 
  @returns Every read not listed, then a line for each listed read the files hold more or fewer times than listed
 
@@ -1844,7 +1844,7 @@ const DOLLAR = String.fromCodePoint(0x24,);
 
  @param readCase - case read
 
- @returns The file as the scan reads it
+ @returns File as the scan reads it
 
  @example
  ```ts
@@ -1867,7 +1867,7 @@ function fileOf({ readCase, }: { readonly readCase: ReadCase; }): SourceText {
 
  @param readCase - case read
 
- @returns The kinds in node order
+ @returns Kinds in node order
 
  @example
  ```ts
@@ -1885,7 +1885,7 @@ function kindsFound({ readCase, }: { readonly readCase: ReadCase; }): readonly s
 
  @param label - label of the case
 
- @returns The case
+ @returns Case
 
  @throws {@link Error} when no offender case carries the label
 
@@ -1905,7 +1905,7 @@ function offenderLabelled({ label, }: { readonly label: string; }): ReadCase {
 
  @param cases - cases read
 
- @returns The kinds the scan finds for each label
+ @returns Kinds the scan finds for each label
 
  @example
  ```ts
@@ -1923,7 +1923,7 @@ function foundByLabel({ cases, }: { readonly cases: readonly ReadCase[]; }): Rea
 
  @param cases - cases read
 
- @returns The kinds each case states
+ @returns Kinds each case states
 
  @example
  ```ts

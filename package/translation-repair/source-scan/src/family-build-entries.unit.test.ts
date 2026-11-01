@@ -58,9 +58,9 @@ const LISTS_CONSTANT = 'FAMILY_ENTRY_LISTS';
  The package directories a source names as the owners of a list: the first element of each pair of the map it
  declares.
 
- @param file - the census file
+ @param file - census file
 
- @returns The keys, in the order written
+ @returns Keys, in the order written
 
  @throws {@link Error} when the file declares no `new Map([...])` under the constant's name, since a scan that
  found no keys would pass on any family
@@ -107,7 +107,7 @@ function ownersNamedBy({ file, }: { readonly file: SourceText; }): readonly stri
 
  @param files - every file of the family
 
- @returns The directories, sorted
+ @returns Directories, sorted
 
  @example
  ```ts
