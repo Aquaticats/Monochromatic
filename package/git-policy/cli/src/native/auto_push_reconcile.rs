@@ -229,6 +229,23 @@ pub fn named_destination_push(
 }
 
 /// What:
+///  The arguments of a push of one named branch to the remote branch it tracks, for a worktree that has another branch
+///  checked out.
+/// Why:
+///   The plain `git push` pushes the checked-out branch, so a push of a branch that is not checked out must name both sides.
+///  The destination is the one `read_destination` resolves, so the push goes where the plain push of that branch would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function destinationPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// ```
+pub fn destination_push(git: &PushGit, branch_ref: &str) -> Result<Option<Vec<String>>, SingleFlightError> {
+    return Ok(read_destination(git, branch_ref)?.map(|destination| {
+        return vec![String::from("push"), destination.remote, format!("{branch_ref}:{}", destination.merge_ref)];
+    }));
+}
+
+/// What:
 ///  Fetch the remote branch into a private ref and return the commit it names.
 /// Why:
 ///   `FETCH_HEAD` is shared by every fetch in the repository, so another process could replace it between the fetch

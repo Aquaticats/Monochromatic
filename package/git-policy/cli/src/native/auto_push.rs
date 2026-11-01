@@ -15,7 +15,7 @@
 
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{
-    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, named_destination_push, reconcile_divergent_push,
+    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, destination_push, named_destination_push, reconcile_divergent_push,
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
@@ -347,6 +347,45 @@ fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlight
 }
 
 /// What:
+///  Decide how to push a branch the worktree does not have checked out: no upstream and no origin skips, otherwise the push
+///  names the branch on both sides.
+/// Why:
+///   The service pushes after the command returned, so the person may have switched branches or detached the head by then;
+///  the record names the branch that received the commit, and the plain `git push` would publish the checked-out one instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = await planNamedPush({ gitPath, cwd }, branchRef);
+/// ```
+fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Result<Planned, SingleFlightError> {
+    let skipped = |shown: String| -> Planned {
+        return Planned::Skip(AutoPushResult { outcome: AutoPushOutcome::Skipped, exit_code: 0, shown, joined: false });
+    };
+    let upstream_name: String = format!("{branch_ref}@{{upstream}}");
+    let has_upstream = query_succeeds(git, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", upstream_name.as_str()])?;
+    if !has_upstream && !query_succeeds(git, &["remote", "get-url", "origin"])? {
+        debug(TAG, "no upstream and no origin remote; skipping auto-push");
+        return Ok(skipped(String::new()));
+    }
+    let arguments: Vec<String> = if has_upstream {
+        match destination_push(git, branch_ref)? {
+            Some(named) => named,
+            None => {
+                let note: String = format!(
+                    "cli-git: the push destination of {branch_ref} cannot be named while another branch is checked out; skipping auto-push. Run `git push` on that branch."
+                );
+                // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+                let _written = writeln!(err, "{note}");
+                return Ok(skipped(note));
+            }
+        }
+    } else {
+        vec![String::from("push"), String::from("--set-upstream"), String::from("origin"), format!("{branch_ref}:{branch_ref}")]
+    };
+    return Ok(Planned::Push { branch_ref: branch_ref.to_owned(), has_upstream, arguments });
+}
+
+/// What:
 ///  Push a landed commit's branch once, with no coordination with other processes.
 /// Why:
 ///   The service's push consumer is the only pusher of the repositories it serves and coalesces pending pushes of one
@@ -357,8 +396,9 @@ fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlight
 /// const result = await pushOnce({ gitPath, cwd }, landedOid);
 /// ```
 pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
-    let _named = branch_ref;
-    let (branch_ref, has_upstream, arguments): (String, bool, Vec<String>) = match plan_push(git, err)? {
+    // The record names the branch, and the worktree may have left it since: only a worktree still on it has the plain push.
+    let planned: Planned = if read_symbolic_head(git)?.as_deref() == Some(branch_ref) { plan_push(git, err)? } else { plan_named_push(git, branch_ref, err)? };
+    let (branch_ref, has_upstream, arguments): (String, bool, Vec<String>) = match planned {
         Planned::Skip(result) => return Ok(result),
         Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
     };
