@@ -41,7 +41,7 @@ What happens depends on the state of `$pid` when the manager handles the call.
   with `cgroup.events` reading `populated 0` and an empty `cgroup.procs`.
   The debug journal says `1 process added to scope's control group.`
   The scope never ends,
-  not when the zombie is later reaped and not after minutes.
+  not when the zombie is reaped and not after minutes.
 - process already reaped before the call:
   the bus call fails and no unit is created (`LoadState=not-found`).
   Two error texts occur:
@@ -49,10 +49,8 @@ What happens depends on the state of `$pid` when the manager handles the call.
   and `Call failed: Process with ID 211 does not exist.`
 - process reaped after the manager accepted the property and before the start job runs:
   the scope is `ActiveState=failed SubState=failed Result=resources`,
-  the journal says `PID 386 vanished before we could move it to target cgroup '/system.slice/c3b-gated.scope',
-  skipping:
-  No such process` and then `No PIDs left to attach to the scope's control group,
-  refusing.`,
+  the journal says `No PIDs left to attach to the scope's control group, refusing.`
+  after an info line that names the vanished pid (the full lines are in "Verification"),
   and the failed unit stays listed until something resets or collects it.
 
 Host evidence from the `wg-quicker-exempt` watcher (read-only,
@@ -96,7 +94,7 @@ Kernel citations are at `gregkh/linux` tag `v7.2.11`,
 commit `a2de78ee6ed8bf8cd99d177c74865a6e8c3cb6ea`
 (tag object `8316c24ec1b77dba19ba072ca4fe251b36dc65d3`).
 Every local copy was compared byte for byte with the blob at that commit,
-and every line-range link below was loaded in `agent-browser`
+and every line-range link in this section was loaded in `agent-browser`
 and checked to highlight exactly the quoted lines (method in "Verification").
 Kernel excerpts show tabs as eight spaces.
 
@@ -184,7 +182,7 @@ The start job runs `scope_enter_running`
 ```
 
 A positive count means the scope is running,
-and the last statement stops watching the pids because an empty-cgroup notification is expected to end the scope later.
+and the last statement stops watching the pids because an empty-cgroup notification is expected to end the scope once the cgroup empties.
 The count comes from `unit_attach_pids_to_cgroup`.
 It verifies the pidfd,
 writes the pid to `cgroup.procs`,
@@ -502,9 +500,9 @@ the cgroup never becomes populated so the kernel never notifies,
 and the one function that reads `populated` on demand runs only after a reload or re-execution.
 This is also why `systemctl daemon-reload` clears existing stuck scopes (see "Verified workarounds").
 
-### The same code is in every maintained line checked
+### The same code is in the maintained lines compared
 
-A function-body comparison through the GitHub contents API (`fn-diff` run on 2026-11-01)
+A function-body comparison through the GitHub contents API (a scratch script run on 2026-11-01)
 found `scope_enter_running`,
 `scope_notify_cgroup_empty_event`,
 `unit_cgroup_catchup` and `pidref_verify`
@@ -516,6 +514,9 @@ and `unit_attach_pids_to_cgroup` and `unit_check_cgroup_events` identical in `v2
 `v260.6`,
 `v261.4` and `v262.1`
 (`v258.12` differs in those two by a few lines that were not analyzed).
+The comparison covered those six functions;
+`cg_attach`,
+the pidfd helpers and `unit_pid_attachable` were not compared across lines.
 The default branch (`main`,
 commit `fad40b4fb1a18925e886c8b1a93e2681591b16a8`,
 read 2026-11-01)
@@ -547,7 +548,7 @@ are the ones the prototype patches.
   Permalinks use the commits.
 - Open questions from the brief,
   answered:
-  `cgroup_procs_write` does return success for an exiting task (the chain above),
+  `cgroup_procs_write` does return success for an exiting task (the chain in "The kernel reports success"),
   and `pidref_verify` accepts a zombie (reproduced:
   the debug journal says `1 process added`).
 
@@ -566,17 +567,21 @@ are the ones the prototype patches.
   image `docker.io/cachyos/cachyos-v4:latest` (the repo's default base image) with systemd `262 (262.1-1-arch)` as
   PID 1,
   so the system manager runs as root inside the container's cgroup namespace.
-  The container ran with `--memory=2g --cpus=2 --pids-limit=1024 --network=none --systemd=always
-  --security-opt label=disable`.
+  The container ran with `--memory=2g`,
+  `--cpus=2`,
+  `--pids-limit=1024`,
+  `--network=none`,
+  `--systemd=always`
+  and `--security-opt label=disable`.
   The kernel is the host's 7.2.11,
   so the kernel citations apply to the observed runs.
 - the 259.10 line itself was not reproduced in a throwaway.
   The Fedora 44 base image has no `systemd` package,
   and `dnf install` stalled on a mirror reset (`Curl error (56)` on `updates-released-f44`) and was stopped.
   The 259.10 coverage is the host census,
-  plus the function-body comparison that shows its code equals `v262.1`'s for the functions on the path.
+  plus the function-body comparison that shows its code equals `v262.1`'s for the six functions compared.
 - why not the VM the brief asked for:
-  the `mvm` MCP server failed on every call
+  the `mvm` MCP server failed on the one call tried (`list_vms`)
   (`Cannot find module '.../package/mcp/mvm/dist/final/node/libvirt-C2IRPclg.mjs'`;
   the directory holds `libvirt-B8wDpRpJ.mjs`,
   so the running server predates a rebuild).
@@ -622,9 +627,18 @@ Each case is one `podman exec scope-stock bash -c '<commands>'` and uses a shell
 shown in "Symptom".
 Background processes are started with their output redirected to `/dev/null`,
 because `podman exec` otherwise waits for them.
-The cases (the `adopt` helper is `busctl call ... StartTransientUnit` with `PIDs au 1 <pid>` and `Description`):
+The `adopt` helper and the cases:
 
 ```sh
+# helper: adopt NAME PID [EXTRA_COUNT EXTRA_ARGS...] calls StartTransientUnit with PIDs and a Description
+adopt() {
+  local unit="$1" pid="$2"; shift 2
+  local extra_count=0
+  if [ $# -gt 0 ]; then extra_count="$1"; shift; fi
+  busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager \
+    StartTransientUnit 'ssa(sv)a(sa(sv))' "$unit" fail "$((2 + extra_count))" PIDs au 1 "$pid" Description s repro "$@" 0
+}
+
 # control: a live process, then its death
 sleep 30 >/dev/null 2>&1 & P=$!
 adopt c1-control.scope $P
@@ -709,43 +723,39 @@ c3c-gated-collect.scope: Collecting.
 
 Natural race tally,
 bounded:
-64 adoptions per run (8 repetitions of process lifetimes 1,
+64 adoptions per run,
+sequential,
+each of a `sleep` whose lifetime is one of 1,
 2,
 3,
 5,
 8,
 12,
-20 and 40 ms,
-one `sleep` each,
-sequential),
+20 or 40 ms (8 repetitions each),
 counted per run as refused at call time,
 stuck running with `populated 0`,
 and failed with `No PIDs left`.
 The remainder of the accepted calls completed normally and were collected.
 
-- stock `262.1-1-arch`,
-  four runs
-  (the first in a hand-configured container from the same image and drop-in,
-  the other three in the baked image):
-  stuck running 6,
-  5,
-  9 and 8 (28 of 256 adoptions);
-  failed 16,
-  11,
-  13 and 6;
-  refused 20,
-  21,
-  24 and 22.
-- built from tag `v262.1` unpatched,
-  one run:
-  stuck running 2,
-  failed 10,
-  refused 14.
+```text
+binary                          run  refused  stuck running  failed (No PIDs left)
+stock 262.1-1-arch (container 1)  1       20              6                     16
+stock 262.1-1-arch                2       21              5                     11
+stock 262.1-1-arch                3       24              9                     13
+stock 262.1-1-arch                4       22              8                      6
+v262.1 tag, unpatched build       1       14              2                     10
+v262.1 tag, patched build         1       18              0                     12
+v262.1 tag, patched build         2       23              0                     18
+v262.1 tag, patched build         3       26              0                     12
+```
 
+Container 1 was a hand-configured container from the same image and drop-in;
+the other stock runs used the baked image.
+The stock binary left 28 of 256 adoptions stuck and the patched build 0 of 192.
 The tally shows the shape of the host's census (stuck and failed in the same order of magnitude),
 not its rate:
 the watcher's timing differs,
-and the run-to-run spread is wide (stuck 5 to 9 on the same binary).
+and the run-to-run spread is wide (stuck 5 to 9 on the stock binary).
 
 ### Catalogs
 
@@ -785,12 +795,13 @@ by variant:
 not in the repo) opened each commit-pinned line-range link in `agent-browser`
 (dedicated session) and checked that the highlighted rows' `data-line-number` values were exactly the cited range
 and that each row's text equalled the same line of the local file the excerpt was copied from.
-All 36 line-range links passed on 2026-11-01
+All 35 line-range links in the scripts passed in one full run on 2026-11-01
 (systemd `cc6062f2` and `73612ea5`,
 kernel `a2de78ee`,
 `docs/CONTRIBUTING.md` and the bug form at `fad40b4f`).
 Issue and pull-request links were loaded the same way and checked for the quoted text on the page
-(and inside the anchored comment for the two comment permalinks).
+(and inside the anchored comment for the three comment permalinks).
+All seven of those page checks passed in the same run.
 The text-fragment links could not be confirmed to scroll to the quote in the headless browser
 (GitHub renders those pages client-side and the fragment did not scroll),
 so for them only the presence of the exact quoted text on the loaded page is confirmed.
@@ -808,16 +819,11 @@ so constraint 6 was prototyped.
   `73612ea502d53baf9b0df4336cfc296a7ee0d524`,
   the commit the `v262.1` tag dereferences to.
 - build image:
-  the repo's default CachyOS image plus `pacman -Sy --noconfirm --needed meson ninja gperf python-jinja
-  python-pyelftools`.
+  the repo's default CachyOS image plus the build tools (recipe in the fenced block after this list).
 - build,
-  a stated real job in a capped container with no network:
-  `podman run --rm --memory=8g --cpus=4 --network=none --security-opt label=disable --volume <clone>:/src:rw
-  localhost/systemd-scope-probe:build meson setup build -Dprefix=/usr -Dmode=release -Dman=disabled -Dhtml=disabled
-  -Dtranslations=false -Dtests=false -Dfuzz-tests=false -Defi=false -Dbootloader=disabled -Dukify=disabled
-  -Dkernel-install=false`
-  then `meson compile -C build -j 4 ./systemd:executable`
-  (the bare target name `systemd` is ambiguous between an executable and a library).
+  a stated real job in a capped container with no network (commands in the fenced block after this list).
+  The bare target name `systemd` is ambiguous between an executable and a library,
+  so the target is `./systemd:executable`.
   The unpatched build ran 644 ninja steps;
   the patched rebuild recompiled only `scope.c` and relinked `libsystemd-core-262.so`.
 - run:
@@ -828,6 +834,28 @@ so constraint 6 was prototyped.
   `readlink /proc/1/exe` printed `/probe-build/systemd` and `/proc/1/maps` listed the built `libsystemd-core-262.so`.
 - the unpatched build is the control for the build and mount method:
   it reproduces the stuck scope exactly like the packaged binary.
+
+```dockerfile
+# Containerfile.build, built with: podman build --memory=2g --cpu-quota=200000 --tag localhost/systemd-scope-probe:build --file Containerfile.build .
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos-v4:latest
+FROM ${CACHYOS_IMAGE}
+RUN pacman -Sy --noconfirm --needed meson ninja gperf python-jinja python-pyelftools
+```
+
+```sh
+# host: configure and compile the unpatched v262.1 manager, capped at 8 GiB and 4 CPUs, no network
+podman run --rm --memory=8g --cpus=4 --network=none --security-opt label=disable \
+  --volume <clone>:/src:rw --workdir /src localhost/systemd-scope-probe:build \
+  meson setup build -Dprefix=/usr -Dmode=release -Dman=disabled -Dhtml=disabled -Dtranslations=false \
+  -Dtests=false -Dfuzz-tests=false -Defi=false -Dbootloader=disabled -Dukify=disabled -Dkernel-install=false
+podman run --rm --memory=8g --cpus=4 --network=none --security-opt label=disable \
+  --volume <clone>:/src:rw --workdir /src localhost/systemd-scope-probe:build \
+  meson compile -C build -j 4 ./systemd:executable
+# host: run the built manager as PID 1 of a probe container
+podman run --detach --name scope-patched --memory=2g --cpus=2 --pids-limit=1024 --network=none --systemd=always \
+  --security-opt label=disable --volume <clone>/build:/probe-build:ro \
+  localhost/systemd-scope-probe:run /probe-build/systemd
+```
 
 ### The patch
 
@@ -891,16 +919,9 @@ c2-zombie.scope: Collecting.
   patched build:
   a live process still gives `populated 1` and the scope ends when the process ends.
 - natural tally,
-  patched build,
-  three runs:
-  stuck running 0,
-  0 and 0 (0 of 192 adoptions);
-  failed 12,
-  18 and 12;
-  refused 18,
-  23 and 26.
-  The stock binary left 28 of 256 stuck.
-  The `No PIDs left` failures are unchanged in kind,
+  patched build:
+  stuck running 0 in all three runs (the table in "Results on systemd 262.1-1-arch"),
+  and the `No PIDs left` failures are unchanged in kind,
   as expected:
   that is the reaped-before-start path,
   which this patch does not touch and which fails the scope correctly.
@@ -919,7 +940,8 @@ one distribution build and one kernel were used.
 
 ## Verified workarounds
 
-All five were run in the stock `262.1-1-arch` container (system manager) on 2026-11-01.
+The first four were run in the stock `262.1-1-arch` container (system manager) on 2026-11-01;
+the fifth is caller-side handling of the errors the "gone" case printed.
 None was run against the host's real user manager.
 
 - `systemctl daemon-reload` ends every stuck scope.
@@ -934,9 +956,10 @@ None was run against the host's real user manager.
   it is a cleanup,
   not prevention,
   and stuck scopes come back at the adoption rate;
-  a reload re-reads unit files and briefly interrupts the manager's bus
+  a reload re-reads every unit file of that manager
   (for the user manager,
-  use `systemctl --user daemon-reload`);
+  use `systemctl --user daemon-reload`),
+  and its cost on the host's manager with thousands of stuck scopes was not measured;
   it does not clear failed `No PIDs left` units (those stay `failed`).
   A first probe that ran `daemon-reload` before the `stop` and `RuntimeMaxUSec` probes collected all three test scopes at
   once and invalidated the other two;
@@ -990,8 +1013,7 @@ None was run against the host's real user manager.
 Default policy is do not file.
 The six-constraint walk:
 
-1.
-    Is it really upstream's fault?
+1.  Is it really upstream's fault?
     Partly,
     which is a soft yes.
     The kernel behavior is intentional and documented by its own comment (see "The kernel reports success").
@@ -1005,12 +1027,10 @@ The six-constraint walk:
     on a different bug:
     a stop request during `SCOPE_START_CHOWN`).
     That statement does not cover a scope left running forever after the job completed.
-2.
-    Can upstream fix it?
+2.  Can upstream fix it?
     Yes.
     The prototype is one call and the code path is not architecturally constrained.
-3.
-    Are they supporting this use case?
+3.  Are they supporting this use case?
     Soft yes.
     The implemented `PIDs` setting is used by systemd's own components:
     a pull request in this area describes libvirt,
@@ -1027,8 +1047,7 @@ The six-constraint walk:
     `docs/TRANSIENT-SETTINGS.md` ("Scope Unit Settings") at `v259.10`,
     so a maintainer could call it internal API
     (`rg` for the word `PIDs` in both files found only an unrelated sentence).
-4.
-    Would the repo welcome the contribution?
+4.  Would the repo welcome the contribution?
     Not as an agent-written filing,
     so this constraint fails for the draft in "Draft".
     `docs/CONTRIBUTING.md` at `fad40b4fb1a18925e886c8b1a93e2681591b16a8` allows AI help but says
@@ -1071,8 +1090,7 @@ The six-constraint walk:
     `v259.10` and `v258.12` on 2026-10-17).
     The host's 259.10 is outside that window,
     so a filing would cite 262.1.
-5.
-    Will they likely fix it?
+5.  Will they likely fix it?
     Soft yes.
     The maintainers added the `No PIDs left` refusal for the sibling symptom
     ([pull request 21163](https://github.com/systemd/systemd/pull/21163),
@@ -1085,8 +1103,7 @@ The six-constraint walk:
     ([pull request 21298](https://github.com/systemd/systemd/pull/21298#:~:text=all%20processes%20to%20attach%20are%20gone%20in%20the%20meantime)).
     No documented won't-fix or stated non-goal was found,
     and no maintainer declined this specific request.
-6.
-    Has a minimal fix been prototyped?
+6.  Has a minimal fix been prototyped?
     Yes (section "Prototype fix"):
     one call,
     verified against the zombie reproduction before and after
@@ -1270,26 +1287,23 @@ The filer must check the live repository again on the day of posting.
 Run on 2026-11-01 against the commits named in each item.
 An item that did not run says so.
 
-1.
-    Latest release and other maintained lines:
+1.  Latest release and other maintained lines:
     reproduced on `262.1-1-arch` (release `v262.1`,
     published 2026-10-16) and on a build of the `v262.1` tag;
     `v259.10` only through the host census (no throwaway run);
     `v261.4`,
     `v260.6` and `v258.12` were not run.
     For `v261.4`,
-    `v260.6` and `v259.10` the four functions on the path are text-identical to `v262.1`'s
+    `v260.6` and `v259.10` the six functions compared are text-identical to `v262.1`'s
     (the function-body comparison in "Root cause"),
     which is code evidence,
     not a reproduction.
-2.
-    Prior art in the touched code:
+2.  Prior art in the touched code:
     done (see "Duplicate and prior-art searches").
     The stated reason for the current refusal is that a scope must not be activated when its PIDs are gone
     (pull request 21163);
     this report extends that principle to a process that is gone but still has a pid.
-3.
-    Intake:
+3.  Intake:
     read the bug form,
     the template configuration,
     `docs/CONTRIBUTING.md` and its AI policy (constraint 4).
@@ -1298,33 +1312,28 @@ An item that did not run says so.
     There is no "I am working on a fix" checkbox in the bug form.
     No pull request template exists (`.github/pull_request_template.md` returned 404 and the tree search found none);
     the policy requires a human to open any pull request.
-4.
-    Automation on a new filing:
+4.  Automation on a new filing:
     `issue-labeler.yml` labels by component;
     no trust,
     auto-close or lock workflow was found (search recorded in "Risk to the poster").
-5.
-    Day-of re-runs:
+5.  Day-of re-runs:
     the duplicate search,
     the work-in-progress check and the trust search were run on 2026-11-01
     and must be run again on the day of any posting.
     The cited code exists on the default branch (`fad40b4f`,
     2026-11-01).
-6.
-    The draft's reproduction was run as written:
+6.  The draft's reproduction was run as written:
     the block was extracted from this file by a script (which also checks that the fact sheet in "Draft" contains the
     identical block) and run unmodified in a fresh container;
     the output is recorded in "Draft".
-7.
-    Runnable by others (a minimal repository with a CI workflow):
+7.  Runnable by others (a minimal repository with a CI workflow):
     not run.
     Blocker:
     the target's policy forbids an agent posting,
     and the repository would carry the poster's account name and
     need GitHub Actions under the owner's account;
-    it is the next step only if the owner decides to report.
-8.
-    Verdict:
+    it is the follow-on step only if the owner decides to report.
+8.  Verdict:
     not ready to file as written,
     and no recommendation to file.
     The blocking item is constraint 4 (the policy requires the poster to write the report),
@@ -1371,7 +1380,7 @@ Title: A transient scope started with PIDs naming an exiting process stays activ
 
 Labels: set by the bug form
 
-systemd version: 262.1 (the host runs 259.10-1.fc44; the functions on the path are identical in 259.10, 260.6,
+systemd version: 262.1 (the host runs 259.10-1.fc44; the six functions compared are identical in 259.10, 260.6,
 261.4 and 262.1)
 Distribution and kernel: CachyOS container with systemd 262.1-1 as PID 1 on kernel 7.2.11-ogc4.1.fc44.x86_64
 Architecture: x86_64
