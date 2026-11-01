@@ -2226,6 +2226,23 @@ Wave-4 sixty-first checkpoint (2026-11-01, file-manager family and cc-plugin clo
 - All lanes use the absolute scratch findings path, the 100-file cap, and the
   translation-repair exclusion.
 
+Wave-4 sixty-second checkpoint (2026-11-01, doc/decision complete):
+
+- State: `w4-docs-decision.jsonl` finishes the lane at 106 active rows, max id
+  109, and 106 of 106 clean. The lane read all 211 `doc/decision` files; the last
+  turn covered positions 184 to 211, 23 in full and five at section level, and
+  filed rows 103 to 109: the deleted yuku catalogue commit, the teardown record's
+  old `package/module/translation-repair` path, two retired AGENTS.md codes, three
+  split spans, the 508-versus-502 call census, the three-model correction that
+  closes on two, and the 193-versus-192 deletion tally.
+- Spots: the yuku catalogue really pins the shipped bundle by sha256; XNS, XN2
+  and FIT no longer exist in AGENTS.md; the verifier is 106 of 106.
+- The freed slot opens `package/intellij-plugin/islands-black` (13 files,
+  `w5-intellij-islands-black`, id 001, base rr-iib-001).
+- Live lanes: troubleshooting 125 rr-ts-385, planning 034 rr-dp-004,
+  search-fetch/mcp 001 rr-sfm-001, hall-monitor 001 rr-hm-001,
+  electron-infra 001 rr-ei-001, and islands-black 001 rr-iib-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
