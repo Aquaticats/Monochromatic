@@ -325,8 +325,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let allow_empty: bool = region.allow_empty;
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
-    let editor_possible: bool = opens_editor(after);
-    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+    let editor_possible: bool = opens_editor(after);    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     for attempt in 0..REBUILD_ATTEMPTS {
         let source: Option<&AmendSource> = embedded.as_ref().and_then(|found| { return found.source.as_ref(); });

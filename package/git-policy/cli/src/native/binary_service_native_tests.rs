@@ -335,7 +335,7 @@ fn a_signed_amend_is_not_built_again_when_the_branch_moves() {
     let mut service: Running = start(&fixture, name.as_str());
     edit_a(&repo);
     let before: usize = finished(&fixture);
-    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--amend", "--no-edit", "--", "a.txt"]);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--amend", "--no-edit", "--cleanup=scissors", "--", "a.txt"]);
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("moved while this commit was being prepared"), "{stderr}");
@@ -411,7 +411,7 @@ fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_type
         .expect("git directory")
         .flatten()
         .map(|entry| { return entry.path(); })
-        .find(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
+        .find(|path| { return path.file_name().is_some_and(|file| { return file.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
         .expect("the typed message was saved");
     assert!(stderr.contains(&format!("git commit -F {}", saved.display())), "{stderr}");
     assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed:"), "the typed text is what was saved");
