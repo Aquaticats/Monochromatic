@@ -1559,6 +1559,21 @@ each finished branch is reviewed and merged into `main`):
   Merged into `main` as `f0589a5f42`
   (conflicts with main's test-constant commits in two Rust test files resolved;
   package tests run after the commit).
+  Tests on the merge:
+  `wg/cli-quicker-exempt` 4 of 251 failed (`update_entry_points_tests`:
+  "toolchain:sync is on the wg list but no mise task has that name",
+  plus the fetching-task,
+  toolchain-script and mpm-shadow-verb checks),
+  `wg/cli-quicker` failed `update-hosts.unit.test.ts`
+  (`ENOENT ... package/file-enforcer/core/src/toolchain`).
+  Both predate the merge,
+  which left those files unchanged:
+  the cutover renamed tasks and verbs and deleted that directory.
+  Policy effect:
+  the live watcher matches update processes by those names,
+  so renamed tasks such as `toolchain:install` are probably not treated as update traffic since the cutover.
+  An agent is updating both lists;
+  the restart waits for it so one restart carries everything.
   Queued after the restart (inert here:
   `ip_forward` 0,
   no guests,
