@@ -73,6 +73,12 @@ fn edit_a(repo: &Path) {
     write(repo, "a.txt", "base\nedited\n");
 }
 
+fn edit_a_and_stage(repo: &Path) {
+    edit_a(repo);
+    let output = std::process::Command::new("/usr/bin/git").current_dir(repo).args(["add", "a.txt"]).output().expect("add");
+    assert!(output.status.success());
+}
+
 fn edit_a_and_sign_by_configuration(repo: &Path) {
     edit_a(repo);
     let output = std::process::Command::new("/usr/bin/git").current_dir(repo).args(["config", "commit.gpgsign", "true"]).output().expect("config");
@@ -106,11 +112,7 @@ fn commits_git_builds_for_the_service_equal_the_transaction_commit() {
     let cases: Vec<Case> = vec![
         case("editor, named path", &["commit", "--", "a.txt"], edit_a),
         case("editor, seeded message", &["commit", "-e", "-m", "seed", "--", "a.txt"], edit_a),
-        case("editor, index", &["commit", "--no-enforce-only"], |repo| {
-            edit_a(repo);
-            let output = std::process::Command::new("/usr/bin/git").current_dir(repo).args(["add", "a.txt"]).output().expect("add");
-            assert!(output.status.success());
-        }),
+        case("editor, index", &["commit", "--no-enforce-only"], edit_a_and_stage),
         case("editor, squash", &["commit", "--squash=HEAD", "--", "a.txt"], edit_a),
         Case { date_kept: true, ..case("editor, amend", &["commit", "--amend", "--", "a.txt"], edit_a) },
         case("signed by an option", &["commit", "-S", "-m", "signed", "--", "a.txt"], edit_a),
@@ -175,6 +177,7 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
         let before: usize = finished(&fixture);
         let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--", "a.txt"]);
         assert_eq!(output.status.code(), Some(1), "{label}: {}", String::from_utf8_lossy(&output.stderr));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("commit service"), "{label}: the service was never asked: {}", String::from_utf8_lossy(&output.stderr));
         assert_eq!(finished(&fixture), before, "{label}: nothing landed");
         assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD"]), start_commit, "{label}: the branch did not move");
         let scratch: Vec<String> = std::fs::read_dir(repo.join(".git"))

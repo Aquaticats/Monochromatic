@@ -614,7 +614,38 @@ starts a new group) and only while the branch tip equals the base the client rea
 "branch moved" (`FailureCode::BranchMoved`), which the client prints as a plain failure; an amend is never rebuilt on another
 tip, because it would replace a commit the person did not see. The protocol version is 3 so an older service retires first.
 
-Still declined after 4b-2, each with its reason: `-e`/`--edit`, `-c`,
+### Commits Git builds (step 4c)
+
+Every command line the service cannot build from the command line itself is built by real `git commit` in a thin scratch
+repository (`service_native.rs`), and the service lands the result unchanged. That covers the editor (`-e`, no message
+option, `-c`, `-t`, `--squash`, `--fixup=amend:` and `reword:`), signing (`-S`, `--gpg-sign`, `commit.gpgSign`), and, as the
+general fallback while the embedded route is the optimization, the lines whose meaning is Git's own text work: `-F -`,
+`--author` without an email, `--cleanup=scissors`, and a repository configuration that sets `commit.template`,
+`commit.cleanup`, an encoding, a comment character, `commit.signoff`, `commit.verbose` or `trailer.*`. Real Git is started
+only after the embedded route declined, so the common lines still start none to build the commit.
+
+The scratch repository is made inside the commit's own scratch directory (`<git dir>/cli-git-service-<id>/shadow`), away
+from the registry directory recovery scans, so no other process can mistake it for a dead transaction's shadow. It reuses
+`shadow_create.rs` (the config that includes the real one with every hook off, `HEAD` and the branch at the base, a
+snapshot of the other refs so `-C v1.0` and `--fixup=<ref>` resolve, the links that let `git-lfs` find its directory) and
+`run_native_commit` (the signal guard, the person's terminal for the editor). The one difference is that Git writes its new
+objects straight into the real object store (`GIT_OBJECT_DIRECTORY`), because a branch cannot point at an object that is
+only in the scratch store. The commit is an unreferenced loose object until the service moves the branch to it, like the
+blobs the client already writes.
+
+The request names the commit (`commit`, protocol version 4), with `amend` when it replaces the tip. The service checks that
+the name is a commit whose parents are the base (or, for an amend, the base's parents), lands it alone and only while the
+branch tip equals the base, and otherwise answers "branch moved". There is no second attempt for these commits: an editor
+text or a signature is not rebuilt on another tip, which matches the earlier transaction (it never replayed an amend, and
+a signed commit needed the person's signing again). A person who signs every commit and commits to a branch other people
+commit to at the same moment will see that failure more often than someone who does not sign; automatic rebuilding of a
+commit with no editor is the follow-up that would remove it.
+
+A policy that rewrote a file still declines to the transaction, as do an unborn or detached head, a merge, cherry-pick or
+revert conclusion, an unmerged index, `--dry-run`, `-i`, `-p`, `--include` and `--pathspec-from-file`; their landing is
+what step 4d replaces, their preparation stays.
+
+Still declined after 4b-2 and before 4c, each with its reason (now built by Git as above): `-e`/`--edit`, `-c`,
 `-t`, no message option (an editor opens), `--fixup=amend:` and `--fixup=reword:` (editor), `--squash` (editor), `-S`,
 `--gpg-sign` and `commit.gpgSign` (signer), `--reset-author` with another source of authorship, `--author` without an email (history search), `-F -`
 (standard input), `-i`, `-p`, `-u`, `-v`, `--dry-run`, `--pathspec-from-file`, a message from two sources, an unborn or
