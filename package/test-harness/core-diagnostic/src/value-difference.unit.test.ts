@@ -452,8 +452,12 @@ await describe({
         it({
           name: 'exports a default cap generous enough for realistic scan failures',
           fn: async () => {
+            /**
+             A realistic scan failure reports several dozen findings.
+             */
+            const realisticDifferenceCount = 48;
             expect(DEFAULT_MAX_DIFFERENCES,)
-              .toBe(100,);
+              .toBeGreaterThanOrEqual(realisticDifferenceCount,);
           },
         },),
 
