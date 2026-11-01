@@ -45,6 +45,27 @@ pub fn switch_off() -> [(OsString, OsString); 1] {
     return [(OsString::from(SWITCH_VARIABLE), OsString::from("off"))];
 }
 
+/// What:
+///  Run a reader and turn a panic inside it into "start Git".
+/// Why:
+///   The readers parse bytes of any repository; a defect that panics must cost one Git start, not the wrapper's command.
+///  The release profile keeps `panic = "unwind"` for this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return read(); } catch (error) { log(error); return undefined; }
+/// ```
+pub fn guarded<T>(read: impl FnOnce() -> Option<T>) -> Option<T> {
+    return match std::panic::catch_unwind(std::panic::AssertUnwindSafe(read)) {
+        Ok(found) => found,
+        Err(payload) => {
+            let message: &str = payload.downcast_ref::<&str>().copied().or_else(|| { return payload.downcast_ref::<String>().map(String::as_str); }).unwrap_or("a panic without text");
+            super::diagnostic_log::warn("repo-read-guard", format!("an in-process read panicked and Git answers instead: {message}").as_str());
+            None
+        }
+    };
+}
+
 /// The answer for a command line, if the readers have one and the switch allows it.
 #[cfg(unix)]
 fn attempt(
@@ -60,7 +81,7 @@ fn attempt(
     let mut effective: Vec<(OsString, OsString)> = base.clone();
     effective.extend(variables.iter().cloned());
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
-    return answer_with(&Query { arguments, directory, variables, input }, base, &scope);
+    return guarded(|| { return answer_with(&Query { arguments, directory, variables, input }, base, &scope); });
 }
 
 /// What:
