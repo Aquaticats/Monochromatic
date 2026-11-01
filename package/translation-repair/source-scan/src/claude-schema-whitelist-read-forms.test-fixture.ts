@@ -2,11 +2,11 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Calls and builders the search reads
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) as the control
-// of the cases of the check. Each imaginary file holds one position the search reads, by itself, so the file is listed
-// because of that position and no other; the check reports nothing for any of them. A change of the check that starts
-// to report one of these positions fails here, and so does a change of the search that stops listing one, which keeps
-// the check from whitelisting a position the search does not read.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) as
+// the control of the cases of the check. Each imaginary file holds one position the search reads, by itself, so the
+// file is listed because of that position and no other; the check reports nothing for any of them. A change of the
+// check that starts to report one of these positions fails here, and so does a change of the search that stops listing
+// one, which keeps the check from whitelisting a position the search does not read.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

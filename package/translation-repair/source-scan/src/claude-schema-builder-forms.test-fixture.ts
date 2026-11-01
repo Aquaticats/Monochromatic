@@ -5,9 +5,9 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Forms in which a builder of an answer schema is written
-// What `claude-schemas.unit.test.ts` feeds the builder search to show that it finds a builder whatever way the file
-// writes it. Each case is a builder and the file that calls it, as imaginary files, and the files and builders the
-// search must list. The wrappers of a builder are in `claude-schema-wrapper-forms.test-fixture.ts` and
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show that it finds a builder whatever way
+// the file writes it. Each case is a builder and the file that calls it, as imaginary files, and the files and builders
+// the search must list. The wrappers of a builder are in `claude-schema-wrapper-forms.test-fixture.ts` and
 // `claude-schema-wrapped-builder-forms.test-fixture.ts`.
 
 /**

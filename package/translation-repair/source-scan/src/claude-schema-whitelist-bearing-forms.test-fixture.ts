@@ -6,14 +6,15 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Which modules carry a builder, and loads in a file that names none
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the set
-// of modules that carry a builder: a module that declares one, exports one by name, exports everything of a module that
-// carries one, exports such a module as a namespace, exports an object that holds one, or exports a namespace of a
-// module that became a carrier a pass earlier. A path literal that names such a module outside a load is reported; one
-// that names a module that carries none is not; a module that exports everything of one whose builder is its default
-// carries none, since a star leaves the default out, and one that exports an object that holds a builder carries it.
-// The second case holds a function inside a function that holds a format, which is reported once; the third holds a
-// load whose path is no single literal in a file that names no module at all, which the check reads all the same.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to
+// hold the set of modules that carry a builder: a module that declares one, exports one by name, exports everything of
+// a module that carries one, exports such a module as a namespace, exports an object that holds one, or exports a
+// namespace of a module that became a carrier a pass earlier. A path literal that names such a module outside a load is
+// reported; one that names a module that carries none is not; a module that exports everything of one whose builder is
+// its default carries none, since a star leaves the default out, and one that exports an object that holds a builder
+// carries it. The second case holds a function inside a function that holds a format, which is reported once; the third
+// holds a load whose path is no single literal in a file that names no module at all, which the check reads all the
+// same.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

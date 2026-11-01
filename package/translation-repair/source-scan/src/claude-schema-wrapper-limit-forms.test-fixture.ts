@@ -4,12 +4,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Functions that are no wrapper of a builder, and wrappers with a type mark around the call
-// What `claude-schemas.unit.test.ts` feeds the builder search to show which functions are a wrapper: one that returns a
-// builder's call at once, whatever type mark is written around it (`as`, `satisfies`, `!`, `<T>x`) and an optional
-// call; and which are not: one that returns the call with something after it (a promise chain, a fallback), inside
-// another expression (a conditional, an object, an array, a promise), or that only calls the builder in an inner
-// function. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and
-// the files and builders the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show which functions are a wrapper: one
+// that returns a builder's call at once, whatever type mark is written around it (`as`, `satisfies`, `!`, `<T>x`) and
+// an optional call; and which are not: one that returns the call with something after it (a promise chain, a fallback),
+// inside another expression (a conditional, an object, an array, a promise), or that only calls the builder in an inner
+// function. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the
+// files and builders the search must list.
 
 /**
  Cases of a function that mentions a builder and returns something else, or returns its result inside another

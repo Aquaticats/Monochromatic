@@ -4,13 +4,13 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Files the search lists though they build no schema
-// What `claude-schemas.unit.test.ts` feeds the builder search to pin its over-reads, the places where it lists a file
-// that builds no answer schema: a class or a constant that is no function and has a builder's name, a constant inside
-// a function or the parameter of a `catch` clause that has it, a function with a second `return` that holds the
-// builder's call, and a constant that holds the result of mapping a builder over items. Each fails loudly, with a
-// demand in the producer list that a named exception answers, and none loses a producer. Each case is a few imaginary
-// files, with the contest builder (`contestResponseFormat`) beside them, and the files and builders the search must
-// list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to pin its over-reads, the places where it
+// lists a file that builds no answer schema: a class or a constant that is no function and has a builder's name, a
+// constant inside a function or the parameter of a `catch` clause that has it, a function with a second `return` that
+// holds the builder's call, and a constant that holds the result of mapping a builder over items. Each fails loudly,
+// with a demand in the producer list that a named exception answers, and none loses a producer. Each case is a few
+// imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files and builders the
+// search must list.
 
 /**
  Cases of a file that is listed though it builds no schema.

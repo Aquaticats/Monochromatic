@@ -4,11 +4,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Bindings below the top of a file, and members of a builder that are no builder
-// What `claude-schemas.unit.test.ts` feeds the builder search to pin three halves of the sentence on bindings inside a
-// function or a block, and the members of a builder that are not read as the builder: a name that a nested declaration
-// binds to another name (an alias), a declaration written `let` or `var`, a load bound inside an `if` block, and the
-// members `name`, `length` and `toString` of a builder, which stand for nothing. Each case is a few imaginary files,
-// with the contest builder (`contestResponseFormat`) beside them, and the files and builders the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to pin three halves of the sentence on
+// bindings inside a function or a block, and the members of a builder that are not read as the builder: a name that a
+// nested declaration binds to another name (an alias), a declaration written `let` or `var`, a load bound inside an
+// `if` block, and the members `name`, `length` and `toString` of a builder, which stand for nothing. Each case is a few
+// imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files and builders the
+// search must list.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

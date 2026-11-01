@@ -6,12 +6,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Names a file gives a builder, and the rules that decide which function a name is
-// What `claude-schemas.unit.test.ts` feeds the builder search to show how a file's own names lead to a builder: a
-// dynamic `import()` or `require` of a literal path, a destructuring, a second name; and what decides that a name is
-// the builder or is not: a function of the same name in another module, a specifier that names no file of the
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show how a file's own names lead to a
+// builder: a dynamic `import()` or `require` of a literal path, a destructuring, a second name; and what decides that a
+// name is the builder or is not: a function of the same name in another module, a specifier that names no file of the
 // sources, a name the file never declares or imports, a parameter of the builder's name, and a path that is no literal.
-// Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files
-// and builders the search must list.
+// Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files and
+// builders the search must list.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

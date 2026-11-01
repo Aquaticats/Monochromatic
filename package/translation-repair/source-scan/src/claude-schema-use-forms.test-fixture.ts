@@ -4,10 +4,10 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Names that are a use of a builder and names that are not
-// What `claude-schemas.unit.test.ts` feeds the builder search to show which occurrences of a builder's name are a use:
-// a call, a call through an optional chain and a tagged template are; a name that is only part of a longer name, a
-// comment, a string, a property key and a `typeof` are not. Each case is a few imaginary files, with the contest
-// builder (`contestResponseFormat`) beside them, and the files the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show which occurrences of a builder's
+// name are a use: a call, a call through an optional chain and a tagged template are; a name that is only part of a
+// longer name, a comment, a string, a property key and a `typeof` are not. Each case is a few imaginary files, with the
+// contest builder (`contestResponseFormat`) beside them, and the files the search must list.
 
 /**
  Cases of a name that is no use of a builder: part of a longer name, in a comment, in a string with a quote of

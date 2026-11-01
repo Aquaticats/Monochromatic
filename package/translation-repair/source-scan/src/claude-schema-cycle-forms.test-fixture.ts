@@ -4,10 +4,10 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Names that lead back to themselves
-// What `claude-schemas.unit.test.ts` feeds the builder search to show that following a name ends when the name leads
-// back to itself: two files that export everything of each other, and two constants that are each other's value. In
-// both the name stands for nothing, and the search ends and lists nothing. Each case is a few imaginary files, with
-// the contest builder (`contestResponseFormat`) beside them, and the files the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show that following a name ends when the
+// name leads back to itself: two files that export everything of each other, and two constants that are each other's
+// value. In both the name stands for nothing, and the search ends and lists nothing. Each case is a few imaginary
+// files, with the contest builder (`contestResponseFormat`) beside them, and the files the search must list.
 
 /**
  Cases of a name followed through a loop.

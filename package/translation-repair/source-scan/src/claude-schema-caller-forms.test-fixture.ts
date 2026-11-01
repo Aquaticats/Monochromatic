@@ -4,8 +4,9 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Which files are the callers of a builder
-// What `claude-schemas.unit.test.ts` feeds the caller search: a builder, imaginary files that use it, and the callers
-// the search must list for it. The file that declares a builder and the producer list use it without being its callers.
+// What `claude-schema-source-search.unit.test.ts` feeds the caller search: a builder, imaginary files that use it, and
+// the callers the search must list for it. The file that declares a builder and the producer list use it without being
+// its callers.
 
 /**
  One builder, the files searched and the paths the search lists as the callers of the builder.

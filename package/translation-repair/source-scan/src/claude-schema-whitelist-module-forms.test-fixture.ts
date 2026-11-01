@@ -2,12 +2,12 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Modules that carry a builder in positions the search does not read
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the
-// first and the second total of the check for the modules that carry a builder: a namespace or a loaded module used as
-// a value, a load whose names the search cannot bind, and a builder inside a namespace, an enum, a parameter property
-// or an export assignment (the path literal outside a load is in `claude-schema-whitelist-path-forms.test-fixture.ts`).
-// Each case is one imaginary file that holds one place on each line, with the files the search lists and the places the
-// check reports, by file, line, shape and position.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to
+// hold the first and the second total of the check for the modules that carry a builder: a namespace or a loaded module
+// used as a value, a load whose names the search cannot bind, and a builder inside a namespace, an enum, a parameter
+// property or an export assignment (the path literal outside a load is in
+// `claude-schema-whitelist-path-forms.test-fixture.ts`). Each case is one imaginary file that holds one place on each
+// line, with the files the search lists and the places the check reports, by file, line, shape and position.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

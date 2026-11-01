@@ -28,8 +28,9 @@ import {
 } from './claude-schema-tree.test-fixture.ts';
 
 //region Sources that declare an answer schema
-// What `claude-schemas.unit.test.ts` reads to keep the list of schema producers honest: the family's own source files,
-// the files among them that write a `json_schema` response format, and the files that use a function which writes one.
+// What `claude-schema-source-search.unit.test.ts` reads to keep the list of schema producers honest: the family's own
+// source files, the files among them that write a `json_schema` response format, and the files that use a function
+// which writes one.
 //
 // Every file is parsed into a syntax tree, so a string, a template or a comment is never read as code, and a type is
 // never read as a value.

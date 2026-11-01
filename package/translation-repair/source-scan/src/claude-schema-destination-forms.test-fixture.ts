@@ -3,9 +3,9 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Where the result of a builder's call goes
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the
-// third total: the value of a builder's call must reach a function the search knows as a wrapper, an argument of a
-// named sender, or a constant whose every reference does; any other place that takes it is reported. One case per
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to
+// hold the third total: the value of a builder's call must reach a function the search knows as a wrapper, an argument
+// of a named sender, or a constant whose every reference does; any other place that takes it is reported. One case per
 // class of place: an argument of a call that is no sender, an argument of `new` (here), a store into a member or a
 // field, a constant whose reference hands the value on (`claude-schema-destination-store-forms.test-fixture.ts`), and
 // the sender itself, by module and by parameter (`claude-schema-destination-sender-forms.test-fixture.ts`).

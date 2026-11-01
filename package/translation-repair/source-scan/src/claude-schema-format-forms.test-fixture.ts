@@ -8,9 +8,9 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Forms in which an answer schema's format is written
-// What `claude-schemas.unit.test.ts` feeds the builder search to show what makes a file hold a format and a function a
-// builder: an object literal with a property `type` whose value is the string `json_schema`, in any spelling the
-// language allows, and nothing else. Each case is a few imaginary files, with the contest builder
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show what makes a file hold a format and
+// a function a builder: an object literal with a property `type` whose value is the string `json_schema`, in any
+// spelling the language allows, and nothing else. Each case is a few imaginary files, with the contest builder
 // (`contestResponseFormat`) beside them, and the files and builders the search must list.
 
 /**

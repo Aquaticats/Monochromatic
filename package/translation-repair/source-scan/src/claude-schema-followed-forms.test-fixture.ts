@@ -5,12 +5,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Forms the search follows to a builder: a load inside a function, a load read in place, and a call method
-// What `claude-schemas.unit.test.ts` feeds the builder search to show three readings that reach a builder through more
-// than a name bound at the top of a file: a dynamic `import()` or a `require` of a literal path bound to a name inside
-// a function body (the first binding of a name in the file wins); a member read off such a load in place, as in
-// `(await import(path)).name` and `require(path).name`; and `.call`, `.apply` and `.bind` read off a builder, which
-// are the builder. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them,
-// and the files and builders the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show three readings that reach a builder
+// through more than a name bound at the top of a file: a dynamic `import()` or a `require` of a literal path bound to a
+// name inside a function body (the first binding of a name in the file wins); a member read off such a load in place,
+// as in `(await import(path)).name` and `require(path).name`; and `.call`, `.apply` and `.bind` read off a builder,
+// which are the builder. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside
+// them, and the files and builders the search must list.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

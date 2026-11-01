@@ -5,12 +5,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Wrappers by shape, and wrappers of method and default builders
-// What `claude-schemas.unit.test.ts` feeds the builder search to show two things the other fixtures leave open: that a
-// wrapper is found in the shapes of its returned call that `claude-schema-wrapper-forms.test-fixture.ts` leaves out (an
-// arrow function whose body is the call with no `await` and no parenthesis, a call that names type arguments), and that
-// a wrapper of a builder written as a method of an object or as a default export is followed through the name its file
-// gives the builder. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside the
-// first two, and the files and builders the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show two things the other fixtures leave
+// open: that a wrapper is found in the shapes of its returned call that `claude-schema-wrapper-forms.test-fixture.ts`
+// leaves out (an arrow function whose body is the call with no `await` and no parenthesis, a call that names type
+// arguments), and that a wrapper of a builder written as a method of an object or as a default export is followed
+// through the name its file gives the builder. Each case is a few imaginary files, with the contest builder
+// (`contestResponseFormat`) beside the first two, and the files and builders the search must list.
 
 /**
  Cases of a wrapper written as an arrow function with the call as its body and no `await`, and of a wrapper that

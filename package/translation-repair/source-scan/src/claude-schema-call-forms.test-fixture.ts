@@ -1,10 +1,10 @@
 import type { SourceFile, } from './claude-schema-sources.test-fixture.ts';
 
 //region Forms in which a file reaches a builder of an answer schema
-// What `claude-schemas.unit.test.ts` feeds the builder search to show that it follows a builder whatever the file does
-// with it: each case is a few imaginary files that reach the contest builder (`contestResponseFormat`, which the case
-// is given beside them) in one form, and the files the search must find. The forms in which a builder is written are in
-// `claude-schema-builder-forms.test-fixture.ts`.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show that it follows a builder whatever
+// the file does with it: each case is a few imaginary files that reach the contest builder (`contestResponseFormat`,
+// which the case is given beside them) in one form, and the files the search must find. The forms in which a builder is
+// written are in `claude-schema-builder-forms.test-fixture.ts`.
 
 /**
  One form of reaching or writing a builder, with the imaginary files that show it and what the search must find in them.

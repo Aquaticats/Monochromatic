@@ -6,9 +6,9 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Modules that re-export a builder
-// What `claude-schemas.unit.test.ts` feeds the builder search to show how it follows a builder from the module that
-// declares it to the file that calls it through a module that exports it again: by name, under another name, with
-// `export *`, as a namespace, through a list that exports an import, and, for a default export, through
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show how it follows a builder from the
+// module that declares it to the file that calls it through a module that exports it again: by name, under another
+// name, with `export *`, as a namespace, through a list that exports an import, and, for a default export, through
 // `export { default } from` and through `export default name;`. Each case is a few imaginary files, with the contest
 // builder (`contestResponseFormat`) beside the first group, and the files and builders the search must list.
 

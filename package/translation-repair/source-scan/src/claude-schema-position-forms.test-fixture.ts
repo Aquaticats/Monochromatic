@@ -4,12 +4,12 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Places a builder's name stands in, and places it does not
-// What `claude-schemas.unit.test.ts` feeds the builder search to show where a builder's name counts as a use: wherever
-// an expression sits that is not a call (an array element, a value of a property, the operand of `return`, a branch of
-// a conditional, the right side of an assignment, a default of a parameter, the callee of `new`, the operand of
-// `await`, the body of an arrow function), and not as the key of a class member or a label. Each case is a few
-// imaginary files of one line or two, with the contest builder (`contestResponseFormat`) beside them, and the files the
-// search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show where a builder's name counts as a
+// use: wherever an expression sits that is not a call (an array element, a value of a property, the operand of
+// `return`, a branch of a conditional, the right side of an assignment, a default of a parameter, the callee of `new`,
+// the operand of `await`, the body of an arrow function), and not as the key of a class member or a label. Each case is
+// a few imaginary files of one line or two, with the contest builder (`contestResponseFormat`) beside them, and the
+// files the search must list.
 
 /**
  Cases of a name in a place that is no call and still a use.

@@ -2,9 +2,9 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Marks around a builder or a load, a call used as a key, and loads of modules that carry no builder
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) as the second
-// control of the cases of the check, in the form of `claude-schema-whitelist-read-forms.test-fixture.ts`: each
-// imaginary file holds one position the search reads by itself, here a builder under a cast, a non-null mark, a
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) as
+// the second control of the cases of the check, in the form of `claude-schema-whitelist-read-forms.test-fixture.ts`:
+// each imaginary file holds one position the search reads by itself, here a builder under a cast, a non-null mark, a
 // satisfies mark or parentheses, a load under each mark or called optionally, a call used as the key of a member, and,
 // listed by nothing, loads of modules that carry no builder in every form. The check reports nothing for any of them.
 

@@ -2,12 +2,13 @@ import { textOf, } from './claude-schema-call-forms.test-fixture.ts';
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Calls of a builder whose result leaves a function the search does not know
-// What `claude-schemas.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to hold the part
-// of the second total that follows the value a builder's call gives: it leaves a function through a `return`, an arrow
-// function's body or a `yield`, whole or inside an object, an array, a spread, a fallback, a conditional, a sequence, a
-// promise chain or a member read off it, or through a local, a pattern, a default parameter or a name assigned. The
-// case is one imaginary file with one such place on each function, beside the file that calls through it. The calls
-// the search reads, which the check reports nothing for, are in `claude-schema-whitelist-read-forms.test-fixture.ts`.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search and the check behind it (`blindSpotsOf`) to
+// hold the part of the second total that follows the value a builder's call gives: it leaves a function through a
+// `return`, an arrow function's body or a `yield`, whole or inside an object, an array, a spread, a fallback, a
+// conditional, a sequence, a promise chain or a member read off it, or through a local, a pattern, a default parameter
+// or a name assigned. The case is one imaginary file with one such place on each function, beside the file that calls
+// through it. The calls the search reads, which the check reports nothing for, are in
+// `claude-schema-whitelist-read-forms.test-fixture.ts`.
 
 /**
  The module of the contest builder, as a specifier written in a file under `imaginary/src`.

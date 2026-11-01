@@ -4,10 +4,10 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Forms in which a function returns the result of a builder of an answer schema
-// What `claude-schemas.unit.test.ts` feeds the builder search to show that it finds a wrapper of a builder whatever
-// way the wrapper returns the call, and that it names nothing in the files that only look like a builder or a use.
-// Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files
-// and builders the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show that it finds a wrapper of a builder
+// whatever way the wrapper returns the call, and that it names nothing in the files that only look like a builder or a
+// use. Each case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the
+// files and builders the search must list.
 
 /**
  Cases in which a function returns the result of a builder, in the forms the search reads, and a file calls it.

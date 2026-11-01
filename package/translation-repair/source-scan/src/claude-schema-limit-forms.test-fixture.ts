@@ -10,12 +10,12 @@ import {
 import type { ShapeCase, } from './claude-schema-unread-shape-forms.test-fixture.ts';
 
 //region Builders the search does not read
-// What `claude-schemas.unit.test.ts` feeds the builder search to pin the builders it does not read, so the header of
-// `claude-schema-sources.test-fixture.ts` states a limit that a case holds: a static method of a class, a getter, a
-// member with a computed name, a member of an object nested one level deeper than the first, and an anonymous default
-// export. In each case the file that writes the format is listed, since it holds a format, and the file that calls the
-// builder is not, since the builder is not read. The check behind the search (`blindSpotsOf`) reports the function that
-// holds the format, by file and line.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to pin the builders it does not read, so the
+// header of `claude-schema-sources.test-fixture.ts` states a limit that a case holds: a static method of a class, a
+// getter, a member with a computed name, a member of an object nested one level deeper than the first, and an anonymous
+// default export. In each case the file that writes the format is listed, since it holds a format, and the file that
+// calls the builder is not, since the builder is not read. The check behind the search (`blindSpotsOf`) reports the
+// function that holds the format, by file and line.
 
 /**
  Cases of a builder written in a form the search does not read, the file that calls it, and the place of the function

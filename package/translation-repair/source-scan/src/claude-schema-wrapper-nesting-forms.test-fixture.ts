@@ -4,10 +4,10 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Wrappers that return the call in a nested form, and chains of wrappers
-// What `claude-schemas.unit.test.ts` feeds the builder search to show that a wrapper is found when its call sits in
-// parentheses inside an `await`, and that the search for wrappers goes on through a chain of three. Each case is a few
-// imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files and builders the
-// search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search to show that a wrapper is found when its
+// call sits in parentheses inside an `await`, and that the search for wrappers goes on through a chain of three. Each
+// case is a few imaginary files, with the contest builder (`contestResponseFormat`) beside them, and the files and
+// builders the search must list.
 
 /**
  Cases of a wrapper whose call sits in parentheses inside an `await`, and of a chain of three wrappers.

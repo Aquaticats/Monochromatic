@@ -10,7 +10,7 @@ import {
 import { usagesIn, } from './claude-schema-usage.test-fixture.ts';
 
 //region The forwarders of a set of sources
-// What `claude-schemas.unit.test.ts` reads to keep the list of forwarders honest.
+// What `claude-schema-source-search.unit.test.ts` reads to keep the list of forwarders honest.
 
 /**
  The functions that hand a sender a builder call made from their own parameters, which no builder or wrapper is. Their

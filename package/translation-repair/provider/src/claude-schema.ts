@@ -56,8 +56,10 @@ import {
 //
 // WHAT THE STRIPPED BOUNDS LEAVE TO THE READER: every stage reads its reply with its own guard, and a bound removed
 // here is still enforced there. The only bound any stage schema declares is `minimum: 1` on a finding's paragraph in
-// the absolute naturalness review, which `isAbsoluteNaturalnessReviewWire` rejects below 1; `claude-schemas.unit.test.ts`
-// in `corpus-pass` lists what is stripped from every stage schema, so a bound added later shows there.
+// the absolute naturalness review, which `isAbsoluteNaturalnessReviewWire` rejects below 1;
+// `corpus-pass/src/claude-schemas.unit.test.ts` lists what is stripped from every schema of the producer list, which
+// `source-scan/src/claude-schema-source-search.unit.test.ts` holds to the family's source, so a bound added later
+// shows there.
 
 /**
  Refusal raised when a schema carries a keyword the structured-output feature does not support and no SDK strips.

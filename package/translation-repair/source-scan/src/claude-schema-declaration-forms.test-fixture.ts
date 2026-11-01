@@ -9,10 +9,10 @@ import {
 } from './claude-schema-call-forms.test-fixture.ts';
 
 //region Declarations of builders that no file exports, and members written in other ways
-// What `claude-schemas.unit.test.ts` feeds the builder search for the declaration shapes the re-check of the search
-// named: a builder or a wrapper that the file does not export, a member of an object written as an asynchronous
-// method, as a property holding an arrow function, as a generic method, or on the line that opens the object. Each
-// case is a few imaginary files, and the files and builders the search must list.
+// What `claude-schema-source-search.unit.test.ts` feeds the builder search for the declaration shapes the re-check of
+// the search named: a builder or a wrapper that the file does not export, a member of an object written as an
+// asynchronous method, as a property holding an arrow function, as a generic method, or on the line that opens the
+// object. Each case is a few imaginary files, and the files and builders the search must list.
 
 /**
  Cases of a builder and a wrapper that no file exports, of members of an object written in the other ways, and of an
