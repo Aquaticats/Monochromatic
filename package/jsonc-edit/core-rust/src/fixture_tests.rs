@@ -314,7 +314,17 @@ fn fixture_document_has_every_section() {
         .iter()
         .map(|entry| return units_to_string(&entry.key.units).expect("ascii section name"))
         .collect();
-    for required in ["valid", "invalid", "commentOwnership", "numberSpelling", "numberEquality", "depth"] {
+    for required in [
+        "valid",
+        "invalid",
+        "commentOwnership",
+        "numberSpelling",
+        "numberEquality",
+        "depth",
+        "roundTrip",
+        "rootShape",
+        "canonicalLayout",
+    ] {
         assert!(names.iter().any(|name| return name == required), "fixture is missing {required}");
     }
 }
