@@ -300,7 +300,10 @@ found by the re-check of fix round 10 of the Claude route (its findings on what 
 The design that landed is open to the owner's veto.
 
 The defect:
-`claude-schemas.unit.test.ts` keeps the list of answer-schema producers honest.
+`claude-schemas.unit.test.ts` keeps the list of answer-schema producers honest
+(its search cases moved on 2026-11-01 to `source-scan/src/claude-schema-source-search.unit.test.ts`,
+ledger B1268;
+`corpus-pass/src/claude-schemas.unit.test.ts` keeps the cases that hold each schema to what Anthropic accepts).
 It searches the family's source (`claude-schema-sources.test-fixture.ts`) for files that write a `json_schema` format,
 and for files that use a function that writes one (a builder) or a wrapper that returns a builder's result.
 The search read a plain call,
@@ -456,7 +459,9 @@ each passed every case of the search,
 though the header and the TSDoc of `returnsCallOf` claimed all four.
 No case wrapped a builder written as a method of an object or as a default export,
 and a search that follows no wrapper of either also passed,
-though the header of `claude-schemas.unit.test.ts` claimed a wrapper of any builder form.
+though the header of `claude-schemas.unit.test.ts` claimed a wrapper of any builder form
+(the search and its header moved on 2026-11-01 to `source-scan/src/claude-schema-source-search.unit.test.ts`,
+ledger B1268).
 The header said a name inside a string is no use.
 The rule is a quote directly against the name,
 a name inside a longer string (`'call build() here'`) is read as a use,

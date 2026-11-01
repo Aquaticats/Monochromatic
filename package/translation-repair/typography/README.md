@@ -157,6 +157,9 @@ this package through its own build,
 `../dist/final/node/index.mjs`,
 and the siblings they need through their package names,
 which resolve to each sibling's built entry.
+The check that every rule reading quotes,
+ellipses or guillemets takes its mask from `proseMaskReading` reads the source of four other packages,
+so it moved to `source-scan/src/prose-mask-readers.unit.test.ts` (ledger B1265).
 
 Build before testing:
 `mise run //package/translation-repair/typography:build` builds this package,

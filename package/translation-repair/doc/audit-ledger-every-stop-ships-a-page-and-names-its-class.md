@@ -570,7 +570,10 @@ Slips in how the work was run:
 - The `corpus-pass` suite ran before that split as well,
   and 3 cases of `claude-schemas.unit.test.ts` were red from `77e37c62f1` on
   (added 2026-11-01 in round w401,
-  with the cause and the fix in B1264).
+  with the cause and the fix in B1264;
+  moved on 2026-11-01 in round w402:
+  the three cases are in `source-scan/src/claude-schema-source-search.unit.test.ts`,
+  B1268).
 - The markdown-lint scan failed 28 times on the first run of the docs
   (a comma followed by more text on the same line),
   and a script that inserts the break at each position it names cleared them.

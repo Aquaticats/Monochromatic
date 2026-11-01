@@ -121,6 +121,14 @@ named for that subject and listed here.
   and what happens to a timer it did not make.
   Sections:
   - [Fake clocks that leave native timers](mistake-prevention-fake-clocks-and-native-timers.md#fake-clocks-that-leave-native-timers)
+- [Preventing mistakes: tests that read other packages](mistake-prevention-tests-that-read-other-packages.md):
+  Rules for what a test or a test fixture may read:
+  its own package's folder,
+  a folder it made,
+  and the API of a package it declares,
+  so that a gate which runs the packages a change reaches runs every test that reads them.
+  Sections:
+  - [Tests that read the files of a package they do not declare](mistake-prevention-tests-that-read-other-packages.md#tests-that-read-the-files-of-a-package-they-do-not-declare)
 - [Preventing mistakes: comparing text and reading structure](mistake-prevention-text-comparison-and-structure.md):
   Rules for comparing text and reading a document's structure:
   code points,

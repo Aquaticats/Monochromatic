@@ -24,6 +24,21 @@ so a function one package exports and another uses still counts as reached.
   `position-references.unit.test.ts`,
   `living-doc-links.unit.test.ts`,
   `markdown-lint-clean.unit.test.ts` and `own-unit-tests.unit.test.ts`.
+  Four hold the checks that tests of other packages used to make by reading those packages' files (ledger B1265):
+  `package-reads.unit.test.ts`,
+  which fails when a test or fixture of any other package climbs out of its package folder,
+  imports a relative file past it,
+  reads a path written whole in literals past it or naming the family folder,
+  or runs a git read in the live checkout,
+  outside the one listed read of the repository's tool lock,
+  which the scan pins by the expression that names the file as well as by its place and count;
+  `family-build-entries.unit.test.ts`,
+  which holds the census's list of build entry lists to the packages that have one;
+  `prose-mask-readers.unit.test.ts`,
+  which holds every rule that reads quotes to the shared prose mask;
+  and `claude-schema-source-search.unit.test.ts`,
+  the search of the family's source for files that declare an answer schema,
+  with its `claude-schema-*.test-fixture.ts` fixtures and the work-stack test `claude-schema-drain.unit.test.ts`.
   Every scan reads the family as one program:
   `readPackageSource` reads the TypeScript under the `src` of every family package,
   and `readPackageTexts` adds each family package's README,
@@ -41,8 +56,7 @@ so a function one package exports and another uses still counts as reached.
   `readTaskFiles`,
   `runnerEntriesOf` and `declaringModule`.
   `source-scan.test-fixture.ts` parses TypeScript with the parser rolldown exposes and walks the syntax tree.
-  `corpus-pass` imports it too,
-  for the search over the family's source that keeps its list of answer-schema producers honest:
+  The search over the family's source that keeps the list of answer-schema producers honest uses it:
   `parseSource` parses each file,
   and `nodesUnder`,
   `parentsOf`,
@@ -57,6 +71,11 @@ so a function one package exports and another uses still counts as reached.
   `living-docs.test-fixture.ts` lists the living repository docs through `readLivingRepositoryDocs`.
   `tsdoc-example-scan.test-fixture.ts` checks `@example` blocks against their declarations through
   `exampleFindingsOf`.
+  `claude-schema-producer-files.test-fixture.ts` reads the file column of the producer list off the text of
+  `claude-schema-producers.ts` through `producerFilesOf`,
+  and `claude-schema-shared-builders.test-fixture.ts` holds `SHARED_BUILDERS`,
+  the builders more than one file calls;
+  `corpus-pass` imports both for the two cases that hold its list to them.
   The `position-references*.test-fixture.ts` files hold the vocabulary,
   text,
   context and exemption lists of the position-reference scan.
@@ -69,6 +88,16 @@ so a function one package exports and another uses still counts as reached.
   task-list-number,
   living-doc-link,
   Markdown lint and position-reference scans read the docs too.
+  It lists every test file that scans the family's source or docs,
+  and the `scan-direct-comparisons.unit.test.ts` scan takes that list as the definition of a scan.
+  Five scans that were left out of the list are on it since ledger B1310:
+  `doc-line-limit.unit.test.ts`,
+  `measurement-mode.unit.test.ts`,
+  `cache-key-sheet-blindness.unit.test.ts`,
+  `consistency-header-claims.unit.test.ts` and `corpus-run/command-lines.unit.test.ts`.
+  Five test files stay off it because they test a helper or a tool and are no scan of the family's source:
+  `claude-schema-drain.unit.test.ts` and the four `rotation-sweep/*.unit.test.ts` files.
+  The gate does not run the task's list but the whole `test:unit` of this package in every gate.
   Its description says it spends no quota.
 - The `test:rotation-sweep` task (ledger B701):
   runs every unit test file of every family package that can reach the stage package once per salt from 0 to 9,
@@ -112,7 +141,8 @@ No family package lists it in `dependencies`.
 Packages that list it only in `devDependencies`:
 
 - `corpus-pass`
-  (its schema cases import the scan fixtures through `@monochromatic-dev/translation-repair-source-scan/ts/`)
+  (two of its schema cases import `claude-schema-producer-files.test-fixture.ts` and
+  `claude-schema-shared-builders.test-fixture.ts` through `@monochromatic-dev/translation-repair-source-scan/ts/`)
 
 ## Tests
 
@@ -135,6 +165,8 @@ The `source-scans` task builds them first.
 
 Run the scans with `mise run //package/translation-repair/source-scan:test:unit`,
 or run the listed set with `mise run //package/translation-repair/source-scan:source-scans`.
+A gate runs this package's whole `test:unit`,
+because the gate selects the package whatever changed.
 The shared helper `scan-findings.test-fixture.ts` comes from `test-fixture`,
 imported as `@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts`.
 

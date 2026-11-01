@@ -18,6 +18,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 import { sourcePathOf, } from './family-source.test-fixture.ts';
 
 /**
@@ -101,7 +102,11 @@ await describe({
             sourcePathOf({ path, },),
             'utf8',
           );
-          expect(sheetImportsOf({ text, },),).toEqual([],);
+          expectNoFindings({
+            findings: sheetImportsOf({ text, },).map(function importLine(specifier,): string {
+              return `${path} imports ${specifier}, which names a sheet or a wire`;
+            },),
+          },);
           // THE VERSION IS KEY INPUT, which is what makes a moved number retire a record: the constant is read
           // inside the file.
           expect(text.includes(`${constant},`,),).toBe(true,);

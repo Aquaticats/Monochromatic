@@ -7,16 +7,12 @@
  @module
  */
 
-import { readdir, } from 'node:fs/promises';
-import { join, } from 'node:path';
-
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { isMissingPathError, } from '@monochromatic-dev/translation-repair-typography';
 import {
   FAMILY_ENTRY_LISTS,
   FamilyEntryConflictError,
@@ -25,77 +21,13 @@ import {
   runnerEntrySources,
 } from '../dist/final/node/index.mjs';
 
-/**
- The family's directory, which holds every package.
- */
-const FAMILY_DIRECTORY = join(
-  import.meta.dirname,
-  '..',
-  '..',
-);
-
-/**
- Whether a package's source directory holds a build entry list.
-
- @param owner - package directory name
-
- @returns Whether `src/build-entries.ts` stands there
-
- @example
- ```ts
- const lists = await listsEntries('bench',);
- ```
- */
-async function listsEntries(owner: string,): Promise<boolean> {
-  try {
-    return (await readdir(join(
-      FAMILY_DIRECTORY,
-      owner,
-      'src',
-    ),)).includes('build-entries.ts',);
-  }
-  catch (error) {
-    if (!isMissingPathError({ error, },))
-      throw error;
-    return false;
-  }
-}
+// The case that holds `FAMILY_ENTRY_LISTS` to the packages that have a list moved to
+// `source-scan/src/family-build-entries.unit.test.ts` (ledger B1265): it listed every package's folder, which a test
+// of one package must not.
 
 await describe({
   name: familyEntriesOf.name,
   children: [
-    it({
-      name: 'READS THE BUILD ENTRIES OF EVERY PACKAGE OF THE FAMILY THAT HAS A LIST, not only the census\'s own',
-      fn: async () => {
-        /**
-         Every directory of the family, in code-point order.
-         */
-        const owners = (await readdir(
-          FAMILY_DIRECTORY,
-          { withFileTypes: true, },
-        ))
-          .filter(function isPackage(entry,): boolean {
-            return entry.isDirectory();
-          },)
-          .map(function nameOf(entry,): string {
-            return entry.name;
-          },)
-          .toSorted();
-        /**
-         Whether each lists entries, in the same order.
-         */
-        const listed = await Promise.all(owners.map(listsEntries,),);
-        /**
-         The packages that list entries.
-         */
-        const listing = owners.filter(function lists(_owner, index,): boolean {
-          return listed[index] === true;
-        },);
-
-        expect([...FAMILY_ENTRY_LISTS.keys(),].toSorted(),).toEqual(listing,);
-        expect(listing.length > 1,).toBe(true,);
-      },
-    },),
     it({
       name: 'NAMES EVERY RUNNER OF EVERY LIST ONCE, under the one library index every list names',
       fn: async () => {

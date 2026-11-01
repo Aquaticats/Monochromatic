@@ -23,6 +23,11 @@ import {
   COMMAND_OWNERS,
 } from '@monochromatic-dev/translation-repair-run';
 import {
+  expectFindingsAsListed,
+  expectNoFindings,
+  expectRecordAsListed,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
+import {
   readLivingRepositoryDocs,
   readPackageDocPaths,
   REPOSITORY_ROOT,
@@ -626,7 +631,10 @@ await describe({
         const descriptions = taskDescriptions({ text: (await readTaskFiles()).map(function textOf({ text, },): string {
           return text;
         },).join('\n',), },);
-        expect([...descriptions.keys(),].toSorted(),).toEqual(Object.keys(COMMAND_LINES,).toSorted(),);
+        expectFindingsAsListed({
+          findings: [...descriptions.keys(),].toSorted(),
+          listed: Object.keys(COMMAND_LINES,).toSorted(),
+        },);
 
         /**
          The flags each description spells, by runner.
@@ -662,7 +670,10 @@ await describe({
           ];
         },),);
 
-        expect(offered,).toEqual(read,);
+        expectRecordAsListed({
+          found: offered,
+          listed: read,
+        },);
       },
     },),
     it({
@@ -794,9 +805,11 @@ await describe({
         expect(scanned.some(function invokes({ invocations, },): boolean {
           return invocations > 0;
         },),).toBe(true,);
-        expect(scanned.flatMap(function undeclaredOf({ undeclared, },): readonly string[] {
-          return undeclared;
-        },),).toEqual([],);
+        expectNoFindings({
+          findings: scanned.flatMap(function undeclaredOf({ undeclared, },): readonly string[] {
+            return undeclared;
+          },),
+        },);
       },
     },),
   ],

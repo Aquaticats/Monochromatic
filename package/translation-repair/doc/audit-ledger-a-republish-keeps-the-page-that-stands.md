@@ -150,6 +150,10 @@ Three cases of `claude-schemas.unit.test.ts` of `corpus-pass` were red on `93dba
 and failed the same when the file ran alone
 (the rotation sweep of round w399,
 whose lone run's output is outside the repository).
+(The search cases of that test file moved on 2026-11-01 to
+`source-scan/src/claude-schema-source-search.unit.test.ts`,
+B1268;
+the file names in this entry are the old ones.)
 They list the files that declare an answer schema,
 7 more than the list holds,
 the shapes the search leaves unread
@@ -192,7 +196,10 @@ A case of the same test pins the reading both ways:
 a helper that calls its parameter `choose` is listed beside the forwarder `choose`,
 and the same helper with `decision` is not.
 That case records the reading,
-and the lists the three failing cases of `claude-schemas.unit.test.ts` compare name a new collision when one happens.
+and the lists the three failing cases of `claude-schemas.unit.test.ts` compare name a new collision when one happens
+(those cases and the one that pins the reading are in `source-scan/src/claude-schema-source-search.unit.test.ts`
+since 2026-11-01,
+B1268).
 The search stays fail-closed.
 It cannot tell a parameter that holds the forwarder from one that holds another function,
 and a file that really sends an answer schema through a function it takes as a parameter still fails.

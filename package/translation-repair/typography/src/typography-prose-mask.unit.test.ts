@@ -11,8 +11,6 @@
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
-
 import {
   describe,
   expect,
@@ -22,17 +20,9 @@ import {
 import { proseMaskReading, } from '../dist/final/node/index.mjs';
 import { quoteFlags, } from './quote-flags.test-fixture.ts';
 
-/**
- Source files whose rules read the mask, each named by the family package that holds it and its path under that
- package's `src`.
- */
-const READERS: readonly string[] = [
-  'page-pass/restore-typography.ts',
-  'page-pass/restore-ellipsis.ts',
-  'typography/quote-normalize.ts',
-  'translate-floor/translate-guillemets.ts',
-  'page-check/corpus-run/quote-style-unify.ts',
-];
+// The case that holds every rule that reads quotes, ellipses or guillemets to this mask moved to
+// `source-scan/src/prose-mask-readers.unit.test.ts` (ledger B1265): it read the source of four other packages, which a
+// test of this package must not.
 
 await describe({
   name: 'proseMaskReading (n156, W1)',
@@ -217,32 +207,6 @@ await describe({
           length: true,
           flags: 'PN',
         },);
-      },
-    },),
-    it({
-      name: 'IS THE ONE SCANNER OF PROSE: every rule that reads quotes, ellipses or guillemets takes its mask from '
-        + '`proseMaskReading`, and none keeps a scanner of its own for code or tags',
-      fn: async () => {
-        /**
-         Whether each reader's source calls the shared mask.
-         */
-        const calls = await Promise.all(READERS.map(async function callsMask(reader,): Promise<string> {
-          /**
-           Source of the reader.
-           */
-          const [directory = '', ...underSrc] = reader.split('/',);
-          const source = await readFile(
-            new URL(
-              `../../${directory}/src/${underSrc.join('/',)}`,
-              import.meta.url,
-            ),
-            'utf8',
-          );
-          return `${reader}:${source.includes('proseMaskReading({',)}`;
-        },),);
-        expect(calls,).toEqual(READERS.map(function expected(reader,): string {
-          return `${reader}:true`;
-        },),);
       },
     },),
   ],
