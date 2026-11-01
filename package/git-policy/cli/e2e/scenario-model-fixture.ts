@@ -222,19 +222,22 @@ export function allSucceeded({
     name,
     holds: failed.length === 0,
     detail: failed.map(function describe(attempt,) {
-      // Git's "nothing to commit" explanation is on its standard output, while stderr holds only the queue notice.
+      /**
+       Git explains "nothing to commit" on its standard output, while stderr then holds only the queue notice.
+       */
+      const standardOutput = attempt.outcome
+        .stdout
+        .trim()
+        .split('\n',)
+        .slice(-2,)
+        .join(' | ',);
       return `${attempt.label} exited ${String(attempt.outcome
         .exitCode,)}: ${attempt.outcome
           .stderr
           .trim()
           .split('\n',)
           .slice(-2,)
-          .join(' | ',)}; stdout: ${attempt.outcome
-          .stdout
-          .trim()
-          .split('\n',)
-          .slice(-2,)
-          .join(' | ',)}`;
+          .join(' | ',)}; stdout: ${standardOutput}`;
     },)
       .join('; ',),
   };

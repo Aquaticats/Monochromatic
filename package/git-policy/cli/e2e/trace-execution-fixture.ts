@@ -173,8 +173,6 @@ export type PathClaim = Readonly<{
 
  @param claim - latest claim on the path
 
- @returns signal to wait for
-
  @example
  ```ts
  await blockerOf(claim);
