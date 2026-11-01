@@ -133,7 +133,7 @@ fn a_caller_that_names_only_its_git_still_gets_in_process_answers() {
     assert_eq!(found.stdout, expected.stdout);
     let learned = std::fs::read_dir(cache.join("cli-git")).expect("the cache directory").count();
     assert_eq!(learned, 1, "the system file path was asked of the named Git once and recorded");
-    let found = run_metadata_git(named_git.as_path(), listing(repo.as_path()).as_slice(), overlay.as_slice()).expect("answer");
-    assert_eq!(found.stdout, expected.stdout);
+    let metadata = run_metadata_git(named_git.as_path(), listing(repo.as_path()).as_slice(), overlay.as_slice()).expect("answer");
+    assert_eq!(metadata.stdout, expected.stdout);
     remove(root.as_path());
 }
