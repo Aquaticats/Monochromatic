@@ -248,7 +248,9 @@ Categorical dismissals are one `rg`/conf-read away.
 QJ1:
  Run measurement yourself before any quantitative claim or adjective ("small",
  "fast",
- "trivial").
+ "trivial");
+ split a measured total by its logged steps before blaming one;
+ compare options step for step.
 
 FRC:
  Completion-time forecasts ("done today",
