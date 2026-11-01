@@ -34,7 +34,8 @@ Both cases returned `{ kind: 'republished', why: 'disagreed' }` where `left` was
 and the log read `publish: wrote 1 slice into a page of 81 characters` and
 `publish: shipping with defect page-grammar-archive-kept` for the case of a page that parses with the archive kept,
 and a page of 83 characters with `publish: shipping with defect page-unparseable` for the case of a page that does not
-parse even so (corrected on 2026-11-01 UTC by round w400: the entry had given 81 for both).
+parse even so (corrected on 2026-11-01 UTC by round w400:
+the entry had given 81 for both).
 The two cases for a missing page passed on the parent,
 as they are meant to (B1262).
 The fixtures use no corpus text:
@@ -121,11 +122,14 @@ which leaves their runs out of the count.
   the key hashes the version,
   the shape of the run and the texts a stage is given,
   and no stage asks or accepts anything differently.
-- The three source commits of this round (`8c607fdeb3`, `0bfa9e6a0` and `0530b95c54`) appear in the audit as source
+- The three source commits of this round (`8c607fdeb3`,
+  `0bfa9e6a0` and `0530b95c54`) appear in the audit as source
   commits no account names,
   with every version listed as one they ride inside
-  (corrected on 2026-11-01 UTC by round w400: the entry named two and said the audit ran after three commits;
-  `0530b95c54` is the third, and it touches `provider` as well as a test of `corpus-pass`).
+  (corrected on 2026-11-01 UTC by round w400:
+  the entry named two and said the audit ran after three commits;
+  `0530b95c54` is the third,
+  and it touches `provider` as well as a test of `corpus-pass`).
   The red test commit holds no source and is not listed.
   The first two touch `page-check` alone,
   and `rg translation-repair-page-check package --glob package.json` lists `slice-cache`,

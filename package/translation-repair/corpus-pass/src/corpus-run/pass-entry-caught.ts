@@ -49,7 +49,7 @@ import type {
 
  @param stop - what the pass shares with its signal handler, absent where no stop signal is sent
 
- @param flight - the entry's place in that stop, told once the page is shipped
+ @param flight - place of the entry in that stop, told once the page is shipped
 
  @param durationMs - time the entry took
 
@@ -59,7 +59,7 @@ import type {
 
  @param l - entry logger
 
- @returns The scheduling disposition of the stop
+ @returns Scheduling disposition of the stop
 
  @example
  ```ts

@@ -63,7 +63,7 @@ type PageRead =
 
  @param l - entry logger
 
- @returns The standing page as far as the disk shows it
+ @returns Standing page as far as the disk shows it
 
  @example
  ```ts
@@ -135,7 +135,7 @@ export async function pageStandingOf(
 
  @param entryId - entry whose page to read
 
- @returns The page, or that none stands
+ @returns Page, or that none stands
 
  @throws What the read raises for any failure but an absent file
 

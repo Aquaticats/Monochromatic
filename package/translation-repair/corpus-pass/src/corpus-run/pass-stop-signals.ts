@@ -271,6 +271,35 @@ async function stopOn(
 }
 
 /**
+ Passes one source's settling to the wait that is listening for it.
+
+ @param source - promise whose settling is the outcome
+
+ @param outcome - what the wait reports when the source settles
+
+ @param ended - resolver of the wait, which keeps the first value it is given
+
+ @example
+ ```ts
+ void relayOutcome({ source: shipped, outcome: 'shipped', ended, },);
+ ```
+ */
+async function relayOutcome(
+  {
+    source,
+    outcome,
+    ended,
+  }: {
+    readonly source: Promise<void>;
+    readonly outcome: 'shipped' | 'second-signal';
+    readonly ended: PromiseWithResolvers<'shipped' | 'window-ended' | 'second-signal'>;
+  },
+): Promise<void> {
+  await source;
+  ended.resolve(outcome,);
+}
+
+/**
  Waits for the entry in flight to say its interim page is shipped, for a window, or for a second signal.
 
  @param stop - what the pass shares with its entries
@@ -298,31 +327,32 @@ async function waitForShip(
   },
 ): Promise<'shipped' | 'window-ended' | 'second-signal'> {
   /**
-   Settles when the window ends.
+   Settles with whichever of the three ends the wait first; the first value stands and a later one is dropped.
    */
-  const windowEnded = Promise.withResolvers<'window-ended'>();
+  const ended = Promise.withResolvers<'shipped' | 'window-ended' | 'second-signal'>();
   /**
    The window's timer, cleared when the wait ends first.
    */
   const timer = setTimeout(
     function endWindow(): void {
-      windowEnded.resolve('window-ended',);
+      ended.resolve('window-ended',);
     },
     windowMs,
   );
+  void relayOutcome({
+    source: stop.inFlightShipped(),
+    outcome: 'shipped',
+    ended,
+  },);
+  void relayOutcome({
+    source: secondSignal,
+    outcome: 'second-signal',
+    ended,
+  },);
   /**
    What ended the wait.
    */
-  const waited = await Promise.race([
-    stop.inFlightShipped()
-      .then(function shipped(): 'shipped' {
-        return 'shipped';
-      },),
-    windowEnded.promise,
-    secondSignal.then(function second(): 'second-signal' {
-      return 'second-signal';
-    },),
-  ],);
+  const waited = await ended.promise;
   clearTimeout(timer,);
   return waited;
 }

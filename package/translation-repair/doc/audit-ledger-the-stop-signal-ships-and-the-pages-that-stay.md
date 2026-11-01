@@ -705,14 +705,69 @@ B1254" at each):
 ## B1255: the slips of the round and what stays open
 
 The commits of the round besides those that carry the fixes and their red tests:
-the lint fixes of the new code,
-the comments that quoted the paraphrase,
-the docs,
-and the scan fix;
-the list is in the hand-back of the round and in `git log`.
+`1d3e51e388` (the lint and type fixes of the new code,
+two modules split at the line cap,
+and the paraphrase out of five comments),
+`66853d4a0c` (the unit tests the own-tests ratchet wanted for the new modules),
+`3e2eed2c76` (the docs),
+`6ecb5e71ad` (the merge of the w401 tree `e9b966af55`)
+and `b574a03178` (`publish-fixed.ts`,
+back under the line cap after the merge,
+with the defects it ships moved to `publish-shipped-defects.ts`).
+
+Gates run on the result of the merge:
+the family built,
+`lint:types` of every package of the family with exit 0,
+oxlint on the nine packages whose sources changed with 0 warnings and 0 errors
+(`page-check` after `b574a03178`),
+the unit suite of ten packages once each with no failing line
+(`page-check` 270 passing lines,
+`markup` 56,
+`glossary` 44,
+`adjudication` 119,
+`consolidate` 70,
+`corpus-pass` 237,
+`provider` 273,
+`run` 201,
+`slice-cache` 91
+and `translate-stage` 51),
+and the doc scans.
 
 Slips in how the work was run:
 
+- The lint of the family ran before the build of the new exports,
+  so `corpus-pass` showed two `TS2305` errors and fifteen warnings that the next build removed.
+- The docs were edited without the markdown scan,
+  which found 364 line-break findings at once and was fixed by a script that breaks a line at each reported column.
+- A wait on a process id taken from a file size was chained with `;`,
+  and was stopped at once.
+- The merge raised the w399 ledger to 1,109 of 1,000 lines,
+  which was seen before the merge commit and split into
+  `audit-ledger-a-republish-keeps-the-page-that-stands.md`,
+  and raised `publish-fixed.ts` to 307 of 300 lines,
+  which only the oxlint run after the merge found (`b574a03178`).
+- Two edits to `publish-fixed.ts` went in one block.
+- oxlint was not run on `provider`,
+  whose files the merge brought in;
+  its unit suite and `lint:types` passed.
+- The whole source-scan suite,
+  run once on the merged tree,
+  found 8 kinds of finding no earlier gate had read:
+  a stale entry of the own-tests allowance (`no-provider-for-model-error.ts` has its own test since `0582183ec4`),
+  a reference by position in a TSDoc of the new module,
+  twelve `@param` and `@returns` descriptions of the new modules that opened with an article
+  (seven found first,
+  five on the rerun),
+  nine line breaks in two ledgers,
+  a `Promise.race` in `waitForShip`,
+  two test helpers kept in two places,
+  three real-clock windows in the stop-signal test,
+  and an exported test type nothing imported.
+  They are fixed in the commit after `b574a03178`:
+  `waitForShip` no longer races (a resolver that the first of the three outcomes settles),
+  the two long windows are the shared hang stop,
+  the 30 ms window is listed in `real-clock-bounds.unit.test.ts` with its reason,
+  and the every-stop test imports the helpers of the stop fixture.
 - Two commands were chained with `;` (the red run of the standing and interim cases,
   and a count beside a read of the results),
   where the brief forbids `;`.
@@ -755,7 +810,9 @@ What stays open:
 - `systemctl --user stop` was not run against a unit (B1247).
 - A review the artifact reader refuses ships with `final-naturalness` and leaves an artifact the reader refuses (B1241).
 - `bench`,
-  `coverage-census` and `probe` have no `dist` in this tree before a build,
-  and their `lint:types` was not run against their dependents' changes (see the hand-back).
+  `coverage-census` and `probe` have no `dist` in this tree before a build.
+  They were built with the rest of the family and their `lint:types` passed against the changes of their dependents;
+  oxlint was not run on them,
+  since none of their sources changed.
 - The pass still prints `INTERIM` and `TALLY` lines on stdout through `console.log`,
   which ends the process on `EPIPE` (B1238).

@@ -149,16 +149,16 @@ export function consolidatedAt(
   },
 ): ArtifactConsolidateSlice {
   return {
-    sliceIndex,
-    terminal: 'consolidated',
+    gate: { kind: 'not-asked', },
+    verdicts: [],
+    demoted: false,
+    rewrapped: false,
     shipped: {
       kind: 'consolidated',
       text,
     },
-    rewrapped: false,
-    demoted: false,
-    verdicts: [],
-    gate: { kind: 'not-asked', },
+    terminal: 'consolidated',
+    sliceIndex,
   };
 }
 
@@ -277,7 +277,7 @@ export async function pageOf({ dirs, }: { readonly dirs: Dirs; },): Promise<stri
 
  @param dirs - scratch tree
 
- @param text - the page
+ @param text - page text
 
  @example
  ```ts

@@ -43,7 +43,7 @@ export class NoProviderForModelError extends Error {
 
    @param afterExchange - whether a call of this request was made first; false when absent
 
-   @param cause - the refusal this one replaces when the mark is put on it, whose stack and own cause stay reachable
+   @param cause - refusal this one replaces when the mark is put on it, whose stack and own cause stay reachable
    through it (B1248)
 
    @example

@@ -104,7 +104,7 @@ import { shippedDefects, } from './publish-shipped-defects.ts';
  when none. A region the page lost is reported as the `carried-evidence`
  defect and the page ships (B1181).
 
- @param readGrammar - the grammar's reading of a page, the package's by default; a case plants another to make a page
+ @param readGrammar - reading of a page by the grammar, the package's by default; a case plants another to make a page
  the strict grammar refuses
 
  @param mayWrite - asked once the page is composed and its checks have run, with the slices the grammar put back to the

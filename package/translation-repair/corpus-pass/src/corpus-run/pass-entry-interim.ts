@@ -135,7 +135,7 @@ export function interimDirBeside({ artifactsDir, }: { readonly artifactsDir: str
 
  @param error - what ended the entry
 
- @param stopSignal - the stop the pass shares with its entries, aborted once a stop signal arrived
+ @param stopSignal - stop the pass shares with its entries, aborted once a stop signal arrived
 
  @returns Reason the interim record carries
 
@@ -193,10 +193,10 @@ function interimReasonOf(
 
  @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
 
- @param stopSignal - the stop the pass shares with its entries, aborted once a stop signal arrived, which makes the record
+ @param stopSignal - stop the pass shares with its entries, aborted once a stop signal arrived, which makes the record
  name the signal and not an error of the entry (B1247)
 
- @param flight - the entry's place in that stop, told once this is done however it ended, so the signal handler stops
+ @param flight - place of the entry in that stop, told once this is done however it ended, so the signal handler stops
  waiting for a page that is shipped or never will be
 
  @param l - entry logger
@@ -289,7 +289,7 @@ export async function shipInterimOnStop(
 
  @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
 
- @param stopSignal - the stop the pass shares with its entries
+ @param stopSignal - stop the pass shares with its entries
 
  @param l - entry logger
 

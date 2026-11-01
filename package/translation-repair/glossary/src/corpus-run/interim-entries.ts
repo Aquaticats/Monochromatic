@@ -532,7 +532,7 @@ async function readRecordFile(
 
  @param entryId - entry whose record to read
 
- @returns The record, or that there is none where the entry has none, its file is damaged or the directory is absent
+ @returns Record, or that there is none where the entry has none, its file is damaged or the directory is absent
 
  @throws What the read raises for any failure but an absent file
 

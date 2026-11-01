@@ -423,7 +423,7 @@ export type InterimShip = InterimCounts & {
 
  @param archiveOriginalSpans - spans of the archive sealed as the English original, which the page carries byte for byte
 
- @param readGrammar - the grammar's reading of a page, the package's by default; a case plants another to make a page
+ @param readGrammar - reading of a page by the grammar, the package's by default; a case plants another to make a page
  the strict grammar refuses
 
  @param standing - page already standing where this one would go, none by default; a settled page, or an interim page

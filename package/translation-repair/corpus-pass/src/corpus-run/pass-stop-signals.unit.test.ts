@@ -39,6 +39,7 @@ import {
   runUntilSignalled,
   type SignalledRun,
 } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
+import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import {
   createPassStop,
@@ -355,7 +356,7 @@ await describe({
             seen.atRelease = await readRunLogText({ path: scratch.path, },);
           },
           stop,
-          windowMs: 600_000,
+          windowMs: HANG_STOP_MS,
           source,
           exit: function exit(code: number,): void {
             seen.exits.push(code,);
@@ -392,7 +393,7 @@ await describe({
           log: runLog,
           release: async function release(): Promise<void> {},
           stop,
-          windowMs: 600_000,
+          windowMs: HANG_STOP_MS,
           source,
           exit: function exit(code: number,): void {
             exits.push(code,);

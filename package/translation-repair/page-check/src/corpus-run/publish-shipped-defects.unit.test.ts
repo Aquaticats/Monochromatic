@@ -28,7 +28,7 @@ const UNCONSOLIDATED = { consolidation: { kind: 'not-run', }, } as Pick<WouldShi
 
  @param check - check the defect names
 
- @returns The defect
+ @returns Defect
 
  @example
  ```ts

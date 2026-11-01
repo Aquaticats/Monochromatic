@@ -30,7 +30,7 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 
  @param parsingDefects - defects the grammar's reading of the page named
 
- @returns The defects, in the order above
+ @returns Defects, failed checks first and the grammar's last
 
  @example
  ```ts

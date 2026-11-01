@@ -1112,6 +1112,12 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'read back',
     reason: CALL_CONFIG,
   },
+  'corpus-pass/corpus-run/pass-stop-signals.unit.test.ts#<module>: windowMs: 30': {
+    count: 1,
+    bound: 'reached',
+    reason: 'the window of 30 ms that an entry which never says it shipped lets end; the case waits for the exit and '
+      + 'asserts its code and the run log line, and a longer window only slows it',
+  },
   'slice-cache/corpus-run/pass-stop-before-next.unit.test.ts#<module>: softBudgetMs: ROOMY_BUDGET_MS': {
     count: 12,
     bound: 'read back',
