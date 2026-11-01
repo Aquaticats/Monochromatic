@@ -482,3 +482,27 @@ and for a model it does not withhold that no re-ask asks;
 `reask-alternate-models.unit.test.ts`,
 `nudged-reask.unit.test.ts`,
 `stage-recovery-runaway.unit.test.ts` and `prompt-uniqueness-client.unit.test.ts` hold each way a re-ask is made.
+
+## A snapshot read before an await
+
+What happened:
+an object handed to a function listed the models other seats had taken first and awaited a reading of the provider
+meters for the next property (ledger B1343).
+Two seats that ran away together both read an empty list before either took its model,
+because the await yielded to the other seat.
+Four older cases failed,
+and they were found only by the first full run of the suites at the end of the round.
+The same round changed which slice roster a stage was handed,
+and the checker stage then saw no difference between the bench it was seated with and the bench the hook named,
+so it never checked the floor (ledger B1344).
+
+The rule:
+a value that other work can change is read in the same synchronous step as the decision it feeds,
+so every await that the decision needs comes before the read;
+a function that compares "the bench now" with "the bench it was seated with" is handed the original,
+never the new one.
+
+What enforces it:
+the cases of `nudged-reask-seats.unit.test.ts`,
+`stage-quorum-claims.unit.test.ts` and `refine-phase.unit.test.ts` that failed,
+and the habit of running the whole suite of every package that reads shared code before the last commit of a round.

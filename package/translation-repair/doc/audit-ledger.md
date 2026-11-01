@@ -951,8 +951,10 @@ named for that subject and listed here.
   the duplicate signal that reaches the operator and the corrections of round w404's ledgers (B1336 to B1338),
   the owner's answer on the Claude route (B1339),
   the cache versions (B1340),
-  the lead's probe that removed a cited log (B1341)
-  and the slips with what stays open (B1342).
+  the lead's probe that removed a cited log (B1341),
+  the slips with what stays open (B1342),
+  the reading awaited after the taken models were read (B1343)
+  and the refine slice that hid the checker floor (B1344).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

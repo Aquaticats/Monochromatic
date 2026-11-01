@@ -239,6 +239,7 @@ named for that subject and listed here.
   - [Tables keyed by text](mistake-prevention-shared-code-loops-and-keyed-tables.md#tables-keyed-by-text)
   - [A static list beside a derived seating](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-static-list-beside-a-derived-seating)
   - [A model withheld in one place and asked in another](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-model-withheld-in-one-place-and-asked-in-another)
+  - [A snapshot read before an await](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-snapshot-read-before-an-await)
 - [Preventing mistakes: stored files and cached decisions](mistake-prevention-stored-files-and-cached-decisions.md):
   Rules for what one run stores and a later run reads back:
   caches and their versions,

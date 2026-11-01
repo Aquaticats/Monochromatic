@@ -20,7 +20,7 @@ The rules the entries leave behind are in
 and
 [Preventing mistakes: docs and references](mistake-prevention-docs-and-references.md).
 
-Ids B1325 to B1342 are used in this file only.
+Ids B1325 to B1344 are used in this file only.
 The ids B1292 to B1294,
 B1307 to B1309 and B1318 to B1324 stay unused.
 The logs are under `/var/home/user/temp/agent/tr-fan/w406-fix/`.
@@ -577,6 +577,12 @@ Slips:
   those runs are labelled as run through the shim.
   The suites that never reach the real wrap are unaffected.
   The link was put back at the end of the round.
+- The targeted runs of B1330 to B1332 passed,
+  but the first full `test:unit` of `provider`,
+  `stage` and `repair` was made only at the end of the round and found B1343 and B1344.
+  A round that changes shared code runs the whole suites of every package that reads it before the last commit.
+- The output file of a background task under `/tmp/claude-1000/` was read once by mistake and the harness refused it;
+  nothing under that folder was read.
 - The baseline of `run` (209 pass lines) and of `corpus-pass` (237 pass lines) ran on the integration head before any
   change and had no failure line;
   the first run of the two together at this head.
@@ -599,5 +605,66 @@ Open:
   and no scan reads the width.
 - The router's own `chatJson` re-ask reads no dryness (B1330).
 
+## B1343: the reading was awaited after the taken models were read
+
+The finding,
+made by the first full `test:unit` of `provider`,
+`stage` and `repair` at the head of this round
+(`final-unit-provider.txt`,
+`final-unit-stage.txt`,
+`final-unit-repair.txt`):
+the cases that had passed in the targeted runs of B1330 had not been run together with the older suites of the same
+files.
+In `reaskElsewhereNudged` and in the recovery round the object handed to `alternateModelsFor` read
+`takenFor({ seat })` first and then awaited `rulePastReading` for the next property.
+Two seats of one question that run away together both read an empty list of taken models before either took its model
+in the step the await yields to,
+so the second seat's log did not name the model the first took
+("NAMES THE MODEL THE FIRST SEAT TOOK IN THE LOG OF THE SECOND"),
+and the seat that fell back said "(1 tried)" where the run had tried none
+("FALLS BACK TO ITS OWN MODEL WITH THE WARNING FOR THE SECOND SEAT"),
+and the same happened in the recovery round
+("ASKS THE SECOND SEAT OF ITS OWN MODEL,
+NUDGED,
+ON A WARNING").
+Four cases failed in all (two in `nudged-reask-seats.unit.test.ts`,
+one in `stage-quorum-claims.unit.test.ts`,
+and the case of B1344).
+
+The fix:
+the reading is awaited into a local before the object is built,
+so the taken models are read in the same step as the list of alternates and the first take.
+The cases that failed are the red evidence and passed afterward
+(`final2-unit-provider.txt`,
+`final2-unit-stage.txt`).
+The rule is in
+[Preventing mistakes: shared code, loops and keyed tables][shared-code]
+("A snapshot read before an await").
+No key changes:
+the alternates are chosen by the same function from the same inputs,
+and a cached record does not hold which model was asked.
+
+## B1344: the refine slice was handed the checker bench the hook names as its own
+
+The finding,
+from the same run:
+"REFUSES a re-seated bench below the checker floor at the recheck rather than running a stage the contract refuses"
+resolved where it must reject.
+B1332 had the refine phase read the hook for each slice and hand the slice the roster the hook returned as its
+`models`.
+The checker stage (`checkerBenchAtStage`) compares the bench the hook names now with the bench the slice was seated
+with and refuses a bench below the floor,
+so a slice seated with the hook's bench saw no difference and never checked the floor.
+
+The fix:
+the slice keeps the lane's checker bench in the `models` it runs on,
+and takes its refiners,
+judges and cache key from the hook's roster.
+The failing case is the red evidence and passed afterward (`final2-unit-repair.txt`).
+The case of B1332 that asks the refiners the hook returns still passes.
+The repair lane (`repair-translation.ts`) already handed each slice the roster the hook returned before this round,
+and is unchanged.
+
 [commit-checks]: mistake-prevention-commit-checks-and-figures-told-to-others.md
+[shared-code]: mistake-prevention-shared-code-loops-and-keyed-tables.md#a-snapshot-read-before-an-await
 [evidence-cited]: mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites

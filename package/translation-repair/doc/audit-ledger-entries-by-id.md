@@ -694,6 +694,8 @@ which lists every file of this record.
 - [B1340, the cache versions](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
 - [B1341, the lead's probe removed the file a ledger cites](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
 - [B1342, the slips of the round and what stays open](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
+- [B1343, the reading was awaited after the taken models were read](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
+- [B1344, the refine slice was handed the checker bench the hook names as its own](audit-ledger-the-re-check-of-rounds-w403-to-w405.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
