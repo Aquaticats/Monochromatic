@@ -1,3 +1,5 @@
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+
 import {
   MODEL_CARDS,
   type ProviderName,
@@ -10,7 +12,9 @@ import {
   type NO_PROVIDER,
   providerServing,
 } from './budget-routing.ts';
+import type { ChatTextRequest, } from './chat-contract.ts';
 import type { BudgetView, } from './provider-budget.ts';
+import { measuresModelOf, } from './reask-mode.ts';
 import { reachOf, } from './roster-reach.ts';
 
 //region Models withheld from a role in a reading
@@ -18,7 +22,8 @@ import { reachOf, } from './roster-reach.ts';
 // holds (Recommended)" and the lead's ruling that a withheld model is never that role's alternate). The run withholds
 // `hyper-slow` and `hyper-slow-select` models from a bench while Hyper is the provider that would serve them and seats
 // them otherwise (`judgeSeatsFor` in the run package), and the backfill of the writing benches and the re-ask of a
-// runaway both ask this one function whether a model is withheld, so they cannot part.
+// runaway both ask this one function whether a model is withheld, so they cannot part. The router asks the same card the
+// question of the provider it means to send a request to (`holdsKeepingRequestOff`, ledger B1365).
 
 /**
  The role whose route-time holds are the ones every role honours, for a request that names no seat: the roster-wide role
@@ -110,6 +115,68 @@ export function routeTimeHoldsOnProvider(
     .filter(function carried(hold,): boolean {
       return holds.includes(hold,);
     },);
+}
+
+/**
+ What the router does with a request that names no seat: hold it to the holds every role honours, or serve it as it
+ always has.
+ */
+type NoSeatRule = 'hold' | 'serve';
+
+/**
+ The route-time holds of a model's card that keep one request off the provider the router means to send it to: the
+ holds the role of the request's seat honours, none for a measurement, and for a request that names no seat what the
+ caller's rule says (ledger B1365).
+
+ THE ONE QUESTION BOTH ROUTER PATHS ASK. The first ask is refused where the policy chose a provider the hold names
+ ({@link NoSeatRule} `serve`: a caller that names no seat keeps the routing it had), and the hinted re-ask of the same
+ model elsewhere leaves such a provider out ({@link NoSeatRule} `hold`: it was held to the holds every role honours
+ from the start, ledger B1350). A measurement is exempt on both, since it scores the model on the provider that carries
+ it (ledger B1141).
+
+ @param request - request being routed, read for its model and its seat
+
+ @param provider - provider the router means to send it to
+
+ @param whenNoSeat - what a request that names no seat is held to
+
+ @returns Holds in the role's order; empty where the request is not held off that provider
+
+ @example
+ ```ts
+ const holds = holdsKeepingRequestOff({ request, provider: 'hyper', whenNoSeat: 'serve', },);
+ ```
+ */
+export function holdsKeepingRequestOff(
+  {
+    request,
+    provider,
+    whenNoSeat,
+  }: {
+    readonly request: ForeignBorrowed<ChatTextRequest>;
+    readonly provider: ProviderName | typeof NO_PROVIDER;
+    readonly whenNoSeat: NoSeatRule;
+  },
+): readonly SeatHold[] {
+  /**
+   Seat the request names, which carries the role and the mode of the re-ask; absent for a request that names none.
+   */
+  const { reaskSeat, } = request;
+  if (reaskSeat === undefined) {
+    if (whenNoSeat === 'serve')
+      return [];
+    return routeTimeHoldsOnProvider({
+      modelId: request.modelId,
+      provider,
+    },);
+  }
+  if (measuresModelOf({ seat: reaskSeat, }))
+    return [];
+  return routeTimeHoldsOnProvider({
+    modelId: request.modelId,
+    role: reaskSeat.role,
+    provider,
+  },);
 }
 
 /**

@@ -31,8 +31,7 @@ import type {
   ReAskReply,
   RoutedReply,
 } from './provider-router-reply.ts';
-import { measuresModelOf, } from './reask-mode.ts';
-import { routeTimeHoldsOnProvider, } from './reask-withheld.ts';
+import { holdsKeepingRequestOff, } from './reask-withheld.ts';
 
 //region Provider router re-ask
 // A NON-CONFORMANT ANSWER IS RE-ASKED ON ANOTHER PROVIDER THAT SERVES THE MODEL.
@@ -295,20 +294,15 @@ export async function routedTextElsewhere(
     served: otherThan,
   },);
   /**
-   Seat the request names, which carries the role; absent for a request that names none.
-   */
-  const { reaskSeat, } = request;
-  /**
    Providers among them that a hold of the model's card keeps it off for the seat's role (ledger B1350). A MEASUREMENT
-   IS NOT HELD: it scores the model on the provider that carries it, as its first ask was (ledger B1141).
+   IS NOT HELD: it scores the model on the provider that carries it, as its first ask was (ledger B1141). A request that
+   names no seat is held to the holds every role honours.
    */
   const heldOff = withBudget.filter(function isHeldOff(provider,): boolean {
-    if ((reaskSeat !== undefined) && measuresModelOf({ seat: reaskSeat, }))
-      return false;
-    return routeTimeHoldsOnProvider({
-      modelId: request.modelId,
-      ...((reaskSeat === undefined) ? {} : { role: reaskSeat.role, }),
+    return holdsKeepingRequestOff({
+      request,
       provider,
+      whenNoSeat: 'hold',
     },)
       .length
       > 0;

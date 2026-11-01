@@ -26,11 +26,9 @@ import {
   type CredentialHolds,
   createCredentialHolds,
 } from './credential-hold.ts';
-import {
-  createDarkWarnings,
-  refuseDarkModel,
-} from './model-dark-reason.ts';
+import { createDarkWarnings, } from './model-dark-reason.ts';
 import { routedDecide, } from './provider-router-decide.ts';
+import { providerChosenOrRefused, } from './provider-router-held.ts';
 import { reachOfRequest, } from './reach-past-holds.ts';
 import { createReachReaders, } from './provider-router-reach.ts';
 import type {
@@ -102,6 +100,12 @@ import {
 // text this file fetched rather than calling a provider's own. That keeps one
 // ladder for every provider and makes the parameters narrow enough to state:
 // each caller is `Pick<..., 'chatText'>` and nothing more.
+//
+// A MODEL THE CARD HOLDS OFF THE PROVIDER CHOSEN IS NOT ASKED THERE (ledger B1365, the owner's "Honour holds
+// (Recommended)"): the choice is read against the holds of the request's seat before the slot is taken
+// (`provider-router-held.ts`), so a held model that the policy sends to Hyper because Synthetic is dry at the ask is
+// a lost seat, as a model with no provider is, and not a call. A request that names no seat is not held on the first
+// ask, and a measurement never is.
 //
 // RE-ROUTED AT MOST ONCE PER PROVIDER. Each refusal marks its provider and
 // asks the budgets again through `readBudgetsPastHolds`, which waits out a
@@ -314,16 +318,17 @@ export function createRoutingClient(
       chosen: choice.kind,
     },);
 
-    // A LOST SEAT, NOT THE RUN'S END: this model alone has no provider, and the log line names the model and how each
-    // provider read so a read of the run can tell the two apart.
-    if (choice.kind === 'unreachable') {
-      refuseDarkModel({
-        modelId: request.modelId,
-        reason: choice.reason,
-        l,
-        warn: darkWarnDue({ modelId: request.modelId, },),
-      },);
-    }
+    // A LOST SEAT, NOT THE RUN'S END, whether this model alone has no provider or its card holds it off the provider
+    // chosen (ledger B1365): refused before the slot below is taken, in the same synchronous step as the choice.
+    /**
+     Provider the policy chose, which the model's card allows.
+     */
+    const provider = providerChosenOrRefused({
+      request,
+      choice,
+      l,
+      warnDue: darkWarnDue,
+    },);
 
     // THE SLOT IS TAKEN HERE, NOT AT DISPATCH, and there must be no `await`
     // between reading `ledger.saturated` and this line. Two calls choosing at
@@ -332,10 +337,10 @@ export function createRoutingClient(
     // both on the same provider. Counting at the decision closes that, because
     // nothing else runs between the read and the increment.
     ledger.take({
-      provider: choice.kind,
+      provider,
       modelId: request.modelId,
     },);
-    return choice.kind;
+    return provider;
   }
 
   /**

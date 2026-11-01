@@ -26,6 +26,7 @@ export {
 } from './reask-alternate-models.ts';
 export { rulePastReading, } from './reask-reading.ts';
 export {
+  holdsKeepingRequestOff,
   isWithheldFromRole,
   routeTimeHoldsInReading,
   routeTimeHoldsOnProvider,

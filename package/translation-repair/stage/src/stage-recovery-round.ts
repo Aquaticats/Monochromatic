@@ -167,8 +167,9 @@ async function recoverRunaway<ValueT,>(
    goes where the router sends the model, and where the client's reading has Hyper serving a model the run withholds
    from the seat's role, that is the provider the hold keeps it off, so the seat is lost as unreachable instead. A
    client with no reading cannot tell, and the seat was seated by a reading that did not withhold it, so it is asked. A
-   measurement is not held (ledger B1141). The reading is taken at the ask; the seconds between it and the router's
-   choice are inherent.
+   measurement is not held (ledger B1141). The reading is taken at the ask, and the router refuses the ask itself where
+   it would choose that provider (ledger B1365), so this check is the courtesy of a client that is no router and of a
+   line that names the seat; the router is the gate.
 
    @param holdApplies - whether the hold of the model's card keeps the ask off the provider it names; false for a
    measurement

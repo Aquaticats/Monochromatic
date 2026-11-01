@@ -36,10 +36,12 @@ import {
 //
 // HOLDS OF A ROUTE ARE NOT IN THE BENCH TABLE: `openrouter-dropped`, `openrouter-withheld` and `synthetic-withheld`
 // keep a model off a provider, which the router reads at the call; a re-ask is routed like a first ask, so the router
-// refuses them for it too. `hyper-slow` and `hyper-slow-select` are different: only the run reads them, as a filter of
-// the benches it derives at each phase, and the router does not. They are therefore written as the holds a re-ask
-// honours at seating time (`ROUTE_TIME_HOLDS_OF_ROLE`) for EVERY role, the editors and refiners included (ledger
-// B1330: a withheld model is never a role's alternate). The pool a re-ask draws from leaves those models out when it
+// refuses them for it too. `hyper-slow` and `hyper-slow-select` are different: the run reads them as a filter of the
+// benches it derives at each phase, and the router reads them only against the provider they name, for a request whose
+// seat names its role (ledger B1350 for the re-ask on another provider, B1365 for every ask), since the policy of the
+// router walks the order of providers and the card names no provider for them. They are therefore written as the holds
+// a re-ask honours at seating time (`ROUTE_TIME_HOLDS_OF_ROLE`) for EVERY role, the editors and refiners included
+// (ledger B1330: a withheld model is never a role's alternate). The pool a re-ask draws from leaves those models out when it
 // does not know the reading, and `alternateModelsFor` in the provider package applies them in a reading it is given,
 // where a model is withheld only while Hyper would serve it. A drift test in the run package fails when the pool and
 // a derived bench part in any reading of the meters.
