@@ -6157,3 +6157,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   line was added. So the push needed no new LFS object. Pushed with `GIT_LFS_SKIP_PUSH=1`:
   `987027a72a..11ad7efdf7`, 0 ahead after. This is not a general workaround: other sessions must still not skip for
   pushes that add LFS files.
+- Owner, 2026-11-01, verbatim: "Why are we invoking git lfs at all when no objects in a commit or something can be
+  relevant?" Adopted (veto open) and sent to the hotfix agent `ab7d550ba5af421b8`:
+  - The wrapper finds the LFS pointers the pushed commits introduce, in-process with the `repo_read_*` readers, by
+    diffing each new commit against its parents.
+  - No new pointer: no git-lfs process and no network request.
+  - Some new pointers: `git-lfs push --object-id <destination> --stdin` with exactly those oids. git-lfs 3.8.1
+    documents `git lfs push --object-id <remote> --stdin` (`git lfs push --help`). Bounded retry on 5xx.
+  - Untrusted destination: scan the whole history, then use the same `--object-id` upload.
+  - Readers decline: the bounded git-lfs fallback.
+  The plain push of commits touching no LFS path is now the common case: none of today's 70 unpushed commits touched
+  one. Pushed `11ad7efdf7..567cd0d70f` the same checked way.
