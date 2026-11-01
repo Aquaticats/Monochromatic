@@ -30,6 +30,7 @@ import {
   runRecoveryRound,
   type SharedRoundRequest,
 } from './stage-recovery-round.ts';
+import { settleRecovered, } from './stage-recovery-settle.ts';
 import { runGatherRound, } from './stage-round.ts';
 import {
   repeatedRosterIds,
@@ -544,17 +545,14 @@ export async function gatherStageVoices<ValueT,>(
         causeOf: unreadableSeats,
         askedInstead,
       },);
-      for (const outcome of recovered) {
-        if (outcome.voice
-          .heard) {
-          collected.push(heardVoiceOf({
-            outcome,
-            stage,
-            l,
-          },),);
-          unreadableSeats.delete(outcome.modelId,);
-        }
-      }
+      settleRecovered({
+        recovered,
+        stage,
+        l,
+        collected,
+        unreadableSeats,
+        unreachableSeats,
+      },);
     }
     return {
       collected,

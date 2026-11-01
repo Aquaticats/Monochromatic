@@ -156,6 +156,7 @@ export {
   runRecoveryRound,
   type SharedRoundRequest,
 } from './stage-recovery-round.ts';
+export { settleRecovered, } from './stage-recovery-settle.ts';
 export {
   repeatedRosterIds,
   StageRosterRepeatError,

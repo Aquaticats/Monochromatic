@@ -171,15 +171,23 @@ async function gatherWithARunaway(
 
  @param refused - seats the router refuses for want of a provider with budget
 
+ @param runaway - whether the seat of Qwen3.8-27B answers with the length stop, and not readably
+
  @returns Gather and the models the client was asked, in order
 
  @example
  ```ts
- const { gather, seen, } = await gatherWithALostRecovery({ refused: [], },);
+ const { gather, seen, } = await gatherWithALostRecovery({ refused: [], runaway: true, },);
  ```
  */
 async function gatherWithALostRecovery(
-  { refused, }: { readonly refused: readonly RosterModelId[]; },
+  {
+    refused,
+    runaway,
+  }: {
+    readonly refused: readonly RosterModelId[];
+    readonly runaway: boolean;
+  },
 ) {
   /**
    Models the client was asked, in order.
@@ -204,7 +212,7 @@ async function gatherWithALostRecovery(
           reason: 'every provider serving this model is out of budget',
         },);
       }
-      if (request.modelId === SEAT_SYNTHETIC_VISION_NO_OPENROUTER) {
+      if (runaway && (request.modelId === SEAT_SYNTHETIC_VISION_NO_OPENROUTER)) {
         return {
           kind: 'schema-mismatch',
           rawText: '',
@@ -317,27 +325,34 @@ await describe({
         + 'unreadable and closes on the quorum of the bench that is left, as it does for a seat lost in a quorum round',
       fn: async () => {
         /**
+         Seats the roster leaves unreachable with nothing refused and nothing running away: the positive control that
+         names the seats the case must not blame on the recovery round.
+         */
+        const unreachableAnyway = [...(await gatherWithALostRecovery({ refused: [], runaway: false, },)).gather.unreachable,];
+        const { benchQuorum, } = reachableQuorum({ benchSize: ROSTER_MODEL_IDS.length, unreachable: 0, },);
+        /**
          Seats the router refuses outright, sized so the seat the recovery round loses is the one that takes the
          reachable bench down to its quorum: one more reachable seat than the quorum is left before the recovery round.
          */
-        const { benchQuorum, } = reachableQuorum({ benchSize: ROSTER_MODEL_IDS.length, unreachable: 0, },);
         const refused = ROSTER_MODEL_IDS
-          .filter(function isOtherSeat(modelId,): boolean {
-            return modelId !== SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
+          .filter(function isRefusable(modelId,): boolean {
+            return (modelId !== SEAT_SYNTHETIC_VISION_NO_OPENROUTER) && (!unreachableAnyway.includes(modelId,));
           },)
-          .slice(0, ROSTER_MODEL_IDS.length - benchQuorum - 1,);
-        const { gather, seen, } = await gatherWithALostRecovery({ refused, },);
+          .slice(0, ROSTER_MODEL_IDS.length - benchQuorum - 1 - unreachableAnyway.length,);
+        const { gather, seen, } = await gatherWithALostRecovery({ refused, runaway: true, },);
         // The own-model re-ask never reached the client: the first ask is the only one the seat was sent.
         expect(seen.filter(function isSeat(modelId,): boolean {
           return modelId === SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
         },),).toHaveLength(1,);
-        expect([...gather.unreachable,].toSorted(),).toEqual([...refused, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,].toSorted(),);
+        expect([...gather.unreachable,].toSorted(),).toEqual(
+          [...unreachableAnyway, ...refused, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,].toSorted(),
+        );
         expect([...gather.unreadable,],).toEqual([],);
         /**
          What the quorum is with the lost seat counted out, and with it counted in as it was before this entry.
          */
         const countedOut = reachableQuorum({ benchSize: ROSTER_MODEL_IDS.length, unreachable: gather.unreachable.size, },);
-        const countedIn = reachableQuorum({ benchSize: ROSTER_MODEL_IDS.length, unreachable: refused.length, },);
+        const countedIn = reachableQuorum({ benchSize: ROSTER_MODEL_IDS.length, unreachable: unreachableAnyway.length + refused.length, },);
         // The two differ on this bench by the grace of the last reachable seat, so the case can tell them apart.
         expect(countedOut.needed,).not.toBe(countedIn.needed,);
         expect(gather.quorum,).toBe(countedOut.needed,);
