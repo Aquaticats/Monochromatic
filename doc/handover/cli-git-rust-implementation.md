@@ -39,6 +39,32 @@ Its result is read when the notification arrives, and survivors are killed or ju
 patch release.
 The passing gate (container tests, lint, check) still precedes every release.
 
+### Final re-review (queued 2026-11-01)
+
+The user's words on 2026-11-01:
+"You yourself do a re-review of the entire thing when all tasks are drained.
+During the re-review: Assume nothing on disk ever makes sense and I answered every question with via magic 8 ball."
+
+My reading, revisable by the user:
+
+- When it starts: after the queue is drained. That means every delegated agent has reported and its branch is
+  merged or rejected, gates are green, no release is in flight, and every task-list and handover queue item is
+  done or recorded as blocked with its reason.
+- Who does it: this coordinator session itself, not a delegate. A cross-vendor pass may run alongside it, but never
+  instead of it.
+- Scope ("the entire thing"): the `git-policy/cli` wrapper and everything this effort built or changed for it. That
+  covers the crate, the service, the embedded linter seam, the fuzz and mutation sidecars, the gate and release
+  tooling (`crate-release/cli`, the containerfile, the planted controls), and the docs (README, SPEC,
+  `doc/decision`, `doc/planning`, this handover).
+- "Nothing on disk ever makes sense": every comment, doc, test name, commit message, config and recorded result is
+  an unverified claim. Each one is checked against behavior I run in a throwaway fixture, or against the deciding
+  source. A test counts only once a planted fault has shown it failing.
+- "Every question answered with a magic 8 ball": recorded user decisions carry no evidence of being right. Judge each
+  on its merits for the target workload. Where my judgment differs, ask the user with options, pros, cons and a
+  ranking. Never change decided behavior without asking.
+- Output: a findings report in `doc/audit/` with evidence per finding. Clear bugs get fixed under the standing goal,
+  with GFP proofs. Flagged decisions go to the user in the question tool.
+
 ## Handoff 2026-10-05
 
 This session hands off to Claude Opus after the Astra usage limit was reached.
@@ -5966,3 +5992,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Service step 3 READY `5d0d527e2c` (backup push and upkeep run in the service as work items after the command returns; one
   coalesced push per branch, no lock; a failed push never fails the commit) merged as `8abacf428b`. Gate 9 runs in worktree
   `.claude/worktrees/gate-main9` (gate-main stays on `54bc241fab` for the m048d units). Step 4 continues as sub-steps 4a to 4d.
+- 0.5.1 PUBLISHED: crates.io created 2026-11-01T14:19:49Z; release assets x86_64 and aarch64 linux-gnu present; publish run
+  `41315248565` on `b0d0b14a01`. Messaged `monochromatic-c0` for the lock bump.
+- Tasks #69 and #78 closed as superseded: service step 4 deletes the old journal and shadow-repository path they target.
+- Queued: the user's final re-review, recorded under the heading "Final re-review (queued 2026-11-01)" in the Authority
+  section (task #79). It starts once the queue is drained.
