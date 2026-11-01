@@ -34,7 +34,8 @@ fn facts_in(directories: &[&Path]) -> GitFacts {
         prefix.push(OsString::from("-C"));
         prefix.push(directory.as_os_str().to_os_string());
     }
-    return git_facts(Path::new(REAL_GIT), prefix.as_slice(), &[]);
+    // The hermetic overlay removes the system file, which the readers would otherwise have to learn from Git first.
+    return git_facts(Path::new(REAL_GIT), prefix.as_slice(), crate::test_support::isolated_overlay().as_slice());
 }
 
 /// The location real Git reports after `-C <directory>` for each given directory.

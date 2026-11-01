@@ -302,7 +302,7 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 /// ```
 pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some((code, stdout, stderr)) = super::repo_read_hook::try_complete(arguments, git.cwd.as_path(), git.environment.as_slice()) {
+    if let Some((code, stdout, stderr)) = super::repo_read_hook::try_complete(arguments, git.cwd.as_path(), super::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice()) {
         return Ok(QueryOutput { code, stdout, stderr });
     }
     return run_bounded_query(

@@ -200,7 +200,7 @@ fn stale_or_foreign_entries_are_not_trusted() {
     cases.push(("other layout", String::from_utf8_lossy(&good).replace("cache 1", "cache 2").into_bytes()));
     cases.push(("other identity", String::from_utf8_lossy(&good).replace(identity.text.as_str(), "other\t1\t2.3\t4.5\t6\t7").into_bytes()));
     cases.push(("unparseable text", String::from_utf8_lossy(&good).replace("git version 9.8.7", "hello").into_bytes()));
-    cases.push(("identity only", format!("{FILE_TAG}{}", identity.text).into_bytes()));
+    cases.push(("identity only", format!("{}{}", file_tag(VERSION_KIND), identity.text).into_bytes()));
     for (label, bytes) in cases {
         std::fs::remove_file(&entry).expect("fixture");
         std::fs::write(&entry, bytes).expect("fixture");

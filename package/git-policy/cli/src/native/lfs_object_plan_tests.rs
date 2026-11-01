@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::repo_read_layout::read_layout_in;
-use crate::test_support::{fixture, git, git_output, remove};
+use crate::test_support::{fixture, git, git_output, isolated_overlay, remove};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -66,7 +66,8 @@ fn plan(refs: &[&str], full_scan: bool, everything: bool) -> UploadPlan {
 
 /// Narrow with the layout found from the repository's files.
 fn narrow(repo: &Path, plan: UploadPlan) -> Option<UploadPlan> {
-    let layout = read_layout_in(repo, &[]);
+    // The hermetic overlay removes the system file, which the readers would otherwise have to learn from the real Git first.
+    let layout = read_layout_in(repo, isolated_overlay().as_slice());
     return narrow_plan(plan, layout.as_ref());
 }
 

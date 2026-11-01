@@ -87,7 +87,8 @@ a full vet report with a registry query schedule was not written, which is a lim
   The binary and the build were not measured for this option.
 - Hand-written readers with `miniz_oxide` for inflate (chosen): 2 more packages (`miniz_oxide` 0.9.1 and `adler2`
   2.0.1), pure Rust, one `decompress_to_vec_zlib_with_limit` call site in this crate.
-  Its source was not audited for this choice, which is a limit of this work.
+  Its source was not audited for this choice; the later audit is
+  `doc/audit/tech-miniz-oxide-0-9-1-and-adler2-2-0-1-vet-2026-11-01.md` (no gate failed).
 - Hand-written readers with a hand-written inflate: no packages, but a decoder that is ours to keep correct for
   all three block types and for corrupt input; not chosen because a maintained decoder exists and costs 2 packages.
 - Loose objects only, ask Git for packed ones: no packages, but packed objects are the common case in any repository
@@ -111,7 +112,7 @@ Latency, from `mise run //package/git-policy/cli:native:perf` (`bin/native-perf.
 direct Git in each run), run as alternating arms on a loaded host:
 baseline binary A and new binary B, five runs of A and three completed runs of B (one B run stopped in the script's
 own cleanup with `ENOTEMPTY` on the pack directory of its scratch repository, a race with the repository's
-background maintenance that is not caused by the readers).
+background maintenance that is not caused by the readers; fixed, see "Follow-up findings").
 
 - Added latency of a forwarded `rev-parse`, medians per run: A 1.7, 1.7, 1.6, 1.9, 1.8 ms; B 0.9, 1.1, 0.9 ms.
   The spread inside the A arm (same binary, five runs) is 0.3 ms, and inside the B arm 0.2 ms,
@@ -142,11 +143,9 @@ index versions 2 to 4, intent-to-add, unmerged paths, gitlinks, file-to-director
 non-UTF-8 and very long paths, symbolic-link start directories, include files and injected command entries.
 
 Not exercised, and so not claimed: partial clones with promised objects (a missing object declines to Git, but no
-fixture has a promisor remote), a real sparse index (declined through the `index.sparse` key and the `sdir` extension
-without a fixture that has one), trees with millions of entries, an owner mismatch on the Git directory
+fixture has a promisor remote), trees with millions of entries, an owner mismatch on the Git directory
 (the check is in the reader and has no control because the controls cannot change a file's owner),
-a device boundary on the walk up to `.git`, the index checksum (not verified; Git verifies it), a `/etc/gitconfig`
-installed outside `/etc`, and Windows (the readers are Unix-only and every query starts Git there).
+a device boundary on the walk up to `.git`, the index checksum (not verified; Git verifies it), and Windows (the readers are Unix-only and every query starts Git there).
 
 ## Independent review
 
@@ -163,10 +162,10 @@ reserved index flags and non-canonical tree and index modes declined; misplaced 
 declined; NUL bytes in values and messages declined; `GIT_TRACE*` no longer accepted; SHA-256 `REF_DELTA` headers
 readable; synthesized failures only under an English locale.
 
-Not fixed, and so limits of this work: Git's typed validation of configuration values that the readers do not need
-(a non-boolean `core.fileMode` makes Git fail where the readers answer), the system configuration path
-(`/etc/gitconfig` is assumed for the gate's Git), and the sparse-index control (the control for the sparse case
-exercises the key and the extension check, not a real sparse index).
+Left open by that review and fixed afterwards: Git's typed validation of configuration values (a non-boolean
+`core.fileMode` made Git fail where the readers answered), the assumed `/etc/gitconfig`, and the sparse-index control
+that did not use a real sparse index.
+See the sections that follow.
 
 Guard controls were shown failing, one guard at a time on a restored tree:
 disabling the discovery-key check, the file-to-directory check, the rename guard of the porcelain `diff`, the
@@ -174,3 +173,75 @@ unmerged and intent-to-add check, the ambiguous upstream check, the replace-ref 
 made its matching control fail.
 Disabling the reftable directory check alone did not fail a control, because reftable repositories are also declined by
 their `extensions.refstorage` key; that check is a second guard on the same case.
+
+## Typed configuration values
+
+Real Git dies, or warns, at startup on a value that does not fit the key's type, for keys the readers never look at
+(`core.fileMode = maybe` gives `fatal: bad boolean config value 'maybe' for 'core.filemode'`).
+The readers answered in such repositories.
+
+Method: every name `git help --config` lists in Git 2.56.0 plus every name in `Documentation/config/*.adoc`
+(about a thousand), each set in the repository's configuration to seven spellings (a word, a bare name, an empty value,
+`-1`, `0`, `3`, an overflowing number), and thirteen command lines run for each (the eleven reader shapes, the location
+query and `cat-file --batch`), comparing exit code, standard error and the size of standard output with an unchanged
+repository.
+Git's source was read for the keys that fail (`environment.c` `git_default_core_config` and its helpers,
+`repo-settings.c`, `config.c`); the tarball of tag v2.56.0 stood in for a clone, because the sandbox refuses
+`gh repo clone`.
+
+Result: about 240 keys change some command (about 45 of them `advice.*`). They fall into booleans (all of `advice.*`, most of `core.*`, `diff.*`,
+`log.*`, `grep.*`, `pack.*`, `remote.<name>.*`), integers (with ranges: `core.abbrev` from 4, compression levels from
+`-1` to 9, a leading zero is octal in Git), enumerations (`push.default`, `core.checkStat`, `diff.algorithm`,
+`transfer.credentialsInUrl`, and others), colors, paths (`~user` of an unknown user dies), text keys that die when bare
+(`user.name`, `remote.<name>.url`), and keys that only warn (`core.fsync`, `core.fsyncObjectFiles`, `diff.dirstat`).
+Two surprises: a bare `remote.<name>.tagOpt` kills `git remote get-url` with a signal, and a bare
+`core.repositoryFormatVersion` was treated by the layout reader as absent.
+
+Design: `src/native/repo_read_config_typed.rs` holds the key table and a validator per kind that accepts only
+spellings it can show Git accepts silently (decimal numbers of at most nine digits, no octal, words in Git's lists).
+Every other spelling of a typed key makes the layout reader decline, and with it every query, because all of them start
+from the layout. The proof walks the repository file, the system and global files, their includes (conditional ones
+too, without evaluating the condition) and `GIT_CONFIG_COUNT` entries.
+Declining costs one Git start in a repository that is misconfigured or uses a spelling outside the subset
+(for example `core.packedGitLimit = 256m` is accepted, an octal or hexadecimal number is not).
+
+Controls (`repo_read_config_typed_tests.rs`): representative rejected values must be declined and must change Git's
+output; every spelling the table accepts must leave Git silent on all shapes and keep the readers answering; and a
+sweep over every key `git help --config` lists with the seven spellings must decline or equal Git, in batches that are
+split down to the key when they differ, so a Git upgrade that adds a typed key is noticed.
+The sweep takes under 20 seconds in a debug build.
+Without the proof, the sweep reports every typed key and the rejected-values control fails on `core.fileMode`.
+Also fixed from the sweep: `remote.<name>.fetch` and `remote.<name>.push` are checked as plain refspecs (Git fails with
+`invalid refspec`).
+
+## System configuration path
+
+The readers assumed `/etc/gitconfig`. Git compiles `ETC_GITCONFIG` in (`Makefile` sets `sysconfdir` to `/etc` only when
+the prefix is `/usr`; otherwise it is relative to the prefix, resolved against the executable in a runtime-prefix build).
+`git var GIT_CONFIG_SYSTEM` prints the path the executable reads (`builtin/var.c`, `git_config_val_system`).
+`src/native/git_system_config.rs` asks the real Git once per executable identity (path, size, times, device, inode,
+the same identity as the `git version` cache) with an empty environment and stores the answer beside the version cache
+(`git-system-config-<hash>`). The real Git is the one the forward-target variable names. When it is unknown, the file is
+unknowable and the readers decline, unless `GIT_CONFIG_NOSYSTEM` or `GIT_CONFIG_SYSTEM` settle it.
+
+Verified with a Git built from the v2.56.0 tarball with prefix `<scratch>/opt-git`: `git var GIT_CONFIG_SYSTEM` prints
+`<scratch>/opt-git/etc/gitconfig` while `/usr/bin/git` prints `/etc/gitconfig`. The committed controls use the host Git
+(equal to what it prints for itself, asked once, a replaced executable asked again) and a stand-in answer for another
+prefix; the built Git itself is not part of the controls because it cannot be shipped with the repository.
+
+## Follow-up findings
+
+- A real cone-mode sparse index (`sparse-checkout init --cone --sparse-index`) is declined, with and without the
+  configuration keys that announce it; the decisive guards are the required `sdir` extension and the non-canonical
+  directory mode, and removing both makes the control fail with a listing of a sparse directory.
+- A loose object with bytes after its zlib stream was answered; Git says `garbage at end of loose object`.
+  Fixed with the consumed length from the decoder's low-level function.
+- The decoder's cost for chained empty blocks grows with the stream's length, not its output (upstream issue 198);
+  a stream longer than 512 KiB of compressed bytes now goes to Git.
+- A panic inside a reader is caught at the hook and Git answers instead.
+- `native:perf` removed its scratch tree without waiting for processes Git detaches: `strace --follow-forks` shows every
+  `git commit` starting `git maintenance run --auto --quiet --detach`, which daemonizes out of the harness's process
+  tree and pipes, so the harness's close event does not cover it. The writer of the one failed run was not captured,
+  so the exact process is an inference; the race itself is reproduced by a detached writer. Cleanup now waits for every process that has the tree as its working directory,
+  its executable or an open file, up to a deadline, and fails naming the process when one remains
+  (`bin/native-perf-scratch.ts`; the control reproduces `ENOTEMPTY` on the `pack` directory without it).

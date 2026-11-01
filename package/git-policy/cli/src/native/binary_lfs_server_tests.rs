@@ -696,3 +696,25 @@ fn a_repository_the_readers_decline_is_scanned_by_git_lfs() {
     drop(server);
     remove_settled(&fixture);
 }
+
+/// A push that recurses into submodules and adds no pointer of its own starts no `git-lfs`, and still prints the notice
+///  that a submodule's LFS objects are not covered.
+#[test]
+fn a_submodule_push_without_a_new_pointer_still_gets_the_notice() {
+    let fixture: Fixture = fixture("lfs-real-submodule-notice");
+    let Some((repo, _origin, server, _content)) = lfs_world(&fixture) else {
+        return;
+    };
+    let first: Observed = push_main(&fixture, repo.as_path(), &[]);
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    let log: PathBuf = record_git_lfs(&fixture);
+    empty_commit(&fixture, repo.as_path());
+    let mut command = super::commit::wrapped_commit(&fixture, repo.as_path(), &["push", "--recurse-submodules=on-demand", "origin", "main"]);
+    let second: Observed = observe(&mut command, b"");
+    let stderr: String = stderr_of(&second);
+    assert_eq!(second.code, Some(0), "{stderr}");
+    assert!(stderr.contains("this push also pushes submodules"), "{stderr}");
+    assert_eq!(recorded_runs(log.as_path()), Vec::<String>::new(), "git-lfs was not started");
+    drop(server);
+    remove_settled(&fixture);
+}

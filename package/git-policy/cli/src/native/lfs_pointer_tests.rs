@@ -26,6 +26,15 @@ fn pointers_in_every_accepted_spelling_name_their_object() {
     }
 }
 
+/// White space around the text, trailing spaces after a value and a missing final line feed do not change the verdict.
+#[test]
+fn white_space_around_the_text_is_ignored() {
+    let expected: Verdict = Verdict::Pointer(OID.to_owned());
+    assert_eq!(decode_pointer(format!("{}  \n\t\n ", pointer("5")).as_bytes()), expected);
+    assert_eq!(decode_pointer(format!("  \n{}", pointer("5")).as_bytes()), expected);
+    assert_eq!(decode_pointer(pointer("5").trim_end().as_bytes()), expected);
+}
+
 /// Everything that is not a pointer for `git-lfs` uploads nothing: plain text, a wrong version, a bad object name, a bad
 ///  size, keys out of order, a missing key, an extra line, an empty blob and a pointer of size zero.
 #[test]
@@ -58,8 +67,9 @@ fn text_that_git_lfs_would_not_take_for_a_pointer_uploads_nothing() {
 #[test]
 fn the_size_cutoff_is_exclusive() {
     let canonical: String = pointer("9");
+    // Leading line feeds pad the blob to the size wanted and read as blank lines.
     let padding_for = |total: usize| -> String {
-        return format!("{}{}", canonical.trim_end(), " ".repeat(total - canonical.trim_end().len()));
+        return format!("{}{}", "\n".repeat(total - canonical.trim_end().len()), canonical.trim_end());
     };
     assert_eq!(decode_pointer(padding_for(BLOB_SIZE_CUTOFF - 1).as_bytes()), Verdict::Pointer(OID.to_owned()));
     assert_eq!(decode_pointer(padding_for(BLOB_SIZE_CUTOFF).as_bytes()), Verdict::NotUploadable);
@@ -77,4 +87,90 @@ fn spellings_the_port_cannot_judge_are_declined() {
     edged.extend_from_slice("\u{a0}".as_bytes());
     edged.extend_from_slice(b"extra line here\n\xc2\xa0");
     assert_eq!(decode_pointer(edged.as_slice()), Verdict::Decline);
+}
+
+/// The real `git-lfs` on the test process's PATH, if any.
+fn real_git_lfs() -> Option<std::path::PathBuf> {
+    let path: std::ffi::OsString = std::env::var_os("PATH")?;
+    return std::env::split_paths(&path)
+        .map(|directory| { return directory.join("git-lfs"); })
+        .find(|candidate| { return candidate.is_file(); });
+}
+
+/// Whether `git-lfs pointer --check` takes the text for a pointer (`DecodePointerFromFile`, the decoder `git-lfs` uses).
+fn oracle_accepts(program: &std::path::Path, directory: &std::path::Path, text: &[u8]) -> bool {
+    let file: std::path::PathBuf = directory.join("blob.txt");
+    std::fs::write(&file, text).expect("blob");
+    let output = std::process::Command::new(program)
+        .current_dir(directory)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", directory)
+        .args(["pointer", "--check", "--file"])
+        .arg(&file)
+        .output()
+        .expect("git-lfs starts");
+    return match output.status.code() {
+        Some(0) => true,
+        Some(1) => false,
+        other => panic!("git-lfs pointer --check ended with {other:?}: {}", String::from_utf8_lossy(output.stderr.as_slice())),
+    };
+}
+
+/// The port agrees with the real decoder: whatever it names as a pointer `git-lfs` accepts, and whatever `git-lfs` rejects
+///  it does not name; the only accepted texts it does not name are the ones that upload nothing (empty, size zero) and the
+///  ones it declines (extension lines). Skipped, with a note, on hosts without `git-lfs`.
+#[test]
+fn the_port_agrees_with_the_real_decoder() {
+    let Some(program) = real_git_lfs() else {
+        eprintln!("skipped: git-lfs is not on PATH, so the real decoder was not consulted");
+        return;
+    };
+    let root = crate::test_support::fixture("lfs-pointer-oracle");
+    let canonical: String = pointer("9");
+    let big_padding: String = format!("{}{}", "\n".repeat(BLOB_SIZE_CUTOFF), canonical);
+    let cases: Vec<Vec<u8>> = vec![
+        canonical.clone().into_bytes(),
+        pointer("0").into_bytes(),
+        pointer("+7").into_bytes(),
+        pointer("-1").into_bytes(),
+        pointer("12a").into_bytes(),
+        pointer("99999999999999999999").into_bytes(),
+        canonical.trim_end().as_bytes().to_vec(),
+        canonical.replace('\n', "\r\n").into_bytes(),
+        format!("\n\n{canonical}\n\n").into_bytes(),
+        format!("{canonical}  \n\t").into_bytes(),
+        canonical.replace("https://git-lfs.github.com/spec/v1", "http://git-media.io/v/2").into_bytes(),
+        canonical.replace("https://git-lfs.github.com/spec/v1", "https://hawser.github.com/spec/v1").into_bytes(),
+        canonical.replace("spec/v1", "spec/v2").into_bytes(),
+        canonical.replace(OID, OID.to_uppercase().as_str()).into_bytes(),
+        canonical.replace(OID, &OID[1..]).into_bytes(),
+        canonical.replace("sha256:", "sha1:").into_bytes(),
+        format!("version https://git-lfs.github.com/spec/v1\nsize 9\noid sha256:{OID}\n").into_bytes(),
+        format!("version https://git-lfs.github.com/spec/v1\noid sha256:{OID}\n").into_bytes(),
+        format!("oid sha256:{OID}\nsize 9\n").into_bytes(),
+        format!("{canonical}other value\n").into_bytes(),
+        format!("version https://git-lfs.github.com/spec/v1\next-0-foo sha256:{OID}\noid sha256:{OID}\nsize 9\n").into_bytes(),
+        format!("version https://git-lfs.github.com/spec/v1\noid sha256:{OID}\nsize 9\next-0-foo sha256:{OID}\n").into_bytes(),
+        b"hello\nworld\n".to_vec(),
+        b"see git-lfs docs\n".to_vec(),
+        Vec::new(),
+        big_padding.into_bytes(),
+        [canonical.as_bytes(), "\u{a0}".as_bytes()].concat(),
+        vec![b'a'; BLOB_SIZE_CUTOFF * 2],
+    ];
+    for text in cases {
+        let verdict: Verdict = decode_pointer(text.as_slice());
+        let accepted: bool = oracle_accepts(program.as_path(), root.as_path(), text.as_slice());
+        let shown: String = String::from_utf8_lossy(text.as_slice()).into_owned();
+        match verdict {
+            Verdict::Pointer(_) => assert!(accepted, "named as a pointer but git-lfs rejects it: {shown:?}"),
+            Verdict::NotUploadable => {
+                let uploads_nothing: bool = text.is_empty() || shown.lines().any(|line| { return line == "size 0"; });
+                assert!(!accepted || uploads_nothing, "git-lfs accepts it but the port names nothing: {shown:?}");
+            }
+            Verdict::Decline => {}
+        }
+    }
+    crate::test_support::remove(root.as_path());
 }

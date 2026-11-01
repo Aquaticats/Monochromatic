@@ -19,6 +19,7 @@
 
 /// Running real Git for the location query.
 use super::repo_read_adapter::landing_of;
+use super::git_system_config::with_real_git;
 use super::repo_read_layout::read_layout;
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 /// `OsString` is owned operating-system text of raw bytes.
@@ -110,7 +111,7 @@ pub fn resolve_landing_location(
 ) -> Result<Option<LandingLocation>, String> {
     // `mut` lets the request carry the layout arguments after the global options.
     // A plain layout is read from the file system; Git is asked only when the reader declines it.
-    if let Some(found) = read_layout(global_arguments, context.overlay.as_slice()).as_ref().and_then(landing_of) {
+    if let Some(found) = read_layout(global_arguments, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(landing_of) {
         return Ok(Some(found));
     }
     let mut arguments: Vec<OsString> = global_arguments.to_vec();

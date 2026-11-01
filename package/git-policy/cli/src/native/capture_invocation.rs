@@ -29,6 +29,7 @@ use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_
 use super::ref_files::{RefFilesLayout, read_symbolic_head};
 /// The in-process repository layout, tried before the `rev-parse` report.
 use super::repo_read_adapter::invocation_report;
+use super::git_system_config::with_real_git;
 use super::repo_read_layout::read_layout_in;
 /// Proof that a sequencer marker names nothing, without a Git process.
 use super::sequencer_marker::markers_maybe_present;
@@ -386,7 +387,7 @@ pub fn capture_invocation_layout(
     let invoked_at: String = now_iso();
     let config_snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, cwd);
     // A plain layout is read from the file system; Git is asked only when the reader declines it.
-    let text: String = match read_layout_in(cwd, context.overlay.as_slice()).as_ref().and_then(invocation_report) {
+    let text: String = match read_layout_in(cwd, with_real_git(context.overlay.as_slice(), context.real_git.as_path()).as_slice()).as_ref().and_then(invocation_report) {
         Some(read) => read,
         None => {
             let report: GitOutput = required(
