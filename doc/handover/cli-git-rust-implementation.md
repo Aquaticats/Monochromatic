@@ -7317,3 +7317,31 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 5. Resume the `migrate-to-subvolume` subcommand (agent `a26b6c7517c91e978`; its checkpoint follows when it reports).
 6. Then the earlier queue: worktreeConfig support in `read_layout`, the copy rework, 4d part 2, the btrfs ladder, the
    descriptor-limit test over 60 s, the wrapper-only signal relay test, task 76, task 79.
+
+### migrate-to-subvolume subcommand (agent `a26b6c7517c91e978`), PAUSED FOR REBOOT at `93a972ad32`
+
+- Branch `worktree-agent-a26b6c7517c91e978` on `877bdab090`: `29b1513934` (docs), `be6e32f4ec` (step 1 primitives, done,
+  real ioctls proven), `93a972ad32` (WIP: step 2 code complete in `subvolume_*.rs`, wired as `MigrateToSubvolume` in
+  `management_arguments.rs` and `management.rs`; 3 of 11 migrate tests fail:
+  `a_checkout_with_a_linked_worktree_is_migrated_and_stays_clean`,
+  `a_rerun_after_a_simulated_kill_at_every_step_completes`, `unreadable_files_stay_in_the_old_tree_and_are_listed`; the
+  last shows `?? wt/` in the fixture, likely a missing ignore for the fixture's worktree directory; several sidecar test
+  files are placeholders; management and arguments tests not rerun against the new help text).
+- Flags: `--dry-run`, `--rollback`, `--remove-old`, `--discard-unreadable`, `--no-nested-worktrees`,
+  `--no-refresh-indexes`, `--help`; rerun resumes from the journal. The owner's tolerance rule is ported (unreadable files
+  stay in the old tree and are listed; an unreadable directory fails before the exchange).
+- Veto-open addition by the agent (not an owner requirement): `--remove-old` refuses while the unreadable list is
+  non-empty unless `--discard-unreadable` is given.
+- Not started: step 3 doctor lines (planned `doctor_filesystem.rs`, injected so exact-stderr doctor tests stay host
+  independent), step 4 gate wiring (`CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1` in `bin/native-test-containerfile.ts`), step 5
+  README and a throwaway timing. Its resume list (test plan per sidecar, btrfs-real tests, binary test, doctor design)
+  is in its report; the essentials are here.
+- Its helper `~/temp/agent/subvol-cmd/mise-task.sh` runs mise tasks in a scope (CPUQuota 800%, MemoryMax 12G, TasksMax
+  1024, IOWeight 40); recreate it if `~/temp` is gone.
+
+### Durability before the reboot
+
+- Every agent branch with unmerged work is pushed to origin under its own name (list and result in the commit after
+  this one). Main is pushed by auto-push. Scratch under `~/temp/agent` (the other disk) is not in Git: the e2e driver
+  `integ-0.5.7/run-e2e.ts`, `subvol-cmd/mise-task.sh`, `mut-m056/*.ts`, the review text `review-pwt/sol-review.txt`
+  and the migration logs; their substance is recorded in this handover.
