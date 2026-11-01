@@ -7070,3 +7070,18 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Verified: eight cases against stub `rpm-ostree` and `sudo` on a throwaway PATH all pass
   (`~/temp/agent/kargs-src/test-script.ts`); a real `--dry-run` refused with the live "State: busy" rebase. The real
   change was not run (the owner runs it).
+
+## 2026-11-01: 0.5.6 gate green, merged, release dispatched
+
+- Gate 20 (`native:test:container` on `877bdab090`, unit `gpc-main-gate20`): 3272 tests run, 3272 passed, 9 skipped,
+  exit 0 (`~/temp/agent/gate/main-gate20.log`).
+- Merged into main as `c833f09cfb` (no `.git/MERGE_HEAD` before; clean merge), pushed with `push-checked.ts` (30 commits,
+  no LFS paths).
+- Release dispatched: `native:release -- 0.5.5 0.5.6` with note "Retry replays the captured change, never re-reads the
+  worktree; fixes an in-batch lost edit; forwarded commands wait for the service index.lock; one summary line per
+  commit." (173 characters), run https://github.com/Aquaticats/Monochromatic/actions/runs/41358063536.
+- Next: `native:release:wait`, check `pending` and `claimed` are empty, `bump-and-verify.ts 0.5.6`, then pause agents
+  and migrate the checkout into a subvolume.
+- Running agents: fault_signal flake diagnosis, bound wording plus `native:perf` commit gate, 0.5.7 integrator
+  (`a1038d28f6` onto `877bdab090`), host-layout lib failures, `migrate-to-subvolume` subcommand plus doctor. Cross-vendor
+  review of the per-worktree diff running (`~/temp/agent/review-pwt/sol-review.txt`).
