@@ -185,6 +185,33 @@ fn a_named_skip_worktree_file_does_not_fail_the_commit() {
     remove(root.as_path());
 }
 
+/// A tracked empty file that the real index holds as intent-to-add stays in the tree the private index produces when the
+///  commit names another path: the seeded copy kept the entry and a tree built from it leaves intent-to-add entries out.
+#[test]
+fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
+    let root: PathBuf = fixture("commit-index-intent-empty");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("empty"), "").expect("empty file");
+    git(repo.as_path(), &["add", "empty"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=empty"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "empty"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "empty"]);
+    std::fs::write(repo.join("a.txt"), "changed a\n").expect("change a");
+    initialize_explicit(repo.as_path(), &indexes, base.as_str(), &[OsString::from("a.txt")]);
+    let tree: String = write_private_tree(
+        &git_context(),
+        repo.as_path(),
+        indexes.commit_index.as_path(),
+        indexes.object_directory.as_path(),
+    )
+    .expect("tree");
+    let names: String = git_text(repo.as_path(), &["ls-tree", "--name-only", tree.as_str()]);
+    assert!(names.lines().any(|name| { return name == "empty"; }), "the tree must still hold the empty file: {names}");
+    assert_eq!(private_content(repo.as_path(), &indexes, "a.txt"), "changed a");
+    remove(root.as_path());
+}
+
 /// An index no mark touches still seeds the private index, so the safeguard costs nothing for it:
 ///  the copy is used exactly when the reader found the index plain, and an absent file seeds nothing.
 #[test]
