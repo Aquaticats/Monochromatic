@@ -19,6 +19,12 @@ export const defaultUnitMemoryMax = '12G';
  */
 export const defaultUnitCpuQuota = '500%';
 
+/**
+ Disk weight, as a systemd `IOWeight` value, of one campaign unit.
+ The owner's rule (AGENTS.md, RXS) is never above 50; a unit left without the property gets systemd's default of 100.
+ */
+export const unitIoWeight = 50;
+
 //endregion Per-unit systemd caps
 
 //region Campaign task
