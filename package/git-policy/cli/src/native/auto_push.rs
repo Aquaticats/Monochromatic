@@ -50,6 +50,15 @@ pub const DETACHED_HEAD_NOTE: &str = "cli-git: HEAD is detached (mid-rebase/cher
 pub const PUSH_FAILED_NOTE: &str =
     "cli-git: commit saved locally, but auto-push to origin failed; run `git push` when ready.";
 
+/// What Git prints when another process holds the lock of a reference the push updates.
+const REFERENCE_LOCK_REFUSAL: &str = "cannot lock ref";
+
+/// How many times the service pushes again when a held reference lock refused the update of a remote-tracking reference.
+pub const PUSH_LOCK_RETRIES: u32 = 3;
+
+/// The pause before the first of those pushes; each later one waits a multiple of it.
+const PUSH_LOCK_PAUSE: std::time::Duration = std::time::Duration::from_millis(250);
+
 /// Push argv for a branch without an upstream: create it on origin and record the upstream.
 const FIRST_PUSH_ARGUMENTS: &[&str] = &["push", "--set-upstream", "origin", "HEAD"];
 
@@ -405,6 +414,15 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dy
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
     debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {branch_ref}"));
     let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
+    // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
+    //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
+    //  leaves the reference stale; the same push again finds nothing to deliver and brings the reference up to date.
+    let mut pause: u32 = 0;
+    while attempt.output.contains(REFERENCE_LOCK_REFUSAL) && pause < PUSH_LOCK_RETRIES {
+        pause += 1;
+        std::thread::sleep(PUSH_LOCK_PAUSE * pause);
+        attempt = run_push_command(git, argument_views.as_slice())?;
+    }
     if has_upstream && attempt.exit_code != 0 {
         attempt = reconcile_divergent_push(git, &branch_ref, attempt)?;
     }
