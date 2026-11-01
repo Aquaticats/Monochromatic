@@ -7180,3 +7180,30 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   leaves_nothing` now fails every time (61.5 s, exit 1, expected 131) even with the fixed editor; cause unknown
   (candidates: a Git or wrapper path for SIGQUIT, core-dump handling through `systemd-coredump`). Resumes after the
   migration.
+
+## 2026-11-01: the checkout is a btrfs subvolume
+
+- Done with the proven script, owner-authorized ("so make it one"; timing "After 0.5.6 (Recommended)"), all five
+  agents paused first. First apply failed in the copy step and changed nothing in the checkout: `cp` could not read
+  127 root-owned mode-600 logger files (`node_modules/.monochromatic/` under the root, `package/wg/cli-quicker` and
+  worktree `agent-a6f97f5da6f22de4d`), written by a privileged run. Not chowned (WireGuard tool logs may be private on
+  purpose).
+- Script change (proven on a throwaway with a mode-000 file in the main tree and in a nested worktree, 11 of 11 checks):
+  `runCopy` tolerates exactly `cp: cannot open ... for reading: Permission denied` and rsync `send_files failed to open
+  ...: Permission denied (13)`, records each file once relative to its tree in
+  `~/.migrate-Monochromatic.unreadable.txt`, and fails on any other line; `--ignore-errors` on the `--delete` passes so
+  deletions still happen; an unreadable directory (`opendir`) is deliberately not tolerated, because with deletions
+  forced it would wipe that subtree.
+- Resume results: `cp` 378.71 s, first delta 214.09 s, last delta under `.git/index.lock` 195.88 s (the lock window was
+  3.3 minutes, above the 1 to 2.5 minute estimate), `mv --exchange` 0.01 s, catch-up 184.16 s, index stat refresh
+  30.02 s over 180 indexes (for example 20205 of 20211 entries refreshed per worktree), first `git status` 0.53 s.
+- Verified: root inode 256; sampled `.claude/worktrees/*` inode 256; `.git/worktrees` has the same 179 entries as the
+  old tree (180 with main), none prunable; `pending` and `claimed` empty; `git status` shows exactly the other sessions'
+  files from before; `git fsck --no-progress` exit 0 with 1046 dangling objects and no errors; `btrfs filesystem du`
+  total 184.32 GiB, exclusive 240.93 MiB, set shared 162.57 GiB.
+- The old tree is kept at `/var/home/user/Monochromatic.before-subvolume`. The 127 unreadable files exist only there.
+  Do not run `--remove-old` until the owner decides: copy them over with `sudo cp --archive --reflink=always` (keeps
+  `root:root 600`) or drop them.
+- If a later run ever throws in the last delta, the `.git/index.lock` it leaves is the script's own: check that no Git
+  process holds it, remove it, and resume.
+- This handover commit is the first wrapped commit into the new tree (installed 0.5.6, production service).
