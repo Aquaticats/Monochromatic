@@ -965,6 +965,9 @@ each finished branch is reviewed and merged into `main`):
   user:
   "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
   Last estimate given:
+  3.5 to 5.5 hours after the old-copy answers (about 35% confidence;
+  mpm-shadow 0.2.2 joined the critical path);
+  before that,
   3 to 4.5 hours when the owner asked again after the image-size answer (about 40% confidence;
   each separate review has found something to fix,
   so the date keeps slipping);
