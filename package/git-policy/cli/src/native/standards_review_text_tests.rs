@@ -62,6 +62,18 @@ fn seconds_round_to_the_nearest_tenth_with_ties_up() {
     }
 }
 
+/// Nothing that could end a line survives, text without such characters is unchanged, and the escapes are visible.
+#[test]
+fn one_line_text_has_no_line_breaks() {
+    let hostile: String = format!("a\nb\r\nc\td\u{0}e\u{2028}f\u{2029}g\u{85}h\u{7f}i");
+    let escaped: String = on_one_line(hostile.as_str());
+    assert!(!escaped.chars().any(|character| return character.is_control() || character == '\u{2028}' || character == '\u{2029}'));
+    assert!(escaped.contains("\\n") && escaped.contains("\\r") && escaped.contains("\\t"));
+    assert!(escaped.contains("\\u{0}") && escaped.contains("\\u{2028}"));
+    assert_eq!(on_one_line(MIXED), MIXED);
+    assert_eq!(on_one_line("plain: `x` \\ done"), "plain: `x` \\ done");
+}
+
 /// Blank lines before the subject are skipped, a subject wrapped over lines joins with spaces, and the body is dropped.
 #[test]
 fn subject_is_the_first_paragraph_folded() {

@@ -5722,3 +5722,44 @@ This block supersedes "State at 2026-10-29 (night, later)".
   comments and supersession notes in `doc/decision/cli-git-concurrent-commits.md` and `e2e/README.md`, `git hook run <event>` silently exiting 0.
 - Open: `sol-lfs2` (cross-vendor review of the LFS merge diff, `out-lfs2.md`), the combined gate, mutation campaign `m048c`, agents: `a6e4566588e9ec087` (service design),
   `a19be37e1bd9ea63d` (linter embedding), `ad02e84404af49107` (port quirk fixes), `abdf738d7cb09a5e6` (in-process queries), `a54d6b24f9cf91c20` (architecture-independent slow and flaky tests).
+
+### Combined gate broke on a stale generated manifest; port quirk fixes merged; service design ready
+
+- Combined gate `gpc-main-gate` (main `22dc5e82a6`) FAILED before building: the image's `cargo metadata --locked --offline` refused
+  `package/git-policy/cli/Cargo.toml` with "`default-features = false` cannot override workspace's `default-features`" (Cargo 1.97, edition 2024).
+  The member line `ureq = { workspace = true, default-features = false, features = ["rustls"] }` inherited a stale generated
+  `[workspace.dependencies]` entry `ureq = ">=3.5.0"`. `file-enforcer write` in a clean worktree regenerates it as
+  `ureq = { version = ">=3.5.0", default-features = false }` (the generator already does this for `gix-hash`, `salsa`, `regex-automata`);
+  `cargo metadata --locked --offline --all-features` then succeeds with the unchanged lockfile. Fixed on main `ff0ea79755`.
+  Gap: neither the agent's host checks nor the container gate run `file-enforcer check` before building, so a generated table can merge stale.
+  `file-enforcer write` refuses a worktree whose `node_modules` are symlinks (`symlink-rejected`); run it in a fresh worktree without them.
+- Merged `ad02e84404af49107`'s READY `70c3c28125` (merge `ae5736b93d`): excerpt window from new-side spans (`standards_review_patch::new_spans`,
+  head window for files with no anchor line), log text through `standards_review_text::on_one_line`, source-scan boundary test
+  `standards_review_boundary_tests.rs` (only `standards_review_client*` may name `ureq`; positive control and planted violations). Its own
+  limit, recorded: the library still compiles the client; removing it from client builds needs a cargo feature plus a symbol check of
+  the release binary, after the service is a separate entry. That agent is finished (resumable).
+- Combined gate rerun on `ae5736b93d`: unit `gpc-main-gate3`, `GIT_POLICY_NATIVE_IMAGE_TAG=main-ae5736` (so mutation reuses exactly this
+  image and no other worktree's `development` image), log `~/temp/agent/gate/main-gate3.log`. Next after green: release via CI.
+- Mutation campaign `m048c` never ran: every per-file unit failed at once with `localhost/git-policy-native-test:m048cN: image not known`.
+  `native:mutation:scoped` runs against an existing gate image of that unit's tag (`bin/mutate-native-container.ts`), and the launcher gives
+  each unit its own tag (`{label}{index}`). Next: after gate 3 is green, `podman tag` the `main-ae5736` test image to each unit tag and relaunch
+  `native:mutation:parallel` from `.claude/worktrees/gate-main` over `index_flags.rs child_class.rs child_watch.rs process_tree.rs real_index_lock.rs`.
+- Service design READY from `a6e4566588e9ec087`: `8b3b20dc07`, `doc/planning/cli-git-resident-service.md`. Its measurements: 32 simultaneous
+  commits 0.9 s through the resident prototype against 17 to 29 s for the wrapper and 2.5 to 5.8 s for the serial lock; a burst of 128 in
+  0.3 to 0.5 s; commit acknowledged in 35 to 91 ms with the push moved out against 0.5 to 1.3 s today; kill tests (five fault points, eight
+  random SIGKILLs, stale socket, client killed, no service, PID namespaces) all landed every commit exactly once. Issue `#1770` not reproduced
+  locally yet (stat-dirty tracked LFS asset commits fine on fixed and installed wrappers); the agent is trying the low-memory and container
+  variants. Told to proceed to slice 1 at once (owner: "Treat reviews as async."). Cross-vendor review of the design running: unit
+  `sol-service`, question `~/temp/agent/sol/q-service.txt`, output `~/temp/agent/sol/out-service.md`; forward findings to the agent.
+- Still running: `sol-lfs2`, `sol-hooks2` (outputs empty so far), agents `a6e4566588e9ec087` (slice 1), `a19be37e1bd9ea63d`, `abdf738d7cb09a5e6`,
+  `a54d6b24f9cf91c20`.
+- Gate 3 (`ae5736b93d`) FAILED at the same image step for a second cause: "failed to read `/work/package/catalog-specifier/core-rust/Cargo.toml`".
+  The catalog-specifiers merge made the wrapper link that crate by path, but `pathCrates` in `bin/native-test-containerfile.ts` was a hand
+  list. Fixed `67d9f5487a`: the crate is listed, and the new unit test "lists exactly the path crates the manifests link, transitively"
+  walks the real manifests from the tested crate. Shown failing with the entry removed ("only in actual: catalog-specifier/core-rust"),
+  then restored. Gate 4 on `67d9f5487a`: unit `gpc-main-gate4`, tag `main-gate4`, log `~/temp/agent/gate/main-gate4.log`. Use the tag
+  `main-gate4` (not `main-ae5736`) for the mutation relaunch.
+- Owner, verbatim: "Modify the AGENTS.md rule that talked about io weight to say never to use one greater than 50." Done `4584f797e1`:
+  RXS ends "never set `IOWeight` above 50"; RLM's limit moved RXS's podman or mvm clause into the fresh rule HXR. Every running agent
+  was told to lower its units (`systemctl --user set-property <unit> IOWeight=50`). Asked the owner whether the cap also covers the
+  CLAUDE.md preamble's `IOWeight=<10-10000>` range and podman `--blkio-weight`.

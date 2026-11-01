@@ -61,12 +61,34 @@ fn excerpt_window_is_span_plus_context() {
     let mut commit: LandedCommit = commit_with(0, &[("src/a.ts", file.as_str())]);
     commit.patch = String::from("diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -100,2 +100,2 @@\n-l100\n-l101\n+x\n+y\n");
     let input: ReviewInput = build_input(&commit, &names(&["src/a.ts"]));
+    // The two added lines are new lines 100 and 101.
     let from: i64 = 100 - EXCERPT_CONTEXT;
-    let to: i64 = 102 + EXCERPT_CONTEXT;
+    let to: i64 = 101 + EXCERPT_CONTEXT;
     let total: usize = file.split('\n').count();
     assert!(input.model_input.contains(&format!("// candidate excerpt of src/a.ts, lines {from} to {to} of {total}")));
     assert!(input.model_input.contains(&format!("l{from}\n")));
     assert!(input.model_input.ends_with(&format!("l{to}")));
+}
+
+/// A change is excerpted at its new-side lines even when an earlier insertion made the old and new numbers differ.
+#[test]
+fn the_window_follows_new_side_lines() {
+    let file: String = (1..=300).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
+    let mut commit: LandedCommit = commit_with(0, &[("a.ts", file.as_str())]);
+    // Old lines 200 to 201 became new lines 210 to 211 after ten lines were inserted earlier.
+    commit.patch = String::from("diff --git a/a.ts b/a.ts\n@@ -200,2 +210,2 @@\n-old\n-old\n+new\n+new\n");
+    let input: ReviewInput = build_input(&commit, &names(&["a.ts"]));
+    assert!(input.model_input.contains(&format!("lines {} to {} of", 210 - EXCERPT_CONTEXT, 211 + EXCERPT_CONTEXT)));
+}
+
+/// A file with nothing to anchor on gets the head of the file, never a negative window.
+#[test]
+fn an_unanchored_file_gets_its_head() {
+    let file: String = (1..=300).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
+    let commit: LandedCommit = commit_with(1, &[("a.ts", file.as_str())]);
+    let input: ReviewInput = build_input(&commit, &names(&["a.ts"]));
+    assert!(input.model_input.contains(&format!("lines 1 to {HEAD_WINDOW} of 300")));
+    assert!(input.model_input.ends_with(&format!("l{HEAD_WINDOW}")));
 }
 
 /// Only the first files up to the file cap are excerpted, and a file past the cap does not appear.
@@ -86,8 +108,8 @@ fn excerpts_stop_at_the_file_cap() {
 fn excerpts_stop_at_the_line_cap_and_skip_deleted_files() {
     let wide: String = (0..EXCERPT_LINE_CAP).map(|_| return "w").collect::<Vec<&str>>().join("\n");
     let mut commit: LandedCommit = commit_with(1, &[("a.ts", wide.as_str()), ("c.ts", "late")]);
-    // One hunk removing every line of the first file, so its window alone reaches the cap.
-    commit.patch = format!("diff --git a/a.ts b/a.ts\n@@ -1,{EXCERPT_LINE_CAP} +1,{EXCERPT_LINE_CAP} @@\n{}", "-w\n".repeat(4000));
+    // One hunk adding every line of the first file, so its window alone reaches the cap.
+    commit.patch = format!("diff --git a/a.ts b/a.ts\n@@ -0,0 +1,{EXCERPT_LINE_CAP} @@\n{}", "+w\n".repeat(usize::try_from(EXCERPT_LINE_CAP).expect("small")));
     let input: ReviewInput = build_input(&commit, &names(&["a.ts", "gone.ts", "c.ts"]));
     assert!(input.model_input.contains("excerpt of a.ts"));
     assert!(!input.model_input.contains("gone.ts"));
