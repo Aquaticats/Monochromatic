@@ -1102,6 +1102,9 @@ importers:
       '@monochromatic-dev/agent-harness-shared-text-scan':
         specifier: workspace:*
         version: link:../../agent-harness-shared/text-scan
+      '@monochromatic-dev/async-time-core':
+        specifier: workspace:*
+        version: link:../../async-time/core
       '@monochromatic-dev/claude-code-plugin-hook-type':
         specifier: workspace:*
         version: link:../hook-type

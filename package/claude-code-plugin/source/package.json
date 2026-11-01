@@ -31,6 +31,7 @@
   "dependencies": {
     "@monochromatic-dev/agent-harness-shared-session-discovery": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
     "@monochromatic-dev/claude-code-plugin-hook-type": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-current-time-context": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
