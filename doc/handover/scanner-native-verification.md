@@ -2547,3 +2547,31 @@ beside a failing positive control.
 Its pathname mutation campaign ended with none missed and one timeout,
 which `What to inspect and how to respond` asks about.
 `Decisions left after the Windows baseline follow-up` lists two further choices that block nothing.
+
+### Windows rerun paused on 2026-11-01
+
+A rerun of the pathname scope,
+once as-is and once with Defender real-time scanning excluded for the build directory and the cargo home,
+was started on 2026-11-01 and stopped before any command ran in the guest,
+because the owner said "Ignore Win and mac until I say so."
+The guest `wdefa-20261101` (backend `libvirt`) was destroyed,
+and `list_vms` on `libvirt` returned "No VMs found" afterwards.
+Nothing ran in it.
+
+Preparation facts for the resumed run:
+
+- `toolchain.lock.json` has no `cargo-mutants` row,
+  so the guest needs `cargo install cargo-mutants --version 27.1.0 --locked` as in `Pathname mutation scope on Windows`.
+- The reference listing `pathname-mutation-list-kVfzW5` is stale:
+  `path_scan.rs` and `path_name_bytes.rs` changed in `928c633874` (rustdoc reformatting),
+  so line numbers moved;
+  the timeout mutant `src/path_name_bytes.rs:56:35` is now at `59:35`.
+- A fresh Linux `--list` at `5842cf0f9d` with host `cargo-mutants 27.1.0` found 54 mutants;
+  it is in `~/temp/agent/scanner-windows-defender-20261101/linux-list.txt`,
+  beside a `git archive` of that head.
+  The guest listing has to match it.
+- The crate path is now `package\forbidden-strings\cli`,
+  and the pre-build package is `forbidden-strings@0.6.1`.
+- `tests/ci_scan_scope.rs` is `#![cfg(unix)]`;
+  `tests/rules_list.rs` and `tests/self_match_positional.rs` have never run on Windows,
+  so the guest baseline may fail on them first.
