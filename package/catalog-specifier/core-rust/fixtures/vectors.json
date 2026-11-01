@@ -37,8 +37,7 @@
       "catalog:\u00e9",
       "Catalog:",
       "CATALOG:",
-      "workspace:*\n",
-      "catalog:\ud800"
+      "workspace:*\n"
     ]
   },
   "peer_specifiers": {
@@ -180,6 +179,11 @@
     {
       "name": "comments and trailing commas are read as data",
       "text": "{ // note\n \"dependencies\": { \"a\": \"1.0.0\", }, }",
+      "kinds": ["disallowed-specifier"]
+    },
+    {
+      "name": "lone surrogate escape in a specifier",
+      "text": "{\"dependencies\":{\"a\":\"catalog:\\ud800\"}}",
       "kinds": ["disallowed-specifier"]
     },
     {
