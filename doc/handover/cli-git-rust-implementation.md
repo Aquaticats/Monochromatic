@@ -5421,3 +5421,20 @@ This block supersedes "State at 2026-10-29 (night, later)".
   reported against the fixed wrapper and the lock prototype at the same concurrency levels with wait distribution and fairness, plus
   kill-the-daemon-mid-batch recovery behavior, cold-start latency, stale-socket handling and a PID-namespace case. It is evidence
   gathering for the owner's view that a client-server architecture has potential; no production code.
+
+### Owner's design stance, recorded in the package docs
+
+- User, verbatim: "I think we can make the git wrapper much better. Because we control all the code. Don't take "Good" as perfect as
+  "Good" breaks down whenever it meets real world. Happened so many times already. Record that in pkg-local docs." then "You can add
+  it in the handove[r]." Read as: package docs as asked, and also here.
+- Package docs: new `package/git-policy/cli/DESIGN.md` ("Design stance"): the quote; that every part of the package is ours so a
+  limit that comes from our code is fixed there, not worked around or documented as a limit; the concurrency-growth premise quoted;
+  the cases that looked good until they met the real world, each with its measurement and the handover section that holds it (the
+  stat-less private index, the single 1800 s child bound, the 30-file performance fixture and tests that restored state by running
+  more Git, the gate image that recompiled 121 crates, locks held across unbounded work with unordered 20 ms retries); and working
+  suggestions for contributors, labeled revisable (read a green result as evidence about the cases it covered; measure on a realistic
+  size under the load there is; prefer bounded and visible failure; write down the load a "good enough" decision assumed; fix causes in
+  the package). Linked from the top of the package `README.md`. Not in `AGENTS.md`, per the owner's earlier "Package docs only" answer
+  for package design rules.
+- Consequence for open work: the daemon prototype, the extended remeasurement and the reviews are instances of this stance, not extras;
+  a branch is not "done" because its gate is green, only because the cases it did not exercise are named.
