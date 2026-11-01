@@ -146,9 +146,31 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   or that sits below one,
   also counts as the directory it points to,
   resolved when the watcher starts,
-  because a resolved executable path names that place;
-  a link created later is not seen until the next start.
-  The start notice lists installed tools only from real directories that stay inside the home.
+  because a resolved executable path names that place,
+  but only when that place lies strictly inside the user's resolved home:
+  not the home itself,
+  not the filesystem root,
+  not another user's home,
+  and not through a home that resolves to the filesystem root.
+  The directory is writable by the user while the watcher runs as root,
+  so a link to anywhere else would make every program there leave the tunnel;
+  the reviewer's probe linked the root to `/` and `/usr/bin/curl` matched.
+  Such a root is left out of the matching and reported with `POLICY NOT IN FORCE` in the watcher log,
+  which `up` relays;
+  a root that cannot be resolved for any reason other than not existing,
+  such as a link loop,
+  is reported the same way.
+  A link that is dangling is the same as a root that does not exist yet.
+  A link created later is not seen until the next start.
+  The start notice lists installed tools only from real directories that stay strictly inside the home.
+  `src/install_roots_tests.rs` has the accepted and refused fixtures:
+  a link inside the home,
+  to `/`,
+  to the home itself,
+  to another user's home,
+  a link loop,
+  a dangling link,
+  an unresolved home and a home that resolves to `/`.
   The roots cover every program the toolchain installed,
   so every script and dev server run by the toolchain's node leaves the tunnel too,
   not only updates;

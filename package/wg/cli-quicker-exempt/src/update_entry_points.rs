@@ -3,11 +3,6 @@
 //! and the toolchain knows nothing about it.
 //! A test reads the toolchain's task names and `mpm-shadow` verbs and fails when this list falls behind.
 
-/// Escaping of untrusted names.
-use crate::log_line::sanitize;
-/// Sorted,
-/// duplicate-free names.
-use std::collections::BTreeSet;
 /// Raw Unix path bytes for argument comparison.
 use std::os::unix::ffi::OsStrExt;
 /// Executable paths and install roots.
@@ -181,84 +176,4 @@ pub fn classify(exe: &Path, args: &[Vec<u8>], install_roots: &[PathBuf]) -> Opti
         return Some(MatchReason::ToolchainScript);
     }
     return None;
-}
-
-/// Most names listed from the install roots in a notice.
-const MAX_LISTED_NAMES: usize = 64;
-/// Most directory entries read from one root,
-/// so a root with a huge number of entries cannot stall the start.
-const MAX_ENTRIES_READ: usize = 512;
-
-/// The names of the directories directly inside the install roots that exist,
-/// sorted and without duplicates,
-/// so a notice can say what is installed on this machine now.
-/// A root is read only when it resolves to a place inside the user's home,
-/// and only real directories are listed,
-/// never links:
-/// the roots are user-writable,
-/// and this runs as root,
-/// so a link must not make the notice print the names found elsewhere.
-/// Names are escaped before they are printed.
-pub fn installed_tool_names(roots: &[PathBuf], home: &Path) -> Vec<String> {
-    let Ok(canonical_home) = std::fs::canonicalize(home) else {
-        return Vec::new();
-    };
-    let mut names: BTreeSet<String> = BTreeSet::new();
-    for root in roots {
-        let Ok(canonical) = std::fs::canonicalize(root) else {
-            continue;
-        };
-        if !canonical.starts_with(&canonical_home) {
-            continue;
-        }
-        let Ok(entries) = std::fs::read_dir(&canonical) else {
-            continue;
-        };
-        for listed in entries.take(MAX_ENTRIES_READ).flatten() {
-            let Ok(kind) = listed.file_type() else {
-                continue;
-            };
-            if !kind.is_dir() {
-                continue;
-            }
-            let name = listed.file_name().to_string_lossy().into_owned();
-            if !name.starts_with('.') {
-                names.insert(sanitize(&name));
-            }
-        }
-    }
-    return names.into_iter().take(MAX_LISTED_NAMES).collect();
-}
-
-/// The toolchain install roots for one home directory,
-/// in every spelling a resolved executable path can take.
-/// `home` is the passwd home of the watched user,
-/// and `canonical_home` its resolved path when the directory exists.
-pub fn install_roots(home: &Path, canonical_home: Option<&Path>) -> Vec<PathBuf> {
-    let mut roots: Vec<PathBuf> = Vec::new();
-    let mut homes: Vec<&Path> = vec![home];
-    if let Some(canonical) = canonical_home {
-        homes.push(canonical);
-    }
-    for candidate in homes {
-        for directory in ["toolchain", "toolchain-global"] {
-            let root = candidate.join(".local/share/monochromatic-dev").join(directory);
-            if !roots.contains(&root) {
-                roots.push(root);
-            }
-        }
-    }
-    // A root that is a link, or sits below one, is also known by the place it points to,
-    // because a resolved executable path names that place and would otherwise never match.
-    let mut resolved: Vec<PathBuf> = Vec::new();
-    for root in &roots {
-        if let Ok(canonical) = std::fs::canonicalize(root)
-            && !roots.contains(&canonical)
-            && !resolved.contains(&canonical)
-        {
-            resolved.push(canonical);
-        }
-    }
-    roots.extend(resolved);
-    return roots;
 }

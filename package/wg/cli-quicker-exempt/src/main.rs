@@ -27,6 +27,8 @@ mod process_events;
 mod scope_adoption;
 /// Recognizes update entry points and toolchain install roots.
 mod update_entry_points;
+/// The toolchain install roots of the watched user.
+mod install_roots;
 /// The always-on update traffic policy.
 mod update_routing;
 /// Looks up the watched user's account.
@@ -70,6 +72,9 @@ mod application_targets_tests;
 /// Unit tests for the update entry-point list.
 #[cfg(test)]
 mod update_entry_points_tests;
+/// Unit tests for the install roots.
+#[cfg(test)]
+mod install_roots_tests;
 /// Unit tests for the process-event connector.
 #[cfg(test)]
 mod process_events_tests;

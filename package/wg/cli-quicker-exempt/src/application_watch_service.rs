@@ -22,7 +22,7 @@ use crate::application_watch_state::{
     WatchProcess,
 };
 /// The user's toolchain roots.
-use crate::update_entry_points::install_roots;
+use crate::install_roots::{install_roots, InstallRoots};
 /// Moves matched processes into the updates slice.
 use crate::scope_adoption::BusctlAdopter;
 /// The watched user's account.
@@ -34,7 +34,7 @@ use crate::watcher_sentinel::SENTINEL_COMMAND;
 /// The policy engine and its setup.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.
-use crate::update_report::{policy_failure, policy_notice, POLICY_NOT_IN_FORCE_MARKER};
+use crate::update_report::{policy_failure, policy_notice, refused_root_failures, POLICY_NOT_IN_FORCE_MARKER};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
 /// The account of the watched user.
@@ -184,7 +184,7 @@ fn forward_startup_failures(key: &str, offset: u64) -> io::Result<()> {
 }
 
 /// Looks up the watched user and the toolchain install roots of that user.
-fn user_install_roots(uid: u32) -> io::Result<(UserAccount, Vec<PathBuf>)> {
+fn user_install_roots(uid: u32) -> io::Result<(UserAccount, InstallRoots)> {
     let account = lookup_user(uid)?;
     let canonical_home = std::fs::canonicalize(&account.home).ok();
     let roots = install_roots(&account.home, canonical_home.as_deref());
@@ -299,7 +299,7 @@ pub fn start_application_watch(
 ) -> io::Result<()> {
     stop_application_watch(key)?;
     let (account, roots) = user_install_roots(uid)?;
-    write_unchecked(&policy_notice(&roots, &account.home));
+    write_unchecked(&policy_notice(&roots.roots, &account.home));
     let log_offset = watch_log_length(key);
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
@@ -346,12 +346,15 @@ pub fn run_application_watch_child(
         proc_root: Path::new("/proc"),
         cgroup_root: Path::new("/sys/fs/cgroup"),
     };
-    let (account, install_root_list) = user_install_roots(uid)?;
-    log_line(&policy_notice(&install_root_list, &account.home));
+    let (account, install_root_set) = user_install_roots(uid)?;
+    log_line(&policy_notice(&install_root_set.roots, &account.home));
+    for line in refused_root_failures(&install_root_set.refused) {
+        log_line(&line);
+    }
     let routing = UpdateRouting::new(RoutingSetup {
         uid,
         gid: account.gid,
-        install_roots: install_root_list,
+        install_roots: install_root_set.roots,
         proc_root: PathBuf::from("/proc"),
         cgroup_root: PathBuf::from("/sys/fs/cgroup"),
         adopter: Box::new(BusctlAdopter::new()),

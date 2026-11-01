@@ -9,9 +9,11 @@
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
 /// Escaping of untrusted text.
 use crate::log_line::sanitize;
-/// Why a process matched,
+/// The install roots that were left out,
 /// and the installed tool names.
-use crate::update_entry_points::{installed_tool_names, MatchReason};
+use crate::install_roots::{installed_tool_names, RefusedRoot};
+/// Why a process matched.
+use crate::update_entry_points::MatchReason;
 /// Install root paths.
 use std::path::{Path, PathBuf};
 /// Retry waits.
@@ -45,7 +47,8 @@ pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
         "    together with its command-line words, the tail of a toolchain script path, any executable named mpm,".to_string(),
         "    and any executable under the install roots, which are inside a home directory the user can write.".to_string(),
         "    Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.".to_string(),
-        "    A root that is a link counts as the directory it points to.".to_string(),
+        "    A root that is a link counts as the directory it points to only when that directory is strictly inside the home;".to_string(),
+        "    a link to anywhere else, the home itself included, is left out and reported when the watcher starts.".to_string(),
         "  - Not covered: processes in another pid namespace (containers and sandboxes), and processes the user's service manager".to_string(),
         "    cannot move (login sessions and the main process of a service); each is reported when it matches.".to_string(),
         "  - Moved processes keep the CPU, memory and task limits of the cgroup they left, as their own limits.".to_string(),
@@ -53,6 +56,23 @@ pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
         "  and each of its rules carries a whole address, so a shared CDN address serves other sites outside the tunnel too.".to_string(),
     ]
     .join("\n");
+}
+
+/// The loud reports for install roots that were left out of the matching.
+/// Each names the root as spelled and why,
+/// and says what that leaves.
+pub fn refused_root_failures(refused: &[RefusedRoot]) -> Vec<String> {
+    return refused.iter().map(refused_root_failure).collect();
+}
+
+/// The loud report for one install root that was left out.
+fn refused_root_failure(entry: &RefusedRoot) -> String {
+    return policy_failure(&format!(
+        "the install root {} was left out of the matching: {}; programs run from there are not treated as toolchain programs, \
+and a root that is a link counts only when it points strictly inside the home",
+        entry.root.display(),
+        entry.why
+    ));
 }
 
 /// Builds the loud report for a policy that cannot be enforced.

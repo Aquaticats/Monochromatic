@@ -11,7 +11,9 @@ use crate::inherited_limits::InheritedLimits;
 /// Seam implemented by the scripted fake.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
 /// Install roots of the fixture user and the match reasons.
-use crate::update_entry_points::{install_roots, MatchReason};
+use crate::install_roots::install_roots;
+/// Why a process matched.
+use crate::update_entry_points::MatchReason;
 /// Outcomes under test.
 use crate::update_report::Outcome;
 /// Policy under test.
@@ -102,7 +104,7 @@ fn fixture(name: &str, script: Vec<Result<(), AdoptError>>) -> Fixture {
     let routing = UpdateRouting::new(RoutingSetup {
         uid: UID,
         gid: USER_GID,
-        install_roots: install_roots(Path::new("/home/tester"), Some(Path::new("/var/home/tester"))),
+        install_roots: install_roots(Path::new("/home/tester"), Some(Path::new("/var/home/tester"))).roots,
         proc_root: proc_root.clone(),
         cgroup_root: cgroup_root.clone(),
         adopter: Box::new(adopter),

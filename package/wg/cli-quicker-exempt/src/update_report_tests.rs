@@ -4,10 +4,12 @@
 
 /// The slice name.
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
+/// A root that was left out.
+use crate::install_roots::RefusedRoot;
 /// Why a process matched.
 use crate::update_entry_points::MatchReason;
 /// Wording under test.
-use crate::update_report::{describe_outcome, policy_failure, policy_notice, Outcome, POLICY_NOT_IN_FORCE_MARKER};
+use crate::update_report::{describe_outcome, policy_failure, policy_notice, refused_root_failures, Outcome, POLICY_NOT_IN_FORCE_MARKER};
 /// Fixture paths.
 use std::path::PathBuf;
 /// Retry waits.
@@ -38,7 +40,8 @@ fn the_start_notice_names_the_traffic_and_the_absence_of_a_switch() {
         "POLICY NOTICE",
         "without any switch",
         "with Table = off it installs none",
-        "A root that is a link counts as the directory it points to",
+        "A root that is a link counts as the directory it points to only when that directory is strictly inside the home",
+        "is left out and reported when the watcher starts",
         "Update entry points",
         "mpm-shadow install, update and outdated",
         "install roots",
@@ -179,4 +182,23 @@ fn tool_names_are_escaped_and_links_are_not_followed() {
     std::os::unix::fs::symlink("/usr", &escaping).expect("link an entry out of the root");
     let entry_notice = policy_notice(&[home.join("toolchain")], &home);
     assert!(!installed_line(&entry_notice).contains("escape"), "a link inside a root is not a tool: {entry_notice}");
+}
+
+/// A root that was left out is reported loudly,
+/// with its name and the reason escaped,
+/// and the report says what that leaves.
+#[test]
+fn refused_roots_are_reported_loudly_with_escaped_names() {
+    let refused = vec![RefusedRoot {
+        root: PathBuf::from("/home/tester/.local/share/monochromatic-dev/toolchain\u{1b}[2J"),
+        why: "it points to /, which is not strictly inside the home /home/tester".to_string(),
+    }];
+    let lines = refused_root_failures(&refused);
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].contains(POLICY_NOT_IN_FORCE_MARKER), "{lines:?}");
+    assert!(lines[0].contains("not strictly inside the home"), "{lines:?}");
+    assert!(lines[0].contains("not treated as toolchain programs"), "{lines:?}");
+    assert!(!lines[0].chars().any(|character| return character.is_control()), "{lines:?}");
+    assert!(lines[0].contains("\\u{001b}[2J"), "{lines:?}");
+    assert!(refused_root_failures(&[]).is_empty());
 }
