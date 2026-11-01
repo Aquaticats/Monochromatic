@@ -65,6 +65,10 @@ serde_json = { workspace = true }
 # Unguessable lock tokens and transaction IDs, the incumbent's `randomUUID`, from the operating system's source.
 # Already in the lockfile through the scanner's `tempfile`.
 getrandom = { workspace = true }
+# The standards-review shadow run's one HTTPS call, in-process instead of `node` and `fetch`
+# (doc/planning/cli-git-standards-review-port.md, "HTTP client choice"): blocking, no runtime, no threads of its own,
+# `ring` for TLS and the embedded Mozilla roots, so nothing is read from the system. `rustls` selects exactly those.
+ureq = { workspace = true, default-features = false, features = ["rustls"] }
 
 # `sigaction` with signal details, `kill` and process-group facts, which the standard library does not expose.
 # Already in the lockfile through the scanner's dependencies.
@@ -117,3 +121,4 @@ ignore = ">=0.4.33"
 libc = ">=0.2.191"
 serde_json = ">=1.0.154"
 tempfile = ">=3.27.0"
+ureq = ">=3.5.0"

@@ -1,0 +1,85 @@
+//! Controls for entry rendering and appending. The expected lines are built from the same fields the entry is.
+
+use super::*;
+use crate::test_support::{fixture, remove};
+
+/// A review entry with distinct values in every field.
+fn sample(top: &str, truncated: bool) -> ReviewEntry {
+    return ReviewEntry {
+        date: String::from("DATE"),
+        sha: String::from("0123456789abcdef0123456789abcdef01234567"),
+        subject: String::from("SUBJECT"),
+        code_files: 3,
+        diff_lines: 41,
+        truncated,
+        input_units: 977,
+        seconds: String::from("SECONDS"),
+        top: String::from(top),
+        outcome: String::from("OUTCOME"),
+    };
+}
+
+/// The entry's lines come in the script's order, each field printed once at its indent.
+#[test]
+fn review_entry_lines_follow_the_log_layout() {
+    let entry: ReviewEntry = sample("no", false);
+    let text: String = render_review(&entry);
+    let lines: Vec<&str> = text.split('\n').collect();
+    let short_sha: String = entry.sha.chars().take(SHORT_SHA_LENGTH).collect();
+    let expected: Vec<String> = vec![
+        String::from("- Date:"),
+        format!("  {}", entry.date),
+        String::from("  Subject:"),
+        format!("  {short_sha} `{}`", entry.subject),
+        String::from("  Input size:"),
+        format!("  `{} code files, {} diff lines, luna input {} chars`", entry.code_files, entry.diff_lines, entry.input_units),
+        String::from("  Reviewer route:"),
+        format!("  `{ROUTE}`"),
+        String::from("  Wall-clock cost:"),
+        format!("  {} s", entry.seconds),
+        String::from("  Named superlinear cost:"),
+        format!("  {}", entry.top),
+        String::from("  Findings kept:"),
+        String::from("    `````text"),
+        format!("    {}", entry.outcome),
+        String::from("    `````"),
+        String::new(),
+        String::new(),
+    ];
+    assert_eq!(lines, expected.iter().map(String::as_str).collect::<Vec<&str>>());
+}
+
+/// A truncated patch says so with the cap, `partial` prints its two-line gesture, and other choices print `unjudged`.
+#[test]
+fn truncation_and_the_judged_line_vary() {
+    let capped: String = render_review(&sample("yes", true));
+    assert!(capped.contains(&format!("41 diff lines, capped at {CAP_LINES}, luna input 977 chars")));
+    assert!(capped.contains("Named superlinear cost:\n  yes\n"));
+    let partial: String = render_review(&sample("partial", false));
+    assert!(partial.contains("  partial (cost gestured as unverified,\n  not named)\n  Findings kept:"));
+    for other in ["", "maybe", "YES"] {
+        assert!(render_review(&sample(other, false)).contains("Named superlinear cost:\n  unjudged\n"), "{other}");
+    }
+}
+
+/// The skip entry is three lines with the short name.
+#[test]
+fn skipped_entry_has_three_lines() {
+    let sha: &str = "0123456789abcdef0123456789abcdef01234567";
+    let text: String = render_skipped(sha, "SUBJECT");
+    assert_eq!(text.lines().count(), 3);
+    assert!(text.starts_with("- Skipped:\n"));
+    assert!(text.contains(&format!("  {} (no code files):\n", &sha[..SHORT_SHA_LENGTH])));
+    assert!(text.ends_with("  `SUBJECT`\n"));
+}
+
+/// Appending creates the file and then adds, never replacing what is there.
+#[test]
+fn append_creates_then_adds() {
+    let directory: std::path::PathBuf = fixture("entry-append");
+    let log: std::path::PathBuf = directory.join("log.md");
+    append_entry(log.as_path(), "first\n").expect("create");
+    append_entry(log.as_path(), "second\n").expect("append");
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("read"), "first\nsecond\n");
+    remove(directory.as_path());
+}
