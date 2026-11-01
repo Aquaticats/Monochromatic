@@ -267,12 +267,26 @@ export async function runRefinePhase(
            */
           const sliceModels: RepairModels = seating.repairModels ?? models;
           /**
-           Rewriters of this slice, the lane's own where the reading names none: the one list the stage reads, the key
-           hashes and the slice asks.
+           Rewriters of this slice, the lane's own where the roster the hook returned says nothing of them (no roster, or
+           one without the property) and the hook's own list where it names one, empty included: the one list the stage
+           reads, the key hashes and the slice asks.
            */
-          const sliceRefiners = ((sliceModels.refinerModelIds ?? []).length === 0)
-            ? refinerModelIds
-            : (sliceModels.refinerModelIds ?? []);
+          const sliceRefiners = sliceModels.refinerModelIds ?? refinerModelIds;
+          // AN EMPTY LIST IS A WITHDRAWAL, NOT A SILENCE (ledger B1375): a hook that took every refiner off the roster means
+          // no rewriter is asked for this slice, and bringing the lane's own back would ask a model the hook withdrew, on
+          // the provider it may have withdrawn it for. The slice keeps its incumbent text, as a lane with no refiners does,
+          // asks nothing and stores no refinement, so no record is written under a roster with no refiner.
+          if (sliceRefiners.length === 0) {
+            l.warn(
+              `slice ${String(outcome.sliceIndex,)}: the roster the hook returned names no refiner, so the incumbent text `
+                + 'stands unrefined and no rewriter is asked',
+            );
+            return {
+              outcome,
+              findings: [],
+              asked: false,
+            };
+          }
           /**
            Roster the slice's stages read, holding the lane's checker bench: the checker stage compares the bench the
            hook names now with the bench it was seated with, and refuses one below the checker floor, which it could
