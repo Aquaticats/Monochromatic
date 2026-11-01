@@ -1211,6 +1211,53 @@ each finished branch is reviewed and merged into `main`):
   (a toolchain folder that is a link is ignored and reported loudly at every start;
   measured:
   the owner's toolchain folders contain no links).
+- Cutover merged 2026-11-01:
+  `d2036021e2` (switch tip `48b76b1ae7`), pushed (`3408ce45fe..d2036021e2`).
+  The owner said "We've been at this for 3 days. SWITCHOVER NOW NO MATTER WHAT!"
+  The final separate review (`a4e98fb9427d700e5`) had already returned no blocker:
+  the merge resolution lost nothing,
+  no tool moved backwards against `main`'s lock,
+  the 0.2.2 rows match the release sums,
+  `lock --check` is current,
+  and `file-enforcer check --outputs committed` is clean on an archive.
+  Its one should-fix belongs to the Docker removal:
+  `README.md:160` and `README.md:212` cite the `Dockerfile` for the rustup command and the bootstrap steps.
+  The Docker test unit `fe-switch-docker-final3` was stopped before it finished
+  (it no longer gates anything).
+  Monochromatic-7a was told.
+  Next:
+  watch the first CI run on `d2036021e2`,
+  the pnpr redeploy and publish run,
+  `mise run toolchain:install` in `main`,
+  then the Docker removal (#35) and the Depot removal (#36),
+  the global plan conversion,
+  and a real `prepare:playwright` pull.
+- Owner 2026-11-01:
+  "If nothing can be proven to depend on anything docker, remove it."
+  Measured keeps:
+  `playwright.Dockerfile` (built by `.github/workflows/playwright-image.yml`, pulled by `prepare:playwright`);
+  `.dockerignore` (podman reads it from the build folder of that build,
+  whose folder is the repo root;
+  `playwright.Dockerfile` has no `COPY` or `ADD`);
+  `package/config/pnpr/compose.yaml` (Coolify Docker Compose resource,
+  `pnpr.c.aquati.cat` resolves);
+  the Docker language servers (the IDE uses them for Containerfiles);
+  `docker` in the bash-output-filter container-runtime list
+  (`/usr/bin/docker` is `podman-docker` 5.8.9);
+  `docker.io/...` image names (Docker Hub registry, pulled by podman);
+  the paused packages' Docker files (their paused package uses them).
+  Removable:
+  root `Dockerfile`,
+  root `docker-compose.yml`
+  (`exa.aquati.cat` and `ai-tree.aquati.cat` do not resolve while `aquati.cat` and `pnpr.c.aquati.cat` do),
+  the root `testDockerImage` mise task,
+  and the references that point at them.
+- Owner 2026-11-01:
+  "Delete .depot as a whole and update relevant docs. We've decided to not adopt depot after all."
+  `.depot/workflows/current-baseline.yml` and `.depot/workflows/weekly-native.yml`;
+  `.github/workflows/current-baseline.yml` runs on `depot-ubuntu-24.04-8`;
+  `.github/workflows/admission-gate.yml` reads `doc/planning/depot-admission-ledger.json`;
+  `doc/decision/depot-ci-adoption.md` says "accepted on 2026-10-18" and "in force".
 - Docker build no longer gates the cutover (2026-11-01).
   The owner asked "We shouldn't need docker to switchover?" and "CI or coolify doesn't need that image, though?"
   Measured:
