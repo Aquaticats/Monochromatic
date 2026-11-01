@@ -22,6 +22,7 @@ import {
 } from './tunnel-traffic-block-listing.ts';
 import {
   hostAcceptRules,
+  hostReplyRules,
   markAcceptRules,
 } from './tunnel-traffic-block-rules.ts';
 
@@ -65,8 +66,9 @@ export function trafficBlockTable({ interfaceName, }: { readonly interfaceName: 
  except the traffic that the routing sends around the tunnel by design,
  which is let through ahead of the drop:
  in the output chain a packet with the exempt mark and a packet to an update host,
- in the forward chain a packet to an update host
- (the mark rule is not in the forward chain, because no socket of this machine marked a forwarded packet).
+ in the forward chain a packet to an update host and a packet from one
+ (a guest's connection needs both directions;
+ the mark rule is not in the forward chain, because no socket of this machine marked a forwarded packet).
  The tunnel's own encrypted packets leave through the physical interface,
  so the tunnel stops carrying anything too.
  That is the point:
@@ -122,6 +124,10 @@ export function trafficBlockScript(
     ...hostAcceptRules({
       table,
       chain: 'forward',
+      clearnet,
+    },),
+    ...hostReplyRules({
+      table,
       clearnet,
     },),
     `add rule inet ${table} forward counter drop`,

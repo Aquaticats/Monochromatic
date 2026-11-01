@@ -1,6 +1,7 @@
 /**
- A guest network namespace inside the disposable namespace of a scenario,
- for scenarios that need a packet to arrive from elsewhere and be forwarded.
+ Network namespaces inside the disposable namespace of a scenario,
+ for scenarios that need a packet to arrive from elsewhere and be forwarded,
+ and a listener elsewhere that answers it.
 
  @module
  */
@@ -9,23 +10,40 @@ import { spawn, } from 'node:child_process';
 import { readlink, } from 'node:fs/promises';
 import { setTimeout as wait, } from 'node:timers/promises';
 
-import { run, } from '../dist/final/node/runner.mjs';
+import {
+  run,
+  runAllowingFailure,
+} from '../dist/final/node/runner.mjs';
 
 /**
- Seconds the guest process lives at most,
+ Seconds a namespace's process lives at most,
  so that no run can leave it behind.
  */
 const GUEST_LIFETIME_SECONDS = '120';
 
 /**
- Time between looks at whether the guest has its own network namespace.
+ Time between looks at whether a namespace or a listener is ready.
  */
 const GUEST_POLL_MS = 50;
 
 /**
- How many looks are taken before the guest is given up on.
+ How many looks are taken before giving up.
  */
 const GUEST_POLL_COUNT = 100;
+
+/**
+ Python that listens on a TCP port on every address of the namespace and closes each connection it accepts.
+ */
+const LISTENER_PROGRAM = [
+  'import socket, sys',
+  's = socket.socket()',
+  's.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)',
+  's.bind(("", int(sys.argv[1])))',
+  's.listen(8)',
+  'while True:',
+  '    connection, _ = s.accept()',
+  '    connection.close()',
+].join('\n',);
 
 /**
  A process in a network namespace of its own,
@@ -76,7 +94,7 @@ export async function startGuest(): Promise<Guest> {
    Process ID of the guest,
    which `spawn` reports once the process started.
    */
-  const {pid} = child;
+  const { pid, } = child;
   if (pid === undefined)
     throw new Error('the guest process did not start',);
   for (let look = 0; look < GUEST_POLL_COUNT; look += 1) {
@@ -152,10 +170,14 @@ export async function ip(args: readonly string[],): Promise<void> {
 }
 
 /**
- Reads the hardware address of an interface of this namespace,
+ Reads the hardware address of an interface,
+ in this namespace or in a guest's,
  which `/sys` does not show for a namespace other than the host's.
 
  @param name - Interface name.
+
+ @param guest - Guest whose namespace the interface is in,
+ or nothing for this namespace.
 
  @returns The hardware address.
 
@@ -163,23 +185,39 @@ export async function ip(args: readonly string[],): Promise<void> {
 
  @example
  ```ts
- await linkAddress('veth0');
+ await linkAddress({ name: 'veth0' });
  ```
  */
-export async function linkAddress(name: string,): Promise<string> {
+export async function linkAddress({
+  name,
+  guest,
+}: {
+  readonly name: string;
+  readonly guest?: Guest
+},): Promise<string> {
+  /**
+   Arguments of `ip` that list the interface as JSON.
+   */
+  const args = [
+    '-j',
+    'link',
+    'show',
+    'dev',
+    name,
+  ];
   /**
    JSON listing of the interface.
    */
-  const listed: unknown = JSON.parse((await run({
-    command: 'ip',
-    args: [
-      '-j',
-      'link',
-      'show',
-      'dev',
-      name,
-    ],
-  },)).stdout,);
+  const listed: unknown = JSON.parse((guest === undefined
+    ? await run({
+      command: 'ip',
+      args,
+    },)
+    : await inGuest({
+      guest,
+      command: 'ip',
+      args,
+    },)).stdout,);
   /**
    First interface of the listing.
    */
@@ -189,4 +227,97 @@ export async function linkAddress(name: string,): Promise<string> {
     && ((typeof first.address) === 'string'))
     return first.address;
   throw new Error(`ip did not report a hardware address for ${name}`,);
+}
+
+/**
+ A listening process in a guest's namespace,
+ stopped when the scope ends.
+ */
+export type Listener = {
+  /**
+   TCP port the listener listens on.
+   */
+  readonly port: number;
+
+  /**
+   Stops the listener.
+   */
+  [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Starts a TCP listener in a guest's namespace and waits until it listens.
+ It accepts a connection and closes it at once,
+ which is all a connect probe needs.
+
+ @param guest - Guest whose namespace the listener runs in.
+
+ @param port - TCP port to listen on.
+
+ @returns The listener,
+ disposed by `await using`.
+
+ @throws {@link Error} when the listener does not listen in time.
+
+ @example
+ ```ts
+ await using listener = await startListener({ guest, port: 8080 });
+ ```
+ */
+export async function startListener({
+  guest,
+  port,
+}: {
+  readonly guest: Guest;
+  readonly port: number
+},): Promise<Listener> {
+  /**
+   The listener process.
+   */
+  const child = spawn(
+    'nsenter',
+    [
+      '--target',
+      String(guest.pid,),
+      '--net',
+      'python3',
+      '-I',
+      '-c',
+      LISTENER_PROGRAM,
+      String(port,),
+    ],
+    { stdio: 'ignore', },
+  );
+  for (let look = 0; look < GUEST_POLL_COUNT; look += 1) {
+    /**
+     The listening sockets of the namespace.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- The listener starts listening some time after the process starts.
+    const sockets = await runAllowingFailure({
+      command: 'nsenter',
+      args: [
+        '--target',
+        String(guest.pid,),
+        '--net',
+        'ss',
+        '--listening',
+        '--tcp',
+        '--numeric',
+        '--no-header',
+      ],
+    },);
+    if (sockets.stdout
+      .includes(`:${String(port,)} `,))
+      return {
+        port,
+        [Symbol.asyncDispose]: function stopListener(): Promise<void> {
+          child.kill('SIGKILL',);
+          return Promise.resolve();
+        },
+      };
+    // oxlint-disable-next-line eslint/no-await-in-loop -- The listener starts listening some time after the process starts.
+    await wait(GUEST_POLL_MS,);
+  }
+  child.kill('SIGKILL',);
+  throw new Error(`the listener did not listen on port ${String(port,)}`,);
 }

@@ -391,16 +391,27 @@ await describe({
         const forwardChain = lines.indexOf(`add chain inet ${table} forward { type filter hook forward priority -400; policy accept; }`,);
         const forwardV4 = lines.indexOf(`add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
         const forwardV6 = lines.indexOf(`add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,);
+        const replyV4 = lines.indexOf(`add rule inet ${table} forward ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,);
+        const replyV6 = lines.indexOf(`add rule inet ${table} forward ip6 saddr { 2001:db8::7 } counter accept`,);
         const forwardDrop = lines.indexOf(`add rule inet ${table} forward counter drop`,);
         expect(forwardChain,).toBeGreaterThan(outputDrop,);
         expect(forwardV4,).toBeGreaterThan(forwardChain,);
         expect(forwardV6,).toBeGreaterThan(forwardV4,);
-        expect(forwardDrop,).toBeGreaterThan(forwardV6,);
-        // The forward chain accepts only the update hosts: the mark is a mark of this machine's sockets, so it has no rule there.
+        // The replies of the update hosts to the guests come after the requests and ahead of the drop.
+        expect(replyV4,).toBeGreaterThan(forwardV6,);
+        expect(replyV6,).toBeGreaterThan(replyV4,);
+        expect(forwardDrop,).toBeGreaterThan(replyV6,);
+        // The forward chain accepts only the update hosts, to and from: the mark is a mark of this machine's sockets, so it has no rule there,
+        // and no rule matches the state of a connection, which would pass the guests' established flows that were bound for the tunnel.
         expect(lines.filter((line,) => line.startsWith(`add rule inet ${table} forward `,) && line.endsWith('counter accept',),),).toEqual([
           `add rule inet ${table} forward ip daddr { 203.0.113.7, 203.0.113.8 } counter accept`,
           `add rule inet ${table} forward ip6 daddr { 2001:db8::7 } counter accept`,
+          `add rule inet ${table} forward ip saddr { 203.0.113.7, 203.0.113.8 } counter accept`,
+          `add rule inet ${table} forward ip6 saddr { 2001:db8::7 } counter accept`,
         ],);
+        expect(lines.some((line,) => line.includes(' ct ',) || line.includes('established',),),).toBe(false,);
+        // The output chain gets no source rule: the replies to this machine's own packets arrive through the input hook.
+        expect(lines.filter((line,) => line.includes(' output ',) && line.includes(' saddr ',),),).toEqual([],);
         // Loopback is the one interface the drop leaves alone.
         expect(lines.some((line,) => line.includes('oifname != "lo"',) && line.endsWith('counter drop',),),).toBe(true,);
       },
@@ -414,6 +425,7 @@ await describe({
         const lines = trafficBlockScript({ interfaceName: 'wgtest', clearnet: { mark: RECOMMENDED_EXEMPT_MARK, hosts: [], }, },).split('\n',);
         expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('accept',) && (!line.includes('policy accept',)),),).toEqual([],);
         expect(lines.filter((line,) => line.includes(' forward ',) && line.includes('meta mark',),),).toEqual([],);
+        expect(lines.filter((line,) => line.includes(' saddr ',),),).toEqual([],);
         expect(lines.includes('add rule inet wg-quicker-wgtest-blocked forward counter drop',),).toBe(true,);
         expect(lines.some((line,) => line.includes(' output ',) && line.includes('meta mark',),),).toBe(true,);
       },

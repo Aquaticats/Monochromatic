@@ -1,8 +1,11 @@
 /**
  Scenario run inside a disposable user and network namespace by `tunnel-traffic-block.integration.test.ts`.
  This namespace is the router that holds the traffic block;
- a second network namespace inside it is a guest whose packets the router forwards.
+ two network namespaces inside it are a guest, whose packets the router forwards,
+ and the outside, which holds the update hosts and answers
+ (see `tunnel-traffic-block-trio.ts`).
  The scenario prints which rule of the router's forward chain counted each forwarded packet,
+ including a TCP connect from the guest to an update host that fails without the rules for the replies and succeeds with them,
  and which rule of its output chain counted a packet to an update host of the other family.
  It changes nothing outside the namespaces it runs in.
 
@@ -10,22 +13,27 @@
  */
 
 import { RECOMMENDED_EXEMPT_MARK, } from '../dist/final/node/exempt-mark-reservation.mjs';
-import { run, } from '../dist/final/node/runner.mjs';
 import { installTrafficBlock, } from '../dist/final/node/tunnel-traffic-block.mjs';
-import {
-  inGuest,
-  ip,
-  linkAddress,
-  startGuest,
-  type Guest,
+import type {
+  Guest,
+  Listener,
 } from './tunnel-traffic-block-guest.ts';
 import {
+  deleteRules,
   probe,
   ruleOrder,
   scratchDirectory,
   type Chain,
   type Probed,
 } from './tunnel-traffic-block-scenario-support.ts';
+import {
+  addIpv6,
+  buildTrio,
+  HOST_V4,
+  HOST_V6,
+  OTHER_V4,
+  OTHER_V6,
+} from './tunnel-traffic-block-trio.ts';
 
 /**
  Interface name the block is made for.
@@ -33,34 +41,91 @@ import {
 const INTERFACE_NAME = 'wgforward';
 
 /**
- Update host of the IPv4 family that the block lets through,
- on the router's outside link.
+ TCP port the outside listens on.
  */
-const HOST_V4 = '10.99.0.50';
+const LISTEN_PORT = 8_080;
 
 /**
- Address next to the IPv4 update host that the block does not let through.
+ Seconds ping waits for an answer.
  */
-const OTHER_V4 = '10.99.0.7';
+const PING_WAIT_SECONDS = '2';
 
 /**
- Update host of the IPv6 family that the block lets through,
- on the router's outside link.
+ What the block lets through:
+ the exempt mark and an update host of each family.
  */
-const HOST_V6 = 'fd99::50';
+const CLEARNET = {
+  mark: RECOMMENDED_EXEMPT_MARK,
+  hosts: [
+    {
+      family: '-4',
+      address: HOST_V4,
+    },
+    {
+      family: '-6',
+      address: HOST_V6,
+    },
+  ],
+} as const;
 
 /**
- Address next to the IPv6 update host that the block does not let through.
+ Python that connects to a TCP port and says whether it did,
+ giving up after a short time.
  */
-const OTHER_V6 = 'fd99::7';
+const CONNECT_PROGRAM = [
+  'import socket, sys',
+  's = socket.socket()',
+  's.settimeout(2)',
+  'try:',
+  '    s.connect((sys.argv[1], int(sys.argv[2])))',
+  '    print("connected")',
+  'except OSError as error:',
+  '    print("failed", error.errno)',
+].join('\n',);
 
 /**
- Seconds ping waits for an answer that never comes.
+ Sends a packet from the guest and reports which rules of the router's forward chain counted a packet.
+
+ @param guest - The guest.
+
+ @param command - Program run in the guest's namespace.
+
+ @param args - Arguments of the program.
+
+ @returns What `probe` reports.
+
+ @example
+ ```ts
+ await fromGuest({ guest, command: 'ping', args: ['-c1', '10.99.0.7'] });
+ ```
  */
-const PING_WAIT_SECONDS = '1';
+function fromGuest(
+  {
+    guest,
+    command,
+    args,
+  }: {
+    readonly guest: Guest;
+    readonly command: string;
+    readonly args: readonly string[]
+  },
+): Promise<Probed> {
+  return probe({
+    interfaceName: INTERFACE_NAME,
+    chain: 'forward',
+    command: 'nsenter',
+    args: [
+      '--target',
+      String(guest.pid,),
+      '--net',
+      command,
+      ...args,
+    ],
+  },);
+}
 
 /**
- Sends one echo request from the guest and reports which rule of the router's forward chain counted a packet.
+ Sends one echo request from the guest.
 
  @param guest - The guest.
 
@@ -86,15 +151,10 @@ function guestPing(
     readonly family: '-4' | '-6'
   },
 ): Promise<Probed> {
-  return probe({
-    interfaceName: INTERFACE_NAME,
-    chain: 'forward',
-    command: 'nsenter',
+  return fromGuest({
+    guest,
+    command: 'ping',
     args: [
-      '--target',
-      String(guest.pid,),
-      '--net',
-      'ping',
       family,
       '-c1',
       `-W${PING_WAIT_SECONDS}`,
@@ -104,7 +164,48 @@ function guestPing(
 }
 
 /**
- Reports which rule of a chain counted a packet that the router itself sent.
+ Connects from the guest to the TCP port of the outside.
+
+ @param guest - The guest.
+
+ @param address - Destination.
+
+ @param listener - Listener of the outside whose port is connected to.
+
+ @returns What `probe` reports,
+ where the output says whether the connection was made.
+
+ @example
+ ```ts
+ await guestConnect({ guest, address: '10.99.0.50', listener });
+ ```
+ */
+function guestConnect(
+  {
+    guest,
+    address,
+    listener,
+  }: {
+    readonly guest: Guest;
+    readonly address: string;
+    readonly listener: Listener
+  },
+): Promise<Probed> {
+  return fromGuest({
+    guest,
+    command: 'python3',
+    args: [
+      '-I',
+      '-c',
+      CONNECT_PROGRAM,
+      address,
+      String(listener.port,),
+    ],
+  },);
+}
+
+/**
+ Reports which rules of a chain counted a packet that the router itself sent.
 
  @param chain - Chain whose counters are read.
 
@@ -136,135 +237,36 @@ function routerPing({
   },);
 }
 
-// IPv6 stays off until the IPv4 half is done, so that router solicitations cannot disturb the counters.
-await run({
-  command: 'sysctl',
-  args: [
-    '-w',
-    'net.ipv4.ip_forward=1',
-    'net.ipv6.conf.all.disable_ipv6=1',
-    'net.ipv6.conf.default.disable_ipv6=1',
-  ],
-},);
-await ip([
-  'link',
-  'set',
-  'lo',
-  'up',
-],);
-await ip([
-  'link',
-  'add',
-  'dummy0',
-  'type',
-  'dummy',
-],);
-await ip([
-  'addr',
-  'add',
-  '10.99.0.1/24',
-  'dev',
-  'dummy0',
-],);
-await ip([
-  'link',
-  'set',
-  'dummy0',
-  'up',
-],);
-await ip([
-  'link',
-  'add',
-  'veth0',
-  'type',
-  'veth',
-  'peer',
-  'name',
-  'veth1',
-],);
-await ip([
-  'addr',
-  'add',
-  '10.98.0.1/24',
-  'dev',
-  'veth0',
-],);
-await ip([
-  'link',
-  'set',
-  'veth0',
-  'up',
-],);
 /**
- The guest whose packets the router forwards.
+ Installs the block with what it lets through,
+ replacing a block that is in place.
+
+ @example
+ ```ts
+ await installBlock();
+ ```
  */
-await using guest = await startGuest();
-await ip([
-  'link',
-  'set',
-  'veth1',
-  'netns',
-  String(guest.pid,),
-],);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    'link',
-    'set',
-    'lo',
-    'up',
-  ],
-},);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    'addr',
-    'add',
-    '10.98.0.2/24',
-    'dev',
-    'veth1',
-  ],
-},);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    'link',
-    'set',
-    'veth1',
-    'up',
-  ],
-},);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    'route',
-    'add',
-    'default',
-    'via',
-    '10.98.0.1',
-  ],
-},);
-await installTrafficBlock({
-  interfaceName: INTERFACE_NAME,
-  clearnet: {
-    mark: RECOMMENDED_EXEMPT_MARK,
-    hosts: [
-      {
-        family: '-4',
-        address: HOST_V4,
-      },
-      {
-        family: '-6',
-        address: HOST_V6,
-      },
-    ],
-  },
-  makeDirectory: scratchDirectory,
-},);
+function installBlock(): Promise<void> {
+  return installTrafficBlock({
+    interfaceName: INTERFACE_NAME,
+    clearnet: CLEARNET,
+    makeDirectory: scratchDirectory,
+  },);
+}
+
+/**
+ The router with its guest and its outside.
+ */
+await using trio = await buildTrio({ port: LISTEN_PORT, });
+/**
+ The guest behind the router.
+ */
+const {guest} = trio;
+/**
+ The listener of the outside.
+ */
+const {listener} = trio;
+await installBlock();
 /**
  The rules of the forward chain,
  in order.
@@ -274,7 +276,7 @@ const forwardOrder = await ruleOrder({
   chain: 'forward',
 },);
 /**
- A forwarded packet to an update host.
+ A forwarded echo request to an update host and its reply.
  */
 const hostV4 = await guestPing({
   guest,
@@ -282,96 +284,26 @@ const hostV4 = await guestPing({
   family: '-4',
 },);
 /**
- A forwarded packet to another address of the same link.
+ A forwarded echo request to another address of the outside,
+ which the outside would answer if it arrived.
  */
 const otherV4 = await guestPing({
   guest,
   address: OTHER_V4,
   family: '-4',
 },);
-// The IPv6 half: neighbors are fixed by hand, because the router's neighbor advertisements leave through the dropped output chain.
-await run({
-  command: 'sysctl',
-  args: [
-    '-w',
-    'net.ipv6.conf.all.disable_ipv6=0',
-    'net.ipv6.conf.default.disable_ipv6=0',
-    'net.ipv6.conf.all.forwarding=1',
-  ],
-},);
-await ip([
-  'addr',
-  'add',
-  'fd98::1/64',
-  'dev',
-  'veth0',
-  'nodad',
-],);
-await ip([
-  'addr',
-  'add',
-  'fd99::1/64',
-  'dev',
-  'dummy0',
-  'nodad',
-],);
 /**
- Hardware address of the router's end of the link.
+ A connect to another address of the outside,
+ where the same listener would answer if the request arrived.
  */
-const routerAddress = await linkAddress('veth0',);
-await inGuest({
+const connectOther = await guestConnect({
   guest,
-  command: 'sysctl',
-  args: [
-    '-w',
-    'net.ipv6.conf.all.disable_ipv6=0',
-  ],
+  address: OTHER_V4,
+  listener,
 },);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    '-6',
-    'addr',
-    'add',
-    'fd98::2/64',
-    'dev',
-    'veth1',
-    'nodad',
-  ],
-},);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    '-6',
-    'neigh',
-    'replace',
-    'fd98::1',
-    'lladdr',
-    routerAddress,
-    'dev',
-    'veth1',
-    'nud',
-    'permanent',
-  ],
-},);
-await inGuest({
-  guest,
-  command: 'ip',
-  args: [
-    '-6',
-    'route',
-    'add',
-    'default',
-    'via',
-    'fd98::1',
-    'dev',
-    'veth1',
-  ],
-},);
+await addIpv6({ trio, },);
 /**
- A forwarded IPv6 packet to an update host.
+ A forwarded IPv6 echo request to an update host and its reply.
  */
 const hostV6 = await guestPing({
   guest,
@@ -379,7 +311,7 @@ const hostV6 = await guestPing({
   family: '-6',
 },);
 /**
- A forwarded IPv6 packet to another address of the same link.
+ A forwarded IPv6 echo request to another address of the outside.
  */
 const otherV6 = await guestPing({
   guest,
@@ -394,12 +326,56 @@ const outputHostV6 = await routerPing({
   chain: 'output',
   address: HOST_V6,
 },);
+/**
+ How many rules for the replies were taken out to put the block back as it was before they existed.
+ This comes last because the connect below leaves a half-open connection on the outside,
+ whose retransmissions would count for a later probe.
+ */
+const removedReplyRules = await deleteRules({
+  interfaceName: INTERFACE_NAME,
+  chain: 'forward',
+  kinds: [
+    'replies4',
+    'replies6',
+  ],
+},);
+/**
+ The block without the rules for the replies:
+ a TCP connect to the update host sends its request through and loses the answer.
+ */
+const connectWithoutReplyRules = await guestConnect({
+  guest,
+  address: HOST_V4,
+  listener,
+},);
+await installBlock();
+/**
+ The rules of the forward chain after the block was installed again,
+ which must be the ones it had before the replies were taken out.
+ */
+const forwardOrderAfterReinstall = await ruleOrder({
+  interfaceName: INTERFACE_NAME,
+  chain: 'forward',
+},);
+/**
+ The same connect with the block as it is installed now.
+ */
+const connectWithReplyRules = await guestConnect({
+  guest,
+  address: HOST_V4,
+  listener,
+},);
 process.stdout
   .write(`${JSON.stringify({
     forwardOrder,
+    forwardOrderAfterReinstall,
     hostV4,
     otherV4,
+    connectOther,
     hostV6,
     otherV6,
     outputHostV6,
+    removedReplyRules,
+    connectWithoutReplyRules,
+    connectWithReplyRules,
   },)}\n`,);

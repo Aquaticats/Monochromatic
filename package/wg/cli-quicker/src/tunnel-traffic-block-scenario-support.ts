@@ -1,7 +1,9 @@
 /**
  Helpers shared by the scenarios that `tunnel-traffic-block.integration.test.ts` runs inside disposable user and
  network namespaces:
- they read the packet counters of the block's rules from `nft -j list table` and report which rule counted a packet.
+ they read the packet counters of the block's rules from `nft -j list table`,
+ report which rule counted a packet,
+ and delete rules by kind to put the block back as an earlier build made it.
 
  @module
  */
@@ -22,9 +24,11 @@ import { trafficBlockTable, } from '../dist/final/node/tunnel-traffic-block.mjs'
 import type { TempDir, } from './tempdir.ts';
 
 /**
- Rule kinds the scenarios tell apart.
+ Rule kinds the scenarios tell apart:
+ `hosts` accept a packet to an update host,
+ `replies` accept a packet from one.
  */
-export type RuleKind = 'mark' | 'hosts4' | 'hosts6' | 'drop';
+export type RuleKind = 'mark' | 'hosts4' | 'hosts6' | 'replies4' | 'replies6' | 'drop';
 
 /**
  Chains of the block.
@@ -59,7 +63,10 @@ type Expression = {
   readonly match?: {
     readonly left?: {
       readonly meta?: { readonly key?: string; };
-      readonly payload?: { readonly protocol?: string; };
+      readonly payload?: {
+        readonly protocol?: string;
+        readonly field?: string;
+      };
     };
   };
   readonly counter?: { readonly packets?: number; };
@@ -71,6 +78,7 @@ type Expression = {
  */
 type ListedRule = {
   readonly chain?: string;
+  readonly handle?: number;
   readonly expr?: readonly Expression[];
 };
 
@@ -83,10 +91,12 @@ type Listing = {
 };
 
 /**
- One rule's kind and the packets it counted.
+ One rule's kind,
+ handle and the packets it counted.
  */
 type Counted = {
   readonly kind: RuleKind;
+  readonly handle: number;
   readonly packets: number;
 };
 
@@ -143,6 +153,40 @@ export async function scratchDirectory(): Promise<TempDir> {
 }
 
 /**
+ Which kind an address match of a rule is,
+ from the protocol and the field it matches.
+
+ @param expression - Expression of the rule.
+
+ @returns The kind,
+ which is none for an expression that matches no address.
+
+ @example
+ ```ts
+ addressKind({ match: { left: { payload: { protocol: 'ip', field: 'saddr' } } } }); // ['replies4']
+ ```
+ */
+function addressKind(expression: Expression,): readonly RuleKind[] {
+  /**
+   Payload the expression matches.
+   */
+  const payload = expression.match
+    ?.left
+    ?.payload;
+  if (payload === undefined)
+    return [];
+  /**
+   Whether the match is on the source address.
+   */
+  const reply = payload.field === 'saddr';
+  if (payload.protocol === 'ip')
+    return [reply ? 'replies4' : 'hosts4',];
+  if (payload.protocol === 'ip6')
+    return [reply ? 'replies6' : 'hosts6',];
+  return [];
+}
+
+/**
  Which kinds a listed rule is.
 
  @param rule - Rule of the listing.
@@ -172,34 +216,24 @@ function kindsOf({ rule, }: { readonly rule: ListedRule; },): readonly RuleKind[
       === 'mark';
   },))
     return ['mark',];
-  if (expressions.some(function matchesV4(expression,): boolean {
-    return expression.match
-      ?.left
-      ?.payload
-      ?.protocol
-      === 'ip';
-  },))
-    return ['hosts4',];
-  if (expressions.some(function matchesV6(expression,): boolean {
-    return expression.match
-      ?.left
-      ?.payload
-      ?.protocol
-      === 'ip6';
-  },))
-    return ['hosts6',];
-  return [];
+  return expressions
+    .flatMap(addressKind,)
+    .slice(
+    0,
+    1,
+    );
 }
 
 /**
- Reads the packet counters of the rules of one chain.
+ Reads the rules of one chain,
+ with their kinds,
+ handles and packet counters.
 
  @param interfaceName - Interface the block is made for.
 
  @param chain - Chain of the block.
 
- @returns The kinds in the order of the rules,
- each with the packets it counted.
+ @returns The rules in order.
 
  @example
  ```ts
@@ -241,6 +275,7 @@ export async function listCounters(
         .map(function withPackets(kind,): Counted {
           return {
             kind,
+            handle: rule.handle ?? 0,
             packets: rule.expr
               ?.find(function hasCounter(expression,): boolean {
                 return expression.counter !== undefined;
@@ -354,4 +389,58 @@ export async function ruleOrder(
   },)).map(function kindOfRule(rule,): RuleKind {
     return rule.kind;
   },);
+}
+
+/**
+ Deletes the rules of the given kinds from a chain by handle,
+ which leaves the block as a build without those rules made it.
+
+ @param interfaceName - Interface the block is made for.
+
+ @param chain - Chain of the block.
+
+ @param kinds - Kinds to delete.
+
+ @returns How many rules were deleted.
+
+ @example
+ ```ts
+ await deleteRules({ interfaceName: 'wgforward', chain: 'forward', kinds: ['replies4', 'replies6'] });
+ ```
+ */
+export async function deleteRules(
+  {
+    interfaceName,
+    chain,
+    kinds,
+  }: {
+    readonly interfaceName: string;
+    readonly chain: Chain;
+    readonly kinds: readonly RuleKind[];
+  },
+): Promise<number> {
+  /**
+   Rules to delete.
+   */
+  const doomed = (await listCounters({
+    interfaceName,
+    chain,
+  },)).filter(function isDoomed(rule,): boolean {
+    return kinds.includes(rule.kind,);
+  },);
+  await Promise.all(doomed.map(function deleteOne(rule,): Promise<unknown> {
+    return run({
+      command: 'nft',
+      args: [
+        'delete',
+        'rule',
+        'inet',
+        trafficBlockTable({ interfaceName, },),
+        chain,
+        'handle',
+        String(rule.handle,),
+      ],
+    },);
+  },),);
+  return doomed.length;
 }

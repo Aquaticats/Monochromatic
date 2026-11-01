@@ -563,6 +563,22 @@ and adds no rule of its own:
   The owner chose the forward chain on 2026-11-01 (the option "Pass forwarded update hosts"):
   "Add the same update-host destination rules to the forward chain",
   so that "guests can reach those hosts directly during the block".
+  A guest's connection needs both directions through the forward chain,
+  so the forward chain also passes a packet from an update host (the replies),
+  matched on the source address:
+  `ip saddr` and `ip6 saddr` rules with the same addresses.
+  A rule on the destination alone passes the request and drops every reply,
+  which was found by a review that connected a guest to a host through a router:
+  with the rules for the destination only,
+  the request was accepted and the answer dropped,
+  and the connect failed.
+  The rules do not match the state of the connection (`ct state established,related`),
+  because that would also pass the guests' flows that were bound for the tunnel once the routing is gone.
+  The width of the rule is that a packet from an update host passes whether or not it answers a request,
+  so a host at one of those addresses can also start a connection to a guest.
+  This machine's own output chain needs no such rule:
+  the replies to its own packets arrive through the input hook,
+  which the block does not filter.
 - Loopback passes,
   as before.
 - Everything else is dropped:
@@ -668,10 +684,21 @@ an unmarked packet and an unmarked packet from a process
 without `CAP_NET_RAW` and `CAP_NET_ADMIN` (whose attempt to set the mark fails with `EPERM`) are counted by the drop,
 loopback is counted by none,
 and the accept rules stand ahead of the drop.
-A second scenario puts a guest network namespace inside the namespace that holds the block and forwards its packets:
-a forwarded packet to an update host is counted by the forward chain's accept rule,
+A second scenario builds a router,
+a guest and an outside from three network namespaces and forwards the guest's packets:
+an echo request to an update host and its reply are counted by the forward chain's accept rules,
 and any other forwarded packet by its drop,
 for IPv4 and for IPv6.
+A TCP connect from the guest to an update host is made with the block as it is installed.
+With the rules for the replies taken out of the table by handle,
+which is the block as it was before they existed,
+the same connect fails,
+the request counted by its accept rule and the answer by the drop.
+Installing the block again puts the rules back,
+and the connect is made.
+A connect to another address of the outside,
+where the same listener would answer,
+still fails.
 A packet of the router itself to an IPv6 update host is counted by the output chain's accept rule too.
 
 ### Failure messages

@@ -206,7 +206,7 @@ const clearnet = JSON.parse(clearnetOutput.trim().split('\n',).at(-1,) ?? '{}',)
 // The accept rules stand ahead of the drop, in the order the routing's rules are read: mark, then hosts.
 assert.deepEqual(clearnet.outputOrder, ['mark', 'hosts4', 'hosts6', 'drop',],);
 // The forward chain has the update-host accepts and no mark rule, ahead of its drop.
-assert.deepEqual(clearnet.forwardOrder, ['hosts4', 'hosts6', 'drop',],);
+assert.deepEqual(clearnet.forwardOrder, ['hosts4', 'hosts6', 'replies4', 'replies6', 'drop',],);
 assert.deepEqual(clearnet.marked.counted, ['mark',], 'a packet with the exempt mark must pass the block',);
 assert.deepEqual(clearnet.markedPlusOne.counted, ['drop',], 'only the exact exempt mark passes',);
 assert.deepEqual(clearnet.unmarked.counted, ['drop',], 'an unmarked packet must be dropped',);
@@ -231,14 +231,39 @@ type ObservedForward = {
   readonly forwardOrder: readonly string[];
 
   /**
-   A forwarded IPv4 packet to an update host.
+   Kinds of the rules of the router's forward chain after the block was installed again.
+   */
+  readonly forwardOrderAfterReinstall: readonly string[];
+
+  /**
+   A forwarded IPv4 echo request to an update host and its reply.
    */
   readonly hostV4: Probed;
 
   /**
-   A forwarded IPv4 packet to another address.
+   A forwarded IPv4 echo request to another address.
    */
   readonly otherV4: Probed;
+
+  /**
+   How many rules for the replies were taken out to put the block back as it was before they existed.
+   */
+  readonly removedReplyRules: number;
+
+  /**
+   A TCP connect from the guest to an update host, with the rules for the replies taken out.
+   */
+  readonly connectWithoutReplyRules: Probed;
+
+  /**
+   The same connect with the block as it is installed.
+   */
+  readonly connectWithReplyRules: Probed;
+
+  /**
+   A TCP connect from the guest to another address of the outside, where the listener would answer.
+   */
+  readonly connectOther: Probed;
 
   /**
    A forwarded IPv6 packet to an update host.
@@ -275,11 +300,25 @@ const forwardOutput = execFileSync(
  What the forward scenario observed.
  */
 const forwarded = JSON.parse(forwardOutput.trim().split('\n',).at(-1,) ?? '{}',) as ObservedForward;
-assert.deepEqual(forwarded.forwardOrder, ['hosts4', 'hosts6', 'drop',],);
-assert.deepEqual(forwarded.hostV4.counted, ['hosts4',], 'a forwarded packet to an update host must pass the block',);
+assert.deepEqual(forwarded.forwardOrder, ['hosts4', 'hosts6', 'replies4', 'replies6', 'drop',],);
+assert.deepEqual(forwarded.forwardOrderAfterReinstall, forwarded.forwardOrder, 'installing the block again must put back the rules that were taken out',);
+// A guest's round trip to an update host passes in both directions, and any other forwarded packet is dropped.
+assert.deepEqual(forwarded.hostV4.counted, ['hosts4', 'replies4',], 'a forwarded request to an update host and its reply must pass the block',);
+assert.equal(forwarded.hostV4.status, 0, 'the guest must get its echo reply from the update host',);
 assert.deepEqual(forwarded.otherV4.counted, ['drop',], 'any other forwarded packet must be dropped',);
-assert.deepEqual(forwarded.hostV6.counted, ['hosts6',], 'a forwarded IPv6 packet to an update host must pass the block',);
+assert.deepEqual(forwarded.hostV6.counted, ['hosts6', 'replies6',], 'a forwarded IPv6 request to an update host and its reply must pass the block',);
+assert.equal(forwarded.hostV6.status, 0, 'the guest must get its IPv6 echo reply from the update host',);
 assert.deepEqual(forwarded.otherV6.counted, ['drop',], 'any other forwarded IPv6 packet must be dropped',);
+// The positive control: without the rules for the replies the request goes through, the answer is dropped, and the connect fails.
+assert.equal(forwarded.removedReplyRules, 2,);
+assert.equal(forwarded.connectWithoutReplyRules.output.split(' ',)[0]?.trim(), 'failed', 'a connect needs the replies: without their rules it must fail',);
+assert.deepEqual(forwarded.connectWithoutReplyRules.counted, ['hosts4', 'drop',],);
+// With the rules for the replies the same connect is made, and nothing is dropped.
+assert.equal(forwarded.connectWithReplyRules.output.trim(), 'connected', 'a connect to an update host must be made through the block',);
+assert.deepEqual(forwarded.connectWithReplyRules.counted, ['hosts4', 'replies4',],);
+// Any other forwarded flow still fails, although the listener would answer it.
+assert.equal(forwarded.connectOther.output.split(' ',)[0]?.trim(), 'failed', 'a connect to another address must still fail',);
+assert.deepEqual(forwarded.connectOther.counted, ['drop',],);
 // The router's own IPv6 traffic is noisy (neighbor discovery follows the packet), so only the accept is asserted.
 assert.ok(forwarded.outputHostV6.counted.includes('hosts6',), 'a packet of the router to an IPv6 update host must pass the block',);
 process.stdout
