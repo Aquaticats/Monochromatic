@@ -4,11 +4,43 @@
 
 Update 2026-10-31:
 the switch series is built on branch `worktree-agent-acfa05abe2fe1d3fa` and waits for the coordinator's merge;
-the plan and lock were converted and rebuilt with mpm-shadow 0.2.0 (64 tools, no version moved),
-the `mpm-shadow` plan entry is the repository's release archive, floating on `options.tagPrefix`
-(`monochromatic-mpm-shadow-v`) so the lock records the bootstrap archive's SHA-256 without a tag pin, CI and the `Dockerfile` run the Rust tools, `package/file-enforcer/core` is deleted,
+the plan and lock were converted and rebuilt with mpm-shadow 0.2.0 (64 tools,
+no version moved),
+the `mpm-shadow` plan entry is the repository's release archive,
+floating on `options.tagPrefix` (`monochromatic-mpm-shadow-v`),
+so the lock records the bootstrap archive's SHA-256 without a tag pin,
+CI and the `Dockerfile` run the Rust tools,
+`package/file-enforcer/core` is deleted,
 and the clean-container check ran against the published 0.1.1 release.
 The text that follows is the inventory as it stood before the switch.
+
+Verbs renamed 2026-10-31 (after the "Rehearsal" runs below,
+which used the old ones):
+the owner remarked "Wait,
+pnpm doesn't have a "sync" keyword.",
+and mpm-shadow 0.2.0 took pnpm's verbs.
+Every procedure and inventory entry in this document now uses the new names;
+the two "Rehearsal" sections and the "Checks run on the output" bullets quote the commands as they were run.
+The mapping,
+checked against `mpm-shadow --help` of the 0.2.1 build and `mise.toml`:
+
+- `sync` is `install` (alias `i`);
+  `lock --check` is `install --lockfile-only --frozen-lockfile`;
+  `lock` is `install --lockfile-only --offline`.
+- `status` is `list` (alias `ls`);
+  `update --check` is `outdated`;
+  `bin-paths` is `bin` (`bin --json` prints what the IDE launcher reads).
+- `--global` is also `-g`.
+- Tasks:
+  `toolchain:sync` is `toolchain:install`,
+  `toolchain:status` is `toolchain:list`,
+  `toolchain:update` stays,
+  `toolchain:outdated` is new,
+  `toolchain:lock:check` runs the frozen lock-only install,
+  and the `:global` forms follow (`toolchain:install:global`,
+  `toolchain:list:global`,
+  `toolchain:update:global`,
+  `toolchain:outdated:global`).
 
 Preparation only.
 Nothing in this document has been performed on the repository:
@@ -42,8 +74,13 @@ the shape of the root `mise.toml`,
 how CI and containers obtain the two binaries,
 the plan entries that install the binaries,
 and the IDE launcher's explicit path.
-The `asset` hints of the machine-global plan, the fifth, are settled from the real data in "Global plan conversion",
-except `yt-dlp`, rerouted to PyPI (Open decisions, item 5, settled 2026-10-31).
+The `asset` hints of the machine-global plan,
+the fifth,
+are settled from the real data in "Global plan conversion",
+except `yt-dlp`,
+rerouted to PyPI (Open decisions,
+item 5,
+settled 2026-10-31).
 
 ## Preconditions
 
@@ -93,7 +130,7 @@ not of importance.
     A binary release job is also needed for `monochromatic-file-enforcer-cli`,
     or `cargo binstall` compiles it
     (`doc/troubleshooting/cargo-binstall-compiles-when-github-api-rate-limited.md`).
-4.  The version-keyed cargo-binstall installs in `mpm-shadow sync`.
+4.  The version-keyed cargo-binstall installs in `mpm-shadow install`.
     The owner decided that mpm-shadow installs cargo-binstall tools under version-keyed directories
     in the toolchain root,
     never into the shared `~/.cargo/bin`,
@@ -104,12 +141,12 @@ not of importance.
     are not in the tree at commit `9805cb3cb5` (`rg` finds neither),
     so they are expected from the branch that carries them.
     Another agent is building it.
-    The first `mpm-shadow sync` of the switch must leave `~/.cargo/bin` alone,
+    The first `mpm-shadow install` of the switch must leave `~/.cargo/bin` alone,
     because other worktrees still on the TypeScript toolchain link to the files there.
     The rehearsal lock diff in "Rehearsal" was made before that branch and must be rerun after it merges.
 5.  A clean container fetches the published `file-enforcer` and `mpm-shadow` binaries,
     verifies their SHA-256,
-    and runs `file-enforcer check` and `mpm-shadow lock --check` on a copy of the repository.
+    and runs `file-enforcer check` and `mpm-shadow install --lockfile-only --frozen-lockfile` on a copy of the repository.
     The container is bounded (`podman run --memory=2g --cpus=2 --rm`).
     Not done:
     no binary of the new `file-enforcer` is published.
@@ -125,7 +162,8 @@ not of importance.
     not in the switch commit's list,
     so it is a third consumer that must be migrated before `package/file-enforcer/core` is deleted.
     Done on the worktree branch `worktree-agent-a12d076e7eb77be7b`:
-    `package/vm-builder/cli/src/exec.ts` (direct spawn through `nano-spawn`, no platform-aware form),
+    `package/vm-builder/cli/src/exec.ts` (direct spawn through `nano-spawn`,
+    no platform-aware form),
     the dependency is gone from `package/vm-builder/cli/package.json` and `pnpm-lock.yaml`,
     and `rg 'file-enforcer' package/vm-builder` finds nothing.
 8.  The per-user config for `file-enforcer user write` exists on the owner's machine
@@ -144,7 +182,7 @@ not of importance.
 2.  In a throwaway worktree,
     run the converter against `plan.tools.data.ts` (appendix),
     run `mpm-shadow update`,
-    `lock --check` and `update --check` in a disposable home,
+    `install --lockfile-only --frozen-lockfile` and `outdated` in a disposable home,
     and show the lock diff to the owner (the review surface the handover names).
 3.  The switch commit,
     made from a clean `main` tip,
@@ -168,8 +206,8 @@ not of importance.
         Output need not be byte-identical to the TypeScript tool's.
 4.  After the switch:
     `file-enforcer check`,
-    `mpm-shadow lock --check`,
-    `mpm-shadow status`,
+    `mpm-shadow install --lockfile-only --frozen-lockfile` (`mise run toolchain:lock:check`),
+    `mpm-shadow list`,
     the IDE launcher against a real worktree,
     the CI run on the switch commit.
 5.  Convert the machine-global plan (section "Global plan conversion").
@@ -188,41 +226,42 @@ then the `[env]` block (`mise.toml:1322-1444`).
 Lines are given for `mise.no-env.toml`,
 the source;
 add one for `mise.toml`.
-Task names stay,
-so no caller changes;
-only the `run` bodies change.
+Task names changed with the verbs (see the note under "Status"),
+and the callers of the old names were repointed in the same series;
+the `run` bodies are as listed.
 
 - `mise.no-env.toml:626-628`,
   `toolchain:sync`:
-  `run = "node package/file-enforcer/core/src/toolchain/sync.ts"` becomes `run = "mpm-shadow sync"`.
+  `run = "node package/file-enforcer/core/src/toolchain/sync.ts"` becomes the task `toolchain:install` with `run = "mpm-shadow install"`.
 - `mise.no-env.toml:630-632`,
   `toolchain:status`:
-  `.../status.ts` becomes `mpm-shadow status`.
+  `.../status.ts` becomes the task `toolchain:list` with `run = "mpm-shadow list"`.
 - `mise.no-env.toml:634-636`,
   `toolchain:update`:
   `.../update.ts` becomes `mpm-shadow update`
   (its description already says `--check` reports without writing;
-  `mpm-shadow update --check` does).
+  that is the new task `toolchain:outdated`,
+  `mpm-shadow outdated`).
 - `mise.no-env.toml:638-640`,
   `toolchain:sync:global`:
-  `.../sync.ts --global` becomes `mpm-shadow sync --global`.
+  `.../sync.ts --global` becomes the task `toolchain:install:global` with `run = "mpm-shadow install --global"`.
 - `mise.no-env.toml:642-644`,
   `toolchain:status:global`:
-  becomes `mpm-shadow status --global`.
+  becomes the task `toolchain:list:global` with `run = "mpm-shadow list --global"`.
 - `mise.no-env.toml:646-648`,
   `toolchain:update:global`:
-  becomes `mpm-shadow update --global`.
+  becomes `mpm-shadow update --global`,
+  beside the new `toolchain:outdated:global` (`mpm-shadow outdated --global`).
 - New task,
   not present today:
-  `toolchain:lock:check` running `mpm-shadow lock --check`
+  `toolchain:lock:check` running `mpm-shadow install --lockfile-only --frozen-lockfile`
   (the toolchain drift gate the decision names for CI beside `file-enforcer check`).
 - `mise.no-env.toml:1041-1042`,
   `bootstrap`,
   and `:1112-1113`,
   `prepare:android`:
   `run = ["mise run toolchain:sync"]`;
-  unchanged,
-  they alias `toolchain:sync`.
+  they now run `mise run toolchain:install` and alias `toolchain:install`.
 - `mise.no-env.toml:1082-1084`,
   `prepare:pnpm:others:files`:
   `description = "Sync file-enforcer managed files"`,
@@ -249,17 +288,17 @@ only the `run` bodies change.
 - `task.ts:335-337`,
   `toolchain:sync`:
   `run: 'node package/file-enforcer/core/src/toolchain/sync.ts'`
-  becomes `run: 'mpm-shadow sync'`.
+  becomes the entry `toolchain:install` with `run: 'mpm-shadow install'`.
 - `task.ts:339-341`,
   `toolchain:status`:
-  becomes `mpm-shadow status`.
+  becomes the entry `toolchain:list` with `run: 'mpm-shadow list'`.
 - `task.ts:343-345`,
   `toolchain:update`:
-  becomes `mpm-shadow update`.
+  stays `mpm-shadow update`,
+  with the new entries `toolchain:outdated` (`mpm-shadow outdated`) and `toolchain:lock:check`.
 - `task.ts:347-353`,
   `bootstrap` and `prepare:android`:
-  `runTaskCli('toolchain:sync')`;
-  unchanged.
+  `runTaskCli('toolchain:sync')` becomes `runTaskCli('toolchain:install')`.
 - `task.ts:355-361`,
   `prepare:pnpm`:
   the third entry,
@@ -273,9 +312,9 @@ only the `run` bodies change.
   which is deleted).
 - `README.md:195-199,219-232,251`:
   `mise run toolchain:sync` and the `node package/file-enforcer/core/src/toolchain/*.ts` commands
-  (`README.md:199,222,227,232`) become `mpm-shadow sync`,
+  (`README.md:199,222,227,232`) become `mpm-shadow install`,
   `update`,
-  `status` and `bin-paths`;
+  `list` and `bin`;
   `README.md:251` names the deleted directory.
 - `AGENTS.md:869` (rule `WC2`):
   "check `file-enforcer.config.ts` before editing or adding one" becomes `file-enforcer.config.jsonc`.
@@ -308,8 +347,8 @@ Steps that run or depend on the TypeScript tool:
   `run: task-run prepare:pnpm`.
 - `.depot/workflows/weekly-native.yml:108` and `.github/workflows/music-player-release.yml:1082`,
   `task-run prepare:android`,
-  which is `toolchain:sync` (the TypeScript sync today,
-  `mpm-shadow sync` after the switch).
+  which is `toolchain:install` (named `toolchain:sync` and run by the TypeScript sync before the switch,
+  `mpm-shadow install` after).
   Each runner needs `mpm-shadow` before this step.
 
 Workflows that read `toolchain.lock.json` with `jq` need no edit,
@@ -349,15 +388,19 @@ then local outputs separately"):
 
     The scope is derived from the repository's `.gitignore` files for each drifted path,
     so no rule id appears in the workflow
-    (`package/file-enforcer/cli/README.md`, section "Committed and local outputs").
+    (`package/file-enforcer/cli/README.md`,
+    section "Committed and local outputs").
     Measured on a `git archive HEAD` copy with a disposable home and runtime directory:
     `check --outputs committed` exits 0 (`check-clean`),
     and `check --outputs local` exits 1 with the same 26 `drift-missing` paths as the unscoped `check`.
-3.  `mpm-shadow lock --check` (offline,
-    exits 1 on plan and lock disagreement or a digest mismatch).
+3.  `mpm-shadow install --lockfile-only --frozen-lockfile` (offline,
+    exits 1 on plan and lock disagreement or a digest mismatch;
+    prints `toolchain lock is current: 64 tools, digest verified (<path>)` on the switch branch's lock).
 4.  `task-run prepare:pnpm` writes the local outputs,
     then `file-enforcer check --outputs local` must be clean
-    (measured after `file-enforcer write --outputs local`: exit 0, none of the 26 paths reported),
+    (measured after `file-enforcer write --outputs local`:
+    exit 0,
+    none of the 26 paths reported),
     and a last plain `file-enforcer check` over all rules must be clean too.
     A rule error in a local rule (for example a failed browserslist fetch) still fails the committed step,
     because the scope filters drift and never rule failures.
@@ -386,7 +429,7 @@ Command:
   `RUN export $(cat .env.local | xargs) && node package/file-enforcer/core/src/toolchain/sync.ts`
   become a step that fetches the `mpm-shadow` archive,
   verifies its SHA-256 from the lock,
-  and runs `mpm-shadow sync`.
+  and runs `mpm-shadow install`.
   The `jq`,
   `curl` and `sha256sum` pattern already used for Node and pnpm at `Dockerfile:27-43` applies,
   but it needs a lock row for `mpm-shadow` (gap;
@@ -398,7 +441,8 @@ Command:
   so `file-enforcer` must be on `PATH` first.
 
 Other container files name only comments that stay true
-(`package/vm-builder/cli/Containerfile:11` mentions `mise run toolchain:sync`),
+(`package/vm-builder/cli/Containerfile:11` mentioned `mise run toolchain:sync`,
+now `toolchain:install`),
 except `package/config/pnpr/Containerfile:14`,
 whose comment "Generated by file-enforcer;
 baked in ..." should name pnpr's generator.
@@ -421,15 +465,15 @@ The launcher runs `node package/file-enforcer/core/src/toolchain/bin-paths.ts` i
   It becomes:
   the worktree marker is `toolchain.plan.jsonc` at the worktree root,
   and the program is `mpm-shadow` found by an explicit path,
-  run as `mpm-shadow bin-paths` with the worktree as its directory.
+  run as `mpm-shadow bin --json` (called `bin-paths` in the rehearsal) with the worktree as its directory.
   Candidate path:
   `<worktree>/.cache/toolchain-bin/mpm-shadow` (the exposure link of the plan's `mpm-shadow` bin).
-  A fresh worktree has no such link before its first sync,
+  A fresh worktree has no such link before its first install,
   which is the "toolchain not provisioned" notice's case.
-  `bin-paths` was measured on the rehearsal build to be read-only and offline,
+  `bin-paths` (now `bin --json`) was measured on the rehearsal build to be read-only and offline,
   and prints `exposureDir`,
   `pathDirs` and `bins` as JSON (`{"exposureDir": ".cache/toolchain-bin", "pathDirs": [], "bins": {}}`
-  before any sync).
+  before any install).
 - `package/ide/app/src/language/toolchain.rs:4,15,16`:
   the module comment names the old command.
 - `package/ide/app/src/language/toolchain/command.rs:5,53,119-165`:
@@ -631,11 +675,11 @@ The file-enforcer schema mapping is already in place (`.idea/jsonSchemas.xml:6-2
 - `doc/runbook/publish-crate-first-time.md:463`:
   `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
   runs against a deleted file.
-  Replace with the version-keyed `mpm-shadow sync` flow,
+  Replace with the version-keyed `mpm-shadow install` flow,
   or with a download of the release archive plus `sha256sum --check`,
   whichever the version-keyed branch lands.
   The text at `:77,79,460` (`mise run toolchain:sync`,
-  `toolchain:status`) stays valid.
+  `toolchain:status`) names the tasks `toolchain:install` and `toolchain:list` now.
 - `doc/decision/mpm-toolchain-adoption.md`:
   the decision cites `:348`;
   the sentence measured there is the "Tradeoff" about a cached version pinned by `Cargo.lock`.
@@ -839,21 +883,30 @@ and nothing yet installs the `file-enforcer` binary (open decision).
 4.  The IDE launcher's explicit path,
     proposed in the IDE launcher section as `<worktree>/.cache/toolchain-bin/mpm-shadow`.
 5.  The machine-global plan's `asset` hints came from a copy of the real files and are settled
-    (see "Global plan conversion"), with one flagged adoption: `yt-dlp`.
+    (see "Global plan conversion"),
+    with one flagged adoption:
+    `yt-dlp`.
     Today's lock records the standalone binary `yt-dlp_linux` from GitHub,
     which the `github:` resolver cannot select on linux-x64 (it names no CPU and the resolver prefers its `.zip` twin).
     Settled 2026-10-31 as option A by the coordinator under the owner's delegation of the global conversion
-    ("Use your own judgement. I trust you'll do this step good enough autonomously."):
+    ("Use your own judgement.
+    I trust you'll do this step good enough autonomously."):
     the same program and version with no resolver code for one tool.
-    Option A, reroute to `pipx:yt-dlp@latest` on the `mpm-uvx` route (adopted in the rehearsal):
-    works with no code change, same program and version from PyPI;
-    but it needs Python and `uv tool install`, and the program runs from uv's tool environment instead of a standalone file.
-    Option B, keep the standalone binary:
+    Option A,
+    reroute to `pipx:yt-dlp@latest` on the `mpm-uvx` route (adopted in the rehearsal):
+    works with no code change,
+    same program and version from PyPI;
+    but it needs Python and `uv tool install`,
+    and the program runs from uv's tool environment instead of a standalone file.
+    Option B,
+    keep the standalone binary:
     a resolver change (read an architecture-less Linux name as x86_64 when an `options.asset` glob matches,
     and a way to prefer the bare file over its archive twin),
     so the install is unchanged;
     but it is code in the resolver and was not written or tested.
-    Ranking: A > B, because A is verified by the rehearsal's lock and needs no new resolver behavior,
+    Ranking:
+    A > B,
+    because A is verified by the rehearsal's lock and needs no new resolver behavior,
     while B keeps today's install exactly but costs resolver work for one tool.
 
 ## Toolchain plan conversion
@@ -897,7 +950,7 @@ Checks run on the output:
 - 63 tools converted;
   the 33 README rows that list a request all agree with the converter (`readme-check.ts`:
   0 mismatches).
-- `mpm-shadow lock --check` accepts the plan and lock (see "Rehearsal").
+- `mpm-shadow lock --check` (now `install --lockfile-only --frozen-lockfile`) accepts the plan and lock (see "Rehearsal").
 
 ### Every tool, old entry and new request
 
@@ -1094,7 +1147,8 @@ What the real file holds:
 - `npm:typeslayer` is not in the file.
   The pinned pre-release the task brief named does not exist in this copy,
   so the pinned-npm-prerelease form is exercised only by the synthetic fixture
-  (`npm:typeslayer@0.1.32-aquaticat.0319832`, resolved in the first rehearsal).
+  (`npm:typeslayer@0.1.32-aquaticat.0319832`,
+  resolved in the first rehearsal).
 - The forms present:
   `aws`,
   `go`,
@@ -1125,10 +1179,13 @@ What the real file holds:
 
 #### The global converter
 
-`convert-global.ts` (Appendix, "The global converter") is the repository converter extended for the global file:
+`convert-global.ts` (Appendix,
+"The global converter") is the repository converter extended for the global file:
 it reads `TOOLS` instead of `ALL_TOOLS`,
-takes each downloaded tool's GitHub owner, repository and release tag from the lock's own release URLs
-(the global artifacts live in `plan.artifacts.data.ts` and the lock, not in the tool entries;
+takes each downloaded tool's GitHub owner,
+repository and release tag from the lock's own release URLs
+(the global artifacts live in `plan.artifacts.data.ts` and the lock,
+not in the tool entries;
 a `github:` id is also checked against that URL),
 moves comments found inside an entry to just before it,
 keeps the trailing comments,
@@ -1138,7 +1195,12 @@ Run on the copy it wrote 60 tools to
 
 #### Settled asset hints
 
-The resolver filters release assets by Linux, the platform's CPU, no checksum, signature, installer, debug or GPU name,
+The resolver filters release assets by Linux,
+the platform's CPU,
+no checksum,
+signature,
+installer,
+debug or GPU name,
 then prefers the platform's libc,
 and `.tar.gz` over `.tar.xz`,
 `.zip`,
@@ -1162,7 +1224,8 @@ and against what `update --global` picked on the four Linux platforms.
   every candidate name says `rocm`,
   which the chooser skipped even for a matching glob,
   so the first run failed with "has no Linux asset".
-  A glob that matches a GPU build's name now lets it through (commit `7c7ca78478`, one new test);
+  A glob that matches a GPU build's name now lets it through (commit `7c7ca78478`,
+  one new test);
   an unhinted entry still skips GPU builds.
 - `github:openinterpreter/openinterpreter`:
   `options.assetPattern` `*open-interpreter-package*` becomes `options.asset` `open-interpreter-package-*.tar.gz`.
@@ -1199,7 +1262,9 @@ and against what `update --global` picked on the four Linux platforms.
   `options.asset` `tree-sitter-linux-*.gz` keeps the recorded file on all four platforms
   (`-arm.gz`,
   `-x86.gz` and `-powerpc64.gz` name no supported CPU token).
-- `yt-dlp` (settled 2026-10-31 as the PyPI reroute; Open decisions, item 5):
+- `yt-dlp` (settled 2026-10-31 as the PyPI reroute;
+  Open decisions,
+  item 5):
   cannot be expressed with `github:` on linux-x64.
   Today's lock records the bare PyInstaller file `yt-dlp_linux` for `linux-x64`;
   its name names no CPU,
@@ -1290,7 +1355,8 @@ Results:
   After the resolver fix and the `deno` hint the lock was written
   (60 tools),
   and the comparison showed `yt-dlp` and `tree-sitter` differences (see "Settled asset hints").
-- Final: `update --global` wrote 60 tools;
+- Final:
+  `update --global` wrote 60 tools;
   `lock --check --global`:
   `toolchain lock is current: 60 tools, digest verified`;
   `update --check --global`:
@@ -1300,7 +1366,8 @@ Results:
 - `status --global` in the empty home:
   `toolchain status: 60 of 60 tools drifted` and exit 1,
   as expected for a home with nothing installed.
-- Versions: no version moved.
+- Versions:
+  no version moved.
   Two `version` strings changed spelling only:
   `cargo:https://github.com/slint-ui/slint` from `ref:85e3eb76...` to `85e3eb76...`,
   and `github:openinterpreter/openinterpreter` from `rust-v0.0.56` to `0.0.56`.
@@ -1342,7 +1409,8 @@ Results:
   `env` and `bins` of every tool are identical,
   including `RUSTUP_TOOLCHAIN` and `packageId` for `rust` (both `{version}` in the plan).
 - Not rehearsed:
-  `sync` (no installs ran, by instruction),
+  `sync` (no installs ran,
+  by instruction),
   and so the install-side behavior of the new `mpm-uvx` `yt-dlp`,
   the bare-`.gz` `tree-sitter` unpack,
   the `cargo-git` build of `slint-lsp`,
@@ -1352,33 +1420,37 @@ Results:
 ### Global plan backup and conversion procedure
 
 For the coordinator to run on the owner's machine,
-after the switch commit and after the repository's `mpm-shadow sync` is verified.
+after the switch commit and after the repository's `mpm-shadow install` is verified.
 Each step names the command;
 none has been run against the real directory.
 
 Precondition on the binary:
 `MS` must be built from a revision that contains commit `7c7ca78478`
-(`fix(mpm-shadow)`: an `options.asset` glob lets a GPU build through).
+(`fix(mpm-shadow)`:
+an `options.asset` glob lets a GPU build through).
 A binary without it fails step 4 and step 6 with
 `github:lemonade-sdk/llamacpp-rocm ... has no Linux asset`,
 and writes no lock.
 Merge that commit into `main`,
 then build `MS` with `mise run //package/mpm-shadow/cli:build` in a checkout of that revision
-(the `mpm-shadow` the repository's own sync installs is the published release in its lock,
+(the `mpm-shadow` the repository's own install provides is the published release in its lock,
 which does not contain the fix until a release is cut).
 In this procedure `D` is `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain`
-and `S` is a scratch directory `${HOME}/temp/agent/global-cutover` (create it with `mkdir --parents`, then `chmod 700`).
+and `S` is a scratch directory `${HOME}/temp/agent/global-cutover` (create it with `mkdir --parents`,
+then `chmod 700`).
 `MS` is the repository's built `mpm-shadow`
-(`<repo>/.cache/toolchain-bin/mpm-shadow` after the switch's sync,
+(`<repo>/.cache/toolchain-bin/mpm-shadow` after the switch's install,
 or the binary built by `mise run //package/mpm-shadow/cli:build`).
 
 1.  Preconditions.
     No `mpm-shadow` or old `sync.ts` process is running (`ps`);
-    the repository sync passed;
+    the repository install passed (`mise run toolchain:install`,
+    then `mise run toolchain:list` exits 0);
     record the current `git` link target for the rollback:
     `readlink "$HOME/.local/bin/git"`,
     and `"$HOME/.local/bin/git" --version`.
-2.  Back up beside the originals, owner-only.
+2.  Back up beside the originals,
+    owner-only.
     In `D`:
     `umask 077`,
     then for each of `plan.tools.data.ts`,
@@ -1392,7 +1464,8 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     and `sha256sum <name> <name>.pre-cutover` for each pair (the two hashes of a pair must match).
     The original `plan.tools.data.ts` is mode 0600;
     its copy must be too.
-3.  Convert into the scratch directory, never into `D`.
+3.  Convert into the scratch directory,
+    never into `D`.
     The converter is in the Appendix ("The global converter");
     save it as `S/convert-global.ts`,
     then `node S/convert-global.ts D/plan.tools.data.ts D/toolchain.lock.json S/toolchain.plan.jsonc`.
@@ -1423,7 +1496,9 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     Compare:
     `node compare.ts D/toolchain.lock.json S/home/.config/monochromatic-dev/toolchain/toolchain.lock.json`
     (`compare.ts` is in the Appendix).
-    Expected: the diff of "Rehearsal", plus whatever upstream released since:
+    Expected:
+    the diff of "Rehearsal",
+    plus whatever upstream released since:
     read every `version` line;
     a `latest` entry moving is expected,
     `bin`,
@@ -1438,22 +1513,30 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     `MS update --global`
     (real environment).
     It reads `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`
-    (the old lock is replaced; the `.pre-cutover` copy is the old one).
+    (the old lock is replaced;
+    the `.pre-cutover` copy is the old one).
     Export `GITHUB_TOKEN` first to avoid API rate limits.
     It is not purely a lookup in the real environment:
     when an npm or PyPI lookup fails for a tool that is in the lock but not installed,
     plain `update` installs just the missing tools (and `node`,
-    `pnpm` or `uv` when they need them) and looks again once (README, "Network").
-    The rehearsal's disposable home had every lookup succeed, so no such install ran.
-    Then `MS lock --check --global` must print `toolchain lock is current: 60 tools, digest verified`.
-7.  `MS status --global`.
+    `pnpm` or `uv` when they need them) and looks again once (README,
+    "Network").
+    The rehearsal's disposable home had every lookup succeed,
+    so no such install ran.
+    Then `MS install --lockfile-only --frozen-lockfile --global` must print a line that starts
+    `toolchain lock is current: 60 tools, digest verified` (followed by the lock's path) and exit 0.
+7.  `MS list --global`.
     Entries installed by the old tool at the same version may still report drift;
-    cargo tools do until the first sync (each installs into its own cargo root).
-    Read the list; it is the sync's work list.
-8.  Sync, as a capped unit:
-    `systemd-run --user --unit=fe-global-sync --collect --property=MemoryMax=24G --property=CPUQuota=2400% --setenv=PATH="$PATH" MS sync --global`
-    (a real job may use most of the host, `FHU`).
-    A user service starts in the user manager's environment, not the shell's:
+    cargo tools do until the first install (each installs into its own cargo root).
+    Read the list;
+    it is the install's work list.
+8.  Install,
+    as a capped unit:
+    `systemd-run --user --unit=fe-global-install --collect --property=MemoryMax=24G --property=CPUQuota=2400% --setenv=PATH="$PATH" MS install --global`
+    (a real job may use most of the host,
+    `FHU`).
+    A user service starts in the user manager's environment,
+    not the shell's:
     before starting it,
     compare `systemctl --user show-environment` with `env` for `HOME`,
     `XDG_CONFIG_HOME`,
@@ -1461,14 +1544,21 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     `XDG_CACHE_HOME`,
     `CARGO_HOME`,
     `RUSTUP_HOME` and `GITHUB_TOKEN`,
-    and pass every variable the shell sets with `--setenv=NAME=value` (print them first, as `run-global.ts` does);
-    otherwise the sync installs under default paths.
-    `PATH` must be passed too, for the tools the sync installs and runs.
-    Wait on the unit state with a deadline, read `journalctl --user --unit fe-global-sync`.
+    and pass every variable the shell sets with `--setenv=NAME=value` (print them first,
+    as `run-global.ts` does);
+    otherwise the install puts things under default paths.
+    `PATH` must be passed too,
+    for the tools the install installs and runs.
+    Wait on the unit state with a deadline,
+    read `journalctl --user --unit fe-global-install`.
     A failure of one tool is reported and does not undo the others;
-    stop at the first one that matters (`git`, `rust`, `node`, `uv`, `bin`) and use the rollback.
+    stop at the first one that matters (`git`,
+    `rust`,
+    `node`,
+    `uv`,
+    `bin`) and use the rollback.
 9.  Verify:
-    `MS status --global` exits 0;
+    `MS list --global` exits 0;
     `"$HOME/.local/bin/git" --version` works and the link points at the exposure directory's wrapper (0.4.4 or newer);
     `--version` for `gh`,
     `rg`,
@@ -1486,7 +1576,8 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     delete the old `plan.tools.data.ts`,
     `plan.artifacts.data.ts`,
     `mpm.packages.toml`
-    and `mpm.managers.toml` from `D` (`toolchain.lock.json` stays, now the new lock).
+    and `mpm.managers.toml` from `D` (`toolchain.lock.json` stays,
+    now the new lock).
     Search the owner's shell and tool configuration for references to the removed files before deleting
     (`rg 'mpm\.(managers|packages)\.toml|plan\.(tools|artifacts)\.data' ~/.config ~/.bashrc ~/.profile` and the like,
     skipping `D`).
@@ -1494,7 +1585,8 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
 
 Files after the procedure,
 in `D`:
-`toolchain.plan.jsonc` (new, 0600),
+`toolchain.plan.jsonc` (new,
+0600),
 `toolchain.lock.json` (new content),
 five `.pre-cutover` backups (0600);
 removed:
@@ -1507,12 +1599,13 @@ Rollback,
 at any step before 10:
 delete `D/toolchain.plan.jsonc`;
 `cp --archive D/toolchain.lock.json.pre-cutover D/toolchain.lock.json` (and the other four files if changed);
-if the sync ran, restore the `git` link with the target recorded in step 1
+if the install ran,
+restore the `git` link with the target recorded in step 1
 (`ln --symbolic --force --no-dereference <target> "$HOME/.local/bin/git"`);
-check out the commit before the switch and run the old `sync.ts --global` to settle any tool the new sync replaced.
+check out the commit before the switch and run the old `sync.ts --global` to settle any tool the new install replaced.
 After step 10,
 copy the four `.pre-cutover` files back over their names and do the same.
-The README says the first sync installs each cargo tool into its own root and leaves `$CARGO_HOME/bin` and
+The README says the first install puts each cargo tool into its own root and leaves `$CARGO_HOME/bin` and
 `$CARGO_HOME/.crates.toml` as they were;
 that and the treatment of the old per-version install directories were not rehearsed here,
 so check `ls` of the install root before relying on a rollback leaving the old tools intact.
@@ -1558,17 +1651,22 @@ It writes nothing in the worktree and left no server running.
 - No per-user config for `file-enforcer user write` is committed;
   the Harper policy is written only after the owner creates it.
 - `file-enforcer check --outputs committed` and `--outputs local` split the gate by `.gitignore` matching;
-  a tracked file that a pattern matches counts as local, which the last plain `check` of the CI list still covers.
+  a tracked file that a pattern matches counts as local,
+  which the last plain `check` of the CI list still covers.
 - The `.config/mise/conf.d/20-env.toml` content has no generator and must be written by hand if the decision's layout
   is chosen.
-- The machine-global plan was rehearsed on a copy; `sync --global` was not run,
-  so the install side of the rerouted `yt-dlp`, the bare `.gz` of `tree-sitter`, the `cargo-git` and `go-install`
+- The machine-global plan was rehearsed on a copy;
+  `sync --global` (now `install --global`) was not run,
+  so the install side of the rerouted `yt-dlp`,
+  the bare `.gz` of `tree-sitter`,
+  the `cargo-git` and `go-install`
   routes and the `git` link is unrehearsed.
 - No output of the TypeScript tool is without an owner or an explicit "stops being generated" record.
 
 ## Appendix: the converter
 
-This converter is the repository one; the machine-global plan has another (next appendix).
+This converter is the repository one;
+the machine-global plan has another (next appendix).
 Scratch copies of the other scripts (`run.ts`,
 `compare.ts`,
 `map.ts`,
