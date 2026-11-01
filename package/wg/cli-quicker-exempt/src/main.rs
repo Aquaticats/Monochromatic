@@ -52,6 +52,10 @@ mod application_watch_service;
 mod application_watch_state;
 /// Delivers failures after startup to a person.
 mod runtime_report;
+/// The desktop notification channel of the failure reporter.
+mod desktop_notification;
+/// Relays the loud lines of a start to the terminal of `up`.
+mod startup_relay;
 /// Raw `bpf(2)` ABI and socket-marking program loader.
 mod bpf;
 /// Stable Linux `bpf(2)` UAPI subset.

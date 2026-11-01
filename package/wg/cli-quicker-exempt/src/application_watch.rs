@@ -186,7 +186,8 @@ pub fn prepare_application_watch(
 ) -> io::Result<ApplicationWatch<'_>> {
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
-    let reporter = RuntimeReporter::new(identity.uid, identity.gid);
+    let mut reporter = RuntimeReporter::new(identity.uid, identity.gid);
+    reporter.begin_startup();
     if let Err(error) = routing.ensure_slice(roots.app_slice) {
         log_line(&policy_failure(&format!("the updates slice cannot be created: {error}")));
     }
@@ -288,6 +289,7 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
 /// A failure that ends the loop is reported loudly before it is returned,
 /// because the watcher then stops enforcing every policy it owns.
 pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
+    watch.reporter.end_startup();
     let result = poll_until_stopped(watch);
     if let Err(error) = &result {
         watch.reporter.report_failure(

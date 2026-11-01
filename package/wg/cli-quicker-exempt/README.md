@@ -319,16 +319,17 @@ The owner chose "Notification + journal":
 every failure goes to the system journal at error level and to a desktop notification for the tunnel's user,
 rate limited so a repeating failure does not flood.
 A failure after startup is delivered through three channels,
-each with its own limit per failure kind:
+each with its own limit per failure kind and cause:
 
-- the log file once per kind every ten seconds;
+- the log file,
+  every ten seconds;
 - the system journal,
   under the identifier `wg-quicker-exempt`,
   at error level (`journalctl --identifier=wg-quicker-exempt`),
-  once per kind every minute;
+  every minute;
 - a desktop notification to the watched user through `org.freedesktop.Notifications`,
   sent with `busctl` as that user,
-  once per kind every ten minutes.
+  every ten minutes.
 
 The limit keys on the kind of failure (`move failed`,
 `move skipped`,
@@ -339,15 +340,41 @@ The limit keys on the kind of failure (`move failed`,
 `process events unreadable`,
 `socket marking rescan failed`,
 `watcher stopped`,
-`watcher died`) and never on the text,
+`watcher died`) and on a normalized cause within the kind,
+never on the raw text,
 because the text embeds names a user chose,
 such as a cgroup path,
-and distinct names would defeat a text key.
+and a key on the raw text would let distinct names defeat the limit.
+The normalized cause is the first 200 characters of the line with every run of digits made alike,
+so the same reason for another process id,
+count or duration is one cause,
+and a different reason or a different name is another.
+Each channel delivers the first four distinct causes of a kind in each interval,
+so three matched processes skipped for three different reasons are three reports and not one.
+Beyond the first cause of every kind,
+a channel delivers at most 32 further causes per interval over all kinds together,
+and a kind's first cause is always delivered.
 The map of remembered kinds is bounded;
 when it is full the oldest kind is forgotten.
-A repeat held back by the limit is counted,
+A repeat or a further cause held back by the limit is counted,
 and the next delivery of that kind says "repeated N more time(s) since the last report",
-so no occurrence is lost from the record.
+so no occurrence is lost from the count;
+the identity of a held-back cause beyond the cap is not kept.
+A notification replaces the earlier one only of the same kind and cause,
+so distinct causes stay on the desktop side by side.
+
+While the watcher starts,
+the log file takes every report without the limit,
+because `up` relays that log and a start that hid a finding from `up` would not have said that a policy is not in force.
+The journal and the desktop keep their limits during the start.
+The relay prints the loud lines of the log,
+and the notices that the log itself dropped lines (`LOG LIMIT`),
+up to 200 lines,
+and then one line saying how many more there are and where the log is.
+The log budget bounds the start too:
+a start with so many findings that the log budget is reached says so in the log and in `up`,
+and the findings beyond the budget are not in the log,
+though the journal and the desktop still receive the first four causes of every kind.
 
 A notification never blocks the watcher.
 A worker thread sends it through a queue of eight;

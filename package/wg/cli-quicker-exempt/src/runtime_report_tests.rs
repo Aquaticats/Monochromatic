@@ -5,16 +5,20 @@
 //! and that the map of remembered kinds stays bounded.
 
 /// Reporter under test.
+use crate::desktop_notification::{notification_arguments, parse_notification_id, NOTIFICATION_EXPIRY_MS};
+/// Reporter under test.
 use crate::runtime_report::{
-    notification_arguments,
-    parse_notification_id,
     ReportChannel,
     RuntimeReporter,
     JOURNAL_INTERVAL,
     JOURNAL_PRIORITY,
+    normalized_cause,
+    JournalChannel,
+    LogChannel,
+    MAX_CAUSES_PER_KIND,
+    MAX_EXTRA_CAUSES_PER_INTERVAL,
     LOG_INTERVAL,
     MAX_REMEMBERED_KINDS,
-    NOTIFICATION_EXPIRY_MS,
     NOTIFICATION_INTERVAL,
 };
 /// Shared recording between the test and the channels.
@@ -41,6 +45,8 @@ struct Recording {
     lines: Rc<RefCell<Vec<String>>>,
     /// How delivery behaves.
     mode: Mode,
+    /// Whether `up` relays what this channel receives.
+    relayed: bool,
 }
 
 /// The recording channel.
@@ -50,8 +56,13 @@ impl ReportChannel for Recording {
         return self.label;
     }
 
+    /// The log-like channel is relayed to `up`.
+    fn relayed_to_up(&self) -> bool {
+        return self.relayed;
+    }
+
     /// Records the line,
-    /// then fails or panics when asked to.
+    /// then fails when asked to.
     fn deliver(&self, _kind: &str, line: &str) -> Result<(), String> {
         self.lines.borrow_mut().push(line.to_string());
         if self.mode == Mode::Fails {
@@ -73,45 +84,125 @@ fn reporter(desktop: Mode) -> (RuntimeReporter, Lines, Lines, Lines) {
     let journal = Rc::new(RefCell::new(Vec::new()));
     let screen = Rc::new(RefCell::new(Vec::new()));
     let built = RuntimeReporter::with_channels(vec![
-        (Box::new(Recording { label: "log file", lines: Rc::clone(&log), mode: Mode::Works }), Duration::from_secs(10)),
-        (Box::new(Recording { label: "journal", lines: Rc::clone(&journal), mode: Mode::Works }), Duration::from_secs(60)),
-        (Box::new(Recording { label: "desktop notification", lines: Rc::clone(&screen), mode: desktop }), Duration::from_secs(600)),
+        (Box::new(Recording { label: "log file", lines: Rc::clone(&log), mode: Mode::Works, relayed: true }), Duration::from_secs(10)),
+        (Box::new(Recording { label: "journal", lines: Rc::clone(&journal), mode: Mode::Works, relayed: false }), Duration::from_secs(60)),
+        (Box::new(Recording { label: "desktop notification", lines: Rc::clone(&screen), mode: desktop, relayed: false }), Duration::from_secs(600)),
     ]);
     return (built, log, journal, screen);
 }
 
-/// A repeat of the same kind is limited per channel interval,
-/// whatever the text says.
+/// A repeat of the same cause,
+/// with other numbers,
+/// is limited per channel interval.
 #[test]
 fn a_repeated_kind_is_limited_per_channel_interval() {
     let (mut reporter, log, journal, desktop) = reporter(Mode::Works);
     let start = Instant::now();
     reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 12 matched but the move failed (attempt 1): boom", start);
-    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 3456 matched but the move failed (attempt 2): other", start + Duration::from_secs(5));
-    assert_eq!(log.borrow().len(), 1, "the same kind within the log interval");
+    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 3456 matched but the move failed (attempt 2): boom", start + Duration::from_secs(5));
+    assert_eq!(log.borrow().len(), 1, "the same cause within the log interval");
     assert_eq!(journal.borrow().len(), 1);
     assert_eq!(desktop.borrow().len(), 1);
-    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 9 matched", start + Duration::from_secs(30));
+    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 9 matched but the move failed (attempt 3): boom", start + Duration::from_secs(30));
     assert_eq!(log.borrow().len(), 2, "the log interval passed");
     assert_eq!(journal.borrow().len(), 1, "the journal interval did not");
-    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 9 matched", start + Duration::from_secs(90));
+    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 9 matched but the move failed (attempt 3): boom", start + Duration::from_secs(90));
     assert_eq!(journal.borrow().len(), 2, "the journal interval passed");
     assert_eq!(desktop.borrow().len(), 1, "the desktop interval did not");
-    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 9 matched", start + Duration::from_secs(601));
+    reporter.report_failure_at("move failed", "POLICY NOT IN FORCE: pid 9 matched but the move failed (attempt 3): boom", start + Duration::from_secs(601));
     assert_eq!(desktop.borrow().len(), 2, "the desktop interval passed");
 }
 
-/// A name chosen by a user in the text cannot make a repeat look new,
-/// because the kind and not the text decides.
+/// Names a user chose make distinct causes,
+/// but only the first few of a kind are delivered per interval,
+/// so five hundred distinct names cannot flood a channel;
+/// the rest are counted and reported at the next delivery.
 #[test]
-fn distinct_names_in_the_text_do_not_defeat_the_limit() {
+fn distinct_names_in_the_text_deliver_only_the_first_few_causes_of_a_kind() {
     let (mut reporter, _log, journal, desktop) = reporter(Mode::Works);
     let start = Instant::now();
     for index in 0..500 {
         reporter.report_failure_at("move skipped", &format!("POLICY NOT IN FORCE: its cgroup /user.slice/name-{index}x{index} is outside"), start + Duration::from_millis(index));
     }
-    assert_eq!(journal.borrow().len(), 1);
+    assert_eq!(journal.borrow().len(), 1, "the digits are normalized, so five hundred names that differ only in digits are one cause");
     assert_eq!(desktop.borrow().len(), 1);
+    for (index, word) in ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"].iter().enumerate() {
+        reporter.report_failure_at("move skipped", &format!("POLICY NOT IN FORCE: its cgroup /user.slice/{word} is outside"), start + Duration::from_secs(1) + Duration::from_millis(index as u64));
+    }
+    assert_eq!(journal.borrow().len(), MAX_CAUSES_PER_KIND, "four distinct causes in all, the fifth and sixth are held back");
+    assert_eq!(desktop.borrow().len(), MAX_CAUSES_PER_KIND);
+    reporter.report_failure_at("move skipped", "POLICY NOT IN FORCE: its cgroup /user.slice/omega is outside", start + Duration::from_secs(61));
+    assert_eq!(journal.borrow().len(), MAX_CAUSES_PER_KIND + 1);
+    assert!(journal.borrow()[MAX_CAUSES_PER_KIND].contains("(repeated 502 more time(s) since the last report)"), "{:?}", journal.borrow());
+}
+
+/// Three matched processes skipped for three different reasons are three reports on every channel,
+/// the case where one line per kind hid two of them.
+#[test]
+fn distinct_causes_of_one_kind_are_each_reported() {
+    let (mut reporter, log, journal, desktop) = reporter(Mode::Works);
+    let start = Instant::now();
+    reporter.report_failure_at("move skipped", "POLICY NOT IN FORCE: pid 11 matched but it runs in a login session scope", start);
+    reporter.report_failure_at("move skipped", "POLICY NOT IN FORCE: pid 12 matched but it runs in another pid namespace", start);
+    reporter.report_failure_at("move skipped", "POLICY NOT IN FORCE: pid 13 matched but it is the main process of a service", start);
+    for channel in [&log, &journal, &desktop] {
+        assert_eq!(channel.borrow().len(), 3, "{:?}", channel.borrow());
+    }
+    reporter.report_failure_at("move skipped", "POLICY NOT IN FORCE: pid 14 matched but it runs in a login session scope", start);
+    assert_eq!(journal.borrow().len(), 3, "the same reason for another pid is a repeat");
+}
+
+/// Extra causes beyond the first of a kind share a cap over all kinds,
+/// and the first cause of every kind is still delivered.
+#[test]
+fn the_global_cap_bounds_extra_causes_and_keeps_the_first_of_every_kind() {
+    let (mut reporter, _log, journal, _desktop) = reporter(Mode::Works);
+    let start = Instant::now();
+    for kind in 0..20 {
+        for cause in ["a", "b", "c", "d"] {
+            reporter.report_failure_at(&format!("kind {kind}"), &format!("POLICY NOT IN FORCE: reason {cause}"), start);
+        }
+    }
+    assert_eq!(journal.borrow().len(), 20 + MAX_EXTRA_CAUSES_PER_INTERVAL, "twenty first causes plus the cap on the extra ones");
+}
+
+/// While the watcher starts,
+/// the channel that `up` relays takes every report,
+/// the other channels keep their limits,
+/// and after the start the limits apply to all.
+#[test]
+fn during_startup_the_relayed_channel_takes_every_report_and_the_others_stay_limited() {
+    let (mut reporter, log, journal, desktop) = reporter(Mode::Works);
+    let start = Instant::now();
+    reporter.begin_startup();
+    for index in 0..50 {
+        let word = format!("name{}", "x".repeat(index));
+        reporter.report_failure_at("move skipped", &format!("POLICY NOT IN FORCE: its cgroup /user.slice/{word} is outside"), start);
+    }
+    assert_eq!(log.borrow().len(), 50, "no startup outcome is dropped from the log that up relays");
+    assert_eq!(journal.borrow().len(), MAX_CAUSES_PER_KIND);
+    assert_eq!(desktop.borrow().len(), MAX_CAUSES_PER_KIND);
+    reporter.end_startup();
+    let before = log.borrow().len();
+    reporter.report_failure_at("process list unreadable", "POLICY NOT IN FORCE: the list of processes could not be read", start + Duration::from_secs(1));
+    reporter.report_failure_at("process list unreadable", "POLICY NOT IN FORCE: the list of processes could not be read", start + Duration::from_secs(2));
+    assert_eq!(log.borrow().len(), before + 1, "after the start the log channel is limited again");
+}
+
+/// Only the log channel is relayed to `up`.
+#[test]
+fn only_the_log_channel_is_relayed_to_up() {
+    assert!(LogChannel.relayed_to_up());
+    assert!(!JournalChannel.relayed_to_up());
+}
+
+/// The normalized cause makes numbers alike and keeps names and reasons.
+#[test]
+fn the_normalized_cause_makes_numbers_alike() {
+    assert_eq!(normalized_cause("pid 12 failed (attempt 3) in 30s"), "pid # failed (attempt #) in #s");
+    assert_eq!(normalized_cause("pid 12 failed"), normalized_cause("pid 99999 failed"));
+    assert_ne!(normalized_cause("pid 12 failed: boom"), normalized_cause("pid 12 failed: other"));
+    assert_eq!(normalized_cause(&"x".repeat(1000)).len(), 200);
 }
 
 /// A failure that repeats every two seconds reaches the journal once a minute,

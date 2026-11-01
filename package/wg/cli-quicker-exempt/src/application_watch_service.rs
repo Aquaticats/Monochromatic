@@ -21,6 +21,8 @@ use crate::application_watch_state::{
     write_watch_state,
     WatchProcess,
 };
+/// The relay of the start's loud lines.
+use crate::startup_relay::forward_startup_failures;
 /// The user's toolchain roots.
 use crate::install_roots::{install_roots, InstallRoots};
 /// Moves matched processes into the updates slice.
@@ -34,7 +36,7 @@ use crate::watcher_sentinel::SENTINEL_COMMAND;
 /// The policy engine and its setup.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.
-use crate::update_report::{policy_failure, policy_notice, refused_root_failures, POLICY_NOT_IN_FORCE_MARKER};
+use crate::update_report::{policy_failure, policy_notice, refused_root_failures};
 /// The account of the watched user.
 use crate::user_account::UserAccount;
 /// Handshake and file errors.
@@ -128,24 +130,6 @@ fn read_watch_log(key: &str) -> io::Result<String> {
     }
 }
 
-/// Most bytes of the watcher log read to relay its startup reports.
-const MAX_RELAY_BYTES: u64 = 1_048_576;
-
-/// Reads at most `MAX_RELAY_BYTES` of the watcher log from byte `offset` on,
-/// so a long-lived log is never read whole.
-fn read_watch_log_since(key: &str, offset: u64) -> io::Result<String> {
-    let path = watch_log_path(key)?;
-    let mut file = match std::fs::File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(String::new()),
-        Err(error) => return Err(error),
-    };
-    io::Seek::seek(&mut file, io::SeekFrom::Start(offset))?;
-    let mut bytes: Vec<u8> = Vec::new();
-    io::Read::read_to_end(&mut io::Read::take(file, MAX_RELAY_BYTES), &mut bytes)?;
-    return Ok(String::from_utf8_lossy(&bytes).into_owned());
-}
-
 /// Size of the watcher log now,
 /// zero when it does not exist yet.
 fn watch_log_length(key: &str) -> u64 {
@@ -153,32 +137,6 @@ fn watch_log_length(key: &str) -> u64 {
         Ok(metadata) => metadata.len(),
         Err(_error) => 0,
     };
-}
-
-/// The loud lines in the part of `log` that starts at byte `offset`,
-/// which is what the new watcher wrote since the start began.
-/// Earlier lines belong to earlier runs and are left out.
-pub fn failure_lines_since(log: &str, offset: u64) -> Vec<String> {
-    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(log.len());
-    let fresh = String::from_utf8_lossy(&log.as_bytes()[start..]).into_owned();
-    let mut lines: Vec<String> = Vec::new();
-    for line in fresh.lines() {
-        if line.contains(POLICY_NOT_IN_FORCE_MARKER) {
-            lines.push(line.to_string());
-        }
-    }
-    return lines;
-}
-
-/// Prints the loud lines the new watcher wrote to its log since `offset`,
-/// so a failure at startup reaches the terminal that ran `up`.
-/// The log stays the full record.
-fn forward_startup_failures(key: &str, offset: u64) -> io::Result<()> {
-    let text = read_watch_log_since(key, offset)?;
-    for line in failure_lines_since(&text, 0) {
-        write_unchecked(&sanitize(&line));
-    }
-    return Ok(());
 }
 
 /// Looks up the watched user and the toolchain install roots of that user.

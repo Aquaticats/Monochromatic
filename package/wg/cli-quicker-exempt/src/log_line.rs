@@ -14,6 +14,11 @@ use std::sync::Mutex;
 /// Window timing.
 use std::time::{Duration, Instant};
 
+/// Words that start every notice about the log file itself,
+/// so the start of `up` relays them next to the loud reports:
+/// a line dropped by a budget may have been a report.
+pub const LOG_NOTICE_MARKER: &str = "LOG LIMIT";
+
 /// Bytes the log file may receive per window.
 pub const LOG_BYTES_PER_WINDOW: u64 = 262_144;
 /// Length of one budget window.
@@ -133,19 +138,19 @@ pub fn log_line(line: &str) {
         Admission::Write { dropped_before } => {
             if dropped_before > 0 {
                 write_unchecked(&format!(
-                    "wg-quicker-exempt: {dropped_before} log line(s) were dropped because the log budget of {LOG_BYTES_PER_WINDOW} bytes per hour was reached"
+                    "wg-quicker-exempt: {LOG_NOTICE_MARKER}: {dropped_before} log line(s) were dropped because the log budget of {LOG_BYTES_PER_WINDOW} bytes per hour was reached"
                 ));
             }
             write_unchecked(line);
         }
         Admission::BudgetReached => {
             write_unchecked(&format!(
-                "wg-quicker-exempt: the log budget of {LOG_BYTES_PER_WINDOW} bytes per hour is reached, so later lines this hour are dropped from this file; failures still reach the journal and the desktop"
+                "wg-quicker-exempt: {LOG_NOTICE_MARKER}: the log budget of {LOG_BYTES_PER_WINDOW} bytes per hour is reached, so later lines this hour are dropped from this file; failures still reach the journal and the desktop"
             ));
         }
         Admission::TotalSpent => {
             write_unchecked(&format!(
-                "wg-quicker-exempt: the log file has received its whole budget of {LOG_BYTES_TOTAL} bytes for the life of this watcher, \
+                "wg-quicker-exempt: {LOG_NOTICE_MARKER}: the log file has received its whole budget of {LOG_BYTES_TOTAL} bytes for the life of this watcher, \
 so nothing more is written to it, success lines included; failures still reach the journal and the desktop, and `watch-stop` and `watch-start` give a fresh budget"
             ));
         }
