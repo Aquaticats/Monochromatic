@@ -87,26 +87,31 @@ use super::forwarding::ChildOutcome;
 /// ```ts
 /// const fromProcess = info.si_code === SI_USER || info.si_code === SI_QUEUE;
 /// ```
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub fn is_process_sender(code: c_int) -> bool {
     return PROCESS_SENDER_CODES.contains(&code);
+}
+
+/// What:
+///  Whether a signal counts as sent by a process; on macOS every signal does.
+/// Why:
+///   The macOS kernel reports `si_code` 0 for `kill`, for a signal from a forked child and for a Ctrl-C written to a
+///  pseudo-terminal master (measured on Darwin arm64), so the code cannot tell a terminal sender from a process one.
+///  Relaying all of them is the safe side: a missed relay orphans the Git child,
+///  while a second `SIGINT`, `SIGTERM`, `SIGHUP` or `SIGQUIT` reaching Git is harmless.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fromProcess = (_siCode: number) => true;
+/// ```
+#[cfg(target_os = "macos")]
+pub fn is_process_sender(_code: c_int) -> bool {
+    return true;
 }
 
 /// Sender codes that mean a process sent the signal, on Linux.
 #[cfg(target_os = "linux")]
 const PROCESS_SENDER_CODES: [c_int; 3] = [libc::SI_USER, libc::SI_QUEUE, libc::SI_TKILL];
-
-/// `si_code` for a signal sent by `kill`, from macOS `<sys/signal.h>` (the `libc` crate does not export it there).
-#[cfg(target_os = "macos")]
-pub const SI_USER: c_int = 0x10001;
-
-/// `si_code` for a signal sent by `sigqueue`, from macOS `<sys/signal.h>` (the `libc` crate does not export it there).
-#[cfg(target_os = "macos")]
-pub const SI_QUEUE: c_int = 0x10002;
-
-/// Sender codes that mean a process sent the signal, on macOS.
-#[cfg(target_os = "macos")]
-const PROCESS_SENDER_CODES: [c_int; 2] = [SI_USER, SI_QUEUE];
 
 /// Sender codes that mean a process sent the signal, on other Unix systems.
 #[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]

@@ -11,16 +11,16 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
 use std::time::{Duration, Instant};
 
-/// The sender codes the tests feed in; macOS gets them from the module itself because the `libc` crate lacks them there.
+/// The sender codes the tests feed in; macOS relays every signal whatever its code, so its tests need none.
 #[cfg(all(unix, not(target_os = "macos")))]
 use libc::{SI_QUEUE, SI_USER};
 
-/// A code that no process sends: the kernel's own on Linux, the empty code elsewhere (macOS has no `SI_KERNEL`).
+/// A code that no process sends: the kernel's own on Linux.
 #[cfg(target_os = "linux")]
 const KERNEL_CODE: std::ffi::c_int = libc::SI_KERNEL;
 
-/// A code that no process sends: the kernel's own on Linux, the empty code elsewhere (macOS has no `SI_KERNEL`).
-#[cfg(all(unix, not(target_os = "linux")))]
+/// A code that no process sends: the empty code on Unix systems other than Linux and macOS.
+#[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
 const KERNEL_CODE: std::ffi::c_int = 0;
 
 /// Environment variable naming the helper scenario.
@@ -153,12 +153,21 @@ fn finish(mut helper: Child) -> ExitStatus {
 }
 
 /// The incumbent-facing contract: a process sender is relayed, the terminal is not.
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn only_process_senders_are_relayed() {
     assert!(is_process_sender(SI_USER));
     assert!(is_process_sender(SI_QUEUE));
     assert!(!is_process_sender(KERNEL_CODE));
+}
+
+/// macOS reports `si_code` 0 for a real `kill`, so every code counts as a process sender there.
+#[cfg(target_os = "macos")]
+#[test]
+fn every_signal_is_relayed_on_macos() {
+    assert!(is_process_sender(0));
+    assert!(is_process_sender(-1));
+    assert!(is_process_sender(0x10001));
 }
 
 /// On Linux a thread-directed kill is a process sender too.
@@ -180,7 +189,7 @@ fn guard_catches_the_four_signals() {
 /// The handler marks a signal for relay only when a process sent it, so a terminal sender leaves the slot empty.
 ///
 /// The handler runs directly with no child recorded, so nothing is sent and the slot shows the decision.
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn handler_marks_a_signal_only_for_a_process_sender() {
     let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
@@ -202,6 +211,22 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
         PENDING[0].load(std::sync::atomic::Ordering::SeqCst),
         libc::SIGINT,
         "a process sender is marked for relay"
+    );
+    PENDING[0].store(0, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// On macOS the handler marks a signal for relay whatever `si_code` it carries, including the 0 a real `kill` gives.
+#[cfg(target_os = "macos")]
+#[test]
+fn handler_marks_a_signal_with_the_code_macos_gives_a_kill() {
+    let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
+    // SAFETY: a zeroed `siginfo_t` is a valid buffer; its header code stays 0, as the kernel delivers it for `kill`.
+    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    relay_handler(libc::SIGINT, &mut info, std::ptr::null_mut());
+    assert_eq!(
+        PENDING[0].load(std::sync::atomic::Ordering::SeqCst),
+        libc::SIGINT,
+        "a signal with code 0 is marked for relay"
     );
     PENDING[0].store(0, std::sync::atomic::Ordering::SeqCst);
 }
