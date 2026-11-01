@@ -104,7 +104,7 @@ fn every_control_before_the_subcommand_is_removed() {
     let below_root: Observed =
         run_direct(&fixture, nested.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(below_root.code, Some(0));
-    assert_eq!(CONTROL_SPELLINGS.len(), 14);
+    assert_eq!(CONTROL_SPELLINGS.len(), 15);
     for spelling in CONTROL_SPELLINGS {
         assert_eq!(
             run_wrapped(
