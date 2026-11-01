@@ -29,12 +29,12 @@ type Observed = {
   /**
    State of the block after the installs.
    */
-  readonly installed: boolean;
+  readonly installed: string;
 
   /**
    State of the block after the removal.
    */
-  readonly removed: boolean;
+  readonly removed: string;
 };
 
 /**
@@ -103,7 +103,7 @@ assert.ok(
   !observed.replacement.includes('delete chain',),
   `replacing a block in place deleted a chain: ${observed.replacement}`,
 );
-assert.equal(observed.installed, true,);
-assert.equal(observed.removed, false,);
+assert.equal(observed.installed, 'present',);
+assert.equal(observed.removed, 'absent',);
 process.stdout
   .write('wg-quicker traffic block integration passed\n',);

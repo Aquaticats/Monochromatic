@@ -1,6 +1,7 @@
 import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { TrafficBlockError, } from './errors.ts';
 import {
   run,
   runAllowingFailure,
@@ -122,46 +123,43 @@ export async function installTrafficBlock(
 }
 
 /**
- Removes the block,
- idempotently.
-
- @param interfaceName - Tunnel interface.
-
- @example
- ```ts
- await removeTrafficBlock({ interfaceName: 'wg0' });
- ```
+ What `nft list table` shows about the block.
  */
-export async function removeTrafficBlock({ interfaceName, }: { readonly interfaceName: string; },): Promise<void> {
-  await runAllowingFailure({
-    command: 'nft',
-    args: [
-      'delete',
-      'table',
-      'inet',
-      trafficBlockTable({ interfaceName, },),
-    ],
-  },);
-}
+export type TrafficBlockState = 'present' | 'absent' | 'unknown';
 
 /**
- Tells whether the block is in place.
- A retried `down` uses this to say truthfully what an earlier one left behind.
+ Looks at the block.
+ The table is `absent` only when `nft` says that no such table exists;
+ any other failure, such as missing privilege,
+ leaves the state `unknown`,
+ because an unreadable table may still be in place.
 
  @param interfaceName - Tunnel interface.
 
- @returns Whether the nft table of the block exists.
+ @param runCommand - Command runner,
+ replaceable in tests.
+
+ @returns Whether the nft table of the block is present,
+ absent or not known.
 
  @example
  ```ts
- await trafficBlockExists({ interfaceName: 'wg0' });
+ await trafficBlockState({ interfaceName: 'wg0' });
  ```
  */
-export async function trafficBlockExists({ interfaceName, }: { readonly interfaceName: string; },): Promise<boolean> {
+export async function trafficBlockState(
+  {
+    interfaceName,
+    runCommand = runAllowingFailure,
+  }: {
+    readonly interfaceName: string;
+    readonly runCommand?: typeof runAllowingFailure;
+  },
+): Promise<TrafficBlockState> {
   /**
    What `nft list table` said.
    */
-  const listed = await runAllowingFailure({
+  const listed = await runCommand({
     command: 'nft',
     args: [
       'list',
@@ -170,5 +168,116 @@ export async function trafficBlockExists({ interfaceName, }: { readonly interfac
       trafficBlockTable({ interfaceName, },),
     ],
   },);
-  return listed.exitCode === 0;
+  if (listed.exitCode === 0)
+    return 'present';
+  return listed.stderr
+    .toLowerCase()
+    .includes('no such file or directory',)
+    ? 'absent'
+    : 'unknown';
+}
+
+/**
+ Removes the block and shows that it is gone.
+ A table that was never there is not a failure,
+ but a table that is still there after the delete,
+ or one that cannot be shown gone,
+ is:
+ the network stays blocked,
+ and nobody has been told.
+
+ @param interfaceName - Tunnel interface.
+
+ @param runCommand - Command runner,
+ replaceable in tests.
+
+ @throws {@link TrafficBlockError} naming the table and the command that removes it,
+ when the block is still in place or cannot be shown gone.
+
+ @example
+ ```ts
+ await removeTrafficBlock({ interfaceName: 'wg0' });
+ ```
+ */
+export async function removeTrafficBlock(
+  {
+    interfaceName,
+    runCommand = runAllowingFailure,
+  }: {
+    readonly interfaceName: string;
+    readonly runCommand?: typeof runAllowingFailure;
+  },
+): Promise<void> {
+  /**
+   Table that holds the block.
+   */
+  const table = trafficBlockTable({ interfaceName, },);
+  /**
+   What `nft delete table` said;
+   it fails when there is no table,
+   which is the idempotent case.
+   */
+  const deleted = await runCommand({
+    command: 'nft',
+    args: [
+      'delete',
+      'table',
+      'inet',
+      table,
+    ],
+  },);
+  /**
+   Whether the table is gone.
+   */
+  const state = await trafficBlockState({
+    interfaceName,
+    runCommand,
+  },);
+  if (state === 'absent')
+    return;
+  /**
+   What `nft delete table` printed,
+   for the person to read.
+   */
+  const said = `nft delete table exited ${String(deleted.exitCode,)}: ${deleted.stderr
+    .trim()}`;
+  throw new TrafficBlockError(
+    state === 'present'
+      ? `the traffic block (nft table inet ${table}) is still in place after the attempt to remove it (${said}); `
+        + `everything that leaves the machine is dropped until it is removed: sudo nft delete table inet ${table}`
+      : `could not tell whether the traffic block (nft table inet ${table}) was removed (${said}); `
+        + `check with \`sudo nft list table inet ${table}\` and remove it if it is there: sudo nft delete table inet ${table}`,
+  );
+}
+
+/**
+ Tells whether the block is in place.
+ A retried `down` uses this to say truthfully what an earlier one left behind,
+ so a table that cannot be read counts as not known to be there.
+
+ @param interfaceName - Tunnel interface.
+
+ @param runCommand - Command runner,
+ replaceable in tests.
+
+ @returns Whether the nft table of the block is known to exist.
+
+ @example
+ ```ts
+ await trafficBlockExists({ interfaceName: 'wg0' });
+ ```
+ */
+export async function trafficBlockExists(
+  {
+    interfaceName,
+    runCommand = runAllowingFailure,
+  }: {
+    readonly interfaceName: string;
+    readonly runCommand?: typeof runAllowingFailure;
+  },
+): Promise<boolean> {
+  return await trafficBlockState({
+    interfaceName,
+    runCommand,
+  },) === 'present';
 }

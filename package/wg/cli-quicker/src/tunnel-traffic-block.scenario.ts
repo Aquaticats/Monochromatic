@@ -21,7 +21,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   installTrafficBlock,
   removeTrafficBlock,
-  trafficBlockExists,
+  trafficBlockState,
 } from '../dist/final/node/tunnel-traffic-block.mjs';
 
 /**
@@ -153,12 +153,12 @@ const control = await watching({ work: deleteThenInstall, },);
 /**
  State with the block in place.
  */
-const installed = await trafficBlockExists({ interfaceName: INTERFACE_NAME, },);
+const installed = await trafficBlockState({ interfaceName: INTERFACE_NAME, },);
 await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
 /**
  State after the removal.
  */
-const removed = await trafficBlockExists({ interfaceName: INTERFACE_NAME, },);
+const removed = await trafficBlockState({ interfaceName: INTERFACE_NAME, },);
 // Removing a block that is not there is not a failure.
 await removeTrafficBlock({ interfaceName: INTERFACE_NAME, },);
 process.stdout

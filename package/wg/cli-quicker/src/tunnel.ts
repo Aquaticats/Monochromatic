@@ -359,6 +359,10 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
  
  @throws {@link CommandError} when the interface already exists or a command fails.
  
+ @throws {@link TrafficBlockError} when the block of an unfinished `down` cannot be removed.
+ `up` stops before it changes anything,
+ because a tunnel brought up behind that block would carry nothing.
+ 
  @example
  ```ts
  await up({ config });
@@ -390,7 +394,9 @@ export async function up({ config, }: { readonly config: WireguardConfig; },): P
       stderr: `\`${iface}' already exists`,
     },);
   }
-  // The interface does not exist, so a block left by a half-finished down no longer protects anything.
+  // The interface does not exist, so a block left by a half-finished down no longer protects anything,
+  // and it would stop the new tunnel from carrying anything.
+  // A block that cannot be removed throws, and up stops with the error that names the command.
   await removeTrafficBlock({ interfaceName: iface, },);
   await assertNoPolicyRoutingConflict();
   await upInner({ config, },);
@@ -403,6 +409,10 @@ export async function up({ config, }: { readonly config: WireguardConfig; },): P
  @param config - Parsed config.
  
  @param tolerateMissing - When true, a missing interface is not an error.
+ 
+ @throws {@link TrafficBlockError} when the interface is missing and the block of an unfinished `down` cannot be removed,
+ which is an error even when a missing interface is tolerated:
+ the network stays blocked.
  
  @example
  ```ts
@@ -425,6 +435,8 @@ async function teardown(
   if (!(await linkExists({ interfaceName: iface, },))) {
     await removeOpenSnitchEndpointAllowance({ interfaceName: iface, },);
     // A block left by a half-finished down must not outlive the interface it was protecting.
+    // A block that cannot be removed throws, and down stops with the error that names the command,
+    // where a silent failure reported success while the network stayed blocked.
     await removeTrafficBlock({ interfaceName: iface, },);
     if (tolerateMissing)
       return;

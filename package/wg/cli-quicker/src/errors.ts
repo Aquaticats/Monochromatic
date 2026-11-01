@@ -276,6 +276,25 @@ export class TeardownIncompleteError extends Error {
 }
 
 /**
+ Error raised when the traffic block of an unfinished `down` is still in place, or cannot be shown gone,
+ after the attempt to remove it.
+ While the block stands,
+ everything that leaves the machine is dropped,
+ so the message names the nft table and the command that removes it.
+
+ @example
+ ```ts
+ throw new TrafficBlockError('the traffic block is still in place');
+ ```
+ */
+export class TrafficBlockError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'TrafficBlockError';
+}
+
+/**
  Error raised when the resolver does not finish answering within the time limit.
  It carries a marker property instead of relying on `instanceof`,
  so it is recognized across separately built bundles.

@@ -548,7 +548,16 @@ that the tunnel is not fully up and that traffic is blocked,
 where it would otherwise say that nothing was removed.
 A successful `down`,
 a `down` of an interface that is already gone,
-and an `up` (which refuses an existing interface) remove a leftover block.
+and an `up` (which refuses an existing interface) remove a leftover block,
+and each of them shows that it is gone:
+when the table is still there after the delete,
+or cannot be shown gone,
+they stop with an error that names the table and the command that removes it,
+`sudo nft delete table inet wg-quicker-<interface>-blocked`.
+`up` stops before it changes anything,
+because a tunnel brought up behind the block would carry nothing,
+and a `down` of an interface that is already gone fails even though it tolerates a missing interface,
+because the network stays blocked.
 The rollback of a failed `up` does not use this order and does not block.
 
 ### Upgrading a running tunnel
