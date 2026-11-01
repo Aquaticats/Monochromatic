@@ -1823,6 +1823,40 @@ translation-repair package; cc, desktop, fm and troubleshooting still running):
 - Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
   position 26, troubleshooting at worklist line 67, slice-cache on its package.
 
+Wave-4 forty-fourth checkpoint (2026-11-01, four lane returns verified and relaunched;
+slice-cache is still running):
+
+- doc/troubleshooting round 2: worklist lines 67 to 70, rows
+  `w2-logger-src-077` to `-085`; my spots confirm the Containerfile and lockfile
+  drift, the depth-1 `du` recipe, the reformatted task output and the deleted
+  linter lockfile. The ledger is 84 of 85: row 35 remains quote-bad because the
+  concurrent session keeps reflowing package/git-policy/cli/README.md; it is
+  marked concurrent and must be re-verified before filing. Next: worklist line
+  71, id w2-logger-src-086, base rr-ts-379.
+- `w4-cc-statusline` (cc-docs round 5) closed positions 405 to 412 and read nine
+  419 to 520 middles: rows `w4-docs-035` (anchor_denot region markers and the
+  unmarked 382 to 601 tail), `-036` (the Laya vet's evaluate/judge paths against
+  the one-file auto-mode src), `-037` (137 and 11 bold-label bullets in the
+  rolling-desktop vets) and `-038` (three ALL CAPS conclusions in the
+  translation-repair debt-layers record). Row 034 was retracted as a duplicate of
+  pkg-shell-argument-28. Ledger 37 of 37. Next: the remaining 419 to 520
+  middles, id w4-docs-039, base rr-gp-335.
+- `w4-desktop-app` (desktop-fork round 5) read 54 more deepmerge files: rows
+  `w4-upstream-fork-066` to `-071` (duplicated ActionUtils owners, copied esbuild
+  loader, three copied worker pools, unguarded RECALL_NPM_DIR, unvalidated
+  recall seed/size, and the bare --skipLibCheck override). Ledger 71 of 71; 110
+  of 124 files. Next: the 14 remaining type files and tsconfig, id
+  w4-upstream-fork-072, base rr-desktop-089.
+- `w4-fm-variant-qt` (fm-decision round 5) read positions 26, 29, 30, 35, 40 and
+  42: rows `w4-docs-decision-046` to `-051` (six-vs-two gitignore negations,
+  seeds/seeder drift, 51-vs-1344 seeds, three split bold spans, the serde_json
+  catalog line, and the commands.rs pointer). The pre-existing row 034 had moved
+  with toolchain.plan.jsonc; I repaired it to lines 369/378. Ledger 51 of 51.
+  Next: position 41, id w4-docs-decision-052, base rr-fmv-62.
+- Active: cc-docs at the 419 to 520 middles, desktop-fork on the type files,
+  fm-decision at position 41, troubleshooting at line 71, slice-cache on its
+  package.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
