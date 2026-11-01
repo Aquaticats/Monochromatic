@@ -527,7 +527,14 @@ The audit:
 `slice-cache:cache-account-audit -- --runs-under /var/home/user/temp/agent`,
 read-only,
 calling no provider.
-See the end of B1342 for its output at the head of this round.
+Its output at the end of the round (`cache-account-audit.txt`) read 14,064 slice-cache records under 433 run folders
+(3 folders the search could not list,
+all unrelated pgvector scratch),
+and "cache versions set after it:
+0 of 8".
+B1343 and B1344 change which model is asked and which roster a refine slice runs on,
+not a keyed input of a stored record,
+so no version moves.
 The rule is step 4 of `mistake-prevention.md` (M25 and M28):
 a version moves only if a keyed input changed.
 
