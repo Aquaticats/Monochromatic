@@ -27,6 +27,11 @@ Calibration answers, in the user's words:
 - Wording correction (2026-10-31): "No code changes in the main worktree", not "anywhere";
   throwaway-worktree experiments are expected where needed.
 
+Scope change 2026-11-01: package/translation-repair is excluded from this review at the
+user's instruction. Its dedicated findings files and every cross-file row whose package is
+under package/translation-repair were quarantined under
+findings-excluded/translation-repair/ and dropped from the filing base.
+
 ## 2026-11-01 pickup (new session)
 
 Fresh harness session. `agents.list` shows zero direct children: the 32-child pool is empty
@@ -2051,6 +2056,29 @@ three drifted fm rows repaired):
   vet-slint pointers, the troubleshooting stream-drain citation and the
   corpus-pass helper declarations.
 
+Wave-4 fifty-fifth checkpoint (2026-11-01, translation-repair excluded by user instruction;
+its three live lanes stopped and its findings quarantined):
+
+- Scope change: package/translation-repair is out. I killed the three live lanes
+  (translation-repair/run, corpus-pass, slice-cache) and moved their dedicated
+  files out of findings/: w4-tr-archive (8 rows), w4-tr-artifact (14), w5-tr-run
+  (4), w5-tr-corpus-pass (8) and w5-tr-slice-cache (19), with their verdicts.
+  No w4-tr or w5-tr file remains under findings/.
+- Cross-file quarantine: 30 rows whose `package` field is under
+  package/translation-repair were removed from docs-decisions (1),
+  pkg-async-iter (2), orchestrator-central-tests (23), pkg-dom (1), new-round4
+  (1) and pkg-figma-kiwi (2), and written to
+  findings-excluded/translation-repair/cross-file-rows.jsonl with an exclusion
+  reason. new-round4.jsonl is now empty. The batch-4 base drops all of these.
+- The assignment queue item for translation-repair is marked excluded; no new
+  translation-repair slice may be opened. The live non-translation lanes are cc
+  doc/audit (w4-docs-044), fm doc/decision (w4-docs-decision-066) and
+  troubleshooting (w2-logger-src-105).
+- Freed capacity: three replacement lanes open on non-translation work:
+  doc/planning (541 files, findings w5-docs-planning.jsonl), file-manager/app
+  (30 files, findings w5-fm-app.jsonl) and claude-code-plugin (237 files,
+  findings w5-cc-plugin.jsonl), each deduping the existing mentions.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -2497,8 +2525,9 @@ has compact rows) and the bounded lint-digest grep for package-assigned children
    done (3 rows), `ownership-marker/foreign-borrowed` done clean (zero rows),
    `search-shadow/cli`, `vm-builder/cli`, `vmsync/cli` done by `w4-fe-core-tests`
    (4, 8, 13 rows).
-6. `translation-repair/*` (35 after adjudication, one per assignment; `archive` done 92 of
-   92 by `w4-fe-core-tests`, now on `artifact`, 178 files); `upstream-fork/*`
+6. Excluded 2026-11-01: `translation-repair/*` is out of scope by user instruction;
+   its live lanes were stopped and its findings quarantined. Do not assign it.
+   `upstream-fork/*`
    (about 12 plus fuzz sidecars); `config/*` (9; pnpr has concurrent edits); misc:
    `intellij-plugin/islands-black`, `rolldown-plugin/import-attributes`,
    `pnpm-override/*` (7), `runtime-error/bun`, hyperscript-class remainders,
