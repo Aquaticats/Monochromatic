@@ -26,6 +26,7 @@ import {
   type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
+  SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -34,6 +35,7 @@ import {
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
+  alternateModelsFor,
   type ChatTextReply,
   createRoutingClient,
   type ReaskSeat,
@@ -324,6 +326,75 @@ await describe({
         // Hyper, so the probe reaches the retry and can see which provider it asks.
         expect(await reachedByJson(false,),).toEqual(['synthetic', 'hyper',],);
         expect(await reachedByJson(true,),).toEqual(['hyper',],);
+      },
+    },),
+
+    it({
+      name: 'ASKS ANOTHER MODEL OF A RUNAWAY THROUGH THE ROUTER FROM THE POOL OF NO READING (ledger B1410): routedJson '
+        + 'hands the re-ask no reading of the meters, so a model with a hold at seating time is left out of the pool '
+        + 'even where Synthetic serves it, and the model asked is routed as a first ask',
+      fn: async () => {
+        /**
+         Models the stub providers were asked, with the provider each call reached, in order.
+         */
+        const calls: (readonly [RosterModelId, ProviderName])[] = [];
+        /**
+         Caller of one provider: the model that ran away answers with a length stop and no content the first time it is
+         asked, and every call after answers with JSON.
+
+         @param provider - provider this caller stands for
+
+         @returns Caller that records the call
+         */
+        function callerOf(provider: ProviderName,): { readonly chatText: (request: { readonly modelId: RosterModelId; },) => Promise<ChatTextReply>; } {
+          return {
+            chatText: function answers(request,): Promise<ChatTextReply> {
+              calls.push([request.modelId, provider,],);
+              return Promise.resolve((calls.length === 1) ? { text: '', finishReason: 'length', } : { text: '{"spot":"radiator"}', },);
+            },
+          };
+        }
+        const client = createRoutingClient({
+          callers: {
+            neuralwatt: callerOf('neuralwatt',),
+            synthetic: callerOf('synthetic',),
+            hyper: callerOf('hyper',),
+            openrouter: callerOf('openrouter',),
+          },
+          budgets: { read: readOlderProvidersWet, markRefused: markNothingRefused, holds: holdNothing, },
+          l: levelCapturingLogger({ lines: [], },),
+        },);
+        /**
+         The pool the re-ask reads: no reading, so every hold applied at seating time counts.
+         */
+        const pool = alternateModelsFor({ modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE, role: 'select-judge', },);
+        const outcome = await client.chatJson({
+          modelId: SEAT_SYNTHETIC_TEXT_EVERYWHERE,
+          messages: MESSAGES,
+          signal: SIGNAL,
+          validate: function isCat(value: unknown,): value is { readonly spot: string; } {
+            return ((typeof value) === 'object') && (value !== null) && ('spot' in value);
+          },
+          reaskSeat: { role: 'select-judge', bench: [], reask: 'other-model', },
+        },);
+        /**
+         Models asked after the one that ran away.
+         */
+        const askedAfter = calls.slice(1,).map(function modelOf([modelId,],): RosterModelId {
+          return modelId;
+        },);
+        expect(calls.at(0,)?.[0],).toBe(SEAT_SYNTHETIC_TEXT_EVERYWHERE,);
+        expect(askedAfter.length,).toBeGreaterThan(0,);
+        for (const modelId of askedAfter)
+          expect(pool.alternates.includes(modelId,),).toBe(true,);
+        expect(askedAfter.includes(SEAT_SYNTHETIC_TEXT_EVERYWHERE,),).toBe(false,);
+        // KIMI-K3 IS HELD FOR THE SELECT SEATS, so the pool without a reading leaves it out although Synthetic serves it
+        // (the positive control of the case: the probe sees a model the pool kept out), and it was never asked.
+        expect(pool.leftOut.some(function isKimi(left,): boolean {
+          return left.modelId === SEAT_SYNTHETIC_VISION_WITHHELD;
+        },),).toBe(true,);
+        expect(askedAfter.includes(SEAT_SYNTHETIC_VISION_WITHHELD,),).toBe(false,);
+        expect(outcome.kind,).toBe('ok',);
       },
     },),
 
