@@ -1776,6 +1776,36 @@ fm are still running):
 - Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
   fm-decision from position 20, troubleshooting from line 67.
 
+Wave-4 forty-second checkpoint (2026-11-01, cc, desktop and fm follow-on turns verified; the
+doc/agent slice opened and troubleshooting still running):
+
+- `w4-cc-statusline` (cc-docs round 4) read positions 362 to 404: rows
+  `w4-docs-032` (five 06-11 docs keep the retracted 0.14s/1.1s/3.3s per-repeat
+  compile figures while the cliff analysis measures 517ms/1.51s) and
+  `w4-docs-033` (coverage-and-limits line 136 and verification-0.6.13 line 240
+  say 27 root causes; the 06-04 record says twenty-three). My spots reproduce
+  both contradictions. w4-docs.jsonl 33 of 33 by my run. Next: positions 405 to
+  412, then the 419 to 520 middles, id w4-docs-034, base rr-gp-334.
+- `w4-desktop-app` (desktop-fork round 4) read 21 more deepmerge-ts.fuzz files:
+  rows `w4-upstream-fork-064` (replaceOnce documents a snippet expected exactly
+  once but only checks presence) and `-065` (model.ts bucketOf filters Sets and
+  Maps with instanceof after kindOf classified them realm-independently, so
+  foreign-realm containers merge empty). My spots reproduce both. Ledger 65 of
+  65; 56 of 124 files. Next: known-defect-alias and the remaining families, id
+  w4-upstream-fork-066, base rr-desktop-088.
+- `w4-fm-variant-qt` (fm-decision round 4) read 12 more positions: rows
+  `w4-docs-decision-037` to `-045`, ledger 45 of 45 by my run. My spots:
+  deps-cube's deck.gl 9.3.2 against the catalog's >=9.4.1 and the third
+  mesh-layers dependency; fast-check's >=4.8.0 against the catalog's >=4.10.2;
+  gitignore-matching-package's src/filters path against the live src/filter.
+  Next: positions 26, 29, 30 and 35, then 40 onward, id w4-docs-decision-046,
+  base rr-fmv-61.
+- Opened doc/agent (six tracked files) as a new lane: findings to
+  w5-docs-agent.jsonl from id `w5-docs-agent-001`, base rr-da-001, deduping the
+  docs-core and docs-ops mentions.
+- Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
+  position 26, troubleshooting at worklist line 67, doc/agent on its six files.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
