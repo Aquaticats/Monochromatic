@@ -6230,3 +6230,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
   variant, and the textual merge was clean. Fixed on `integ-20261101` as `03771b1591` (`Activation::Unsupported(
   Platform::LinuxWithoutUserServices)`, as the sibling tests use). Gate 13 runs on it (unit `gpc-main-gate13`, log
   `~/temp/agent/gate/main-gate13.log`). Main moves to it when green.
+- Gate 13 GREEN on `03771b1591` (integration branch): 3021 of 3021 passed, 8 skipped. Merged into main as
+  `b919dc8ce8`, then P's design-doc commit `77697b39e2` as `c1d92a24a0`. Pushed with the checked script
+  (`74aa20d7a4..c1d92a24a0`, 19 commits, 59 paths, none LFS-tracked). Main now has:
+  - P provisioning: no install step, session-bus `StartUnit`;
+  - the standards-review service wiring;
+  - the m048d kills and the `bin/` lint fixes;
+  - the wrapper-store fixes and the planted-control harness fix.
+  The 0.5.2 release still waits for the LFS hotfix.
