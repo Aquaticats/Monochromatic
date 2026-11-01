@@ -2466,6 +2466,17 @@ Wave-4 seventy-seventh checkpoint (2026-11-01, android slice 1 normalized):
   troubleshooting 152 rr-ts-389, android-app slices 2 and 3 (rr-maa-002/003),
   and the android-app slice-1 remainder rr-maa-004.
 
+Wave-4 seventy-eighth checkpoint (2026-11-01, planning slice 7):
+
+- Planning slice 7 read all 20 files at positions 339 to 358 and added rows 066
+  to 069; the ledger is 69 of 69 clean after normalizing two `high` confidence
+  values to `certain`. Row 068 was spot-read: the 32,000-token Hyper cap against
+  live replies of 59,438 and 47,553 output tokens in the same record. Next id
+  070, positions 359 to 378, base rr-dp-009.
+- Live lanes: desktop-app slice 1 001 rr-mda-001, troubleshooting 152
+  rr-ts-389, android-app slices 2 and 3 (rr-maa-002/003), the android-app
+  slice-1 remainder rr-maa-004, and planning 070 rr-dp-009.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
