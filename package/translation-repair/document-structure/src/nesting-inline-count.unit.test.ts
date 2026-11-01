@@ -16,6 +16,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  DELIMITER_BOUND,
+  NESTING_BOUND,
   NO_FENCE,
   scanInline,
   type ScanState,
@@ -325,7 +327,7 @@ await describe({
             },),).toEqual({
               kind: 'beyond',
               measure: 'brackets',
-              bound: 256,
+              bound: NESTING_BOUND,
               line: 7,
               column: 5,
             },);
@@ -339,7 +341,7 @@ await describe({
             },),).toEqual({
               kind: 'beyond',
               measure: 'emphasis delimiters',
-              bound: 1_024,
+              bound: DELIMITER_BOUND,
               line: 8,
               column: 5,
             },);

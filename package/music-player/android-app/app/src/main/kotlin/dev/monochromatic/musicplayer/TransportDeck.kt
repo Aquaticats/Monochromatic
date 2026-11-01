@@ -320,7 +320,7 @@ private const val SECONDS_PER_MINUTE: Long = 60L
 // const SHUFFLE_PREFIX = "Shuffle ";
 // ```
 /** Fixed text before the folder name in the shuffle-folder segment. */
-private const val SHUFFLE_PREFIX: String = "Shuffle "
+internal const val SHUFFLE_PREFIX: String = "Shuffle "
 
 // What:     `private const val SHUFFLE_WIDTH_REFERENCE: String = "Camellia"` sets the width cap.
 // Why:      Long folder names truncate to the rendered width of this reference name.

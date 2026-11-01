@@ -190,8 +190,8 @@ class TrackMeasureTest {
     /** The details value is the exact peak, the sampled peak with its marker, or the pending copy. */
     @Test
     fun detailsValueNamesThePeakOrThePendingCopy() {
-        assertEquals("not measured yet", measureDetailsValue(null))
-        assertEquals("not measured yet", measureDetailsValue(TrackMeasure(durationSec = 275.0)))
+        assertEquals(MEASURE_NOT_MEASURED_TEXT, measureDetailsValue(null))
+        assertEquals(MEASURE_NOT_MEASURED_TEXT, measureDetailsValue(TrackMeasure(durationSec = 275.0)))
         assertEquals(
             "−1.2 dBTP",
             measureDetailsValue(TrackMeasure(durationSec = 275.0, peakDbtp = -1.2, peakExact = true)),

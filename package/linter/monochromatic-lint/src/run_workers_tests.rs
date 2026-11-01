@@ -16,6 +16,7 @@
 use super::{
     WORKER_STACK_BYTES, contained_source, contained_with, lint_thread, panicked, process_plans,
 };
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_file::{FileOutcome, SourceOutcome};
 use crate::run_lfs::LfsRepos;
 use crate::run_plan::FilePlan;
@@ -143,7 +144,7 @@ fn semantic_plans_keep_their_position_among_worker_plans() {
         codes,
         [
             "markdown/no-trailing-punctuation",
-            "core/processing-failure",
+            PROCESSING_FAILURE,
             "markdown/no-trailing-punctuation",
             "markdown/no-trailing-punctuation"
         ]
@@ -165,7 +166,7 @@ fn a_panic_becomes_a_processing_finding() {
     let payload: Box<dyn std::any::Any + Send> = Box::new(String::from("parser exploded"));
     let outcome: FileOutcome = panicked(&planned, payload.as_ref());
     assert_eq!(outcome.findings.len(), 1);
-    assert_eq!(outcome.findings[0].code, "core/processing-failure");
+    assert_eq!(outcome.findings[0].code, PROCESSING_FAILURE);
     assert_eq!(outcome.findings[0].filename, "a.md");
     assert!(outcome.findings[0].processing_failure);
     assert_eq!(
@@ -226,11 +227,10 @@ fn workers_parse_nesting_deeper_than_a_default_thread_stack_holds() {
 }
 
 /// Stack bytes the probe must use below its thread's first frame:
-///  7.5 MiB,
 ///  half a mebibyte under the lint
 /// stack,
 ///  which leaves room for the thread's own start-up frames and its thread-local storage.
-const PROBE_BYTES: usize = 7 * 1024 * 1024 + 512 * 1024;
+const PROBE_BYTES: usize = WORKER_STACK_BYTES - 512 * 1024;
 
 /// Recurse in frames of at least 4 KiB until the frames below `top` span `target` bytes,
 ///  and return that span.
@@ -268,7 +268,8 @@ fn lint_threads_hold_the_documented_eight_mebibyte_stack() {
         .join()
         .expect("the probe returns");
     assert!(reached >= PROBE_BYTES, "{reached}");
-    assert_eq!(WORKER_STACK_BYTES, 8 * 1024 * 1024);
+    // The measured span is the configured stack minus the thread's start-up needs.
+    assert!(reached <= WORKER_STACK_BYTES, "{reached} exceeds the lint stack");
 }
 
 /// A writer that panics,

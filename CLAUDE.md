@@ -22,6 +22,9 @@ advisor reads the transcript,
 sol reads only what you paste.
 Paste whole files,
 never prose.
+Attach a diff as an `@path` argument, not as prose.
+It is the cross-vendor reviewer:
+a Claude subagent is a second pass.
 `timeout` here takes SECONDS.
 Background it;
 never poll or kill it;
@@ -281,8 +284,13 @@ CKB:
  revalidate remedy.
 Use sources,
 commands,
-or separate reviewer;
+or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
+
+IRW:
+ Independent review means a reviewer from another model vendor than the author, or the user.
+A same-vendor subagent is a second pass:
+ label it so, never as independent.
 
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
@@ -382,7 +390,7 @@ GXD:
 RRG:
  Grilling workflows:
  before asking the user to confirm shared understanding,
- have a separate reviewer re-review the current design
+ have a cross-vendor reviewer re-review the current design
  (never the same session),
  and fold its findings in first.
 

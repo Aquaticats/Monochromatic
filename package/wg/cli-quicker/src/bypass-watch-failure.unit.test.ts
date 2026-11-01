@@ -11,6 +11,7 @@ import {
 } from '../dist/final/node/bypass-watch-failure.mjs';
 import {
   hostSyncFailureText,
+  MAX_LISTED_FAILURES,
   refreshOrReport,
   refreshThenWait,
   runHostRefreshLoop,
@@ -157,9 +158,9 @@ await describe({
           },
         },);
         expect(long,).toContain('500 problem(s)',);
-        expect(long,).toContain('problem number 9',);
-        expect(long,).not.toContain('problem number 10;',);
-        expect(long,).toContain('and 490 more',);
+        expect(long,).toContain(`problem number ${String(MAX_LISTED_FAILURES - 1,)}`,);
+        expect(long,).not.toContain(`problem number ${String(MAX_LISTED_FAILURES,)};`,);
+        expect(long,).toContain(`and ${String(500 - MAX_LISTED_FAILURES,)} more`,);
         expect(long.length,).toBeLessThan(1_000,);
         await refreshOrReport({
           state: STATE,

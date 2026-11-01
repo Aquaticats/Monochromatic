@@ -107,13 +107,13 @@ fn parse_reports_brackets_and_quotation_marks() {
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// expect(lines("$" + "tc(up, ".repeat(13) + "x" + ")".repeat(13) + "$")).toEqual(["tc: calls are nested too deeply"]);
+// expect(lines("$" + "tc(up, ".repeat(DEEPEST_CALL + 1) + "x" + ")".repeat(DEEPEST_CALL + 1) + "$")).toEqual(["tc: calls are nested too deeply"]);
 // ```
 #[test]
 fn parse_stops_reading_calls_past_the_nesting_bound() {
-    let deep = format!("${}x{}$", "tc(up, ".repeat(13), ")".repeat(13));
+    let deep = format!("${}x{}$", "tc(up, ".repeat(DEEPEST_CALL + 1), ")".repeat(DEEPEST_CALL + 1));
     assert_eq!(parse_lines(&deep), vec!["tc: calls are nested too deeply"]);
-    let deepest = format!("${}x{}$", "tc(up, ".repeat(12), ")".repeat(12));
+    let deepest = format!("${}x{}$", "tc(up, ".repeat(DEEPEST_CALL), ")".repeat(DEEPEST_CALL));
     assert!(parse_lines(&deepest).is_empty());
 }
 

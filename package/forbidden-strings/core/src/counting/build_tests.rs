@@ -10,7 +10,7 @@
 // });
 // ```
 
-use super::build_nfa;
+use super::{REPEAT_UNROLL_LIMIT, build_nfa};
 use crate::parse::parse;
 
 fn node(pattern: &str) -> crate::ast::node::Node {
@@ -74,8 +74,10 @@ fn group_repetition_unrolls_up_to_the_limit_and_declines_beyond() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    assert!(build_nfa(&node("(?:ab){1,64}")).is_some(), "a 64-copy max unroll is allowed");
-    assert!(build_nfa(&node("(?:ab){1,65}")).is_none(), "a 65-copy max unroll is declined");
+    let allowed: String = format!("(?:ab){{1,{REPEAT_UNROLL_LIMIT}}}");
+    assert!(build_nfa(&node(allowed.as_str())).is_some(), "the unroll limit is allowed");
+    let declined: String = format!("(?:ab){{1,{}}}", REPEAT_UNROLL_LIMIT + 1);
+    assert!(build_nfa(&node(declined.as_str())).is_none(), "one past the unroll limit is declined");
 }
 
 #[test]

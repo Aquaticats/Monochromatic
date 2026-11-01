@@ -15,8 +15,11 @@
 /// Import the filter and the models its inputs and outputs use.
 use super::{DirectiveContext, apply_directives};
 use crate::diagnostic::{Diagnostic, Severity};
+use crate::directive_findings::{
+    MALFORMED, MISSING_JUSTIFICATION, NON_SUPPRESSIBLE, UNKNOWN_RULE, UNUSED,
+};
 use crate::directive_options::DirectiveOptions;
-use crate::run_failure::{host_span, processing_failure};
+use crate::run_failure::{FIX_REFUSED, PROCESSING_FAILURE, host_span, processing_failure};
 use crate::run_paths::Language;
 
 /// A suppressible Rust rule.
@@ -70,6 +73,11 @@ fn summary(found: &[Diagnostic]) -> Vec<String> {
     return lines;
 }
 
+/// One expected finding: the diagnostic code and the source line that carries it.
+fn expected(code: &str, line: usize) -> String {
+    return format!("{code}@{line}")
+}
+
 /// Rust fixture findings:
 /// one suppressible finding at each marker.
 fn sidecar_findings(source: &str, markers: &[&str]) -> Vec<Diagnostic> {
@@ -90,7 +98,7 @@ fn disable_next_line_covers_only_the_following_line() {
         sidecar_findings(source, &["fn a", "fn b"]),
         None,
     );
-    assert_eq!(summary(&found), ["rust/tests-in-sidecars@3"]);
+    assert_eq!(summary(&found), [expected("rust/tests-in-sidecars", 3)]);
 }
 
 /// The line directive covers its own line only,
@@ -106,7 +114,7 @@ fn disable_line_covers_only_its_own_line() {
     );
     assert_eq!(
         summary(&found),
-        ["rust/tests-in-sidecars@1", "rust/tests-in-sidecars@3"]
+        [expected("rust/tests-in-sidecars", 1), expected("rust/tests-in-sidecars", 3)]
     );
 }
 
@@ -120,7 +128,7 @@ fn block_comments_carry_directives() {
         sidecar_findings(source, &["fn a", "fn b", "fn c"]),
         None,
     );
-    assert_eq!(summary(&found), ["rust/tests-in-sidecars@4"]);
+    assert_eq!(summary(&found), [expected("rust/tests-in-sidecars", 4)]);
 }
 
 /// A range lasts from its comment to the matching enable,
@@ -136,7 +144,7 @@ fn disable_lasts_until_enable_or_end_of_file() {
     );
     assert_eq!(
         summary(&found),
-        ["rust/tests-in-sidecars@1", "rust/tests-in-sidecars@5"]
+        [expected("rust/tests-in-sidecars", 1), expected("rust/tests-in-sidecars", 5)]
     );
     let open: &str = "fn before() {}\n// monochromatic-lint-disable rust/tests-in-sidecars -- r\nfn inside() {}\nfn after() {}\n";
     let rest: Vec<Diagnostic> = apply(
@@ -145,7 +153,7 @@ fn disable_lasts_until_enable_or_end_of_file() {
         sidecar_findings(open, &["fn before", "fn inside", "fn after"]),
         None,
     );
-    assert_eq!(summary(&rest), ["rust/tests-in-sidecars@1"]);
+    assert_eq!(summary(&rest), [expected("rust/tests-in-sidecars", 1)]);
 }
 
 /// A finding before the disable comment on the same line stays,
@@ -174,7 +182,7 @@ fn enable_of_one_rule_after_a_bare_disable_reenables_only_that_rule() {
         finding(Language::Rust, source, "fn b", BARE_URLS),
     ];
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, None);
-    assert_eq!(summary(&found), ["rust/tests-in-sidecars@4"]);
+    assert_eq!(summary(&found), [expected("rust/tests-in-sidecars", 4)]);
 }
 
 /// Overlapping ranges for different rules end independently,
@@ -199,9 +207,9 @@ fn nested_and_overlapping_ranges_end_independently() {
     assert_eq!(
         summary(&found),
         [
-            "rust/tests-in-sidecars@5",
-            "rust/tests-in-sidecars@7",
-            "markdown/no-bare-urls@7"
+            expected("rust/tests-in-sidecars", 5),
+            expected("rust/tests-in-sidecars", 7),
+            expected("markdown/no-bare-urls", 7)
         ]
     );
 }
@@ -226,7 +234,7 @@ fn line_directives_apply_inside_and_outside_ranges() {
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, None);
     assert_eq!(
         summary(&found),
-        ["rust/tests-in-sidecars@5", "markdown/no-bare-urls@5"]
+        [expected("rust/tests-in-sidecars", 5), expected("markdown/no-bare-urls", 5)]
     );
 }
 
@@ -243,7 +251,7 @@ fn a_bare_directive_leaves_unsuppressible_rules_alone() {
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, Some(Severity::Warn));
     assert_eq!(
         summary(&found),
-        ["rust/max-lines@2", "rust/require-rustdoc@2"]
+        [expected("rust/max-lines", 2), expected("rust/require-rustdoc", 2)]
     );
 }
 
@@ -260,7 +268,7 @@ fn a_listed_unsuppressible_rule_is_refused_and_reported() {
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, None);
     assert_eq!(
         summary(&found),
-        ["rust/max-lines@2", "directive/non-suppressible@1"]
+        [expected("rust/max-lines", 2), expected(NON_SUPPRESSIBLE, 1)]
     );
     let refusal: &Diagnostic = &found[1];
     assert_eq!(refusal.severity, Severity::Error);
@@ -313,7 +321,7 @@ fn an_unknown_rule_is_reported_with_a_hint() {
     let found: Vec<Diagnostic> = apply(Language::Rust, source, findings, None);
     assert_eq!(
         summary(&found),
-        ["directive/unknown-rule@1", "directive/unknown-rule@1"]
+        [expected(UNKNOWN_RULE, 1), expected(UNKNOWN_RULE, 1)]
     );
     assert!(
         found[0]
@@ -354,7 +362,7 @@ fn a_missing_justification_voids_the_directive() {
             assert!(
                 found
                     .iter()
-                    .any(|item| return item.code == "directive/missing-justification"),
+                    .any(|item| return item.code == MISSING_JUSTIFICATION),
                 "{keyword}{tail:?}"
             );
         }
@@ -375,8 +383,8 @@ fn void_range_directives_do_nothing() {
     assert_eq!(
         summary(&found),
         [
-            "rust/tests-in-sidecars@2",
-            "directive/missing-justification@1"
+            expected("rust/tests-in-sidecars", 2),
+            expected(MISSING_JUSTIFICATION, 1)
         ]
     );
     let void_enable: &str = "// monochromatic-lint-disable rust/tests-in-sidecars -- r\n// monochromatic-lint-enable rust/tests-in-sidecars\nfn a() {}\n";
@@ -386,7 +394,7 @@ fn void_range_directives_do_nothing() {
         sidecar_findings(void_enable, &["fn a"]),
         None,
     );
-    assert_eq!(summary(&rest), ["directive/missing-justification@2"]);
+    assert_eq!(summary(&rest), [expected(MISSING_JUSTIFICATION, 2)]);
 }
 
 /// A comment that starts like a directive but cannot be read is reported and suppresses nothing.
@@ -406,7 +414,7 @@ fn malformed_comments_are_reported() {
         );
         assert_eq!(
             summary(&found),
-            ["rust/tests-in-sidecars@2", "directive/malformed@1"],
+            [expected("rust/tests-in-sidecars", 2), expected(MALFORMED, 1)],
             "{comment}"
         );
         assert_eq!(found[1].severity, Severity::Error);
@@ -427,7 +435,7 @@ fn multi_line_line_directives_are_malformed_but_ranges_may_span_lines() {
     );
     assert_eq!(
         summary(&found),
-        ["rust/tests-in-sidecars@3", "directive/malformed@1"]
+        [expected("rust/tests-in-sidecars", 3), expected(MALFORMED, 1)]
     );
     assert!(found[1].message.contains("must be written on one line"));
     let range: &str = "/* monochromatic-lint-disable rust/tests-in-sidecars\n -- r */\nfn a() {}\n";
@@ -481,7 +489,7 @@ fn unterminated_comments_and_syntax_errors() {
         sidecar_findings(unterminated, &["fn a"]),
         None,
     );
-    assert_eq!(summary(&found), ["rust/tests-in-sidecars@1"]);
+    assert_eq!(summary(&found), [expected("rust/tests-in-sidecars", 1)]);
     let broken: &str =
         "// monochromatic-lint-disable-next-line rust/tests-in-sidecars -- r\nfn {{{ a\n";
     let rest: Vec<Diagnostic> = apply(
@@ -506,7 +514,7 @@ fn crlf_rust_sources() {
     );
     assert_eq!(
         summary(&found),
-        ["rust/tests-in-sidecars@3", "directive/unused@4"]
+        [expected("rust/tests-in-sidecars", 3), expected(UNUSED, 4)]
     );
 }
 
@@ -524,7 +532,7 @@ fn markdown_line_endings_and_columns() {
         ],
         None,
     );
-    assert_eq!(summary(&found), ["markdown/no-bare-urls@3"]);
+    assert_eq!(summary(&found), [expected("markdown/no-bare-urls", 3)]);
     let cr: &str = "<!-- monochromatic-lint-disable-next-line markdown/no-bare-urls -- r -->\rhttp://a.example\rhttp://b.example\r";
     let rest: Vec<Diagnostic> = apply(
         Language::Markdown,
@@ -535,7 +543,7 @@ fn markdown_line_endings_and_columns() {
         ],
         None,
     );
-    assert_eq!(summary(&rest), ["markdown/no-bare-urls@3"]);
+    assert_eq!(summary(&rest), [expected("markdown/no-bare-urls", 3)]);
     let wide: &str =
         "\u{1f680}\u{1f680} <!-- monochromatic-lint-disable-line markdown/bogus -- r -->\n";
     let reported: Vec<Diagnostic> = apply(Language::Markdown, wide, Vec::<Diagnostic>::new(), None);
@@ -586,7 +594,7 @@ fn markdown_directives_and_inert_text() {
     );
     assert_eq!(
         summary(&found),
-        ["markdown/no-bare-urls@4", "markdown/single-h1@9"]
+        [expected("markdown/no-bare-urls", 4), expected("markdown/single-h1", 9)]
     );
 }
 
@@ -601,7 +609,7 @@ fn mdx_findings_are_returned_untouched() {
         vec![finding(Language::Mdx, source, "# One", SINGLE_H1)],
         Some(Severity::Error),
     );
-    assert_eq!(summary(&found), ["markdown/single-h1@2"]);
+    assert_eq!(summary(&found), [expected("markdown/single-h1", 2)]);
 }
 
 /// A file without the directive prefix anywhere is returned unchanged.
@@ -629,7 +637,7 @@ fn only_registry_rule_findings_are_suppressed() {
     let failure: Diagnostic =
         processing_failure("fixture", span.clone(), String::from("cannot check"));
     let refused: Diagnostic = Diagnostic::new(
-        "core/fix-refused",
+        FIX_REFUSED,
         Severity::Error,
         String::from("refused"),
         String::from("fixture"),
@@ -668,8 +676,8 @@ fn only_registry_rule_findings_are_suppressed() {
     assert_eq!(
         codes,
         [
-            "core/processing-failure",
-            "core/fix-refused",
+            PROCESSING_FAILURE,
+            FIX_REFUSED,
             "rust/not-a-rule",
             SIDECARS,
             SIDECARS
@@ -694,7 +702,7 @@ fn unused_directives_are_reported_on_request() {
         findings.clone(),
         Some(Severity::Warn),
     );
-    assert_eq!(summary(&warned), ["directive/unused@3"]);
+    assert_eq!(summary(&warned), [expected(UNUSED, 3)]);
     assert_eq!(warned[0].severity, Severity::Warn);
     assert_eq!(
         warned[0].labels[0].span.offset,
@@ -722,7 +730,7 @@ fn unused_identifiers_are_reported_individually() {
         sidecar_findings(source, &["fn a"]),
         Some(Severity::Warn),
     );
-    assert_eq!(summary(&found), ["directive/unused@1"]);
+    assert_eq!(summary(&found), [expected(UNUSED, 1)]);
     assert_eq!(
         found[0].labels[0].span.offset,
         source.find("markdown/no-bare-urls").expect("token")
@@ -743,7 +751,7 @@ fn unused_enables_are_reported() {
     );
     assert_eq!(
         summary(&found),
-        ["rust/tests-in-sidecars@2", "directive/unused@1"]
+        [expected("rust/tests-in-sidecars", 2), expected(UNUSED, 1)]
     );
     assert!(
         found[1]
@@ -770,9 +778,9 @@ fn unused_enables_are_reported() {
     assert_eq!(
         summary(&rest),
         [
-            "directive/unused@1",
-            "directive/unused@3",
-            "directive/unused@5"
+            expected(UNUSED, 1),
+            expected(UNUSED, 3),
+            expected(UNUSED, 5)
         ]
     );
     assert!(
@@ -804,7 +812,7 @@ fn redundant_directives_are_reported_as_unused() {
         sidecar_findings(source, &["fn a", "fn b"]),
         Some(Severity::Warn),
     );
-    assert_eq!(summary(&found), ["directive/unused@1"]);
+    assert_eq!(summary(&found), [expected(UNUSED, 1)]);
 }
 
 /// When two line directives cover one finding the later comment is credited,
@@ -818,7 +826,7 @@ fn the_latest_line_directive_is_credited() {
         sidecar_findings(source, &["fn a"]),
         Some(Severity::Warn),
     );
-    assert_eq!(summary(&found), ["directive/unused@1"]);
+    assert_eq!(summary(&found), [expected(UNUSED, 1)]);
 }
 
 /// Unused directives are not judged after a processing failure,
@@ -831,5 +839,5 @@ fn unused_directives_are_not_judged_after_a_processing_failure() {
     let failure: Diagnostic = processing_failure("fixture", span, String::from("cannot check"));
     let found: Vec<Diagnostic> =
         apply(Language::Rust, source, vec![failure], Some(Severity::Error));
-    assert_eq!(summary(&found), ["core/processing-failure@1"]);
+    assert_eq!(summary(&found), [expected(PROCESSING_FAILURE, 1)]);
 }

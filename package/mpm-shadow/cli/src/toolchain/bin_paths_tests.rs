@@ -8,7 +8,7 @@ use std::fs;
 use super::bin_paths::{bin_paths_output, document_fields, render_bin_paths};
 use super::fixtures::{SAMPLE_PLAN, sample_plan};
 use super::plan::parse_plan;
-use super::scope::{EnvMap, global_scope, repo_scope};
+use super::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, global_scope, repo_scope};
 use crate::test_scratch::scratch;
 
 #[test]
@@ -30,7 +30,7 @@ fn the_output_has_the_three_keys_the_ide_parser_requires_and_lists_only_existing
         .map(|(key, _)| return *key)
         .collect();
     assert_eq!(object.keys().map(String::as_str).collect::<Vec<_>>(), declared_keys);
-    assert_eq!(document["exposureDir"], ".cache/toolchain-bin");
+    assert_eq!(document["exposureDir"], EXPOSURE_DIR_RELATIVE);
     let bins = document["bins"].as_object().expect("an object");
     assert_eq!(bins.keys().collect::<Vec<_>>(), vec!["uv", "node"]);
     assert_eq!(bins["node"], scope.exposure_dir.join("node").to_str().expect("utf-8"));
@@ -47,7 +47,12 @@ fn a_binary_declared_twice_is_refused() {
     let source = SAMPLE_PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"slopo\"]");
     assert!(parse_plan(&source, "plan").is_err(), "the plan reader already refuses the duplicate");
     let mut plan = sample_plan();
-    plan.tools[6].bins = vec!["slopo".to_string()];
+    let conflicting = plan
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.id == "cargo:fd-find")
+        .expect("the sample plan holds cargo:fd-find");
+    conflicting.bins = vec!["slopo".to_string()];
     let env = EnvMap::from_pairs(&[("HOME", "/h")]);
     let scope = repo_scope(std::path::Path::new("/w"), &env).expect("a scope");
     let error = bin_paths_output(&plan, &scope, &env).expect_err("a duplicate name");
@@ -61,7 +66,15 @@ fn the_rendered_text_is_pretty_json_with_a_trailing_newline() {
     let scope = global_scope(&env).expect("a scope");
     let document = bin_paths_output(&sample_plan(), &scope, &env).expect("an output");
     let text = render_bin_paths(&document);
-    assert!(text.starts_with("{\n  \"exposureDir\": \"exposure\",\n  \"pathDirs\": ["));
+    let declared_keys: Vec<&str> = document_fields("", Vec::new(), Map::new())
+        .iter()
+        .map(|(key, _)| return *key)
+        .collect();
+    let prefix: String = format!(
+        "{{\n  \"{}\": \"{}\",\n  \"{}\": [",
+        declared_keys[0], scope.exposure_dir_relative, declared_keys[1]
+    );
+    assert!(text.starts_with(&prefix), "the rendered document starts with the declaration order: {prefix:?}");
     assert!(text.ends_with("}\n"));
     let parsed: Value = serde_json::from_str(&text).expect("JSON");
     assert_eq!(parsed, document);

@@ -38,7 +38,13 @@ fn a_link_in_the_source_is_refused() {
 fn every_item_is_handled_exactly_once() {
     for count in [0, 1, WORKER_CAP, WORKER_CAP * 3 + 1] {
         let items: Vec<usize> = (0..count).collect();
-        let results: Vec<Vec<usize>> = across_workers(&items, |_| Vec::new(), |item, seen| seen.push(*item));
+        let results: Vec<Vec<usize>> = across_workers(
+            &items,
+            |_| return Vec::new(),
+            |item, seen| {
+                seen.push(*item);
+            },
+        );
         let mut handled: Vec<usize> = results.into_iter().flatten().collect();
         handled.sort_unstable();
         assert_eq!(handled, items, "{count} items");
@@ -49,7 +55,7 @@ fn every_item_is_handled_exactly_once() {
 #[test]
 fn each_worker_gets_its_own_result() {
     let items: Vec<usize> = (0..WORKER_CAP * 2).collect();
-    let results: Vec<usize> = across_workers(&items, |number| number, |_, _| {});
+    let results: Vec<usize> = across_workers(&items, |number| { return number; }, |_, _| {});
     let mut numbers: Vec<usize> = results.clone();
     numbers.sort_unstable();
     numbers.dedup();

@@ -23,6 +23,7 @@
 /// ```ts
 /// import { parse, emit, JsoncKind, JsoncCommentKind } from './index';
 /// ```
+use crate::parse::MAX_CONTAINERS;
 use crate::path::JsoncPathSegment;
 use crate::value::{JsoncComment, JsoncCommentKind, JsoncKind, JsoncValue};
 use crate::{emit_jsonc_value, jsonc_set, parse_jsonc, parse_jsonc_edit};
@@ -84,7 +85,7 @@ fn arrays_and_document_comments() {
 /// Check that the last admitted structural depth can parse without stack exhaustion.
 #[test]
 fn depth_512_is_accepted() {
-    let nested = format!("{}0{}", "[".repeat(512), "]".repeat(512));
+    let nested = format!("{}0{}", "[".repeat(MAX_CONTAINERS), "]".repeat(MAX_CONTAINERS));
     eprintln!("depth control: before parse");
     let parsed = parse_jsonc(&nested).expect("depth 512 is within the supported grammar");
     eprintln!("depth control: after parse");
@@ -97,7 +98,7 @@ fn depth_512_is_accepted() {
 /// Check that emission and reparse are also stack-safe at the accepted depth.
 #[test]
 fn deep_array_emit_and_reparse() {
-    let source = format!("{}0{}", "[".repeat(512), "]".repeat(512));
+    let source = format!("{}0{}", "[".repeat(MAX_CONTAINERS), "]".repeat(MAX_CONTAINERS));
     let parsed = parse_jsonc(&source).expect("valid deep array");
     eprintln!("deep emit: after parse");
     let emitted = emit_jsonc_value(&parsed);
@@ -113,7 +114,7 @@ fn deep_array_emit_and_reparse() {
 ///  reparse and clean up without a stack abort.
 #[test]
 fn deep_record_emit_and_reparse() {
-    let source = format!("{}0{}", "{\"k\":".repeat(512), "}".repeat(512));
+    let source = format!("{}0{}", "{\"k\":".repeat(MAX_CONTAINERS), "}".repeat(MAX_CONTAINERS));
     let parsed = parse_jsonc(&source).expect("valid deep record");
     eprintln!("deep record: after parse");
     let emitted = emit_jsonc_value(&parsed);
@@ -128,7 +129,7 @@ fn deep_record_emit_and_reparse() {
 /// Check clone and equality also survive the accepted object-member chain.
 #[test]
 fn deep_record_clone_and_equality() {
-    let source = format!("{}0{}", "{\"k\":".repeat(512), "}".repeat(512));
+    let source = format!("{}0{}", "{\"k\":".repeat(MAX_CONTAINERS), "}".repeat(MAX_CONTAINERS));
     let parsed = parse_jsonc(&source).expect("valid deep record");
     eprintln!("deep record clone: before clone");
     let cloned = parsed.clone();
@@ -143,7 +144,7 @@ fn deep_record_clone_and_equality() {
 /// Check clone and equality used by immutable state operations at accepted depth.
 #[test]
 fn deep_clone_and_equality() {
-    let source = format!("{}0{}", "[".repeat(512), "]".repeat(512));
+    let source = format!("{}0{}", "[".repeat(MAX_CONTAINERS), "]".repeat(MAX_CONTAINERS));
     let parsed = parse_jsonc(&source).expect("valid deep array");
     eprintln!("deep clone: before clone");
     let cloned = parsed.clone();
@@ -184,15 +185,15 @@ fn malformed_overdepth_rejects_before_tail() {
     // The guard should return at the first excess opener without traversing the malformed tail.
     let error = parse_jsonc(&source).expect_err("513th opener must be rejected");
     assert_eq!(error.message, "JSONC nesting too deep");
-    assert_eq!(error.offset, 512);
+    assert_eq!(error.offset, MAX_CONTAINERS);
 }
 
 /// Check both scalar and empty-container spines reject the 513th opener.
 #[test]
 fn excessive_empty_nesting_is_rejected() {
-    let rejected = format!("{}{}", "[".repeat(513), "]".repeat(513));
+    let rejected = format!("{}{}", "[".repeat(MAX_CONTAINERS + 1), "]".repeat(MAX_CONTAINERS + 1));
     assert_eq!(parse_jsonc(&rejected).expect_err("513th opener must fail").message, "JSONC nesting too deep");
-    let accepted = format!("{}{}", "[".repeat(512), "]".repeat(512));
+    let accepted = format!("{}{}", "[".repeat(MAX_CONTAINERS), "]".repeat(MAX_CONTAINERS));
     parse_jsonc(&accepted).expect("512 empty arrays allowed");
 }
 
@@ -207,7 +208,7 @@ fn wide_shallow_array_is_accepted() {
 /// Check structural recursion is rejected at the declared 512-depth ceiling.
 #[test]
 fn excessive_nesting_is_rejected() {
-    let nested = format!("{}0{}", "[".repeat(513), "]".repeat(513));
+    let nested = format!("{}0{}", "[".repeat(MAX_CONTAINERS + 1), "]".repeat(MAX_CONTAINERS + 1));
     let error = parse_jsonc(&nested).expect_err("nesting beyond bound must fail");
     assert_eq!(error.message, "JSONC nesting too deep");
 }

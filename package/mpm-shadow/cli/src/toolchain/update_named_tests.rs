@@ -114,7 +114,7 @@ fn selected(patterns: &[&str]) -> Vec<String> {
 
 #[test]
 fn no_pattern_selects_every_tool_and_names_select_only_those() {
-    assert_eq!(selected(&[]).len(), 4);
+    assert_eq!(selected(&[]).len(), registry_plan().tools.len());
     assert_eq!(selected(&["npm:wrangler"]), vec!["npm:wrangler".to_string()]);
     assert_eq!(selected(&["npm:wrangler", "npm:wrangler", "rust"]), vec!["npm:wrangler".to_string(), "rust".to_string()]);
 }
@@ -123,7 +123,7 @@ fn no_pattern_selects_every_tool_and_names_select_only_those() {
 fn a_glob_selects_by_pattern_and_a_bang_excludes() {
     assert_eq!(selected(&["*:*"]), vec!["cargo:fd-find".to_string(), "npm:wrangler".to_string(), "pipx:slopo".to_string()]);
     assert_eq!(selected(&["*:*", "!npm:wrangler"]), vec!["cargo:fd-find".to_string(), "pipx:slopo".to_string()]);
-    assert_eq!(selected(&["!rust"]).len(), 3, "only exclusions select everything else");
+    assert_eq!(selected(&["!rust"]).len(), registry_plan().tools.len() - 1, "only exclusions select everything else");
     assert!(selected(&["rust", "!rust"]).is_empty(), "an exclusion can leave nothing selected");
 }
 
@@ -132,10 +132,15 @@ fn an_unknown_name_is_refused_with_every_valid_id_listed() {
     for patterns in [vec!["npm:wranglr"], vec!["npm:wrangler", "nope"], vec!["!nope"], vec!["nope:*"], vec![""]] {
         let error = select_tools(&registry_plan(), &names(&patterns)).expect_err("refused");
         assert_eq!(error.kind, ErrorKind::Config, "{patterns:?}");
-        assert_eq!(error.exit_code(), 2);
+        assert_eq!(error.exit_code(), crate::constants::USAGE_EXIT_CODE);
         assert!(error.message.contains("update names no tool of the plan"), "{error}");
-        for id in ["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"] {
-            assert!(error.message.contains(id), "{id} is a valid id and must be listed: {error}");
+        let plan: Plan = registry_plan();
+        for declaration in &plan.tools {
+            assert!(
+                error.message.contains(declaration.id.as_str()),
+                "{} is a valid id and must be listed: {error}",
+                declaration.id
+            );
         }
     }
 }

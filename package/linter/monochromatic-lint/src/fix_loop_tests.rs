@@ -11,7 +11,7 @@
 //! ```
 
 /// Import the actual loop and its existing result models.
-use super::{FixStop, SourceChecker, fix_source};
+use super::{FixStop, MAX_PASSES, SourceChecker, fix_source};
 use crate::diagnostic::{Diagnostic, Severity, Span};
 use crate::edits::{Edit, Fix, FixError};
 
@@ -146,11 +146,16 @@ fn cycles_stop_at_the_repeated_snapshot() {
 fn budget_limits_changed_passes_not_the_final_check() {
     let mut state: Checker = checker(Mode::Grow);
     let result = fix_source("a", &mut state).expect("bounded");
-    assert_eq!(result.source, "axxxxxxxxxx");
+    let expected_source: String = format!("a{}", "x".repeat(MAX_PASSES));
+    assert_eq!(result.source, expected_source);
     assert_eq!(result.stop, FixStop::Limit);
-    assert_eq!(result.changed_passes, 10);
-    assert_eq!(state.seen.len(), 11);
-    assert_eq!(result.diagnostics[0].message, "current: axxxxxxxxxx");
+    assert_eq!(result.changed_passes, MAX_PASSES);
+    // One check per changed pass, plus the final check that publishes the remaining findings.
+    assert_eq!(state.seen.len(), MAX_PASSES + 1);
+    assert_eq!(
+        result.diagnostics[0].message,
+        format!("current: {expected_source}")
+    );
 }
 
 /// A no-op fix does not create another edit pass.

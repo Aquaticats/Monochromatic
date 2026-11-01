@@ -9,6 +9,7 @@
 // });
 // ```
 
+use super::{SHENG2_MAX_CLASSES, SHENG2_MAX_STATES};
 use crate::ast::node::Node;
 use crate::ast::smart::concat;
 use crate::dfa::table::Dfa;
@@ -149,8 +150,22 @@ fn build_sheng2_eligibility_bounds_states_classes_and_acceptance() {
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
     assert!(search_dfa("[0-9a-f]{8}").build_sheng2().is_some(), "a small hex run qualifies");
-    assert!(flat_dfa(64, 2).build_sheng2().is_some(), "64 states is the inclusive maximum");
-    assert!(flat_dfa(10, 16).build_sheng2().is_some(), "16 classes is the inclusive maximum");
-    assert!(flat_dfa(65, 2).build_sheng2().is_none(), "65 states is over the limit");
-    assert!(flat_dfa(10, 17).build_sheng2().is_none(), "17 classes is over the limit");
+    assert!(
+        flat_dfa(SHENG2_MAX_STATES as u16, 2).build_sheng2().is_some(),
+        "{SHENG2_MAX_STATES} states is the inclusive maximum"
+    );
+    assert!(
+        flat_dfa(10, SHENG2_MAX_CLASSES as u32).build_sheng2().is_some(),
+        "{SHENG2_MAX_CLASSES} classes is the inclusive maximum"
+    );
+    assert!(
+        flat_dfa(SHENG2_MAX_STATES as u16 + 1, 2).build_sheng2().is_none(),
+        "{} states is over the limit",
+        SHENG2_MAX_STATES + 1
+    );
+    assert!(
+        flat_dfa(10, SHENG2_MAX_CLASSES as u32 + 1).build_sheng2().is_none(),
+        "{} classes is over the limit",
+        SHENG2_MAX_CLASSES + 1
+    );
 }

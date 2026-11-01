@@ -11,9 +11,9 @@ use std::time::{Duration, Instant};
 
 /// Wait before the second attempt;
 /// each later wait doubles.
-const RETRY_BACKOFF_BASE: Duration = Duration::from_secs(1);
+pub(crate) const RETRY_BACKOFF_BASE: Duration = Duration::from_secs(1);
 /// Longest wait between attempts for one process.
-const RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
+pub(crate) const RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
 /// Reports whether a cgroup path can be adopted by the user's manager.
 /// The path must lie in the user manager's subtree,
 /// and must not be the cgroup of a service's main process.

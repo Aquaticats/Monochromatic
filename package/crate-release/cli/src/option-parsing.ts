@@ -25,13 +25,17 @@ export type RawArguments = {
    */
   readonly repeated: ReadonlyMap<string, readonly string[]>;
   /**
+   Names of the switches that were given, which are the options defined as booleans.
+   */
+  readonly switches: ReadonlySet<string>;
+  /**
    Arguments that are not options, in order.
    */
   readonly positionals: readonly string[];
 };
 
 /**
- Check that an option value is text; the option definitions only declare string options, so a boolean never occurs.
+ Check that an option value is text.
 
  @param value - value as `parseArgs` delivers it
 
@@ -107,6 +111,9 @@ export function splitArguments({
           value.filter(isText)
         ]] : [];
       })),
+      switches: new Set(entries.flatMap(function switchEntry([name, value]): string[] {
+        return value === true ? [name] : [];
+      })),
       positionals: parsed.positionals,
     };
   }
@@ -145,6 +152,31 @@ export function optionValue({
   const value = raw.singles
     .get(name);
   return value === undefined ? missingValue(`--${name} was not given.`) : foundValue(value);
+}
+
+/**
+ Tell whether a switch was given.
+
+ @param raw - split command line
+
+ @param name - long option name without the hyphens
+
+ @returns true when the switch appeared before the end of the options
+
+ @example
+ ```ts
+ switchGiven({ raw, name: 'dry-run' });
+ ```
+ */
+export function switchGiven({
+  raw,
+  name,
+}: {
+  readonly raw: RawArguments;
+  readonly name: string;
+}): boolean {
+  return raw.switches
+    .has(name);
 }
 
 /**

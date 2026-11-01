@@ -241,7 +241,7 @@ fn the_switch_row_follows_the_stock_sizes_in_the_single_form() {
     assert_eq!(title_x, TITLE_X_FROM_EDGE, "the title starts at 84 px like the template rows");
     let (track_x, track_y, track_width, track_height) = box_of(&only(&app, "AutoPlaySwitch::track"));
     assert_eq!((track_width, track_height), (52.0, 32.0), "the Material 3 switch");
-    assert_eq!(track_x + track_width, x + width - 16.0, "16 px from the row's end");
+    assert_eq!(track_x + track_width, x + width - SIDE_MARGIN, "SIDE_MARGIN from the row's end");
     assert_eq!(track_y, y + (ROW_HEIGHT - 32.0) / 2.0, "centered in the row");
 }
 

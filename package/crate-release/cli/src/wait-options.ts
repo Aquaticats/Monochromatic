@@ -33,25 +33,10 @@ import {
 import { assertReleaseVersion } from './version.ts';
 
 /**
- Everything the publish check needs, validated.
+ The settings that shape how the publish workflow is found and its result is checked, shared by every command that
+ waits for a publish.
  */
-export type WaitOptions = {
-  /**
-   Absolute path of the repository root, where `gh` runs so it finds the repository.
-   */
-  readonly root: string;
-  /**
-   Name of the crate, as on crates.io.
-   */
-  readonly crateName: string;
-  /**
-   Lower-case commit hash or prefix whose workflow run is awaited.
-   */
-  readonly sha: string;
-  /**
-   Version expected on crates.io and in the release.
-   */
-  readonly version: string;
+export type PublishCheckSettings = {
   /**
    Workflow file that publishes.
    */
@@ -91,11 +76,32 @@ export type WaitOptions = {
 };
 
 /**
- Option definitions of the wait command in the `node:util` `parseArgs` format.
+ Everything the publish check needs, validated.
  */
-const waitOptionDefinitions = {
-  'root': { type: 'string' },
-  'crate-name': { type: 'string' },
+export type WaitOptions = PublishCheckSettings & {
+  /**
+   Absolute path of the repository root, where `gh` runs so it finds the repository.
+   */
+  readonly root: string;
+  /**
+   Name of the crate, as on crates.io.
+   */
+  readonly crateName: string;
+  /**
+   Lower-case commit hash or prefix whose workflow run is awaited.
+   */
+  readonly sha: string;
+  /**
+   Version expected on crates.io and in the release.
+   */
+  readonly version: string;
+};
+
+/**
+ Option definitions of the publish check settings in the `node:util` `parseArgs` format, which every command that waits
+ for a publish accepts.
+ */
+export const publishCheckOptionDefinitions = {
   'workflow': { type: 'string' },
   'repo': { type: 'string' },
   'attempts': { type: 'string' },
@@ -108,6 +114,15 @@ const waitOptionDefinitions = {
   },
   'user-agent': { type: 'string' },
   'max-time': { type: 'string' },
+} as const;
+
+/**
+ Option definitions of the wait command in the `node:util` `parseArgs` format.
+ */
+const waitOptionDefinitions = {
+  'root': { type: 'string' },
+  'crate-name': { type: 'string' },
+  ...publishCheckOptionDefinitions,
 } as const;
 
 /**
@@ -146,45 +161,20 @@ function numberOption({
 }
 
 /**
- Read and validate the command line of the wait command.
+ Read and validate the publish check settings of a command line.
 
- @param argv - arguments after the script path: options, then `<sha> <version>`
+ @param raw - split command line, whose options include `publishCheckOptionDefinitions`
 
- @param root - repository root used when `--root` is absent, or a function that finds it only when needed
+ @returns the validated settings, with defaults for what is absent
 
- @returns the validated options
-
- @throws CrateReleaseError naming the argument and the valid form when anything is missing, malformed or unsafe
+ @throws CrateReleaseError naming the option and the valid form when a value is malformed or unsafe
 
  @example
  ```ts
- parseWaitArguments({ argv: ['--crate-name', 'c', 'abcdef0', '1.0.0'], root: '/r' });
+ parsePublishCheckSettings(splitArguments({ argv: [], options: publishCheckOptionDefinitions }));
  ```
  */
-export function parseWaitArguments({
-  argv,
-  root,
-}: {
-  readonly argv: readonly string[];
-  readonly root: string | (() => string);
-}): WaitOptions {
-  /**
-   Options and positionals, split but not yet validated.
-   */
-  const raw = splitArguments({
-    argv,
-    options: waitOptionDefinitions
-  });
-  /**
-   The two positional arguments and anything beyond them.
-   */
-  const [sha, version, ...extra] = raw.positionals;
-  if ((sha === undefined) || (version === undefined)
-    || (extra.length > 0))
-    throw new CrateReleaseError(
-      `Expected exactly two arguments <sha> <version> after the options, got ${String(raw.positionals
-        .length)}.`,
-    );
+export function parsePublishCheckSettings(raw: RawArguments): PublishCheckSettings {
   /**
    Repository, when one was named.
    */
@@ -200,25 +190,6 @@ export function parseWaitArguments({
     name: 'asset-template'
   });
   return {
-    root: resolve(rootOf({
-      raw,
-      root
-    })),
-    crateName: parseCrateName({
-      option: '--crate-name',
-      value: requiredValue({
-        raw,
-        name: 'crate-name'
-      })
-    }),
-    sha: parseSha({
-      option: '<sha>',
-      value: sha
-    }),
-    version: assertReleaseVersion({
-      option: '<version>',
-      value: version
-    }),
     workflow: parseWorkflowName({
       option: '--workflow',
       value: valueOr({
@@ -278,5 +249,69 @@ export function parseWaitArguments({
       name: 'max-time',
       fallback: defaultCurlMaxTimeSeconds
     }),
+  };
+}
+
+/**
+ Read and validate the command line of the wait command.
+
+ @param argv - arguments after the script path: options, then `<sha> <version>`
+
+ @param root - repository root used when `--root` is absent, or a function that finds it only when needed
+
+ @returns the validated options
+
+ @throws CrateReleaseError naming the argument and the valid form when anything is missing, malformed or unsafe
+
+ @example
+ ```ts
+ parseWaitArguments({ argv: ['--crate-name', 'c', 'abcdef0', '1.0.0'], root: '/r' });
+ ```
+ */
+export function parseWaitArguments({
+  argv,
+  root,
+}: {
+  readonly argv: readonly string[];
+  readonly root: string | (() => string);
+}): WaitOptions {
+  /**
+   Options and positionals, split but not yet validated.
+   */
+  const raw = splitArguments({
+    argv,
+    options: waitOptionDefinitions
+  });
+  /**
+   The two positional arguments and anything beyond them.
+   */
+  const [sha, version, ...extra] = raw.positionals;
+  if ((sha === undefined) || (version === undefined)
+    || (extra.length > 0))
+    throw new CrateReleaseError(
+      `Expected exactly two arguments <sha> <version> after the options, got ${String(raw.positionals
+        .length)}.`,
+    );
+  return {
+    root: resolve(rootOf({
+      raw,
+      root
+    })),
+    crateName: parseCrateName({
+      option: '--crate-name',
+      value: requiredValue({
+        raw,
+        name: 'crate-name'
+      })
+    }),
+    sha: parseSha({
+      option: '<sha>',
+      value: sha
+    }),
+    version: assertReleaseVersion({
+      option: '<version>',
+      value: version
+    }),
+    ...parsePublishCheckSettings(raw),
   };
 }

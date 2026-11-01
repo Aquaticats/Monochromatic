@@ -9,7 +9,7 @@ import {
   controlCharacterValues,
 } from './adversarial-fixture.ts';
 import { buildCommitMessage } from './commit-message.ts';
-import { maximumNoteLength } from './constants.ts';
+import { commitType, maximumNoteLength } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 
 /**
@@ -47,7 +47,7 @@ await describe({
         it({
           name: 'writes the conventional subject with scope, version and note',
           fn: async () => {
-            expect(messageFor('fix the scanner')).toBe('chore(git-policy/cli): release 0.4.10: fix the scanner');
+            expect(messageFor('fix the scanner')).toBe(`${commitType}(git-policy/cli): release 0.4.10: fix the scanner`);
           },
         }),
         ...adversarialLines.map(function noteCase(note) {
@@ -55,7 +55,7 @@ await describe({
             name: `keeps the note ${JSON.stringify(note)} verbatim as the end of one line`,
             fn: async () => {
               const message = messageFor(note);
-              expect(message).toBe(`chore(git-policy/cli): release 0.4.10: ${note}`);
+              expect(message).toBe(`${commitType}(git-policy/cli): release 0.4.10: ${note}`);
               expect(message.includes('\n')).toBe(false);
             },
           });
@@ -120,7 +120,7 @@ await describe({
           return it({
             name: `accepts the scope ${JSON.stringify(scope)}`,
             fn: async () => {
-              expect(buildCommitMessage({ scope, version: '1.0.0-rc.1', note: 'n' })).toBe(`chore(${scope}): release 1.0.0-rc.1: n`);
+              expect(buildCommitMessage({ scope, version: '1.0.0-rc.1', note: 'n' })).toBe(`${commitType}(${scope}): release 1.0.0-rc.1: n`);
             },
           });
         }),

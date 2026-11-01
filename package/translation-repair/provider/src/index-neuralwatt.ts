@@ -94,9 +94,11 @@ export {
   neuralWattLedgerPathFrom,
 } from './neuralwatt-ledger-config.ts';
 export {
+  NEURALWATT_ABANDONED_ESTIMATE,
   NEURALWATT_RECKONINGS,
   type NeuralWattLedgerEntry,
   type NeuralWattReckoning,
+  NEURALWATT_UNREPORTED_ESTIMATE,
 } from './neuralwatt-ledger-entry.ts';
 export {
   neuralWattIsDry,

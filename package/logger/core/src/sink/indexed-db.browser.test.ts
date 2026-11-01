@@ -126,14 +126,14 @@ test.describe('IndexedDB sink', () => {
   test('retention trims the store back to the cap, oldest first', async ({ page, },) => {
     test.setTimeout(120_000,);
     const result = await page.evaluate(async () => {
-      const { createIndexedDbSink, } = globalThis.moduleLoggerBrowser;
+      const { createIndexedDbSink, MAX_STORED_BATCHES, } = globalThis.moduleLoggerBrowser;
       const sink = createIndexedDbSink();
       await sink.verify();
 
       // Every warn record flushes its own batch, so this issues one batch
-      // transaction per record and must cross the 2048-batch retention cap
-      // regardless of what earlier tests left in the store.
-      const BATCHES_PAST_CAP = 2_049;
+      // transaction per record and must cross the retention cap regardless of
+      // what earlier tests left in the store.
+      const BATCHES_PAST_CAP = MAX_STORED_BATCHES + 1;
       for (let index = 0; index < BATCHES_PAST_CAP; index++) {
         void sink.write({
           level: 'warn' as const,
@@ -175,10 +175,10 @@ test.describe('IndexedDB sink', () => {
         },);
       },);
       database.close();
-      return { count, newestPresent, };
+      return { cap: MAX_STORED_BATCHES, count, newestPresent, };
     },);
 
-    expect(result.count,).toBe(2_048,);
+    expect(result.count,).toBe(result.cap,);
     expect(result.newestPresent,).toBe(true,);
   });
 });

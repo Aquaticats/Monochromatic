@@ -79,7 +79,7 @@ use crate::parse::cursor::Cursor;
 /// ```ts
 /// const REPEAT_CAP: number = 1024;
 /// ```
-const REPEAT_CAP: usize = 1024;
+pub(crate) const REPEAT_CAP: usize = 1024;
 
 /// Parses a `{n}` or `{n,m}` quantifier and applies it to `atom`.
 ///

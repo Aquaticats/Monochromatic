@@ -156,7 +156,7 @@ fn refused_query_is_a_tagged_diagnostic_and_the_worker_recovers() {
             .result
             .expect_err("over-long query diagnostic")
             .to_string()
-            .contains("at most 1000 characters")
+            .contains(&format!("at most {MAX_FIND_QUERY_CHARS} characters"))
     );
     worker
         .request(request(&document, 1, 2, "needle"))

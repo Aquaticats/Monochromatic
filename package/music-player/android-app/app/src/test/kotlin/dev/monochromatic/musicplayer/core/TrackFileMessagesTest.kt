@@ -63,7 +63,7 @@ class TrackFileMessagesTest {
     fun undoMessageNamesFileAndOffersUndo() {
         val message: FeedbackMessage = trashUndoMessage(sampleRecord())
         assertEquals("Moved Song.mp3 to trash", message.text)
-        assertEquals("Undo", message.actionLabel)
+        assertEquals(TRASH_UNDO_ACTION_LABEL, message.actionLabel)
         assertEquals(FeedbackKind.UNDO, message.kind)
     }
 

@@ -57,36 +57,27 @@ fn lines(records: &[Value]) -> Vec<u8> {
     return text.into_bytes();
 }
 
-/// Both codes are findings;
+/// Every reported code is a finding;
 /// the primary span and the first help are used.
 #[test]
-fn reads_both_reported_codes_with_primary_span_and_first_help() {
-    let parsed = parse_records(&lines(&[
-        record(
-            Some("avoidable_closure"),
-            "warning",
-            "a closure",
-            "src/a.rs",
-            10,
-        ),
-        record(
-            Some("unfulfilled_lint_expectations"),
-            "warning",
-            "stale expect",
-            "src/b.rs",
-            20,
-        ),
-    ]));
-    assert_eq!(parsed.reports.len(), 2);
-    assert_eq!(parsed.reports[0].file, "src/a.rs");
+fn reads_every_reported_code_with_primary_span_and_first_help() {
+    let mut fixture: Vec<Value> = Vec::new();
+    for (index, code) in REPORTED_CODES.iter().enumerate() {
+        let file: String = format!("src/{index}.rs");
+        fixture.push(record(Some(code), "warning", "reported", file.as_str(), 10));
+    }
+    let parsed = parse_records(&lines(&fixture));
+    assert_eq!(parsed.reports.len(), REPORTED_CODES.len());
+    for report in &parsed.reports {
+        assert_eq!(report.message, "reported");
+        assert_eq!(report.help.as_deref(), Some("a help"));
+    }
+    assert_eq!(parsed.reports[0].file, "src/0.rs");
     assert_eq!(
         (parsed.reports[0].byte_start, parsed.reports[0].byte_end),
         (10, 15)
     );
     assert_eq!((parsed.reports[0].line, parsed.reports[0].column), (3, 9));
-    assert_eq!(parsed.reports[0].help.as_deref(), Some("a help"));
-    assert_eq!(parsed.reports[1].message, "stale expect");
-    assert!(REPORTED_CODES.contains(&"avoidable_closure"));
     assert_eq!(parsed.compiler_error, None);
 }
 
@@ -94,7 +85,7 @@ fn reads_both_reported_codes_with_primary_span_and_first_help() {
 /// compiler messages without a code and records of other reasons are not findings.
 #[test]
 fn ignores_other_codes_and_other_records() {
-    let mut other: Value = record(Some("avoidable_closure"), "warning", "x", "src/a.rs", 1);
+    let mut other: Value = record(Some(REPORTED_CODES[0]), "warning", "x", "src/a.rs", 1);
     other["reason"] = Value::from("compiler-artifact");
     let parsed = parse_records(&lines(&[
         record(Some("dead_code"), "warning", "unused", "src/a.rs", 1),
@@ -110,12 +101,12 @@ fn ignores_other_codes_and_other_records() {
 /// a different message at the same place does.
 #[test]
 fn deduplicates_a_report_seen_for_two_targets() {
-    let first: Value = record(Some("avoidable_closure"), "warning", "m", "src/a.rs", 10);
+    let first: Value = record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 10);
     let parsed = parse_records(&lines(&[
         first.clone(),
         first,
         record(
-            Some("avoidable_closure"),
+            Some(REPORTED_CODES[0]),
             "warning",
             "other message",
             "src/a.rs",
@@ -131,7 +122,7 @@ fn deduplicates_a_report_seen_for_two_targets() {
 fn skips_lines_that_are_not_records() {
     let mut bytes: Vec<u8> = b"   Compiling something\n\nnot json\n[1,2]\n42\n".to_vec();
     bytes.extend(lines(&[record(
-        Some("avoidable_closure"),
+        Some(REPORTED_CODES[0]),
         "warning",
         "m",
         "src/a.rs",
@@ -145,7 +136,7 @@ fn skips_lines_that_are_not_records() {
 fn survives_invalid_utf8() {
     let mut bytes: Vec<u8> = vec![0xff, 0xfe, b'\n'];
     bytes.extend(lines(&[record(
-        Some("avoidable_closure"),
+        Some(REPORTED_CODES[0]),
         "warning",
         "m",
         "src/a.rs",
@@ -179,13 +170,13 @@ fn keeps_the_first_compiler_error() {
 /// or without a file cannot be placed.
 #[test]
 fn drops_reports_that_cannot_be_placed() {
-    let mut no_primary: Value = record(Some("avoidable_closure"), "warning", "m", "src/a.rs", 1);
+    let mut no_primary: Value = record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 1);
     no_primary["message"]["spans"] = value(r#"[{"file_name": "src/a.rs", "is_primary": false}]"#);
-    let mut negative: Value = record(Some("avoidable_closure"), "warning", "m", "src/a.rs", 1);
+    let mut negative: Value = record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 1);
     negative["message"]["spans"][1]["byte_start"] = Value::from(-4);
-    let mut fractional: Value = record(Some("avoidable_closure"), "warning", "m", "src/a.rs", 1);
+    let mut fractional: Value = record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 1);
     fractional["message"]["spans"][1]["byte_end"] = Value::from(1.5);
-    let mut no_file: Value = record(Some("avoidable_closure"), "warning", "m", "src/a.rs", 1);
+    let mut no_file: Value = record(Some(REPORTED_CODES[0]), "warning", "m", "src/a.rs", 1);
     no_file["message"]["spans"][1]["file_name"] = Value::Null;
     let parsed = parse_records(&lines(&[no_primary, negative, fractional, no_file]));
     assert!(parsed.reports.is_empty());

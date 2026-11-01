@@ -5122,3 +5122,495 @@ This block supersedes "State at 2026-10-29 (night, later)".
   single bounded lock around real `git commit` with policy on the staged index, or per-agent worktrees; measure, do not
   assert; (2) a list of other architectural defects found by reading and by tracing real commits, each with evidence and the
   size of the fix, ranked; (3) no code changes. Launch when an agent slot frees.
+
+### Owner's correction on hooks: spawn only other people's programs
+
+- User, verbatim: "Git runs your configured hooks directly - no it shouldn't do that. We don't need to reimplement git commit
+  or use generated shell entries. There are better ways." then "Why do hooks we control even need spawning at all?"
+- Consequences (advisor-derived direction, revisable with evidence):
+  - Commit path: the shadow `git commit` runs with every hook off; the wrapper spawns each configured hook command itself, as
+    a direct bounded child, at the point Git would have run it (no `git hook run`), writes the message file and runs
+    `prepare-commit-msg` then `commit-msg`, then `git commit -F <file> --no-edit --no-verify`. The hook lock is then held only
+    around each hook spawn; an editor never holds it. Agent `a21d6fec9d0d04797` was sent the correction; its branch
+    `worktree-agent-a21d6fec9d0d04797` must not merge in its first form. Open: hook command strings that need a shell
+    (Git uses `sh -c` only when the string has shell metacharacters): spawn directly when clean; for the rest the agent reports
+    two options (run the user's own string through `sh -c` as Git does, or refuse) with a recommendation; ask the owner.
+  - LFS: the injected `hook.cli-git-lfs-pre-push` is a hook we control and needs no spawning through Git. Verified on git-lfs
+    3.8.1: `git lfs push <remote> [<ref>...]` uploads the LFS objects of the given refs, skipping what the local clone of the
+    remote already knows, with no ref lines on stdin. The parent runs it as one bounded child before the push and prints
+    `failed_message` itself; no hook, no trace2 parsing. Agent `a2c239ccb199db9d8` (branch `worktree-agent-a2c239ccb199db9d8`,
+    commits `6e747cd1a4` to `2882805003` before the rework) was sent the correction, plus: replace the shell text in
+    `manual_push_probe.rs` (`hook_source`), and implement one shared time budget for everything a lock holder does so a waiter
+    never gives up on a legitimate holder (the `MAX_RECONCILE_ATTEMPTS` rounds under one lock are the mismatch it found).
+- Findings from that agent kept for the record: the repository gate's clippy step fails on my `command_test_cases` helper
+  (shadowed bindings, missing explicit `return`); fixed on main. The merge push at `push_stacking.rs:142` also started the
+  wrapper (`CLI_GIT_STACKED_PUSH=1`); now in-process on the branch. Hang verdict: no wrapper lock can deadlock against the LFS
+  upload (reading, plus two real tests); the `stop_push` blocking wait after a kill was fixed; a detached upload helper leaks
+  after the tree walk (needs a subreaper, not done).
+- Independent design review running: agent `a5dcd5dad237603e3` (report `doc/planning/cli-git-design-review.md` on its branch).
+
+### RETRACTED, WRONG: "preparation hooks are no longer supported"
+
+- This section is wrong and was committed by mistake in `f6817bb22f`. The owner did NOT decide to drop preparation hook
+  support ("No, not dropping preparation hook support. I didn't ask you to do that. I only asked you to stop supporting OTHER
+  PEOPLE's hooks."). The settled decision is the section "Owner decision (hooks): only hooks we declare, run natively; no
+  external hook commands", further down. Do not act on the text of this section; it is kept only as the record of the mistake.
+
+- User asked: "'spawn only other people's programs' - we aren't supporting other people's programs at all though?" Facts: this
+  repository configures one hook only (`hook.standards-review-shadow`, event `post-commit`); traditional hooks were already
+  unsupported. Question asked with options (A stop supporting pre-commit, prepare-commit-msg and commit-msg; B keep, wrapper
+  spawns them; C keep, Git runs them in the shadow). Answer, verbatim: "Stop supporting them and port anything in."
+- Consequence (agent `a21d6fec9d0d04797`, branch `worktree-agent-a21d6fec9d0d04797`, replaces the earlier rework): the shadow
+  commit always runs with every hook off; a repository that configures a preparation-event hook gets a loud refusal naming the
+  keys and the ways forward (never silently ignored); `post-commit` configured hooks keep working; `hooks.concurrentCommits` is
+  accepted and ignored so older configs still load; the dispatcher leftovers, hook lock, plan and lease, event switches and the
+  replay pre-commit re-run are deleted. 'Port anything in': the agent reports any behavior a preparation hook provided that the
+  policy engine does not (expected: none in this repository), to be ported as policies by name.
+- This supersedes the open lock-scope and shell-command-string questions recorded in the two earlier sections.
+
+### Owner decision (hooks): only hooks we declare, run natively; no external hook commands
+
+- Sequence, for the record: I asked whether to keep user-configured preparation hooks and wrongly wrote the "stop supporting"
+  answer up as dropping preparation hook support; the owner corrected me ("No, not dropping preparation hook support. I didn't
+  ask you to do that. I only asked you to stop supporting OTHER PEOPLE's hooks.") and chose, with a clarified question, option
+  B, verbatim label "B: Only hooks we declare, natively".
+- Meaning: the wrapper supports no external hook commands at all (traditional hooks were already unsupported; Git-config
+  `hook.<name>.*` commands on any event go too). Every lifecycle stage keeps working as our in-process policies and actions
+  declared in `cli-git.config.jsonc`. Anything an external hook did here is ported in: `hook.standards-review-shadow` (event
+  `post-commit`, a `systemd-run` command) becomes a declared native post-commit action run by the wrapper as a direct bounded
+  child with an argv array and no shell. A repository that still configures `hook.*` gets a loud explanation, never silent
+  ignoring; `hooks.concurrentCommits` is accepted and ignored so older configs load.
+- Work: agent `a21d6fec9d0d04797` (branch `worktree-agent-a21d6fec9d0d04797`) was sent the full scope; the LFS agent
+  (`a2c239ccb199db9d8`) removes the injected LFS hook in favor of a parent-run `git lfs push`. Rollout order for the standards
+  review: wrapper release with the native action first, then change the installer's source so the repository declares it in
+  `cli-git.config.jsonc`, then remove the Git config hook.
+- This supersedes the earlier sections about the hook lock scope, the shell-command-string question and option (iii).
+
+### 0.4.7 abandoned by the owner
+
+- User, verbatim: "0.4.7 is going to be DoA though? No need to burn more compute and time on it." The hooks scope (only hooks we
+  declare, run natively), the LFS rework and the commit-timeouts work all change the shipped wrapper, so a 0.4.7 cut now would be
+  superseded at once. Stopped: gate unit `gpc-rel-gate3` and the three single-mutant units `cli-git-mutone-m047-*` (the
+  timed-out mutants in `private_storage.rs`, `process_tree.rs`, `real_index_lock.rs` stay undisposed; rerun them in the campaign
+  for the next release).
+- The 30-second push deadline, the macOS signal fixes, the launcher fix and the branch-test speedup stay on main unreleased; they
+  ship in the next release with the hooks and LFS work. No version is claimed. The release procedure and the catalog-policy
+  release (peer `monochromatic-c0` waits for it) follow the same release.
+
+### Commit-timeouts agent report (branch `worktree-agent-a6e4566588e9ec087`, five commits on `7de3b27165`)
+
+- Verdict from measurement (agent's strace and trace2 runs on a full clone: 594 refs, 30 088 commits, 20 207 tracked files; load
+  average 80 to 145): the slow child is the shadow `git commit`, not `pack-objects` (10 to 26 ms, already given `<new>` and
+  `^<base>`). The private index was built by plain `read-tree <base>`, which keeps no stat data, so `git commit` read and hashed
+  every worktree file (`index label:refresh` 5.2 s over 20 206 entries). Live on the real checkout the installed 0.4.6's shadow
+  `git commit` ran more than 640 s, 5 s of CPU, in uninterruptible disk wait, unbounded and silent.
+- Fix: an explicit-path commit copies the captured real index to the private index then `read-tree --reset <base>`. Whole wrapped
+  commit median 6.2 s to 1.5 s (control binary spread about 2 s; six runs per arm); shadow `git commit` 4.3 to 9.8 s down to
+  0.16 to 0.49 s. Also: `git init --bare` of the shadow replaced by in-process `shadow_skeleton.rs` (files ref backend only; `init`
+  budget 1 to 0 in all four scenarios), per-class child bounds in `child_class.rs` (plumbing 60 s, notice after 5 s; object work
+  300 s, notice after 10 s; `CLI_GIT_CHILD_WAIT_SECONDS` still sets both), notices name the class and the way to raise the bound.
+- Not done / caveats: full container gate not run; `child_bound` and the other binary suites were not rerun after the last guard
+  restores; commit `c3fe03a2c8` does not compile its library tests (fixed in `00fbb0dd59`); `candidate_reader.rs` silently went
+  from a 1800 s to a 300 s bound and lacks the class label (for the query-children agent: use `WatchTerms::for_class`); lock waits
+  (1800 s) intentionally unchanged; the user's own `git commit` with hooks stays unbounded; the unborn-branch landing, a
+  concurrent detached repack and large loose-object counts are untested candidates for minute-long object work; `child_watch.rs`
+  is 345 lines (limit 300).
+- With the owner's hooks decision (no external hooks) the shadow `git commit` has no hook to wait for, so it can be bounded too;
+  open point for the dispatcher agent: how the editor is handled once hooks are gone, since the editor currently runs inside the
+  shadow `git commit`.
+- Next: merge this branch to main first (smallest, biggest measured gain), clippy, gate; then dispatcher and LFS branches merge
+  on top of it. Independent review of this branch before the release is still owed (not self-review).
+
+### LFS rework report (branch `worktree-agent-a2c239ccb199db9d8`, head `02b4862916`)
+
+- Done per the owner's "hooks we control need no spawning": the parent wrapper runs `git-lfs push [--all] <remote> [<refs>]` once
+  as a bounded child before the push, and the push carries no `hook.*`. The injected hook, the trace2 reading
+  (`lfs_hook_trace.rs`), `hook_arguments`, `HOOK_ENTRY` and the entry are deleted. Refs and remote come from the push's own
+  arguments (`push_shape` in `command_push.rs`: explicit refspecs, deletions name nothing, `--all`, `--tags`, `--mirror`, globs
+  and `push.default=matching` upload everything; a bare push resolves its remote as Git does and uploads the current branch,
+  two short Git queries, LFS repositories only). Skips: dry run, `--no-verify`, `GIT_LFS_SKIP_PUSH`, and
+  `-c hook.cli-git-lfs-pre-push.enabled=false` kept as a plain skip switch because an existing test pins it. On failure the
+  parent prints the explanation with the child's status and exits with it without pushing. Every LFS push is now a child of the
+  wrapper, auto-push included.
+- Lock budget (`holder_budget.rs`): everything a lock holder does shares `HOLDER_BUDGET_DEADLINES` (3) push deadlines; the waiter
+  limit is the budget plus two stop graces plus `LOCK_WAIT_MARGIN` (160 s at the 30 s default, was 95 s). Implemented as a
+  thread-local clock (a hidden global, chosen to avoid touching every `PushGit` literal); revisit.
+- `manual_push_probe.rs`: the `#!/bin/sh` recording hook is gone; the probe runs `git push --dry-run --porcelain` with hooks off
+  and `core.abbrev=no` (format measured on Git 2.56.0), parser `manual_push_porcelain.rs`, every probe child bounded by the query
+  deadline. Behavior change to put to the owner: for a deletion or a refusal the porcelain report states no old value, so the
+  race check no longer covers those refs (their remote value comes from `ls-remote` alone).
+- Verification reported: unit and binary suites for lfs, manual push, push stacking, fault_remote, hooks_off, policy, budget
+  pass; one timing-sensitive `live_lock` unit test failed once under load and passed alone (to be root-caused, not waved off);
+  clippy fails only on the `command_test_cases*` files, fixed on main in `c9c9006961`; real `git-lfs` object arrival was not
+  checked beyond the inline server controls.
+- Open: `main.rs` argv[0] dispatch and `commit_command.rs:168` `current_exe` remain allow-listed pending the dispatcher branch;
+  expect a textual conflict in `commit_command.rs`. Intermediate commits carry the old trace2 design; the final tree does not.
+  An independent review of this branch is owed before merge.
+- Merge plan: commit-timeouts branch first (in verification in `.claude/worktrees/merge-ct`, merge commit `9576e958f1`), then
+  this branch, then the dispatcher branch, each with a container gate; no release before all three and a mutation pass.
+
+### Independent design review report (branch `worktree-agent-a5dcd5dad237603e3`, commits `ee20d3d1f5`, `9c581b7e21`; doc only)
+
+- Report: `doc/planning/cli-git-design-review.md` on that branch (docs only, base `3f0bff8248`; not yet merged to main).
+- Finding 1 (matches the commit-timeouts agent independently): the private index built by plain `read-tree` has no stat data, so
+  the shadow `git commit` re-hashes every tracked file. 20 218-file clone: wrapped commit median 2740 ms against 45 ms for real
+  Git; the native commit step 2377 ms with a `read-tree` index and 24.8 ms with a copy of the real index (96 times); about 87 percent
+  of the wrapped commit. Live: the reviewer's own commit through the installed wrapper ran past 120 s, its shadow commit visible
+  215 s in `ps`, other sessions' shadow commits at 80 to 210 s at the same time.
+- Finding 2: the optimistic prepare, replay and land protocol loses 1.02 to 1.09 landing races per commit at concurrency 8
+  (`SPEC.md` 3753 to 3756), so replay is the normal path. With the owner's hook decision, hooks leave preparation.
+- Recommendation (proposal, unaccepted): Option C, a serial kernel file lock around plumbing: copy the real index with its
+  timestamps, reset differing paths, `git add` the selected paths into the private index, policies on its blobs, native
+  `git commit` with `GIT_INDEX_FILE` and all hooks off, update the real index. Removes the shadow repository, object migration,
+  replay, capture order, subsumption, reservation and the tearing table (about 21 800 lines of code and 15 400 of tests).
+  Reviewer's prototype (no hooks, policies or signing, so a floor): sequential 64 ms; four at once 299 to 404 ms; eight at once
+  601 to 828 ms; the unfixed wrapper four at once 3430 to 4869 ms. Confidence: high that the base implementation is far slower
+  than needed; medium-high that C removes the need for parallel preparation; C unbuilt. Would change the verdict: a
+  declared action or policy running seconds inside preparation, reversal of the hook decision, unreliable file locks on a target
+  platform, a high real commit rate making a serial queue long (the owner's rate was not measured).
+- Limits: base measured BEFORE the stat fix (the commit-timeouts branch brings the wrapper to a 1.5 s median on a 594-ref clone,
+  agent's own runs), so the 87 percent finding is the cause already fixed there; the remaining argument for C is replay and
+  complexity, to be re-measured against the fixed wrapper (concurrency 4 and 8) before deciding. Load average 62 to 126, 5 to 6
+  rounds per arm, spread about 1.5 times on the 96-fold result, two unexplained outliers (11.8 s, 42 s) in one prototype run.
+- Ranked defects 2 to 13 (full list in the report): no measurement on a realistic repository (the perf fixture has 30 files and
+  `commit-explicit-path` is `enforced: false`; SPEC line saying the harness is gone is stale); hook handling (settled); self-starts
+  and shell text (`entry.rs:614`, `push_stacking.rs:142`, `commit_command.rs:168`, `manual_push_probe.rs:229`; the LFS and
+  dispatcher branches address them); bounds and notices noise (a 1 s grace printed "still waiting ... pack-objects" on a healthy
+  commit; addressed by the commit-timeouts branch); repeated Git starts (60 `execve` per auto-pushed commit, 6 `config --get`
+  after the snapshot, `refs/heads/<b>^{commit}` verified three times); a pack and a repack per commit; wrapper-owned locks
+  reimplementing kernel locks (about 3 350 lines plus 2 800 of tests); several mechanisms per failure mode; journal syncs low harm
+  (1 to 3 percent of wall time); gate image layering and tests that restore state with more Git.
+- Next: ask the owner whether to remeasure first or start Option C (question asked this turn); merge this docs-only branch to
+  main with the next merge.
+
+### Reports of the dispatcher, image-cache and commit-timeouts review; owner decision on the design question
+
+- Owner decision (question asked with options; answer verbatim): "A: Ship the stat fix, then remeasure (Recommended)". Meaning: ship
+  the commit-timeouts fixes, then measure the fixed wrapper against the design reviewer's serial-lock prototype
+  (`~/temp/agent/dr/`) at concurrency 1, 4 and 8 on a large clone with policies on; decide on Option C from those numbers. The
+  commit-timeouts agent was sent that measurement as its last task.
+- Independent review of the commit-timeouts branch (reviewer `a8b40c8ed2921a872`, report `~/temp/agent/review-ct.md`, read-only,
+  ran Git 2.56.0 and both wrapper binaries in throwaway repositories; did not run the Rust suite): HIGH, confirmed by running:
+  an assume-unchanged file named in an explicit-path commit is silently left out (plain Git and the installed wrapper commit it;
+  the branch exits 0 and commits only the other path). LOW-MEDIUM, confirmed: a hand-set skip-worktree path fails the commit.
+  MEDIUM: `reset`, `read-tree`, `update-index`, `diff`, `show`, `ls-files`, `diff-index` are classed plumbing (60 s) but `reset`
+  refreshes the whole index, so a stat-dirty index costs far more (`landing_index.rs:333-338` runs this `reset`); the shadow
+  `git commit` (`commit_preparation.rs:222-246`) is still unbounded and silent; a stat-dirty real index still makes it hash every
+  file. LOW: shared timeout sentence and missing class label in `candidate_reader.rs`, dead `OBJECT_SUBCOMMANDS`, notice grace
+  above a small override, stat-after-copy in `copy_index_with_timestamps`; guard gap (nothing fails if `run_git_once` stops
+  choosing the class from the request); `binary_child_bound_tests.rs` returns Ok without `strace`. Valid as claims for the branch's
+  author to verify and fix; the full finding list was sent to agent `a6e4566588e9ec087` (resumed). The branch is NOT to be
+  merged to main until those are fixed and gated; the merge commit `9576e958f1` in `.claude/worktrees/merge-ct` (only a trial)
+  is superseded by the fixed branch.
+- Dispatcher branch report (`worktree-agent-a21d6fec9d0d04797`, head `3034c0bb33`; `390013ed9a` code, `3034c0bb33` docs): the
+  wrapper supports no external hook program; every real-Git start carries `-c core.hooksPath=<absent dir>` and
+  `-c hook.<event>.enabled=false` for all 28 events of Git 2.56.0, except `pre-push` (the push phase's own LFS step was a configured
+  `pre-push` hook, and the LFS branch has since removed that step, so this exception should now go: open item for the merge).
+  A repository that configures `hook.<name>.event` gets one `configuration-warning` (`external-hooks-unsupported`) per commit
+  and `git cli-git doctor` lists them and exits 1; `hooks.concurrentCommits` loads and is ignored. New `postCommit.actions` in
+  `cli-git.config.jsonc` (`name`, `argv`, optional `timeoutSeconds` default 60, at most 16; fields `{head}`, `{shortHead}` of 12
+  characters, `{topLevel}`, `{env:NAME}`, `{{` and `}}`) run after landing as bounded direct children, never failing the commit.
+  Removed 3409 lines of whole files plus the hook lock, plan, preparation lease, event-switch reads, replay `pre-commit` re-run,
+  hook-change bookkeeping; branch total +2552 and -4849. Counts did not rise (no-hook commit 19 syncs; one declared action 19
+  syncs). Guards planted and shown failing (start-name read in `main.rs`, `"hook","run"` in `post_commit_action.rs`, one flipped
+  switch in `shadow_config.rs`). Rollout for `hook.standards-review-shadow`: release and install the new wrapper (from then
+  the local hook is switched off and reported, so the review stops), IMMEDIATELY commit the `postCommit` declaration in
+  `cli-git.config.jsonc` (exact text in `doc/planning/cli-git-no-self-invocation-dispatcher.md`; the installed wrapper rejects an
+  unknown `postCommit` key, so not before), then unset the two local `hook.standards-review-shadow.*` keys. Not done: the container
+  end-to-end suite under `package/git-policy/cli/e2e` used configured hooks as its instrument and can observe nothing now (needs
+  a decision on a replacement: editor for kill points, a declared action for post-commit observation); `landing_index.rs`
+  `guarded_paths` leftover; `bin/native-planted-controls-entry.ts` runs only in the container gate. Tests: all lib and targeted
+  binary tests pass except those needing `GIT_POLICY_NATIVE_TEST_LINTER` (set only by the gate image) and one `merge_isolation` test
+  that failed once on a "still waiting for git commit-tree" notice under load (to root-cause, not wave off).
+- Image-cache branch report (`worktree-agent-a36bceb8146ab7688`, commits `ff694320fa`, `f2f689e5f0`, `a5a8352168`, `8f6f669a21`):
+  the gate image build is layered (dependency, path-crate, subject layers); cause of the 16-minute build was a `COPY package`
+  before the compile (any edit recompiled 121 crates) plus a large per-step overhead under host load (about 1 400 of 2 313 s in
+  the cold build at load 100 to 118). Measured: sidecar edit 982 s to 153 s (218 s to 84 s paired), non-test source edit 1 046 s
+  to 59 s, no change 512 s/261 s to 33 s; cold unchanged (2 313 s vs 2 246 s); test list identical (2 738 each, empty diff);
+  gate from its worktree 2 738 passed, clippy clean, 368 s. `--no-fail-fast` is now in the image default command; more build
+  CPUs help only a cold build, so the default stays 2 (README notes `--cpus 4`). Merged into the trial worktree as `3d4d75c263`.
+- Environment traps met while verifying: (1) a worktree outside the repository (`~/temp/agent/...`) makes the mise shim for
+  `monochromatic-lint` fail ("No version is set for shim"), so the commit policy reports an engine failure; use worktrees under
+  `.claude/worktrees/`. (2) A fresh worktree has no `node_modules`; the gate's TypeScript tooling then fails in one second with
+  `ERR_MODULE_NOT_FOUND`; symlink the main checkout's `node_modules` and `package/git-policy/cli/node_modules` into it (both
+  git-ignored). (3) `native:test:host` needs `GIT_POLICY_NATIVE_TEST_LINTER`; only the container gate sets it.
+- Merge order now: commit-timeouts fixes (agent running), LFS branch (independent review owed), dispatcher branch (conflicts
+  expected in `commit_command.rs`; open items above), design-review docs branch (docs only), each gated; then mutation; then release.
+
+### Review independence: Claude subagent reviews are a second pass, not independent review
+
+- User, verbatim: "What? Shouldn't independent reviewers be non-Claude models?" Facts: `doc/agent/self-review.md` forbids presenting
+  a check by "the same model, session, or local skill" as independent and requires "an actually separate reviewer"; CLAUDE.md names
+  the non-Claude route (`pi --model openai/gpt-6.1-sol`, reads only what is pasted, never instead of the advisor). The reviews
+  launched this session through the Agent tool (`a8b40c8ed2921a872` for the commit-timeouts branch, `a17cdadef7473983d` for the
+  LFS branch, `a7a724e5d1dfe58a7` for the hooks branch) run on the same model family as the agents that wrote the code, so they
+  are a second Claude pass. They remain useful because they run experiments (the timeouts reviewer found the assume-unchanged
+  bug by running Git), but they must be reported as a second Claude pass.
+- Independent review started: three `pi --model openai/gpt-6.1-sol --thinking xhigh --no-tools` runs, each given one branch
+  diff as an attached file and a neutral question that states only the owner's stated aim, in units `sol-ct`, `sol-lfs`,
+  `sol-hooks` (inputs and outputs in `~/temp/agent/sol/`: `ct.diff` 53 KB, `lfs.diff` 263 KB, `hooks.diff` 338 KB with deleted files
+  omitted; outputs `out-ct.md`, `out-lfs.md`, `out-hooks.md`, errors `err-*.log`). Per the rule, not polled and not killed; a unit
+  that ends with an empty output file means the run failed and must be reported as such. A branch merges only after both its
+  experiment review and its sol review are read and every finding is verified or dismissed with evidence.
+- Proposed AGENTS.md edit (not made; for the owner): tighten the separate-reviewer rule to say a reviewer counts as independent
+  only when it is a non-Claude model or the user, and a Claude subagent review is reported as a second pass.
+
+### Review independence rule made (supersedes "Proposed AGENTS.md edit (not made)" above)
+
+- User, verbatim: "Do the proposed edit, but be careful what should go in AGENTS.md vs CLAUDE.md only." Done in `c0c7e93db3`
+  (pushed). Placement: `CLAUDE.md` is generated by file-enforcer as `.config/file-enforcer/claude-preamble.md` (Claude only) followed
+  by `AGENTS.md` (rule `claude-md` in `file-enforcer.config.jsonc`), so it is never edited by hand; `mise run sync:files`
+  regenerates it and changed only that file.
+- `AGENTS.md` (every agent, vendor-neutral): new rule `IRW` (independent review means a reviewer from another model vendor than the
+  author, or the user; a same-vendor subagent is a second pass, labeled so); `CKB` and `RRG` now say "cross-vendor reviewer".
+  Normalized lengths 172, 199 and 197 characters against the 200 limit (`CKB` has one character of headroom: the next edit to it
+  needs a split into a fresh tagged rule).
+- Claude-only preamble: the `pi --model openai/gpt-6.1-sol` mechanics (attach the diff as an `@path` argument; it is the
+  cross-vendor reviewer; a Claude subagent is a second pass). `doc/agent/self-review.md`: the vendor-neutral definition both rules
+  cite, plus that a second pass is still worth running for the experiments a pasted-text reviewer cannot run.
+- State at this entry: gate `gpc-ct-gate2` (merge trial `3d4d75c263`: commit-timeouts plus layered image) still running;
+  commit-timeouts agent fixing the review findings; experiment reviews `a17cdadef7473983d` (LFS) and `a7a724e5d1dfe58a7` (hooks) and the
+  `sol-ct`, `sol-lfs`, `sol-hooks` runs outstanding; nothing merged to main; no release.
+
+### Owner's view on locks and a client-server architecture; commit-rate measurement; gate 2 result
+
+- User, verbatim: "Thoughts on locks: I believe they're an anti-pattern. I still think the server client architecture has potential."
+  then "If you think I'm wrong, convince me with evidence." Evidence gathered this turn (no decision taken; the earlier decision
+  "A: Ship the stat fix, then remeasure" stands):
+  - Commit rate, measured from `git log --all --since='24 hours ago' --format=%ct` (committer timestamps, so it counts commits,
+    not wrapper invocations, and includes merge commits and cherry-picks from every session; one unusually busy agent day):
+    582 commits in 24 h, one per 148 s on average. Of 8 640 ten-second windows, 490 held any commit (5.7 percent): 432 held one,
+    36 two, 16 three, 1 four, 4 five, 1 six. So 58 of 490 occupied windows (11.8 percent) held two or more. Utilization of a
+    serial writer: about 1.0 percent at a 1.5 s commit, about 4.2 percent at the pre-fix 6.2 s.
+  - Reviewer's lock prototype (a floor: no hooks, policies or signing): 64 ms sequential, eight at once 601 to 828 ms against an
+    ideal serial 8 x 64 = 512 ms, so the whole lock-and-contention overhead in an eight-way burst is 90 to 316 ms of makespan;
+    that bounds what a single-writer daemon could save in a burst, group commit aside.
+  - Earlier daemon bound (this file, "Bound on a daemon"): of 130 ms added per wrapped commit on the host, about 67 ms of CPU and
+    spawn share could go; the syncs are the crash safety. Correction recorded now: that bound ignored group commit (one journal sync
+    shared by concurrent commits), which only a single writer can do; the gain exists only in bursts (11.8 percent of occupied
+    windows).
+  - Against a daemon: killed-at-any-instruction (rule NHP), stale sockets, PID-namespace identity (issues 1781 and 1784 already
+    needed a namespace-aware owner identity), and a hung daemon stalls every client unless clients fall back to the one-shot path,
+    which keeps both code paths.
+  - For the owner's view: wrapper-owned locks are the problem class (about 3 350 lines of code and 2 800 of tests of owner records,
+    birth identity, recovery and 20 ms polling, from the design review's reading); the hook lock was a symptom; the waiter limit
+    could be shorter than a legitimate holder's work (the LFS agent's finding) because locks were held across unbounded work; the
+    640 s stall was a holder doing unbounded work.
+- Gate 2 (merge trial `3d4d75c263` = commit-timeouts branch + layered image build, run in `.claude/worktrees/merge-ct`): 2 760 tests
+  run, 2 760 passed, 7 skipped, clippy clean, exit 0, test phase 252.7 s. It ran before the review fixes (the assume-unchanged bug has
+  no test yet), so it clears the trial merge but not the fixed branch.
+
+### Owner premise: concurrent committers will keep growing; consequences and the queued daemon prototype
+
+- User, verbatim: "Assume the chance different people/agents trying to commit at the same time is going to grow more and more."
+  Adopted as a design input. It weakens the burst-based argument of the previous section (the 24-hour count of 582 commits, one per
+  148 s, is a baseline, not a forecast): what grows is burstiness, tail latency and the cost of any failure mode under contention.
+- Capacity reasoning (inference from the reviewer's floor numbers, not a measurement of the product): a serialized section of length
+  S caps throughput at 1/S. Lock prototype 64 ms sequential; with a policy pass of about 300 ms (reviewer's figure) inside the
+  lock, S is about 364 ms, a ceiling of about 2.7 commits per second, about 410 times today's average rate. So raw throughput is
+  not the first problem; fairness, bounded and visible waits, wasted optimistic work and failure containment are. Policies outside the
+  serialized section (prepare in parallel, land short) is what the shadow design already does; the open question is the cost of its
+  replays as the number of concurrent landings grows (1.02 to 1.09 lost races per commit at concurrency 8 in `SPEC.md`).
+- Unverified, to be measured: whether wrapper waiters (20 ms polling per the review) can starve under contention, and whether a
+  kernel file lock is FIFO (not guaranteed by its semantics, so a queue or ticket is what gives fairness and "you are third").
+- Sent to agent `a6e4566588e9ec087` (after its review fixes, before any daemon work): extend the remeasurement to concurrency 1, 4,
+  8, 16, 32 with per-commit wait distribution (median, p95, max), a fairness count (commits served after a later arrival), replays
+  per commit, and the time inside the serialized section per arm.
+- QUEUED (written now per rule QWD): after those numbers, a throwaway single-writer daemon prototype in scratch, measured in the
+  same harness: unix socket, FIFO queue, same plumbing steps as the lock prototype, one journal sync per batch (group commit),
+  reported against the fixed wrapper and the lock prototype at the same concurrency levels with wait distribution and fairness, plus
+  kill-the-daemon-mid-batch recovery behavior, cold-start latency, stale-socket handling and a PID-namespace case. It is evidence
+  gathering for the owner's view that a client-server architecture has potential; no production code.
+
+### Owner's design stance, recorded in the package docs
+
+- User, verbatim: "I think we can make the git wrapper much better. Because we control all the code. Don't take "Good" as perfect as
+  "Good" breaks down whenever it meets real world. Happened so many times already. Record that in pkg-local docs." then "You can add
+  it in the handove[r]." Read as: package docs as asked, and also here.
+- Package docs: new `package/git-policy/cli/DESIGN.md` ("Design stance"): the quote; that every part of the package is ours so a
+  limit that comes from our code is fixed there, not worked around or documented as a limit; the concurrency-growth premise quoted;
+  the cases that looked good until they met the real world, each with its measurement and the handover section that holds it (the
+  stat-less private index, the single 1800 s child bound, the 30-file performance fixture and tests that restored state by running
+  more Git, the gate image that recompiled 121 crates, locks held across unbounded work with unordered 20 ms retries); and working
+  suggestions for contributors, labeled revisable (read a green result as evidence about the cases it covered; measure on a realistic
+  size under the load there is; prefer bounded and visible failure; write down the load a "good enough" decision assumed; fix causes in
+  the package). Linked from the top of the package `README.md`. Not in `AGENTS.md`, per the owner's earlier "Package docs only" answer
+  for package design rules.
+- Consequence for open work: the daemon prototype, the extended remeasurement and the reviews are instances of this stance, not extras;
+  a branch is not "done" because its gate is green, only because the cases it did not exercise are named.
+
+### Owner instruction: embed the tools in the wrapper; hooks branch second Claude pass
+
+- User, verbatim: "And in case we aren't already doing that, git wrapper should embed in forbidden-strings and the like. That's why we
+  rewrote everything in Rust in the first place." Audit (read this turn): `forbidden-strings` IS embedded (`Cargo.toml:7`, comment "linked
+  in-process instead of spawned"; `scanner_adapter.rs`). `monochromatic-lint` is NOT: the `markdown/autofix` policy finds it on PATH
+  (`markdown_linter_lookup.rs`, in practice a mise shim) and spawns it (`markdown_linter.rs`, `bounded_child.rs`). Observed today in an
+  untrusted worktree: shim prints "No version is set for shim: monochromatic-lint", exit 1, the commit policy reports `policy-incomplete`.
+  The earlier decision to keep the CLI integration ("rather than introducing a new public library interface",
+  `doc/planning/cli-git-rust-implementation.md` lines 172-196) has no measured reason and is overridden. Real binaries: wrapper
+  8.4 MB, linter 16.5 MB (the names in `.cache/toolchain-launchers` are hard links of one 5 MB launcher). The linter crate already has
+  `[lib] name = "monochromatic_lint"`. Other non-Git programs the wrapper starts in production: `ps` (`process_start.rs:321`), `lsof`
+  (`index_lock_holders.rs:319`), `powershell.exe` (`process_start.rs:368`, `index_lock_holders.rs:366`), `process_identity.rs:252`,
+  `filesystem_identity.rs:235`, plus `git` and `git-lfs`.
+- Dispatched: agent `a19be37e1bd9ea63d` (worktree): in-process linter API in the linter crate with the CLI's contract, wrapper depends on
+  it by path with an exact pin, a safety design for a hang or panic inside the linter (worker thread with a deadline; a stuck thread dies
+  with the short-lived wrapper), delete the PATH lookup and spawn, differential test against the real CLI, measurements (forwarded-command
+  latency, commit with Markdown, binary size, gate image time) with spread, an audit report of the other spawned programs (no
+  implementation without asking), and the release order (linter first, then wrapper).
+- Second Claude pass on the hooks branch (agent `a7a724e5d1dfe58a7`, report `~/temp/agent/review-hooks.md`, built binary of the branch, probes
+  p1 to p22 in throwaway repositories; not independent review): HIGH H1 (confirmed): `postCommit.actions` read from the tracked
+  `cli-git.config.jsonc` lets a cloned repository run arbitrary programs with the wrapper's whole environment on the victim's first
+  commit (for example an argument `{env:GITHUB_TOKEN}`); the old `hook.*` lived in `.git/config`, which a clone never carries; the trust
+  registry is retired (`SPEC.md:21,145`); this is the first executable path the config can name. HIGH H2 (confirmed): `pre-push` is left on
+  (`hooks_off.rs:67,71`), a configured pre-push hook ran on `git push` while the docs and warning say none run. MEDIUM: warning only on
+  commit and doctor (post-checkout, push, status silent; `git hook run` silently passes); cherry-pick and revert run the action 0 times
+  though real Git fires `post-commit` for them; timeout kills only the direct child (a backgrounded `sleep 77 &` survived); a caller's
+  `-c hook.post-commit.enabled=true` re-enables hooks in the shadow commit; dead code and stale docs (`HookChanges`, `guarded_paths`,
+  `e2e/README.md`). LOW: no completeness test for the 28 events (names verified against Git 2.56.0 `githooks.adoc` and `strings`), spurious
+  `traditional-hooks-unsupported` with a hand-set `GIT_CONFIG_PARAMETERS`, full environment inherited by actions, literal-asserting
+  tests, e2e suite instrument gone (list in the report). Sent to agent `a21d6fec9d0d04797` with H1 held back for the owner.
+- Decision asked of the owner this turn: where `postCommit.actions` may be declared (options: git directory file, tracked file with a
+  trust gate, tracked file accepted and documented). Answer recorded in the next entry.
+
+### CORRECTION: no custom actions, no third-party code; the generic `postCommit.actions` facility is retracted
+
+- User, verbatim, answering the question about where `postCommit.actions` may be declared: "What is going on? I already said we don't
+  allow 3p code and custom actions?" My error: the option label "B: Only hooks we declare, natively" and my brief to agent
+  `a21d6fec9d0d04797` described a config-declared post-commit action run by the wrapper as a direct child with an argv array. That is a
+  custom-action facility: a configuration file naming a program the wrapper executes. It contradicts the owner's standing rule (no
+  other people's programs, no third-party code, no custom actions) and `config_schema.rs:98,148`, which say the configuration
+  deliberately has no command or executable field. The reviewer's security finding H1 was the symptom. The hooks agent's `postCommit.actions`
+  work (`post_commit_action.rs`, `post_commit_template.rs`, `config_post_commit.rs`, tests, docs) is to be DELETED, not fixed; the sections
+  above that call it "ported in" and give its rollout order are superseded. Sent to the agent as a correction; the findings about the
+  facility are moot, the others stand.
+- Remaining owner decision (asked this turn): what replaces the repository's own `hook.standards-review-shadow` after the wrapper stops
+  running configured programs. Facts: the old hook command is `systemd-run --user --unit=standards-review-shadow-$(git rev-parse --short HEAD)
+  --collect --working-directory=$(git rev-parse --show-toplevel) --setenv=PATH=$PATH --setenv=HOME=$HOME mise run shadow-review`; the mise
+  task `shadow-review` (root `mise.toml`) is "Standards-review gate shadow run on the landed commit: appends to
+  `doc/audit/standards-review-gate-shadow.md` and never blocks or fails a landing"; that file is the one every status shows modified.
+
+### Reports: commit-timeouts follow-up, LFS second pass, sol review failure; owner on async work and a resident process
+
+- Owner, verbatim: "child or resident proces" - another reason for server client architecture. Some policies are meant to be ran async."
+  Evidence read this turn: the wrapper process exits when its command ends, so work that must outlive it is either done in the command's
+  critical path (auto-push is bounded at `DEFAULT_PUSH_DEADLINE`, 30 s, in `bounded_push.rs:46`; `auto_push.rs`, `commit_conclusion.rs` and
+  `post_landing.rs` contain no detach, daemon or background code) or handed to something else (`git maintenance run --auto --quiet --detach`
+  is Git's own detach in `maintenance_run`; the old `hook.standards-review-shadow` handed the shadow review to a detached systemd unit). Three
+  async workloads exist today: auto-push, the shadow review, maintenance. A resident first-party process is the one place such work can live
+  without a child started by the wrapper. This is a second, independent reason for the daemon prototype queued earlier, and the daemon
+  prototype scope now includes: acknowledging a commit and running post-landing work (push, review, maintenance) after the client returns,
+  with the command's visible latency measured with and without the 30 s push tail. Port agent `ad02e84404af49107` was told to design the
+  durable work-item record (producer never waits, generic work kind plus idempotency key) as the leading option for the shadow review.
+- Commit-timeouts follow-up (agent `a6e4566588e9ec087`, commits `60f76a4f46` and `b14372286d` on its branch, no amends, not merged): review items
+  1 to 9 addressed. New `index_flags.rs` reads the captured index in-process (versions 2 to 4, SHA-1 and SHA-256) and the private index is
+  seeded from the real one only when no entry is assume-unchanged or skip-worktree and the index is not split; otherwise it builds from the
+  base as before (4 new tests: named assume-unchanged, unnamed, directory pathspec, named skip-worktree). Child classes are now "quick query
+  step" (60 s, notice at 5 s; 13 subcommands: rev-parse, rev-list, symbolic-ref, for-each-ref, ls-tree, cat-file, diff-tree, merge-base,
+  write-tree, update-ref, config, remote, version) and "bulk step" (300 s, notice at 10 s; everything else including reset, read-tree,
+  update-index, ls-files, diff, diff-index, show, ls-remote, maintenance and unknown subcommands). Measured on the 20 207-file clone with
+  every file touched: `reset -q HEAD -- README.md` 27 to 101 ms clean against 2 930 to 5 771 ms stat-dirty; `update-index --refresh` 26 to
+  32 against 2 806 to 2 889 ms; `ls-files --modified` about 58 against 2 803 to 2 862 ms. The shadow `git commit` is still unbounded and silent
+  (proposal only: notice-only watch when a message source exists; not implemented because the file belongs to the preparation owner).
+  Guard breaks each seen failing. Not done: the full container gate; `diff --stat --summary` on a large merge.
+- Concurrent remeasurement (same agent; fixed wrapper with policies on, a byte copy as control, the reviewer's lean serial prototype with
+  plain Git and no policies; 20 207-file clone; one unit per run at CPUQuota 1200%; host load about 10; K = 1, 4, 8, 16, 32; 3 rounds at
+  K up to 8 and 2 at 16 and 32; arrival is process spawn staggered 25 ms): makespan ms, wrapper / control / prototype: K=1 501 to 532 /
+  490 to 523 / 60 to 164; K=4 1153 to 1343 / 1318 to 1384 / 231 to 260; K=8 2595 to 2764 / 2489 to 2664 / 460 to 506; K=16 5481 and 6909 /
+  6710 and 7118 / 1014 and 1034; K=32 15426 and 15946 / 16922 and 17214 / 2149 and 2661. Wrapper against its own control differs up to about
+  20 percent (the noise floor); the prototype is six to eight times faster from K=4 up, though it has no policies. Latency K=32 (median, p95,
+  max): wrapper 8525, 14661, 15494; prototype 732, 1369, 1881. No commit failed. Overtaking (commits served after a later arrival; mixes real
+  overtaking with unequal preparation times): wrapper K=32 48 of 64 (largest 22), control 46 of 64, prototype 0 by construction. Lost landing
+  races per commit 0.00, 0.92, 1.46, 1.53 to 1.66, 1.86 at K = 1, 4, 8, 16, 32 (cap: `landing.reserveAfterLostRaces` = 1; no commit lost
+  more than 2). Under contention the effective serialized section is the reservation (replay plus landing, median 361 to 402 ms, taken
+  for 62 of 64 commits at K=32), not `landing.lock` (133 to 154 ms alone); 30.4 s of holds against 33.3 s of makespan: ceiling about
+  2.5 commits/s, measured 1.9; prototype one 60 to 64 ms hold, ceiling about 16, measured 12 to 15. CPU per lone commit: wrapper 0.52 s,
+  prototype steps 0.12 s. Waiters poll every 20 ms; gap between landing-lock holds median 18 to 29 ms, p95 118 to 153 ms, max 908 ms (prototype
+  zero). Starvation not shown (slowest took 1.8 times the median at K=32). Nothing measured above 32. Reading for the lock-and-daemon
+  debate: at these sizes the optimistic design wastes about 1.5 to 1.9 lost races per commit and runs serialized at 1.9 commits/s,
+  while a plain serial section is far faster; the prototype's missing policies (about 300 ms CPU each, parallelizable) are the
+  unquantified part, so the comparison is a floor, not a verdict.
+- LFS branch second Claude pass (agent `a17cdadef7473983d`, `/var/home/user/temp/agent/review-lfs.md`): BLOCKERS confirmed by running: `git push -u`,
+  `--set-upstream` and `push.autoSetupRemote` fail in every repository (the porcelain dry run prints a "Would set upstream" line that
+  `parse_porcelain` refuses; the test enshrines the refusal); `git push -q` skips all manual-push policies (the porcelain prints only
+  `Done`). Also confirmed: `remote.<name>.push` ignored, `-c` options before `push` never reach `git-lfs`, `--repo` handling differs
+  from Git, a filesystem path as remote blocks the push, `--tags` and globs upload everything, SIGTERM leaves `git-lfs` uploading,
+  the holder budget has no test, more Git starts per manual push (20 to 23 against 18 to 20 at baseline). The branch is NOT mergeable;
+  sent to agent `a2c239ccb199db9d8` with the full list. The self-start through `argv[0]` dispatch remains until the hooks branch merges.
+- sol review failure (reported plainly): the first three `pi --model openai/gpt-6.1-sol` units (`sol-ct`, `sol-lfs`, `sol-hooks`) failed at
+  start with `timeout: failed to run command 'pi': No such file or directory`; outputs empty; nothing was sent. `pi` is
+  `package/agent-harness-shared/advisor/node_modules/.bin/pi`, found on the tool's PATH but not by the unit even with PATH passed; the
+  absolute path works (smoke test answered "ok" through a limited unit). Rerun for the commit-timeouts branch only (`sol-ct2`, input
+  `ct2.diff`, output `out-ct2.md`); the LFS and hooks branches are being rewritten, so their sol reviews are queued for the fixed heads
+  (QWD).
+- Hooks decision correction recorded earlier (no custom actions; the generic `postCommit.actions` facility is deleted): the hooks branch
+  agent `a21d6fec9d0d04797` is deleting it and will report what the old hook did; the standards-review port agent `ad02e84404af49107`
+  ports `shadow-review` into the wrapper in-process (HTTP client embedded; no real gateway call; nothing wired).
+
+### Merged to main: commit-timeouts fixes and the layered gate image (reviews are async)
+
+- Owner, verbatim: "If we have already decided on something just do it. Treat reviews as async." Applied: the merge rule I set earlier
+  ("a branch merges only after both its experiment review and its sol review are read") is withdrawn. Decided work merges now; gates run
+  afterwards without blocking; review findings become follow-up fixes. A branch with a CONFIRMED regression (the LFS branch breaks
+  `git push -u` and `git push -q` skips policies) still waits for its author's blocker fixes, because that is a known defect, not a
+  pending review.
+- Merged to main by a merge commit from the trial tree `452f828b90` (worktree `.claude/worktrees/merge-ct`): the commit-timeouts branch
+  with its follow-up (`60f76a4f46`, `b14372286d`) and the layered gate image (`worktree-agent-a36bceb8146ab7688`), plus the conflict
+  resolutions made on the way (`child_watch_tests.rs`: main's rewrite of the test for the removed `child_wait_limit_from` goes;
+  `scratch_location_tests.rs`: the staleness test derives from each class's `default_limit()`). Not yet true: any release; the gate on
+  this tree (`gpc-ct-gate3`, log `~/temp/agent/gate/ct-gate3.log`) is running; its result will be a fix list if it fails.
+- Changes by other sessions seen while merging main (not mine): crate releases now run in CI (`.github/workflows/crate-release.yml`,
+  `doc/decision/releases-run-in-ci.md`, `package/crate-release/cli/*`, `package/git-policy/cli/mise.toml` changed): the release recipe in this
+  file (`native:release`, `native:release:wait`) must be re-read against that decision before the next release. Mass MGN edits in other
+  packages and in `conclusion_cleanup.rs` of this crate.
+- Environment note: a transient merge by another session (Xiaomi OCR docs branch) held `MERGE_HEAD` in the root checkout for under a
+  minute; it was left alone and the merge was retried.
+
+### Coordination charter: the agents own and merge their areas
+
+- Owner, verbatim: "Figure it out amongst yourselves who should own or do what. You have the tools." The full charter was sent to every
+  running agent (scratch copy `~/temp/agent/charter.md`; the condensed record is here).
+- Owners (crate `package/git-policy/cli`): `a2c239ccb199db9d8` LFS and push (`lfs_*`, `manual_push_*`, `command_push.rs`, `holder_budget.rs`,
+  `bounded_push.rs`, `auto_push*.rs`, `push_stacking.rs`); `a21d6fec9d0d04797` hooks removal (`hooks_off.rs`, `external_hooks.rs`,
+  `doctor*.rs`, hook and `postCommit` config keys, `entry.rs`, `main.rs`, self-start spots in `commit_command.rs`, `shadow_config.rs`, the e2e
+  suite); `a19be37e1bd9ea63d` linter embedding and the audit of other started programs (`markdown_linter*.rs`, `Cargo.toml` dependency lines,
+  the linter crate's library API, the gate image's linter stage); `ad02e84404af49107` standards-review port (new `standards_review*` modules, the
+  work-item record, its planning doc, later removal of the old hook and the `shadow-review` task); `a6e4566588e9ec087` commit-path
+  performance and concurrency (`child_class.rs`, `child_watch.rs`, `transaction_git.rs`, `commit_index.rs`, `index_flags.rs`, `shadow_*.rs`,
+  replay and reservation, and the throwaway single-writer daemon prototype); `a36bceb8146ab7688` gate image (idle). Coordinator
+  `monochromatic-8c`: handover, owner questions, releases, peers `monochromatic-c0` and `monochromatic-6e`, AGENTS.md and docs rules.
+- Rules: agents merge their own branches to main from the root checkout only when no `.git/MERGE_HEAD` exists and no one else's uncommitted
+  change touches the merged files; no stash, revert or reset of others' work; merge order where branches overlap: LFS, then hooks, then
+  linter embedding and the standards-review port; reviews are async (sol review requested by the author, findings as follow-ups; a Claude
+  subagent review is a second pass); a branch with a known confirmed regression does not merge; only the coordinator publishes (crate
+  releases now run in CI: `doc/decision/releases-run-in-ci.md`).
+- Next jobs: `a6e4566588e9ec087` builds the daemon prototype as a third arm of its concurrency harness (group commit, async post-landing work,
+  tested failure cases). Open for the coordinator: read the gate on main (`gpc-ct-gate3`), the `sol-ct2` review, and re-read the CI release
+  decision before the next release.
+
+### Release path is now CI (read in full: `doc/decision/releases-run-in-ci.md`)
+
+- `//package/git-policy/cli:native:release` dispatches `.github/workflows/crate-release.yml` (`gh workflow run`, prints the run URL); `native:release:wait` runs
+  `await-release.ts`: release run, then the `cargo-publish.yml` run it starts, then crates.io and the GitHub release. `from` must equal the
+  crate's current version; `dry-run` runs everything but the push and the publish. Only crates in `package/crate-release/cli/releasable-crates.json`
+  qualify: `forbidden-strings` and the wrapper; the linter is NOT listed, so a linter release goes the old way (a bump pushed to main, then
+  `cargo-publish.yml`), and it must be published before a wrapper that pins it exactly.
+- The workflow has never run on a runner ("the first release is its first run"). Unproven: that a runner compiles the crates, that the token may
+  call `createCommitOnBranch` on the protected branch (signed commits are required), that GitHub signs that commit under `GITHUB_TOKEN`. Plan:
+  dispatch with `--dry-run` first; expect a possible retry; recovery text is in the package README of `package/crate-release/cli`.
+- A release's bump commit starts no `push` workflow (token rule), so push-triggered checks skip it.
+- `monochromatic-c0` (peer) owns the `toolchain:update` lock bump after I message it the version and release commit; I do not run it.
+
+### Peer answers: monochromatic-6e (file-enforcer, toolchain) on the release
+
+- 6e measured on `main`: file-enforcer, `toolchain:install`/`toolchain:update` and mpm-shadow depend on no `hook.*`, `hooksPath`, `.git/hooks`, `githooks`,
+  `hooks.concurrentCommits`, and nothing spawns `monochromatic-lint` through the wrapper (positive control found). The only `hook.*` dependence is
+  this repository's `hook.standards-review-shadow` (keeps writing `doc/audit/standards-review-gate-shadow.md`); it stops when the new wrapper ships
+  unless the port is wired first. Decision for the release order, recorded: the shadow review is audit-only and never blocks a landing, so a gap
+  between the release and the port wiring costs audit entries only; the port agent `ad02e84404af49107` is wiring-gated on the scheduling choice
+  (work-item record with a resident consumer is the leading option). Revisit if the owner wants no gap.
+- Lock bump (owner-delegated to `monochromatic-c0`): scope to the wrapper's row `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`
+  (`toolchain.plan.jsonc:258`), then `toolchain:install`, commit only `toolchain.lock.json` by explicit pathspec; any other row in the diff is reported
+  separately. Forwarded to c0.
+- CI release bug found by 6e: the bump commit is refused when `main` moves during the run (forbidden-strings run `41303293802`, "Expected branch to
+  point to ... but it did not", nothing pushed). A retry-onto-the-new-head fix is in progress on their side. The wrapper release WAITS for it (told
+  6e: no local release). Main moves constantly with many sessions, so this bug would hit the wrapper release.

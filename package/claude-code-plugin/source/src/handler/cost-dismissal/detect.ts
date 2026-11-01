@@ -20,6 +20,14 @@ import {
 } from './sentences.ts';
 
 /**
+ Number of leading hex characters of the block's SHA-256 kept as its hash.
+
+ Long enough to tell blocks apart on this machine,
+ short enough that the shadow log stays small.
+ */
+const BLOCK_HASH_CHARS = 16;
+
+/**
  One detection inside one thinking block.
 
  Carries a hash of the block and the sentence index instead of any text,
@@ -70,7 +78,7 @@ function findSizeDismissal(block: string,): readonly CostDismissalHit[] {
    */
   const blockHash = digest.slice(
     0,
-    16,
+    BLOCK_HASH_CHARS,
   );
   /**
    Hits found so far.
@@ -112,4 +120,4 @@ function findSizeDismissal(block: string,): readonly CostDismissalHit[] {
 
 export type { CostDismissalHit, };
 
-export { findSizeDismissal, };
+export { BLOCK_HASH_CHARS, findSizeDismissal, };

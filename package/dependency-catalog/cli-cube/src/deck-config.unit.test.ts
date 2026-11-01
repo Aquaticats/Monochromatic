@@ -27,11 +27,16 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  ALPHA_FILTERED,
+  ALPHA_VISIBLE,
+  COLOR_UNKNOWN_GREY,
   POSITION_UNKNOWN,
   probeFillColor,
   probeIsFilled,
   probePosition,
   probeRadius,
+  RADIUS_MAX_PX,
+  RADIUS_MIN_PX,
   unknownClusterPosition,
 } from './deck-accessors.ts';
 import type { PackageProbe, } from './probe.ts';
@@ -185,7 +190,7 @@ await describe({
           bounds: BOUNDS,
           isVisible: true,
         },);
-        expect(rgba[3],).toBe(255,);
+        expect(rgba[3],).toBe(ALPHA_VISIBLE,);
       },
     },),
 
@@ -198,7 +203,7 @@ await describe({
           bounds: BOUNDS,
           isVisible: false,
         },);
-        expect(rgba[3],).toBe(13,);
+        expect(rgba[3],).toBe(ALPHA_FILTERED,);
       },
     },),
 
@@ -211,9 +216,9 @@ await describe({
           bounds: BOUNDS,
           isVisible: true,
         },);
-        expect(rgba[0],).toBe(136,);
-        expect(rgba[1],).toBe(136,);
-        expect(rgba[2],).toBe(136,);
+        expect(rgba[0],).toBe(COLOR_UNKNOWN_GREY,);
+        expect(rgba[1],).toBe(COLOR_UNKNOWN_GREY,);
+        expect(rgba[2],).toBe(COLOR_UNKNOWN_GREY,);
       },
     },),
 
@@ -249,8 +254,8 @@ await describe({
           state: STATE,
           bounds: BOUNDS,
         },);
-        expect(r,).toBeGreaterThanOrEqual(3,);
-        expect(r,).toBeLessThanOrEqual(30,);
+        expect(r,).toBeGreaterThanOrEqual(RADIUS_MIN_PX,);
+        expect(r,).toBeLessThanOrEqual(RADIUS_MAX_PX,);
       },
     },),
 

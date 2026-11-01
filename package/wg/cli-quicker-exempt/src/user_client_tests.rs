@@ -5,6 +5,8 @@
 
 /// Client under test.
 use crate::user_client::{client_command, ClientError, UserClient};
+/// The search path the client gets.
+use crate::bounded_command::SECURE_PATH;
 /// Executable mode for the fake client.
 use std::os::unix::fs::PermissionsExt;
 /// Fixture paths.
@@ -63,7 +65,7 @@ fn the_client_environment_is_cleared() {
     let (uid, gid) = own_ids();
     client.run(uid, gid, &[]).expect("the client succeeds");
     let text = std::fs::read_to_string(recorded).expect("read the recorded environment");
-    assert!(text.lines().any(|line| return line == "PATH=/usr/bin:/bin"), "{text}");
+    assert!(text.lines().any(|line| return line == format!("PATH={SECURE_PATH}")), "{text}");
     assert!(text.lines().any(|line| return line == format!("XDG_RUNTIME_DIR=/run/user/{uid}")), "{text}");
     for forbidden in ["HOME=", "CARGO", "NEXTEST", "USER=", "LD_"] {
         assert!(!text.lines().any(|line| return line.starts_with(forbidden)), "{forbidden} leaked into {text}");

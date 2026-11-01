@@ -18,6 +18,7 @@ import {
   CommandTimedOutError,
   ExecutableNotFoundError,
   isMissingExecutable,
+  SHOWN_ARGUMENT_CHARACTERS,
   LibvirtUnresponsiveError,
   parseToolCommand,
   spawn,
@@ -340,7 +341,7 @@ await describe({
                 command: process.execPath,
               },)
             );
-            expect((error as Error).message,).toContain('...(4700 more characters)',);
+            expect((error as Error).message,).toContain(`...(${String(5_000 - SHOWN_ARGUMENT_CHARACTERS,)} more characters)`,);
             expect((error as Error).message.length,).toBeLessThan(1_000,);
           },
         },),

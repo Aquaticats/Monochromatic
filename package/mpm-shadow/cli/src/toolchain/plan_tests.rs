@@ -143,5 +143,5 @@ fn reading_a_plan_file_decodes_it() {
     let path = directory.path().join("toolchain.plan.jsonc");
     std::fs::write(&path, SAMPLE_PLAN).expect("write the plan");
     let plan = read_plan(&path).expect("the written plan reads");
-    assert_eq!(plan.tools.len(), 11);
+    assert_eq!(plan, sample_plan());
 }

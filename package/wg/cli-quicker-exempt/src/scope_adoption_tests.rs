@@ -58,7 +58,8 @@ fn the_adoption_arguments_follow_busctl_syntax() {
 fn the_limits_become_scope_properties() {
     let limits = InheritedLimits { cpu_quota_per_sec_usec: Some(8_000_000), memory_max: Some(1_073_741_824), ..InheritedLimits::default() };
     let arguments = adopt_arguments("wg-quicker-update-10.scope", SLICE, &[10], &limits);
-    assert_eq!(arguments[9], "5");
+    let properties = 3 + limits.properties().len();
+    assert_eq!(arguments[9], properties.to_string(), "Slice, PIDs and Description plus every carried limit");
     assert!(arguments.windows(3).any(|window| return window == ["CPUQuotaPerSecUSec", "t", "8000000"]));
     assert!(arguments.windows(3).any(|window| return window == ["MemoryMax", "t", "1073741824"]));
     assert_eq!(arguments.last().map(String::as_str), Some("0"));
@@ -71,7 +72,9 @@ fn the_slice_arguments_name_the_slice_with_one_property() {
     assert_eq!(arguments[7], SLICE);
     assert_eq!(arguments[9], "1");
     assert_eq!(arguments.last().map(String::as_str), Some("0"));
-    assert_eq!(arguments.len(), 14);
+    let property_count: usize = arguments[9].parse().expect("the property count");
+    let first_property = arguments.iter().position(|argument| return argument.as_str() == "Description").expect("the property list");
+    assert_eq!(arguments.len(), first_property + 3 * property_count + 1, "the property list and the aux unit count decide the rest");
 }
 
 /// Writes an executable fake `busctl` that appends its arguments to a log,

@@ -17,6 +17,7 @@ import {
   costDismissalParser,
   costDismissalWriter,
 } from './index.ts';
+import { BLOCK_HASH_CHARS, } from './detect.ts';
 
 /**
  Scratch directory for this suite's fixture transcripts and shadow logs.
@@ -105,7 +106,7 @@ await describe({
         verify(hits.length,).toBe(1,);
         verify(hits[0]?.pattern,).toBe('size-dismissal',);
         verify(hits[0]?.sentenceIndex,).toBe(0,);
-        verify(hits[0]?.blockHash.length,).toBe(16,);
+        verify(hits[0]?.blockHash.length,).toBe(BLOCK_HASH_CHARS,);
       },
     },),
     it({

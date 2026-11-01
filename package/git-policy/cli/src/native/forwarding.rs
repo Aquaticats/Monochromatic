@@ -95,6 +95,9 @@ pub fn git_command(
     return command;
 }
 
+/// The base a POSIX shell and Git 2.56.0 `run-command.c` add to a signal number.
+pub const SIGNAL_EXIT_BASE: i32 = 128;
+
 /// What:
 ///  Translate a child's end into this process's exit code.
 /// Why:
@@ -116,7 +119,7 @@ pub fn exit_code(outcome: ChildOutcome) -> i32 {
     // ```
     match outcome {
         ChildOutcome::Exited(code) => return code,
-        ChildOutcome::Signaled(signal) => return 128 + signal,
+        ChildOutcome::Signaled(signal) => return SIGNAL_EXIT_BASE + signal,
     }
 }
 

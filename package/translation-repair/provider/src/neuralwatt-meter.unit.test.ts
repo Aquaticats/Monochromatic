@@ -16,6 +16,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  NEURALWATT_DAILY_WH,
   NEURALWATT_SMALLEST_ESTIMATE_WH,
   neuralWattIsDry,
   neuralWattMeterLevel,
@@ -27,11 +28,11 @@ import {
  */
 const ROOMY: NeuralWattEnergy = {
   dayStart: '2026-10-20T19:15:08.000Z',
-  dailyWh: 550,
+  dailyWh: NEURALWATT_DAILY_WH,
   spentWh: 0.014,
   reckonedWh: 0.5,
   reservedWh: 0,
-  remainingWh: 549.986,
+  remainingWh: NEURALWATT_DAILY_WH - 0.014,
   calls: 3,
 };
 

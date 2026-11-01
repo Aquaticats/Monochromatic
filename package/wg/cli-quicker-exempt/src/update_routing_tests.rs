@@ -17,7 +17,7 @@ use crate::update_entry_points::MatchReason;
 /// Outcomes under test.
 use crate::update_report::Outcome;
 /// Policy under test.
-use crate::routing_support::{adoptable_cgroup, retry_backoff, StopCheck, SystemClock};
+use crate::routing_support::{adoptable_cgroup, retry_backoff, StopCheck, SystemClock, RETRY_BACKOFF_BASE, RETRY_BACKOFF_MAX};
 /// Policy under test.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// Shared recording between the test and the engine.
@@ -310,7 +310,7 @@ fn a_failed_adoption_is_reported_and_retried_after_a_backoff() {
     assert_eq!(fixture.requests.borrow().len(), 1, "no attempt before the wait is over");
     fixture.routing.begin_pass_at(start + Duration::from_secs(1));
     let second = fixture.routing.consider_at(40, start + Duration::from_secs(1));
-    assert!(matches!(&second, Outcome::Failed { attempt: 2, retry_in, .. } if *retry_in == Duration::from_secs(2)), "{second:?}");
+    assert!(matches!(&second, Outcome::Failed { attempt: 2, retry_in, .. } if *retry_in == RETRY_BACKOFF_BASE * 2), "{second:?}");
     assert_eq!(fixture.routing.consider_at(40, start + Duration::from_millis(2500)), Outcome::Ignored);
     fixture.routing.begin_pass_at(start + Duration::from_secs(3));
     let third = fixture.routing.consider_at(40, start + Duration::from_secs(3));
@@ -319,11 +319,17 @@ fn a_failed_adoption_is_reported_and_retried_after_a_backoff() {
     assert_eq!(fixture.requests.borrow().len(), 3);
 }
 
-/// The wait doubles from one second and stops growing at a minute.
+/// The wait doubles from the base and stops growing at the cap.
 #[test]
 fn the_retry_wait_doubles_up_to_a_cap() {
     let waits: Vec<u64> = (1..=9).map(|attempt| return retry_backoff(attempt).as_secs()).collect();
-    assert_eq!(waits, vec![1, 2, 4, 8, 16, 32, 60, 60, 60]);
+    let cap = RETRY_BACKOFF_MAX.as_secs();
+    assert_eq!(waits[0], RETRY_BACKOFF_BASE.as_secs(), "the first wait is the base");
+    assert_eq!(waits.last().copied(), Some(cap), "the wait stops growing at the cap");
+    for pair in waits.windows(2) {
+        let doubled = pair[0].saturating_mul(2);
+        assert!(pair[1] == doubled || pair[1] == cap, "each wait doubles until the cap: {pair:?}");
+    }
 }
 
 /// A process that exits while it is being moved is not a failure.

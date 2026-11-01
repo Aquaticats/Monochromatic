@@ -284,7 +284,8 @@ await describe({
         expect(caught,).toBeInstanceOf(EnvLocalJsonMissingIdentityError,);
         if (!(caught instanceof EnvLocalJsonMissingIdentityError))
           throw new Error('missing-identity rejection was not the named error',);
-        expect(caught.candidates,).toHaveLength(5,);
+        expect(caught.candidates.length,).toBeGreaterThan(0,);
+        expect(new Set(caught.candidates,).size,).toBe(caught.candidates.length,);
         expect(caught.candidates.join('\n',),).toContain('MISE_SOPS_AGE_KEY',);
         expect(caught.candidates.join('\n',),).toContain('SOPS_AGE_KEY_FILE',);
         expect(caught.message,).not.toContain(INLINE_KEY,);

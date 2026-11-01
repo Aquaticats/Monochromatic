@@ -8,7 +8,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { desiredThreads, reconcileCap, } from './cap.ts';
-import { DEFAULT_THREADS, } from './constants.ts';
+import { DEFAULT_THREADS, PERIOD_USEC, } from './constants.ts';
 import {
   makeHost,
   recordingLogger,
@@ -75,7 +75,7 @@ await describe({
             const l = recordingLogger();
             expect(await reconcileCap({ capFile: paths.capFile, cgroupFile: paths.cgroupFile, totalThreads: 32, l, },),)
               .toEqual({ threads: 28, applied: true, },);
-            expect(await readFile(paths.cgroupFile, 'utf8',),).toBe('2800000 100000',);
+            expect(await readFile(paths.cgroupFile, 'utf8',),).toBe(`${28 * PERIOD_USEC} ${PERIOD_USEC}`,);
             expect(l.messages.info[0],).toContain('CAP-APPLIED',);
           },
         },),
@@ -86,7 +86,7 @@ await describe({
              Host whose cgroup already holds the quota.
              */
             const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
-            await writeFile(paths.cgroupFile, '2800000 100000\n',);
+            await writeFile(paths.cgroupFile, `${28 * PERIOD_USEC} ${PERIOD_USEC}\n`,);
             /**
              Recorder for the logged lines.
              */

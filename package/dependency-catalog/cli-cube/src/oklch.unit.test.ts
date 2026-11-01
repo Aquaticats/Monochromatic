@@ -19,6 +19,7 @@ import {
 import {
   oklchLerpToSrgb,
   oklchToSrgb,
+  RGB_MAX,
 } from './oklch.ts';
 
 /** Numeric tolerance for "close to expected" comparisons (8-bit RGB units). */
@@ -62,7 +63,7 @@ await describe({
         expect(rgb[0],).toBe(rgb[1],);
         expect(rgb[1],).toBe(rgb[2],);
         expect(rgb[0],).toBeGreaterThan(0,);
-        expect(rgb[0],).toBeLessThan(255,);
+        expect(rgb[0],).toBeLessThan(RGB_MAX,);
       },
     },),
 
@@ -102,7 +103,7 @@ await describe({
         },);
         for (const channel of rgb) {
           expect(channel,).toBeGreaterThanOrEqual(0,);
-          expect(channel,).toBeLessThanOrEqual(255,);
+          expect(channel,).toBeLessThanOrEqual(RGB_MAX,);
           expect(Number.isFinite(channel,),).toBe(true,);
         }
       },

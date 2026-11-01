@@ -7,6 +7,8 @@ use anyhow::Context;
 use zbus::zvariant::OwnedValue;
 
 use super::*;
+/// The 8-bit channel scale the portal doubles use.
+use crate::accent_color::CHANNEL_MAX;
 
 /// Bounds how long a test waits for a signal that must already be on the private bus.
 const SIGNAL_TIMEOUT: Duration = Duration::from_secs(2);
@@ -47,9 +49,9 @@ fn read_accent(proxy: &zbus::blocking::Proxy<'_>) -> anyhow::Result<(f64, f64, f
 fn accent_only_portal_serves_the_accent_and_not_the_scheme() -> anyhow::Result<()> {
     let portal = portal_with(None, Some("FF8000"))?;
     let proxy = client(&portal)?;
-    assert_eq!(read_accent(&proxy)?, (1.0, 128.0 / 255.0, 0.0));
+    assert_eq!(read_accent(&proxy)?, (1.0, 128.0 / CHANNEL_MAX, 0.0));
     let read: OwnedValue = proxy.call("Read", &(APPEARANCE_NAMESPACE, ACCENT_COLOR_KEY))?;
-    assert_eq!(read.downcast_ref::<(f64, f64, f64)>()?, (1.0, 128.0 / 255.0, 0.0));
+    assert_eq!(read.downcast_ref::<(f64, f64, f64)>()?, (1.0, 128.0 / CHANNEL_MAX, 0.0));
     let all: HashMap<String, HashMap<String, OwnedValue>> = proxy.call("ReadAll", &Vec::<String>::new())?;
     let appearance = all.get(APPEARANCE_NAMESPACE).context("ReadAll omitted the appearance namespace")?;
     assert!(appearance.contains_key(ACCENT_COLOR_KEY));

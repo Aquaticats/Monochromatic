@@ -206,3 +206,7 @@ mod fault_filesystem;
 /// The experiments behind the hang verdict for the post-commit auto-push with a Git LFS upload.
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
+
+/// A Git step past its class bound is stopped, named with its class, and the repository recovers.
+#[path = "binary_child_bound_tests.rs"]
+mod child_bound;

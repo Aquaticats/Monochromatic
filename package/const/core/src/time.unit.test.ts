@@ -44,17 +44,17 @@ await describe({
     it({
       name: 'composed millisecond constants compute correctly',
       fn: async () => {
-        expect(MS_PER_MINUTE,).toBe(60_000,);
-        expect(MS_PER_HOUR,).toBe(3_600_000,);
-        expect(MS_PER_DAY,).toBe(86_400_000,);
-        expect(MS_PER_WEEK,).toBe(604_800_000,);
+        expect(MS_PER_MINUTE,).toBe(MS_PER_SECOND * SECONDS_PER_MINUTE,);
+        expect(MS_PER_HOUR,).toBe(MS_PER_MINUTE * MINUTES_PER_HOUR,);
+        expect(MS_PER_DAY,).toBe(MS_PER_HOUR * HOURS_PER_DAY,);
+        expect(MS_PER_WEEK,).toBe(MS_PER_DAY * DAYS_PER_WEEK,);
       },
     },),
     it({
       name: 'composed second constants compute correctly',
       fn: async () => {
-        expect(SECONDS_PER_HOUR,).toBe(3_600,);
-        expect(SECONDS_PER_DAY,).toBe(86_400,);
+        expect(SECONDS_PER_HOUR,).toBe(SECONDS_PER_MINUTE * MINUTES_PER_HOUR,);
+        expect(SECONDS_PER_DAY,).toBe(SECONDS_PER_HOUR * HOURS_PER_DAY,);
       },
     },),
   ],

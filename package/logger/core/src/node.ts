@@ -36,6 +36,7 @@ export {
   sweepLogDirectory as _sweepLogDirectory,
 } from './sink/file-retention-sweep.ts';
 export {
+  DAY_KEY_LENGTH,
   loggerOwnedDay as _loggerOwnedDay,
   NOT_LOGGER_OWNED as _NOT_LOGGER_OWNED,
 } from './sink/file-retention-name.ts';

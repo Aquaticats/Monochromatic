@@ -7,6 +7,7 @@ use ide_app::{
     document::{Document, ReadingPosition},
     find::{FindRange, MAX_FIND_MATCHES, find_matches},
     find_paint::rectangles,
+    row_map::CODE_ROW,
     shaped_text::{ShapedView, TextShaper, Viewport},
 };
 /// Actual shaped glyph runs prove that marking matches does not reshape a ligature.
@@ -158,7 +159,7 @@ fn rectangles_are_limited_to_materialized_rows() {
         "rectangles were built for rows outside the materialized viewport"
     );
     for mark in &marks {
-        assert!(mark.y >= 10.0 * 24.0 && mark.y < 15.0 * 24.0);
+        assert!(mark.y >= 10.0 * CODE_ROW && mark.y < 15.0 * CODE_ROW);
     }
     let empty = shaper.prepare(&document, viewport(500, 5), &[]);
     assert!(rectangles(&empty, &found, None).is_empty());

@@ -11,9 +11,9 @@
 //! ```
 
 /// Import the real conversion and the shared types.
-use super::{ShellBudget, ShellRuleSettings, shell_rule_settings};
+use super::{DEFAULT_MAX_LINES, ShellBudget, ShellRuleSettings, shell_rule_settings};
 use crate::diagnostic::Severity;
-use crate::shell_dialect::Construct;
+use crate::shell_dialect::{CONSTRUCTS, Construct};
 /// Import the repository's exact JSONC parser.
 use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 
@@ -47,7 +47,7 @@ fn defaults_are_two_lines_and_no_occurrences() {
         found.max_lines,
         Some(ShellBudget {
             severity: Severity::Error,
-            max: 2
+            max: DEFAULT_MAX_LINES
         })
     );
     assert_eq!(
@@ -78,11 +78,13 @@ fn explicit_max_is_read() {
 ///  and non-shell rules are ignored here.
 #[test]
 fn every_construct_rule_is_selectable() {
-    let found: ShellRuleSettings = settings(
-        r#"{"shell/no-pipe":{"severity":"error"},"shell/no-and-chain":{"severity":"error"},"shell/no-or-chain":{"severity":"error"},"shell/no-pipe-stderr":{"severity":"error"},"shell/no-semicolon":{"severity":"error"},"shell/no-dollar-paren":{"severity":"error"},"shell/no-backtick":{"severity":"error"},"shell/no-ampersand":{"severity":"error"},"rust/max-lines":{"severity":"error"}}"#,
-    )
-    .expect("settings");
-    assert_eq!(found.constructs.len(), 8);
+    let mut source: String = String::from("{");
+    for construct in CONSTRUCTS {
+        source.push_str(format!("\"{}\":{{\"severity\":\"error\"}},", construct.rule_id()).as_str());
+    }
+    source.push_str("\"rust/max-lines\":{\"severity\":\"error\"}}");
+    let found: ShellRuleSettings = settings(source.as_str()).expect("settings");
+    assert_eq!(found.constructs.len(), CONSTRUCTS.len());
     assert_eq!(found.max_lines, None);
 }
 

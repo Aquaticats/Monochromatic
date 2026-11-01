@@ -48,8 +48,8 @@ fn span(start: i32, end: i32) -> SearchHighlight {
 fn prompt_status_uses_review_copy() {
     let line: SearchStatusLine =
         search_status_line(&SearchState::EmptyQuery).expect("prompt has a status line");
-    assert_eq!(line.title, "Search your music");
-    assert_eq!(line.detail, Some("Type a name to explore your library."));
+    assert_eq!(line.title, SEARCH_PROMPT_TITLE);
+    assert_eq!(line.detail, Some(SEARCH_PROMPT_DETAIL));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -58,7 +58,7 @@ fn prompt_status_uses_review_copy() {
 fn empty_inventory_status_has_headline_only() {
     let line: SearchStatusLine =
         search_status_line(&SearchState::EmptyInventory).expect("inventory has a status line");
-    assert_eq!(line.title, "No music found in your audio library.");
+    assert_eq!(line.title, SEARCH_EMPTY_INVENTORY_TITLE);
     assert_eq!(line.detail, None);
 }
 
@@ -68,10 +68,10 @@ fn empty_inventory_status_has_headline_only() {
 fn unavailable_status_names_no_cause() {
     let line: SearchStatusLine =
         search_status_line(&SearchState::Unavailable).expect("unavailable has a status line");
-    assert_eq!(line.title, "Search is unavailable");
+    assert_eq!(line.title, SEARCH_UNAVAILABLE_TITLE);
     assert_eq!(
         line.detail,
-        Some("The current library can't be searched right now.")
+        Some(SEARCH_UNAVAILABLE_DETAIL)
     );
     assert!(!line.title.contains("Library unavailable"));
 }
@@ -82,8 +82,8 @@ fn unavailable_status_names_no_cause() {
 fn no_match_status_names_query() {
     let line: SearchStatusLine = search_status_line(&SearchState::NoMatch("zzq".to_string()))
         .expect("no match has a status line");
-    assert_eq!(line.title, "No results for \u{201C}zzq\u{201D}");
-    assert_eq!(line.detail, Some("Try another name."));
+    assert_eq!(line.title, format!("{SEARCH_NO_MATCH_PREFIX}zzq{SEARCH_NO_MATCH_SUFFIX}"));
+    assert_eq!(line.detail, Some(SEARCH_NO_MATCH_DETAIL));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -130,8 +130,8 @@ fn root_track_has_no_second_line() {
 fn root_track_semantics_names_no_library_root() {
     let semantics: SearchRowSemantics =
         search_row_semantics(&track_result("Night", None, 0), None, None, false);
-    assert_eq!(semantics.kind_label, "Track");
-    assert_eq!(semantics.action_label, "Select track");
+    assert_eq!(semantics.kind_label, SEARCH_TRACK_KIND);
+    assert_eq!(semantics.action_label, SEARCH_TRACK_SELECT_ACTION);
     assert_eq!(semantics.state_label, None);
 }
 
@@ -139,10 +139,10 @@ fn root_track_semantics_names_no_library_root() {
 // Why:      The kind is spoken once in the row (D77), so each kind needs its own word.
 #[test]
 fn kind_labels_name_folder_and_track() {
-    assert_eq!(search_row_kind_label(&folder_result("Camellia")), "Folder");
+    assert_eq!(search_row_kind_label(&folder_result("Camellia")), SEARCH_FOLDER_KIND);
     assert_eq!(
         search_row_kind_label(&track_result("Night", Some("Live"), 1)),
-        "Track"
+        SEARCH_TRACK_KIND
     );
 }
 
@@ -186,7 +186,7 @@ fn no_current_track_means_no_current_row() {
 fn folder_action_opens_without_autoplay() {
     assert_eq!(
         search_row_action_label(&folder_result("Camellia"), Some(2), Some(true), false),
-        "Open folder without autoplay"
+        SEARCH_FOLDER_ACTION
     );
 }
 
@@ -196,7 +196,7 @@ fn folder_action_opens_without_autoplay() {
 fn other_track_action_selects() {
     assert_eq!(
         search_row_action_label(&track_result("Night", Some("Live"), 1), Some(2), Some(true), false),
-        "Select track"
+        SEARCH_TRACK_SELECT_ACTION
     );
 }
 
@@ -206,7 +206,7 @@ fn other_track_action_selects() {
 fn playing_current_track_action_pauses() {
     assert_eq!(
         search_row_action_label(&track_result("Night", Some("Live"), 2), Some(2), Some(true), false),
-        "Pause track"
+        SEARCH_TRACK_PAUSE_ACTION
     );
 }
 
@@ -221,7 +221,7 @@ fn paused_current_track_action_plays() {
             Some(false),
             false
         ),
-        "Play track"
+        SEARCH_TRACK_PLAY_ACTION
     );
 }
 
@@ -231,7 +231,7 @@ fn paused_current_track_action_plays() {
 fn unknown_state_current_track_action_toggles() {
     assert_eq!(
         search_row_action_label(&track_result("Night", Some("Live"), 2), Some(2), None, false),
-        "Play or pause track"
+        SEARCH_TRACK_TOGGLE_ACTION
     );
 }
 
@@ -273,8 +273,8 @@ fn state_label_reports_playing_current_track() {
 fn semantics_bundle_combines_kind_action_and_state() {
     let semantics: SearchRowSemantics =
         search_row_semantics(&track_result("Night", Some("Live"), 2), Some(2), Some(true), false);
-    assert_eq!(semantics.kind_label, "Track");
-    assert_eq!(semantics.action_label, "Pause track");
+    assert_eq!(semantics.kind_label, SEARCH_TRACK_KIND);
+    assert_eq!(semantics.action_label, SEARCH_TRACK_PAUSE_ACTION);
     assert_eq!(semantics.state_label, Some("Current track, playing"));
 }
 
@@ -388,11 +388,11 @@ fn restored_results_start_at_first_index() {
 fn other_track_action_plays_with_auto_play_on() {
     assert_eq!(
         search_row_action_label(&track_result("Night", Some("Live"), 1), Some(2), Some(true), true),
-        "Play track"
+        SEARCH_TRACK_PLAY_ACTION
     );
     assert_eq!(
         search_row_semantics(&track_result("Night", Some("Live"), 1), None, None, true).action_label,
-        "Play track"
+        SEARCH_TRACK_PLAY_ACTION
     );
 }
 
@@ -402,10 +402,10 @@ fn other_track_action_plays_with_auto_play_on() {
 fn auto_play_does_not_change_the_folder_or_current_track_labels() {
     assert_eq!(
         search_row_action_label(&folder_result("Camellia"), Some(2), Some(true), true),
-        "Open folder without autoplay"
+        SEARCH_FOLDER_ACTION
     );
     assert_eq!(
         search_row_action_label(&track_result("Night", Some("Live"), 2), Some(2), Some(true), true),
-        "Pause track"
+        SEARCH_TRACK_PAUSE_ACTION
     );
 }

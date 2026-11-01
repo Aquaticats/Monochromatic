@@ -274,7 +274,7 @@ await describe({
             ]) {
               expect(() => parseLengthRoute({ pathname, },),).toThrow(BadRequestError,);
             }
-            expect(() => parseLengthRoute({ pathname: '/65', },),).toThrow('length must be between 1 and 64',);
+            expect(() => parseLengthRoute({ pathname: '/65', },),).toThrow(`length must be between 1 and ${MAX_RANDOM_LENGTH}`,);
           },
         },),
         it({

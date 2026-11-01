@@ -121,11 +121,11 @@ fn low_speed_defaults_never_override_the_environment() {
         vec![
             (
                 OsStr::new("GIT_HTTP_LOW_SPEED_LIMIT"),
-                Some(OsStr::new("1000"))
+                Some(OsStr::new(LOW_SPEED_LIMIT))
             ),
             (
                 OsStr::new("GIT_HTTP_LOW_SPEED_TIME"),
-                Some(OsStr::new("60"))
+                Some(OsStr::new(LOW_SPEED_TIME))
             ),
         ]
     );
@@ -139,7 +139,7 @@ fn low_speed_defaults_never_override_the_environment() {
         only_time,
         vec![(
             OsStr::new("GIT_HTTP_LOW_SPEED_TIME"),
-            Some(OsStr::new("60"))
+            Some(OsStr::new(LOW_SPEED_TIME))
         )]
     );
     let mut both: Command = Command::new("git");
@@ -161,7 +161,7 @@ fn low_speed_defaults_never_override_the_environment() {
         remaining,
         vec![(
             OsStr::new("GIT_HTTP_LOW_SPEED_LIMIT"),
-            Some(OsStr::new("1000"))
+            Some(OsStr::new(LOW_SPEED_LIMIT))
         )]
     );
 }
@@ -222,16 +222,17 @@ fn a_push_ended_by_a_signal_reports_one() {
 #[cfg(unix)]
 #[test]
 fn a_stalled_push_is_stopped_at_its_deadline() {
+    let deadline: Duration = Duration::from_millis(300);
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         shell("echo started; exec sleep 8"),
-        Duration::from_millis(300),
+        deadline,
         Duration::from_secs(10),
         scratch_environment().as_slice(),
     )
     .expect("runs");
     let elapsed: Duration = started.elapsed();
-    assert!(elapsed >= Duration::from_millis(300), "{elapsed:?}");
+    assert!(elapsed >= deadline, "{elapsed:?}");
     assert!(elapsed < Duration::from_secs(20), "{elapsed:?}");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
     assert!(
@@ -240,9 +241,13 @@ fn a_stalled_push_is_stopped_at_its_deadline() {
         attempt.output
     );
     assert!(
-        attempt
-            .output
-            .contains("did not finish within 0 seconds and was stopped"),
+        attempt.output.contains(
+            format!(
+                "did not finish within {} seconds and was stopped",
+                deadline.as_secs()
+            )
+            .as_str()
+        ),
         "{}",
         attempt.output
     );
@@ -278,16 +283,18 @@ fn a_silent_stalled_push_reports_only_the_reason() {
 #[cfg(unix)]
 #[test]
 fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
+    let deadline: Duration = Duration::from_millis(200);
+    let grace: Duration = Duration::from_millis(400);
     let started: Instant = Instant::now();
     let attempt: PushAttempt = run_bounded_push(
         shell("trap '' TERM; echo up; exec sleep 8"),
-        Duration::from_millis(200),
-        Duration::from_millis(400),
+        deadline,
+        grace,
         scratch_environment().as_slice(),
     )
     .expect("runs");
     let elapsed: Duration = started.elapsed();
-    assert!(elapsed >= Duration::from_millis(600), "{elapsed:?}");
+    assert!(elapsed >= deadline + grace, "{elapsed:?}");
     assert!(elapsed < Duration::from_secs(20), "{elapsed:?}");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
     assert!(attempt.output.starts_with("up\n"), "{}", attempt.output);
@@ -335,10 +342,10 @@ fn an_output_is_a_flood_only_past_the_cap() {
 #[cfg(unix)]
 #[test]
 fn a_flooding_push_is_stopped_and_its_output_capped() {
-    // The bound below is measured against the constant itself, so the constant's value is pinned here.
-    assert_eq!(MAX_PUSH_OUTPUT, 4_194_304);
+    // The producer writes twice the cap, so the case holds for any cap the constant takes.
+    let flood: String = format!("head -c {} /dev/zero; exec sleep 8", MAX_PUSH_OUTPUT * 2);
     let attempt: PushAttempt = run_bounded_push(
-        shell("head -c 20000000 /dev/zero; exec sleep 8"),
+        shell(flood.as_str()),
         Duration::from_secs(60),
         Duration::from_secs(10),
         scratch_environment().as_slice(),

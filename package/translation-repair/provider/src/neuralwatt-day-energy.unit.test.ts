@@ -19,6 +19,7 @@ import {
   energyOfDay,
   entryIsInDay,
   type NeuralWattDay,
+  NEURALWATT_UNREPORTED_ESTIMATE,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -56,7 +57,7 @@ function lineOf(
     model: 'glm-5.3-flash',
     wh,
     promptTokens: 90,
-    ...(estimated ? { estimated: 'unreported-estimate', } as const : {}),
+    ...(estimated ? { estimated: NEURALWATT_UNREPORTED_ESTIMATE, } as const : {}),
   };
 }
 

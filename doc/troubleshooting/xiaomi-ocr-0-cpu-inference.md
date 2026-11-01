@@ -298,6 +298,95 @@ and `fused_recurrent_gated_delta_rule`.
 The CPU test succeeded using those reference implementations.
 No optional GPU kernel packages were installed.
 
+### llama.cpp CPU run with a community GGUF
+
+On 2026-11-01 the same sample image and prompt were run through llama.cpp release `b9829`,
+the plain `llama-b9829-bin-ubuntu-x64.tar.gz` asset (SHA-256 `be52668d34106d1fccf4ddff63ad7be7c938c3cb3bdaf565eaeff01200810e5f`,
+equal to the digest the release lists),
+whose `llama-cli --version` prints `version: 9829 (27c8bb4f6)`.
+The weights are the community conversion `prithivMLmods/Xiaomi-OCR-0-GGUF` at revision
+`7bbfa072e0f3d70ac722e26fbccef5b9f64b7121`:
+`Xiaomi-OCR-0.Q4_K_M.gguf` (529297664 bytes) and `Xiaomi-OCR-0.mmproj-bf16.gguf` (207346624 bytes),
+fetched with `hf download --revision`,
+and both match the SHA-256 values the Hub listed.
+The Transformers run above used the original checkpoint in FP32;
+this run used a 4-bit quantized text model and a BF16 projector from a third party,
+which Xiaomi says it has not evaluated.
+
+The container was a rootless Podman container from a local copy of `docker.io/cachyos/cachyos-v4:latest`
+(created 2026-10-28),
+with GNU `time`,
+the release asset,
+the two GGUF files and the sample image baked in and nothing mounted.
+Its bounds were `--cpus 2`,
+`--memory 4g`,
+`--memory-swap 4g`,
+`--pids-limit 256`,
+`--blkio-weight 100` and `--network none`.
+The `llama-cli` flags were `--reasoning off --temp 0 --single-turn --simple-io --no-display-prompt --ctx-size 4096`,
+`--n-predict 256` and `--threads 2`,
+the command line documented in `package/mpm-shadow/cli/README.md`.
+The host was a Ryzen 9 7950X with 28 threads and a load average of 12 to 14 from other sessions,
+so the figures are single observations under that load.
+
+- Load:
+  `b9829` loaded both files and answered.
+  No newer tag was needed.
+- Output:
+  the three lines of text are identical to the Transformers output above,
+  byte for byte,
+  in every `--ctx-size 4096` run,
+  in the default-context run,
+  and in the run of the installed global command.
+  One image was tested.
+- Wall time,
+  three container runs with the same arguments:
+  11.93 s,
+  6.87 s and 6.49 s.
+  The first read about 366 MB from disk (715256 input blocks of 512 bytes) and the others read about 10 MB or less,
+  so 11.93 s is the cold-cache figure and the other two are warm.
+  The installed `llama-cpu-cli` on the host,
+  in a systemd scope with `CPUQuota=200%` and `MemoryMax=4G`,
+  took 6.97 s.
+- Against Transformers:
+  51.206 s for the whole script,
+  of which 41.107 s was model load and possible download.
+  Subtracting that load leaves 10.099 s for the Transformers prompt and 24 output tokens.
+  The log timestamps of one `llama-mtmd-cli` run (6.58 s wall) put the model and projector load at about 1.1 s,
+  the image encoding at 2.70 s and the decoding of the 496 image tokens at about 2.1 s,
+  which leaves about 0.6 s for the text tail of the prompt and the answer,
+  so about 5.5 s without the load.
+  `llama-cli` reports 98 to 107 tokens per second for the prompt and 48 to 68 for generation across its runs.
+- Peak memory,
+  maximum resident set size from GNU `time`:
+  1254952,
+  1271584 and 1273308 kB with `--ctx-size 4096`
+  (1.20 to 1.21 GiB),
+  and 1273668 kB for the installed command.
+  Without `--ctx-size` the CLI takes the model's own context length:
+  4384560 kB (4.18 GiB) under an 8 GiB cap,
+  and 4198752 kB with a 23.10 s wall time under a 4 GiB cap,
+  where the run sat at the limit.
+  The Transformers peak was not measured.
+- Differences:
+  the quantization and the converter are different from the original checkpoint,
+  and the llama.cpp output matched the Transformers output on this one image.
+  The `llama-mtmd-cli` log shows the prompt in chunks of 3,
+  496 and 13 tokens,
+  against 517 input tokens in total for Transformers,
+  and it warns that Qwen-VL models "require at minimum 1024 image tokens to function correctly on grounding tasks".
+  The warning concerns grounding,
+  and the extracted text matched on this image.
+- Flags:
+  `--reasoning off` gave the Transformers text,
+  while `--reasoning on` (positive control,
+  `--n-predict 48`) gave the same words joined into one line with ideographic full stops between them.
+  `llama-mtmd-cli`,
+  run without `--reasoning`,
+  printed an empty `<think>` block before the same text.
+  `llama-cli` at `b9829` refuses `--no-conversation` with "please use llama-completion instead",
+  and the run that carried it had written 16 GB to a redirected stdout when it was stopped after a few minutes.
+
 ### Recipe and documentation checks
 
 The exact `ocr.py` code block in `CPU-only setup` was extracted and executed in the capped container.
@@ -376,6 +465,8 @@ BF16 execution,
 general OCR accuracy,
 PDF processing,
 region detection,
-and the Ollama/llama.cpp alternatives were not measured.
+and the Ollama alternative were not measured.
+The llama.cpp run in `llama.cpp CPU run with a community GGUF` covers one image and one prompt,
+so its speed and its agreement with the Transformers output are single observations.
 Before claiming equivalent accuracy for a converted model,
 compare representative ground-truth images and outputs.

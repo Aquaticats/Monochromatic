@@ -3,6 +3,7 @@ import { join, } from 'node:path';
 import {
   createNeuralWattClient,
   createNeuralWattLedger,
+  NEURALWATT_DAILY_WH,
   type NeuralWattClient,
 } from '../dist/final/node/index.mjs';
 import type {
@@ -383,7 +384,7 @@ export function usageRowOf({
 export function scriptedClient(
   {
     dir,
-    dailyWh = 550,
+    dailyWh = NEURALWATT_DAILY_WH,
     chat = [{
       status: 200,
       bodyText: streamOf({ comments: ENERGY_COMMENT + FREE_COST_COMMENT, }),

@@ -37,7 +37,7 @@ fn pack_round_trips() {
 fn portal_value_maps_channels_into_the_unit_range() {
     assert_eq!(AccentColor::parse("FF0000").expect("FF0000 is a valid accent color").portal_value(), (1.0, 0.0, 0.0));
     let (red, green, blue) = AccentColor::parse("336699").expect("336699 is a valid accent color").portal_value();
-    assert_eq!((red * 255.0).round() as u8, 0x33);
-    assert_eq!((green * 255.0).round() as u8, 0x66);
-    assert_eq!((blue * 255.0).round() as u8, 0x99);
+    assert_eq!((red * CHANNEL_MAX).round() as u8, 0x33);
+    assert_eq!((green * CHANNEL_MAX).round() as u8, 0x66);
+    assert_eq!((blue * CHANNEL_MAX).round() as u8, 0x99);
 }

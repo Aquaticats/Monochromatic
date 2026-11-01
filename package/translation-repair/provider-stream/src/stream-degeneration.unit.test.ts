@@ -24,7 +24,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { watchForDegeneration, } from '../dist/final/node/index.mjs';
+import { DEGENERATE_RATIO, TRAILING_WINDOWS, watchForDegeneration, } from '../dist/final/node/index.mjs';
 
 /**
  Feeds text to a fresh detector and reads what it says.
@@ -147,7 +147,7 @@ await describe({
         expect(verdict.kind,).toBe('degenerate',);
         if (verdict.kind !== 'degenerate')
           throw new Error('degenerate by construction',);
-        expect(verdict.distinctRatio,).toBeLessThan(0.1,);
+        expect(verdict.distinctRatio,).toBeLessThan(DEGENERATE_RATIO,);
         expect(verdict.charsSeen,).toBeGreaterThan(0,);
       },
     },),
@@ -349,7 +349,7 @@ await describe({
         expect(verdict.kind,).toBe('healthy',);
         if (verdict.kind !== 'healthy')
           throw new Error('healthy by construction',);
-        expect(verdict.windows,).toBe(4_096,);
+        expect(verdict.windows,).toBe(TRAILING_WINDOWS,);
       },
     },),
 

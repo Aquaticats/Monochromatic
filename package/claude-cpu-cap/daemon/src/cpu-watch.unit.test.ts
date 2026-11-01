@@ -8,6 +8,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { DEFAULT_IO_WEIGHT, PERIOD_USEC, } from './constants.ts';
 import { makeHost, } from './test-fixture.ts';
 
 /**
@@ -68,10 +69,10 @@ await describe({
         expect(text,).toContain('CAP-APPLIED',);
         expect(text,).toContain('IO-WEIGHT-APPLIED',);
         expect(text,).toContain('WATCHER-STOPPED',);
-        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe(`${28 * PERIOD_USEC} ${PERIOD_USEC}`,);
         // Both weight files of the fixture were written; the live cgroup is never touched by this test.
-        expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe('default 10',);
-        expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe('default 10',);
+        expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
+        expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
       },
     },),
   ],

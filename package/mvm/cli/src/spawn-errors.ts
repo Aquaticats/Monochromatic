@@ -9,7 +9,7 @@
 /**
  Longest argument shown in full in a message or log line; guest agent requests can carry megabytes.
  */
-const SHOWN_ARGUMENT_CHARACTERS = 300;
+export const SHOWN_ARGUMENT_CHARACTERS = 300;
 
 /**
  Renders a command and its arguments for a message or log line.

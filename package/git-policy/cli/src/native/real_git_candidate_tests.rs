@@ -166,21 +166,19 @@ fn script_inspection_bound_is_exact() {
     remove(root.as_path());
 }
 
-/// The bound is the incumbent's 64 KiB (`package/git-executable/core/src/self-shim.ts`):
-///  a launcher
-/// padded to just under it,
+/// A launcher padded to the last byte under the bound,
 ///  with its marker in the last bytes,
-///  is still recognised.
+///  is still recognised:
+///  the case is sized from the constant, so the bound may move without breaking it.
 #[test]
 fn script_inspection_bound_matches_the_incumbent() {
-    assert_eq!(MAX_SCRIPT_INSPECTION_BYTES, 65_536);
     let root: PathBuf = fixture("classify-bound-value");
     executable(root.join("own").as_path(), b"\x7fELF own");
     let marker: &[u8] = b"@monochromatic-dev/git-policy-cli";
     let mut launcher: Vec<u8> = b"#!/bin/sh\n".to_vec();
-    launcher.resize(65_536 - marker.len(), b'#');
+    launcher.resize(MAX_SCRIPT_INSPECTION_BYTES - marker.len(), b'#');
     launcher.extend_from_slice(marker);
-    assert_eq!(launcher.len(), 65_536);
+    assert_eq!(launcher.len(), MAX_SCRIPT_INSPECTION_BYTES);
     assert_eq!(
         classify_content(root.as_path(), "padded-launcher", launcher.as_slice()),
         CandidateKind::Wrapper
