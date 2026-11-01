@@ -182,8 +182,8 @@ GitHub's limits on deleting and restoring a package
 ([deleting and restoring a package][deleting-doc]):
 
 - "You cannot delete a public package if any version of the package has more than 5,000 downloads."
-  Once the package is public and pulled that often,
-  deleting it is no longer possible without GitHub's help.
+  Once the package is public and a version crosses that count,
+  the package can no longer be deleted.
 - A deleted package can be restored only "within 30 days of its deletion",
   and only if "The same package namespace is still available and not used for a new package."
 - A package created again after a deletion is a new package,
