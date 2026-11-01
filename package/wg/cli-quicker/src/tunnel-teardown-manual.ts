@@ -1,6 +1,7 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
+import { shellQuote, } from './shell-quote.ts';
 import { bypassStatePath, } from './tunnel-bypass-path.ts';
 import { readFwmark, } from './tunnel-fwmark.ts';
 import { trafficBlockTable, } from './tunnel-traffic-block.ts';
@@ -146,16 +147,26 @@ export function manualFinishSteps(
     policyTable,
   } = facts;
   /**
-   Record of the route watcher,
-   next to the state file.
+   Interface name as a word of a command.
    */
-  const watcherRecord = `${statePath}.watcher.json`;
+  const iface = shellQuote({ value: interfaceName, },);
+  /**
+   State file as a word of a command.
+   */
+  const state = shellQuote({ value: statePath, },);
+  /**
+   Record of the route watcher,
+   next to the state file,
+   as a word of a command.
+   */
+  const watcherRecord = shellQuote({ value: `${statePath}.watcher.json`, },);
   /**
    Commands that remove the policy rules of the tunnel.
    */
   const policyRules = policyTable === undefined
     ? [
-      `  sudo wg show ${interfaceName} fwmark    (if it prints a number, that is the policy table; run \`sudo ip -4 rule delete table <number>\` and \`sudo ip -6 rule delete table <number>\`; if it prints off, skip this step)`,
+      '  # the next command prints the policy table, or off; if it prints a number, run `sudo ip -4 rule delete table <number>` and `sudo ip -6 rule delete table <number>`; if it prints off, skip them',
+      `  sudo wg show ${iface} fwmark`,
     ]
     : [
       `  sudo ip -4 rule delete table ${String(policyTable,)}`,
@@ -163,25 +174,28 @@ export function manualFinishSteps(
     ];
   return [
     'to look at what could not be read:',
-    `  sudo cat ${statePath}`,
+    `  sudo cat ${state}`,
     '  sudo ip -4 rule show',
     '  sudo ip -6 rule show',
     `if the state file is damaged, move it away and run \`wg-quicker down ${interfaceName}\` again; wg-quicker then forgets the bypass rules and routes the file owned, and the block lets nothing through because no exceptions are known:`,
-    `  sudo mv ${statePath} ${statePath}.damaged`,
+    `  sudo mv ${state} ${shellQuote({ value: `${statePath}.damaged`, },)}`,
     'to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs; none needs the state file):',
-    `  sudo ${companionPath} watch-stop ${interfaceName}`,
-    `  sudo cat ${watcherRecord}    (the \`pid\` field is the route watcher; stop it with \`sudo kill <pid>\`)`,
+    `  sudo ${shellQuote({ value: companionPath, },)} watch-stop ${iface}`,
+    '  # the `pid` field of the next record is the route watcher; stop it with `sudo kill <pid>`',
+    `  sudo cat ${watcherRecord}`,
     ...policyRules,
     '  sudo ip -4 rule delete table main suppress_prefixlength 0',
     '  sudo ip -6 rule delete table main suppress_prefixlength 0',
-    `  sudo nft delete table inet wg-quicker-${interfaceName}`,
-    `  sudo ip link delete dev ${interfaceName}`,
-    `  sudo resolvectl revert ${interfaceName}    (only when the config sets DNS)`,
-    `  sudo nft delete table inet ${trafficBlockTable({ interfaceName, },)}    (only when a block of an earlier attempt stands)`,
+    `  sudo nft delete table inet ${shellQuote({ value: `wg-quicker-${interfaceName}`, },)}`,
+    `  sudo ip link delete dev ${iface}`,
+    '  # only when the config sets DNS',
+    `  sudo resolvectl revert ${iface}`,
+    '  # only when a block of an earlier attempt stands',
+    `  sudo nft delete table inet ${shellQuote({ value: trafficBlockTable({ interfaceName, },), },)}`,
     'the bypass rules and routes carry protocol 201 and are not removed by those commands: list them with `sudo ip -4 rule show` and `sudo ip -6 rule show`,',
     'and for each line that ends in `proto 201` run `sudo ip -4 rule delete pref <pref> protocol 201` (with `-6` for IPv6) and `sudo ip -4 route flush table <table> protocol 201`, where the table is the number after `lookup`',
     'last, remove the records of the tunnel:',
-    `  sudo rm --force ${statePath} ${watcherRecord}`,
+    `  sudo rm --force ${state} ${watcherRecord}`,
   ];
 }
 

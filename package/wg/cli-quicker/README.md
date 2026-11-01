@@ -10,6 +10,19 @@ wg-quicker down wg0
 
 A bare interface name resolves to `/etc/wireguard/<name>.conf`.
 An explicit `.conf` path is also accepted.
+The interface name (the bare name,
+or the file name without `.conf`) becomes part of commands,
+file names and nft table names,
+so it is checked at the command line,
+before `sudo` is asked for and before anything is read:
+1 to 15 characters (Linux's limit) from letters,
+digits and `_ = + . -`,
+not starting with `-` and not `.` or `..`.
+Any other name,
+such as one with a space,
+a quote,
+a `;` or a `$(...)`,
+is refused with an error that shows the name.
 
 When invoked as non-root,
 `wg-quicker` relaunches exact current Node executable and CLI bundle through `sudo` before reading config.
@@ -633,15 +646,18 @@ if the state file is damaged, move it away and run `wg-quicker down fr-par-fr1` 
   sudo mv /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.damaged
 to take the tunnel down by hand instead, run these in order (each is what wg-quicker itself runs; none needs the state file):
   sudo <path of wg-quicker-exempt> watch-stop fr-par-fr1
-  sudo cat /run/wg-quicker/interface-<key>.json.watcher.json    (the `pid` field is the route watcher; stop it with `sudo kill <pid>`)
+  # the `pid` field of the next record is the route watcher; stop it with `sudo kill <pid>`
+  sudo cat /run/wg-quicker/interface-<key>.json.watcher.json
   sudo ip -4 rule delete table <policy table>
   sudo ip -6 rule delete table <policy table>
   sudo ip -4 rule delete table main suppress_prefixlength 0
   sudo ip -6 rule delete table main suppress_prefixlength 0
   sudo nft delete table inet wg-quicker-fr-par-fr1
   sudo ip link delete dev fr-par-fr1
-  sudo resolvectl revert fr-par-fr1    (only when the config sets DNS)
-  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked    (only when a block of an earlier attempt stands)
+  # only when the config sets DNS
+  sudo resolvectl revert fr-par-fr1
+  # only when a block of an earlier attempt stands
+  sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
 ...the bypass rules and routes that carry protocol 201 (the message says how to find and remove them)
   sudo rm --force /run/wg-quicker/interface-<key>.json /run/wg-quicker/interface-<key>.json.watcher.json
 ```
@@ -653,6 +669,15 @@ and the real policy table,
 read from `wg show <interface> fwmark`;
 where a value cannot be read,
 the line says where to read it instead of inventing one.
+Every value that goes into a command is shell-quoted,
+so a path with a space,
+a quote,
+a `;`,
+a `$(...)` or a newline is still one word when the line is pasted into bash,
+zsh or ksh,
+and the printed lines hold no control character or line break (a control character is written as an escape in the `$'...'` form).
+Remarks stand on lines of their own that begin with `#`,
+so that every command line can be pasted whole.
 Each command is the one `wg-quicker` itself runs for that step,
 and none needs the state file.
 
