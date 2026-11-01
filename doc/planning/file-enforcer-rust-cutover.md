@@ -1449,6 +1449,22 @@ This note is written before the install and is completed after it.
   that the real lock needs;
   and the installed `mpm-shadow` 0.2.2 is used through `mise run toolchain:install:global`,
   because its tag (`monochromatic-mpm-shadow-v0.2.2`) contains commit `7c7ca78478`.
+- The old-format lock blocks every command, found 2026-11-01.
+  With `toolchain.plan.jsonc` in place beside the old `toolchain.lock.json`,
+  `mpm-shadow list --global` (read-only) prints
+  `tools.bin.request must be a string, found an object` and exits 2:
+  the lock reader rejects the old object-valued `request` before any comparison,
+  so neither `install` nor `update` can replace that lock,
+  and the procedure's step 6 ("the old lock is replaced") was wrong.
+  The old lock has to be moved aside after the backup (the `.pre-cutover` copy, sha256 verified equal) exists,
+  and then the first `install --global` finds no lock and resolves and writes the whole one.
+  The move was attempted at the point the install was due and refused by the session's permission classifier
+  (reason given: irreversible local destruction, for both `rm` and `mv`),
+  so the install has not run.
+  State at the pause:
+  the five originals are untouched,
+  the five backups and the new plan are beside them,
+  and nothing under `~/.local/share/monochromatic-dev` changed.
 
 ### Global plan backup and conversion procedure
 
@@ -1542,12 +1558,17 @@ or the binary built by `mise run //package/mpm-shadow/cli:build`).
     `install -m 0600 S/toolchain.plan.jsonc D/toolchain.plan.jsonc`.
     `D` now holds both formats;
     the old files stay untouched.
-6.  Write the real lock:
-    `MS update --global`
+6.  Write the real lock.
+    First move the old lock aside:
+    `MS` refuses the old lock's shape
+    (`tools.bin.request must be a string, found an object`, exit 2),
+    so it cannot be replaced in place;
+    `mv --no-clobber D/toolchain.lock.json D/toolchain.lock.json.old-format`
+    after step 2's hashes matched
+    (the `.pre-cutover` copy is the record).
+    Then `MS update --global`
     (real environment).
-    It reads `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`
-    (the old lock is replaced;
-    the `.pre-cutover` copy is the old one).
+    It reads `D/toolchain.plan.jsonc` and writes `D/toolchain.lock.json`.
     Export `GITHUB_TOKEN` first to avoid API rate limits.
     It is not purely a lookup in the real environment:
     when an npm or PyPI lookup fails for a tool that is in the lock but not installed,
