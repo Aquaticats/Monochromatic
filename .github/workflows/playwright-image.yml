@@ -13,8 +13,9 @@ name: playwright-image
 #   this repository by the org.opencontainers.image.source label; a new package is private until the owner makes it
 #   public in its package settings (Danger Zone, Change visibility), which GitHub offers nowhere else. While it is
 #   private, the last step of every run says so in a warning.
-# - The image is linux/amd64, the runner's architecture; a machine of another architecture pulls nothing and builds
-#   locally.
+# - The image is linux/amd64, the runner's architecture. `mise run prepare:playwright` pulls it only on a machine that
+#   reports linux/amd64 and builds locally on any other, because podman pulls a single-platform image of another
+#   platform with only a warning.
 # - Only runs on main publish. A workflow_dispatch from another ref skips the job, and the concurrency group is per ref
 #   so such a run cannot cancel or delay a run on main. The guard lives in this file, so a branch that edits the file
 #   is not stopped by it (doc/runbook/publish-playwright-image.md says what would be).
