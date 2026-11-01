@@ -25,6 +25,7 @@ import {
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import {
+  backfillWordsOf,
   judgeSeatsFor,
   reachableSeats,
 } from '@monochromatic-dev/translation-repair-run';
@@ -156,16 +157,17 @@ const DRY_HOLD_MS = 300_000;
 const SHORT_HOLD_MS = 40;
 
 /**
- Synthetic, Bedrock and DeepSeek wet, Hyper and OpenRouter dry: a view under which the lanes phase finds benches short
- (the editors and the refiners) and the translate lane finds none (measured over all 256 views on 2026-10-29: six
- views are so, this one the nearest to the one measured over sixteen on 2026-09-28). Synthetic and Bedrock alone are
- not, since Qwen3.8-27B left the select judges on 2026-10-29: the select bench then reads 3 of 7 against a quorum of
- 4, where it read 4 of 8 before.
+ DeepSeek alone wet: the writing benches of the lanes stand under their floor, and so do the translators of the translate
+ lane, whatever the role order adds, since DeepSeek serves one seat of each. A view under which the lanes phase finds the
+ editors and the refiners short and the translate lane finds nothing short stood here until the owner's answer of
+ 2026-11-01 ("Backfill, and add sonnet"): Synthetic, Bedrock and DeepSeek wet was one of six such views over all 256
+ (measured on 2026-10-29), and over all 256 none is now, since the role order fills the editors and refiners from every
+ provider that serves the translators.
  */
-const HYPER_AND_OPENROUTER_DRY: BudgetView = {
+const DEEPSEEK_ALONE: BudgetView = {
   neuralwatt: true,
-  synthetic: false,
-  bedrock: false,
+  synthetic: true,
+  bedrock: true,
   deepseek: false,
   xiaomi: true,
   anthropic: true,
@@ -351,6 +353,31 @@ function budgetsClient(
 }
 
 /**
+ What the chunk line says of the writing benches under one view: the editors and the refiners the reading derives, then the
+ seats it took from the owner's role order.
+
+ @param view - dryness the reading was taken under
+
+ @returns The words the line ends with
+
+ @example
+ ```ts
+ const words = writingBenchWords({ view: BEDROCK_AND_OPENROUTER, },);
+ ```
+ */
+function writingBenchWords(
+  { view, }: { readonly view: BudgetView; },
+): string {
+  /**
+   Seats the view derives.
+   */
+  const seats = judgeSeatsFor({ dry: view, },);
+  return ` editors=${seats.repairModels.editorModelIds.join(',',)} refiners=${
+    seats.repairModels.refinerModelIds.join(',',)
+  } backfilled-by-role-order=${backfillWordsOf({ backfilled: seats.backfilled, },)}`;
+}
+
+/**
  Entry the attempt cases name as their entry.
  */
 const HOOK_ENTRY = 'mittens';
@@ -501,14 +528,14 @@ await describe({
             },),).toEqual([
               'JUDGE SEATS phase=lanes chunk re-seated under a hold: '
                 + 'checkers=google.gemma-4-31b,xiaomi/mimo-v2.6-flash,hf:moonshotai/Kimi-K3 '
-                + 'unserved-checkers=xiaomi/mimo-v2.6-flash,hf:moonshotai/Kimi-K3',
+                + `unserved-checkers=xiaomi/mimo-v2.6-flash,hf:moonshotai/Kimi-K3${writingBenchWords({ view: NEURALWATT_AND_BEDROCK, },)}`,
             ],);
             expect(servedLines.filter(function isChunkLine(line,): boolean {
               return line.includes('chunk re-seated under a hold',);
             },),).toEqual([
               `JUDGE SEATS phase=lanes chunk re-seated under a hold: checkers=${
                 [SEAT_OPENROUTER_ONLY_CHECKER, SEAT_BEDROCK_ONLY_VISION_UNSEATED, SEAT_OPENROUTER_ONLY,].join(',',)
-              } unserved-checkers=none`,
+              } unserved-checkers=none${writingBenchWords({ view: BEDROCK_AND_OPENROUTER, },)}`,
             ],);
           },
         },),
@@ -846,38 +873,32 @@ await describe({
           },
         },),
         it({
-          name: 'READS EACH LANE UNDER ITS OWN PHASE: with Hyper and OpenRouter dry and Hyper held, the editors and '
-            + 'refiners the lanes phase leans on are short while the translate lane\'s translators and select judges '
-            + 'are not, so the translate lane seats on one read and the repair lane waits the hold out and stops the '
-            + 'entry',
+          name: 'READS EACH LANE UNDER ITS OWN PHASE: with DeepSeek alone wet and Hyper held, the translate lane stops the '
+            + 'entry on its translators at its own phase and the repair lane on its editors at the lanes phase. Before the '
+            + 'owner\'s answer of 2026-11-01 ("Backfill, and add sonnet") a view with Synthetic wet left the editors '
+            + 'and refiners short while the translators and select judges were not, and no view does now: the role '
+            + 'order fills the editors and refiners from every provider that serves the translators',
           fn: async () => {
-            const rig = viewClient({ view: HYPER_AND_OPENROUTER_DRY, holdEndsAtRead: 3, },);
-            rig.holds.hyper = SHORT_HOLD_MS;
-            const hooks = lanesHooksFor({
-              client: rig.client,
+            // ONE RIG FOR EACH LANE: the reading that waits out a hold ends it, so a second lane on the same rig would
+            // find no hold running and be handed the seating it started with.
+            const translateRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: 3, },);
+            translateRig.holds.hyper = SHORT_HOLD_MS;
+            const repairRig = viewClient({ view: DEEPSEEK_ALONE, holdEndsAtRead: 3, },);
+            repairRig.holds.hyper = SHORT_HOLD_MS;
+            await expect(lanesHooksFor({
+              client: translateRig.client,
               signal: new AbortController().signal,
               entryId: 'mittens',
-            },);
-            /**
-             Seating the translate lane takes under the hold.
-             */
-            const translate = await hooks.beforeSlice({ lane: 'translate', },);
-            /**
-             Dryness reads the translate lane's seating took.
-             */
-            const translateReads = rig.counter.reads;
-            await expect(hooks.beforeSlice({ lane: 'repair', },),)
+            },).beforeSlice({ lane: 'translate', },),)
+              .rejects
+              .toThrow('writing bench unreachable at translate lane: translators',);
+            await expect(lanesHooksFor({
+              client: repairRig.client,
+              signal: new AbortController().signal,
+              entryId: 'mittens',
+            },).beforeSlice({ lane: 'repair', },),)
               .rejects
               .toThrow('writing bench unreachable at lanes: editors',);
-            expect({
-              translateSeated: translate.translateModels !== undefined,
-              translateReads,
-              repairReads: rig.counter.reads - translateReads,
-            },).toEqual({
-              translateSeated: true,
-              translateReads: 1,
-              repairReads: 2,
-            },);
           },
         },),
       ],

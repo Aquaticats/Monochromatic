@@ -42,7 +42,7 @@ import {
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-stage/ts/stage-settings.test-fixture.ts';
 import {
-  BEDROCK_ALONE_STOP_LINE,
+  DEEPSEEK_ALONE_STOP_LINE,
   stopLandingSeatReading,
 } from './stop-landing-hook.test-fixture.ts';
 
@@ -221,14 +221,14 @@ await describe({
         expect(lines.filter(function warnedOrWorse(line,): boolean {
           return line.startsWith('warn ',) || line.startsWith('error ',);
         },),).toEqual([
-          `error ${BEDROCK_ALONE_STOP_LINE}`,
+          `error ${DEEPSEEK_ALONE_STOP_LINE}`,
           'warn chunk 0: abandoned by the caller\'s abort',
         ],);
         // The refusal's own words, at any level, stand on the reading's line
         // alone.
         expect(lines.filter(function namesTheRefusal(line,): boolean {
-          return line.includes('editors 0 of 4 reachable',);
-        },),).toEqual([`error ${BEDROCK_ALONE_STOP_LINE}`,],);
+          return line.includes('writing bench unreachable',);
+        },),).toEqual([`error ${DEEPSEEK_ALONE_STOP_LINE}`,],);
       },
     },),
   ],
