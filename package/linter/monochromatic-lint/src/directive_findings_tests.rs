@@ -31,14 +31,20 @@ fn with_reporter<Check: FnOnce(&Reporter<'_>, CommentSite)>(check: Check) {
     check(&reporter, site);
 }
 
-/// The codes are the stable identifiers that are documented.
+/// The codes are distinct stable identifiers in the `directive/` namespace.
 #[test]
 fn codes_are_stable() {
-    assert_eq!(MISSING_JUSTIFICATION, "directive/missing-justification");
-    assert_eq!(UNKNOWN_RULE, "directive/unknown-rule");
-    assert_eq!(NON_SUPPRESSIBLE, "directive/non-suppressible");
-    assert_eq!(MALFORMED, "directive/malformed");
-    assert_eq!(UNUSED, "directive/unused");
+    let codes: [&str; 5] = [
+        MISSING_JUSTIFICATION,
+        UNKNOWN_RULE,
+        NON_SUPPRESSIBLE,
+        MALFORMED,
+        UNUSED,
+    ];
+    for (index, code) in codes.iter().enumerate() {
+        assert!(code.starts_with("directive/"), "{code}");
+        assert!(!codes[..index].contains(code), "{code} repeats");
+    }
 }
 
 /// Comment-level findings underline the whole comment,

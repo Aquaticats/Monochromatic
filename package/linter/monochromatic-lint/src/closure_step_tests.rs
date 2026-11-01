@@ -14,6 +14,7 @@
 //! ```
 
 use super::{ClosureOutcome, run_closure_step_at, run_closure_step_with, with_messages};
+use crate::closure_findings::RULE;
 use crate::{
     closure_driver::DriverSite,
     closure_manifest::PREREQUISITES_FILE,
@@ -107,7 +108,7 @@ fn a_report_becomes_a_finding() {
     let finding = &outcome.findings[0];
     assert_eq!(
         (finding.code.as_str(), finding.severity),
-        ("rust/avoidable-closure", Severity::Warn)
+        (RULE, Severity::Warn)
     );
     assert_eq!(finding.filename, "my pkg/src/lib.rs");
     assert_eq!(

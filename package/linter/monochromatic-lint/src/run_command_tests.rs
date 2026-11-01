@@ -14,6 +14,7 @@
 //! ```
 
 /// Import the shared invocation fixtures.
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_output::RunOutput;
 use crate::run_test_support::{ALL_RULES, CONFIG, codes, read, records, run, write};
 use crate::test_fs::Fixture;
@@ -420,7 +421,7 @@ fn processing_failures_exit_two_and_do_not_hide_other_findings() {
         codes(output.stdout.as_str()),
         [
             "markdown/no-trailing-punctuation",
-            "core/processing-failure"
+            PROCESSING_FAILURE
         ]
     );
     assert_eq!(filenames(output.stdout.as_str()), ["a.md", "broken.mdx"]);

@@ -27,6 +27,11 @@ pub mod config_merge;
 /// Accepted command grammar with native path values.
 #[doc(hidden)]
 pub mod cli_options;
+/// The diagnostic code the closure check reports,
+///  exported so the executable's black-box tests need not repeat the string.
+#[doc(hidden)]
+pub use closure_findings::RULE as CLOSURE_RULE;
+
 /// The `cargo` processes of the closure check.
 mod closure_cargo;
 /// The offline check that the Dylint driver exists or can be built from the cargo cache.

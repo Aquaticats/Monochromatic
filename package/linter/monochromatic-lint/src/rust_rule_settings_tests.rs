@@ -11,7 +11,7 @@
 
 /// Import the real conversion,
 ///  shared diagnostics and syntax dispatcher.
-use super::{LineBudget, RustRuleSettings, rust_rule_settings};
+use super::{DEFAULT_MAX_LINES, LineBudget, RustRuleSettings, rust_rule_settings};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::rust_dispatch::check_syntax_rules;
 use crate::rust_source::RustSource;
@@ -77,7 +77,7 @@ fn selected_rules_receive_typed_options() {
         settings(r#"{"rust/max-lines":{"severity":"error"}}"#).max_lines,
         Some(LineBudget {
             severity: Severity::Error,
-            max: 300
+            max: DEFAULT_MAX_LINES
         })
     );
 }

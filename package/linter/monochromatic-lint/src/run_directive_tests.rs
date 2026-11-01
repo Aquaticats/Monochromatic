@@ -17,8 +17,10 @@
 ///  planner,
 ///  command runner and fixtures.
 use crate::diagnostic::{Diagnostic, Severity};
+use crate::directive_findings::{MISSING_JUSTIFICATION, NON_SUPPRESSIBLE, UNUSED};
 use crate::directive_options::DirectiveOptions;
 use crate::run_check::HostChecker;
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_lfs::LfsRepos;
 use crate::run_output::RunOutput;
 use crate::run_plan::FilePlan;
@@ -65,6 +67,11 @@ fn located(found: &[Diagnostic]) -> Vec<String> {
     return lines;
 }
 
+/// One expected finding: the diagnostic code and the source line that carries it.
+fn expected(code: &str, line: usize) -> String {
+    return format!("{code}@{line}")
+}
+
 /// A real Rust rule is suppressed at the line it reports,
 ///  which for an inline test module is the line of the module name,
 ///  and a directive on any other line leaves it.
@@ -73,12 +80,12 @@ fn real_rust_rule_findings_follow_the_reported_line() {
     let fixture: Fixture = Fixture::new();
     let bare: &str = "#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n";
     let control: Vec<Diagnostic> = check(&fixture.path, RULES, "a.rs", bare, None);
-    assert_eq!(located(&control), ["rust/tests-in-sidecars@2"]);
+    assert_eq!(located(&control), [expected("rust/tests-in-sidecars", 2)]);
     let covered: &str = "#[cfg(test)]\n// monochromatic-lint-disable-next-line rust/tests-in-sidecars -- generated\nmod tests {\n    #[test]\n    fn t() {}\n}\n";
     assert!(check(&fixture.path, RULES, "a.rs", covered, Some(Severity::Error)).is_empty());
     let too_early: &str = "// monochromatic-lint-disable-next-line rust/tests-in-sidecars -- generated\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n";
     let missed: Vec<Diagnostic> = check(&fixture.path, RULES, "a.rs", too_early, None);
-    assert_eq!(located(&missed), ["rust/tests-in-sidecars@3"]);
+    assert_eq!(located(&missed), [expected("rust/tests-in-sidecars", 3)]);
 }
 
 /// Markdown findings inside rustdoc are positioned in the Rust host,
@@ -88,7 +95,7 @@ fn rustdoc_markdown_findings_are_covered_by_the_rust_hosts_directives() {
     let fixture: Fixture = Fixture::new();
     let control: &str = "//! File.\n\n/// See https://example.com/a for details.\nfn item() {}\n";
     let uncovered: Vec<Diagnostic> = check(&fixture.path, RULES, "lib.rs", control, None);
-    assert_eq!(located(&uncovered), ["markdown/no-bare-urls@3"]);
+    assert_eq!(located(&uncovered), [expected("markdown/no-bare-urls", 3)]);
     let covered: &str = "//! File.\n\n// monochromatic-lint-disable-next-line markdown/no-bare-urls -- r\n/// See https://example.com/a for details.\nfn item() {}\n";
     assert!(
         check(
@@ -110,7 +117,7 @@ fn rustdoc_markdown_findings_are_covered_by_the_rust_hosts_directives() {
         inside,
         Some(Severity::Error),
     );
-    assert_eq!(located(&still), ["markdown/no-bare-urls@4"]);
+    assert_eq!(located(&still), [expected("markdown/no-bare-urls", 4)]);
 }
 
 /// Rust inside a Markdown fence is virtual:
@@ -128,17 +135,17 @@ fn virtual_rust_in_markdown_fences_is_not_suppressible() {
         fence,
         Some(Severity::Error),
     );
-    assert_eq!(located(&found), ["rust/require-rustdoc@6"]);
+    assert_eq!(located(&found), [expected("rust/require-rustdoc", 6)]);
     let outside: &str = "# Title\n\n<!-- monochromatic-lint-disable-next-line rust/require-rustdoc -- r -->\n```rust\nlet value = 1;\n```\n";
     let refused: Vec<Diagnostic> = check(&fixture.path, RULES, "doc/a.md", outside, None);
     assert_eq!(
         located(&refused),
-        ["rust/require-rustdoc@5", "directive/non-suppressible@3"]
+        [expected("rust/require-rustdoc", 5), expected(NON_SUPPRESSIBLE, 3)]
     );
     let bare: &str =
         "# Title\n\n<!-- monochromatic-lint-disable -- r -->\n```rust\nlet value = 1;\n```\n";
     let kept: Vec<Diagnostic> = check(&fixture.path, RULES, "doc/a.md", bare, None);
-    assert_eq!(located(&kept), ["rust/require-rustdoc@5"]);
+    assert_eq!(located(&kept), [expected("rust/require-rustdoc", 5)]);
 }
 
 /// Markdown directives cover real Markdown rules,
@@ -148,10 +155,10 @@ fn real_markdown_rule_findings_are_covered() {
     let fixture: Fixture = Fixture::new();
     let source: &str = "# Title\n\n<!-- monochromatic-lint-disable-next-line markdown/no-bare-urls -- legacy -->\nSee http://a.example now.\nSee http://b.example now.\n";
     let found: Vec<Diagnostic> = check(&fixture.path, RULES, "a.md", source, None);
-    assert_eq!(located(&found), ["markdown/no-bare-urls@5"]);
+    assert_eq!(located(&found), [expected("markdown/no-bare-urls", 5)]);
     let fenced: &str = "# Title\n\n```text\n<!-- monochromatic-lint-disable-next-line markdown/no-bare-urls -- r -->\n```\nSee http://a.example now.\n";
     let kept: Vec<Diagnostic> = check(&fixture.path, RULES, "a.md", fenced, None);
-    assert_eq!(located(&kept), ["markdown/no-bare-urls@6"]);
+    assert_eq!(located(&kept), [expected("markdown/no-bare-urls", 6)]);
 }
 
 /// A host whose rules never ran for lack of a semantic engine reports a processing failure,
@@ -168,7 +175,7 @@ fn processing_failures_survive_directives() {
         source,
         Some(Severity::Error),
     );
-    assert_eq!(located(&found), ["core/processing-failure@1"]);
+    assert_eq!(located(&found), [expected(PROCESSING_FAILURE, 1)]);
 }
 
 /// The semantic rule's findings pass through the same filter as every other rule's,
@@ -199,12 +206,12 @@ fn semantic_findings_follow_the_same_directive_rules() {
     let mut checker: HostChecker<'_> = HostChecker::new(&planned, &lfs, Some(&mut engine));
     let control: Vec<Diagnostic> =
         checker.check_snapshot("fn main() {\n    let value = 1_u16;\n}\n");
-    assert_eq!(located(&control), ["rust/require-explicit-types@2"]);
+    assert_eq!(located(&control), [expected("rust/require-explicit-types", 2)]);
     let covered: &str = "fn main() {\n    // monochromatic-lint-disable-next-line rust/require-explicit-types -- r\n    let value = 1_u16;\n    // monochromatic-lint-disable-next-line rust/require-explicit-types -- r\n}\n";
     let found: Vec<Diagnostic> = checker.check_snapshot(covered);
     // The first directive covers the binding;
     //  the second covers a line with no finding and is reported as unused.
-    assert_eq!(located(&found), ["directive/unused@4"]);
+    assert_eq!(located(&found), [expected(UNUSED, 4)]);
 }
 
 /// `--fix` never fixes a finding that a directive covers,
@@ -272,13 +279,13 @@ fn json_output_carries_directive_findings() {
     assert_eq!(quiet.exit_code, 1);
     assert_eq!(
         codes(quiet.stdout.as_str()),
-        ["directive/missing-justification"]
+        [MISSING_JUSTIFICATION]
     );
     let loud: RunOutput = run(&fixture.path, &["--report-unused-disable-directives"], "");
     assert_eq!(loud.exit_code, 1);
     let found = records(loud.stdout.as_str());
     assert_eq!(found.len(), 2);
-    assert_eq!(found[0]["code"], "directive/unused");
+    assert_eq!(found[0]["code"], UNUSED);
     assert_eq!(found[0]["severity"], "warn");
     assert_eq!(found[0]["filename"], "a.md");
     assert_eq!(found[0]["labels"][0]["span"]["line"], 3);
@@ -291,7 +298,7 @@ fn json_output_carries_directive_findings() {
             .expect("help")
             .contains("Remove the directive")
     );
-    assert_eq!(found[1]["code"], "directive/missing-justification");
+    assert_eq!(found[1]["code"], MISSING_JUSTIFICATION);
     assert_eq!(found[1]["severity"], "error");
 }
 
@@ -311,7 +318,7 @@ fn unused_directive_flags_set_severity_and_exit_status() {
     assert_eq!((off.exit_code, off.stdout.as_str()), (0, ""));
     let warn: RunOutput = run(&fixture.path, &["--report-unused-disable-directives"], "");
     assert_eq!(warn.exit_code, 0);
-    assert_eq!(codes(warn.stdout.as_str()), ["directive/unused"]);
+    assert_eq!(codes(warn.stdout.as_str()), [UNUSED]);
     let limited: RunOutput = run(
         &fixture.path,
         &["--report-unused-disable-directives", "--max-warnings", "0"],
@@ -365,7 +372,7 @@ fn configuration_cannot_make_an_unsuppressible_rule_suppressible() {
     let refused: RunOutput = run(&fixture.path, &[], "");
     assert_eq!(
         codes(refused.stdout.as_str()),
-        ["directive/non-suppressible", "rust/max-lines"]
+        [NON_SUPPRESSIBLE, "rust/max-lines"]
     );
     assert_eq!(refused.exit_code, 1);
 }
