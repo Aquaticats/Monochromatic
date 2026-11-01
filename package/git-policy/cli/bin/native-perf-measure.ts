@@ -12,8 +12,8 @@ import {
 } from './native-perf-statistics.ts';
 
 /**
- Which latency requirement a scenario is held to: a forwarded command by the wrapper-added p95, a commit by the p95 of
- its paired deltas against native Git. See `native-perf-judge.ts`.
+ Which latency requirement a scenario is held to: a forwarded command by the wrapper-added p95, a commit by the maximum
+ of its paired deltas against native Git. See `native-perf-judge.ts`.
  */
 export type ScenarioKind = 'forwarded' | 'commit';
 
@@ -40,7 +40,7 @@ export type ScenarioReport = {
   readonly addedP95Milliseconds: number;
   /**
    Median, p95 and maximum of the wrapped sample minus the direct sample of the same round, over the rounds in which both
-   sides succeeded; the commit requirement is judged on its p95.
+   sides succeeded; the commit requirement is judged on its maximum.
    */
   readonly pairedDelta: ReturnType<typeof pairedDeltaSummary>;
   readonly rawDirect: readonly number[];
@@ -74,7 +74,7 @@ export type ScenarioSetting = {
   /**
    Runtime directory of the commit service the wrapped side is pointed at; absent for the route taken without a service.
    */
-  readonly runtime?: string | undefined;
+  readonly runtime?: string;
 };
 
 /**

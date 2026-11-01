@@ -31,12 +31,6 @@ import {
 const COMMIT_SCENARIO_PREFIX = 'commit';
 
 /**
- Share of the rounds, taken from the end, that the tail control lifts over the bound; more than the five percent above
- the 95th percentile, so the p95 itself is lifted.
- */
-const TAIL_SHARE = 0.1;
-
-/**
  A scenario of a recorded run, as `perf/native-latency-*.json` stores it: its name and the raw samples of both sides.
  */
 type RecordedScenario = {
@@ -182,23 +176,47 @@ await describe({
       },
     }),
     it({
-      name: 'a commit arm whose slowest tenth is lifted over the bound is named by its p95',
+      name: 'one commit round whose paired delta equals the bound is named although the p95 stays under it',
       fn: async () => {
         /**
-         Wrapped commit samples where the last tenth of the rounds is lifted over the bound.
+         Round that is lifted; every other round stays as recorded.
          */
-        const tail = rebuilt({
+        const liftedRound = 0;
+        /**
+         Wrapped commit samples where only one round is lifted to the bound.
+         */
+        const single = rebuilt({
           scenario: commitArm,
           edit: ({
             wrapped,
             direct,
             sample,
-          }) => (sample >= Math.floor(commitArm.rawWrapped.length * (1 - TAIL_SHARE))
+          }) => (sample === liftedRound
             ? direct + COMMIT_DELTA_BOUND_MILLISECONDS
             : wrapped),
         });
-        expect(tail.pairedDelta.maximum).toBeGreaterThanOrEqual(COMMIT_DELTA_BOUND_MILLISECONDS);
-        expect(judge([tail]).map((violation) => violation.scenario)).toEqual([commitArm.scenario]);
+        expect(single.pairedDelta.p95).toBeLessThan(COMMIT_DELTA_BOUND_MILLISECONDS);
+        expect(single.pairedDelta.maximum).toBe(COMMIT_DELTA_BOUND_MILLISECONDS);
+        expect(judge([single]).map((violation) => violation.scenario)).toEqual([commitArm.scenario]);
+      },
+    }),
+    it({
+      name: 'one commit round one millisecond under the bound is not named',
+      fn: async () => {
+        /**
+         Wrapped commit samples where only the first round is lifted to just under the bound.
+         */
+        const almost = rebuilt({
+          scenario: commitArm,
+          edit: ({
+            wrapped,
+            direct,
+            sample,
+          }) => (sample === 0
+            ? (direct + COMMIT_DELTA_BOUND_MILLISECONDS) - 1
+            : wrapped),
+        });
+        expect(judge([almost])).toEqual([]);
       },
     }),
     it({

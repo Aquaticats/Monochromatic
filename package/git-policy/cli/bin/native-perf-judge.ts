@@ -51,9 +51,9 @@ const JUDGED: Readonly<Record<ScenarioKind, (entry: ScenarioReport) => Omit<Boun
   },
   commit(entry) {
     return {
-      statistic: 'paired commit delta p95',
+      statistic: 'paired commit delta maximum',
       value: entry.pairedDelta
-        .p95,
+        .maximum,
       limit: COMMIT_DELTA_BOUND_MILLISECONDS,
     };
   },
@@ -61,9 +61,9 @@ const JUDGED: Readonly<Record<ScenarioKind, (entry: ScenarioReport) => Omit<Boun
 
 /**
  Requirements that a finished report breaks. A forwarded command is judged by the difference of the p95 of its wrapped
- and direct samples, which is what the forwarded bound has always used; a commit is judged by the p95 of its paired
- deltas (each wrapped sample minus the direct sample of the same round), because the owner's measure compares one
- commit with its native twin.
+ and direct samples, which is what the forwarded bound has always used; a commit is judged by the maximum of its paired
+ deltas (each wrapped sample minus the direct sample of the same round), because the owner's measure compares every
+ commit with its native twin: the slowest round decides, not the 95th percentile.
 
  @param report - every scenario that had a successful sample on both sides
 

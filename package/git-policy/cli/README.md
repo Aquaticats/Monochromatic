@@ -848,7 +848,8 @@ The wrapper, its recovery paths and its tests are expected to work under these c
 Two requirements bound the latency the wrapper adds, and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- A commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git.
+- Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git
+  (each commit, not a percentile of them).
 
 No wrapped command is required to finish within a fixed time, and there is no 5-second bound on wrapped commands.
 The owner's words (2026-11-01):
@@ -1018,7 +1019,7 @@ mise run //package/git-policy/cli:native:test:container
   and for each commit the median, p95 and maximum of the paired deltas (the wrapped time minus the direct time of the
   same round).
   It fails when a forwarded command's added p95 reaches the 2,000 ms bound,
-  when a commit's paired delta p95 reaches the 5,000 ms bound (the owner's measure, see "Latency requirements"),
+  when any commit's paired delta reaches the 5,000 ms bound (the owner's measure, see "Latency requirements"),
   or when any sample fails.
   `-- --output <file>` stores the raw samples (baselines live in `perf/`; `schemaVersion` 2 adds the paired deltas and
   names each scenario's `kind`).

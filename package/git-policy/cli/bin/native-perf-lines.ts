@@ -23,7 +23,7 @@ function formatted(milliseconds: number): string {
 
 /**
  One printed line of figures for a scenario. A commit also shows the median, p95 and maximum of its paired deltas, the
- figures the commit requirement is judged on.
+ last of which the commit requirement is judged on.
 
  @param entry - the scenario's report
 
