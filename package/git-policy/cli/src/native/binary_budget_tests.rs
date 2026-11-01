@@ -373,3 +373,45 @@ fn a_warm_commit_stays_within_its_budget() {
 fn an_amending_commit_stays_within_its_budget() {
     require_budget("amend", Scenario::Amend, &AMEND);
 }
+
+/// How many times Git was started for `var`, whichever variable it was asked for.
+fn var_starts(counts: &Counts) -> usize {
+    return counts.git_starts.iter().filter(|(name, _)| { return name.starts_with("var"); }).map(|(_, seen)| { return *seen; }).sum();
+}
+
+/// Runs the wrapped commit under `strace`, with a service listening for it, and returns what the trace shows.
+fn traced_through_the_service(label: &str, detached: bool) -> (Counts, Output) {
+    let fixture: Fixture = fixture(format!("budget-service-{label}").as_str());
+    let repo: PathBuf = prepared_repository(&fixture, Scenario::NoHooks);
+    if detached {
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    }
+    let name: String = format!("budget-{label}-{}", std::process::id());
+    let mut service = super::service_commit::start(&fixture, name.as_str());
+    let mut inner: Command = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=x", "--", "a.txt"]);
+    inner.env("XDG_RUNTIME_DIR", super::service_commit::runtime_for(name.as_str()));
+    let trace: PathBuf = fixture.root.join("trace.txt");
+    let run: Output = traced(&inner, trace.as_path()).output().expect("strace starts");
+    assert_eq!(run.status.code(), Some(0), "{label}: the commit failed: {}", String::from_utf8_lossy(&run.stderr));
+    let text: String = std::fs::read_to_string(&trace).expect("trace");
+    let counts: Counts = count(text.as_str(), fixture.root.to_str().expect("UTF-8 root"), REAL_GIT);
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+    return (counts, run);
+}
+
+/// A commit the service builds from the command line asks Git for the two identities, and a commit it declines (here a
+///  detached head, which the transaction commits) asks for none: the cheap declines come before anything starts Git for a
+///  message or an identity.
+#[test]
+fn a_commit_the_service_declines_starts_no_git_for_an_identity() {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no process start was counted");
+        return;
+    }
+    let (taken, _) = traced_through_the_service("taken", false);
+    assert_eq!(var_starts(&taken), 2, "the committer and the author: {:?}", taken.commands);
+    let (declined, _) = traced_through_the_service("declined", true);
+    assert_eq!(var_starts(&declined), 0, "{:?}", declined.commands);
+}

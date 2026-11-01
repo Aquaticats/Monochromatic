@@ -75,10 +75,6 @@ enum Prepared {
     Decline,
     /// The policies stopped the commit.
     Blocked(TransactionResult),
-    /// The branch is no longer at the commit an amend replaces; the name of the branch.
-    Moved(String),
-    /// The repository's configuration asks Git to build the commit.
-    NeedsNative,
     /// The change is ready to send.
     Ready(Box<Ready>),
 }
@@ -91,12 +87,12 @@ struct Ready {
     changes: Vec<Change>,
     events: Vec<PolicyEvent>,
     uses_lfs: bool,
-    /// The tree of an amend, written into the repository's object store.
-    tree: Option<String>,
     /// The commit's scratch directory, kept until the commit is landed because Git's scratch repository lives in it.
     scratch: Scratch,
-    /// What real Git needs to build the commit, when it is to.
-    native: Option<NativeInputs>,
+    /// Whether the repository's configuration asks Git to build the commit (a template, a signature, a clean-up mode).
+    needs_native: bool,
+    /// What real Git needs to build the commit, or what the embedded route needs to make its tree.
+    inputs: NativeInputs,
 }
 
 /// What real Git needs from the preparation to build the commit in a scratch repository.
@@ -143,8 +139,6 @@ fn prepare<F: RepositoryFacts>(
     request: &StageRequest,
     scratch_name: &str,
     allow_empty: bool,
-    amend: Option<&AmendSource>,
-    native: bool,
 ) -> Result<Prepared, TransactionStop> {
     let context: &GitContext = invocation.context;
     let cwd: &Path = invocation.cwd;
@@ -164,16 +158,12 @@ fn prepare<F: RepositoryFacts>(
     if !matches!(capture.base, Base::Commit(_)) {
         return Ok(Prepared::Decline);
     }
-    if !native && config_needs_native(capture.layout.config_snapshot.as_ref()) {
-        return Ok(Prepared::NeedsNative);
-    }
+    // Read from the snapshot the layout already holds, so the cheap declines above all come before anything starts Git for
+    //  the message or the identities, and before a service is provisioned.
+    let needs_native: bool = config_needs_native(capture.layout.config_snapshot.as_ref());
     // An amend still replaces the last commit when no path changed (a new message, a new committer).
-    let amends: bool = amend.is_some() || (native && invocation.region.amend);
+    let amends: bool = invocation.region.amend;
     let base: String = base_revision(&capture);
-    // The amend was read from the commit `HEAD` named earlier; if the branch left it since, the amend is not made.
-    if amend.is_some_and(|source| { return source.base != base; }) {
-        return Ok(Prepared::Moved(reference.trim_start_matches("refs/heads/").to_string()));
-    }
     let scratch: Scratch = Scratch(capture.layout.git_dir.join(scratch_name));
     create_private_directory(scratch.0.as_path()).map_err(|error| { return failed(format!("preparing the commit failed: {error}")); })?;
     let indexes: CaptureIndexes = CaptureIndexes {
@@ -230,23 +220,6 @@ fn prepare<F: RepositoryFacts>(
     if changes.is_empty() && !allow_empty && !amends {
         return Ok(Prepared::Decline);
     }
-    let tree: Option<String> = match amend {
-        Some(source) => {
-            let written = run_git_checked(
-                context,
-                &indexed_request(cwd, &["write-tree"], Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
-            )?;
-            let made: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
-            // Native Git refuses an amend that leaves the commit empty against its first parent (a merge excepted), unless
-            //  `--allow-empty` says it is meant; the refusal is Git's to give.
-            let against: &str = source.parent_tree.as_deref().unwrap_or(capture.layout.empty_tree_oid.as_str());
-            if source.parents.len() < 2 && !allow_empty && made == against {
-                return Ok(Prepared::Decline);
-            }
-            Some(made)
-        }
-        None => None,
-    };
     return Ok(Prepared::Ready(Box::new(Ready {
         repository: capture.layout.repository_root.clone(),
         common_dir: capture.layout.common_dir.clone(),
@@ -255,17 +228,15 @@ fn prepare<F: RepositoryFacts>(
         changes,
         events: outcome.pass.events,
         uses_lfs: capture.layout.config_snapshot.as_ref().is_none_or(uses_lfs),
-        tree,
-        native: native.then(|| {
-            return NativeInputs {
-                arguments: outcome.pass.arguments.clone(),
-                pathspecs: pathspecs.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect(),
-                mode: selection.mode,
-                staged_all: selection.staged_all,
-                commit_index: indexes.commit_index.clone(),
-                capture,
-            };
-        }),
+        needs_native,
+        inputs: NativeInputs {
+            arguments: outcome.pass.arguments.clone(),
+            pathspecs: pathspecs.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect(),
+            mode: selection.mode,
+            staged_all: selection.staged_all,
+            commit_index: indexes.commit_index.clone(),
+            capture,
+        },
         scratch,
     })));
 }
@@ -315,35 +286,61 @@ pub fn try_service_commit<F: RepositoryFacts>(
         return Ok(None);
     }
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
-    // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository.
-    let embedded: Option<Embedded> = match parse_service_commit(after) {
-        Some(parsed) => embedded_commit(invocation, parsed)?,
-        None => None,
-    };
-    let mut native: bool = embedded.is_none();
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let allow_empty: bool = region.allow_empty;
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
-    let editor_possible: bool = opens_editor(after);    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+    let editor_possible: bool = opens_editor(after);
+    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
-    for attempt in 0..REBUILD_ATTEMPTS {
-        let source: Option<&AmendSource> = embedded.as_ref().and_then(|found| { return found.source.as_ref(); });
-        let mut prepared: Prepared = prepare(invocation, checks, request, scratch_name.as_str(), allow_empty, source, native)?;
-        if matches!(prepared, Prepared::NeedsNative) {
-            // The configuration asks Git to build it (a template, a signature, a clean-up mode): the embedded message is not used.
-            native = true;
-            prepared = prepare(invocation, checks, request, scratch_name.as_str(), allow_empty, None, true)?;
-        }
-        let ready: Box<Ready> = match prepared {
-            Prepared::Decline | Prepared::NeedsNative => return Ok(None),
-            Prepared::Moved(branch) => return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }))),
+    // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
+    //  it is gets decided once the preparation has passed every cheap decline (head, configuration, index, policies), so a
+    //  commit the service never takes starts no Git for a message or an identity.
+    let mut embedded: Option<Embedded> = None;
+    let mut decided: bool = false;    for attempt in 0..REBUILD_ATTEMPTS {
+        let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str(), allow_empty)? {
+            Prepared::Decline => return Ok(None),
             Prepared::Blocked(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
             Prepared::Ready(ready) => ready,
         };
+        if !decided {
+            decided = true;
+            if !ready.needs_native
+                && let Some(parsed) = parse_service_commit(after)
+            {
+                embedded = embedded_commit(invocation, parsed)?;
+            }
+        }
+        let native: bool = embedded.is_none();
+        let inputs: &NativeInputs = &ready.inputs;
+        // An amend the service builds is made from the commit `HEAD` named when the message was read; if the branch left it
+        //  since, the amend is not made. Its tree is the private index's, and native Git refuses an amend that leaves the
+        //  commit empty against its first parent (a merge excepted) unless `--allow-empty` says it is meant.
+        let mut tree: Option<String> = None;
+        if let Some(source) = embedded.as_ref().and_then(|made| { return made.source.as_ref(); }) {
+            if source.base != ready.base {
+                let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+                return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
+            }
+            let written = run_git_checked(
+                invocation.context,
+                &indexed_request(
+                    invocation.cwd,
+                    &["write-tree"],
+                    Some(inputs.commit_index.as_path()),
+                    Some(inputs.capture.layout.object_directory.as_path()),
+                ),
+            )?;
+            let made: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
+            let against: &str = source.parent_tree.as_deref().unwrap_or(inputs.capture.layout.empty_tree_oid.as_str());
+            if source.parents.len() < 2 && !allow_empty && made == against {
+                return Ok(None);
+            }
+            tree = Some(made);
+        }
         let mut typed: Option<String> = None;
-        let (sent, first_parent): (CommitRequest, String) = match (&ready.native, embedded.as_ref().filter(|_| { return !native; })) {
-            (Some(inputs), _) => {
+        let (sent, first_parent): (CommitRequest, String) = match embedded.as_ref() {
+            None => {
                 let built: GitBuilt = build_with_git(&BuildInput {
                     context: invocation.context,
                     cwd: invocation.cwd,
@@ -375,7 +372,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 };
                 (sent, parent)
             }
-            (None, Some(made)) => {
+            Some(made) => {
                 let sent: CommitRequest = CommitRequest {
                     id: id.clone(),
                     repository: ready.repository.clone(),
@@ -386,8 +383,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     message: made.message.clone(),
                     author: Some(made.author.clone()),
                     committer: made.committer.clone(),
-                    amend: ready.tree.is_some(),
-                    tree: ready.tree.clone(),
+                    amend: tree.is_some(),
+                    tree: tree.clone(),
                     commit: None,
                 };
                 // The new commit's first parent: the tip it was made on, or for an amend the replaced commit's own parent.
@@ -397,7 +394,6 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 };
                 (sent, parent)
             }
-            (None, None) => return Ok(None),
         };
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
@@ -450,7 +446,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     }
                     continue;
                 }
-                if native && editor_possible && let (Some(text), Some(inputs)) = (typed.as_deref(), ready.native.as_ref()) {
+                if native && editor_possible && let Some(text) = typed.as_deref() {
                     // The person typed this message: keep it where they can reuse it.
                     let file: PathBuf = inputs.capture.layout.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
                     match std::fs::write(&file, text) {

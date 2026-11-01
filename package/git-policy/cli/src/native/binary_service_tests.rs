@@ -445,8 +445,8 @@ fn an_index_update_that_failed_after_the_branch_moved_is_settled_by_the_next_bat
     let landed = submit_quietly(&config(name.as_str()), &first).expect("answered");
     assert!(matches!(landed, Submitted::Landed { already: false, .. }), "{landed:?}");
     assert_eq!(count_of(&fixture, &repo, "message of settle-1"), 1, "the branch moved");
-    let open = |fixture: &Fixture| -> usize {
-        return std::fs::read_dir(fixture.root.join("journal")).map_or(0, |entries| {
+    let open = |held: &Fixture| -> usize {
+        return std::fs::read_dir(held.root.join("journal")).map_or(0, |entries| {
             return entries.flatten().filter(|entry| { return entry.path().extension().is_some_and(|extension| { return extension == git_policy_cli::service_journal::OPEN_EXTENSION; }); }).count();
         });
     };
