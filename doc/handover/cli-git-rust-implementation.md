@@ -6834,6 +6834,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `service_protocol.rs` (`captured`, `LandedCapture`, `RetryPrepare.landed`), `service_land.rs:314` (one
   `record_landed` line), `service_server.rs:214`, `service_client.rs` (`PrepareAgain { base, landed }`). Lib 2772,
   binary 448, e2e seed 4233994366 all four pass (t10 now `already-committed`).
+- PRODUCTION BUG CONFIRMED (round 3, red `deeb83aa70`, fix `d0e70e1ec4`): in one batch, an earlier-captured commit of a
+  file arriving second replaced the later edit, exit 0, no conflict
+  (`an_earlier_capture_that_arrives_second_in_one_batch_does_not_replace_the_later_one`). 0.5.5 and 0.5.4 have the
+  identical member loop (code reading; the red test was not run against a 0.5.5 binary). Fix, `service_land.rs:222`
+  to `:231`: a member overlapping an earlier member stays only when `earlier.captured != 0 && request.captured >
+  earlier.captured`, else `RetryPrepare` (the replay then keeps the landed later bytes, or names a conflict). Lib 2773,
+  binary 450, clippy clean; e2e `shared-file-*` pass, trace replay failed only on the forwarded `git add` exit 128.
+- Decision (mine, revisable): release replay plus client fixes now as 0.5.6 because of the silent lost edit, and the
+  per-worktree service and the other service-side fixes as 0.5.7. Integrator `aeded5148326713ab` merges
+  `worktree-agent-afcbaabc8c4046584` (`d0e70e1ec4`) then `worktree-agent-abf5d1e9f7ca62e6a` (`40334312d5`) onto
+  `origin/main`; next: gate 20, merge, release 0.5.6, bump, verify a signed commit.
 - Sent back to `afcbaabc8c4046584` (round 3): two same-base requests changing one path in ONE batch are not checked
   against each other (`service_land.rs` around 209 to 229; `import_stream` writes in arrival order), so an
   earlier-captured request landing last would overwrite a newer edit silently. Prove with a failing test, then fix
