@@ -968,6 +968,54 @@ each finished branch is reviewed and merged into `main`):
   runbook corrected.
   Delta re-checks running for both branches;
   the switch still waits for mpm-shadow 0.2.2 and a lock regeneration with it.
+- Playwright image published 2026-11-01:
+  `playwright-image-publish` (re-check clean;
+  text fixes to `1186b180aa`) merged into `main` as `8530c18245`;
+  run `41266231857` found the tag absent (HTTP 404),
+  built and pushed `ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464` as
+  `sha256:3e7042a80905629a59c4c48a72b0666af4f64bb2934245371df56208976427df`,
+  with provenance attestation.
+  The package was private (anonymous token HTTP 401);
+  the owner made it public ("Made it public");
+  afterwards an anonymous token was issued and the manifest HEAD returned HTTP 200.
+  Second run `41267052681` dispatched on `main` to confirm the skip.
+- Switch delta review (2026-11-01,
+  `cc96e34a54..254c474ccb`):
+  no blocker;
+  drift gate green on the branch (committed outputs,
+  lock,
+  pnpr config).
+  Should-fix sent to the switch agent:
+  a wrong cached bootstrap copy is reused after a failed rename while the log says "fetched and verified";
+  the bootstrap cache `.cache/mpm-shadow-bootstrap/` is a second install location the newest-only rule
+  and 0.2.2 cannot see (suggested:
+  the toolchain root's own layout);
+  the `Local file drift` step unverified.
+  The reviewer also noted the wg OpenSnitch rules do not cover that cache path;
+  the toolchain must not adapt to the firewall (`OWK`),
+  so the location is chosen for the toolchain's reasons and coverage is checked afterwards.
+  Owner's answer on the bootstrap conflict:
+  "At least the lock's version"
+  (run the newest installed copy at or above the lock's version,
+  warning when it is newer;
+  fetch the lock's archive only when none exists;
+  a copy older than the lock never runs).
+- mpm-shadow 0.2.2 (2026-11-01,
+  tip `313a81668e`,
+  466 tests passed,
+  lint exit 0):
+  re-point then remove old copies in `$CARGO_HOME/bin`
+  (via `cargo uninstall --bin` when `.crates.toml` names the bin;
+  correction:
+  `.crates.toml` is accurate on this machine,
+  only `.crates2.json` is stale),
+  and newest across roots (`across_roots.rs`,
+  `managed_losers.rs`).
+  Implementer's own design,
+  not the owner's:
+  an emptied root's `current` forwards to the winner root's `current`.
+  Separate review of `5e301c751d..313a81668e` running;
+  the decision record gets a `docs(decision)` commit on the branch.
 - Queued 2026-11-01,
   owner:
   "gh issue #2576. But prioritize cutover first."
