@@ -5599,3 +5599,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   dispatch with `--dry-run` first; expect a possible retry; recovery text is in the package README of `package/crate-release/cli`.
 - A release's bump commit starts no `push` workflow (token rule), so push-triggered checks skip it.
 - `monochromatic-c0` (peer) owns the `toolchain:update` lock bump after I message it the version and release commit; I do not run it.
+
+### Peer answers: monochromatic-6e (file-enforcer, toolchain) on the release
+
+- 6e measured on `main`: file-enforcer, `toolchain:install`/`toolchain:update` and mpm-shadow depend on no `hook.*`, `hooksPath`, `.git/hooks`, `githooks`,
+  `hooks.concurrentCommits`, and nothing spawns `monochromatic-lint` through the wrapper (positive control found). The only `hook.*` dependence is
+  this repository's `hook.standards-review-shadow` (keeps writing `doc/audit/standards-review-gate-shadow.md`); it stops when the new wrapper ships
+  unless the port is wired first. Decision for the release order, recorded: the shadow review is audit-only and never blocks a landing, so a gap
+  between the release and the port wiring costs audit entries only; the port agent `ad02e84404af49107` is wiring-gated on the scheduling choice
+  (work-item record with a resident consumer is the leading option). Revisit if the owner wants no gap.
+- Lock bump (owner-delegated to `monochromatic-c0`): scope to the wrapper's row `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`
+  (`toolchain.plan.jsonc:258`), then `toolchain:install`, commit only `toolchain.lock.json` by explicit pathspec; any other row in the diff is reported
+  separately. Forwarded to c0.
+- CI release bug found by 6e: the bump commit is refused when `main` moves during the run (forbidden-strings run `41303293802`, "Expected branch to
+  point to ... but it did not", nothing pushed). A retry-onto-the-new-head fix is in progress on their side. The wrapper release WAITS for it (told
+  6e: no local release). Main moves constantly with many sessions, so this bug would hit the wrapper release.
