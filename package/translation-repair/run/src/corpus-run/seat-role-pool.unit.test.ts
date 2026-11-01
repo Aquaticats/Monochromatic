@@ -86,6 +86,47 @@ function withoutClaude({ modelIds, }: { readonly modelIds: readonly RosterModelI
   },);
 }
 
+/**
+ The measured checkers a reading may have withheld: those of the order ranked above the lowest-ranked checker on the bench
+ that a wet provider serves, or the whole order where the bench is padded with seats no provider serves (then every served
+ checker of the order is on it already). A served checker below the bench is only beyond its width, not withheld.
+
+ @param seats - benches the run derives in the reading
+ @param dry - reading of the meters
+
+ @returns Checkers of the order the reading could have withheld, in rank order
+
+ @example
+ ```ts
+ const listed = checkersRankedAboveBench({ seats: judgeSeatsFor({ dry, },), dry, },);
+ ```
+ */
+function checkersRankedAboveBench(
+  {
+    seats,
+    dry,
+  }: {
+    readonly seats: ReturnType<typeof judgeSeatsFor>;
+    readonly dry: BudgetView;
+  },
+): readonly RosterModelId[] {
+  /**
+   Whether a wet provider serves a model in this reading.
+   */
+  const served = function served(modelId: RosterModelId,): boolean {
+    return providerServing({ reach: reachOf({ modelId, },), dry, },) !== NO_PROVIDER;
+  };
+  if (!seats.checkers.every(served,))
+    return RUN_CHECKER_ORDER;
+  /**
+   Rank of the lowest-ranked checker on the bench.
+   */
+  const lowest = Math.max(...seats.checkers.map(function rankOf(modelId,): number {
+    return RUN_CHECKER_ORDER.indexOf(modelId,);
+  },),);
+  return RUN_CHECKER_ORDER.slice(0, lowest + 1,);
+}
+
 await describe({
   name: rolePoolOf.name,
   concurrency: 1,
@@ -173,7 +214,14 @@ await describe({
             ['late-judge', RUN_LATE_JUDGES, seats.lateJudges,],
             ['select-judge', RUN_WIDE_SEATS, seats.selectJudges,],
             ['slate-judge', RUN_LATE_JUDGES, seats.slateJudges,],
+            // THE CHECKERS (ledger B1165): the bench is the first of the measured order that a wet provider serves, so a
+            // served model ranked above the lowest served checker and off the bench was withheld by the reading.
+            ['checker', checkersRankedAboveBench({ seats, dry, },), seats.checkers,],
           ];
+          // THE EDITORS AND THE REFINERS (ledger B1165) are seated from the run's static lists in every reading, so the run
+          // withholds nothing from them by the meters; a reading that derives them would fail here and ask for an entry above.
+          expect(seats.repairModels.editorModelIds,).toEqual([...RUN_MODELS.editorModelIds,],);
+          expect(seats.repairModels.refinerModelIds,).toEqual([...RUN_MODELS.refinerModelIds,],);
           for (const [role, listed, derived,] of benches) {
             for (const modelId of listed.filter(function withheld(listedId,): boolean {
               return !derived.includes(listedId,);
