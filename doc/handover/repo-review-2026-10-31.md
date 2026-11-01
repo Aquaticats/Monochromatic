@@ -562,6 +562,28 @@ Wave-4 twelfth checkpoint (2026-11-01, all rows verified against the tree before
   remain from ignored_row_tests.rs.
 - Manual slice 6 (plus the 12 orphan rows) still in flight with `w4-fm-variant-qt`.
 
+Wave-4 thirteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- music-player design sweep complete: all 96 .dc.html mockups deep-read across
+  `w4-android-app` turns 18 to 24, with README.md, candidates.md, Decisions.dc.html,
+  buckets.js and artists.js and the empty-a/b residual cells closed (rows
+  `docs-planning-audit-213` to `-222` verified, 222 of 222 clean; headline rows 221: the
+  ROUND 4 unf-f row describes optional bucket chips where the file renders a two-level
+  picker with no sub-buckets, 217: settings-a renders switches D84/D85/D86 record as
+  removed with no supersession note, 220: artists.js generates 1,250 artists against
+  its ~1000 comment and the catalog's 1,218). `w4-android-app` reassigned to
+  rgffplay/cli (9 files; then page-weight 17, terminal-exec 27, watch-restart 43,
+  kwin/key-helper 25).
+- music-player asset complete and clean: 20 of 20 files, zero rows (row
+  `pkg-observable-114` verified, 113 of 113 clean; the byte-level chunk scan, OCR name
+  sweep, brightness and dimension cross-checks, and the sha256 gallery verification with
+  the retake-history closure). `w4-desktop-app` on desktop-e2e (4 of 94 covered; row 114
+  is the actions.ts anyState doc-example nit; 85 src files plus 5 package-level files
+  remain, tracked in the child's pkgobs-e2e-uncovered.txt).
+- ide/app src/native progress: nine more files clean in turn 20 (through
+  language/hint_skip_tests.rs); 124 files remain from language/hover_tests.rs; row 012
+  stands as the slice's only row so far.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
