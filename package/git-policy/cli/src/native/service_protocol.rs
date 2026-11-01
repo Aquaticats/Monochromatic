@@ -11,7 +11,7 @@
 //! socket.write(JSON.stringify(encodeRequest(request)) + '\n'); const reply = decodeResponse(await readLine(socket));
 //! ```
 
-use serde_json::{Value, json};
+use serde_json::{Map, Value};
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
@@ -127,7 +127,7 @@ impl FailureCode {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientMessage {
     /// Land this commit.
-    Commit(CommitRequest),
+    Commit(Box<CommitRequest>),
     /// Finish the queue and exit, so the manager starts the current binary.
     Retire,
 }
@@ -164,6 +164,15 @@ pub fn is_plain_path(path: &str) -> bool {
         && path.split('/').all(|part| { return !part.is_empty() && part != "." && part != ".." && part != ".git"; });
 }
 
+/// One JSON object, written on one line from its entries.
+fn object(entries: Vec<(&str, Value)>) -> String {
+    let mut map: Map<String, Value> = Map::new();
+    for (key, value) in entries {
+        map.insert(key.to_string(), value);
+    }
+    return Value::Object(map).to_string();
+}
+
 /// What:
 ///  The line for a client message.
 /// Why:
@@ -175,23 +184,35 @@ pub fn is_plain_path(path: &str) -> bool {
 /// ```
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
-        ClientMessage::Retire => json!({ "type": "retire", "version": PROTOCOL_VERSION }).to_string(),
-        ClientMessage::Commit(request) => json!({
-            "type": "commit",
-            "version": PROTOCOL_VERSION,
-            "id": request.id,
-            "repository": request.repository.to_string_lossy(),
-            "commonDir": request.common_dir.to_string_lossy(),
-            "reference": request.reference,
-            "base": request.base,
-            "changes": request.changes.iter().map(|change| {
-                return json!({ "path": change.path, "mode": change.mode, "blob": change.blob });
-            }).collect::<Vec<Value>>(),
-            "message": request.message,
-            "author": request.author,
-            "committer": request.committer,
-        })
-        .to_string(),
+        ClientMessage::Retire => object(vec![("type", Value::from("retire")), ("version", Value::from(PROTOCOL_VERSION))]),
+        ClientMessage::Commit(request) => object(vec![
+            ("type", Value::from("commit")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("id", Value::from(request.id.as_str())),
+            ("repository", Value::from(request.repository.to_string_lossy().as_ref())),
+            ("commonDir", Value::from(request.common_dir.to_string_lossy().as_ref())),
+            ("reference", Value::from(request.reference.as_str())),
+            ("base", Value::from(request.base.as_str())),
+            (
+                "changes",
+                Value::Array(
+                    request
+                        .changes
+                        .iter()
+                        .map(|change| {
+                            return Value::Object(Map::from_iter([
+                                (String::from("path"), Value::from(change.path.as_str())),
+                                (String::from("mode"), Value::from(change.mode)),
+                                (String::from("blob"), change.blob.as_deref().map_or(Value::Null, Value::from)),
+                            ]));
+                        })
+                        .collect(),
+                ),
+            ),
+            ("message", Value::from(request.message.as_str())),
+            ("author", request.author.as_deref().map_or(Value::Null, Value::from)),
+            ("committer", Value::from(request.committer.as_str())),
+        ]),
     };
 }
 
@@ -254,7 +275,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     if !well_formed {
         return Err(String::from("request is not acceptable"));
     }
-    return Ok(ClientMessage::Commit(request));
+    return Ok(ClientMessage::Commit(Box::new(request)));
 }
 
 /// What:
@@ -268,13 +289,22 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
 /// ```
 pub fn encode_service(message: &ServiceMessage) -> String {
     return match message {
-        ServiceMessage::Welcome { version } => json!({ "type": "welcome", "version": version }).to_string(),
-        ServiceMessage::Position { number, of } => json!({ "type": "position", "number": number, "of": of }).to_string(),
-        ServiceMessage::Landed { id, commit, already } => {
-            json!({ "type": "landed", "id": id, "commit": commit, "already": already }).to_string()
+        ServiceMessage::Welcome { version } => object(vec![("type", Value::from("welcome")), ("version", Value::from(*version))]),
+        ServiceMessage::Position { number, of } => {
+            object(vec![("type", Value::from("position")), ("number", Value::from(*number)), ("of", Value::from(*of))])
         }
-        ServiceMessage::RetryPrepare { id, base } => json!({ "type": "retry-prepare", "id": id, "base": base }).to_string(),
-        ServiceMessage::Failed { id, code } => json!({ "type": "failed", "id": id, "code": code.word() }).to_string(),
+        ServiceMessage::Landed { id, commit, already } => object(vec![
+            ("type", Value::from("landed")),
+            ("id", Value::from(id.as_str())),
+            ("commit", Value::from(commit.as_str())),
+            ("already", Value::from(*already)),
+        ]),
+        ServiceMessage::RetryPrepare { id, base } => {
+            object(vec![("type", Value::from("retry-prepare")), ("id", Value::from(id.as_str())), ("base", Value::from(base.as_str()))])
+        }
+        ServiceMessage::Failed { id, code } => {
+            object(vec![("type", Value::from("failed")), ("id", Value::from(id.as_str())), ("code", Value::from(code.word()))])
+        }
     };
 }
 

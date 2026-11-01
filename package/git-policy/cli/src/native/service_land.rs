@@ -207,7 +207,7 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         let marks_argument: String = format!("--export-marks={}", marks.display());
         checked(&git, repository, &["fast-import", "--quiet", "--done", marks_argument.as_str()], Some(import_stream(scratch.as_str(), old.as_str(), &batch)))?;
         let marks_text: String = std::fs::read_to_string(&marks).map_err(|_| { return FailureCode::Unavailable; })?;
-        let _removed = std::fs::remove_file(&marks);
+        let _marks_removed = std::fs::remove_file(&marks);
         let commits: Vec<String> = commits_from_marks(marks_text.as_str(), batch.len()).ok_or(FailureCode::Unavailable)?;
         let new: String = commits.last().cloned().ok_or(FailureCode::Unavailable)?;
         reach("after-objects");
@@ -232,7 +232,7 @@ pub fn land_batch(context: &LandContext, seq: u64, requests: &[CommitRequest]) -
         let moved: GitOutput = run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()))?;
         if !moved.succeeded() {
             // The branch moved under the batch: forget the intent and the scratch branch, and build the batch again.
-            let _removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
+            let _intent_removed = std::fs::remove_file(super::service_journal::batch_path(context.journal.as_path(), seq, OPEN_EXTENSION));
             let _deleted = run(&git, repository, &["update-ref", "-d", scratch.as_str()], None);
             attempts_left -= 1;
             if attempts_left == 0 {

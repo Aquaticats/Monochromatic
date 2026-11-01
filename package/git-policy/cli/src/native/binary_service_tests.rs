@@ -43,7 +43,6 @@ fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
 
 struct Service {
     child: Child,
-    name: String,
 }
 
 fn address(fixture: &Fixture, label: &str) -> String {
@@ -57,7 +56,7 @@ fn start_service(fixture: &Fixture, name: &str, fault: Option<&str>) -> Service 
     if let Some(point) = fault {
         command.env(FAULT_VARIABLE, point);
     }
-    return Service { child: command.spawn().expect("the service starts"), name: name.to_string() };
+    return Service { child: command.spawn().expect("the service starts") };
 }
 
 fn reachable(name: &str) -> bool {
@@ -225,7 +224,7 @@ fn a_client_that_disappears_after_sending_still_lands_once() {
     {
         let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
         let mut stream: UnixStream = UnixStream::connect_addr(&socket).expect("connect");
-        let mut line: String = encode_client(&ClientMessage::Commit(sent));
+        let mut line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
         line.push('\n');
         stream.write_all(line.as_bytes()).expect("send");
     }
@@ -254,11 +253,11 @@ fn hostile_input_is_refused_and_the_service_keeps_serving() {
     let hostile_lines: Vec<String> = vec![
         String::from("not json at all"),
         "x".repeat(git_policy_cli::service_protocol::MAX_LINE_BYTES + 10),
-        encode_client(&ClientMessage::Commit({
+        encode_client(&ClientMessage::Commit(Box::new({
             let mut escaping: CommitRequest = request(&fixture, &repo, "evil-1", "e.txt", "e\n");
             escaping.changes[0].path = String::from("../outside.txt");
             escaping
-        })),
+        }))),
     ];
     for line in hostile_lines {
         let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
@@ -298,10 +297,10 @@ fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
     assert!(began.elapsed() < Duration::from_secs(5), "an absent activation is reported at once");
     let started_late = std::thread::spawn({
         let client: ClientConfig = config(name.as_str());
-        let sent: CommitRequest = sent.clone();
+        let for_thread: CommitRequest = sent.clone();
         move || {
             let mut notices: Vec<u8> = Vec::new();
-            let answered = submit(&client, &sent, &mut notices);
+            let answered = submit(&client, &for_thread, &mut notices);
             return (answered, String::from_utf8(notices).expect("UTF-8"));
         }
     });
@@ -327,10 +326,10 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
     let old: UnixListener = UnixListener::bind_addr(&socket).expect("bind the old service");
     let client_config: ClientConfig = config(name.as_str());
     let client = std::thread::spawn({
-        let sent: CommitRequest = sent.clone();
+        let for_thread: CommitRequest = sent.clone();
         move || {
             let mut notices: Vec<u8> = Vec::new();
-            let answered = submit(&client_config, &sent, &mut notices);
+            let answered = submit(&client_config, &for_thread, &mut notices);
             return (answered, String::from_utf8(notices).expect("UTF-8"));
         }
     });

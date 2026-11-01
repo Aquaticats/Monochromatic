@@ -25,9 +25,9 @@ fn request() -> CommitRequest {
 #[test]
 fn a_commit_request_round_trips() {
     let sent: CommitRequest = request();
-    let line: String = encode_client(&ClientMessage::Commit(sent.clone()));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(!line.contains('\n'), "one line per message");
-    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(sent)));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
 }
 
 /// Every service message survives encoding, and every failure code is reachable on the wire.
@@ -48,7 +48,7 @@ fn service_messages_round_trip() {
 /// Unknown words, wrong versions and truncated or oversized lines are refused, never guessed.
 #[test]
 fn damaged_lines_are_refused() {
-    let good: String = encode_client(&ClientMessage::Commit(request()));
+    let good: String = encode_client(&ClientMessage::Commit(Box::new(request())));
     assert!(decode_client(&good[..good.len() / 2]).is_err());
     assert!(decode_client("").is_err());
     assert!(decode_client(good.replace(&format!("\"version\":{PROTOCOL_VERSION}"), "\"version\":999").as_str()).is_err());
@@ -64,26 +64,26 @@ fn unacceptable_requests_are_refused() {
     for path in hostile_paths {
         let mut bad: CommitRequest = request();
         bad.changes[0].path = String::from(path);
-        assert!(decode_client(encode_client(&ClientMessage::Commit(bad)).as_str()).is_err(), "{path:?}");
+        assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{path:?}");
     }
     let mut bad_mode: CommitRequest = request();
     bad_mode.changes[0].mode = 0o040_000;
-    assert!(decode_client(encode_client(&ClientMessage::Commit(bad_mode)).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_mode))).as_str()).is_err());
     let mut bad_blob: CommitRequest = request();
     bad_blob.changes[0].blob = Some(String::from("not-an-object"));
-    assert!(decode_client(encode_client(&ClientMessage::Commit(bad_blob)).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_blob))).as_str()).is_err());
     let mut bad_id: CommitRequest = request();
     bad_id.id = String::from("a b");
-    assert!(decode_client(encode_client(&ClientMessage::Commit(bad_id)).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_id))).as_str()).is_err());
     let mut relative: CommitRequest = request();
     relative.repository = PathBuf::from("relative/repo");
-    assert!(decode_client(encode_client(&ClientMessage::Commit(relative)).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err());
     let mut empty: CommitRequest = request();
     empty.changes.clear();
-    assert!(decode_client(encode_client(&ClientMessage::Commit(empty)).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_err());
     let mut many: CommitRequest = request();
     many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: format!("f{n}"), mode: ALLOWED_MODES[0], blob: None }; }).collect();
-    assert!(decode_client(encode_client(&ClientMessage::Commit(many)).as_str()).is_err());
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
 /// The retire message needs the same version as a commit.

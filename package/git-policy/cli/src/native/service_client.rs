@@ -111,7 +111,7 @@ fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -
                 let _timeout = stream.set_read_timeout(Some(config.start_wait));
                 let mut reader: BufReader<UnixStream> = BufReader::new(stream);
                 if let Some(ServiceMessage::Welcome { version }) = read_message(&mut reader) {
-                    let _timeout = reader.get_ref().set_read_timeout(Some(config.commit_wait));
+                    let _widened = reader.get_ref().set_read_timeout(Some(config.commit_wait));
                     return Ok((reader, version));
                 }
             }
@@ -159,7 +159,7 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
 /// await submit(config, request, notices)
 /// ```
 pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write) -> Result<Submitted, ClientFailure> {
-    let line: String = encode_client(&ClientMessage::Commit(request.clone()));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let waiting_since: Instant = Instant::now();
     let mut announced: bool = false;
     let mut replacements: usize = 0;

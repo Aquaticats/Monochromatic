@@ -114,14 +114,14 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>) {
     if BufReader::new(reader_stream.take(limit)).read_line(&mut line).is_err() {
         return;
     }
-    let _timeout = stream.set_read_timeout(None);
+    let _cleared = stream.set_read_timeout(None);
     if line.is_empty() {
         // A connection that only looked (a readiness probe) sends nothing and is not an error.
         return;
     }
     match decode_client(line.trim_end_matches('\n')) {
         Ok(ClientMessage::Commit(request)) => {
-            let _queued = queue.send(Job::Commit(Box::new(request), stream));
+            let _queued = queue.send(Job::Commit(request, stream));
         }
         Ok(ClientMessage::Retire) => {
             let _queued = queue.send(Job::Retire);
@@ -135,13 +135,13 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>) {
 
 /// Lands one group of jobs that share a branch, and answers each client.
 fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitRequest>, UnixStream)>, landed: &mut HashMap<String, String>) {
-    let (again, fresh): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _)| { return landed.contains_key(&request.id); });
+    let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _)| { return landed.contains_key(&request.id); });
     for (request, stream) in again {
         send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let (fresh, repeats): (Vec<_>, Vec<_>) = fresh.into_iter().partition(|(request, _)| { return seen.insert(request.id.clone()); });
+    let (fresh, repeats): (Vec<_>, Vec<_>) = pending.into_iter().partition(|(request, _)| { return seen.insert(request.id.clone()); });
     if fresh.is_empty() {
         return;
     }
