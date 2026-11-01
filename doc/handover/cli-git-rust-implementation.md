@@ -6429,3 +6429,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
     real e2e and interop runs. Those runs also verify the e2e service fixture.
 - Gate 18 GREEN on `54a8610195` (`integ-20261101`, the review key in memory): 3142 of 3142 passed, 8 skipped. Merge into
   main HELD until the 0.5.4 bump commit lands. Then merge and ship it with the next release.
+- 0.5.4 PUBLISHED (crates.io 17:10:02Z). The lock bump surfaced a production bug: commits through 0.5.4 failed.
+  - The first signed commit after install failed after 10178 ms: "The commit service did not start, so this commit
+    was not made..." The journal had `status=203/EXEC`.
+  - Cause: the unit 0.5.2 provisioned at 11:10 kept `ExecStart=.../monochromatic-git-policy-cli/0.5.2/bin/cli-git-service`,
+    and the 0.5.3 install removed that directory. The wrapper provisions only when the socket path is missing, so it
+    never rewrote the unit. 0.5.3 hid it by declining signed commits.
+  - Repaired by hand (the wrapper's own runtime units, `~/temp/agent/reset-service-units.ts`): stop both units,
+    `reset-failed`, delete the two unit files and the socket path, `daemon-reload`. The next commit (`bcf37dda6c`, the
+    0.5.4 lock bump) provisioned the 0.5.4 path, landed signed (`%G?` = G) in 324 ms including the cold start, and the
+    service pushed it.
+  - Every upgrade breaks the same way until fixed. Hotfix agent `ac5b82d7b213905f9`:
+    - heal on the first commit by comparing the units each service commit;
+    - retire a service from another release (compare the release, not only the protocol number);
+    - repair a 203 start without waiting the restart budget;
+    - explain the 10.2 s first commit under 0.5.2;
+    - GFP tests and a troubleshooting section.
+    It ships as 0.5.5 together with the gated review key. Before every lock bump until then, rerun
+    `reset-service-units.ts`.
+- Real-service review bug seen live (12:19:57): `the review of ba82328884... failed: starting git cat-file failed: cli-git
+  has no repository scratch directory for the input of this Git command` (`transaction_git.rs:257`). The service's
+  `GitContext` has no scratch directory. Audit-only, so no commit was affected. Sent to `ad02e84404af49107`, with a test
+  through the real `GitHandlers`.
