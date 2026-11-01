@@ -6308,3 +6308,31 @@ This block supersedes "State at 2026-10-29 (night, later)".
   expected). Likely the reads follow-up's system-config-path requirement, unmet in lib tests. The binary LFS tests
   passed, including `a_push_without_a_new_pointer_starts_no_git_lfs`. Sent to the reads agent `a7439531e8536aa87`: fix
   the tests the hermetic way, and prove every in-process reader call site learns the path in production. 0.5.3 waits for it.
+- Service steps READY from `af248a0e1f85cfae6`:
+  - `8c1b2dd70a` 4b-2 amend: compare-and-swap with "branch moved", protocol 4.
+  - `73ab5b9318` 4c: editor and signing via real Git in a scratch repository writing into the real object store;
+    provisioning only when a commit is sent; an SSH-signed fixture verifies the same as native.
+  - `3b7eb7e155` the pre-4d report: still-declined lines, no-session-bus paths, and the lock inventory with
+    dispositions, all in the design doc.
+  Decisions, recorded and sent:
+  - Accepted: every line the embedded route cannot build goes to Git in the scratch repository.
+  - Before 4d, each with GFP evidence:
+    - a. rebuild and retry on a moved tip for Git-built commits without an editor (re-signed by Git, bounded); with an
+      editor, the message is saved for reuse. The owner signs every commit and agents commit to main at once, and the
+      old transaction replays them.
+    - b. the recovery hole: an index update failing after the branch moved leaves the journal intent open until the
+      service restarts.
+    - c. `Drop` for the test `Service`, whose failed assertions leaked processes.
+    - d. harnesses: a service per binary fixture with `XDG_RUNTIME_DIR` (114 wrapped-commit calls take the old route
+      today), the e2e container service, and `native-perf` never provisioning the owner's real units.
+  - 4d go-ahead after a to d:
+    - delete the owner-lock family and `index_writer_coordination`, recovery and registry, replay, landing;
+    - delete the push lock, `holder_budget`, `lock_holder_facts` and `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`;
+    - delete the foreign index-lock waiting family, with `CLI_GIT_LOCK_WAIT_SECONDS` and `CLI_GIT_WAIT_NOTICE_SECONDS`;
+    - keep only Git's own `index.lock`, behind the service's bounded retry.
+    Condition: every still-declined line must still work, landed by the service's compare-and-swap, proven field by
+    field before the old landing goes.
+  - Queued for a free slot: `worktree_copy_lock` (a per-repository settlement lock with a 20 ms poll) becomes a
+    per-destination claim by exclusive create and rename, like `worktree_copy_stage_claim.rs`. Its own slice and agent.
+  - Release plan: 4b-2 and 4c ship only together with a (rebuild), so that this machine's concurrent signed commits do
+    not regress.
