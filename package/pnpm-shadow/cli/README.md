@@ -111,7 +111,33 @@ because the notice follows pnpm's text.
 - `127`: no real `pnpm` found on `PATH`.
 - `126`: the real `pnpm` was found but could not be started.
 
-The real pnpm is the first executable named `pnpm` on `PATH` that does not resolve to this binary.
+The real pnpm is the first executable named `pnpm` on `PATH` that does not resolve to this binary
+and that no earlier shadow instance in the same chain already picked (see "Launchers and the loop guard").
+
+## Launchers and the loop guard
+
+The toolchain links `pnpm` through a launcher: a separate executable that starts the shadow under the name `pnpm`.
+That link resolves to the launcher, not to the shadow's own executable,
+so comparing resolved paths alone cannot tell that the first `pnpm` on `PATH` is the shadow itself.
+The first release did exactly that
+(found by the toolchain session on 2026-11-01):
+it ran its own link as the real pnpm without end,
+and on `--version` it started children until the process limit.
+
+- Each instance records the resolved path of the candidate it picks in the environment value `PNPM_SHADOW_GUARD`,
+  and the instance that candidate starts skips every recorded path,
+  so each hop shrinks the candidate list and the chain ends at the real pnpm.
+  A hard limit of eight hops stops anything else with a message.
+- The value is bound to a process:
+  after `exec` the process id is unchanged, so an exec guard counts only for the process with that id;
+  a spawn guard counts only for the direct child of the process that wrote it.
+  A script that the real pnpm runs, and that calls `pnpm` again, therefore never inherits it and finds the real pnpm.
+- An instance started by another instance does not warn again.
+- For `--version` and `--help` through a launcher, only the innermost instance knows which pnpm really ran,
+  so it prints the notice and leaves a marker file named for the outer instance's process id in `XDG_RUNTIME_DIR`;
+  the outer instance claims the marker after pnpm finishes and stays silent.
+  Without `XDG_RUNTIME_DIR` there is no handshake and a launcher chain prints the notice twice,
+  the outer one naming the launcher link.
 
 ## Cost
 
