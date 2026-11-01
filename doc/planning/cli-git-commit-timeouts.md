@@ -63,6 +63,12 @@ The private index of an explicit-path commit was built by `git read-tree <base>`
 Entries made that way carry no cached stat data, so `git commit` has to read and hash every file of the worktree to
 decide that it is unchanged. The cost grows with the worktree and with host load, and a cold page cache made it 19.6 s.
 
+Live confirmation on the real checkout: while this record was committed through the installed (unfixed) wrapper,
+the shadow `git commit` ran for more than 640 s with 5 s of CPU time, in uninterruptible disk wait
+(`blk_mq_get_tag`), reading and hashing the worktree. That child runs with the terminal attached and no bound, so it
+never printed the "still waiting" line; the commit looked hung for ten minutes. This, not `pack-objects`, is how a commit
+takes minutes on a loaded host and why "some commits time out".
+
 Probe on the same index and repository (three rounds each):
 
 - `read-tree HEAD` into a fresh index, then `update-index --refresh`: 2.9 s.
