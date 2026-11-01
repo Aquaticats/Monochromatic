@@ -968,23 +968,55 @@ The user confirmed the shared understanding and the order below, after the third
   - Still to do after the release: ask the toolchain session to add a `cargo:monochromatic-pnpm-shadow` row (route
     `cargo-binstall`, bin `pnpm-shadow`) and link the binary as `pnpm` (the user's answer: "Yes, ask the toolchain session to link it").
 
+- 2026-11-01, `monochromatic-8c` reported `monochromatic-git-policy-cli` 0.5.1 published (crates.io 2026-11-01T14:19:49Z, both Linux
+  assets, release commit `b0d0b14a01`, publish run 41315248565) and said the lock bump is mine. Declined for now and told 8c: the
+  user's delegation covered the bump for the release carrying the policy (0.5.0, done in `efba845e0b`); 0.5.1 is not needed by this
+  work and changes the wrapper every session commits through. Behavior changes 8c lists since 0.5.0: embedded Markdown linter,
+  `git-lfs push --all <destination> <refs>`, aliases cannot re-enable hooks, `core.fsmonitor` left as configured, commits go through
+  the commit service by default once `git cli-git service install` was run (`CLI_GIT_COMMIT_SERVICE=0` keeps the native path).
+  To put to the user: whether to run `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` and commit only the lock.
+- 2026-11-01, token cleanup: the user said the crates.io token is revoked; `cargo logout` printed that the token was removed from
+  local storage, and `${CARGO_HOME:-$HOME/.cargo}/credentials.toml` went from 57 to 11 bytes (the length of a bare `[registry]` line;
+  its content was not read, a read of it was denied by the auto-mode classifier). The server-side revoke is the user's step and
+  was not checked from here.
+
+- 2026-11-01, `monochromatic-pnpm-shadow` 0.1.0 released and verified as a consumer:
+  - Dry run 41315224517 passed (both targets built and smoke-run), then the real run 41315727800 passed: `ps-publish-crate`
+    authenticated through Trusted Publishing with no token and skipped the existing upload, both `ps-build-binary` targets passed and
+    `ps-create-release` created the release `monochromatic-pnpm-shadow-v0.1.0` (immutable) with the x86_64 and aarch64 Linux
+    archives (854,983 and 774,034 bytes) and a sha256sums file.
+  - `cargo-binstall --no-confirm --disable-strategies compile --root <throwaway> --version 0.1.0 monochromatic-pnpm-shadow` installed
+    `pnpm-shadow` from the archive in 4.6 s and `pnpm-shadow --version` printed `pnpm-shadow 0.1.0`.
+  - Asked `monochromatic-6e` (the toolchain session, the owner of the plan and the link mechanism) to add and link the shadow as
+    `pnpm`, with the facts above and the one open question: the real pnpm is already exposed as `.cache/toolchain-bin/pnpm`, so the link
+    named `pnpm` must come first on `PATH` and the real pnpm must stay found after it. No reply yet.
+- 2026-11-01, user answers to three questions (question tool): bump the lock to cli-git 0.5.1 now ("Yes, bump to 0.5.1 now",
+  against the recommended "not now"); keep the `pnpm-shadow:` prefix on the wrapper's two failure messages; keep the warning
+  command set as listed. Peer reports after that: `monochromatic-8c` ran the scoped `toolchain:update` for 0.5.1 under what it called
+  the user's standing authorization, and `monochromatic-6e` staged the plan row `cargo:monochromatic-pnpm-shadow` (`cargo-binstall`,
+  bin `pnpm-shadow`, `os: linux`, a postinstall link of `pnpm-shadow` as `pnpm` into `.cache/pnpm-shadow-bin`) and an edit of
+  `.config/mise/conf.d/20-env.toml` putting that directory ahead of `.cache/toolchain-bin`, and locked `0.1.0`; 6e holds the install and
+  the commit until 8c commits, then checks `command -v pnpm`, `pnpm --version` and `pnpm root` and reports. Checked from here with
+  `git diff` of `toolchain.lock.json`: three changes only (the 0.5.0 to 0.5.1 version, the new shadow row, the digest). Not
+  committed by this session on purpose: the file holds both sessions' uncommitted work.
+
 ## Open items
 
-- Done: the lock bump, the CI workflow and the policy activation (see the progress entry for 0.5.0).
-- Done: the first real run of `catalog-specifiers.yml` on a GitHub runner succeeded (run 41311571968).
-- Open: whether a failing run blocks a merge depends on branch protection, which is the owner's setting; not measured.
-- Open for the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0.
-- Open for the user (task 4 follow-ups, none started): publish `monochromatic-pnpm-shadow` (a first publication needs the owner's
-  personal crates.io token; never ask for it in chat) and register it for CI releases; link the binary as `pnpm` through the
-  toolchain plan (owned by the toolchain session, and it changes every pnpm call on every checkout).
-- Done, kept for the record (task 4): the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
-  invocation, no skip switch, advisory diagnostics then delegation to pnpm.
+- Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
+- Done: `pnpm-shadow` built, tested, published, released with archives and installed from the archive as a consumer.
+- Waiting on `monochromatic-6e`: it staged the plan row and the link (uncommitted), holds the install and the commit until 8c
+  commits, then checks `command -v pnpm`, `pnpm --version` and `pnpm root` and reports.
+- Done by the user's answer ("Yes, bump to 0.5.1 now"): the cli-git 0.5.1 bump is in the working-tree lock; its commit is 6e's, together
+  with the shadow row, because both rows share one generated lock.
+- For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
+- For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
+- Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
 - Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
   pattern matched twice.
-- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder` scope
-  against the policy scope; whether branch protection exists.
+- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; whether branch protection exists; whether
+  the crates.io token is revoked (the user said so; not checkable from here); the wrapper in front of `pnpm install` itself.
 
 ## Next action
 
-All four agreed steps are built. What remains is the user's choice on publishing `monochromatic-pnpm-shadow` and on linking it as
-`pnpm` (see Open items); nothing else is queued.
+Wait for `monochromatic-6e`'s report that the shadow is installed and linked as `pnpm` and that `pnpm --version` and `pnpm root` behave as the
+README says; check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.

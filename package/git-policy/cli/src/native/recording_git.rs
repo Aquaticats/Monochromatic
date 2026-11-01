@@ -35,7 +35,8 @@ pub(crate) fn recording_context(root: &Path) -> (GitContext, PathBuf) {
     executable(shim.as_path(), script.as_bytes());
     let context: GitContext = GitContext {
         real_git: shim,
-        overlay: isolated_overlay(),
+        // The in-process readers are off: the recorder exists to see the Git starts of the process path.
+        overlay: isolated_overlay().into_iter().chain(crate::repo_read_hook::switch_off()).collect(),
         global_prefix: Vec::new(),
         common_dir: None,
     };

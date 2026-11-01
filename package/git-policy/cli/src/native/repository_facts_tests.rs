@@ -154,7 +154,7 @@ fn location_without_a_worktree_has_an_empty_prefix() {
 }
 
 /// A provider starts no process until asked,
-///  asks for the location once,
+///  reads a plain location and the sequencer state from the file system without one,
 ///  and counts every other query.
 #[test]
 fn queries_are_lazy_and_the_location_is_asked_once() {
@@ -162,23 +162,23 @@ fn queries_are_lazy_and_the_location_is_asked_once() {
     let mut facts: GitFacts = facts_in(&[root.as_path()]);
     assert_eq!(facts.queries, 0);
     let first: RepositoryLocation = facts.location().expect("first answer");
-    assert_eq!(facts.queries, 1);
+    assert_eq!(facts.queries, 0, "a plain location is read from the file system");
     assert_eq!(facts.location().expect("remembered answer"), first);
-    assert_eq!(facts.location().expect("remembered answer"), first);
-    assert_eq!(facts.queries, 1);
     assert_eq!(facts.index_vs_head(), Ok(IndexVsHead::Matches));
-    assert_eq!(facts.queries, 2);
+    assert_eq!(facts.queries, 1);
     assert_eq!(facts.sequencer_state(), Ok(SequencerState::NotInProgress));
-    assert_eq!(facts.queries, 3);
+    assert_eq!(facts.queries, 1, "the head files are looked up in the file system");
     assert_eq!(
         facts.remote_guess_creates_branch(OsStr::new("topic")),
         Ok(false)
     );
-    assert_eq!(facts.queries, 4);
+    assert_eq!(facts.queries, 2);
     assert_eq!(facts.location().expect("still remembered"), first);
-    assert_eq!(facts.queries, 4);
-    // A failed location answer is remembered too: the provider does not ask again.
-    let mut missing: GitFacts = git_facts(directory.join("no-git").as_path(), &[], &[]);
+    assert_eq!(facts.queries, 2);
+    // A location the reader declines (a global option it does not read) is asked of Git once,
+    //  and a failed answer is remembered too: the provider does not ask again.
+    let declined_prefix: Vec<OsString> = vec![OsString::from("-c"), OsString::from("core.pager=cat")];
+    let mut missing: GitFacts = git_facts(directory.join("no-git").as_path(), declined_prefix.as_slice(), &[]);
     let failure: String = missing.location().expect_err("missing executable");
     assert_eq!(missing.location(), Err(failure));
     assert_eq!(missing.queries, 1);

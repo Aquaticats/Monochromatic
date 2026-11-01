@@ -1092,6 +1092,58 @@ pub mod worktree_copy;
 /// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
 pub mod worktree_copy_forward;
 
+/// In-process repository reads: the plain-text configuration reader that gives up on any spelling it cannot prove.
+pub mod repo_read_config_text;
+
+/// In-process repository reads: proof that no configuration scope sets `core.bare` or `core.worktree`.
+pub mod repo_read_config_scan;
+
+/// In-process repository reads: the location, Git paths and object format found from the file system.
+pub mod repo_read_layout;
+
+/// In-process repository reads: the layout turned into the shapes the wrapper's existing queries answer with.
+pub mod repo_read_adapter;
+
+/// In-process repository reads: object kinds, names and the zlib step shared by loose objects and packs.
+pub mod repo_read_object;
+
+/// In-process repository reads: one pack, its index lookup and delta resolution.
+#[cfg(unix)]
+pub mod repo_read_pack;
+
+/// In-process repository reads: the object database of a repository, its packs and alternates.
+#[cfg(unix)]
+pub mod repo_read_odb;
+
+/// In-process repository reads: trees, flattened trees and commit fields.
+#[cfg(unix)]
+pub mod repo_read_tree;
+
+/// In-process repository reads: the entries of an index file, versions 2 to 4.
+pub mod repo_read_index;
+
+/// In-process repository reads: the difference between two sorted entry lists and the output spellings.
+#[cfg(unix)]
+pub mod repo_read_diff;
+
+/// In-process repository reads: the files ref storage, one ref by name, a symbolic chain and the list of all refs.
+#[cfg(unix)]
+pub mod repo_read_refs;
+
+/// In-process repository reads: the merged configuration listing with includes and environment entries.
+pub mod repo_read_config_list;
+
+/// In-process repository reads: answers to the exact read-only command lines the wrapper issues.
+#[cfg(unix)]
+pub mod repo_read_query;
+
+/// In-process repository reads: answers for the reference and configuration command lines.
+#[cfg(unix)]
+pub mod repo_read_query_refs;
+
+/// In-process repository reads: the two runner entry points that try the answers before starting Git.
+pub mod repo_read_hook;
+
 /// The standards-review shadow run: JavaScript text behaviors the log depends on (UTF-16 lengths, number text).
 pub mod standards_review_text;
 

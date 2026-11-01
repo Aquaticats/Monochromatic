@@ -13,6 +13,7 @@
 
 /// Import the shared child-command builder.
 use super::forwarding::git_command;
+use super::repo_read_hook::try_metadata;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
 /// What:
@@ -78,6 +79,10 @@ pub fn run_metadata_git(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
+    // An exact read-only command line the in-process readers know costs no Git process.
+    if let Some(answered) = try_metadata(arguments, overlay) {
+        return Ok(answered);
+    }
     // What: `.stdin(Stdio::null())` connects the child's input to nothing; `.output()`
     //       captures stdout and stderr and waits. A trailing `?` returns a start failure.
     // Why:  Only "Git could not be started" is an error here.

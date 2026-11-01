@@ -301,6 +301,10 @@ pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, Singl
 /// await nanoSpawn(gitPath, args, { cwd, signal: AbortSignal.timeout(deadlineMs) })
 /// ```
 pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
+    // An exact read-only command line the in-process readers know costs no Git process.
+    if let Some((code, stdout, stderr)) = super::repo_read_hook::try_complete(arguments, git.cwd.as_path(), git.environment.as_slice()) {
+        return Ok(QueryOutput { code, stdout, stderr });
+    }
     return run_bounded_query(
         git_command(git, arguments),
         describe_arguments(arguments).as_str(),

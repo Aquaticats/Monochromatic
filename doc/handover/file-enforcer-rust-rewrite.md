@@ -1593,6 +1593,37 @@ each finished branch is reviewed and merged into `main`):
   `df -h /`,
   `grep -v`
   and `du -k` now match `/usr/bin/timeout`.
+- pnpm shadow link (owner 2026-11-01, relayed by the catalog-specifier session `monochromatic-c0`:
+  "Yes, ask the toolchain session to link it"):
+  uncommitted in the main checkout:
+  plan row `cargo:monochromatic-pnpm-shadow` (`cargo-binstall`, bin `pnpm-shadow`, Linux only,
+  postinstall link `pnpm` in `.cache/pnpm-shadow-bin`),
+  `.config/mise/conf.d/20-env.toml` puts `.cache/pnpm-shadow-bin` before `.cache/toolchain-bin`,
+  and the lock row `0.1.0` from `toolchain:update -- cargo:monochromatic-pnpm-shadow`.
+  The git-wrapper session chose to commit both rows together (one generated lock, one digest);
+  the owner answered "Yes, bump to 0.5.1 now" (relayed by `monochromatic-c0`).
+  `toolchain:install`: 2 installed, 63 unchanged, 0 failed;
+  `git --version` prints `monochromatic-git-policy-cli 0.5.1`.
+  Incident:
+  with `.cache/pnpm-shadow-bin` first on PATH,
+  pnpm-shadow 0.1.0 took its own link for the real pnpm,
+  because the link resolves to the ELF launcher `.cache/toolchain-launchers/pnpm-shadow`,
+  not to its own executable,
+  and re-ran itself:
+  `pnpm --version` exited 126 ("pnpm-shadow: could not start .../.cache/pnpm-shadow-bin/pnpm"),
+  `pnpm root` and `--help` hung past 60 s.
+  `pnpm` in the main checkout's mise environment was broken from 09:28 to about 09:33 local.
+  Fixed by moving the link to `pnpm.disabled-loop` and reverting the `20-env.toml` PATH entry;
+  `pnpm --version` (12.16.1), `root` and `--help` work again.
+  Committed as `e1a27b7da5` (plan row off PATH with the reason, and both lock rows).
+  The crate fix (recognize itself through the launcher, plus an exec guard) was sent to `monochromatic-c0`.
+  Queued:
+  when it releases a fixed version,
+  put `.cache/pnpm-shadow-bin` back before `.cache/toolchain-bin`,
+  and re-run `~/temp/agent/command-code/pnpm-shadow-check.ts`.
+  Lesson:
+  test a PATH shadow through the real postinstall link and launcher, with a timeout,
+  before it reaches the shared PATH.
 - Dependabot alerts #82 (`glob`) and #83 (`minimatch`):
   owner chose "Keep open, recheck later (Recommended)";
   tracked in #3473

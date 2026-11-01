@@ -5997,3 +5997,27 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Tasks #69 and #78 closed as superseded: service step 4 deletes the old journal and shadow-repository path they target.
 - Queued: the user's final re-review, recorded under the heading "Final re-review (queued 2026-11-01)" in the Authority
   section (task #79). It starts once the queue is drained.
+- 0.5.1 lock bump: `monochromatic-c0` declined, because its delegation covered only 0.5.0. I ran the scoped
+  `toolchain:update -- cargo:monochromatic-git-policy-cli` myself, under the user's standing "bump and publish"
+  authorization. It also wrote `monochromatic-6e`'s pnpm-shadow row, read from 6e's uncommitted `toolchain.plan.jsonc`;
+  both rows share one generated lock and digest. Agreed with 6e: they commit both rows together, naming the wrapper row
+  as mine, then run `toolchain:install` and tell me. Then I check `git --version` prints 0.5.1 and run a real commit.
+  The commit service is not installed on this machine (no unit files, no runtime socket), so commits keep the native path.
+- Service step 4a READY `96821029d5` merged as `9ca669c45f`. The service now lands `-F`, `--author`, `--date`,
+  `--trailer`, `--cleanup=whitespace|verbatim`, `--allow-empty-message` and `-a`, compared field by field with native.
+  It also closed a gap: repos with `commit.template`, `commit.cleanup`, `commit.gpgSign`, signoff, `trailer.*`,
+  `i18n.commitEncoding` or `core.commentChar` were silently ignored on the service path and now decline to the
+  transaction.
+- Decision for steps 4b to 4d, adopted from the owner's rules ("Invoke real git as rarely as possible"; locks banned),
+  veto open to the owner:
+  - Embed every option that is pure message or parent arithmetic: `-s`, `--allow-empty`, `-C`, `--amend` without an
+    editor, `--fixup`/`--squash` without an editor, `--cleanup=strip`.
+  - Use real `git commit` against a thin scratch git dir only where Git must run a program: the editor, or signing
+    (`-S`, `commit.gpgSign`). The service lands that commit by compare-and-swap, or answers `retry_prepare`.
+  - Rejected: keeping the old transaction (keeps the banned locks), and re-implementing the editor and signer in the
+    wrapper.
+- Standards-review shadow: off since 0.5.0, as accepted ("audit-only; accepted") until it is wired as a service work
+  item. Step 3 made work items drain, so the wiring is now unblocked; it gets an agent when a slot frees. Its review only
+  runs on a machine with the service installed, and this machine has none. Installing the service here would move every
+  session's commits to it, so the user decides that.
+- Gate 9 (`8abacf428b`) near its end; gate 10 on `9ca669c45f` follows in `.claude/worktrees/gate-main9`.
