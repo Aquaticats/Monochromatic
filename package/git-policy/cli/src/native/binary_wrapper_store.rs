@@ -127,10 +127,24 @@ fn build_name(built: &Path) -> std::io::Result<String> {
 /// # Errors
 ///  When the store cannot be created or written, the copy fails, or the copy does not have the build's name.
 pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
+    let name: String = build_name(built)?;
+    return shared_copy_named(built, name.as_str(), root, &|| {});
+}
+
+/// What:
+///  `shared_copy` for a build whose `name` is known, with `before_publish` run after the copy is complete and checked
+///  and before it is linked to the stored name.
+/// Why:
+///  A control that needs several callers to hold finished partial copies at the same moment, so that all of them
+///  publish against each other, blocks them in `before_publish` until all have arrived; a small file can then stand
+///  for the build, and the name need not come from the process-wide cell.
+///
+/// # Errors
+///  The errors of `shared_copy`.
+pub fn shared_copy_named(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn()) -> std::io::Result<PathBuf> {
     let store: PathBuf = root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store)?;
-    let name: String = build_name(built)?;
-    let stored: PathBuf = store.join(&name);
+    let stored: PathBuf = store.join(name);
     if stored.exists() {
         return Ok(stored);
     }
@@ -145,6 +159,7 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
             built.display()
         )));
     }
+    before_publish();
     publish(partial.as_path(), stored.as_path())?;
     remove_idle_builds(store.as_path(), stored.as_path(), IDLE_BUILD_AGE);
     return Ok(stored);

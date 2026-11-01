@@ -5,7 +5,7 @@
 use super::support::{Fixture, WRAPPER, fixture, fixture_in};
 use super::wrapper_store::{
     IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
-    remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy,
+    remove_idle_builds_at, BuildName, name_once, reserve_partial, shared_copy, shared_copy_named,
 };
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -107,24 +107,55 @@ fn a_failed_read_of_the_name_is_the_outcome_for_later_callers() {
     assert_eq!(reads.load(Ordering::SeqCst), 1, "a later caller read again");
 }
 
+/// How many callers publish against each other in one control.
+const PUBLISHING_CALLERS: usize = 4;
+
+/// How many bytes the stand-in build has. Each caller writes one partial copy of it, so the control writes
+/// `PUBLISHING_CALLERS` times this, whatever the host's core count, and not as many copies of the real 22 MB executable
+/// as the host has cores.
+const STAND_IN_BYTES: usize = 64 * 1024;
+
+/// Count one more caller at the gate and wait, up to `ARRIVAL_DEADLINE`, until `callers` have; return whether they had
+/// when this caller left. A caller that died before the gate makes the others leave late and say so, not hang.
+fn meet_at_gate(arrived: &AtomicUsize, callers: usize) -> bool {
+    arrived.fetch_add(1, Ordering::SeqCst);
+    let deadline: std::time::Instant = std::time::Instant::now() + ARRIVAL_DEADLINE;
+    while arrived.load(Ordering::SeqCst) < callers && std::time::Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    return arrived.load(Ordering::SeqCst) >= callers;
+}
+
 /// However many callers ask at once, every one ends with a link to the same final file holding the build's bytes, a
 /// recent copy of another build stays while they link, and nothing else stays: no partial file, no second copy.
+/// Every caller holds its finished partial copy at the gate before any of them publishes, so all of them publish
+/// against each other whatever the schedule; the build is a small stand-in so that no more is written than
+/// `PUBLISHING_CALLERS` copies of `STAND_IN_BYTES`.
 /// The identity of the final file is taken before a later ask, so a later ask that replaced it is seen.
 #[test]
 fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
     let created: Fixture = fixture("store-once");
-    let built: &Path = Path::new(WRAPPER);
+    let built: PathBuf = created.root.join("stand-in-build");
+    std::fs::write(&built, vec![0xA5_u8; STAND_IN_BYTES]).expect("stand-in build");
+    let name: String = content_name(&built).expect("the stand-in's name");
     let store: PathBuf = created.root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store).expect("store");
     let other_build: String = String::from("0000000000000000-1-cli-git-native");
     std::fs::write(store.join(&other_build), b"another build").expect("another build's copy");
-    let callers: usize = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get).max(4);
+    let (arrived, together): (AtomicUsize, AtomicUsize) = (AtomicUsize::new(0), AtomicUsize::new(0));
     let links: Vec<PathBuf> = std::thread::scope(|scope| {
-        let handles: Vec<_> = (0..callers)
+        let handles: Vec<_> = (0..PUBLISHING_CALLERS)
             .map(|caller| {
-                let (root, link): (&Path, PathBuf) = (created.root.as_path(), created.root.join(format!("link-{caller}")));
+                let link: PathBuf = created.root.join(format!("link-{caller}"));
+                let (root, built, name, arrived, together): (&Path, &Path, &str, &AtomicUsize, &AtomicUsize) =
+                    (created.root.as_path(), built.as_path(), name.as_str(), &arrived, &together);
                 return scope.spawn(move || {
-                    let stored: PathBuf = shared_copy(built, root).expect("stored copy");
+                    let stored: PathBuf = shared_copy_named(built, name, root, &|| {
+                        if meet_at_gate(arrived, PUBLISHING_CALLERS) {
+                            together.fetch_add(1, Ordering::SeqCst);
+                        }
+                    })
+                    .expect("stored copy");
                     std::fs::hard_link(&stored, &link).expect("a fixture links the stored copy");
                     return link;
                 });
@@ -132,16 +163,17 @@ fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
             .collect();
         return handles.into_iter().map(|handle| { return handle.join().expect("caller finished"); }).collect();
     });
+    assert_eq!(together.load(Ordering::SeqCst), PUBLISHING_CALLERS, "not every caller published against all the others");
     let first_identity: (u64, u64) = identity(&links[0]);
     assert!(links.iter().all(|link| { return identity(link) == first_identity; }), "the links are not one file");
-    let final_name: String = content_name(built).expect("the build's name");
-    let mut expected: Vec<String> = vec![final_name, other_build];
+    let mut expected: Vec<String> = vec![name.clone(), other_build];
     expected.sort();
     assert_eq!(names_in(&store), expected, "only the final file and the recent copy of the other build");
-    assert_eq!(std::fs::read(&links[0]).expect("stored bytes"), std::fs::read(built).expect("built bytes"));
-    let later: PathBuf = shared_copy(built, created.root.as_path()).expect("later ask");
+    assert_eq!(std::fs::read(&links[0]).expect("stored bytes"), std::fs::read(&built).expect("built bytes"));
+    let later: PathBuf = shared_copy_named(&built, name.as_str(), created.root.as_path(), &|| {}).expect("later ask");
     assert_eq!(identity(&later), first_identity, "a later ask replaced the final file");
 }
+
 
 /// A caller that publishes after another has won leaves the winner's file as the stored copy, removes its own partial
 /// file, and succeeds; a caller that publishes first becomes the stored copy.
