@@ -57,18 +57,13 @@ truncate or replace using tokens such as `<!DOCTYPE`,
 
 ## Tasks
 
-Run from this directory:
+Run from this directory with `mise run <task>`;
+[`mise.toml`](mise.toml) defines the tasks.
 
-- `mise run test` runs the generator and invariant unit tests through `cargo nextest run --lib --release`.
-   Those tests include a validity sweep (every generated document must parse)
-   and negative controls:
-   each invariant is shown to panic on a deliberately broken input,
-   so a quiet campaign is evidence rather than silence.
-- `mise run lint:clippy` runs Clippy over every target with warnings denied.
-- `mise run list` lists the fuzz targets.
-- `mise run build` builds every target with AddressSanitizer.
-- `mise run smoke` runs every target for 30 seconds with the dictionary.
-- `mise run run <target> [-- libFuzzer flags]` runs or replays one target.
+The unit tests include a validity sweep (every generated document must parse)
+and negative controls:
+each invariant is shown to panic on a deliberately broken input,
+so a quiet campaign is evidence rather than silence.
 
 Campaigns belong in a resource-bounded container rather than on a workstation,
 because libFuzzer otherwise runs until told to stop.

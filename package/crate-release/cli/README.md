@@ -229,8 +229,5 @@ the
 
 ## Tasks
 
-- `release` runs the release command and `release:wait` runs the wait command.
-- `lint`,
-  `lint:types`,
-  `lint:oxlint`,
-  `format:oxlint` and `test:unit` are the usual package checks.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/crate-release/cli:<task>`.

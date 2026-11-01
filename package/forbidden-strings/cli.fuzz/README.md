@@ -128,22 +128,8 @@ The targets share a single tuned dictionary at
 All commands run on nightly automatically:
  the repo-root `rust = nightly` tool applies its toolchain to every task.
 
-```bash
-# List every target name.
-mise run //package/forbidden-strings/cli.fuzz:list
-
-# Type-check the shared generator library and its unit tests.
-mise run //package/forbidden-strings/cli.fuzz:test
-
-# Build every target.
-mise run //package/forbidden-strings/cli.fuzz:build
-
-# 30-second smoke run across every target (uses the dictionary).
-mise run //package/forbidden-strings/cli.fuzz:smoke
-
-# Single-target campaign with passthrough libFuzzer args.
-mise run //package/forbidden-strings/cli.fuzz:run fuzz_literal_roundtrip -- -max_total_time=120
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/forbidden-strings/cli.fuzz:<task>`.
 
 ## Bounded embedding campaign
 

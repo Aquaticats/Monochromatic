@@ -77,15 +77,8 @@ The `allowOverride` rule option (default false) can let `override` members inher
 
 ## Package tasks
 
-```sh
-mise run //package/linter/kotlin:test           # rule unit tests
-mise run //package/linter/kotlin:lint           # local compile check
-mise run //package/linter/kotlin:lint:detekt    # dogfood own src
-mise run //package/linter/kotlin:build              # build plugin jar
-mise run //package/linter/kotlin:publish:bundle     # signed Central bundle, no upload
-mise run //package/linter/kotlin:verify:publication # bundle plus clean-consumer resolution
-mise run //package/linter/kotlin:verify:central     # current release through detekt from Central
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/linter/kotlin:<task>`.
 
 ## Maven Central publication
 

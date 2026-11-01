@@ -52,17 +52,9 @@ exists to compare layout engines,
 
 ## Tasks
 
-- `mise run //package/file-manager/variant-gtk-sticky:build` builds the release binary.
-- `mise run //package/file-manager/variant-gtk-sticky:test` runs the pure band-math unit tests.
-- `mise run //package/file-manager/variant-gtk-sticky:test:wayland`
-   drives the app inside `package/nested-wayland-session/cli` and asserts spawn,
-   dedup,
-   close,
-   zero pane overlaps,
-   and the root pane pinning while scrolled.
-- `mise run //package/file-manager/variant-gtk-sticky:lint:clippy` runs Clippy;
-  the repository's Rust rules run from the root `mise run lint`.
-- `mise run //package/file-manager/variant-gtk-sticky:run` runs the GUI on native Wayland.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/file-manager/variant-gtk-sticky:<task>`.
+The repository's Rust rules run from the root `mise run lint`.
 
 ## Environment variables
 

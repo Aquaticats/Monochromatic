@@ -259,40 +259,8 @@ automatically when missing.
 mise run //package/terminal/app:image
 ```
 
-Run compile checks,
- max-lines linting,
- clippy,
- and tests (host if Zig + dev libs present,
- else container):
-
-```bash
-# package/terminal/app
-mise run //package/terminal/app:lint
-mise run lint:monochromatic-lint -- package/terminal/app
-mise run //package/terminal/app:lint:clippy
-mise run //package/terminal/app:test
-```
-
-Build a release binary (and stage the libghostty-vt runtime libraries):
-
-```bash
-# package/terminal/app
-mise run //package/terminal/app:build
-```
-
-Force the container path,
- asserting the container build still works on any host:
-
-```bash
-# package/terminal/app
-mise run //package/terminal/app:verify:container
-```
-
-Build,
- install the `.desktop` file plus binary into the host user profile,
- and run the GUI on the host session:
-
-```bash
-# package/terminal/app
-mise run //package/terminal/app:run
-```
+The tasks are defined in [`mise.toml`](mise.toml),
+which describes each one including the host-or-container choice.
+Run one with `mise run //package/terminal/app:<task>`.
+The repository linter runs from the repository root:
+`mise run lint:monochromatic-lint -- package/terminal/app`.

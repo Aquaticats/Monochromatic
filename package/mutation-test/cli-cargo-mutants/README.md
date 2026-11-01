@@ -104,8 +104,8 @@ the campaigns themselves are run by a person, never by a test.
 
 ## Tasks
 
-- `campaign:parallel` runs the launcher.
-  Products give it their values in a task of their own,
-  for example `native:mutation:parallel` in the git-policy package.
-- `campaign:gate-slot` runs the limiter.
-- `lint`, `lint:types`, `lint:oxlint`, `format:oxlint` and `test:unit` are the usual package checks.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/mutation-test/cli-cargo-mutants:<task>`.
+
+Products give `campaign:parallel` its values in a task of their own,
+for example `native:mutation:parallel` in the git-policy package.

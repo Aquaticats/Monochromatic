@@ -75,23 +75,14 @@ so the edit campaign tests edits rather than not-found errors.
 
 ## Tasks
 
-Run from this directory:
+Run from this directory with `mise run <task>`;
+[`mise.toml`](mise.toml) defines the tasks.
 
-- `mise run test` runs the generator,
-   invariant and address-picker unit tests through `cargo nextest run --lib --release`.
-   Those tests include negative controls:
-   each invariant is shown to panic on a deliberately broken input,
-   so a quiet campaign is evidence rather than silence.
-- `mise run lint:clippy` runs Clippy over every target with warnings denied.
-- `mise run //:lint:monochromatic-lint -- package/jsonc-edit/core-rust.fuzz`
-  runs the repository linter over this package,
-  where `monochromatic-lint.config.jsonc` exempts fuzz sidecars
-  from `rust/max-lines` and `rust/require-rustdoc`.
-- `mise run list` lists the fuzz targets.
-- `mise run build` builds every target with AddressSanitizer.
-- `mise run smoke` runs every target for 30 seconds with the dictionary.
-- `mise run run <target> [-- libFuzzer flags]` runs or replays one target;
-   pass a crash artifact after `--` to minimize or replay it.
+The unit tests include negative controls:
+each invariant is shown to panic on a deliberately broken input,
+so a quiet campaign is evidence rather than silence.
+The repository linter covers this package;
+`monochromatic-lint.config.jsonc` exempts fuzz sidecars from `rust/max-lines` and `rust/require-rustdoc`.
 
 Campaigns belong in a resource-bounded container rather than on a workstation,
 because libFuzzer otherwise runs until told to stop.

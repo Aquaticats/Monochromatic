@@ -49,17 +49,8 @@ The full derivation and the behavioral differences against the original are reco
 
 ## Tasks
 
-- `mise run //package/file-manager/variant-electron:build` builds the staged Electron app.
-- `mise run //package/file-manager/variant-electron:test:unit` runs the model,
-   band-geometry,
-   and sort unit tests against the built artifacts.
-- `mise run //package/file-manager/variant-electron:test:wayland`
-   drives the app inside `package/nested-wayland-session/cli` and asserts spawn,
-   dedup,
-   close,
-   zero pane overlaps,
-   and the root pane pinning while scrolled.
-- `mise run //package/file-manager/variant-electron:test` runs both.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/file-manager/variant-electron:<task>`.
 
 ## Pure Wayland verification
 

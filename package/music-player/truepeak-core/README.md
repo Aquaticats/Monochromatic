@@ -188,15 +188,5 @@ The apps' own versions (the release tag) are independent of this one.
 
 ## Tasks
 
-Run these with `mise run //package/music-player/truepeak-core:<task>`.
-
-- `build`,
-   `build:debug`:
-   compile the library.
-- `lint`:
-   `cargo check`.
-- `lint:clippy`:
-   clippy with warnings denied.
-- `test`,
-   `test:debug`:
-   the unit tests.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/music-player/truepeak-core:<task>`.

@@ -157,12 +157,8 @@ Run it alone:
 
 ## Tasks
 
-```sh
-# shell
-mise run //package/music-player/desktop-e2e:test:unit
-mise run //package/music-player/desktop-e2e:lint
-mise run //package/music-player/desktop-e2e:lint:types
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/music-player/desktop-e2e:<task>`.
 
 The unit tests cover everything that needs no display:
  the log parser,

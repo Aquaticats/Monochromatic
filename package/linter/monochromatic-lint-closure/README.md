@@ -202,17 +202,12 @@ The `dylint_linting` and `dylint_testing` crates and the two tools must stay on 
 
 ### Tasks
 
-- `mise run //package/linter/monochromatic-lint-closure:build` builds the library.
-- `mise run //package/linter/monochromatic-lint-closure:test` runs the unit tests and the UI fixtures through nextest.
-- `mise run //package/linter/monochromatic-lint-closure:lint` runs `cargo check`,
-  Clippy with `--deny warnings`,
-  and `cargo fmt --check`;
-  `lint:clippy` and `lint:rustfmt` run the last two alone.
-- `mise run //package/linter/monochromatic-lint-closure:run <package directory>` lints another package with `cargo dylint --path . --all-targets`.
-  `monochromatic-lint` itself checks the library and the binaries only;
-  this task shows what that exemption of tests,
-  examples and benchmarks leaves out.
-- `mise run //package/linter/monochromatic-lint-closure:bless` rewrites `tests/ui/*.stderr` from the lint's current output.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/linter/monochromatic-lint-closure:<task>`.
+The `run` task lints another package with every target compiled;
+`monochromatic-lint` itself checks only the library and the binaries,
+so `run` shows what that exemption of tests,
+examples and benchmarks leaves out.
 
 The aggregate tasks carry the names `build` and `lint`,
 as in the sibling packages,

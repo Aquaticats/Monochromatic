@@ -47,22 +47,11 @@ already-layered clang and cmake supply the C++ toolchain cxx-qt needs.
 
 ## Tasks
 
-- `build`:
-   release build.
-- `build:debug`:
-   debug build.
-- `run`:
-   debug build,
-   then run the GUI on native Wayland (`QT_QPA_PLATFORM=wayland`).
-- The root `mise run lint` checks `rust/require-rustdoc` plus `rust/max-lines` here
-  (this package is a cxx-qt file,
-  so `rust/require-rustdoc` exempts its `use` imports and trait-impl methods).
-- `lint:clippy`:
-   clippy with warnings denied.
-- `test`:
-   `cargo nextest run`.
-
-Run any task with `mise run //package/file-manager/variant-qt:<task>`.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/file-manager/variant-qt:<task>`.
+The root `mise run lint` checks `rust/require-rustdoc` plus `rust/max-lines` here
+(this package is a cxx-qt file,
+so `rust/require-rustdoc` exempts its `use` imports and trait-impl methods).
 
 ## Layout
 

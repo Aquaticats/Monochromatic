@@ -160,17 +160,11 @@ on any change outside the `packages` array, the way
 
 ## Tasks
 
-- `build`, `build:js`, `build:js:node`, `watch:build`, `watch:build:js`,
-  `watch:build:js:node`: rolldown builds.
-- `lint`, `lint:types`, `lint:oxlint`, `format:oxlint`: checks and formatting.
-- `test:unit`: unit and characterization tests, which depend on `build` because they
-  import the shipped bundle.
-- `verify:extension`: boots the built artifact against a fake host and asserts the
-  registration contract.
-- `verify:host`: boots a real disposable pi host and asserts what filtering did to a
-  live catalog. Gated by `PI_MODEL_RETIREMENT_VERIFY_HOST=1`, which the task sets.
-- `fixture:retirement-table`: regenerates the pinned retirement table from the
-  installed pi-ai catalog.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/pi-plugin/model-retirement:<task>`.
+
+`verify:extension` boots the built artifact against a fake host
+and asserts the registration contract.
 
 ## Verification
 
