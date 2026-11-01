@@ -16,6 +16,7 @@ import {
   NeuralWattModelNotServedError,
   OpenRouterModelNotServedError,
   type ReaskSeat,
+  type SeatedChatJsonRequest,
   SyntheticModelNotServedError,
   UnnameableToolError,
   XiaomiModelNotServedError,
@@ -451,7 +452,7 @@ export async function attemptStageCall<ValueT,>(
       responseFormat,
       validate,
       reaskSeat,
-    },);
+    } satisfies SeatedChatJsonRequest<ValueT>,);
     if (outcome.kind !== 'ok') {
       l.warn(`${stage} ${modelId}: ${lostVoiceCause({ outcome, },)}, voice lost`,);
 

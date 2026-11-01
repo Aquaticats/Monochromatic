@@ -22,6 +22,7 @@ import {
   type ModelCaller,
   type ReaskMode,
   readsImages,
+  type SeatedChatTextRequest,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import type {
@@ -453,7 +454,7 @@ export async function readImageAsset(
     },
     // Conditional spread keeps the knob absent instead of undefined.
     ...((otherThan === undefined) ? {} : { otherThan, }),
-  },);
+  } satisfies SeatedChatTextRequest,);
 
   if (rendersAsNothing({ text: reply.text, },)) {
     // CUT BY THE LENGTH LIMIT IS MARKED, because it is the one empty reply

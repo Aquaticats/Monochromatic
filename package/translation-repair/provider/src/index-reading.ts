@@ -12,6 +12,8 @@ export type {
   ExcludedProviders,
   ReaskMode,
   ReaskSeat,
+  SeatedChatJsonRequest,
+  SeatedChatTextRequest,
 } from './chat-contract.ts';
 export { excludingAlso, } from './provider-exclusion.ts';
 export { measuresModelOf, } from './reask-mode.ts';

@@ -406,6 +406,28 @@ export type ChatJsonRequest<ValueT,> = ChatTextRequest & {
 };
 
 /**
+ A text request that names its seat, with a seat that is a seat and never undefined: the type a production caller that
+ builds a request checks its literal against (`satisfies`), so a request built without its seat, or with a seat that may
+ be absent, does not compile (ledger B1412). A request handed on by a wrapper is the loose `ChatTextRequest`.
+
+ @example
+ ```ts
+ const request = { modelId, messages, signal, reaskSeat, } satisfies SeatedChatTextRequest;
+ ```
+ */
+export type SeatedChatTextRequest = ChatTextRequest & { readonly reaskSeat: ReaskSeat; };
+
+/**
+ A JSON request that names its seat; see {@link SeatedChatTextRequest}.
+
+ @example
+ ```ts
+ const request = { modelId, messages, signal, validate, reaskSeat, } satisfies SeatedChatJsonRequest<Verdict>;
+ ```
+ */
+export type SeatedChatJsonRequest<ValueT,> = ChatJsonRequest<ValueT> & { readonly reaskSeat: ReaskSeat; };
+
+/**
  Machine-readable cause of a schema mismatch, beside the prose detail.
  `truncated-completion` marks the provider's own token-ceiling stop,
  which invalidates even parseable content because a syntactically complete

@@ -1,6 +1,9 @@
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import type {
+  ModelClient,
+  SeatedChatJsonRequest,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { wholeOpening, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure/ts';
@@ -68,6 +71,21 @@ const HEALTH_RESPONSE_FORMAT = {
 } as const;
 
 /**
+ Reply the health question asks for.
+ */
+type HealthReply = {
+  /**
+   Number of cats named.
+   */
+  readonly count: number;
+
+  /**
+   Name of the first.
+   */
+  readonly first: string;
+};
+
+/**
  Accepts a reply carrying both fields, whatever their values.
 
  @param value - parsed reply
@@ -79,10 +97,7 @@ const HEALTH_RESPONSE_FORMAT = {
  const ok = isHealthReply(JSON.parse(text,),);
  ```
  */
-function isHealthReply(value: unknown,): value is {
-  readonly count: number;
-  readonly first: string;
-} {
+function isHealthReply(value: unknown,): value is HealthReply {
   return isJsonRecord(value,)
     && ('count' in value)
     && ('first' in value);
@@ -142,7 +157,7 @@ export async function askModelHealth(
       reask: 'measured-model',
       bench: [],
     },
-  },);
+  } satisfies SeatedChatJsonRequest<HealthReply>,);
 
   l.info(
     `${modelId}: ${outcome.kind}${
