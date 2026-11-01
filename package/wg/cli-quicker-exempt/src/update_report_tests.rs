@@ -169,7 +169,7 @@ fn tool_names_are_escaped_and_links_are_not_followed() {
     std::fs::create_dir_all(outside.join("secret-name")).expect("make the outside directory");
     let linked = home.join("linked-root");
     std::os::unix::fs::symlink("/", &linked).expect("link a root to the system root");
-    let linked_notice = policy_notice(&[linked.clone()], &home);
+    let linked_notice = policy_notice(std::slice::from_ref(&linked), &home);
     assert!(installed_line(&linked_notice).contains("nothing yet"), "{linked_notice}");
     let inside_link = home.join("inside-link");
     std::os::unix::fs::symlink(&outside, &inside_link).expect("link a root below the home");
