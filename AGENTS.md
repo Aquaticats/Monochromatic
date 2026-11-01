@@ -967,8 +967,10 @@ Decision logs retain correlated inputs,
 
 TLG:
  Production code logs only via tagged loggers from `@monochromatic-dev/logger-core`;
- raw `console` only for exact terminal output (CLI output,
- prompts).
+ raw `console` only for exact terminal output.
+ Logs stay off protocol channels (hook stdout,
+ RPC);
+ use stderr.
 
 LG1:
  Tag loggers at every module + function boundary with `myFn.name`,
