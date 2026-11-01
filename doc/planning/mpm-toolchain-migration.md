@@ -325,9 +325,13 @@ The cutover is a hard switch that follows a successful full sync on the machine
  querying `bin-paths.ts` output instead of `mise config ls --json` / `mise bin-paths`.
 - `package/vm-builder/cli/Containerfile` and
  `package/config/dotfiles/mise/config.toml` stop seeding tool management.
-- Root `Dockerfile`,
- `package/mutation-test/cli/runtime/Containerfile` install from `toolchain.lock.json` pins
- (or keep their own pins and cite the lock).
+- `package/mutation-test/cli/runtime/Containerfile` installs from `toolchain.lock.json` pins
+ (or keeps its own pins and cites the lock).
+ The root `Dockerfile`,
+ which this item also named,
+ was removed on 2026-11-01
+ after the owner said "If nothing can be proven to depend on anything docker,
+ remove it."
 
 ## Verification
 

@@ -14,6 +14,15 @@ CI and the `Dockerfile` run the Rust tools,
 and the clean-container check ran against the published 0.1.1 release.
 The text that follows is the inventory as it stood before the switch.
 
+Update 2026-11-01:
+the root `Dockerfile`,
+the root `docker-compose.yml` and the root `testDockerImage` task were removed,
+after the owner said "If nothing can be proven to depend on anything docker,
+remove it."
+Every mention of the `Dockerfile` below describes the file as it stood before the removal,
+not a current file or instruction;
+`playwright.Dockerfile` and the package Containerfiles stay.
+
 Verbs renamed 2026-10-31 (after the "Rehearsal" runs below,
 which used the old ones):
 the owner remarked "Wait,
@@ -413,6 +422,10 @@ then local outputs separately"):
     and the comment blocks at `:92-96` and `:107-109` and the messages at `:104` and `:117` name `mise run sync:files`.
 
 ### Dockerfile
+
+Removed 2026-11-01 (see "Status"):
+this section is the inventory of a file that no longer exists,
+kept as the record of the switch.
 
 Command:
 `rg --line-number "sync|toolchain|file-enforcer|mise run" Dockerfile`.

@@ -128,7 +128,13 @@ Where a development task builds in the container and runs the result on the host
    after file-enforcer's Fedora cell spent 17 minutes in `dnf install` on slow mirrors);
    Ubuntu (apt) and CachyOS (pacman) cells stay,
    and an explicit `container:fedora` still resolves.
-- The root `Dockerfile` (Ubuntu CI canary image) and the `mvm` default VM template (Ubuntu) stay as they are.
+- The `mvm` default VM template (Ubuntu) stays as it is.
+  This decision also kept the root `Dockerfile` (Ubuntu CI canary image);
+  it was removed on 2026-11-01 with the root `docker-compose.yml` and the `testDockerImage` task,
+  after the owner said "If nothing can be proven to depend on anything docker,
+  remove it."
+  No workflow built that file,
+  and its only consumer was the compose file.
 - Images that are not general bases stay:
    `package/vm-builder/cli` boots `ucore-hci`,
    `package/config/pnpr` extends the published `pnpr` image,
