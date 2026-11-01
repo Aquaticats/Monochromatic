@@ -692,6 +692,23 @@ Wave-4 eighteenth checkpoint (2026-11-01, all rows verified against the tree bef
   number) or distinct, cross-checked against post-batch2-corrections.md and
   cutover-moot-b3.jsonl.
 
+Wave-4 nineteenth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- pi-plugin bash-poke complete: 48 of 48 files, zero new rows (every defect already
+  covered by existing rows; the four compaction-cut reads were recovered from saved
+  results). `w4-cc-statusline` now on advisor (23 files; then current-time-context 12,
+  cost-dismissal 8).
+- terminal-exec/cli complete: 27 of 27 files (rows `w4-terminal-exec-001` to `-015`
+  verified, 15 of 15 clean; headline row 001, blocker: the KDE XDG fallback uses
+  config without the dot against xdg-paths's .config, so the kdeglobals fallback never
+  works on stock systems; row 002: lower-priority config files override higher ones).
+  `w4-android-app` now on watch-restart/cli (43 files; then kwin/key-helper 25).
+- mvm/cli turn 1: 27 of 94 files (rows `w4-mvm-001` to `-007` verified, 7 of 7 clean;
+  headline row 001: ephemeral-run re-raises SIGINT/SIGTERM while its own listener is
+  still registered, wedging Ctrl+C during mvm run, live repro re-entered the handler
+  five times; row 002 is another Aquicat/Aquaticats spelling instance). 67 files
+  remain from src/backend/hetzner/server-types.unit.test.ts.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
