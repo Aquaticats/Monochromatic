@@ -18,7 +18,6 @@ import {
   copyFile,
   mkdir,
   mkdtemp,
-  rm,
   symlink,
   writeFile,
 } from 'node:fs/promises';
@@ -31,6 +30,7 @@ import {
 import { parseArgs } from 'node:util';
 
 import { repository } from './native-perf-git.ts';
+import { removeScratchRoot } from './native-perf-scratch.ts';
 import {
   measure,
   type SampleFailure,
@@ -281,17 +281,15 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
   });
 }
 
-for await (const measurement of measureScenarios()) {
-  record(measurement);
+try {
+  for await (const measurement of measureScenarios()) {
+    record(measurement);
+  }
 }
-
-await rm(
-  root,
-  {
-    recursive: true,
-    force: true,
-  },
-);
+finally {
+  // Git detaches maintenance after a commit; cleanup waits for every process that still touches the tree.
+  await removeScratchRoot({ root, });
+}
 
 /**
  Enforced scenarios whose added p95 reached the budget.

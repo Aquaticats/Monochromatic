@@ -80,7 +80,7 @@ pub fn run_metadata_git(
     overlay: &[(OsString, OsString)],
 ) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some(answered) = try_metadata(arguments, overlay) {
+    if let Some(answered) = try_metadata(arguments, super::git_system_config::with_real_git(overlay, real_git).as_slice()) {
         return Ok(answered);
     }
     // What: `.stdin(Stdio::null())` connects the child's input to nothing; `.output()`

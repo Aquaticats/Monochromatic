@@ -211,3 +211,62 @@ fn states_that_need_git_are_declined() {
     declined(root.as_path(), clean.join("dir").as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
     remove(root.as_path());
 }
+
+/// A repository whose index really is a sparse index: a cone-mode checkout of one directory with `--sparse-index`.
+fn sparse_index_repository(root: &Path) -> PathBuf {
+    let repo = root.join("sparse");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    for directory in ["kept", "left-out/deep", "also-out"] {
+        std::fs::create_dir_all(repo.join(directory)).expect("dirs");
+        std::fs::write(repo.join(directory).join("f.txt"), format!("{directory}\n")).expect("file");
+    }
+    std::fs::write(repo.join("top.txt"), "top\n").expect("top");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=first"]);
+    git(repo.as_path(), &["sparse-checkout", "init", "--cone", "--sparse-index"]);
+    git(repo.as_path(), &["sparse-checkout", "set", "kept"]);
+    return repo;
+}
+
+/// A real sparse index is left to Git by every query, whether the configuration keys that announce it are present or not,
+/// and where the readers would answer, they equal Git.
+#[test]
+fn a_real_sparse_index_is_declined() {
+    let root = fixture("repo-read-query-sparse");
+    let repo = sparse_index_repository(root.as_path());
+    // The fixture really is sparse: the index file carries the sparse-directory extension, which `ls-files --sparse` lists.
+    let index = std::fs::read(repo.join(".git/index")).expect("index");
+    assert!(index.windows(4).any(|window| { return window == b"sdir"; }), "the index has no sparse-directory extension");
+    let listed = text(repo.as_path(), &["ls-files", "--sparse", "--stage"]);
+    let full = text(repo.as_path(), &["ls-files", "--stage"]);
+    assert_ne!(listed, full, "the sparse index lists a sparse directory that a full listing does not");
+    let head = text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let shapes: [Vec<&str>; 3] = [
+        vec!["ls-files", "--stage", "-z", "--full-name"],
+        vec!["diff-index", "--cached", "--name-only", "-z", &head],
+        vec!["diff-index", "--cached", "--raw", "-z", "--no-renames", "--no-abbrev", &head],
+    ];
+    for shape in &shapes {
+        declined(root.as_path(), repo.as_path(), shape);
+    }
+    // Without the keys that announce a sparse checkout, the index extension alone must still make the readers decline.
+    let kept_lines: Vec<String> = std::fs::read_to_string(repo.join(".git/config"))
+        .expect("config")
+        .lines()
+        .filter(|line| {
+            let key = line.trim().to_ascii_lowercase();
+            return !(key.starts_with("sparsecheckout") || key.starts_with("sparse ") || key.starts_with("worktreeconfig"));
+        })
+        .map(str::to_string)
+        .collect();
+    std::fs::write(repo.join(".git/config"), kept_lines.join("\n") + "\n").expect("config");
+    if repo.join(".git/config.worktree").exists() {
+        std::fs::remove_file(repo.join(".git/config.worktree")).expect("worktree config");
+    }
+    for shape in &shapes {
+        assert!(mine(root.as_path(), repo.as_path(), shape).is_none() || compare(root.as_path(), repo.as_path(), shape), "{shape:?}");
+    }
+    assert!(mine(root.as_path(), repo.as_path(), &shapes[0]).is_none(), "the index extension must be declined without the keys");
+    remove(root.as_path());
+}

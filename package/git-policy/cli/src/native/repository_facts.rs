@@ -37,6 +37,7 @@ use super::candidate_prediction::{CandidateRequest, PreparedCandidates, prepare_
 /// The captured-query runner and its byte helpers.
 use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git};
 use super::repo_read_adapter::{location_of, sequencer_of};
+use super::git_system_config::with_real_git;
 use super::repo_read_layout::{RepoLayout, read_layout};
 use super::repository_location::{
     RepositoryLocation, location_query_arguments, parse_location_output,
@@ -248,7 +249,7 @@ impl GitFacts {
     /// ```
     fn layout(&mut self) -> Option<&RepoLayout> {
         if self.layout.is_none() {
-            self.layout = Some(read_layout(self.global_prefix.as_slice(), self.overlay.as_slice()));
+            self.layout = Some(read_layout(self.global_prefix.as_slice(), with_real_git(self.overlay.as_slice(), self.real_git.as_path()).as_slice()));
         }
         return self.layout.as_ref().and_then(Option::as_ref);
     }
