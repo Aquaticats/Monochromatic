@@ -1,5 +1,18 @@
 # Translation repair session handover
 
+## State before the reboot, 2026-11-01
+
+The state at the reboot of 2026-11-01,
+when the owner asked to stop just before a launch,
+is in [the reboot record][reboot-2026-11-01]:
+the branch head and its gate,
+the frozen build and the launch held back,
+round w410 and its backup branch,
+and the order of work after the reboot.
+Read it first after that reboot.
+
+[reboot-2026-11-01]: translation-repair-handover-2026-11-01-state-before-the-reboot.md
+
 ## Trial handover to MiMo, from 2026-10-03
 
 From 2026-10-03 the owner is away for about 48 hours,
