@@ -274,6 +274,8 @@ fn a_failed_push_is_shown_in_the_worktree_that_made_the_commit() {
     let setup: Setup = setup("push-failure-worktree");
     let linked: PathBuf = linked_worktree(&setup, "feature");
     let own: PathBuf = linked_git_dir(&setup, linked.as_path());
+    // The linked worktree has a service of its own.
+    setup.service.serve(&setup.fixture, own.as_path());
     refuse_pushes(setup.remote.as_path());
     let commit: String = commit_through_service_in(&setup, linked.as_path(), "second\n");
     wait_until_settled_in(own.as_path(), commit.as_str());
