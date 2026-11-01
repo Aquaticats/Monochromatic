@@ -95,6 +95,12 @@ pub fn from_hex(text: &[u8], format: ObjectFormat) -> Option<Vec<u8>> {
     return Some(name);
 }
 
+/// The most compressed bytes of one stream the inflater looks at; a longer stream is left to Git.
+///  A block that produces nothing still costs a table rebuild in the decoder (upstream issue 198 of the decoder crate),
+///  so the cost of a hostile stream grows with its length, not with its output; real commits, trees and small blobs
+///  are far below the bound, and Git inflates the rest.
+pub const INFLATE_INPUT_LIMIT: usize = 512 << 10;
+
 /// The smallest output buffer the inflater starts with, so an empty input still grows.
 const FIRST_OUTPUT_BYTES: usize = 64;
 
@@ -109,7 +115,8 @@ const FIRST_OUTPUT_BYTES: usize = 64;
 /// ```ts
 /// const { output, consumed } = inflateZlib(input, limit); // undefined: bad, short or longer than the limit
 /// ```
-fn inflate_zlib(input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)> {
+pub fn inflate_zlib(whole_input: &[u8], limit: usize) -> Option<(Vec<u8>, usize)> {
+    let input: &[u8] = &whole_input[..whole_input.len().min(INFLATE_INPUT_LIMIT)];
     let flags: u32 = inflate_flags::TINFL_FLAG_PARSE_ZLIB_HEADER | inflate_flags::TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF;
     let mut output: Vec<u8> = vec![0; input.len().saturating_mul(2).min(limit)];
     let mut state: Box<DecompressorOxide> = Box::<DecompressorOxide>::default();

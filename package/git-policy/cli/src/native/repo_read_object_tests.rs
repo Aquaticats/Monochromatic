@@ -78,3 +78,38 @@ fn damaged_streams_never_panic() {
     assert!(tried > files.len(), "no damaged stream was tried");
     remove(root.as_path());
 }
+
+/// A zlib stream that stores `content` in blocks of at most 65535 bytes, which decodes in time proportional to its length.
+fn stored_stream(content: &[u8]) -> Vec<u8> {
+    let mut bytes: Vec<u8> = vec![0x78, 0x01];
+    let mut chunks = content.chunks(65535).peekable();
+    while let Some(chunk) = chunks.next() {
+        let length: u16 = u16::try_from(chunk.len()).expect("a chunk fits");
+        bytes.push(u8::from(chunks.peek().is_none()));
+        bytes.extend_from_slice(&length.to_le_bytes());
+        bytes.extend_from_slice(&(!length).to_le_bytes());
+        bytes.extend_from_slice(chunk);
+    }
+    let (mut low, mut high): (u32, u32) = (1, 0);
+    for byte in content {
+        low = (low + u32::from(*byte)) % 65521;
+        high = (high + low) % 65521;
+    }
+    bytes.extend_from_slice(&((high << 16) | low).to_be_bytes());
+    return bytes;
+}
+
+/// The decoder's cost for a stream that rebuilds its tables for every block without producing output grows with the
+///  stream's length, not its output (upstream issue 198 of the decoder crate), so a stream longer than the bound is left to
+///  Git; one under it, of the same kind, is read.
+#[test]
+fn a_stream_longer_than_the_bound_is_left_to_git() {
+    let under: Vec<u8> = (0..INFLATE_INPUT_LIMIT / 2).map(|index| { return (index % 251) as u8; }).collect();
+    let over: Vec<u8> = (0..INFLATE_INPUT_LIMIT + 4096).map(|index| { return (index % 251) as u8; }).collect();
+    let short = stored_stream(under.as_slice());
+    assert!(short.len() < INFLATE_INPUT_LIMIT);
+    assert_eq!(inflate_exact(short.as_slice(), under.len()), Some(under), "the control must be readable");
+    let long = stored_stream(over.as_slice());
+    assert!(long.len() > INFLATE_INPUT_LIMIT);
+    assert_eq!(inflate_exact(long.as_slice(), over.len()), None);
+}
