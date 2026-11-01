@@ -513,6 +513,26 @@ Done in the change that removed the old trigger.
   A service review is therefore two Git starts for a commit without code and four for one with code.
   The old script made seven to twenty-one, plus `mise`, `node` and `systemd-run`.
 
+### A live failure and its fix
+
+Seen on the owner's machine with 0.5.4: every review failed with
+`starting git cat-file failed: cli-git has no repository scratch directory for the input of this Git command`.
+The service's own Git context names no repository (one service serves many), and a Git command that takes input writes
+that input to a file in the repository's Git directory.
+The landing sets the directory per request; the review handler did not.
+`service_review::review_item` now sets `common_dir` to the work item's Git directory, which `is_acceptable` has already
+checked against the wake's directory.
+
+`cat-file` stays.
+The patch holds only the hunks, the wrapper links no object reader, and the worktree may have moved on since the commit,
+so the new-side file texts come from the object store; the other way to avoid input is one `git show` start per file.
+The test that found it, `a_review_runs_through_the_real_handlers_in_a_service_context`, runs a pending review item
+through `run_round` and the real `GitHandlers` with a context that names no repository, a real fixture repository and
+the loopback gateway; before the fix it failed with the message above.
+The unit tests had missed it because the shared test context names a repository.
+Other service handlers were checked for the same pattern: push uses only the Git path, the configuration read and the
+maintenance run start Git without input, and the landing sets the directory per request.
+
 ### Bounds
 
 The review shares the service's work thread with pushes, so every step is bounded.

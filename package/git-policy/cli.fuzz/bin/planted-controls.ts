@@ -6,7 +6,6 @@
  The worktree is only read; every edit and build happens under the operating system's temporary directory.
  */
 import {
-  cp,
   mkdir,
   mkdtemp,
   mkdtempDisposable,
@@ -22,6 +21,10 @@ import {
   NativeVerificationError,
   runCommand,
 } from '../../cli/bin/native-verification-process.ts';
+import {
+  copySnapshotEntries,
+  wrapperSnapshotEntries,
+} from '../../cli/bin/native-wrapper-snapshot.ts';
 import {
   type Plant,
   plants,
@@ -67,38 +70,14 @@ type PlantObservation = {
 };
 
 /**
- Repository-relative inputs the helper library needs to build.
+ Repository-relative inputs of this package itself; the subject and the crates it links come from the list every container
+ snapshot of the wrapper shares.
  */
-const inputs = [
-  'package/git-policy/cli/Cargo.toml',
-  'package/git-policy/cli/Cargo.lock',
-  'package/git-policy/cli/README.md',
-  'package/git-policy/cli/src/native',
+const ownInputs = [
   'package/git-policy/cli.fuzz/Cargo.toml',
   'package/git-policy/cli.fuzz/Cargo.lock',
   'package/git-policy/cli.fuzz/src',
   'package/git-policy/cli.fuzz/fuzz_targets',
-  'package/jsonc-edit/core-rust/Cargo.toml',
-  'package/jsonc-edit/core-rust/Cargo.lock',
-  'package/jsonc-edit/core-rust/src',
-  'package/jsonc-edit/core-rust/fixtures',
-  'package/catalog-specifier/core-rust/Cargo.toml',
-  'package/catalog-specifier/core-rust/Cargo.lock',
-  'package/catalog-specifier/core-rust/src',
-  'package/catalog-specifier/core-rust/fixtures',
-  // The subject and this package link the Markdown linter library; a library build reads its manifest and `src`.
-  'package/linter/monochromatic-lint/Cargo.toml',
-  'package/linter/monochromatic-lint/Cargo.lock',
-  'package/linter/monochromatic-lint/src',
-  // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
-  'package/forbidden-strings/cli/Cargo.toml',
-  'package/forbidden-strings/cli/Cargo.lock',
-  'package/forbidden-strings/cli/build.rs',
-  'package/forbidden-strings/cli/src',
-  'package/forbidden-strings/cli/data',
-  'package/forbidden-strings/core/Cargo.toml',
-  'package/forbidden-strings/core/Cargo.lock',
-  'package/forbidden-strings/core/src',
 ];
 
 /**
@@ -376,19 +355,24 @@ const evidence = await mkdtemp(join(
   evidenceRoot,
   'planted-',
 ));
-await Promise.all(inputs.map(function copyInput(input) {
-  return cp(
-    join(
-      repository,
-      input,
-    ),
-    join(
-      root.path,
-      input,
-    ),
-    { recursive: true },
-  );
-}));
+await copySnapshotEntries({
+  context: root.path,
+  entries: [
+    ...wrapperSnapshotEntries({ context: root.path }),
+    ...ownInputs.map(function ownEntry(input) {
+      return {
+        from: join(
+          repository,
+          input,
+        ),
+        to: join(
+          root.path,
+          input,
+        ),
+      };
+    }),
+  ],
+});
 /**
  The controls on the unplanted copy, which must pass for a plant's failure to mean anything.
  */

@@ -22,6 +22,7 @@ use super::service_messages::push_failed_notice;
 use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use super::service_review::{BUDGET, options_for, review_item, review_variables};
 use super::service_review_key::ReviewKey;
+use super::standards_review_run::ReviewOptions;
 use super::transaction_git::GitContext;
 use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_expired, settle};
 use std::path::{Path, PathBuf};
@@ -244,13 +245,28 @@ pub struct GitHandlers {
     /// The review credential of each repository whose wake message carried one. Held in memory only, removed when the
     /// round that used it ends.
     review_keys: std::sync::Mutex<std::collections::HashMap<PathBuf, ReviewKey>>,
+    /// Where tests point the review's gateway call, so no test reaches the real endpoint.
+    #[cfg(test)]
+    review_endpoint: Option<String>,
 }
 
 /// Methods over the real handlers.
 impl GitHandlers {
     /// Handlers that run real Git in `context`, with no review credential yet.
     pub fn new(context: GitContext) -> GitHandlers {
-        return GitHandlers { context, review_keys: std::sync::Mutex::new(std::collections::HashMap::new()) };
+        return GitHandlers {
+            context,
+            review_keys: std::sync::Mutex::new(std::collections::HashMap::new()),
+            #[cfg(test)]
+            review_endpoint: None,
+        };
+    }
+
+    /// The same handlers with the review's gateway call sent to `endpoint`; tests only.
+    #[cfg(test)]
+    pub fn with_review_endpoint(mut self, endpoint: &str) -> GitHandlers {
+        self.review_endpoint = Some(endpoint.to_string());
+        return self;
     }
 
     /// Keep the credential for the reviews of this repository until `forget_review_key`.
@@ -301,7 +317,13 @@ impl WorkHandlers for GitHandlers {
 
     fn review(&self, item: &WorkItem) -> Verdict {
         let key: Option<ReviewKey> = self.review_key_of(Path::new(item.git_dir.as_str()));
-        return review_item(&self.context, item, options_for(item, &review_variables(key.as_ref())), BUDGET);
+        #[cfg_attr(not(test), expect(unused_mut, reason = "only a test replaces the endpoint"))]
+        let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
+        #[cfg(test)]
+        if let Some(endpoint) = self.review_endpoint.as_ref() {
+            options.endpoint = endpoint.clone();
+        }
+        return review_item(&self.context, item, options, BUDGET);
     }
 }
 
