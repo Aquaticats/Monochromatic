@@ -126,21 +126,25 @@ async function planEdits({
     manifestFileName
   );
   /**
+   The edit of the crate's own manifest.
+   */
+  const crateEdit = namedEdit({
+    label: crateLabel,
+    action: function editCrate() {
+      return replacePackageVersion({
+        text: crateText,
+        from: options.from,
+        to: options.to
+      });
+    },
+  });
+  /**
    Edits in the order they are reported: the crate first, then each pin file.
    */
   const edits: readonly PlannedEdit[] = [
     {
       path: cratePath,
-      edit: namedEdit({
-        label: crateLabel,
-        action: function editCrate() {
-          return replacePackageVersion({
-            text: crateText,
-            from: options.from,
-            to: options.to
-          });
-        },
-      }),
+      edit: crateEdit
     },
     ...await Promise.all(options.pinFiles
       .map(async function planPin(pinFile): Promise<PlannedEdit> {
@@ -173,8 +177,7 @@ async function planEdits({
   ];
   // A runner starts from a fresh checkout, so a crate that already holds the target is a bump that is already on the
   // branch: committing it again would find nothing to commit, and publishing it again would repeat a release.
-  const [crateEdit] = edits;
-  if ((options.host === 'runner') && ((crateEdit === undefined) || (!crateEdit.edit.changed)))
+  if ((options.host === 'runner') && (!crateEdit.changed))
     throw new CrateReleaseError(
       `${crateLabel} already holds ${options.to}, so the checkout already has this release's version bump and nothing was changed. If that bump's publish never started, dispatch the publish workflow for ${options.crateName} instead of releasing again; otherwise check <to>.`,
     );
