@@ -22,6 +22,7 @@ use super::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
 use super::repo_read_layout::{RepoLayout, read_layout_with};
 use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
 use super::repo_read_odb::ObjectDatabase;
+use super::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
 use super::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -41,20 +42,22 @@ pub struct Query<'a> {
 pub struct Answer {
     /// Standard output.
     pub stdout: Vec<u8>,
+    /// Standard error.
+    pub stderr: Vec<u8>,
     /// The exit code.
     pub code: i32,
 }
 
 /// The parts of a command line after its global options.
-struct Parsed<'a> {
+pub(super) struct Parsed<'a> {
     /// The subcommand word.
-    command: &'a str,
+    pub(super) command: &'a str,
     /// Options before `--`.
-    flags: Vec<&'a str>,
+    pub(super) flags: Vec<&'a str>,
     /// Non-option arguments before `--`.
-    operands: Vec<&'a [u8]>,
+    pub(super) operands: Vec<&'a [u8]>,
     /// Arguments after `--`.
-    specs: Vec<&'a [u8]>,
+    pub(super) specs: Vec<&'a [u8]>,
 }
 
 /// Split the arguments: leading `-C <dir>` pairs move the start directory, `--no-literal-pathspecs` is Git's default.
@@ -93,7 +96,7 @@ fn parse<'a>(arguments: &'a [OsString], start: &mut PathBuf) -> Option<Parsed<'a
 }
 
 /// Whether `flags` holds exactly the options of `allowed` (each at most once) and every one of `required`.
-fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
+pub(super) fn flags_are(flags: &[&str], required: &[&str], allowed: &[&str]) -> bool {
     return required.iter().all(|flag| { return flags.contains(flag); })
         && flags.iter().all(|flag| { return allowed.contains(flag) || required.contains(flag); })
         && flags.iter().enumerate().all(|(position, flag)| { return !flags[..position].contains(flag); });
@@ -130,18 +133,22 @@ fn content_config_is_plain(layout: &RepoLayout, scope: &ScopeEnvironment) -> Opt
 }
 
 /// Everything one query needs, opened lazily.
-struct Context {
+pub(super) struct Context {
     /// The repository.
-    layout: RepoLayout,
+    pub(super) layout: RepoLayout,
     /// The index file Git would read.
     index_path: PathBuf,
     /// The object directory override, if any.
     objects: Option<PathBuf>,
+    /// Where the system and global configuration files are.
+    pub(super) scope: ScopeEnvironment,
+    /// The environment Git would see, without the index and object directory variables.
+    pub(super) variables: Vec<(OsString, OsString)>,
 }
 
 impl Context {
     /// The object database.
-    fn database(&self) -> Option<ObjectDatabase> {
+    pub(super) fn database(&self) -> Option<ObjectDatabase> {
         return ObjectDatabase::open(self.layout.common_dir.as_path(), self.objects.as_deref(), self.layout.object_format);
     }
 
@@ -194,7 +201,7 @@ fn list_files(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
         stdout.extend_from_slice(entry.path.as_slice());
         stdout.push(0);
     }
-    return Some(Answer { stdout, code: 0 });
+    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
 /// `diff-index --cached` and `diff --cached --name-only`.
@@ -228,7 +235,7 @@ fn diff_cached(context: &Context, parsed: &Parsed<'_>, porcelain: bool) -> Optio
     }
     let kept = select(changes, &filter, statuses.as_deref());
     let stdout: Vec<u8> = if raw { raw_lines(kept.as_slice(), context.zero().as_str()) } else { name_lines(kept.as_slice()) };
-    return Some(Answer { stdout, code: 0 });
+    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
 /// `diff-tree --root --no-commit-id -r -z -m --no-renames --no-abbrev <commit>` for a commit with at most one parent.
@@ -260,7 +267,7 @@ fn diff_tree(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
         None => Vec::new(),
     };
     let changes = diff_sorted(old.as_slice(), new.as_slice())?;
-    return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), code: 0 });
+    return Some(Answer { stdout: raw_lines(changes.as_slice(), context.zero().as_str()), stderr: Vec::new(), code: 0 });
 }
 
 /// `show --no-patch --format=%s <commit>`.
@@ -277,7 +284,7 @@ fn show_subject(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     let commit = parse_commit(object.bytes.as_slice(), context.layout.object_format)?;
     let mut stdout: Vec<u8> = subject_of(commit.message.as_slice())?;
     stdout.push(b'\n');
-    return Some(Answer { stdout, code: 0 });
+    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
 /// What:
@@ -304,20 +311,21 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         None => std::env::current_dir().ok()?,
     };
     let parsed: Parsed<'_> = parse(query.arguments, &mut start)?;
-    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show") {
+    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show" | "config" | "remote" | "rev-parse" | "for-each-ref" | "symbolic-ref") {
         return None;
     }
     let (variables, index_variable, objects_variable) = environment(base, query.variables);
     let layout: RepoLayout = read_layout_with(start.as_path(), variables.as_slice(), scope)?;
-    if !content_config_is_plain(&layout, scope)? {
-        return None;
-    }
     let index_path: PathBuf = match index_variable {
         Some(file) => start.join(file),
         None => layout.git_dir.join("index"),
     };
     let objects: Option<PathBuf> = objects_variable.map(|directory| { return start.join(directory); });
-    let context: Context = Context { layout, index_path, objects };
+    let content_command: bool = matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show");
+    if content_command && !content_config_is_plain(&layout, scope)? {
+        return None;
+    }
+    let context: Context = Context { layout, index_path, objects, scope: scope.clone(), variables };
     if name_length(context.layout.object_format) == 0 {
         return None;
     }
@@ -327,10 +335,15 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         "diff" => diff_cached(&context, &parsed, true),
         "diff-tree" => diff_tree(&context, &parsed),
         "show" => show_subject(&context, &parsed),
+        "config" => config_list(&context, &parsed),
+        "remote" => remote_url(&context, &parsed),
+        "for-each-ref" => for_each_ref(&context, &parsed),
+        "rev-parse" => rev_parse(&context, &parsed),
+        "symbolic-ref" => symbolic_ref(&context, &parsed),
         _ => None,
     };
 }
 
 #[cfg(test)]
 #[path = "repo_read_query_tests.rs"]
-mod tests;
+pub(crate) mod tests;

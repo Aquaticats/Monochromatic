@@ -74,12 +74,33 @@ fn attempt(
 #[cfg(unix)]
 pub fn try_metadata(arguments: &[OsString], overlay: &[(OsString, OsString)]) -> Option<MetadataOutput> {
     let found: Answer = attempt(arguments, None, std::env::vars_os().collect(), overlay)?;
-    return Some(MetadataOutput { success: found.code == 0, code: Some(found.code), stdout: found.stdout, stderr: Vec::new() });
+    return Some(MetadataOutput { success: found.code == 0, code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }
 
 /// Without file system readers for this platform, every query starts Git.
 #[cfg(not(unix))]
 pub fn try_metadata(_arguments: &[OsString], _overlay: &[(OsString, OsString)]) -> Option<MetadataOutput> {
+    return None;
+}
+
+/// What:
+///  The answer to a query run in `directory` with a complete `environment`, as the auto-push coordination runs them.
+/// Why:
+///   That runner builds the whole child environment itself, so nothing of this process's own is added to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// tryComplete(args, directory, environment): { code: number; stdout: Uint8Array; stderr: Uint8Array } | undefined
+/// ```
+#[cfg(unix)]
+pub fn try_complete(arguments: &[OsString], directory: &Path, environment: &[(OsString, OsString)]) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
+    let found: Answer = attempt(arguments, Some(directory), Vec::new(), environment)?;
+    return Some((Some(found.code), found.stdout, found.stderr));
+}
+
+/// Without file system readers for this platform, every query starts Git.
+#[cfg(not(unix))]
+pub fn try_complete(_arguments: &[OsString], _directory: &std::path::Path, _environment: &[(OsString, OsString)]) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
     return None;
 }
 
@@ -115,7 +136,7 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
         .filter(|(name, _)| { return !request.unset.contains(name); })
         .collect();
     let found: Answer = attempt(arguments.as_slice(), Some(request.cwd.as_path()), base, variables.as_slice())?;
-    return Some(GitOutput { code: Some(found.code), stdout: found.stdout, stderr: Vec::new() });
+    return Some(GitOutput { code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }
 
 /// Without file system readers for this platform, every request starts Git.

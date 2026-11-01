@@ -45,7 +45,7 @@ const CONTENT_KEYS: [&str; 10] = [
 /// ```ts
 /// const text = await readFile(path).catch(notFoundIsUndefined); // other failures: ask Git
 /// ```
-fn read_following(path: &Path) -> Option<Option<Vec<u8>>> {
+pub fn read_following(path: &Path) -> Option<Option<Vec<u8>>> {
     let metadata = match std::fs::metadata(path) {
         Ok(found) => found,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(None),
@@ -58,7 +58,7 @@ fn read_following(path: &Path) -> Option<Option<Vec<u8>>> {
 }
 
 /// The path an include value names: `~/x` below `home`, an absolute path as is, a relative path beside the including file.
-fn include_target(value: &[u8], including: &Path, home: Option<&Path>) -> Option<PathBuf> {
+pub fn include_target(value: &[u8], including: &Path, home: Option<&Path>) -> Option<PathBuf> {
     let text: &str = std::str::from_utf8(value).ok()?;
     if let Some(rest) = text.strip_prefix("~/") {
         return Some(home?.join(rest));
@@ -74,7 +74,7 @@ fn include_target(value: &[u8], including: &Path, home: Option<&Path>) -> Option
 }
 
 /// Whether an entry key names an include path (`include.path` or `includeif.<condition>.path`).
-fn is_include_key(key: &str) -> bool {
+pub fn is_include_key(key: &str) -> bool {
     return key == "include.path" || (key.starts_with("includeif.") && key.ends_with(".path"));
 }
 
@@ -181,6 +181,17 @@ impl ScopeEnvironment {
             system: find("GIT_CONFIG_SYSTEM").map(PathBuf::from),
             global: find("GIT_CONFIG_GLOBAL").map(PathBuf::from),
         };
+    }
+
+    /// The files with the scope name `config --show-scope` gives each, in Git's order.
+    pub fn labelled_files(&self) -> Vec<(&'static str, PathBuf)> {
+        let mut labelled: Vec<(&'static str, PathBuf)> = Vec::new();
+        let mut files: Vec<PathBuf> = self.files();
+        if !self.no_system && !files.is_empty() {
+            labelled.push(("system", files.remove(0)));
+        }
+        labelled.extend(files.into_iter().map(|file| { return ("global", file); }));
+        return labelled;
     }
 
     /// The system and global files Git reads in this environment, in its order.

@@ -1,0 +1,153 @@
+//! Differential controls for the reference and configuration command lines:
+//!  standard output, standard error and the exit code equal real Git's wherever the readers answer,
+//!  and the states Git words by more than the files say are declined.
+
+use crate::repo_read_config_scan::ScopeEnvironment;
+use crate::repo_read_query::tests::{answered, declined, mine, scope};
+use crate::repo_read_query::{Query, answer_with};
+use crate::test_support::{REAL_GIT, fixture, git, git_output, remove};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+
+/// A repository with a remote, a tracking branch, light and annotated tags, a symbolic remote head and a deep branch.
+fn referenced_repository(root: &Path, name: &str, format: &str) -> PathBuf {
+    let repo = root.join(name);
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", &format!("--object-format={format}")]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=first"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=second"]);
+    git(repo.as_path(), &["remote", "add", "origin", "https://example.invalid/a.git"]);
+    git(repo.as_path(), &["update-ref", "refs/remotes/origin/main", "HEAD~1"]);
+    git(repo.as_path(), &["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"]);
+    git(repo.as_path(), &["tag", "light"]);
+    git(repo.as_path(), &["tag", "-a", "-m", "annotated", "v1"]);
+    git(repo.as_path(), &["branch", "feature/deep/name"]);
+    return repo;
+}
+
+/// Pairs of text as environment variables.
+fn pairs(items: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
+    return items.iter().map(|(name, value)| { return (OsString::from(*name), OsString::from(*value)); }).collect();
+}
+
+/// Configuration listings equal Git's with includes, subsections, bare names and injected command entries.
+#[test]
+fn configuration_listings_equal_git() {
+    let root = fixture("repo-read-refs-config");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    let extra = root.join("extra.config");
+    let global = root.join("global.config");
+    std::fs::write(&extra, "[extra]\n\tvalue = from include\n[Mixed \"Sub Section\"]\n\tKey = V\n").expect("extra");
+    std::fs::write(&global, format!("[user]\n\tname = Someone\n[include]\n\tpath = {}\n[flag]\n\tbare\n", extra.display())).expect("global");
+    git(repo.as_path(), &["config", "--local", "include.path", extra.to_str().expect("UTF-8")]);
+    let scope = ScopeEnvironment { home: Some(root.join("no-home")), no_system: true, global: Some(global.clone()), ..ScopeEnvironment::default() };
+    let fixed = [("GIT_CONFIG_NOSYSTEM", "1"), ("GIT_CONFIG_GLOBAL", global.to_str().expect("UTF-8"))];
+    let injected = [("GIT_CONFIG_COUNT", "2"), ("GIT_CONFIG_KEY_0", "core.hooksPath"), ("GIT_CONFIG_VALUE_0", "/dev/null/no-hooks"), ("GIT_CONFIG_KEY_1", "Hook.Pre-Commit.Enabled"), ("GIT_CONFIG_VALUE_1", "false")];
+    let expected = std::process::Command::new(REAL_GIT)
+        .current_dir(repo.as_path())
+        .env_clear()
+        .envs(fixed)
+        .envs(injected)
+        .args(["config", "--list", "-z", "--show-scope"])
+        .output()
+        .expect("config listing");
+    let given: Vec<OsString> = ["config", "--list", "-z", "--show-scope"].iter().map(OsString::from).collect();
+    let added = pairs(&injected);
+    let found = answer_with(&Query { arguments: given.as_slice(), directory: Some(repo.as_path()), variables: added.as_slice() }, pairs(&fixed), &scope).expect("answered");
+    assert_eq!(found.stdout, expected.stdout);
+    assert!(expected.stdout.windows(5).any(|window| { return window == b"extra"; }), "the included file is listed");
+    assert!(expected.stdout.windows(7).any(|window| { return window == b"command"; }), "the injected entries are listed");
+    // A conditional include is evaluated by Git, so the reader leaves the listing to it.
+    git(repo.as_path(), &["config", "--local", "includeIf.gitdir:/nowhere/.path", "extra.config"]);
+    assert!(mine(root.as_path(), repo.as_path(), &["config", "--list", "-z", "--show-scope"]).is_none());
+    remove(root.as_path());
+}
+
+/// The listing of a repository with only its own file equals Git's, and so does a remote URL.
+#[test]
+fn local_listings_and_remote_urls_equal_git() {
+    let root = fixture("repo-read-refs-remote");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    answered(root.as_path(), repo.as_path(), &["config", "--list", "-z", "--show-scope"]);
+    answered(root.as_path(), repo.as_path(), &["remote", "get-url", "origin"]);
+    // Git's refusal for a remote that does not exist is reproduced word for word and with its exit code.
+    answered(root.as_path(), repo.as_path(), &["remote", "get-url", "missing"]);
+    std::fs::create_dir_all(repo.join(".git/remotes")).expect("legacy directory");
+    std::fs::write(repo.join(".git/remotes/legacy"), "URL: https://example.invalid/legacy.git\n").expect("legacy remote");
+    declined(root.as_path(), repo.as_path(), &["remote", "get-url", "legacy"]);
+    git(repo.as_path(), &["remote", "set-url", "--add", "origin", "https://example.invalid/b.git"]);
+    declined(root.as_path(), repo.as_path(), &["remote", "get-url", "origin"]);
+    let _ = git_output(repo.as_path(), &["config", "--unset-all", "remote.origin.url"]);
+    git(repo.as_path(), &["config", "remote.origin.url", "https://example.invalid/a.git"]);
+    answered(root.as_path(), repo.as_path(), &["remote", "get-url", "origin"]);
+    git(repo.as_path(), &["config", "url.https://mirror.invalid/.insteadOf", "https://example.invalid/"]);
+    declined(root.as_path(), repo.as_path(), &["remote", "get-url", "origin"]);
+    remove(root.as_path());
+}
+
+/// Ref verification, the ref listing and the upstream name equal Git's in loose and packed states.
+#[test]
+fn references_equal_git() {
+    let root = fixture("repo-read-refs-all");
+    for format in ["sha1", "sha256"] {
+        let repo = referenced_repository(root.as_path(), format, format);
+        git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
+        let shapes = |target: &Path| {
+            for name in ["refs/heads/main", "refs/heads/feature/deep/name", "refs/tags/light", "refs/tags/v1", "refs/remotes/origin/main", "refs/remotes/origin/HEAD"] {
+                answered(root.as_path(), target, &["rev-parse", "--verify", "--quiet", &format!("{name}^{{commit}}")]);
+            }
+            declined(root.as_path(), target, &["rev-parse", "--verify", "--quiet", "refs/heads/missing^{commit}"]);
+            declined(root.as_path(), target, &["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]);
+            answered(root.as_path(), target, &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+        };
+        shapes(repo.as_path());
+        // A half-configured upstream is left to Git; with neither key Git's failure is reproduced word for word.
+        declined(root.as_path(), repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+        git(repo.as_path(), &["config", "--unset", "branch.main.remote"]);
+        answered(root.as_path(), repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+        git(repo.as_path(), &["config", "branch.main.remote", "origin"]);
+        git(repo.as_path(), &["config", "branch.main.merge", "refs/heads/main"]);
+        answered(root.as_path(), repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+        git(repo.as_path(), &["pack-refs", "--all", "--prune"]);
+        shapes(repo.as_path());
+        answered(root.as_path(), repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+        // A branch spelled like the short name makes it ambiguous: Git answers `remotes/origin/main`.
+        git(repo.as_path(), &["branch", "origin/main"]);
+        declined(root.as_path(), repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+        git(repo.as_path(), &["branch", "--delete", "origin/main"]);
+        git(repo.as_path(), &["checkout", "--quiet", "--detach"]);
+        declined(root.as_path(), repo.as_path(), &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
+    }
+    remove(root.as_path());
+}
+
+/// `symbolic-ref --quiet HEAD` equals Git's for a branch, an unborn branch and a detached `HEAD`.
+#[test]
+fn the_symbolic_head_equals_git() {
+    let root = fixture("repo-read-refs-symbolic");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    answered(root.as_path(), repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
+    git(repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    answered(root.as_path(), repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
+    git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/unborn"]);
+    answered(root.as_path(), repo.as_path(), &["symbolic-ref", "--quiet", "HEAD"]);
+    declined(root.as_path(), repo.as_path(), &["symbolic-ref", "HEAD"]);
+    remove(root.as_path());
+}
+
+/// A listing with a ref whose object is missing, and a ref file with an odd spelling, are left to Git.
+#[test]
+fn broken_refs_are_declined() {
+    let root = fixture("repo-read-refs-broken");
+    let repo = referenced_repository(root.as_path(), "repo", "sha1");
+    answered(root.as_path(), repo.as_path(), &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+    let missing = "1".repeat(40);
+    std::fs::write(repo.join(".git/refs/heads/broken"), format!("{missing}\n")).expect("broken");
+    declined(root.as_path(), repo.as_path(), &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+    std::fs::remove_file(repo.join(".git/refs/heads/broken")).expect("remove");
+    std::fs::write(repo.join(".git/refs/heads/spaced"), format!("{}  \n", "2".repeat(40))).expect("odd");
+    declined(root.as_path(), repo.as_path(), &["for-each-ref", "--format=%(refname)%00%(objectname)%00%(symref)"]);
+    std::fs::remove_file(repo.join(".git/refs/heads/spaced")).expect("remove");
+    let _ = scope(root.as_path());
+    remove(root.as_path());
+}

@@ -9,12 +9,12 @@ use crate::test_support::{fixture, git, git_output, remove};
 use std::os::unix::ffi::OsStringExt;
 
 /// The scope facts that match the hermetic environment the fixtures give Git.
-fn scope(root: &Path) -> ScopeEnvironment {
+pub(crate) fn scope(root: &Path) -> ScopeEnvironment {
     return ScopeEnvironment { home: Some(root.join("no-home")), no_system: true, global: Some(PathBuf::from("/nonexistent-global-config")), ..ScopeEnvironment::default() };
 }
 
 /// What the readers answer for `arguments` run in `repo`.
-fn mine(root: &Path, repo: &Path, arguments: &[&str]) -> Option<Answer> {
+pub(crate) fn mine(root: &Path, repo: &Path, arguments: &[&str]) -> Option<Answer> {
     let given: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo), variables: &[] }, Vec::new(), &scope(root));
 }
@@ -26,22 +26,23 @@ fn compare(root: &Path, repo: &Path, arguments: &[&str]) -> bool {
         return false;
     };
     assert_eq!(found.stdout, expected.stdout, "{arguments:?}");
+    assert_eq!(found.stderr, expected.stderr, "{arguments:?}");
     assert_eq!(Some(found.code), expected.status.code(), "{arguments:?}");
     return true;
 }
 
 /// Require that the readers answer and equal Git.
-fn answered(root: &Path, repo: &Path, arguments: &[&str]) {
+pub(crate) fn answered(root: &Path, repo: &Path, arguments: &[&str]) {
     assert!(compare(root, repo, arguments), "the readers declined {arguments:?}");
 }
 
 /// Require that the readers decline.
-fn declined(root: &Path, repo: &Path, arguments: &[&str]) {
+pub(crate) fn declined(root: &Path, repo: &Path, arguments: &[&str]) {
     assert!(mine(root, repo, arguments).is_none(), "the readers answered {arguments:?} but must leave it to Git");
 }
 
 /// The text of `git <arguments>` without its final newline.
-fn text(repo: &Path, arguments: &[&str]) -> String {
+pub(crate) fn text(repo: &Path, arguments: &[&str]) -> String {
     return String::from_utf8(git_output(repo, arguments).stdout).expect("UTF-8").trim_end().to_string();
 }
 

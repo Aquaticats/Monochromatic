@@ -1121,9 +1121,20 @@ pub mod repo_read_index;
 #[cfg(unix)]
 pub mod repo_read_diff;
 
+/// In-process repository reads: the files ref storage, one ref by name, a symbolic chain and the list of all refs.
+#[cfg(unix)]
+pub mod repo_read_refs;
+
+/// In-process repository reads: the merged configuration listing with includes and environment entries.
+pub mod repo_read_config_list;
+
 /// In-process repository reads: answers to the exact read-only command lines the wrapper issues.
 #[cfg(unix)]
 pub mod repo_read_query;
+
+/// In-process repository reads: answers for the reference and configuration command lines.
+#[cfg(unix)]
+pub mod repo_read_query_refs;
 
 /// In-process repository reads: the two runner entry points that try the answers before starting Git.
 pub mod repo_read_hook;

@@ -114,6 +114,16 @@ impl ObjectDatabase {
         return self.read_at_depth(name, 0);
     }
 
+    /// Whether the object named `name` is stored loose or in a pack, without reading it.
+    pub fn contains(&self, name: &[u8]) -> bool {
+        if name.len() != name_length(self.format) {
+            return false;
+        }
+        let hex: String = to_hex(name);
+        let loose: bool = self.roots.iter().any(|root| { return root.join(&hex[..2]).join(&hex[2..]).is_file(); });
+        return loose || self.packs.iter().any(|pack| { return pack.find(name).is_some(); });
+    }
+
     /// The same read, counting the delta bases already followed through names so a cycle ends.
     fn read_at_depth(&self, name: &[u8], depth: usize) -> Option<RawObject> {
         if name.len() != name_length(self.format) || depth > 8 {
