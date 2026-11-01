@@ -9,7 +9,8 @@ The original checkpoint has passed CPU inference in a disposable environment.
 
 The maintainer requested:
 
-> I'd rather install it using this repo's mpm setup globally. Do it for me.
+> I'd rather install it using this repo's mpm setup globally.
+> Do it for me.
 
 The follow-up changed the immediate deliverable:
 
