@@ -121,9 +121,6 @@ that facility was built and deleted on the owner's instruction, and the key is a
 These scenarios fail because of the product, not the harness.
 Each is for its owner and is not worked around here:
 
-- `baseline-hooks-config` and `hooks-config-concurrent`:
-  the service route never prints the `external-hooks-unsupported` warning,
-  because `warn_external_hooks` runs only in the retired transaction path (`src/native/commit_transaction.rs`).
 - `sigkill-editor-open`, `sigkill-editor-written`, `sigkill-queued` and `sigkill-after-landing`:
   a `SIGKILL`ed client leaves its scratch directory `<git dir>/cli-git-service-<id>` behind, and nothing removes it
   (a design gap: neither `SPEC.md` nor `doc/planning/cli-git-resident-service.md` says who removes a dead client's scratch).
