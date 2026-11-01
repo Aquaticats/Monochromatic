@@ -206,6 +206,30 @@ await describe({
   name: readImageAsset.name,
   children: [
     it({
+      name: 'NAMES THE READER SEAT AND THE MODE OF ITS LAUNCH ON THE REQUEST (ledger B1373): the pass is held to the '
+        + 'holds of the reader role, and a measurement of a reader names itself one, which no hold reaches',
+      fn: async () => {
+        for (const reask of ['other-model', 'measured-model',] as const) {
+          const { client, requests, } = replyingClient({ text: A_READING, },);
+          // oxlint-disable-next-line no-await-in-loop -- one launch at a time, so each mode's request stays apart
+          await readImageAsset({
+            reask,
+            client,
+            modelId: READER,
+            bytes: bytesOf({ length: 64, },),
+            assetName: 'mittens.webp',
+            signal: AbortSignal.timeout(HANG_STOP_MS,),
+            perCallTimeoutMs: HANG_STOP_MS,
+            l,
+          },);
+          expect(requests.map(function seatOf(request,) {
+            return request.reaskSeat;
+          },),).toEqual([{ role: 'reader', reask, bench: [], },],);
+        }
+      },
+    },),
+
+    it({
       name: 'SENDS THE PICTURE AS A CONTENT PART BESIDE THE INSTRUCTION, and returns what came '
         + 'back. A reading the wire never carried is indistinguishable from one the model ignored, '
         + 'so this asserts the parts array rather than only the returned text',
@@ -216,6 +240,7 @@ await describe({
          One reading of a picture the archive already transcribes.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),
@@ -280,6 +305,7 @@ await describe({
          Attempt against a model whose `input_modalities` carry no image.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: TEXT_ONLY,
           bytes: bytesOf({ length: 64, },),
@@ -307,6 +333,7 @@ await describe({
          Attempt against a file whose name declares nothing sendable.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),
@@ -335,6 +362,7 @@ await describe({
          Attempt with a zero-byte file.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: new Uint8Array(0,),
@@ -369,6 +397,7 @@ await describe({
         const other: string[] = [];
         const { client, requests, } = replyingClient({ text: A_READING, },);
         await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: new Uint8Array(0,),
@@ -404,6 +433,7 @@ await describe({
          Attempt with a picture past the stage's ceiling.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: OVERSIZED_BYTES, },),
@@ -435,6 +465,7 @@ await describe({
          Attempt with a picture between the two ceilings.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: PAST_THE_NEW_CEILING_ONLY, },),
@@ -463,6 +494,7 @@ await describe({
          Attempt whose reply carries no content at all.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),
@@ -494,6 +526,7 @@ await describe({
                */
               const lines: string[] = [];
               await readImageAsset({
+                reask: 'other-model',
                 client: replyingClient({ text, },).client,
                 modelId: READER,
                 bytes: bytesOf({ length: 64, },),
@@ -529,6 +562,7 @@ await describe({
          Attempt whose reply is content but not a transcription.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),
@@ -556,6 +590,7 @@ await describe({
          Attempt whose reply reports that the picture carries nothing.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),
@@ -584,6 +619,7 @@ await describe({
          Attempt whose reply is an apology of transcription length.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),
@@ -610,6 +646,7 @@ await describe({
          Attempt against the other extension the corpus uses.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: READER,
           bytes: bytesOf({ length: 64, },),

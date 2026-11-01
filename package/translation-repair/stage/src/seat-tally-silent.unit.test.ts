@@ -46,6 +46,7 @@ import {
   MEOW_FORMAT,
   untilAborted,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 //region Fixtures
 
@@ -405,6 +406,7 @@ await describe({
               },
             };
             await runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client,
               modelIds: [SEAT_HYPER_VISION, SEAT_SYNTHETIC_TEXT_EVERYWHERE,],
               messages: [{ role: 'user', content: 'meow', },],

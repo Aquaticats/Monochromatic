@@ -189,11 +189,11 @@ function routerClient(
 }
 
 /**
- Asks one model once through the stage's call, as the seat of a run in a role or with no seat.
+ Asks one model once through the stage's call, as the seat of a run in a role or as a measurement.
 
  @param client - client the call goes through
  @param modelId - model asked
- @param reaskSeat - seat the call names, when it names one
+ @param reaskSeat - seat the call names
 
  @returns Voice the stage made of it
 
@@ -210,7 +210,7 @@ function stageCall(
   }: {
     readonly client: ModelClient;
     readonly modelId: RosterModelId;
-    readonly reaskSeat?: ReaskSeat;
+    readonly reaskSeat: ReaskSeat;
   },
 ): ReturnType<typeof attemptStageCall<MeowReply>> {
   return attemptStageCall<MeowReply>({
@@ -223,7 +223,7 @@ function stageCall(
     validate: isMeowReply,
     stage: 'critic',
     l,
-    ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+    reaskSeat,
   },);
 }
 
@@ -258,7 +258,7 @@ await describe({
   children: [
     it({
       name: 'READS A HELD EDITOR SEAT AS THAT SEAT UNREACHABLE (ledger B1365): no request is sent, the voice is neither '
-        + 'heard nor a crash nor the end of the run, and the same model asked with no seat, or as a measurement, is heard',
+        + 'heard nor a crash nor the end of the run, and the same model asked as a measurement is heard',
       fn: async () => {
         /**
          Requests the stub callers were sent.
@@ -272,16 +272,15 @@ await describe({
         },);
         expect(held,).toEqual({ heard: false, answered: false, unreachable: true, },);
         expect(sent,).toEqual([],);
-        const unseated = await stageCall({ client, modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, },);
         const measured = await stageCall({
           client,
           modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
           reaskSeat: { ...editorSeat({ bench: [], },), reask: 'measured-model', },
         },);
-        expect([unseated.heard, measured.heard,],).toEqual([true, true,],);
+        expect(measured.heard,).toBe(true,);
         expect(sent.map(function providerOf(request,): ProviderName {
           return request.provider;
-        },),).toEqual(['hyper', 'hyper',],);
+        },),).toEqual(['hyper',],);
       },
     },),
 

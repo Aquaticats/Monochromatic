@@ -301,6 +301,14 @@ await describe({
       },
     },),
     it({
+      name: 'ASKS AS A MEASUREMENT (ledger B1373, B1141): the request names a measurement seat, so the router holds the '
+        + 'model off no provider, as it holds every request that names no seat, and the probe stays exempt',
+      fn: async () => {
+        const { requests, } = await askWith({ reply: HEALTHY, },);
+        expect(requests[0]?.reaskSeat?.reask,).toBe('measured-model',);
+      },
+    },),
+    it({
       name: 'ADMITS a reply carrying both fields whatever their values, and refuses one missing a field or not a record',
       fn: async () => {
         const { requests, } = await askWith({ reply: HEALTHY, },);

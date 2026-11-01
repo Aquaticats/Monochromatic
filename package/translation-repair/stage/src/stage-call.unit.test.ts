@@ -54,6 +54,7 @@ import {
   PURR_FORMAT,
   type PurrReply,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 /**
  Logger for the exchanges under test.
@@ -144,6 +145,7 @@ async function callWith(
   },
 ) {
   return await attemptStageCall({
+    reaskSeat: ROSTER_SEAT,
     client,
     modelId: MODEL_ID,
     messages: [

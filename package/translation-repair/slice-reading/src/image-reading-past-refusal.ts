@@ -395,6 +395,7 @@ async function reaskCut(
           askedModelId: other,
           /* oxlint-disable-next-line no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
           reading: await readImageAsset({
+            reask,
             client,
             modelId: other,
             bytes,
@@ -440,6 +441,7 @@ async function reaskCut(
       return {
         askedModelId: modelId,
         reading: await readImageAsset({
+          reask,
           client,
           modelId,
           bytes,
@@ -464,6 +466,7 @@ async function reaskCut(
   return {
     askedModelId: modelId,
     reading: await readImageAsset({
+      reask,
       client,
       modelId,
       bytes,
@@ -556,6 +559,7 @@ export async function readPastRefusalBy(
    Outcome of the latest ask, replaced by each re-ask.
    */
   let reading = await readImageAsset({
+    reask,
     client,
     modelId,
     bytes,
@@ -634,6 +638,7 @@ export async function readPastRefusalBy(
     );
     /* oxlint-disable-next-line no-await-in-loop -- re-asks are sequential by design: each later perspective exists only when the prior answer was refusal-shaped */
     reading = await readImageAsset({
+      reask,
       client,
       modelId: askedModelId,
       bytes,

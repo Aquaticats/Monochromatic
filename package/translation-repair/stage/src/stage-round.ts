@@ -423,8 +423,9 @@ function refusedByRouter<ValueT,>(
  it. REQUIRED, where it once defaulted to a read of
  `TRANSLATION_REPAIR_STRAGGLER_GRACE_MS` at every round
 
- @param reaskSeat - role and bench of the gather the round belongs to, sent on every ask so the re-ask of a
- reasoning runaway leaves out the models the role is held out of and the models seated on the question
+ @param reaskSeat - role, bench and mode of the gather the round belongs to, sent on every ask so the router holds a
+ model off the provider its card names for the role (ledger B1373) and the re-ask of a reasoning runaway leaves out the
+ models the role is held out of and the models seated on the question; required, so no ask goes out without its seat
 
  @returns One outcome per model asked: the window's in roster order, then
  each reserve seat taken, in the order the round took it
@@ -468,7 +469,7 @@ export async function runGatherRound<ValueT,>(
     readonly reserve?: readonly RosterModelId[];
     readonly graceMs: number;
     readonly decision?: StageDecision;
-    readonly reaskSeat?: ReaskSeat;
+    readonly reaskSeat: ReaskSeat;
   }>,
 ): Promise<readonly RoundOutcome<ValueT>[]> {
   /**
@@ -623,8 +624,7 @@ export async function runGatherRound<ValueT,>(
           l,
           // Conditional spread keeps the question absent instead of undefined.
           ...((decision === undefined) ? {} : { decision, }),
-          // Conditional spread keeps the seat absent for a caller that names none.
-          ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+          reaskSeat,
         },),
       };
       arrived.set(

@@ -362,9 +362,9 @@ export function isRequestFault({ error, }: { readonly error: unknown; },): boole
  seat on the bench; absent on a stage that has none, which loses that
  seat's voice rather than asking it for prose
 
- @param reaskSeat - role and bench of the gather this exchange belongs to, which the re-ask of a reasoning runaway reads
- to leave out the models the role is held out of and the models seated on the question; absent where the caller
- names none
+ @param reaskSeat - role, bench and mode of the gather this exchange belongs to, which the router holds a model off the
+ provider its card names for (ledger B1373) and the re-ask of a reasoning runaway reads to leave out the models the role
+ is held out of and the models seated on the question; required, so no stage call goes out without its seat
 
  @returns Voice as data; a lost voice never throws unless the caller aborted, the route refused the request as
  malformed, or every provider read dry
@@ -419,7 +419,7 @@ export async function attemptStageCall<ValueT,>(
     readonly stage: string;
     readonly l: Logger;
     readonly decision?: StageDecision;
-    readonly reaskSeat?: ReaskSeat;
+    readonly reaskSeat: ReaskSeat;
   }>,
 ): Promise<StageVoice<ValueT>> {
   // A DECISION SEAT NEVER SEES THE SHEET: it is asked the stage's typed
@@ -450,8 +450,7 @@ export async function attemptStageCall<ValueT,>(
       ...((maxAnswerChars === undefined) ? {} : { maxAnswerChars, }),
       responseFormat,
       validate,
-      // Conditional spread keeps the seat absent for a caller that names none.
-      ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+      reaskSeat,
     },);
     if (outcome.kind !== 'ok') {
       l.warn(`${stage} ${modelId}: ${lostVoiceCause({ outcome, },)}, voice lost`,);

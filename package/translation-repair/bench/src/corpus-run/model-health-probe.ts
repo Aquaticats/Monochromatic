@@ -135,6 +135,13 @@ export async function askModelHealth(
     validate: isHealthReply,
     exchangeTimeoutMs: timeoutMs,
     signal: new AbortController().signal,
+    // A MEASUREMENT (ledger B1373, B1141): the probe scores a model on the provider that carries it, so the router holds
+    // nothing off it, and the seat says so instead of naming no seat.
+    reaskSeat: {
+      role: 'roster',
+      reask: 'measured-model',
+      bench: [],
+    },
   },);
 
   l.info(

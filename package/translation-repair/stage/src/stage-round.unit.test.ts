@@ -68,6 +68,7 @@ import {
   MEOW_FORMAT,
   untilAborted,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 //region Fixtures
 
@@ -350,6 +351,7 @@ async function stoppedRound(
    The round, started and left waiting on the first two seats.
    */
   const round = runGatherRound({
+    reaskSeat: ROSTER_SEAT,
     client: clientFailingAfterTheStop({
       failFirst,
       failSecond,
@@ -536,6 +538,7 @@ await describe({
              starts.
              */
             const round = runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client: scheduledClient({
                 slowModelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
                 hangingModelId: SEAT_SYNTHETIC_VISION_WITHHELD,
@@ -604,6 +607,7 @@ await describe({
              them.
              */
             const round = runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client: scheduledClient({
                 slowModelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
                 answeredAt,
@@ -670,6 +674,7 @@ await describe({
              The round, started and left waiting on the first two seats.
              */
             const round = runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client: clientFailingAfterTheStop({
                 failFirst: async function timedOut(): Promise<never> {
                   return await refuseAfterThat(new Error('the first seat timed out as the stop arrived',),);
@@ -878,6 +883,7 @@ await describe({
              The round, started and left waiting on the first two seats.
              */
             const round = runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client: clientFailingAfterTheStop({
                 failFirst: withTheCallersReason,
                 failSecond: withTheCallersReason,
@@ -920,6 +926,7 @@ await describe({
 
             expect(await rejectionOf(async function dryRound(): Promise<unknown> {
               return await runGatherRound({
+                reaskSeat: ROSTER_SEAT,
                 client: {
                   ...answering,
                   chatJson: async function dryOne<ValueT,>(
@@ -968,6 +975,7 @@ await describe({
 
             expect(await rejectionOf(async function dryInTheWindow(): Promise<unknown> {
               return await runGatherRound({
+                reaskSeat: ROSTER_SEAT,
                 client: {
                   ...answering,
                   chatJson: async function dryLate<ValueT,>(
@@ -1017,6 +1025,7 @@ await describe({
              What the round settled with: the dark seat refused at once, or a turn of the event loop later.
              */
               const outcomes = await runGatherRound({
+                reaskSeat: ROSTER_SEAT,
                 client: {
                   ...answering,
                   chatJson: async function darkOne<ValueT,>(
@@ -1066,6 +1075,7 @@ await describe({
             const logFailure = new Error('the cat sat on the log',);
             expect(await rejectionOf(async function unlogged(): Promise<unknown> {
               return await runGatherRound({
+                reaskSeat: ROSTER_SEAT,
                 client: clientFailingOne({ failingModelId: SEAT_SYNTHETIC_VISION_WITHHELD, },),
                 modelIds: ROSTER,
                 messages: [{ role: 'user', content: 'meow', },],
@@ -1101,6 +1111,7 @@ await describe({
              */
             const said: string[] = [];
             await runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client: clientFailingOne({ failingModelId: SEAT_SYNTHETIC_VISION_WITHHELD, },),
               modelIds: ROSTER,
               messages: [{ role: 'user', content: 'meow', },],
@@ -1154,6 +1165,7 @@ await describe({
              The round, its start already read: nothing in it waits before that.
              */
             const round = runGatherRound({
+              reaskSeat: ROSTER_SEAT,
               client: scheduledClient({},),
               modelIds: ROSTER,
               messages: [{ role: 'user', content: 'meow', },],

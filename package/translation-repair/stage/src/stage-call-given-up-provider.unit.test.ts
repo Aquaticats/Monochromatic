@@ -36,6 +36,7 @@ import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-tes
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { attemptStageCall, } from '../dist/final/node/index.mjs';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 /**
  Abort signal every call here carries.
@@ -134,6 +135,7 @@ await describe({
             expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(false,);
 
             expect(await attemptStageCall({
+              reaskSeat: ROSTER_SEAT,
               client,
               modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
               messages: [{ role: 'user', content: 'Where does the cat sleep?', },],

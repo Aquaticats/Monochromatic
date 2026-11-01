@@ -66,6 +66,7 @@ await describe({
          One reading of the padded reply.
          */
         const reading = await readImageAsset({
+          reask: 'other-model',
           client,
           modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
           bytes: new Uint8Array(64,).fill(7,),

@@ -41,6 +41,7 @@ import {
   isMeowReply,
   MEOW_FORMAT,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 /**
  Seat whose request the route refuses.
@@ -129,6 +130,7 @@ async function roundWith(
 ): Promise<unknown> {
   try {
     await runGatherRound({
+      reaskSeat: ROSTER_SEAT,
       client: clientFailingOne({ failing, },),
       modelIds: ROSTER,
       messages: [{ role: 'user', content: 'meow', },],

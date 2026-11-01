@@ -18,8 +18,9 @@ import {
   solidCharacters,
 } from './image-reading-sense.ts';
 import {
-  readsImages,
   type ModelCaller,
+  type ReaskMode,
+  readsImages,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import type {
@@ -337,6 +338,10 @@ function encodedForReading(
  second ask of a reply the completion cap cut, which the router serves
  elsewhere or refuses with `NoProviderForModelError`
 
+ @param reask - mode of the launch: `other-model` for a pass, which holds the reader off the provider its card names,
+ and `measured-model` for a measurement of a reader, which is exempt (ledger B1373, B1141); required, so no reading goes
+ out without its seat
+
  @param signal - abort honoured for the whole exchange
 
  @param perCallTimeoutMs - deadline bounding the exchange
@@ -351,7 +356,7 @@ function encodedForReading(
 
  @example
  ```ts
- const reading = await readImageAsset({ client, modelId, bytes, assetName, signal, perCallTimeoutMs, l, },);
+ const reading = await readImageAsset({ client, modelId, bytes, assetName, reask: 'other-model', signal, perCallTimeoutMs, l, },);
  ```
  */
 export async function readImageAsset(
@@ -362,6 +367,7 @@ export async function readImageAsset(
     assetName,
     perspective = IMAGE_READING_PERSPECTIVES[0],
     otherThan,
+    reask,
     signal,
     perCallTimeoutMs,
     l,
@@ -372,6 +378,7 @@ export async function readImageAsset(
     readonly assetName: string;
     readonly perspective?: ImageReadingPerspective;
     readonly otherThan?: ProviderName;
+    readonly reask: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -436,6 +443,13 @@ export async function readImageAsset(
     },],
     signal,
     exchangeTimeoutMs: perCallTimeoutMs,
+    // THE SEAT OF A READER (ledger B1373): the router holds a model off the provider its card names for the reader role,
+    // on the first ask and on the ask past a cut, and a measurement of a reader is exempt.
+    reaskSeat: {
+      role: 'reader',
+      reask,
+      bench: [],
+    },
     // Conditional spread keeps the knob absent instead of undefined.
     ...((otherThan === undefined) ? {} : { otherThan, }),
   },);

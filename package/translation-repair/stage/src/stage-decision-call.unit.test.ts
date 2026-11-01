@@ -29,6 +29,7 @@ import {
 import { warningRecordingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { SEAT_OPENROUTER_DECISIONS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 /**
  Logger the stage writes its progress to.
@@ -130,6 +131,7 @@ await describe({
       name: 'IS ASKED THE TYPED QUESTION and heard through the stage guard',
       fn: async () => {
         const voice = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => ({
@@ -152,6 +154,7 @@ await describe({
         + 'router refuses',
       fn: async () => {
         const noQuestion = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {
@@ -166,6 +169,7 @@ await describe({
         },);
 
         const noTransport = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({},),
           decision: DECISION,
@@ -177,6 +181,7 @@ await describe({
         },);
 
         const refused = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {
@@ -202,6 +207,7 @@ await describe({
         + 'voice on any other 400',
       fn: async () => {
         const overContext = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {
@@ -221,6 +227,7 @@ await describe({
         },);
 
         const otherRefusal = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {
@@ -246,6 +253,7 @@ await describe({
       fn: async () => {
         const warnings: string[] = [];
         await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           l: warningRecordingLogger({ base: l, warnings, },),
           client: clientWith({
@@ -270,6 +278,7 @@ await describe({
         + 'though the body names the marker, since only a 400 max_tokens_exceeded names the state itself',
       fn: async () => {
         const serverError = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {
@@ -295,6 +304,7 @@ await describe({
         + 'the guard is not the value the stage asked for',
       fn: async () => {
         const voice = await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           validate: function refuses(_value: unknown,): _value is unknown {
             return false;
@@ -320,6 +330,7 @@ await describe({
       name: 'THROWS the call error where the signal aborted, so steering stops the fan-out',
       fn: async () => {
         await expect(attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           signal: AbortSignal.abort(),
           client: clientWith({
@@ -337,6 +348,7 @@ await describe({
         + 'endpoint costs the decision seat its voice while other providers are wet',
       fn: async () => {
         expect(await attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {
@@ -357,6 +369,7 @@ await describe({
         const dry = new EveryProviderDryError({ measured: 'meters read every provider dry', },);
 
         await expect(attemptStageCall({
+          reaskSeat: ROSTER_SEAT,
           ...SHARED,
           client: clientWith({
             decide: async () => {

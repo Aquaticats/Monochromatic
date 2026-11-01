@@ -30,6 +30,7 @@ import {
   MEOW_FORMAT,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import { ROSTER_SEAT, } from '@monochromatic-dev/translation-repair-provider/ts/roster-seat.test-fixture.ts';
 
 //region Stage call runaway tests
 
@@ -77,7 +78,7 @@ function answeringWith(
 
  @param client - scripted client
 
- @param reaskSeat - role and bench the call carries, when it carries any
+ @param reaskSeat - role and bench the call carries, the roster seat when a case names none
 
  @returns Voice as data
 
@@ -89,7 +90,7 @@ function answeringWith(
 async function askRunawaySeat(
   {
     client,
-    reaskSeat,
+    reaskSeat = ROSTER_SEAT,
   }: {
     readonly client: ModelClient;
     readonly reaskSeat?: ReaskSeat;
@@ -105,7 +106,7 @@ async function askRunawaySeat(
     validate: isMeowReply,
     stage: 'meow-check',
     l: levelCapturingLogger({ lines: [], },),
-    ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+    reaskSeat,
   },);
 }
 
@@ -167,8 +168,8 @@ await describe({
     },),
 
     it({
-      name: 'SENDS THE SEAT\'S ROLE AND BENCH ON THE REQUEST when the caller names them, and sends no member when it '
-        + 'does not',
+      name: 'SENDS THE SEAT\'S ROLE AND BENCH ON THE REQUEST when the caller names them, and the roster seat of the '
+        + 'case when it names none, since every stage call names one (ledger B1373)',
       fn: async () => {
         /**
          Requests the client saw.
@@ -181,7 +182,7 @@ await describe({
         await askRunawaySeat({ client: answeringWith({ seen, outcome: RUNAWAY, },), reaskSeat, },);
         await askRunawaySeat({ client: answeringWith({ seen, outcome: RUNAWAY, },), },);
         expect(seen[0]?.reaskSeat,).toEqual(reaskSeat,);
-        expect('reaskSeat' in (seen[1] ?? {}),).toBe(false,);
+        expect(seen[1]?.reaskSeat,).toEqual(ROSTER_SEAT,);
       },
     },),
 
