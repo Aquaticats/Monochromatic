@@ -978,7 +978,12 @@ each finished branch is reviewed and merged into `main`):
   The package was private (anonymous token HTTP 401);
   the owner made it public ("Made it public");
   afterwards an anonymous token was issued and the manifest HEAD returned HTTP 200.
-  Second run `41267052681` dispatched on `main` to confirm the skip.
+  Second run `41267052681`,
+  dispatched on `main`,
+  succeeded and printed
+  "ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464 exists (HTTP 200); nothing to build".
+  Still to verify after the cutover merge:
+  a real `prepare:playwright` pull from GHCR on this machine.
 - Switch delta review (2026-11-01,
   `cc96e34a54..254c474ccb`):
   no blocker;
