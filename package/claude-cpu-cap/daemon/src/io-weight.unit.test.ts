@@ -236,7 +236,7 @@ await describe({
             expect(repeat.messages.warn,).toEqual([],);
             expect(repeat.messages.info,).toEqual([],);
             /**
-             Recorder for the call above both ranges.
+             Recorder for the call with a weight larger than both maxima.
              */
             const tooHigh = recordingLogger();
             expect(await reconcileIoWeight({ ...paths, weight: 20_000, l: tooHigh, },),).toBe(true,);
@@ -244,7 +244,7 @@ await describe({
             expect(tooHigh.messages.warn,).toHaveLength(1,);
             expect(tooHigh.messages.warn[0],).toContain(paths.ioWeightFile,);
             /**
-             Recorder for the call below both ranges.
+             Recorder for the call with a weight smaller than both minima.
              */
             const tooLow = recordingLogger();
             expect(await reconcileIoWeight({ ...paths, weight: 0, l: tooLow, },),).toBe(true,);
@@ -334,7 +334,7 @@ await describe({
              */
             const { paths, } = await makeHost({ threads: '28', cpuPressure: 0, },);
             await chmod(paths.ioBfqWeightFile, 0o444,);
-            // Positive control: the file really refuses writes, so the rejection below comes from the write.
+            // Positive control: the file really refuses writes, so the rejection of the reconcile call comes from the write.
             expect(await rejectionOf(async function probeWrite() {
               return access(paths.ioBfqWeightFile, 2,);
             },),).toBeDefined();

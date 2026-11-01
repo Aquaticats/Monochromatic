@@ -86,7 +86,10 @@ type SettledRow = Readonly<{
 /**
  One power bucket with the settled samples in it, as `Map.entries()` yields it.
  */
-type BucketEntry = readonly [number, readonly SettledRow[]];
+type BucketEntry = readonly [
+  number,
+  readonly SettledRow[]
+];
 
 /**
  Parses the sample CSV lines the summary reads, skipping the header and rows with an empty Tctl or watts field.

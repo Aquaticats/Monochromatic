@@ -20,6 +20,14 @@ export {
 const CORE_LABEL_DIGITS = 3;
 
 /**
+ One file name with its contents, as `Object.entries()` yields it.
+ */
+type FileEntry = readonly [
+  string,
+  string
+];
+
+/**
  Writes the files of one hwmon entry.
 
  @param dir - entry directory
@@ -38,7 +46,7 @@ async function writeEntry({
     { recursive: true, },
   );
   await Promise.all(Object.entries(files,)
-    .map(async function writeOne([name, text,]: readonly [string, string],) {
+    .map(async function writeOne([name, text,]: FileEntry,) {
       await writeFile(
         join(
           dir,

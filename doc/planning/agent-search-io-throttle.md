@@ -13,9 +13,10 @@ Every probe now places its file on `/var/home`, confirmed with `findmnt --target
 
 ## Correction of 2026-11-01: BFQ reads a different file
 
-The sections on `io.weight` below assume that BFQ reads `io.weight`. It does not: BFQ reads `io.bfq.weight`, and
-`io.weight` belongs to the iocost controller, which is off on this host (`io.cost.qos` is empty).
-The probes below used systemd's `IOWeight=`, which sets both files, so their results stand.
+The sections on `io.weight` after this one assume that BFQ reads `io.weight`.
+It does not: BFQ reads `io.bfq.weight`, and `io.weight` belongs to the iocost controller,
+which is off on this host (`io.cost.qos` is empty).
+The probes in "BFQ on nvme0n1" used systemd's `IOWeight=`, which sets both files, so their results stand.
 The watcher wrote `io.weight` alone, so its weight had no effect on `nvme0n1` until it also wrote `io.bfq.weight`
 (`package/claude-cpu-cap/daemon/README.md`, "IO weight", has the kernel sources, ranges and the measurement).
 

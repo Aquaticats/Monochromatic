@@ -116,11 +116,11 @@ await describe({
           name: 'rethrows failures other than a missing path',
           fn: async function rethrowsOther() {
             /**
-             A path below a regular file, which fails with ENOTDIR instead of ENOENT.
+             A path that continues past a regular file, which fails with ENOTDIR instead of ENOENT.
              */
             const dir = await sensorDir({ name: 'a', text: 'x', },);
             /**
-             Path below the file.
+             Path that continues past the file.
              */
             const belowFile = join(dir, 'a', 'b',);
             await expect(pathExists(belowFile,),).rejects.toThrow('ENOTDIR',);

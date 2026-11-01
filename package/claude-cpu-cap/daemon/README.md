@@ -13,7 +13,7 @@ The operating notes (what the limits mean, how to tone the cap down or up) are i
 - `src/cap.ts`, `src/power.ts`, `src/pressure.ts`, `src/hwmon.ts`, `src/files.ts`, `src/samples.ts`,
   `src/streak.ts`: the pieces a pass uses.
 - `src/io-weight.ts`: re-applies the cgroup's default IO weight (10, against the kernel default of 100) every pass,
-  into `io.bfq.weight` and `io.weight` (see "IO weight" below).
+  into `io.bfq.weight` and `io.weight` (see the "IO weight" section).
   A weight is a share against sibling cgroups and costs nothing on an idle disk.
 - `src/io-weight-error.ts`: the error `src/io-weight.ts` throws when the cgroup has no weight file or a file refuses.
 - `src/paths.ts`: every location and limit, each overridable by environment variable.

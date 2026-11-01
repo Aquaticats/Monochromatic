@@ -50,12 +50,12 @@ export const DEFAULT_IO_WEIGHT = 10;
 export const IO_WEIGHT_MIN = 1;
 
 /**
- Largest weight `io.weight` accepts (iocost); a write above it fails with `EINVAL`.
+ Largest weight `io.weight` accepts (iocost); a write of a larger weight fails with `EINVAL`.
  */
 export const IO_WEIGHT_MAX = 10_000;
 
 /**
- Largest weight `io.bfq.weight` accepts (`BFQ_MAX_WEIGHT`); a write above it fails with `ERANGE`.
+ Largest weight `io.bfq.weight` accepts (`BFQ_MAX_WEIGHT`); a write of a larger weight fails with `ERANGE`.
  */
 export const IO_BFQ_WEIGHT_MAX = 1_000;
 
