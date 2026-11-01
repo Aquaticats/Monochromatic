@@ -7116,3 +7116,21 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
      repository has no main-worktree instance).
 - Assigned to the 0.5.7 integrator (agent `acbcd4a30d0c3abf6`) after its merge: verify each (red first), fix the
   confirmed ones on the merged branch, report per-finding verdicts. 0.5.7 does not ship before this.
+
+## 2026-11-01: the eight host-dependent lib failures were an ambient variable, not the mount
+
+- Agent `aea005c072212468d` READY: branch `worktree-agent-aea005c072212468d`, red `86d6573826`, fix `1d4dc98833`.
+- Cause: the earlier agent's runner exported `GIT_POLICY_NATIVE_IMAGE_TAG`. `environment_is_plain`
+  (`src/native/repo_read_layout.rs:152-163`, prefix list at `:27`) declines on any unknown `GIT_` variable, so
+  `read_layout`, `read_layout_with` and `read_layout_in` returned `None` and every in-process reader fell back to
+  starting Git; the eight tests assert the in-process path. Same eight fail under both fixture roots with the variable
+  set and pass under both without it, so the second btrfs mount played no part.
+- Fix (product): the package's own prefix `GIT_POLICY_` is tolerated (Git never reads it); a lookalike such as
+  `GIT_POLICYX` still declines. Control `repo_read_layout::tests::the_packages_own_variables_do_not_move_discovery`
+  failed at `repo_read_layout_tests.rs:213` before the fix. Troubleshooting note
+  `doc/troubleshooting/cli-git-unit-tests-ambient-git-variables.md`.
+- After the fix: lib 2810 of 2810 under a `~/temp` root and under a `/var/home` root; clippy clean. Binary and e2e not run
+  by that agent. The container gate never passes the tag into the container (`bin/test-native-container.ts`).
+- Any other unknown `GIT_*` variable still turns the in-process readers off (the intended safe fallback). Renaming
+  `GIT_POLICY_NATIVE_IMAGE_TAG` off the `GIT_` prefix was left alone.
+- Assigned to the 0.5.7 integrator to merge after its per-worktree merge.
