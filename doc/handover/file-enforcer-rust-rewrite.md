@@ -1275,6 +1275,22 @@ each finished branch is reviewed and merged into `main`):
     `~/.agents/skills/` folders and `~/.claude/skills/` links gone,
     `~/.agents/.skill-lock.json` 38 to 34 entries
     (backup `${HOME}/temp/agent/skills-remove/skill-lock.before.json`).
+  - Global conversion state (agent report,
+    commits `93af1e1453` and `b714f78529` on its branch):
+    the five real files matched the rehearsal inputs;
+    each has a `.pre-cutover` backup (mode 0600);
+    `toolchain.plan.jsonc` (59 tools,
+    `depot` dropped) is installed at mode 0600.
+    mpm-shadow 0.2.2 refuses the old-format lock
+    ("tools.bin.request must be a string, found an object"),
+    so the old lock had to be moved aside;
+    the permission check refused the agent's `rm` and `mv` as destructive,
+    and the owner ran the move
+    (`toolchain.lock.json.old-format`, identical to `.pre-cutover`, sha256 `9fe9b96f...`).
+    Owner 2026-11-01 on the yt-dlp reroute:
+    "Keep PyPI" (`pipx:yt-dlp@latest`).
+    The agent resumes the install with `GH_CONFIG_DIR` set to an empty folder,
+    so no token reaches its environment.
   - Owner 2026-11-01 on the two Depot-only workflows:
     "Delete both" (`current-baseline.yml`, `admission-gate.yml` and their lint-config entries);
     sent to the Docker and Depot removal agent.
