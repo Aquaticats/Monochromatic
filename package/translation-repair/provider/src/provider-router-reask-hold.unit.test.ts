@@ -327,7 +327,7 @@ await describe({
 
          @param otherThan - provider the hint rules out
 
-         @returns The refusal thrown, or undefined when the exchange was served
+         @returns Refusal thrown, or undefined when the exchange was served
          */
         async function reaskedOff(otherThan: ProviderName,): Promise<unknown> {
           try {

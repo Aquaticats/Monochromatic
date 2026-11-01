@@ -1,4 +1,7 @@
-import { namedUnderKey, } from './reask-role-call.test-fixture.ts';
+import {
+  isSpread,
+  namedUnderKey,
+} from './reask-role-call.test-fixture.ts';
 import {
   afterBracket,
   propertiesOf,
@@ -42,31 +45,6 @@ const SEAT_KEY = 'reaskSeat';
 export const REQUEST_PASSED_ON = 'passes a request on';
 
 /**
- Whether a property opens with the three dots of a spread.
-
- @param property - tokens of one property
-
- @returns True when its first three tokens are dots
-
- @example
- ```ts
- const spread = startsWithSpread(property,);
- ```
- */
-function startsWithSpread(property: readonly Token[],): boolean {
-  return property
-    .slice(
-    0,
-    SPREAD_MARK.length,
-    )
-    .map(function textOf(token,): string {
-      return token.text;
-    },)
-    .join('',)
-    === SPREAD_MARK;
-}
-
-/**
  Whether a property is a spread of a plain name, `...request`.
 
  @param property - tokens of one property
@@ -79,7 +57,7 @@ function startsWithSpread(property: readonly Token[],): boolean {
  ```
  */
 function isPlainSpread(property: readonly Token[],): boolean {
-  return startsWithSpread(property,)
+  return isSpread(property,)
     && (property.length === (SPREAD_MARK.length + 1))
     && (property[SPREAD_MARK.length]
       ?.kind
@@ -174,8 +152,12 @@ export function seatsNamedAtRequestCalls({ source, }: { readonly source: string;
      Whether every spread of the literal is a plain name, which hands a request on.
      */
     const spreadsAreRequests = properties
-      .filter(startsWithSpread,)
-      .every(isPlainSpread,);
+      .filter(function opensWithSpread(property,): boolean {
+        return isSpread(property,);
+      },)
+      .every(function handsARequestOn(property,): boolean {
+        return isPlainSpread(property,);
+      },);
     named.push((seat === 'only a spread') && spreadsAreRequests ? REQUEST_PASSED_ON : seat,);
   }
   return named;

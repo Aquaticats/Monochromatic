@@ -78,7 +78,7 @@ const ZERO_COLUMNS = /\p{M}|\u200D|\uFE0F/u;
  const wideWidth = widthOf({ line: '猫猫', },);
  ```
  */
-export function widthOf({ line, }: { readonly line: string; },): number {
+function widthOf({ line, }: { readonly line: string; },): number {
   /**
    Columns counted so far.
    */
@@ -186,7 +186,7 @@ function fenceRunOf({ line, }: { readonly line: string; },): FenceRun | typeof N
 
  @param line - one line of Markdown outside a fence
 
- @returns The fence opened, or the mark of a line that opens none
+ @returns Fence opened, or the mark of a line that opens none
 
  @example
  ```ts
@@ -222,7 +222,7 @@ function fenceOpenedBy({ line, }: { readonly line: string; },): Fence | typeof N
 
  @param line - one line of Markdown inside the fence
 
- @param fence - the fence that is open
+ @param fence - fence that is open
 
  @returns True when the line closes it
 

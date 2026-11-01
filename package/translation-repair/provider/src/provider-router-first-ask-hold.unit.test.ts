@@ -333,7 +333,7 @@ await describe({
 
          @param reaskSeat - seat both calls name
 
-         @returns The providers the callers reached and what the second call came to
+         @returns Providers the callers reached and what the second call came to
          */
         async function overflowUnder(
           reaskSeat: ReaskSeat,

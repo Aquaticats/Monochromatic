@@ -104,8 +104,13 @@ function propertiesAtPath(
  @param property - tokens of one property
 
  @returns True when it opens with three dots
+
+ @example
+ ```ts
+ const spread = isSpread(property,);
+ ```
  */
-function isSpread(property: readonly Token[],): boolean {
+export function isSpread(property: readonly Token[],): boolean {
   return property
     .slice(
     0,
