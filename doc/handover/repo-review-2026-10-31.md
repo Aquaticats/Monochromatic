@@ -2012,6 +2012,45 @@ other five lanes keep running):
   remaining modules, run on its package, slice-cache on its remaining tests,
   troubleshooting at line 77.
 
+Wave-4 fifty-fourth checkpoint (2026-11-01, all six lane returns verified and relaunched; the
+three drifted fm rows repaired):
+
+- `w4-cc-statusline` (cc-docs round 8): rows `w4-docs-041` to `-043` (62-character
+  governing-skill digest against the 64-character value in 38 siblings, a blob
+  object where headers name commits, and a last-updated date that predates the
+  rename). Ledger 42 of 42. Next: position 425, id w4-docs-044, base rr-gp-338.
+- `w4-fm-variant-qt` (fm-decision round 8): rows `w4-docs-decision-063` to `-065`
+  (vet-slint's evidence pointers land on unrelated build.rs/main.rs/Cargo.toml
+  lines, four hybrid reports give four Capacitor floors, and vet-flutter cites a
+  bare plugin_ffi path with zero tracked files). The pre-existing rows 022, 034
+  and 043 drifted again with the concurrent conf.d and toolchain.plan edits; I
+  repaired them to 20-env.toml line 63 and toolchain.plan lines 394 and 403.
+  Ledger 65 of 65. Next: position 58, id w4-docs-decision-066, base rr-fmv-65.
+- package/translation-repair/run round 1: rows `w5-tr-run-001` to `-004` (the
+  build-entries coverage-census example, the SweepEvent at/instant example, the
+  "both providers" doc over the PROVIDER_ORDER loop, and five unjustified classic
+  for loops). Ledger 4 of 4; 50 of 226 reviewable files. Next: cap-census and
+  friends, id w5-tr-run-005, base rr-trrun-002.
+- package/translation-repair/corpus-pass round 3: rows `w5-tr-corpus-pass-007`
+  (three functions missing @param) and `-008` (the strict overlap predicate
+  spelled three times with no owner). Ledger 8 of 8; 31 of 94 production modules.
+  Next: pass-consistency-apply-ledger, id w5-tr-corpus-pass-009, base rr-tcp-004.
+- package/translation-repair/slice-cache round 4: rows
+  `w5-tr-slice-cache-015` to `-019` (entry-attempt-queue verdict arms,
+  pass-stop-before-next's SOFT BUDGET FIRST precedence, the lane-contest guards,
+  the tally-error-text under-cap return and the schema-census unknown generation).
+  Ledger 19 of 19; coverage ceiling 118 of 119. Next: discard-log test, id
+  w5-tr-slice-cache-020, base rr-tsc-005.
+- doc/troubleshooting round 5: worklist lines 77 to 81, rows
+  `w2-logger-src-099` to `-104` (stream-drain line blocks, a present-tense bypass
+  HEAD refuses, stale hyper-catalog pointers, a missing probe script and the
+  Qwen stringField/parseModelJson drift). Ledger 103 of 103. Next: line 82, id
+  w2-logger-src-105, base rr-ts-382.
+- All six lanes were relaunched after verification. My spots confirmed the
+  cc last-updated/rename contradiction, the run coverage-census example, the
+  vet-slint pointers, the troubleshooting stream-drain citation and the
+  corpus-pass helper declarations.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
