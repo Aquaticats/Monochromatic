@@ -26,6 +26,29 @@ export {
 } from './oxlint-fix-loop.ts';
 export { RULE_GUIDANCE, } from './oxlint-guidance.ts';
 export {
+  downloadBytes,
+  sha256Hex,
+  type VersionAnswer,
+  versionOf,
+} from './mpm-shadow-lock-fetch.ts';
+export {
+  type MpmShadowSource,
+  resolveLockedMpmShadow,
+  type ResolvedMpmShadow,
+} from './mpm-shadow-lock-logic.ts';
+export {
+  type ArchiveRow,
+  BOOTSTRAP_CACHE_DIRECTORY,
+  hostLockPlatformId,
+  type LockedMpmShadow,
+  lockPlatformId,
+  MPM_SHADOW_TOOL_ID,
+  MpmShadowLockError,
+  parseVersionOutput,
+  readLockedMpmShadow,
+  TOOLCHAIN_BIN_LINK,
+} from './mpm-shadow-lock-read.ts';
+export {
   ensurePlaywrightImage,
   PLAYWRIGHT_IMAGE_PLATFORM,
   PLAYWRIGHT_LOCAL_IMAGE,

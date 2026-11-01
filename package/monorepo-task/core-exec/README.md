@@ -6,7 +6,8 @@ a file append helper,
  a make-style dependency checker,
 a `tsc` wrapper that filters `node_modules` diagnostics,
 an `oxlint` wrapper that augments diagnostics while preserving every finding and exit status,
-and the pull-or-build step for the Playwright container image.
+the pull-or-build step for the Playwright container image,
+and the runner of the lock's `mpm-shadow`.
 
 ## Orchestration regression tests
 
@@ -217,6 +218,33 @@ changes the tag.
 task-playwright-image
 ```
 
+### task-mpm-shadow
+
+Runs `mpm-shadow` at the version `toolchain.lock.json` names;
+it is what the root `toolchain:*` tasks run.
+The command finds the repository root (the folder with the lock,
+searched upward from the current directory)
+and looks for a copy whose `--version` equals the lock's version for the `mpm-shadow` tool:
+first `.cache/toolchain-bin/mpm-shadow`,
+then `.cache/mpm-shadow-bootstrap/<version>/mpm-shadow`.
+When neither is that version it downloads the lock's archive for the platform,
+checks the SHA-256 recorded beside it,
+unpacks it into the second location,
+and refuses an archive whose program prints another version.
+It then runs that copy with the arguments given and exits with its status;
+the `mpm-shadow` on `PATH` is never run,
+except on a platform for which the lock has no archive row,
+where a note on standard error says so.
+Notes go to standard error so that standard output stays the program's (`bin --json` is read by other programs).
+The three modules behind it import only `node:` modules,
+so the command runs from source on a checkout without `node_modules`;
+`.github/actions/repo-tools-setup/action.yml` does the same in shell for CI.
+
+```sh
+# Repository root
+task-mpm-shadow install --lockfile-only --frozen-lockfile
+```
+
 ### task-oxlint
 
 Wrapper for `oxlint` that augments diagnostics with extra guidance
@@ -414,6 +442,11 @@ Defaults to `--build` when no arguments are provided.
 
 No flags and no arguments;
 it reads `playwright.Dockerfile` in the current directory and needs `podman` on `PATH`.
+
+### task-mpm-shadow
+
+No flags of its own;
+every argument is passed to `mpm-shadow`.
 
 ### task-oxlint
 
