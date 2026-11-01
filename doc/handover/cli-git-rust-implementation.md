@@ -5931,3 +5931,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
   back; an uninstalled machine keeps the present writer until step 4 deletes it; reasoning in the design doc section "Install command,
   default and the uninstalled machine"). HELD, not merged: gate 7 covers the exact Rust code 0.5.1 ships; merge it right after the
   0.5.1 dispatch, then gate again. Agent continues with step 3 (push and maintenance as work items).
+- Gate 7 GREEN on `e0396d510e`: 2901 of 2901 passed, 7 skipped, exit 0. Crate sources unchanged on main up to `3a39013deb`. Wrapper
+  0.5.1 dispatched (run `41313664759`, built from `3a39013deb`; note "Markdown linter embedded in-process, LFS uploads cover every
+  pushed ref, aliases cannot re-enable hooks, opt-in commit service."), followed by `native:release:wait` (log
+  `~/temp/agent/release-051-wait.log`). After it publishes: message `monochromatic-c0` for the lock bump (their delegated job).
+- Service step 2 merged after the dispatch (`54bc241fab`); gate 8 on it: unit `gpc-main-gate8`, tag `main-gate8`, log
+  `~/temp/agent/gate/main-gate8.log`.
+- Mutation `m048d`: `child_class.rs` 7 mutants, 6 caught, 1 unviable, 0 missed. Still running: the planted-control proof plus
+  `index_flags.rs`, `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`.
