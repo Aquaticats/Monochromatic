@@ -6451,3 +6451,10 @@ This block supersedes "State at 2026-10-29 (night, later)".
   has no repository scratch directory for the input of this Git command` (`transaction_git.rs:257`). The service's
   `GitContext` has no scratch directory. Audit-only, so no commit was affected. Sent to `ad02e84404af49107`, with a test
   through the real `GitHandlers`.
+- Review key merged into main as `45cdf3fd68`, with the 0.5.4 bump already landed; it ships in 0.5.5.
+- 4d part 1, group 1 READY `af4564fb1c` (agent `abebb58839c985773`, interim). `-i`/`--include`, `-p`/`--patch`,
+  `--interactive` and `--pathspec-from-file` now have service landings, with twin tests against native Git in
+  `binary_service_landing_selection_tests.rs`. `--dry-run` and the status formats run with no runtime directory and no
+  service. Also protocol v5 `04f91f1d85`: detached-HEAD compare-and-swap, unborn zero-old compare-and-swap, extra
+  parents, and index entries as bytes. Remaining: the other line groups, the 15 push tests, and the full suite with
+  `CLI_GIT_TEST_SERVICE=1`.
