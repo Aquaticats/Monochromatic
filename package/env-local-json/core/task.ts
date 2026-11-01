@@ -24,6 +24,9 @@ export default {
   },
   'buildAndTest': {
     description: 'Build the Node bundle, then run unit tests against the built artifact',
-    depends: ['build', 'test:unit',],
+    depends: [
+      'build',
+      'test:unit',
+    ],
   },
 } satisfies PackageTaskFile;

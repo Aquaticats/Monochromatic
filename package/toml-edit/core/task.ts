@@ -22,7 +22,10 @@ export default {
   'test:unit': { extends: 'test:unit', },
   'buildAndTest': {
     description: 'Build the neutral bundle, then run unit tests against the built dist',
-    depends: ['build', 'test:unit',],
+    depends: [
+      'build',
+      'test:unit',
+    ],
   },
   'test:mutation': {
     description: 'Run container-isolated mutation testing against the full toml-edit unit suite',

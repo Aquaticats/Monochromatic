@@ -20,6 +20,9 @@ export default {
   'test:unit': { extends: 'test:unit', },
   'buildAndTest': {
     description: 'Build the node MCP-server bin, then run unit tests against the built artifact',
-    depends: ['build', 'test:unit',],
+    depends: [
+      'build',
+      'test:unit',
+    ],
   },
 } satisfies PackageTaskFile;
