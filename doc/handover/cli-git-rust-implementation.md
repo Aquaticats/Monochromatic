@@ -4825,3 +4825,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Three agents in worktrees are writing the killing tests (one per group above), each proving its guards by applying the
   mutant by hand. Next: merge their branches, run the container gate, rerun the mutation scope for the touched files,
   update this section.
+
+## m045 survivors: dispositions (three agent branches merged)
+
+- Killed with permanent tests: `real_index_lock.rs` 261:23 and 598:5 (`real_index_lock_fallback_tests.rs`; the second
+  forces a cross-device link on `/dev/shm`, asserts the two devices differ, and has not been seen inside the podman
+  image yet); `private_storage.rs` all five (191 three, 243 staging-removal report, 457 directory-sync classification,
+  via two pure seams `staging_removal_report` and `settle_directory_sync` that add no syscalls;
+  `private_storage_publish_tests.rs`); `process_tree.rs` `terminate_members` and `kill_members` (real `sh` plus
+  `sleep 600` child, bounded poll); macOS-gated tests for `still_running -> true` and both `darwin_fs_id` mutants,
+  proved on `m1` in a scratch crate (since deleted), not compiled on Linux.
+- Equivalent (body already the mutant): `owner_lock.rs:703` `announces_at_start` (`return false;`),
+  `process_tree.rs` `descendants_of -> vec![]` and `still_running -> false`; `descendants_of -> vec![Default::default()]`
+  is unviable (`TreeMember` has no `Default`).
+- Unreachable on Linux, need a Windows run: `real_index_lock.rs` 241, 280, 284 (two), 334 (all `cfg(not(unix))`) and
+  `filesystem_identity.rs` `windows_fs_id`. Joins the Windows tasks (task 30).
+- New findings in my own package, queued: (1) the crate does not build on macOS: `signal_relay.rs:101` and
+  `signal_relay_tests.rs` use `SI_USER`, `SI_QUEUE`, `SI_KERNEL`, which the `libc` crate lacks on Darwin (found with
+  `cargo test` on `m1`); (2) `private_storage.rs` is about 720 lines, over the 300-line limit, from before this work;
+  (3) the three non-Linux dead-code warnings in `process_tree_tests.rs`.
+- Next: container gate on the combined tree (unit `gpc-surv-gate`, log `~/temp/agent/gate/surv-gate.log`), then the
+  m045 scope reruns for `real_index_lock`, `private_storage`, `process_tree` once the old units end; remove merged
+  agent worktrees.
