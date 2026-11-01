@@ -457,7 +457,16 @@ is started by `watch-start` after the watcher committed.
 It is started outside the cgroup of the watcher:
 as its own transient service of the system manager,
 `wg-quicker-exempt-sentinel-<watcher pid>-<start time>`,
-through `systemd-run --collect` with `ManagedOOMPreference=omit`.
+through `systemd-run --collect` with `ManagedOOMPreference=omit`,
+with the program behind `/usr/bin/env`.
+On an SELinux-enforcing host the system manager (`init_t`) may not execute a file under a home directory
+or a file labelled for containers,
+and this program's build and the toolchain sit in such places:
+the unit was accepted and then failed with `status=203/EXEC`.
+`/usr/bin/env` is executable by the system manager,
+and the service then runs in `unconfined_service_t`,
+which may execute them.
+The cause and the measurements are in `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
 The watcher runs in the cgroup of the terminal or session that started it,
 and a kill of that whole cgroup,
 for example by `systemd-oomd`,
@@ -465,10 +474,14 @@ which the repository's own notes cite,
 would take a sentinel in the same cgroup with it and leave nothing to report.
 A service in its own root-owned cgroup survives that,
 and `systemd-oomd` is asked not to choose the service itself.
-If the manager refuses the unit or `systemd-run` is missing,
-the sentinel starts beside the watcher instead,
+If the manager refuses the unit,
+`systemd-run` is missing or hangs (it is ended after ten seconds),
+or the manager accepts the unit and the sentinel never confirms (its program can still fail to execute after the start was accepted),
+the unit is stopped and the sentinel starts beside the watcher instead,
 `watch-start` prints a `POLICY NOT IN FORCE` line saying that a kill of the watcher's whole cgroup then ends both without a report,
 and the start goes on.
+`systemd-run` and `systemctl` run with a cleared environment and a fixed search path (`/usr/bin:/bin`),
+never the caller's.
 It waits on the watcher through a process file descriptor (`pidfd_open`),
 which refers to the process itself and so cannot be fooled by a reused pid;
 where the kernel has none it polls the start time of the pid.
@@ -493,12 +506,16 @@ and `watch-start` waits up to two seconds for a marker that names this watcher
 while the sentinel's process still exists with that start time.
 If none appears,
 `watch-start` prints a `POLICY NOT IN FORCE` line saying so and where to look
-(`systemctl status wg-quicker-exempt-sentinel-<pid>-<start time>`),
+(`journalctl --unit=wg-quicker-exempt-sentinel-<pid>-<start time>`,
+because the unit is collected when it ends and `systemctl status` shows nothing for it),
 and it prints one line saying where the sentinel runs and whether it confirmed.
-The service is created by `systemd-run` as root,
-so the real service start cannot be exercised without root;
-the arguments are checked in tests,
-and their option grammar was checked on a throwaway transient unit of the user manager.
+The marker is written to a new file that is renamed over `sentinel`,
+so a link planted at that name is replaced and never followed.
+The service start was exercised on the real host with a throwaway unit and a stand-in watcher process:
+the sentinel ran in `unconfined_service_t` in `system.slice` with `ManagedOOMPreference=omit`,
+wrote its marker,
+and exited when the stand-in watcher died;
+the unit that names the program directly failed with `status=203/EXEC` in the same test.
 The limit is stated plainly:
 if the sentinel is killed first,
 or both die together,

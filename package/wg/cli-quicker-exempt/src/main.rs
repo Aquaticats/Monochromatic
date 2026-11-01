@@ -46,6 +46,8 @@ mod signal_descriptor;
 mod watcher_sentinel;
 /// Starts the sentinel outside the watcher's cgroup and confirms it runs.
 mod sentinel_launch;
+/// Commands with a time limit and a fixed search path.
+mod bounded_command;
 /// Retains links while watching application cgroup lifecycle.
 mod application_watch;
 /// Starts and stops detached application watcher.
@@ -116,6 +118,9 @@ mod watcher_sentinel_tests;
 /// Unit tests for the sentinel launch.
 #[cfg(test)]
 mod sentinel_launch_tests;
+/// Unit tests for bounded commands.
+#[cfg(test)]
+mod bounded_command_tests;
 /// Unit tests for the user client.
 #[cfg(test)]
 mod user_client_tests;

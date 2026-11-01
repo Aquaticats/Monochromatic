@@ -5,20 +5,36 @@
 //! and then nothing reports it.
 //! The sentinel therefore starts as its own transient service of the system manager through `systemd-run`,
 //! with `ManagedOOMPreference=omit` so `systemd-oomd` does not choose that service itself.
-//! If the manager refuses,
-//! the sentinel starts beside the watcher and the report says what that costs.
+//! The program starts behind `/usr/bin/env`:
+//! on an SELinux host the system manager (`init_t`) may not execute files under a home directory
+//! or files labelled for containers,
+//! and the toolchain and this program's build sit in such places,
+//! but it may execute `/usr/bin/env`,
+//! after which the service runs in `unconfined_service_t`,
+//! which may.
+//! See `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
 //! A sentinel that was started is called running only after it left a marker that names the watcher
 //! while its own process still exists,
-//! because a process that was created and then died while loading must not be taken for a watch.
+//! because a unit the manager accepted can still fail to execute its program.
+//! If the manager refuses the unit,
+//! or accepts it and nothing confirms,
+//! the unit is stopped and the sentinel starts beside the watcher,
+//! and the report says what that costs.
 
 /// Where the state of one watcher lives.
 use crate::application_watch_state::watch_state_directory;
+/// Commands with a time limit and a fixed search path.
+use crate::bounded_command::run_bounded;
 /// Process start times.
 use crate::process_info::read_start_time;
 /// The words of a loud report.
 use crate::update_report::policy_failure;
 /// The hidden command that runs the sentinel.
 use crate::watcher_sentinel::SENTINEL_COMMAND;
+/// Writing a file without following a link.
+use std::io::Write;
+/// Creating a file with a mode.
+use std::os::unix::fs::OpenOptionsExt;
 /// Starting a detached process.
 use std::os::unix::process::CommandExt;
 /// Paths of the marker.
@@ -34,6 +50,11 @@ const CONFIRM_ATTEMPTS: u32 = 100;
 const CONFIRM_DELAY: Duration = Duration::from_millis(20);
 /// File name of the marker inside the state directory of the watcher.
 const MARKER_NAME: &str = "sentinel";
+/// Time `systemd-run` and `systemctl` may take before they are ended.
+const SYSTEMD_COMMAND_LIMIT: Duration = Duration::from_secs(10);
+/// The first program of the service,
+/// which the system manager may execute where it may not execute the sentinel's program itself.
+const SERVICE_TRAMPOLINE: &str = "/usr/bin/env";
 
 /// What a running sentinel leaves for the process that started it.
 #[derive(Debug, Eq, PartialEq)]
@@ -60,12 +81,19 @@ pub fn parse_marker(text: &str) -> Option<SentinelMarker> {
 }
 
 /// Writes the marker of the running sentinel into `directory`.
+/// The text goes to a new file that is renamed over the marker,
+/// so a link planted at the marker's name is replaced and never followed.
 pub fn write_marker_in(directory: &Path, watcher_pid: i32) -> std::io::Result<()> {
     let own = i32::try_from(std::process::id()).map_err(std::io::Error::other)?;
     let Some(start_time) = read_start_time(Path::new("/proc"), own) else {
         return Err(std::io::Error::other("the sentinel process is not in procfs"));
     };
-    return std::fs::write(directory.join(MARKER_NAME), format!("{watcher_pid} {own} {start_time}\n"));
+    let temporary = directory.join(format!("{MARKER_NAME}.{own}.tmp"));
+    let _removed = std::fs::remove_file(&temporary);
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
+    file.write_all(format!("{watcher_pid} {own} {start_time}\n").as_bytes())?;
+    file.sync_all()?;
+    return std::fs::rename(&temporary, directory.join(MARKER_NAME));
 }
 
 /// Reads the marker in `directory`,
@@ -139,6 +167,9 @@ impl LaunchOutcome {
 pub trait SentinelSteps {
     /// Starts the sentinel as a transient service with these `systemd-run` arguments.
     fn start_as_service(&self, arguments: &[String]) -> Result<(), String>;
+    /// Stops the transient service with this unit name,
+    /// when it still exists.
+    fn stop_service(&self, unit: &str);
     /// Starts the sentinel as a detached process with these arguments after the program.
     fn start_detached(&self, executable: &Path, arguments: &[String]) -> Result<(), String>;
     /// Reads the marker of the sentinel of the watcher under `key`.
@@ -170,7 +201,8 @@ pub fn sentinel_arguments(request: &SentinelRequest<'_>) -> Vec<String> {
 
 /// Arguments of `systemd-run` that start the sentinel as its own collected service,
 /// outside the cgroup of the watcher,
-/// with `systemd-oomd` asked to omit it.
+/// with `systemd-oomd` asked to omit it,
+/// and with the program behind `/usr/bin/env` so a host that confines the system manager still runs it.
 pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<String> {
     let mut arguments: Vec<String> = vec![
         "--quiet".to_string(),
@@ -180,6 +212,7 @@ pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<String> {
         "--description=wg-quicker-exempt application watcher sentinel".to_string(),
         "--property=ManagedOOMPreference=omit".to_string(),
         "--".to_string(),
+        SERVICE_TRAMPOLINE.to_string(),
         request.executable.display().to_string(),
     ];
     arguments.extend(sentinel_arguments(request));
@@ -200,46 +233,65 @@ pub fn confirm_running(steps: &dyn SentinelSteps, key: &str, watcher_pid: i32) -
     return false;
 }
 
-/// Starts the sentinel outside the cgroup of the watcher,
-/// confirms that it runs,
-/// and returns the loud reports for what did not go as intended.
-/// The start of the watcher is not failed,
-/// because the watcher itself is running.
-pub fn launch_sentinel(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>) -> LaunchOutcome {
+/// The wait for a marker,
+/// in milliseconds.
+fn confirm_wait_ms() -> u128 {
+    return u128::from(CONFIRM_ATTEMPTS) * CONFIRM_DELAY.as_millis();
+}
+
+/// Starts the sentinel beside the watcher and confirms it,
+/// adding the loud reports for what did not go as intended.
+fn start_beside_the_watcher(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>, reports: &mut Vec<String>) -> (Option<Placement>, bool) {
     steps.remove_marker(request.key);
-    let mut reports: Vec<String> = Vec::new();
-    let placement = match steps.start_as_service(&systemd_run_arguments(request)) {
-        Ok(()) => Some(Placement::Service),
-        Err(service_error) => {
-            reports.push(policy_failure(&format!(
-                "the sentinel that reports the watcher's own death could not start as its own service ({service_error}), \
-so it starts beside the watcher: a kill of the watcher's whole cgroup, for example by systemd-oomd, then ends both without a report"
-            )));
-            match steps.start_detached(request.executable, &sentinel_arguments(request)) {
-                Ok(()) => Some(Placement::BesideTheWatcher),
-                Err(detached_error) => {
-                    reports.push(policy_failure(&format!(
-                        "the sentinel that reports the watcher's own death could not start at all ({detached_error}), \
+    if let Err(detached_error) = steps.start_detached(request.executable, &sentinel_arguments(request)) {
+        reports.push(policy_failure(&format!(
+            "the sentinel that reports the watcher's own death could not start at all ({detached_error}), \
 so if the watcher is killed or runs out of memory nothing will say so"
-                    )));
-                    None
-                }
-            }
-        }
-    };
-    if placement.is_none() {
-        return LaunchOutcome { placement, confirmed: false, reports };
+        )));
+        return (None, false);
     }
     let confirmed = confirm_running(steps, request.key, request.watcher_pid);
     if !confirmed {
         reports.push(policy_failure(&format!(
-            "the sentinel that reports the watcher's own death was started ({}) but did not confirm that it runs within {} ms, \
-so if the watcher is killed or runs out of memory nothing may say so; look at `systemctl status {}`",
-            if placement == Some(Placement::Service) { "as a service" } else { "beside the watcher" },
-            u128::from(CONFIRM_ATTEMPTS) * CONFIRM_DELAY.as_millis(),
-            unit_name(request.watcher_pid, request.watcher_start_time)
+            "the sentinel that reports the watcher's own death was started beside the watcher but did not confirm that it runs within {} ms, \
+so if the watcher is killed or runs out of memory nothing may say so",
+            confirm_wait_ms()
         )));
     }
+    return (Some(Placement::BesideTheWatcher), confirmed);
+}
+
+/// Starts the sentinel outside the cgroup of the watcher,
+/// confirms that it runs,
+/// and returns the loud reports for what did not go as intended.
+/// If the manager refuses the unit,
+/// or accepts it and the sentinel never confirms (its program may fail to execute after the start was accepted),
+/// the unit is stopped and the sentinel starts beside the watcher.
+/// The start of the watcher is not failed,
+/// because the watcher itself is running.
+pub fn launch_sentinel(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>) -> LaunchOutcome {
+    steps.remove_marker(request.key);
+    let unit = unit_name(request.watcher_pid, request.watcher_start_time);
+    let mut reports: Vec<String> = Vec::new();
+    if let Err(service_error) = steps.start_as_service(&systemd_run_arguments(request)) {
+        reports.push(policy_failure(&format!(
+            "the sentinel that reports the watcher's own death could not start as its own service ({service_error}), \
+so it starts beside the watcher: a kill of the watcher's whole cgroup, for example by systemd-oomd, then ends both without a report"
+        )));
+        let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
+        return LaunchOutcome { placement, confirmed, reports };
+    }
+    if confirm_running(steps, request.key, request.watcher_pid) {
+        return LaunchOutcome { placement: Some(Placement::Service), confirmed: true, reports };
+    }
+    steps.stop_service(&unit);
+    reports.push(policy_failure(&format!(
+        "the sentinel that reports the watcher's own death was accepted as a service but did not confirm that it runs within {} ms \
+(its program may have failed to execute; look at `journalctl --unit={unit}`), \
+so it starts beside the watcher: a kill of the watcher's whole cgroup, for example by systemd-oomd, then ends both without a report",
+        confirm_wait_ms()
+    )));
+    let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
     return LaunchOutcome { placement, confirmed, reports };
 }
 
@@ -262,19 +314,20 @@ pub struct SystemSteps;
 
 /// Starting real processes.
 impl SentinelSteps for SystemSteps {
-    /// Runs `systemd-run` with a cleared environment and a fixed search path.
+    /// Runs `systemd-run` with a cleared environment,
+    /// a fixed search path,
+    /// and a time limit.
     fn start_as_service(&self, arguments: &[String]) -> Result<(), String> {
-        let output = Command::new("systemd-run")
-            .env_clear()
-            .env("PATH", "/usr/bin:/bin")
-            .args(arguments)
-            .stdin(Stdio::null())
-            .output()
-            .map_err(io_message)?;
-        if output.status.success() {
+        let output = run_bounded("systemd-run", arguments, SYSTEMD_COMMAND_LIMIT)?;
+        if output.success {
             return Ok(());
         }
-        return Err(format!("systemd-run {}: {}", output.status, String::from_utf8_lossy(&output.stderr).trim()));
+        return Err(format!("systemd-run {}: {} {}", output.status, output.stderr.trim(), output.stdout.trim()).trim_end().to_string());
+    }
+
+    /// Runs `systemctl stop` with the same limits and ignores a unit that is already gone.
+    fn stop_service(&self, unit: &str) {
+        let _stopped = run_bounded("systemctl", &["stop".to_string(), unit.to_string()], SYSTEMD_COMMAND_LIMIT);
     }
 
     /// Starts the program in a new session with no standard streams.
@@ -287,7 +340,7 @@ impl SentinelSteps for SystemSteps {
         }
         return match command.spawn() {
             Ok(_child) => Ok(()),
-            Err(error) => Err(error.to_string()),
+            Err(error) => Err(io_message(error)),
         };
     }
 
