@@ -1936,6 +1936,20 @@ relaunched; cc and fm still running):
   troubleshooting at line 73, slice-cache on its remaining tests, corpus-pass
   on its remaining modules.
 
+Wave-4 forty-ninth checkpoint (2026-11-01, cc deep-read turn verified and relaunched; fm,
+troubleshooting, slice-cache and corpus-pass keep running):
+
+- `w4-cc-statusline` (cc-docs round 7) deep-read six zero-cited tech vets and
+  swept all 39 of them (36,897 lines): rows `w4-docs-039` (the fearless-simd vet
+  wraps paragraphs into list markers, splitting the fingerprint literal between
+  lines 19 and 20 and the search pattern between 74 and 75; 139 of 222
+  list-marker lines continue an open sentence) and `-040` (six bold-label bullets
+  at lines 252, 258, 268, 275, 281 and 285). My spots reproduce both; w4-docs.jsonl
+  is 39 of 39. Next: position 423 onward, id w4-docs-041, base rr-gp-337.
+- Active: fm-decision at position 44, troubleshooting at line 73, slice-cache on
+  its remaining tests, corpus-pass on its remaining modules, cc-docs at position
+  423 onward.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
