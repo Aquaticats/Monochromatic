@@ -57,6 +57,20 @@ path = "src/embedded_differential_tests.rs"
 name = "closure_binary"
 path = "src/closure_binary_tests.rs"
 
+[features]
+# The Cargo-backed semantic engine (`rust/require-explicit-types`); the executable needs it.
+default = ["semantic"]
+semantic = [
+  "dep:ra_ap_hir",
+  "dep:ra_ap_hir_ty",
+  "dep:ra_ap_ide_db",
+  "dep:ra_ap_load-cargo",
+  "dep:ra_ap_project_model",
+  "dep:ra_ap_proc_macro_api",
+  "dep:ra_ap_vfs",
+  "dep:salsa",
+]
+
 [dependencies]
 # Reuse the repository's comment-preserving parser and exact-number value model.
 # 0.1.1 is the first release with the fuzz-found fixes for bare-CR comment bodies and scalar root
@@ -70,18 +84,21 @@ ignore = { workspace = true }
 # Reuse the incumbent typed JSONL encoder; messages are never manually escaped.
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+# The syntax parser serves the syntax rules, the directive scan and the Rust fences of Markdown, in every build.
+ra_ap_syntax = { workspace = true }
 # Semantic checking was explicitly authorized; all rust-analyzer APIs must share one exact release.
 # HIR 0.0.335 was not published. The 0.0.336 consumer probes resolved generic receivers and the user example.
-ra_ap_syntax = { workspace = true }
-ra_ap_hir = { workspace = true }
-ra_ap_hir_ty = { workspace = true }
-ra_ap_ide_db = { workspace = true }
-ra_ap_load-cargo = { workspace = true }
-ra_ap_project_model = { workspace = true }
-ra_ap_proc_macro_api = { workspace = true }
-ra_ap_vfs = { workspace = true }
+# These are optional so that a caller that only needs the fix engine, such as the policy wrapper, can link the
+# library without them: with salsa's inventory registrations they cost start-up work in every process.
+ra_ap_hir = { workspace = true, optional = true }
+ra_ap_hir_ty = { workspace = true, optional = true }
+ra_ap_ide_db = { workspace = true, optional = true }
+ra_ap_load-cargo = { workspace = true, optional = true }
+ra_ap_project_model = { workspace = true, optional = true }
+ra_ap_proc_macro_api = { workspace = true, optional = true }
+ra_ap_vfs = { workspace = true, optional = true }
 # Match the backend's tested input-storage API; named query functions read typed per-database requests.
-salsa = { workspace = true, default-features = false, features = ["macros", "inventory"] }
+salsa = { workspace = true, optional = true, default-features = false, features = ["macros", "inventory"] }
 # ra-ap-rustc_lexer 0.165.0 asserts that both crates use the same Unicode tables.
 # 1.0.25+ of unicode-ident uses Unicode 18; the approved parser stack uses Unicode 17.
 # Pin the same matching pair already locked by the incumbent Rust linter.

@@ -8,6 +8,8 @@
 //! // Discover an explicit Cargo manifest and compiler source, prepare the requested inputs, then own the loaded session.
 //! ```
 
+/// Re-export the preparation choice and manifest discovery, which the closure check and the no-semantic build share.
+pub use crate::rust_manifest::{WorkspacePreparation, discover_manifest};
 /// Import typed setup failures,
 ///  session ownership and validated toolchain discovery.
 use crate::rust_semantic_error::SemanticError;
@@ -28,60 +30,8 @@ use ra_ap_project_model::{
 };
 /// Import the virtual file system types that the workspace loader populates.
 use ra_ap_vfs::{AbsPathBuf, Vfs};
-/// Import native manifest discovery and explicit I/O failure kinds.
-use std::io::ErrorKind;
 /// Import the path types used to name the manifest and the workspace root.
 use std::path::{Path, PathBuf};
-
-/// Preparation is fixed by the host workflow,
-///  never an arbitrary executable from JSONC.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WorkspacePreparation {
-    /// Read source/metadata only;
-    ///  unavailable generated definitions remain explicit resolution failures.
-    SourceOnly,
-    /// Run locked/offline Cargo checking and load its macro artifacts for complete generated-source context.
-    BuildGenerated,
-}
-
-/// Find the nearest Cargo manifest without searching unrelated child projects or rust-project command descriptors.
-pub fn discover_manifest(input: &Path) -> Result<PathBuf, SemanticError> {
-    absolute_utf8(input)?;
-    let Some(directory): Option<&Path> = input.parent() else {
-        return Err(SemanticError::new(
-            "Rust input has no parent directory in which to discover Cargo.toml.",
-        ));
-    };
-    for ancestor in directory.ancestors() {
-        let candidate: PathBuf = ancestor.join("Cargo.toml");
-        match std::fs::metadata(&candidate) {
-            Ok(metadata) => {
-                if !metadata.is_file() {
-                    return Err(SemanticError::new(
-                        format!(
-                            "Rust workspace manifest {} is not a regular file.",
-                            candidate.display()
-                        )
-                        .as_str(),
-                    ));
-                }
-                return Ok(candidate);
-            }
-            Err(error) => {
-                if error.kind() != ErrorKind::NotFound && error.kind() != ErrorKind::NotADirectory {
-                    return Err(SemanticError::new(
-                        format!(
-                            "Cannot inspect Rust workspace manifest {}: {error}.",
-                            candidate.display()
-                        )
-                        .as_str(),
-                    ));
-                }
-            }
-        }
-    }
-    return Err(SemanticError::new(format!("No Cargo.toml owns Rust input {}. Provide a Cargo workspace context or configure this semantic rule off for an intentional standalone snippet.", input.display()).as_str()));
-}
 
 /// What:
 ///  The backend's Cargo settings for one validated toolchain.
