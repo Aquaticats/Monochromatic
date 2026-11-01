@@ -61,6 +61,8 @@ export {
   startEntryProgress,
 } from './corpus-run/pass-entry-interim.ts';
 export { shipPageOfStop, } from './corpus-run/pass-entry-interim-page.ts';
+export { settleCaughtEntry, } from './corpus-run/pass-entry-caught.ts';
+export { pageStandingOf, } from './corpus-run/pass-entry-page-standing.ts';
 export {
   persistSettledEntry,
   printSettledLines,
