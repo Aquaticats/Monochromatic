@@ -107,7 +107,7 @@ pub enum ClientFailure {
 }
 
 /// The sentence every failure ends with when nothing was changed.
-const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
+pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 
 /// What:
 ///  The text for a failure.

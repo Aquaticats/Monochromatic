@@ -32,6 +32,7 @@ use super::service_message::{author_overrides, build_message, identity};
 use super::service_messages::{ClientFailure, render};
 use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
+use super::service_replay::{Captured, Retry, captured_tree, conflict_result};
 use super::service_protocol::CommitRequest;
 use super::service_provision::provision;
 use super::service_pruned::{PRUNE_RETRIES, content_was_removed, prepared_content_missing, reach_service_phase};
@@ -119,19 +120,40 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let mut fixed_message: Option<PathBuf> = None;
     // How often the content was found removed; the commit is prepared again for the first, and the second is said plainly.
     let mut removals: usize = 0;
+    // What the previous preparation captured when the service sent the commit back because the branch moved: the next
+    //  preparation merges it onto the branch as it is and never reads the worktree again.
+    let mut retry: Option<Captured> = None;
     for attempt in 0..REBUILD_ATTEMPTS {
         let inputs: PrepareInputs<'_> = PrepareInputs {
             scratch_name: scratch_name.as_str(),
             allow_empty: invocation.region.allow_empty,
             standard_input: standard_input.as_deref(),
             first: attempt == 0,
+            replay: retry.as_ref().map(|captured| { return Retry { captured, attempt: u64::try_from(attempt).unwrap_or(u64::MAX) }; }),
         };
+        let replayed: bool = inputs.replay.is_some();
         let ready: Box<Ready> = match prepare(invocation, checks, request, &inputs)? {
+            Prepared::Conflict(conflict) => {
+                // The message is kept so the person can commit again once their files agree with the commit that landed first.
+                let saved: PathBuf = conflict.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
+                let kept: Option<&PathBuf> = embedded.as_ref().and_then(|made| {
+                    return match std::fs::write(&saved, made.message.as_str()) {
+                        Ok(()) => Some(&saved),
+                        Err(error) => {
+                            warn("serviceCommit", format!("saving the message failed: {error}").as_str());
+                            None
+                        }
+                    };
+                });
+                let result: TransactionResult = conflict_result(&conflict, kept.map(PathBuf::as_path));
+                return Ok(Some(ServiceCommit { result, handoff: None }));
+            }
             Prepared::Ended(result) => {
                 // The policies could not read an object this commit had just written: something removed it meanwhile.
                 if content_was_removed(result.events.as_slice()) {
                     removals += 1;
-                    if removals > PRUNE_RETRIES {
+                    // The captured bytes are gone, and the worktree is not read again to replace them.
+                    if replayed || removals > PRUNE_RETRIES {
                         return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
                     }
                     continue;
@@ -298,6 +320,14 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: LANDING_ATTEMPTS })));
                 }
+                // What this preparation captured is merged onto the branch by the next one.
+                let tree: String = captured_tree(
+                    invocation.context,
+                    invocation.cwd,
+                    native_inputs.commit_index.as_path(),
+                    native_inputs.capture.layout.object_directory.as_path(),
+                )?;
+                retry = Some(Captured { base: ready.base.clone(), tree });
             }
             Ok(Submitted::Moved) => {
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
@@ -343,7 +373,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
             {
                 // The service could not land the request because an object it names is gone from the repository.
                 removals += 1;
-                if removals > PRUNE_RETRIES {
+                // A retry cannot be prepared again without reading the worktree, which it never does.
+                if replayed || removals > PRUNE_RETRIES {
                     return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
                 }
             }
