@@ -1211,6 +1211,27 @@ each finished branch is reviewed and merged into `main`):
   (a toolchain folder that is a link is ignored and reported loudly at every start;
   measured:
   the owner's toolchain folders contain no links).
+- Docker build no longer gates the cutover (2026-11-01).
+  The owner asked "We shouldn't need docker to switchover?" and "CI or coolify doesn't need that image, though?"
+  Measured:
+  no workflow in `.github/workflows` builds the root `Dockerfile`
+  (`playwright-image.yml` builds `playwright.Dockerfile`;
+  `ide-release.yml` and `music-player-release.yml` build package Containerfiles);
+  pnpr on Coolify builds `package/config/pnpr/Containerfile` through `package/config/pnpr/compose.yaml`
+  (`doc/runbook/deploy-pnpr-registry.md`).
+  The only consumer of the root `Dockerfile` is the root `docker-compose.yml`
+  (Coolify labels,
+  services `caddy` and `ai-proxy`,
+  last changed 2026-01-18).
+  Its `ai-proxy` service runs `mise run ai-proxy:start`,
+  which does not exist.
+  Whether a Coolify app still deploys it is unknown:
+  it cannot be seen from this machine.
+  The final build was this session's own check, not the owner's requirement.
+  The same check already passed once at 0.2.1
+  (exit 0 after 2120 s).
+  The rerun (`fe-switch-docker-final3`) keeps running but does not block the merge;
+  the switch agent was told to report now.
 - Incident 2026-11-01 (live apply of the wg follow-ups):
   `fad3cdc216` merged as `8fe3c6c96f`,
   built 23:55;
