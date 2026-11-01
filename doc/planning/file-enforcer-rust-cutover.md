@@ -1417,6 +1417,39 @@ Results:
   the `go-install` of `crush`,
   and the `git` postinstall link.
 
+#### Real run, 2026-11-01 (in progress)
+
+The coordinator converted the owner's real plan under the owner's delegation of 2026-10-31
+("Use your own judgement. I trust you'll do this step good enough autonomously.").
+This note is written before the install and is completed after it.
+
+- Inputs:
+  the sha256 of all five real files equals the rehearsal copies taken 2026-10-31 00:39,
+  so the rehearsal's conversion output applies unchanged and no rerun on a fresh copy was needed.
+- Backup:
+  `~/.config/monochromatic-dev/toolchain/<name>.pre-cutover` for each of the five files,
+  copied with `cp --archive --no-clobber`,
+  mode 0600,
+  sha256 equal to the original for every pair.
+- Conversion:
+  `convert-global.ts` (the Appendix converter plus one drop entry) wrote 59 tools,
+  the rehearsal's 60 without `depot`.
+  The owner answered "Drop it" on 2026-11-01 to the question whether the global plan keeps the `depot` CLI
+  (the owner decided the same day not to adopt Depot),
+  so `depot` is not in the converted plan and the header of `toolchain.plan.jsonc` says so.
+  The diff against the rehearsal output is that header line and the `depot` entry, nothing else.
+  The five notes of the rehearsal (the `asset` hints for `tree-sitter`,
+  `llamacpp-rocm`,
+  `deno` and `openinterpreter`,
+  and the `yt-dlp` reroute to `pipx:yt-dlp@latest`) appear unchanged.
+- Adaptations of the procedure:
+  the dry run in a disposable home is skipped,
+  because with `HOME` redirected `gh` finds no login,
+  so the dry run would be unauthenticated and spend the 60-an-hour API allowance
+  that the real lock needs;
+  and the installed `mpm-shadow` 0.2.2 is used through `mise run toolchain:install:global`,
+  because its tag (`monochromatic-mpm-shadow-v0.2.2`) contains commit `7c7ca78478`.
+
 ### Global plan backup and conversion procedure
 
 For the coordinator to run on the owner's machine,
