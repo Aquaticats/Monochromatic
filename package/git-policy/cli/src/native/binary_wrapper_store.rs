@@ -8,28 +8,36 @@
 //!  Every fixture then copied the 22 MB debug executable:
 //!  a wave of 169 tests wrote about 3.7 GB (169 times 21.9 MB) within seconds, on the volume that every other command of
 //!  those tests syncs to; the failing runs that carried the "no hard link" message hit the shared 5-second bound.
-//!  The copy is made once per build under an advisory lock, so a wave of tests that all start together copies once,
-//!  and fixtures link the copy as they would link the build.
+//!  The copy is published without a lock:
+//!  each caller that finds no stored copy writes its own uniquely named partial file and links it to the final name,
+//!  which fails if another caller published first, so the final name is only ever a complete file and the first
+//!  publisher wins.
+//!  Callers that start together may each write a partial copy once per build; every later caller finds the final file.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // await lock(join(store, '.lock')); if (!exists(stored)) { await copy(built, partial); await rename(partial, stored); }
+//! if (!exists(stored)) { await copy(built, partial); try { await link(partial, stored); } catch (AlreadyExists) {} await unlink(partial); }
 //! ```
 
 /// Native path and file types.
 use std::path::{Path, PathBuf};
+/// Distinguishes the partial files of callers in one process.
+use std::sync::atomic::{AtomicUsize, Ordering};
+/// Age of a partial file.
+use std::time::Duration;
 
 /// The directory of a fixture root that holds the stored copies.
 pub const STORE_DIRECTORY: &str = "wrapper-store";
 
-/// The advisory lock file inside the store, held while a copy is made.
-const LOCK_FILE: &str = ".lock";
+/// Prefix of a copy in progress; a finished copy is linked to its final name, so a name with this prefix is never used.
+pub const PARTIAL_PREFIX: &str = ".partial-";
 
-/// Prefix of a copy in progress; a finished copy is renamed to its final name, so a name with this prefix is never linked.
-const PARTIAL_PREFIX: &str = ".partial-";
+/// How old a partial file must be before a caller removes it: a copy of the executable takes seconds, so a partial this
+///  old belongs to a caller that died.
+const STALE_PARTIAL: Duration = Duration::from_secs(3600);
 
-/// How many copies this process has made, so a test can tell one copy for many callers from one copy per caller.
-pub static COPIES_MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// The number of partial files this process has started, which keeps their names unique.
+static PARTIALS_STARTED: AtomicUsize = AtomicUsize::new(0);
 
 /// What:
 ///  The name that identifies one build of the executable:
@@ -50,13 +58,14 @@ fn stored_name(built: &Path) -> std::io::Result<String> {
 /// What:
 ///  The path of the stored copy of `built` under `root`, made if it does not exist yet.
 /// Why:
-///  Fixtures on `root`'s filesystem link this file. The copy is written under a partial name and renamed, so a
-///  stored name is complete whenever it exists, and the lock makes the processes that start together wait for the
-///  first one's copy instead of each making their own; the kernel drops the lock if its holder dies.
-///  Copies of older builds are removed once the new one stands, since fixtures that linked them keep their own link.
+///  Fixtures on `root`'s filesystem link this file. The partial copy is linked to the stored name, never renamed over
+///  it, so a caller that loses the race leaves the winner's file alone and uses it, and a reader that opened the stored
+///  name keeps a complete file whatever happens to the other names. Copies of older builds are removed once the new
+///  one stands; a fixture that linked one keeps its own link, and a caller that finds its stored name gone links
+///  nothing and falls back to a copy of its own.
 ///
 /// # Errors
-///  When the store cannot be created, locked or written, or the copy fails.
+///  When the store cannot be created or written, or the copy fails.
 pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
     let store: PathBuf = root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store)?;
@@ -64,34 +73,48 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
     if stored.exists() {
         return Ok(stored);
     }
-    let lock: std::fs::File = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .open(store.join(LOCK_FILE))?;
-    lock.lock()?;
-    if !stored.exists() {
-        let partial: PathBuf = store.join(format!("{PARTIAL_PREFIX}{}", std::process::id()));
-        super::support::copy_executable(built, partial.as_path());
-        COPIES_MADE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        std::fs::rename(&partial, &stored)?;
-        remove_other_builds(store.as_path(), stored.as_path());
+    let partial: PathBuf = store.join(format!(
+        "{PARTIAL_PREFIX}{}-{}",
+        std::process::id(),
+        PARTIALS_STARTED.fetch_add(1, Ordering::SeqCst)
+    ));
+    super::support::copy_executable(built, partial.as_path());
+    let published: std::io::Result<()> = match std::fs::hard_link(&partial, &stored) {
+        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
+        _ => Ok(()),
+    };
+    if let Err(error) = std::fs::remove_file(&partial) {
+        eprintln!("wrapper store: could not remove {} ({error})", partial.display());
     }
+    published?;
+    remove_other_builds(store.as_path(), stored.as_path());
     return Ok(stored);
 }
 
-/// Remove every copy in the store except `keep`, leaving the lock file; a name that cannot be removed stays.
+/// Remove every finished copy in the store except `keep`, and partial files old enough to belong to a dead caller;
+///  a name that cannot be removed stays. A partial file of a live caller is never touched.
 fn remove_other_builds(store: &Path, keep: &Path) {
     let Ok(entries) = std::fs::read_dir(store) else {
         return;
     };
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
-        if path != keep && entry.file_name() != LOCK_FILE {
-            // A copy of an older build, or a partial copy of a process that died.
-            if let Err(error) = std::fs::remove_file(&path) {
-                eprintln!("wrapper store: could not remove {} ({error})", path.display());
-            }
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let removable: bool = if name.starts_with(PARTIAL_PREFIX) {
+            entry
+                .metadata()
+                .and_then(|metadata| { return metadata.modified(); })
+                .ok()
+                .and_then(|modified| { return modified.elapsed().ok(); })
+                .is_some_and(|age| { return age > STALE_PARTIAL; })
+        } else {
+            path != keep
+        };
+        if removable
+            && let Err(error) = std::fs::remove_file(&path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            eprintln!("wrapper store: could not remove {} ({error})", path.display());
         }
     }
 }

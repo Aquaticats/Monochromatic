@@ -67,41 +67,47 @@ fn the_filesystem_comparison_tells_a_separate_filesystem_apart() {
     assert!(!super::support::same_filesystem(built, Path::new("/nonexistent-path-for-the-comparison")));
 }
 
-/// The stored copy of a build is one file with the build's bytes, however many callers ask at once, and a second ask
-/// finds it instead of copying again.
+/// What:
+///  However many callers ask at once, every one ends with a link to the same final file holding the build's bytes,
+///  an older build's copy is removed while they link, and nothing but the final file stays.
+/// Why:
+///  The store publishes without a lock: each caller writes its own partial file and links it to the final name, so
+///  the final name is complete whenever it exists and the first publisher wins. Each caller links the result into
+///  its own directory straight away, which is what a fixture does while another caller removes older copies.
 #[test]
-fn concurrent_callers_get_one_stored_copy_of_the_build() {
+fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
     use std::os::unix::fs::MetadataExt;
     let created: Fixture = fixture("store-once");
     let built: &Path = Path::new(super::support::WRAPPER);
+    let store: PathBuf = created.root.join(super::wrapper_store::STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let older: PathBuf = store.join("1-0000000000000000000-cli-git-native");
+    std::fs::write(&older, b"older build").expect("older copy");
     let callers: usize = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get).max(4);
-    let copies_before: usize = super::wrapper_store::COPIES_MADE.load(std::sync::atomic::Ordering::SeqCst);
-    let paths: Vec<PathBuf> = std::thread::scope(|scope| {
+    let links: Vec<PathBuf> = std::thread::scope(|scope| {
         let handles: Vec<_> = (0..callers)
-            .map(|_| { return scope.spawn(|| { return super::wrapper_store::shared_copy(built, created.root.as_path()).expect("stored copy"); }); })
+            .map(|caller| {
+                let (root, link): (&Path, PathBuf) = (created.root.as_path(), created.root.join(format!("link-{caller}")));
+                return scope.spawn(move || {
+                    let stored: PathBuf = super::wrapper_store::shared_copy(built, root).expect("stored copy");
+                    std::fs::hard_link(&stored, &link).expect("a fixture links the stored copy");
+                    return link;
+                });
+            })
             .collect();
         return handles.into_iter().map(|handle| { return handle.join().expect("caller finished"); }).collect();
     });
-    assert!(paths.iter().all(|path| { return *path == paths[0]; }), "{paths:?}");
-    assert_eq!(
-        super::wrapper_store::COPIES_MADE.load(std::sync::atomic::Ordering::SeqCst) - copies_before,
-        1,
-        "{callers} callers made more than one copy"
-    );
-    let store: PathBuf = created.root.join(super::wrapper_store::STORE_DIRECTORY);
+    let identity = |path: &Path| { let metadata = std::fs::metadata(path).expect("metadata"); return (metadata.dev(), metadata.ino()); };
+    assert!(links.iter().all(|link| { return identity(link) == identity(&links[0]); }), "the links are not one file");
     let names: Vec<String> = std::fs::read_dir(&store)
         .expect("store")
         .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
-        .filter(|name| { return !name.starts_with('.'); })
         .collect();
-    assert_eq!(names.len(), 1, "one copy of the one build, no partial: {names:?}");
-    assert_eq!(std::fs::read(&paths[0]).expect("stored bytes"), std::fs::read(built).expect("built bytes"));
-    let again: PathBuf = super::wrapper_store::shared_copy(built, created.root.as_path()).expect("second ask");
-    assert_eq!(
-        std::fs::metadata(&again).expect("again").ino(),
-        std::fs::metadata(&paths[0]).expect("first").ino(),
-        "the second ask copied again"
-    );
+    assert_eq!(names.len(), 1, "one final file of the one build, no partial and no older copy: {names:?}");
+    assert!(!older.exists(), "the older build's copy stayed");
+    assert_eq!(std::fs::read(&links[0]).expect("stored bytes"), std::fs::read(built).expect("built bytes"));
+    let again: PathBuf = super::wrapper_store::shared_copy(built, created.root.as_path()).expect("later ask");
+    assert_eq!(identity(&again), identity(&links[0]), "a later ask replaced the final file");
 }
 
 /// A copy of an older build leaves the store when the current build is stored.

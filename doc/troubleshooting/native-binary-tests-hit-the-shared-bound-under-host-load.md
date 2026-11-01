@@ -370,10 +370,15 @@ revision before and after the fix; it was not run.
 
 `link_built_wrapper` links the built executable when the fixture is on its filesystem, and otherwise links one stored
 copy of the build on the fixture's filesystem (`binary_wrapper_store.rs`).
-The first caller copies the build into `<fixture root>/wrapper-store/` under an advisory lock (`File::lock`, which the
-kernel releases if the holder dies), writes it under a partial name and renames it, so a stored name is always
-complete; the other processes of the wave wait on the lock instead of copying again, and copies of older builds are
-removed.
+A caller that finds no stored copy writes its own uniquely named partial file in `<fixture root>/wrapper-store/` and
+links it to the final name with `std::fs::hard_link`, which fails with `AlreadyExists` if another caller published
+first; it then removes its partial and uses the winner's file.
+There is no lock: the final name is only ever a complete file, a reader only opens the final name, and the first
+publisher wins.
+Callers that start together each write a partial copy once per build (the first wave after a rebuild still writes up
+to one copy per concurrent caller, then none); every later caller finds the final file.
+Copies of older builds are removed without a lock too, and a partial file is removed only when it is over an hour old
+(a dead caller's); a fixture that linked an older copy keeps its own link.
 The stored name holds the build's length and modification time, so a rebuild never matches an older copy.
 Placing the fixtures beside the executable instead was tried first and rejected: `target/` is inside the repository,
 so a fixture meant to be outside any repository (the `require-root` and resolution controls) ran inside the
@@ -381,8 +386,9 @@ worktree's own.
 
 Guards, each shown failing with its fix removed:
 `fixtures_share_one_wrapper_file_with_the_built_executables_bytes` (two fixtures, one file; failed with the link source
-forced back to the build) and `concurrent_callers_get_one_stored_copy_of_the_build` (several callers, one copy; failed
-with the lock removed).
+forced back to the build) and `concurrent_callers_end_with_links_to_one_final_file_of_the_build` (several callers link
+the stored copy while an older build's copy is removed, and end with one file; failed with the publish step removed).
+An earlier version used an advisory lock; the owner's stance against locks replaced it with the lock-free publish.
 
 ## A wait notice in a diagnostics comparison
 
