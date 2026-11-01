@@ -26,6 +26,7 @@ import {
   alternateModelsFor,
   describeLeftOut,
 } from './reask-alternate-models.ts';
+import { excludingAlso, } from './provider-exclusion.ts';
 import { measuresModelOf, } from './reask-mode.ts';
 import { rulePastReading, } from './reask-reading.ts';
 import {
@@ -404,7 +405,12 @@ export async function reaskElsewhereNudged<ValueT,>(
       reply: await ask({
         ...request,
         messages: nudgedMessages,
-        otherThan: avoid,
+        // EVERY PROVIDER THE REQUEST EXCLUDED STAYS EXCLUDED, with the one that answered it added (ledger B1410): the
+        // hint of the caller is not replaced by the provider just tried.
+        otherThan: excludingAlso({
+          request,
+          provider: avoid,
+        },),
       },),
     };
   }

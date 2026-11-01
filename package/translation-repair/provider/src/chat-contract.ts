@@ -173,6 +173,20 @@ export function carriesPicture(
 }
 
 /**
+ Providers a request must not be served by: at least one, since a request that excludes none leaves the hint out and is
+ routed as a first ask.
+
+ @example
+ ```ts
+ const excluded: ExcludedProviders = ['synthetic', 'hyper',];
+ ```
+ */
+export type ExcludedProviders = readonly [
+  ProviderName,
+  ...ProviderName[]
+];
+
+/**
  One chat exchange request.
 
  @example
@@ -240,12 +254,16 @@ export type ChatTextRequest = {
   readonly responseFormat?: JsonSchemaResponseFormat;
 
   /**
-   Provider this exchange must not be served by, set only on the nudged
+   Providers this exchange must not be served by, set only on the nudged
    re-ask of a reply that could not be used (ledger P9). The router serves it
-   on another provider or throws `NoProviderForModelError`; a client that
+   on a provider not named or throws `NoProviderForModelError`; a client that
    routes nowhere never tags a reply, so it is never asked to honour one.
+
+   A LIST, SO THAT A HINT SURVIVES A RE-ASK (ledger B1410): a request hinted off one provider that is answered by another
+   and re-asked carries both, and the re-ask is never served by the provider the caller excluded. A list is never empty
+   (`ExcludedProviders`), so a request that excludes nothing leaves the field out.
    */
-  readonly otherThan?: ProviderName;
+  readonly otherThan?: ExcludedProviders;
 
   /**
    Names the repeat this exchange belongs to when a caller asks one prompt again on purpose, as a probe that measures

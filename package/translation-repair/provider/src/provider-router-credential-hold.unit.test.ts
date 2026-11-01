@@ -511,7 +511,7 @@ await describe({
             modelId: SEAT_HYPER_TEXT_BEDROCK,
             messages: MESSAGES,
             signal: SIGNAL,
-            otherThan: 'hyper',
+            otherThan: ['hyper',],
           },);
         }
         catch (error) {

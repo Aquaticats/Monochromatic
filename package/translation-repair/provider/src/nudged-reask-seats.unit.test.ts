@@ -169,7 +169,7 @@ await describe({
         expect(result.kind,).toBe('ok',);
         expect(asks.map(function askOf(request,) {
           return [request.modelId, request.otherThan,];
-        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, 'neuralwatt',],],);
+        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, ['neuralwatt',],],],);
         expect(asks[0]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         expect(warned,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: the request `
@@ -208,7 +208,7 @@ await describe({
         expect(result.result.kind === 'ok' ? result.result.answeredBy : 'not ok',).toBeUndefined();
         expect(asks.map(function askOf(request,) {
           return [request.modelId, request.otherThan,];
-        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, 'neuralwatt',],],);
+        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, ['neuralwatt',],],],);
         expect(asks[0]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         expect(warned,).toEqual([],);
         expect(result.logged.some(function saysMeasurement(line,): boolean {
@@ -432,7 +432,7 @@ await describe({
         },);
         expect(asks.map(function askOf(request,) {
           return [request.modelId, request.otherThan,];
-        },),).toEqual([[onlyOne, undefined,], [SECOND_SEAT, 'neuralwatt',],],);
+        },),).toEqual([[onlyOne, undefined,], [SECOND_SEAT, ['neuralwatt',],],],);
         expect(asks[1]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         expect(warned,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SECOND_SEAT}: no other model could take the `

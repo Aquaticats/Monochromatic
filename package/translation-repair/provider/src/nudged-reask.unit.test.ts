@@ -27,6 +27,7 @@ import {
   type ChatTextReply,
   type ChatTextRequest,
   EveryProviderDryError,
+  type ExcludedProviders,
   reaskElsewhereNudged,
 } from '../dist/final/node/index.mjs';
 import {
@@ -272,9 +273,42 @@ await describe({
                   + 'Answer the same question again, replying with ONLY that JSON object, nothing before or after it.',
               },
             ],
-            otherThan: 'synthetic',
+            otherThan: ['synthetic',],
           },
         ],);
+      },
+    },),
+
+    it({
+      name: 'KEEPS EVERY PROVIDER THE REQUEST EXCLUDED beside the one that answered (ledger B1410), once each: a request '
+        + 'hinted off Hyper answered by Synthetic is re-asked off both, and a hint that already names the answering '
+        + 'provider is not repeated',
+      fn: async () => {
+        /**
+         Providers the re-ask of a request carrying the hint is told to stay off.
+
+         @param hint - providers the original request is hinted off
+
+         @returns The hint of the re-ask
+         */
+        async function reaskedOffFor(hint: ExcludedProviders,): Promise<readonly string[]> {
+          /**
+           Calls the re-ask received.
+           */
+          const asks: ChatTextRequest[] = [];
+          await reaskElsewhereNudged({
+            request: { ...REQUEST, otherThan: hint, },
+            first: { reply: FIRST_REPLY, outcome: FIRST_UNUSABLE, },
+            ask: async (nudged,) => {
+              asks.push(nudged,);
+              return { text: '{"spot":"radiator"}', };
+            },
+          },);
+          return asks[0]?.otherThan ?? [];
+        }
+        // FIRST_REPLY was served by Synthetic.
+        expect(await reaskedOffFor(['hyper',],),).toEqual(['hyper', 'synthetic',],);
+        expect(await reaskedOffFor(['hyper', 'synthetic',],),).toEqual(['hyper', 'synthetic',],);
       },
     },),
 
@@ -481,7 +515,7 @@ await describe({
           },);
           expect(asked.map(function askOf(request,) {
             return [request.modelId, request.otherThan,];
-          },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, 'neuralwatt',],],);
+          },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, ['neuralwatt',],],],);
         }
       },
     },),
@@ -547,7 +581,7 @@ await describe({
         expect(asks.map(function modelOf(request,) {
           return request.modelId;
         },),).toEqual([...tried, SEAT_HYPER_OPENROUTER_UNMEASURED,],);
-        expect(asks.at(-1,)?.otherThan,).toBe('neuralwatt',);
+        expect(asks.at(-1,)?.otherThan,).toEqual(['neuralwatt',],);
         expect(asks.at(-1,)?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         // THE NUDGE IS ON THE FALL BACK ALONE: every other model was asked the question as it stood.
         for (const plain of asks.slice(0, -1,)) {
@@ -762,7 +796,7 @@ await describe({
         expect(result.kind,).toBe('ok',);
         expect(asks.map(function askOf(request,) {
           return [request.modelId, request.otherThan,];
-        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, 'neuralwatt',],],);
+        },),).toEqual([[SEAT_HYPER_OPENROUTER_UNMEASURED, ['neuralwatt',],],],);
         expect(asks[0]?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         expect(warned,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: no other model `

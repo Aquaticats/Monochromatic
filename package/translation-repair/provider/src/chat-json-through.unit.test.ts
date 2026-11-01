@@ -62,7 +62,7 @@ await describe({
               messages: [{ role: 'user', content: 'Name the cat.', },],
               signal: AbortSignal.timeout(HANG_STOP_MS,),
               maxTokens: 64,
-              otherThan: 'synthetic',
+              otherThan: ['synthetic',],
               validate: namesCat,
             },);
             expect(outcome.kind,).toBe('ok',);

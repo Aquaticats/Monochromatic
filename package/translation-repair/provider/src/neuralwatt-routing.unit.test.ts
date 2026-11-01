@@ -463,7 +463,7 @@ await describe({
                 modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,
                 messages,
                 signal: SIGNAL,
-                otherThan: 'hyper',
+                otherThan: ['hyper',],
               },);
             }
             catch (error) {

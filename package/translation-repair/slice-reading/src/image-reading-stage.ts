@@ -18,6 +18,7 @@ import {
   solidCharacters,
 } from './image-reading-sense.ts';
 import {
+  type ExcludedProviders,
   type ModelCaller,
   type ReaskMode,
   readsImages,
@@ -334,7 +335,7 @@ function encodedForReading(
 
  @param perspective - distinct visual scan responsibility
 
- @param otherThan - provider the exchange must not be served by, set on the
+ @param otherThan - providers the exchange must not be served by, set on the
  second ask of a reply the completion cap cut, which the router serves
  elsewhere or refuses with `NoProviderForModelError`
 
@@ -377,7 +378,7 @@ export async function readImageAsset(
     readonly bytes: Uint8Array;
     readonly assetName: string;
     readonly perspective?: ImageReadingPerspective;
-    readonly otherThan?: ProviderName;
+    readonly otherThan?: ExcludedProviders;
     readonly reask: ReaskMode;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;

@@ -1521,7 +1521,7 @@ await describe({
           modelId: SEAT_NOT_HELD_OFF_HYPER,
           messages: MESSAGES,
           signal: SIGNAL,
-          otherThan: 'synthetic',
+          otherThan: ['synthetic',],
         },);
         expect(plain.servedBy,).toBe('synthetic',);
         expect(elsewhere.servedBy,).toBe('hyper',);
@@ -1548,7 +1548,7 @@ await describe({
             modelId: SEAT_HYPER_ONLY,
             messages: MESSAGES,
             signal: SIGNAL,
-            otherThan: 'hyper',
+            otherThan: ['hyper',],
           },);
         }
         catch (error) {

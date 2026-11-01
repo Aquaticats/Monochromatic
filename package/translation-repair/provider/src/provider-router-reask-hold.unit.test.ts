@@ -79,7 +79,7 @@ async function reaskedElsewhere(
       modelId,
       messages: MESSAGES,
       signal: SIGNAL,
-      otherThan: 'synthetic',
+      otherThan: ['synthetic',],
       ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
     },);
     return { ...((reply.servedBy === undefined) ? {} : { servedBy: reply.servedBy, }), reached, };
@@ -246,7 +246,7 @@ await describe({
             signal: SIGNAL,
             reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
           },
-          otherThan: 'synthetic',
+          otherThan: ['synthetic',],
         },);
         expect(served.provider,).toBe('openrouter',);
         expect(called,).toEqual(['openrouter',],);
@@ -274,7 +274,7 @@ await describe({
               modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
               messages: MESSAGES,
               signal: SIGNAL,
-              otherThan: 'synthetic',
+              otherThan: ['synthetic',],
               validate: function acceptsNothingParsed(value: unknown,): value is never {
                 return (typeof value) === 'symbol';
               },
@@ -316,7 +316,7 @@ await describe({
               return (typeof value) === 'symbol';
             },
             reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
-            ...(hinted ? { otherThan: 'synthetic', } : {}),
+            ...(hinted ? { otherThan: ['synthetic',] as const, } : {}),
           },);
           return reached;
         }
@@ -368,7 +368,7 @@ await describe({
               modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
               messages: MESSAGES,
               signal: SIGNAL,
-              otherThan,
+              otherThan: [otherThan,],
               reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
             },);
             return undefined;

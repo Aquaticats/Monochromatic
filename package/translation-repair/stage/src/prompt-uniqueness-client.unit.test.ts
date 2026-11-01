@@ -360,7 +360,7 @@ await describe({
         const outcome = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
         expect(outcome.kind,).toBe('ok',);
         expect(asked,).toHaveLength(2,);
-        expect(asked[1]?.otherThan,).toBe('synthetic',);
+        expect(asked[1]?.otherThan,).toEqual(['synthetic',],);
         expect(asked[1]?.messages.slice(0, -1,),).toStrictEqual(REQUEST.messages,);
 
         // A WORDING OF ITS OWN, so either of the stage recovery round's nudged

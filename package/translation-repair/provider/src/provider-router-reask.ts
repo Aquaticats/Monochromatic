@@ -8,6 +8,7 @@ import type {
   ChatJsonRequest,
   ChatTextReply,
   ChatTextRequest,
+  ExcludedProviders,
 } from './chat-contract.ts';
 import {
   readJsonOutcome,
@@ -23,7 +24,7 @@ import {
 } from './provider-budget-refusal.ts';
 import type { ProviderBudgets, } from './provider-budget.ts';
 import {
-  otherProviders,
+  PROVIDER_ORDER,
   type ProviderName,
   type SlotLedger,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
@@ -121,24 +122,24 @@ export type RoutedCore = {
 
  @param request - call that was answered badly
 
- @param served - provider that answered it
+ @param excluded - providers not to ask: the one that answered it and every one the request already excluded
 
  @returns Providers to re-ask, empty where there is nowhere else to ask
 
  @example
  ```ts
- const [elsewhere,] = await secondOpinionsFrom({ core, request, served: 'synthetic', },);
+ const [elsewhere,] = await secondOpinionsFrom({ core, request, excluded: ['synthetic',], },);
  ```
  */
 export async function secondOpinionsFrom(
   {
     core,
     request,
-    served,
+    excluded,
   }: {
     readonly core: RoutedCore;
     readonly request: ForeignBorrowed<ChatTextRequest>;
-    readonly served: ProviderName;
+    readonly excluded: ExcludedProviders;
   },
 ): Promise<readonly ProviderName[]> {
   /**
@@ -155,15 +156,10 @@ export async function secondOpinionsFrom(
   const reach = reachFor({ request, },);
 
   /**
-   The other providers, in spending order.
+   The providers not excluded, in spending order, that serve it.
    */
-  const others = otherProviders({ provider: served, },);
-
-  /**
-   The other providers that serve it.
-   */
-  const serving = others.filter(function serves(provider,): boolean {
-    return reach[provider];
+  const serving = PROVIDER_ORDER.filter(function servesAndIsNotExcluded(provider,): boolean {
+    return (reach[provider]) && (!excluded.includes(provider,));
   },);
 
   if (serving.length === 0)
@@ -262,16 +258,16 @@ async function replyOrBudgetRefusal(
 
  @param request - exchange to perform, already nudged
 
- @param otherThan - provider that served the first reply
+ @param otherThan - providers not to ask: the one that served the first reply and every one the request already excluded
 
  @returns Reply and the provider that served it
 
- @throws {@link NoProviderForModelError} when no other provider serving the
+ @throws {@link NoProviderForModelError} when no provider outside the list serving the
  model has budget and is not held off it, or the one asked refused on budget
 
  @example
  ```ts
- const { provider, reply, } = await routedTextElsewhere({ core, request, otherThan: 'synthetic', },);
+ const { provider, reply, } = await routedTextElsewhere({ core, request, otherThan: ['synthetic',], },);
  ```
  */
 export async function routedTextElsewhere(
@@ -282,7 +278,7 @@ export async function routedTextElsewhere(
   }: {
     readonly core: RoutedCore;
     readonly request: ForeignBorrowed<ChatTextRequest>;
-    readonly otherThan: ProviderName;
+    readonly otherThan: ExcludedProviders;
   },
 ): Promise<RoutedReply> {
   /**
@@ -291,7 +287,7 @@ export async function routedTextElsewhere(
   const withBudget = await secondOpinionsFrom({
     core,
     request,
-    served: otherThan,
+    excluded: otherThan,
   },);
   /**
    Providers among them that a hold of the model's card keeps it off for the seat's role (ledger B1350). A MEASUREMENT
@@ -317,8 +313,8 @@ export async function routedTextElsewhere(
     throw new NoProviderForModelError({
       modelId: request.modelId,
       reason: (heldOff.length === 0)
-        ? `no provider other than ${otherThan} serves it with budget`
-        : `no provider other than ${otherThan} serves it with budget and without a hold of its card on it `
+        ? `no provider other than ${otherThan.join(' and ',)} serves it with budget`
+        : `no provider other than ${otherThan.join(' and ',)} serves it with budget and without a hold of its card on it `
           + `(${heldOff.join(' and ',)} is held off)`,
     },);
   }
@@ -420,16 +416,21 @@ export async function routedJson<ValueT,>(
       },),
     },
     ask: async function askElsewhere(nudged,): Promise<ChatTextReply> {
+      // THE NUDGED REQUEST CARRIES EVERY PROVIDER THE EXCHANGE MUST STAY OFF (ledger B1410): the same model's re-ask is
+      // hinted off what the caller excluded and the provider that answered (`reaskElsewhereNudged`), and the re-ask of
+      // another model keeps the hint the caller's request carried, if any. The re-ask is therefore asked of those
+      // providers only, never of the one provider just tried alone.
       /**
-       The nudged exchange: on another provider when it asks the same model again, routed like a first ask when it asks
-       another model, which a reasoning runaway is re-asked of (ledger B1072).
+       The nudged exchange: routed like a first ask when it carries no hint, which is a reasoning runaway re-asked of
+       another model for a request that was hinted off no provider (ledger B1072), else served outside the providers it
+       carries.
        */
       const routed = (nudged.otherThan === undefined)
         ? await core.routedText(nudged,)
         : await routedTextElsewhere({
           core,
           request: nudged,
-          otherThan: provider,
+          otherThan: nudged.otherThan,
         },);
       return {
         ...routed.reply,

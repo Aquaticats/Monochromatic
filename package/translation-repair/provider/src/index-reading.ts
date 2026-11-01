@@ -9,9 +9,11 @@ export {
 } from './chat-json-outcome.ts';
 export { chatJsonThrough, } from './chat-json-through.ts';
 export type {
+  ExcludedProviders,
   ReaskMode,
   ReaskSeat,
 } from './chat-contract.ts';
+export { excludingAlso, } from './provider-exclusion.ts';
 export { measuresModelOf, } from './reask-mode.ts';
 export {
   isReasoningRunaway,

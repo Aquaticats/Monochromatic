@@ -447,7 +447,7 @@ async function reaskCut(
           bytes,
           assetName,
           perspective,
-          otherThan: cutOn,
+          otherThan: [cutOn,],
           signal,
           perCallTimeoutMs,
           l,

@@ -163,7 +163,7 @@ function scriptedClient(
         },).length;
         seen.push({
           modelId: asked.modelId,
-          hint: asked.otherThan ?? NO_HINT,
+          hint: asked.otherThan?.join(' and ',) ?? NO_HINT,
           prompt: asked.messages
             .map(function text(message,): string {
               return messageText({ message, },);

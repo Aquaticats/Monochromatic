@@ -124,7 +124,7 @@ async function readWithBothReaders(
       const before = asks.filter(function sameModel(ask,): boolean {
         return ask[0] === asked.modelId;
       },).length;
-      asks.push([asked.modelId, asked.otherThan ?? 'no hint',],);
+      asks.push([asked.modelId, asked.otherThan?.join(' and ',) ?? 'no hint',],);
       await Promise.resolve();
       return (READERS.includes(asked.modelId,) && (before === 0)) ? CUT : { text: READING, servedBy: 'hyper', };
     },
