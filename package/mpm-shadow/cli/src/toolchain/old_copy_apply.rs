@@ -5,9 +5,14 @@
 //! then the old copy and its cargo record are removed,
 //! each action reported as a line.
 //! Why:
-//! The chosen option "Re-point, then remove":
-//! "After its own newest copy is installed: links in known places ... that target an old copy are re-pointed to the managed
-//! copy; then the old copy and its cargo record are removed, each action printed."
+//! The chosen option "Re-point,
+//! then remove":
+//! "After its own newest copy is installed:
+//! links in known places ...
+//! that target an old copy are re-pointed to the managed
+//! copy;
+//! then the old copy and its cargo record are removed,
+//! each action printed."
 //! Nothing is removed while a link that could be seen still resolves to the copy,
 //! so the cleanup never leaves a dangling link behind.
 //!
@@ -94,10 +99,10 @@ fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> {
         }
         record_note = format!("`cargo uninstall` removed it from cargo's record of {} {}", install.crate_name, install.version);
     }
-    if fs::symlink_metadata(&plan.path).is_ok() {
-        if let Err(error) = fs::remove_file(&plan.path) {
-            return Err(format!("cannot remove the file: {error}"));
-        }
+    if fs::symlink_metadata(&plan.path).is_ok()
+        && let Err(error) = fs::remove_file(&plan.path)
+    {
+        return Err(format!("cannot remove the file: {error}"));
     }
     return Ok(record_note);
 }

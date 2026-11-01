@@ -164,7 +164,10 @@ fn managed_copy_under(ctx: &Context, tool: &LockedTool, bin: &str, root: &Path) 
 /// by which toolchain roots hold a working copy.
 enum Target {
     /// Re-point at this copy.
-    Use(PathBuf),
+    Use(
+        /// The managed copy.
+        PathBuf,
+    ),
     /// Both scopes hold a copy and the place belongs to neither;
     /// the owner has not decided which one wins.
     Undecided,

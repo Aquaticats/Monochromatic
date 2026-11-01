@@ -170,6 +170,9 @@ pub mod status_cmd;
 /// The `install` command.
 pub mod sync;
 
+/// Running the cleanup of old copies after `install` and printing its lines.
+pub mod sync_old_copies;
+
 /// CI detection by the rules of `ci-info`,
 /// which pnpm uses.
 pub mod ci_detect;

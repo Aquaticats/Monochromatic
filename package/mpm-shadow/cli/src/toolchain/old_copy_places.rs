@@ -6,7 +6,9 @@
 //! Also the scan that finds the links in them that resolve to one given file.
 //! Why:
 //! The owner's words for the cleanup:
-//! "links in known places (~/.local/bin, every checkout's .cache/*-bin, the global farm)".
+//! "links in known places (~/.local/bin,
+//! every checkout's .cache/*-bin,
+//! the global farm)".
 //! A place that cannot be listed is recorded as a reason the cleanup must not remove anything,
 //! so no link that could be seen is ever left dangling.
 //!
@@ -105,7 +107,9 @@ pub struct LinkScan {
 }
 
 /// The path with symbolic links resolved when it exists,
-/// otherwise as given (so two spellings of an existing directory, such as `/home` and `/var/home`, compare equal).
+/// otherwise as given (so two spellings of an existing directory,
+/// such as `/home` and `/var/home`,
+/// compare equal).
 fn resolved(path: &Path) -> PathBuf {
     return match fs::canonicalize(path) {
         Ok(found) => found,

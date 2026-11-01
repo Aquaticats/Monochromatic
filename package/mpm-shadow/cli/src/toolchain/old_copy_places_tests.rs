@@ -13,7 +13,8 @@ use super::fakes::{FakeRunner, Rig, write_executable};
 use super::old_copy_places::{Place, PlaceKind, Places, known_places, links_to_copy};
 use super::scope::{ScopeKind, global_scope};
 
-/// A link at `link` pointing at `target`, making the link's directory.
+/// A link at `link` pointing at `target`,
+/// making the link's directory.
 fn link(link: &Path, target: &Path) {
     fs::create_dir_all(link.parent().expect("a parent")).expect("make the directory");
     symlink(target, link).expect("make the link");

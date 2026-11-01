@@ -134,7 +134,8 @@ impl Scene {
     }
 
     /// Finishes a managed install in the scene's own (repository) toolchain root;
-    /// returns the managed copy as links reach it, through `current`.
+    /// returns the managed copy as links reach it,
+    /// through `current`.
     fn install_managed(&self, version: &str) -> PathBuf {
         return self.install_managed_under(&self.rig.scope.toolchain_root, version);
     }
@@ -173,7 +174,8 @@ impl Scene {
     }
 }
 
-/// Points `link` at `target`, making the link's directory.
+/// Points `link` at `target`,
+/// making the link's directory.
 fn make_link(link: &Path, target: &Path) {
     fs::create_dir_all(link.parent().expect("a parent")).expect("make the directory");
     symlink(target, link).expect("make the link");
