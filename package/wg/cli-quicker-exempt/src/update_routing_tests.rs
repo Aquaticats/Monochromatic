@@ -310,7 +310,7 @@ fn a_failed_adoption_is_reported_and_retried_after_a_backoff() {
     assert_eq!(fixture.requests.borrow().len(), 1, "no attempt before the wait is over");
     fixture.routing.begin_pass_at(start + Duration::from_secs(1));
     let second = fixture.routing.consider_at(40, start + Duration::from_secs(1));
-    assert!(matches!(&second, Outcome::Failed { attempt: 2, retry_in, .. } if *retry_in == Duration::from_secs(2)), "{second:?}");
+    assert!(matches!(&second, Outcome::Failed { attempt: 2, retry_in, .. } if *retry_in == RETRY_BACKOFF_BASE * 2), "{second:?}");
     assert_eq!(fixture.routing.consider_at(40, start + Duration::from_millis(2500)), Outcome::Ignored);
     fixture.routing.begin_pass_at(start + Duration::from_secs(3));
     let third = fixture.routing.consider_at(40, start + Duration::from_secs(3));
