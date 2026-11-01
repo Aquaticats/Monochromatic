@@ -14,6 +14,7 @@
 
 use super::service_fault::reach;
 use super::service_head::head_names;
+use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
 use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
 use super::service_land_follow::{IndexPaths, build_index, classify, remove_conclusion_state, storage_failure};
@@ -233,6 +234,11 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             return Ok(outcomes);
         }
         let batch: Vec<&CommitRequest> = landing.iter().map(|(_, request)| { return *request; }).collect();
+        // Content that `git gc --prune=now` removed after the preparation is found before anything is imported or moved: the
+        //  client prepares the commit again, and says so plainly when that is not enough.
+        if batch_content_missing(first.common_dir.as_path(), batch.as_slice()) {
+            return Err(FailureCode::Unavailable);
+        }
         let (commits, new): (Vec<String>, String) = if let Some(built) = first.commit.as_deref() {
             // A commit Git built elsewhere lands as it is; it must be a commit with the parents this request's rule gives:
             //  an amend has the replaced commit's parents, a commit on a branch that did not exist has none, and any other
@@ -251,6 +257,12 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
             };
             if !named_itself || !acceptable {
                 return Err(FailureCode::Rejected);
+            }
+            // Git moves a branch to a commit without looking at what the commit holds, so a tree or a blob that a prune took
+            //  while the commit object survived would put a damaged commit on the branch.
+            let connected: Vec<&str> = if unborn { vec!["rev-list", "--objects", "--quiet", built] } else { vec!["rev-list", "--objects", "--quiet", built, "--not", old.as_str()] };
+            if !run(&git, repository, connected.as_slice(), None)?.succeeded() {
+                return Err(FailureCode::Unavailable);
             }
             (vec![built.to_string()], built.to_string())
         } else {

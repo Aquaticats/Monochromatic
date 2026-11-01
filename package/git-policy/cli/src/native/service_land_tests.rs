@@ -318,7 +318,8 @@ fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
 }
 
 /// The service lands only what the request's rule allows: a commit made on other parents, a name that is not a commit, a
-///  name that is not in the store, and an amend whose parents are not the replaced commit's are all refused untouched.
+///  and an amend whose parents are not the replaced commit's are all refused untouched. A name that is not in the store is
+///  content a prune took, which `a_built_commit_that_was_pruned_is_unavailable_not_refused` covers.
 #[test]
 fn a_commit_git_built_is_checked_before_the_branch_moves() {
     let world: World = world("service-land-built-checked");
@@ -329,11 +330,9 @@ fn a_commit_git_built_is_checked_before_the_branch_moves() {
     on_other_parents.base = second.clone();
     let mut not_a_commit: CommitRequest = built_request(&world, "tree", "tree.txt", &[second.as_str()]);
     not_a_commit.commit = Some(git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]));
-    let mut absent: CommitRequest = built_request(&world, "absent", "absent.txt", &[second.as_str()]);
-    absent.commit = Some("1".repeat(40));
     let mut wrong_amend: CommitRequest = built_request(&world, "amend", "amend.txt", &[second.as_str()]);
     wrong_amend.amend = true;
-    for (label, refused) in [("other parents", on_other_parents), ("a tree", not_a_commit), ("an absent name", absent), ("an amend on the base itself", wrong_amend)] {
+    for (label, refused) in [("other parents", on_other_parents), ("a tree", not_a_commit), ("an amend on the base itself", wrong_amend)] {
         assert_eq!(land_batch(&world.context, 1, &[refused]), Err(FailureCode::Rejected), "{label}");
         assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), second, "{label}: the branch did not move");
     }
