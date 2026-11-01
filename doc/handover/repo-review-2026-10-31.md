@@ -2260,6 +2260,23 @@ Wave-4 sixty-third checkpoint (2026-11-01, hall-monitor closed):
   hall-monitor closed, electron-infra 001 rr-ei-001, and islands-black 001
   rr-iib-001.
 
+Wave-4 sixty-fourth checkpoint (2026-11-01, electron-infra closed, search-mcp retry):
+
+- `w5-electron-infra` is COMPLETE: 11 rows, 11 of 11 clean; 38 reviewable
+  files read end to end and four license texts compared to the sibling copies.
+  The headline lint-gate row re-ran here: `//package/electron-infra/core:lint:oxlint`
+  fails with the two `prefer-readonly-parameter-type` errors. Next id 012 if a
+  new row appears; the lane is released.
+- `search-fetch/mcp` hit the 100-turn limit with no findings file after 13.9M
+  tokens and 188 tool uses; it was reading and exploring without appending. The
+  retry is strict: only the 12 tracked files, no network, no MCP server, at most
+  30 turns, findings appended as it goes, id 001, base rr-sfm-002.
+- The freed electron-infra slot opens `package/runtime-error/bun` (14 files,
+  `w5-runtime-error-bun`, id 001, base rr-reb-001, 40-turn cap).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, search-mcp retry 001 rr-sfm-002,
+  islands-black 001 rr-iib-001, and runtime-error/bun 001 rr-reb-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
