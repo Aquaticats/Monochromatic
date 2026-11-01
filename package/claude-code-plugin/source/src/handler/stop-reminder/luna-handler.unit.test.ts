@@ -19,13 +19,14 @@ import {
 } from './continuation-depth.ts';
 import { createStopRemindersHandler, } from './index.ts';
 import { questionLead, } from './reminder-lead.ts';
-import { ACTIONS, } from './situation-action.ts';
+import { ACTIONS, ACT_PROBABILITY, } from './situation-action.ts';
 import {
   LUNA_MODEL,
   LunaKeyMissingError,
   SITUATIONS,
   type Situation,
 } from './luna-situation.ts';
+import { MESSAGE_TAIL_CHARS, } from './verdict-log.ts';
 
 /**
  Credential the fake gateway expects; never a real key.
@@ -462,7 +463,10 @@ await describe({
         it({
           name: 'releases a verdict below the cutoff even for a blocking label',
           fn: async () => {
-            const h = await harness({ lines: OPEN, reply: verdictReply('announces_own_next_step', 0.4,), },);
+            const h = await harness({
+              lines: OPEN,
+              reply: verdictReply('announces_own_next_step', ACT_PROBABILITY - 0.1,),
+            },);
 
             expect((await h.run()).decision,).toBeUndefined();
           },
@@ -470,7 +474,10 @@ await describe({
         it({
           name: 'blocks at exactly the cutoff',
           fn: async () => {
-            const h = await harness({ lines: OPEN, reply: verdictReply('announces_own_next_step', 0.6,), },);
+            const h = await harness({
+              lines: OPEN,
+              reply: verdictReply('announces_own_next_step', ACT_PROBABILITY,),
+            },);
 
             expect((await h.run()).decision,).toBe('block',);
           },
@@ -802,7 +809,7 @@ await describe({
             await h.run({ last_assistant_message: `${'x'.repeat(2_000,)}END`, },);
 
             const [record,] = await records(h.logPath,);
-            expect(String(record?.message,),).toHaveLength(600,);
+            expect(String(record?.message,),).toHaveLength(MESSAGE_TAIL_CHARS,);
             expect(String(record?.message,).endsWith('END',),).toBe(true,);
           },
         },),
