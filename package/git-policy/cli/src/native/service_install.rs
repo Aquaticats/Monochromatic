@@ -149,7 +149,7 @@ pub fn install(host: &ServiceHost) -> Report {
         }
     }
     lines.push(format!("  Enabled `{SOCKET_UNIT_NAME}`; the service itself starts when the first commit asks for it."));
-    lines.push(String::from("  Commits go through it when `CLI_GIT_COMMIT_SERVICE=1` is set."));
+    lines.push(String::from("  Plain scoped commits go through it from now on; `CLI_GIT_COMMIT_SERVICE=0` keeps one commit out of it."));
     return Report { code: 0, stdout: format!("{}\n", lines.join("\n")), stderr: String::new() };
 }
 
