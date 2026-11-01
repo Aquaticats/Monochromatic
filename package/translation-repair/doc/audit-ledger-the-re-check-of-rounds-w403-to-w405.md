@@ -582,8 +582,11 @@ Slips:
   `stage` and `repair` was made only at the end of the round and found B1343 and B1344.
   A round that changes shared code runs the whole suites of every package that reads it before the last commit.
 - The first whole `source-scan` run at the head after B1343 and B1344 failed three scans (`source-scan-whole-final.txt`):
-  `tsdoc-leading-articles` (a `@param`, a `@returns` and a `@param` of this round's own text opened with an article),
-  `global-writes-sequenced` (the new `reask-reading` suite called `warnLinesDuring`, which assigns the console, in a
+  `tsdoc-leading-articles` (a `@param`,
+  a `@returns` and a `@param` of this round's own text opened with an article),
+  `global-writes-sequenced` (the new `reask-reading` suite called `warnLinesDuring`,
+  which assigns the console,
+  in a
   suite that runs its cases side by side) and `duplicate-bodies` (the `namesTheRefusal` filter of the w403 nit was
   kept in two test files).
   The targeted doc scans run earlier did not include them.
