@@ -505,7 +505,8 @@ request's seat before it takes the slot,
 and `routedTextElsewhere` (the hinted re-ask) leaves out a provider the hold names.
 The recovery round's fall back to the seat's own model still reads the meters at the ask and loses the seat as
 unreachable where Hyper would serve a model its role withholds,
-which is a courtesy to a client that is no router once the router refuses the ask itself (ledger B1350, B1365).
+which is a courtesy to a client that is no router once the router refuses the ask itself (ledger B1350,
+B1365).
 `holdsKeepingRequestOff` is the one question both router paths ask,
 `routeTimeHoldsOnProvider` is the one place a hold is tied to a provider,
 and the reading of the run calls the second.

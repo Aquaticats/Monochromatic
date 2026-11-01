@@ -301,7 +301,8 @@ The two largest subjects of its contents,
 the census of code no unit test runs and the follow-ups of the page grammar,
 moved into indexes of their own,
 named for the subject and opening with the stem of the files they list
-(`audit-ledger-test-suite-unrun-code.md`, `audit-ledger-source-text.md`),
+(`audit-ledger-test-suite-unrun-code.md`,
+`audit-ledger-source-text.md`),
 so `withFiles` reads the files under them,
 and the `Part of` line of each file points at the index that lists it (ledger B1368).
 `wc --lines` is read on the index too before a bullet is added to it,

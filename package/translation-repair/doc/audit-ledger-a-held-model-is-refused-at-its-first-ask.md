@@ -1,7 +1,8 @@
 # Audit ledger: a held model is refused at its first ask
 
 Round w408 (2026-11-01 UTC) answers the broader reading of B1350 and the size of the ledger index on the integration
-tree `tr-i406` (detached at `1dd1e1af3f`, the head of round w407).
+tree `tr-i406` (detached at `1dd1e1af3f`,
+the head of round w407).
 The owner wants every mistake fixed:
 "no mistake is too small or low impact or ambiguious to fix",
 and recorded in the package docs so it does not recur.
@@ -39,7 +40,8 @@ as `run-config.ts` wraps the client of a run:
 - `refusingCulledSeats` refuses a model the owner culled,
 - the router's `chatText` calls `routedText` when the request hints no provider,
 - `chooseProvider` reads the budgets (`readBudgetsPastHolds`),
-- and `routeProviderFor` (provider, `budget-routing.ts`) walks `PROVIDER_ORDER`:
+- and `routeProviderFor` (provider,
+  `budget-routing.ts`) walks `PROVIDER_ORDER`:
   Synthetic reads dry,
   Hyper reads wet and serves the model,
   so the choice is `{ kind: 'hyper' }`.
@@ -76,7 +78,8 @@ read from the code and shown by the cases of B1365:
   with the short-bench finding where fewer than the bench's quorum are reachable.
 - The windowed rounds count `refused + unaskable` as unreachable in the same way.
 - The recovery round's `recoverRunaway` moves on to the next alternate,
-  and gives the claim of the refused model back when the refusal was raised before any call (B1201, B1230).
+  and gives the claim of the refused model back when the refusal was raised before any call (B1201,
+  B1230).
 - `routedDecide` serves the typed decisions of OpenRouter alone,
   and no hold of a card names OpenRouter for a decision,
   so it is outside the question.
@@ -122,16 +125,20 @@ The choices,
 stated and not decided silently:
 - A request that names no seat is served on the first ask as it was
   (the rule `serve`),
-  while the hinted re-ask holds it to the holds every role honours (the rule `hold`, B1350).
+  while the hinted re-ask holds it to the holds every role honours (the rule `hold`,
+  B1350).
   The brief's wording of item 3 reads either way for the first ask.
   The narrower reading was taken,
   because the other would refuse callers that name no seat at all and are not seats of a run:
-  the model health probe (`bench`, `model-health-probe.ts`),
+  the model health probe (`bench`,
+  `model-health-probe.ts`),
   which asks a model whatever the meters read,
-  and the picture reader (`slice-reading`, `image-reading-stage.ts`),
+  and the picture reader (`slice-reading`,
+  `image-reading-stage.ts`),
   which asks `chatText` with no seat.
   The existing router cases that route Qwen3.8-27B with no seat through Hyper
-  (`provider-router.unit.test.ts`, the cases of the routing policy) would change with it.
+  (`provider-router.unit.test.ts`,
+  the cases of the routing policy) would change with it.
   Holding them too is `whenNoSeat: 'hold'` in one call and the lead's to say.
 - A measurement is exempt on the first ask as on the re-ask,
   and the question whether measurements should be held too is the owner's and was not changed.
@@ -139,7 +146,8 @@ stated and not decided silently:
 Cases,
 red first (the unfixed router is `155b3b9bbe`):
 - `provider-router-first-ask-hold.unit.test.ts` (commit `73e364ae75`).
-  Red: three cases fail and three controls pass (`red-first-ask-hold.txt`).
+  Red:
+  three cases fail and three controls pass (`red-first-ask-hold.txt`).
   The failing cases are the refusal for every role that honours the hold
   (the roles are derived from `SEAT_ROLES` and `routeTimeHoldsOf`,
   and the case asserts that every role honours it so the loop cannot run on an empty list),
@@ -162,7 +170,8 @@ red first (the unfixed router is `155b3b9bbe`):
   a request with no seat under each rule,
   a measurement,
   and Kimi-K3 in a role the hold does not reach.
-- `stage-first-ask-hold.unit.test.ts` (stage, commit `968a603bed`) over the real router:
+- `stage-first-ask-hold.unit.test.ts` (stage,
+  commit `968a603bed`) over the real router:
   all four cases fail with the router file of `155b3b9bbe` and the fixed provider otherwise
   (`red-stage-first-ask-hold.txt`).
   The voice is `{ heard: false, answered: false, unreachable: true }` with no request sent,
@@ -175,12 +184,33 @@ red first (the unfixed router is `155b3b9bbe`):
   closes on `reachableQuorum` of the five and one unreachable,
   is never sent a request for the model in any round,
   and hears the four others.
-  A recovery round whose client reports the older reading (Synthetic wet, Qwen3.8-27B first in the alternates)
+  A recovery round whose client reports the older reading (Synthetic wet,
+  Qwen3.8-27B first in the alternates)
   while the router reads Synthetic dry refuses the ask,
   logs that the model cannot take the re-ask,
   and is answered by the next model of the order.
   The last case derives the alternates and asserts that the held model is first,
   so a change of the order fails it and does not let it pass.
+- `provider-router-held.unit.test.ts` (commit `d2fd77f3a6`) calls `providerChosenOrRefused` with the choices the
+  policy gives,
+  because the scan of modules with no test of their own wants a unit test beside every production module:
+  the provider chosen is returned where no hold keeps the model off it
+  (Synthetic,
+  a model with no hold,
+  a measurement,
+  a request with no seat)
+  and the line is never asked for;
+  a choice of no provider is refused with the policy's own reason;
+  a held choice is refused with the provider,
+  the role and the hold named;
+  and the line is written only where it is due.
+  Shown to fail:
+  a mutant whose hold branch never refuses fails the held case and leaves the other two green
+  (`red-router-held-mutant.txt`,
+  the module restored from the commit afterwards and built again).
+  The no-refusal stub of the router fixtures is exported once from `provider-router-wet-budgets.test-fixture.ts`,
+  and the request that names a seat is built once in `seated-request.test-fixture.ts`,
+  so the duplicate-bodies scan has no copy to find.
 - The parity of the held seat with a dry seat is what lets the quorum,
   the floor and the rule that nothing stops the run be cited and not proved again:
   the denominators are `reachableQuorum` and `windowed` `quorumWith`
@@ -257,7 +287,9 @@ which choose and filter and reach nothing.
 ## B1367: the cache versions and the keys
 
 The cache account audit was run at the head after the fix
-(`cache-account-audit-after-fix.txt`, read-only, no provider called):
+(`cache-account-audit-after-fix.txt`,
+read-only,
+no provider called):
 14,064 records in 433 run folders,
 the newest 2026-11-01T07:42Z,
 and 0 of 8 versions set after it.
@@ -334,8 +366,9 @@ Commit `155b3b9bbe`.
 ## B1369: the gates, the slips of the round and what stays open
 
 Gates,
-in the integration tree with the keyless environment and no shim,
-at the commit that holds the ledger of B1364 to B1369 before this paragraph (`8425018d71`):
+in the integration tree with the keyless environment and no shim.
+The first set ran at `8425018d71`,
+the commit that wrote the ledger of B1364 to B1369:
 - `coverage-census:build` built every family package with no error line (`gate-build-census.txt`).
 - `lint:types` passed for `provider`,
   `stage` and `shared-contract`,
@@ -347,33 +380,56 @@ at the commit that holds the ledger of B1364 to B1369 before this paragraph (`84
 - `test:unit`,
   one task for each package,
   with no `[FAIL]` line:
-  `provider` 277 `[PASS]` lines,
-  `stage` 90,
-  `repair` 150,
+  `repair` 150 `[PASS]` lines,
   `run` 209,
   `corpus-pass` 237
-  and `shared-contract` 65.
+  and `shared-contract` 65
+  (`gate-unit-*.txt`).
   The counts of `repair`,
-  `run` and `corpus-pass` equal those of round w407 (B1363),
-  and `provider` and `stage` hold one more each,
-  the new test file of each.
+  `run` and `corpus-pass` equal those of round w407 (B1363).
   The `[error]` lines in the logs of `run` and `corpus-pass` are lines that cases make the code write
   (`JUDGE SEATS ... stopping the entry`),
   not failed cases.
-- The cache account audit is in B1367.
-- The doc scans were run alone on the commit that wrote the ledger:
-  the ledger ids,
-  the line limit,
-  the width and the positions;
-  the positions scan found four references by position in this round's own text
-  (`loop below`, `slot below`, `read below` and `layer above`),
-  which were replaced by names.
+
+The second set ran at `d2fd77f3a6`,
+after the held module got a unit test of its own and the fixtures were shared:
+- `lint:oxlint` found 0 warnings and 0 errors for `provider` and `stage` (`lint-oxlint-provider-8.txt`,
+  `lint-oxlint-stage-4.txt`),
+  and `lint:types` passed for both (`gate-lint-types-provider-2.txt`,
+  `gate-lint-types-stage-2.txt`).
+- `test:unit` with no `[FAIL]` line:
+  `provider` 278 `[PASS]` lines (one more than round w407's 276 for each new test file:
+  the first-ask hold and the held module)
+  and `stage` 90 (one more than 89,
+  the new test file)
+  (`gate-unit-provider-2.txt`,
+  `gate-unit-stage-2.txt`).
+- `repair`,
+  `run`,
+  `corpus-pass` and `shared-contract` were not run again:
+  what changed after their run is a test file,
+  two fixtures,
+  one export line of the provider index and comments,
+  and the whole `source-scan` suite reads every one of those files.
+
+The cache account audit is in B1367.
+The doc scans were run alone on the commit that wrote the ledger:
+the ledger ids,
+the line limit,
+the width and the positions;
+the positions scan found four references by position in this round's own text
+(`loop below`,
+`slot below`,
+`read below` and `layer above`),
+which were replaced by names.
+The whole `source-scan` `test:unit` is made once after the last commit of the code,
+and its result is recorded in the paragraph that ends this entry.
 
 Slips:
 - `cat` with a here-document wrote each scratch edit script of the round,
   and it ran outside the keyless wrapper,
   because the wrapper began after it on the same line.
-  Twelve scripts were written so; none read a key,
+  None read a key,
   an `.env*` file,
   an auth file or anything under `/tmp/claude-1000/`.
 - `rg 'B13(6[4-9]|7[0-9]|8[0-9])' package`,
@@ -383,24 +439,41 @@ Slips:
 - Three reads printed far more than they needed:
   a listing of every refine record of one run,
   the field names of one stored record,
-  and a search for "does not." over the family.
+  and a search for "does not."
+  over the family.
   None was capped,
-  as the brief forbids,
   and all three should have been counts.
+- Caps on evidence the brief forbids:
+  `--max-columns` on the log of the positions scan,
+  read again with a plain search,
+  and `--max-count` on a search for nested suites and on a read of the provider fields of one stored record.
+- Mise tasks were sent two or three to a message more than once
+  (the lint of `provider` beside that of `shared-contract`,
+  the lint of `stage` beside a search,
+  and the type checks of `provider`,
+  `stage` and `shared-contract` together),
+  where the brief says one task for each call.
+  Each exited zero and none shares an output with another.
 - The first form of the check in `provider-router.ts` took it to 305 lines of the 300 the lint allows (B1365).
 - The first form of the gather case passed the tally to `gatherStageVoices` without wrapping the client in
   `seatTallyClient`,
   so the tally recorded nothing and the case failed on its last assertion;
   the tally is wrapped now.
 - The red logs of the provider cases were taken before the lint rewrites (B1365).
-- I read the position-scan log with `--max-columns`,
-  a cap on evidence the brief forbids,
-  and read it again with a plain search.
-- Three mise tasks (the type checks of `provider`,
-  `stage` and `shared-contract`) were sent in one message,
-  where the brief says one task for each call.
-  Each exited zero and none shares an output with another.
-- The four references by position that the positions scan found in this round's own text (B1369, gates).
+- The positions scan found four references by position in this round's own text (see the gates).
+- The held module had no test of its own,
+  the no-refusal stub had three identical bodies in three files
+  and two TSDoc descriptions of the stage test opened with an article.
+  The three scans that find them (own unit tests,
+  duplicate bodies,
+  leading articles) were read for their rules before the whole run,
+  not run,
+  and the findings were fixed in `d2fd77f3a6`.
+- Commit `8425018d71` is typed `docs` and changed two comment lines of `provider-router.ts` and one of
+  `provider-router-first-ask-hold.unit.test.ts` beside the docs;
+  commit `d2fd77f3a6` is typed `test` and added one export line to `index-hold.ts`.
+  No message is amended;
+  the lead may post a corrective comment on each (the rule of B1360).
 
 Open:
 - Whether a first ask that names no seat is held:
