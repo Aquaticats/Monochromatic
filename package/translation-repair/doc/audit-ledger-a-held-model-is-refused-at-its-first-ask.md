@@ -469,6 +469,11 @@ Slips:
   leading articles) were read for their rules before the whole run,
   not run,
   and the findings were fixed in `d2fd77f3a6`.
+- The first whole `source-scan` run failed one suite:
+  the type of the recording fixture was exported and no other file imports it (`dead-test-declarations`).
+  The scans of own unit tests,
+  duplicate bodies and leading articles were read before the run,
+  and this one was not.
 - Commit `8425018d71` is typed `docs` and changed two comment lines of `provider-router.ts` and one of
   `provider-router-first-ask-hold.unit.test.ts` beside the docs;
   commit `d2fd77f3a6` is typed `test` and added one export line to `index-hold.ts`.
@@ -488,6 +493,36 @@ Open:
   Any change that adds code to the router is counted with that command.
 - No code of the stage or the run changed (one comment of the recovery round did),
   and no cache version moved (B1367).
+
+The whole `source-scan` `test:unit` ran twice.
+The first run,
+at `59d38aac86`,
+had 79 `[PASS]` lines and one failed suite,
+the scan of top-level declarations nothing reads:
+`RecordingRouter`,
+the type of the recording fixture,
+was exported and read in its own file alone (`gate-unit-source-scan-whole.txt`).
+It is local since `c3943e818e`,
+and the scan was run alone on it (`scan-dead-test-declarations.txt`).
+The final run,
+at `c3943e818e`,
+the last commit of the code,
+had 79 `[PASS]` lines,
+no `[FAIL]` line and no `[error]` line,
+and a zero exit (`gate-unit-source-scan-whole-2.txt`).
+The suite names include "Markdown docs past the line limit",
+"Audit ledger entry ids",
+"Markdown line width",
+"the Markdown linter over the family's living docs",
+"own unit tests ratchet"
+and "references by position".
+The commit that records this result changes this file alone,
+and the scans that read the docs were run on it again:
+the Markdown linter,
+the line limit,
+the width,
+the ledger ids,
+the positions and the clock times.
 
 [shared-code]: mistake-prevention-shared-code-loops-and-keyed-tables.md
 [docs-rules]: mistake-prevention-docs-and-references.md
