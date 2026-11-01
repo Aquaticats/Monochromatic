@@ -32,7 +32,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { spawnKeyless, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
+import { fixtureGit, } from '@monochromatic-dev/translation-repair-adjudication/ts/hermetic-git-run.test-fixture.ts';
 import {
   censusByGeneration,
   EmptyPoolError,
@@ -63,60 +63,91 @@ const TIP_A = '1'.repeat(40,);
 const TIP_B = '2'.repeat(40,);
 
 /**
- The checkout `gitBounds` reads its two commits from, which a case requiring
- one of them hands the selection to place every recorded commit against.
- */
-const THIS_CHECKOUT = import.meta.dirname;
+ Commits an empty change to a throwaway repository.
 
-/**
- The two commits of this repository ancestry can be asked about safely.
+ @param cloneDir - throwaway repository directory
 
- Real commits, because `tipContains` asks git and an invented sha is an
- UNRESOLVABLE commit rather than an excluded one. The root cannot contain
- HEAD, so requiring HEAD excludes anything settled at the root.
+ @param message - commit message, which also names the commit in a failure
 
- @returns Root commit first, HEAD second
+ @returns The new commit's id
 
  @example
  ```ts
- const [root, head,] = await gitBounds();
+ const root = await commitEmpty({ cloneDir, message: 'root', },);
  ```
  */
-async function gitBounds(): Promise<readonly [string, string,]> {
-  /**
-   First commit of this history, which contains nothing but itself.
-   */
-  const root = (await spawnKeyless({
-    file: '/usr/bin/git',
+async function commitEmpty({ cloneDir, message, }: { readonly cloneDir: string; readonly message: string; },): Promise<string> {
+  await fixtureGit({
+    cloneDir,
     args: [
-      '-C',
-      import.meta.dirname,
-      'rev-list',
-      '--max-parents=0',
-      'HEAD',
+      '-c',
+      'user.name=Mittens',
+      '-c',
+      'user.email=mittens@example.invalid',
+      'commit',
+      '--quiet',
+      '--allow-empty',
+      '--message',
+      message,
     ],
-  },)).stdout
-    .trim()
-    .split('\n',)[0] ?? '';
-
-  /**
-   Current commit, which contains the root.
-   */
-  const head = (await spawnKeyless({
-    file: '/usr/bin/git',
+  },);
+  return (await fixtureGit({
+    cloneDir,
     args: [
-      '-C',
-      import.meta.dirname,
       'rev-parse',
       'HEAD',
     ],
-  },)).stdout
-    .trim();
+  },)).trim();
+}
 
-  return [
-    root,
-    head,
-  ];
+/**
+ A throwaway repository's path with its root commit and its head, removed when its `await using` scope ends.
+ */
+type ThrowawayHistory = { readonly path: string; readonly root: string; readonly head: string; } & AsyncDisposable;
+
+/**
+ A throwaway repository of two commits, which a case requiring one of them
+ hands the selection to place every recorded commit against.
+
+ Real commits, because `tipContains` asks git and an invented sha is an
+ UNRESOLVABLE commit rather than an excluded one. The root cannot contain
+ head, so requiring head excludes anything settled at the root. The history is
+ built here and not read off the checkout the test runs in, which a gate that
+ reached only this package may hold at any depth, shallow among them.
+
+ @returns The repository's path with its root commit and its head, removed
+ when its `await using` scope ends
+
+ @example
+ ```ts
+ await using history = await throwawayHistory();
+ const { root, head, } = history;
+ ```
+ */
+async function throwawayHistory(): Promise<ThrowawayHistory> {
+  return await scratchDirWith({
+    prefix: 'artifact-generation-history-',
+    setup: async function committed({ path: cloneDir, },): Promise<{ readonly root: string; readonly head: string; }> {
+      await fixtureGit({
+        cloneDir,
+        args: [
+          'init',
+          '--quiet',
+          '--initial-branch',
+          'main',
+        ],
+      },);
+      /**
+       First commit of this history, which contains nothing but itself.
+       */
+      const root = await commitEmpty({ cloneDir, message: 'root', },);
+      /**
+       Second commit, which contains the root.
+       */
+      const head = await commitEmpty({ cloneDir, message: 'head', },);
+      return { root, head, };
+    },
+  },);
 }
 
 /**
@@ -606,7 +637,8 @@ await describe({
             + 'several. Asking it per generation would take the whole group on one '
             + 'entry\'s verdict, admitting or excluding entries by association',
           fn: async () => {
-            const [root, head,] = await gitBounds();
+            await using history = await throwawayHistory();
+            const { root, head, } = history;
 
             await using artifacts = await writeArtifacts({
               entries: [
@@ -627,7 +659,7 @@ await describe({
             const eligible = await selectEligible({
               census: await censusByGeneration({ artifactsDir: dir, },),
               requiredCommit: head,
-              repository: THIS_CHECKOUT,
+              repository: history.path,
             },);
 
             expect(eligible.entryIds,).toEqual(['Mittens',],);
@@ -645,7 +677,8 @@ await describe({
           name: 'NAMES a generation the required commit excludes as stale, beside the one it keeps, so the '
             + 'report shows which build fell out of the pool',
           fn: async () => {
-            const [root, head,] = await gitBounds();
+            await using history = await throwawayHistory();
+            const { root, head, } = history;
 
             await using artifacts = await writeArtifacts({
               entries: [
@@ -666,7 +699,7 @@ await describe({
             const eligible = await selectEligible({
               census: await censusByGeneration({ artifactsDir: dir, },),
               requiredCommit: head,
-              repository: THIS_CHECKOUT,
+              repository: history.path,
             },);
 
             /**
@@ -694,7 +727,8 @@ await describe({
             + 'arbitrarily, so a rate over them belongs to no single pipeline, and '
             + 'an earlier wording invited exactly the opposite reading',
           fn: async () => {
-            const [root, head,] = await gitBounds();
+            await using history = await throwawayHistory();
+            const { root, head, } = history;
 
             await using artifacts = await writeArtifacts({
               entries: [
@@ -715,7 +749,7 @@ await describe({
             const eligible = await selectEligible({
               census: await censusByGeneration({ artifactsDir: dir, },),
               requiredCommit: root,
-              repository: THIS_CHECKOUT,
+              repository: history.path,
             },);
 
             expect(eligible.entryIds,).toEqual(['Biscuit', 'Mittens',],);
@@ -736,7 +770,8 @@ await describe({
             + 'rate over zero entries is a denominator shrunk all the way to '
             + 'nothing while the number above it still renders',
           fn: async () => {
-            const [root, head,] = await gitBounds();
+            await using history = await throwawayHistory();
+            const { root, head, } = history;
 
             await using artifacts = await writeArtifacts({
               entries: [
@@ -755,7 +790,7 @@ await describe({
             const refusalOfSelectEligible = selectEligible({
               census: await censusByGeneration({ artifactsDir: dir, },),
               requiredCommit: head,
-              repository: THIS_CHECKOUT,
+              repository: history.path,
             },);
 
             await expect(refusalOfSelectEligible,).rejects.toBeInstanceOf(EmptyPoolError,);

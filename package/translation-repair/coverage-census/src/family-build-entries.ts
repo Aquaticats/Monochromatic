@@ -12,8 +12,8 @@ import type { ReadonlyEntry, } from '@monochromatic-dev/translation-repair-share
 // split, one list named every runner. Each package that owns runners now lists
 // its own in `src/build-entries.ts`, so the census reads the union of those
 // lists, or it would take every runner another package owns for library
-// source. `family-build-entries.unit.test.ts` holds `FAMILY_ENTRY_LISTS` to the
-// packages that have a list, so a package that gains one cannot be missed.
+// source. `source-scan/src/family-build-entries.unit.test.ts` holds `FAMILY_ENTRY_LISTS`
+// to the packages that have a list, so a package that gains one cannot be missed.
 
 /**
  Names a build entry two packages list at two paths.
