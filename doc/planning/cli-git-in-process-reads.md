@@ -242,6 +242,6 @@ prefix; the built Git itself is not part of the controls because it cannot be sh
 - `native:perf` removed its scratch tree without waiting for processes Git detaches: `strace --follow-forks` shows every
   `git commit` starting `git maintenance run --auto --quiet --detach`, which daemonizes out of the harness's process
   tree and pipes, so the harness's close event does not cover it. The writer of the one failed run was not captured,
-  so the exact process is a inference; the race itself is reproduced by a detached writer. Cleanup now waits for every process that has the tree as its working directory,
+  so the exact process is an inference; the race itself is reproduced by a detached writer. Cleanup now waits for every process that has the tree as its working directory,
   its executable or an open file, up to a deadline, and fails naming the process when one remains
   (`bin/native-perf-scratch.ts`; the control reproduces `ENOTEMPTY` on the `pack` directory without it).
