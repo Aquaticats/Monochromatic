@@ -141,9 +141,9 @@ impl Trial {
             ["rev-parse", "--path-format=absolute", "--is-bare-repository", "--git-dir", "--git-common-dir", "--show-toplevel", "--show-prefix"].iter().map(|word| { return (*word).to_string(); }).collect(),
             None,
         );
-        let (_, _, code) = real(self.repo.as_path(), &location);
-        if code != Some(0) {
-            found.push(format!("location: the readers answered and Git exits {code:?}"));
+        let (_, _, location_code) = real(self.repo.as_path(), &location);
+        if location_code != Some(0) {
+            found.push(format!("location: the readers answered and Git exits {location_code:?}"));
         }
         for shape in &self.shapes {
             let Some(answer) = ours(self.root.as_path(), self.repo.as_path(), shape) else {

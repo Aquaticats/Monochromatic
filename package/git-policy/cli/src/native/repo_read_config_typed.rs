@@ -369,8 +369,8 @@ fn is_attribute_word(lowered: &str) -> bool {
 
 /// Whether one color word, attribute word, number or `#rrggbb` spelling is one Git reads.
 fn is_color_word(word: &str) -> bool {
-    let lowered: String = word.to_ascii_lowercase();
-    let lowered: &str = lowered.as_str();
+    let lowered_text: String = word.to_ascii_lowercase();
+    let lowered: &str = lowered_text.as_str();
     if PLAIN_COLOR_WORDS.contains(&lowered) || BRIGHT_COLOR_WORDS.contains(&lowered) || is_attribute_word(lowered) {
         return true;
     }

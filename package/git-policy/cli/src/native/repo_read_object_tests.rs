@@ -20,8 +20,8 @@ fn loose_files(root: &Path) -> (PathBuf, Vec<PathBuf>) {
     git(repo.as_path(), &["add", "--all"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=with files"]);
     let mut files: Vec<PathBuf> = Vec::new();
-    for directory in std::fs::read_dir(repo.join(".git/objects")).expect("objects") {
-        let directory = directory.expect("entry").path();
+    for entry in std::fs::read_dir(repo.join(".git/objects")).expect("objects") {
+        let directory = entry.expect("entry").path();
         if directory.file_name().is_some_and(|name| { return name.len() == 2; }) {
             for file in std::fs::read_dir(&directory).expect("fan-out") {
                 files.push(file.expect("file").path());
