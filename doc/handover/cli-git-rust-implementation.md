@@ -7163,3 +7163,11 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   integrator, fault_signal flake, migrate subcommand, bound follow-ups, mutation campaign m056); each ends with
   "PAUSED at <commit>". Once all are paused: rerun the dry run, then the apply with the owner's grant, then
   `git fsck` and a commit check, then "resume" to each agent. Their queued work stays as briefed.
+- Subcommand agent `a26b6c7517c91e978` PAUSED at `be6e32f4ec` (step 1 of 5: Linux primitives `fs_kind`,
+  `fs_mount_options`, `fs_btrfs_ioctl`, `fs_clone_exchange`, `fs_primitive_error`, test support; real ioctls proven on
+  `/var/home`; clippy clean; 28 new tests). Steps 2 to 5 (subcommand, doctor lines, gate wiring, README) remain; its
+  planned design is in its report (journaled tree sync, platform trait with a plain-directory fake, in-process index
+  stat rewrite for SHA-1 and SHA-256, doctor hook injectable).
+- Queued (found by that agent): `read_layout` declines this repository because it sets `extensions.worktreeConfig`,
+  so every in-process reader falls back to starting Git here. Supporting `config.worktree` in the layout reader would
+  remove those starts ("Invoke real git as rarely as possible"). Not started.
