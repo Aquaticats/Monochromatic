@@ -284,6 +284,8 @@ fn a_request_for_a_marked_registration_runs_nothing() {
     let topic: PathBuf = scene.add_worktree("topic");
     scene.request(topic.as_path());
     scene.drain();
+    // An editor saves by writing a new file, so the edited file is no longer the one hard-linked from the stage.
+    std::fs::remove_file(topic.join("cache/top")).expect("replaced");
     std::fs::write(topic.join("cache/top"), b"edited by the user").expect("edit");
     let again: CopyRequest = scene.request(topic.as_path());
     let events: Vec<CopyEvent> = scene.drain();
@@ -539,6 +541,8 @@ fn a_service_killed_after_the_marker_only_cleans_up() {
     assert_eq!(drained.expect("stopped"), Drained::Interrupted);
     assert!(scene.marker("topic").exists());
     assert_eq!(read_pending_journals(scene.common.as_path()).expect("pending").len(), 1);
+    // An editor saves by writing a new file, so the edited file is no longer the one hard-linked from the stage.
+    std::fs::remove_file(topic.join("cache/top")).expect("replaced");
     std::fs::write(topic.join("cache/top"), b"edited by the user").expect("edit");
     let events: Vec<CopyEvent> = scene.drain();
     assert_eq!(Scene::outcomes(&events), vec![(request.id, CopyOutcome::AlreadyCopied)]);

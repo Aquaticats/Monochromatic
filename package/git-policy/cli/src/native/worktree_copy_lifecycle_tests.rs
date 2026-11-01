@@ -399,6 +399,36 @@ fn a_command_that_creates_nothing_nudges_the_service_only_when_a_copy_is_pending
     remove(root.as_path());
 }
 
+/// The worktrees a command may fill: the one it asked Git to add, and every new one Git does not lock. A worktree Git
+///  locks is another command's while it is created, whatever language its lock text is in.
+#[test]
+fn only_the_added_path_may_be_filled_while_locked() {
+    let root: PathBuf = fixture("lifecycle-ready");
+    let mine: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical").join("mine");
+    for name in ["mine", "peers", "other"] {
+        std::fs::create_dir_all(root.join(name)).expect("directory");
+    }
+    let created: Vec<CreatedWorktree> = ["mine", "peers", "other"]
+        .into_iter()
+        .map(|name| {
+            return CreatedWorktree {
+                admin_id: name.to_string(),
+                root: std::fs::canonicalize(root.join(name)).expect("canonical"),
+                locked: name != "other",
+            };
+        })
+        .collect();
+    // Locked and asked for: its creator's `--lock`, whatever reason it gave. Locked and not asked for: a peer's, in the
+    // middle of its checkout, in any language. Not locked: complete.
+    let names = |ready: Vec<&CreatedWorktree>| -> Vec<String> {
+        return ready.into_iter().map(|worktree| return worktree.admin_id.clone()).collect();
+    };
+    assert_eq!(names(ready_worktrees(created.as_slice(), Some(mine.as_path()))), vec!["mine", "other"]);
+    assert_eq!(names(ready_worktrees(created.as_slice(), None)), vec!["other"]);
+    assert_eq!(names(ready_worktrees(created.as_slice(), Some(root.join("absent").as_path()))), vec!["other"]);
+    remove(root.as_path());
+}
+
 /// A worktree this command asked for with `--lock` is filled, and a locked worktree another command is creating is not:
 ///  Git's lock decides, not the text in it.
 #[cfg(unix)]
