@@ -710,10 +710,11 @@ two modules split at the line cap,
 and the paraphrase out of five comments),
 `66853d4a0c` (the unit tests the own-tests ratchet wanted for the new modules),
 `3e2eed2c76` (the docs),
-`6ecb5e71ad` (the merge of the w401 tree `e9b966af55`)
-and `b574a03178` (`publish-fixed.ts`,
+`6ecb5e71ad` (the merge of the w401 tree `e9b966af55`),
+`b574a03178` (`publish-fixed.ts`,
 back under the line cap after the merge,
-with the defects it ships moved to `publish-shipped-defects.ts`).
+with the defects it ships moved to `publish-shipped-defects.ts`)
+and `26be407334` (what the whole source-scan suite found on the merged tree).
 
 Gates run on the result of the merge:
 the family built,
@@ -730,8 +731,12 @@ the unit suite of ten packages once each with no failing line
 `provider` 273,
 `run` 201,
 `slice-cache` 91
-and `translate-stage` 51),
-and the doc scans.
+and `translate-stage` 51;
+`corpus-pass` and `page-check` again after `26be407334`'s changes,
+237 and 270),
+and the whole source-scan suite,
+which found 8 kinds of finding on the merged tree (named in the slip about that suite)
+and then passed with exit 0 on the tree of `26be407334`.
 
 Slips in how the work was run:
 
@@ -763,7 +768,7 @@ Slips in how the work was run:
   two test helpers kept in two places,
   three real-clock windows in the stop-signal test,
   and an exported test type nothing imported.
-  They are fixed in the commit after `b574a03178`:
+  They are fixed in `26be407334`:
   `waitForShip` no longer races (a resolver that the first of the three outcomes settles),
   the two long windows are the shared hang stop,
   the 30 ms window is listed in `real-clock-bounds.unit.test.ts` with its reason,
