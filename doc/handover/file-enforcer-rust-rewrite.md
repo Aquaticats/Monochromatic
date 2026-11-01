@@ -1542,6 +1542,19 @@ each finished branch is reviewed and merged into `main`):
   sends a critical desktop notification on any failure,
   and logs to `~/temp/agent/wg-restart/restart.log`;
   the unit gets `KillMode=process`.
+  Fixes for that review (local only;
+  the branch push hit `GH006: Protected branch update failed`,
+  then the 0.5.1 LFS 503s):
+  `c9438a645b` forward replies as `ct direction reply ip saddr { hosts }`
+  (a forged source is dropped, shown with real nft),
+  `d728f5a4fe` the state-file name gets `isValidInterfaceName`,
+  `898c39ffc2` `=` and `+` refused (nft rejects them as table names).
+  Tip to merge locally:
+  `898c39ffc2`.
+  Queued after the restart:
+  `BypassOwnedRoute.tokens` from the state file reach `ip route del` as root arguments,
+  checked only as non-empty strings;
+  reject a leading `-` at least.
   Planned restart:
   merge,
   build both packages,
