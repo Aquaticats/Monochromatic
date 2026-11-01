@@ -3,15 +3,18 @@
  reaches, ids are unique, and the suite keeps its published size (the checks that pass, and the ones that cannot be
  injected).
  
- The ids are read from the scenario sources, because the checks are declared where they run.
+ The ids are read from the scenario sources, because the checks are declared where they run. The scenario sources
+ themselves are the source files that declare ids, read from the source directory, so a scenario file added there is
+ covered even before it is registered: the registration test below fails with its name until the session attribution
+ table names it, and with the name of a table entry that declares no id.
  
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
-import { dirname, join, } from 'node:path';
-import { fileURLToPath, } from 'node:url';
+import { readdir, readFile, } from 'node:fs/promises';
+import { join, } from 'node:path';
 
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   describe,
   it,
@@ -30,9 +33,29 @@ import { SEEK_STEPS, } from './wide-seek.ts';
 const SOURCE_DIR = import.meta.dirname;
 
 /**
- The scenario files and the session that runs the checks each declares.
+ Declares whether a source's text declares a check id: one of its lines, after leading blanks, starts the declaration
+ `id: 'group/name'`, the way the scenario sources declare their checks.
+ 
+ @param text - the source file text
+ 
+ @returns true when the text declares at least one check id
  */
-const SCENARIO_FILES: readonly { readonly file: string; readonly session: SessionName; }[] = [
+function declaresCheckId(text: string,): boolean {
+  return text.split('\n',).some((line,) => line.trimStart().startsWith("id: '",));
+}
+
+/**
+ A scenario source file and the session that runs its checks.
+ */
+type ScenarioSource = { readonly file: string; readonly session: SessionName; };
+
+/**
+ The scenario files and the session that runs the checks each declares.
+ 
+ This hand-written table is the session attribution: a file name does not say which session launches the app for it, so
+ that knowledge stays here. The registration test keeps the files it names in sync with the source directory.
+ */
+const SCENARIO_FILES: readonly ScenarioSource[] = [
   { file: 'wide-focus.ts', session: 'wide', },
   { file: 'wide-playback.ts', session: 'wide', },
   { file: 'wide-seek.ts', session: 'wide', },
@@ -59,6 +82,51 @@ const SCENARIO_FILES: readonly { readonly file: string; readonly session: Sessio
   { file: 'states-small.ts', session: 'states', },
   { file: 'states-refresh.ts', session: 'states', },
 ];
+
+/**
+ The session of every registered scenario file, for finding a file derived from the directory by its name.
+ */
+const SESSION_OF_FILE: ReadonlyMap<string, SessionName> = new Map(
+  SCENARIO_FILES.map(({ file, session, },) => [file, session,] as const,),
+);
+
+/**
+ Reads the names of the scenario sources in the source directory: every source file whose text declares a check id.
+ 
+ A test file declares fixture ids rather than checks, so it is not a scenario source.
+ 
+ @returns the file names, sorted
+ */
+async function declaredScenarioFiles(): Promise<readonly string[]> {
+  const names = await readdir(SOURCE_DIR,);
+  const sources = names.filter((name,) => (name.endsWith('.ts',)) && (!name.endsWith('.test.ts',)),);
+  const declarations = await Promise.all(sources.map(async (name,) => {
+    const text = await readFile(join(SOURCE_DIR, name,), 'utf8',);
+    return declaresCheckId(text,) ? name : undefined;
+  },),);
+  return declarations.filter((name,): name is string => name !== undefined,).toSorted();
+}
+
+/**
+ The scenario sources of the suite: the file set from the source directory, the session from the attribution table.
+ 
+ The directory is the authority on which scenario sources exist, so a declaring file added without a table entry fails
+ here with its name instead of escaping every id-coverage check below.
+ 
+ @returns the files and their sessions, sorted by file name
+ 
+ @throws Error listing every declaring file the table does not register, and every table entry that declares no id
+ */
+async function scenarioSources(): Promise<readonly ScenarioSource[]> {
+  const declaring = await declaredScenarioFiles();
+  const unregistered = declaring.filter((file,) => !SESSION_OF_FILE.has(file,),);
+  const silent = SCENARIO_FILES.map(({ file, },) => file,).filter((file,) => !declaring.includes(file,));
+  if ((unregistered.length > 0) || (silent.length > 0))
+    throw new Error(
+      `the scenario table is out of date: declaring but not registered: ${unregistered.join(', ',) || '(none)'}; registered but declaring no check id: ${silent.join(', ',) || '(none)'}`,
+    );
+  return declaring.map((file,) => ({ file, session: nonNullishOrThrow(SESSION_OF_FILE.get(file,),), }),);
+}
 
 /**
  A declared id with the session that runs it and whether the declaration is a skip.
@@ -90,7 +158,8 @@ async function declaredIn(file: string, session: SessionName,): Promise<readonly
  @returns all declarations
  */
 async function allDeclared(): Promise<readonly Declared[]> {
-  const fromFiles = (await Promise.all(SCENARIO_FILES.map(({ file, session, },) => declaredIn(file, session,),),)).flat();
+  const sources = await scenarioSources();
+  const fromFiles = (await Promise.all(sources.map(({ file, session, },) => declaredIn(file, session,),),)).flat();
   const visual = VISUAL_VARIANTS.map(({ scheme, accent, },): Declared => ({
     id: `visual/${scheme}-${accent}`,
     session: 'visual',
@@ -112,6 +181,15 @@ async function allDeclared(): Promise<readonly Declared[]> {
 await describe({
   name: 'scenario table',
   children: [
+    it({
+      name: 'registers every scenario source that declares a check id, and only those',
+      fn: async ({ expect, }) => {
+        const declaring = await declaredScenarioFiles();
+        const registered = SCENARIO_FILES.map(({ file, },) => file,).toSorted();
+        expect(declaring.filter((file,) => !registered.includes(file,),),).toEqual([],);
+        expect(registered.filter((file,) => !declaring.includes(file,),),).toEqual([],);
+      },
+    },),
     it({
       name: 'declares 123 checks that run and 1 that is skipped as not injectable',
       fn: async ({ expect, }) => {
