@@ -5879,3 +5879,22 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (the user's `~/.gitconfig` sets `core.fsmonitor=true`, so other repositories lose Git's own daemon), without a new Git start.
 - Note: gate 5 checked out a new head in `.claude/worktrees/gate-main` while the `m048d` mutation units run from it; their Rust
   sources come from the `main-gate4` image, so results stay valid for that snapshot.
+- OWNER DECISION (verbatim, on my summary "To stop the fsmonitor program"): "\"To stop the fsmonitor program\" - we don't need to."
+  The wrapper leaves `core.fsmonitor` as configured. The merged `core.fsmonitor=false` option, its doctor/warning reporting and its
+  tests are being removed by `a21d6fec9d0d04797` (task replaced; the conditional variant is dropped). Gate image fact (measured with
+  `podman run` on `main-gate4`): no `githooks.adoc`, no `man` program, only the distro's `/usr/share/man/man5/githooks.5.gz`, so the new
+  completeness test fails in the container gate; the same agent copies `Documentation/githooks.adoc` from the Git 2.56.0 source into the
+  image's cached layer.
+- Linter embedding review fixes READY `78831896fe` from `a19be37e1bd9ea63d`: output bounds restored (64 MiB fixed, 4 MiB findings),
+  guard documented as hang and panic boundary, not crash boundary; circuit breaker after one abandoned worker; panic text bounded to
+  400 characters; post-commit, binary and exact-bytes tests now fail when linting is skipped or the name is converted; new planted
+  control; differential cases for an error finding and a processing failure; stale comments fixed. The lockfile finding was void (the
+  reviewer's diff excluded `Cargo.lock`). Next: merge it, then the linter 0.5.0 bump plus both pins.
+- Merged the linter embedding `78831896fe` into main, then `af7e0fb33b`: linter 0.4.0 to 0.5.0, wrapper and fuzz pins `=0.5.0`,
+  lockfiles via `cargo update --offline --package monochromatic-lint` (wrapper lockfile also moved five Windows-only edges from
+  windows-sys 0.61.2 to 0.52.0: merge drift, named in the commit body). The push started cargo-publish run `41312100575` (followed
+  by `gh run watch`, log `~/temp/agent/linter-publish-watch.log`). Gate 5 stopped as superseded (it was 50 of 2889 tests in); gate 6 on
+  `af7e0fb33b`: unit `gpc-main-gate6`, tag `main-gate6`, log `~/temp/agent/gate/main-gate6.log`. Expected failure until
+  `a21d6fec9d0d04797` lands the githooks docs in the image: `every_documented_hook_event_is_listed`.
+  After linter 0.5.0 is on crates.io and the gate is green: dispatch the wrapper release (0.5.1 or 0.6.0; the embedding changes no
+  user-facing interface beyond the Markdown policy's failure texts, the service is opt-in, so 0.5.1 fits; decide at dispatch).

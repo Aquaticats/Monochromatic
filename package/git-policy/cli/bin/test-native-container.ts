@@ -24,12 +24,7 @@ import {
   imageRootDirectory,
   writeDependencyStubs,
 } from './native-layered-build.ts';
-import {
-  linterContextDirectory,
-  linterCrates,
-  linterSnapshotEntries,
-  vendorLinterDependencies,
-} from './native-linter-snapshot.ts';
+import { linterSnapshotEntries, } from './native-linter-snapshot.ts';
 import { copyNextest, } from './native-nextest-snapshot.ts';
 import {
   scannerSnapshotEntries,
@@ -250,19 +245,11 @@ await writeDependencyStubs({
   treeRoot: context.path,
   crates: wrapperCrates,
 });
-await writeDependencyStubs({
-  treeRoot: join(
-    context.path,
-    linterContextDirectory,
-  ),
-  crates: linterCrates,
-});
 await vendorLockedDependencies({
   context: context.path,
   vendorName: `${imageRootDirectory}/vendor`,
   configName: `${imageRootDirectory}/.cargo`,
 });
-await vendorLinterDependencies({ context: context.path });
 await copyNextest({ context: context.path });
 await copyStraceSource({ context: context.path });
 await writeFile(

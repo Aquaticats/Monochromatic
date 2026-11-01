@@ -1523,7 +1523,26 @@ each finished branch is reviewed and merged into `main`):
   both in `/user.slice/user-0.slice/session-c368.scope`;
   sentinels 2286003 and 2286679;
   `down` checks the exact watcher script path, so it must run the main checkout's rebuilt bundle.
-  Planned restart (under final review):
+  Final review of that range:
+  the forward accepts do not work
+  (replies to the guest are dropped;
+  reproduced in a three-namespace setup),
+  the manual steps remove routing with no block in place,
+  the "move damaged state aside" path leaves the route watcher running,
+  and interface names and paths go unquoted into root commands
+  (`parseCliArgs` does not validate the interface name).
+  All sent back to the wg agent
+  (reply accepts `ip saddr`/`ip6 saddr` for the hosts, not `ct state established`).
+  On the restart plan:
+  `/etc/pam.d/sudo` includes `system-auth` with `-session optional pam_systemd.so`,
+  and session `c368` is Service sudo,
+  so `sudo` from the unit should get its own session scope;
+  the script asserts the watchers' cgroups after `up`,
+  runs `up` at once after a non-zero `down` only when the link and the block are both gone,
+  sends a critical desktop notification on any failure,
+  and logs to `~/temp/agent/wg-restart/restart.log`;
+  the unit gets `KillMode=process`.
+  Planned restart:
   merge,
   build both packages,
   then one `systemd-run --user` unit running a `.ts` script:

@@ -1700,6 +1700,53 @@ lane is still running and is recorded in the next checkpoint):
   w4-git-policy-b-075, base rr-gpb-071), cc-docs at positions 345 to 416,
   desktop-fork on deepmerge-ts.fuzz, fm-decision from position 11.
 
+Wave-4 thirty-eighth checkpoint (2026-11-01, android native lane complete and the freed slot
+moved to the troubleshooting worklist):
+
+- Lane milestone: `w4-android-app` COMPLETE and released. Positions 560 to 585
+  (26 files, 9,717 lines) close the package/git-policy/cli native tail. Rows
+  `w4-git-policy-b-075` (worktree_copy_recovery_tests.rs line 302 cites the
+  removed src/worktree-copy/journal.ts; counted absence 0, positive control 1,
+  cutover 642b6d72cb), `-076` (worktree_copy.rs line 140 cites the removed
+  src/bin.ts; tree-wide absence 0, twelve mention files) and `-077`
+  (worktree_copy_recovery.rs line 217's failed-resumption notice arm has no test;
+  zero occurrences in the suite, sibling notices 3 and 2) all verify and spot
+  clean. w4-git-policy-b.jsonl is 72 of 72 by my run. The whole native source is
+  now covered across the head and b ledgers.
+- Freed-slot reassignment: the doc/troubleshooting lane launched against
+  unread.txt (710 tracked files from the top), findings to w2-logger-src.jsonl
+  from id `w2-logger-src-072`, base rr-ts-374. The pre-existing ledger was 70 of
+  71: row 35's README escape-hatch citation had drifted when the README grew.
+  I repaired it (729 to 808, 277 to 308, 279 to 310) and the ledger is 71 of 71
+  clean before the first new append.
+- Active: cc-docs at positions 345 to 416, desktop-fork on deepmerge-ts.fuzz,
+  fm-decision from position 11, troubleshooting from unread.txt.
+
+Wave-4 thirty-ninth checkpoint (2026-11-01, cc and desktop follow-on turns verified; the fm and
+troubleshooting lanes are still running):
+
+- `w4-cc-statusline` (cc-docs round 3) returned positions 347 to 361 plus 413,
+  414 and 416, with head and tail reads of 419 to 520: rows `w4-docs-030`
+  (three tech-monorepo-manager records rewrap one sentence into several bullets:
+  discovery-expansion lines 735 to 743, runners-category 190 to 195, chunk-3
+  1010 to 1014; family of pkg-observable-27) and `w4-docs-031` (three records
+  place the H1 directly under the front-matter `-->` at lines 29/30, 31/32 and
+  59/60; 23 of the 25 sibling headings conform). My spots reproduce both
+  shapes and the quoted lines; w4-docs.jsonl 31 of 31 by my run. Next:
+  positions 362 to 412, then the unread middles of 419 to 520, id w4-docs-032,
+  base rr-gp-333.
+- `w4-desktop-app` (desktop-fork round 3) read 35 of 124 reviewable
+  deepmerge-ts.fuzz files: rows `w4-upstream-fork-062` (alias-graph.ts line 167
+  says only the first node is forced to a record while the recordRoots map at
+  lines 211 to 217 rewrites every node kind) and `-063` (declared-type-campaign
+  line 8 cites a README heavy-run rule that does not exist; the README's only
+  caps are the mutation-container lines 135, and the declared-type task is
+  undocumented). My spots reproduce both. w4-upstream-fork.jsonl 63 of 63 by my
+  run. Next: declared-type-positive-control.ts and the sample/generated/type
+  families, 89 files remain, id w4-upstream-fork-064, base rr-desktop-087.
+- Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
+  fm-decision from position 11, troubleshooting from unread.txt.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

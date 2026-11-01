@@ -197,6 +197,9 @@ mod resolved_rules;
 pub mod run_check;
 /// The `shell/` rules over one extracted workflow step.
 mod run_check_shell;
+/// The in-process entry:
+///  fix one in-memory source under an in-memory configuration with the executable's own code.
+pub mod run_embedded;
 /// Mode selection and the complete lint invocation with injected environment.
 #[doc(hidden)]
 pub mod run_command;
@@ -237,6 +240,8 @@ pub mod run_plan;
 ///  streams and exit status.
 #[doc(hidden)]
 pub mod run_process;
+/// Linting one in-memory source for both standard-input mode and the embedding entry.
+mod run_source;
 /// Standard-input linting and fixing.
 mod run_stdin;
 /// Bounded worker threads with per-file panic containment.
@@ -249,21 +254,36 @@ pub mod run_write;
 #[doc(hidden)]
 pub mod rust_dispatch;
 /// Declaration-site checks used by the full semantic explicit-types rule.
+#[cfg(feature = "semantic")]
 #[doc(hidden)]
 pub mod rust_explicit_declarations;
 /// Generic argument checking by actual declaration identity.
+#[cfg(feature = "semantic")]
 mod rust_explicit_generics;
 /// Written inference-hole validation against resolved types.
+#[cfg(feature = "semantic")]
 mod rust_explicit_inference;
 /// Full explicit-type policy over a registered semantic parse.
+#[cfg(feature = "semantic")]
 #[doc(hidden)]
 pub mod rust_explicit_types;
 /// Invocation-level Rust dispatch and lazy workspace caching.
+#[cfg(feature = "semantic")]
 #[doc(hidden)]
 pub mod rust_file_engine;
+/// The same router in a build without the `semantic` feature.
+#[cfg(not(feature = "semantic"))]
+#[doc(hidden)]
+#[path = "rust_file_engine_syntax.rs"]
+pub mod rust_file_engine;
+/// Cargo-manifest facts that need no compiler front end.
+#[doc(hidden)]
+pub mod rust_manifest;
 /// Generic parameter ownership and argument-spelling helpers.
+#[cfg(feature = "semantic")]
 mod rust_generic_arguments;
 /// Semantic disambiguation of type-shaped generic constant placeholders.
+#[cfg(feature = "semantic")]
 mod rust_inferred_constants;
 /// Typed Rust rule selection from validated merged JSONC.
 #[doc(hidden)]
@@ -275,6 +295,7 @@ pub mod rust_rules;
 #[doc(hidden)]
 pub mod rust_semantic_error;
 /// Production session for selected-file analysis and exact source overlays.
+#[cfg(feature = "semantic")]
 #[doc(hidden)]
 pub mod rust_semantic_session;
 /// Internal shared Rust parse and code-line indexing.
@@ -284,11 +305,14 @@ pub mod rust_source;
 #[doc(hidden)]
 pub mod rust_tests_in_sidecars;
 /// Read-only compiler and installed rust-src discovery.
+#[cfg(feature = "semantic")]
 #[doc(hidden)]
 pub mod rust_toolchain;
 /// Internal source-anchored explicit-type findings and semantic coverage errors.
+#[cfg(feature = "semantic")]
 mod rust_type_diagnostic;
 /// Fixed Cargo workspace preparation and generated-input error handling.
+#[cfg(feature = "semantic")]
 #[doc(hidden)]
 pub mod rust_workspace;
 
@@ -351,14 +375,17 @@ mod run_directive_tests;
 /// Full semantic annotation controls,
 ///  including source-overlay cache changes.
 #[cfg(test)]
+#[cfg(feature = "semantic")]
 mod rust_explicit_types_tests;
 /// Disposable Cargo-backed contexts for the semantic rule's conformance suite.
 #[cfg(test)]
+#[cfg(feature = "semantic")]
 mod rust_semantic_test_support;
 
 /// Production Cargo discovery,
 ///  generated-source and failure boundary controls.
 #[cfg(test)]
+#[cfg(feature = "semantic")]
 mod rust_workspace_tests;
 
 /// Shared consumer-level regressions for the initial Markdown rule ports.

@@ -1,53 +1,26 @@
 //! What:
 //!  The linter configuration the `markdown/autofix` policy hands `monochromatic-lint`:
-//!       one block that selects the policy's rules for Markdown and MDX files,
-//!  written once
-//!       per invocation to a private temporary file outside the repository.
+//!  one block that selects the policy's rules for Markdown and MDX files,
+//!  as JSONC text for the linter library's in-process entry.
 //! Why:
-//!  The plan's contract (`doc/planning/unified-linter.md`,
-//!  section "Distribution and
-//!      consumers") is a one-rule configuration in a temporary file created with a proper
-//!      temporary-file call,
-//!  passed with `--config`,
-//!  so a configuration the repository
-//!      keeps for its own linting never changes what the commit-time policy does.
-//!  Each
-//!      rule runs at `warn`,
-//!  so a finding the fixes leave is a record on standard error
-//!      and exit status 0,
-//!  and only a run that could not finish exits non-zero.
-//!  The
-//!      document is built as a value and printed by the JSONC emitter,
-//!  so no pattern text
-//!      can break out of its string.
+//!  The plan's contract (`doc/planning/unified-linter.md`, section "Distribution and consumers")
+//!  is a one-rule configuration of the policy's own,
+//!  so a configuration the repository keeps for its own linting never changes what the commit-time policy does.
+//!  Each rule runs at `warn`,
+//!  so a finding the fixes leave is a warning finding and the run counts as usable,
+//!  and only a run that could not finish fails.
+//!  The document is built as a value and printed by the JSONC emitter,
+//!  so no pattern text can break out of its string.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const file = await writeOneRuleConfiguration({ rules, exclude }); // '<state>/cli-git/scratch/cli-git-markdown-Ab12Cd.jsonc'
+//! // const document = oneRuleConfiguration({ rules, exclude }); // '[{"files":["**/*.md","**/*.mdx"],"rules":{...}}]'
 //! ```
 
 /// Import the selectable rules and their configuration spelling.
 use super::config_schema::{MarkdownRule, markdown_rule_name};
 /// Import the JSONC value model and its emitter.
 use monochromatic_jsonc_edit::{JsoncEntry, JsoncKey, JsoncValue, emit_jsonc_value};
-/// `Write` adds `write_all` to the temporary file.
-use std::io::Write;
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
-/// What:
-///  `NamedTempFile` is a uniquely named file created exclusively,
-///  readable only by its
-///       owner,
-///  and removed when the value is dropped.
-/// Why:
-///   The linter opens the configuration by name.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// import { mkdtemp } from 'node:fs/promises';
-/// ```
-use tempfile::NamedTempFile;
-
 /// The files the block selects,
 ///  relative to the linter's working directory,
 ///  the top level.
@@ -143,44 +116,7 @@ pub fn one_rule_configuration(rules: &[MarkdownRule], exclude: &[String]) -> Str
     return emit_jsonc_value(&JsoncValue::array(vec![block]));
 }
 
-/// What:
-///  Write `document` to a new private temporary file in `directory`.
-///       `Result<NamedTempFile, String>` is the open file,
-///  removed when dropped,
-///  or the reason.
-/// Why:
-///   The file is made with an exclusive,
-///  owner-only temporary-file call,
-///  so no other
-///       user can read or replace it between writing and the linter reading it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function writeConfiguration(document: string, directory: string): Promise<TemporaryFile>;
-/// ```
-pub fn write_configuration(document: &str, directory: &Path) -> Result<NamedTempFile, String> {
-    let created: std::io::Result<NamedTempFile> = tempfile::Builder::new()
-        .prefix("cli-git-markdown-")
-        .suffix(".jsonc")
-        .tempfile_in(directory);
-    let mut file: NamedTempFile = match created {
-        Ok(made) => made,
-        Err(error) => {
-            return Err(format!(
-                "cli-git could not create the temporary linter configuration in {}: {error}",
-                directory.display()
-            ));
-        }
-    };
-    if let Err(error) = file.write_all(document.as_bytes()) {
-        return Err(format!(
-            "cli-git could not write the temporary linter configuration: {error}"
-        ));
-    }
-    return Ok(file);
-}
-
-/// Document and file controls stay out of the release executable.
+/// Document controls stay out of the release executable.
 #[cfg(test)]
 #[path = "markdown_linter_config_tests.rs"]
 mod tests;
