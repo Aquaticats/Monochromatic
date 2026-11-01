@@ -6827,7 +6827,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Sent back to `afcbaabc8c4046584`: capture order (the decision's "later capture wins" for one worktree; t10 now fails
   as a conflict where the decision lands it), and the two paths that still re-read the worktree (`Submitted::Moved`
   rebuild of a Git-built commit; the prune re-prepare on a first attempt).
-- Third cross-vendor review running: inputs `~/temp/agent/review-wtc/v3/` (`prepare3.ts`: the design doc and six copy
+- THIRD cross-vendor review of the copy (`~/temp/agent/review-wtc/v3/sol-review.txt`): not approved. Closed: P2-6
+  (client completion and progress), P2-8 for the live wrapper. Partly closed: 1, 2, 3, 4, 5, 7, 9, A, B. New ranked:
+  1. P1 under per-worktree services: copy state (requests, journals, stage paths) is repository-wide in the common
+     dir, so two worktree instances would drain the same request and delete each other's live stage; ownership must
+     match the transaction (the planned move of copy state into the destination's admin dir answers it);
+  2. P1 `reconcile_intent` lets an intent copy into its named worktree before Git returned (`allow_locked` without
+     `git_returned`), i.e. during checkout;
+  3. P1 intents expire after an hour while a suspended wrapper still needs them; a returned intent is removed after
+     skipping its own unattributable locked destination;
+  4. P1 giving up is reset by republishing from a live intent (new id, tries 0), with a possible republish loop;
+     `terminal_of` checks pending first, so a kill inside `give_up` reruns the request;
+  5. P1 background (wake-only) notices are dropped, and a give-up with no querying client before a kill leaves no
+     notice; `write_copy_notice` removes then writes non-atomically and ignores errors;
+  6. P1 reconcile and request selection are separate snapshots, so B can copy from A before A's request exists;
+  7. P2 given-up history is matched by pathname, poisoning a later registration at the same path;
+  8. P2 root observation and identity are sampled from different moments in `find_created_worktrees`;
+  9. P2 an adopted temporary makes its publisher report failure after the service already ran it;
+  10. P2 the legacy-empty-token repair can unlink a valid winner's token; plus cached `Failed`/`Waiting` answers skip
+      a retry. Unsynced intent: fine for a process kill, not for a power loss (the copy is then forgotten).
+- Decision (mine, revisable): do not fix these on the current repository-wide layout. The copy is restructured next
+  for per-worktree state and possibly replaced on btrfs by snapshots (owner: "the copy tests would auto pass after
+  the upcoming changes"). The rework brief to `ab3dd6294f9d91284` waits for the per-worktree service change and the
+  btrfs/overlayfs design, and carries every finding above that still applies.
+- Third cross-vendor review inputs: `~/temp/agent/review-wtc/v3/` (`prepare3.ts`: the design doc and six copy
   modules whole, the other production changes as `main...fe2081f2a1`, the second review attached), output
   `~/temp/agent/review-wtc/v3/sol-review.txt`.
 - Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
