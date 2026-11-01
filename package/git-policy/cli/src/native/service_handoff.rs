@@ -16,6 +16,7 @@ use super::iso_time::now_iso;
 use super::service_client::{ClientConfig, wake};
 use super::service_messages::ClientFailure;
 use super::service_work::{take_notices, work_directory};
+use super::service_review_key::{ReviewKey, key_from_environment};
 use super::standards_review_input::has_shadow_log;
 use super::work_item::{WorkItem, WorkKind, enqueue};
 use std::io::Write;
@@ -50,6 +51,22 @@ pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
 /// await handOver(handoff, landed)
 /// ```
 pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let key: Option<ReviewKey> = key_from_environment(&|name| { return std::env::var(name).ok(); });
+    return hand_over_with_key(handoff, landed, key.as_ref(), notices);
+}
+
+/// What:
+///  `hand_over` with the standards-review credential given. The records written to disk never hold it; the wake message
+///  carries it to the service, which keeps it in memory for the review.
+/// Why:
+///   A systemd user service does not inherit the wrapper's environment, and the credential must not be stored in a work
+///  item, a unit file or the manager's environment. The wrapper therefore sends it over the user-only socket.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await handOverWithKey(handoff, landed, key)
+/// ```
+pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
     let work_dir: PathBuf = work_directory(handoff.common_dir.as_path());
     // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
     let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
@@ -66,7 +83,7 @@ pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write
         };
         enqueue(work_dir.as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
     }
-    return wake(&handoff.config, handoff.common_dir.as_path(), notices);
+    return wake(&handoff.config, handoff.common_dir.as_path(), review_key, notices);
 }
 
 /// Shows and removes the notices that earlier work left for this repository.

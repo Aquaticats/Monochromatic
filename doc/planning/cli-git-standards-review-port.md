@@ -577,6 +577,39 @@ Each guard was removed with the test that watches it run, and the test failed; t
 - Client boundary: a planted import of the client module in `service_handoff.rs` made
   `the_network_client_is_reachable_only_from_the_service_run` fail.
 
+### The review credential
+
+Decided by the coordinator, owner veto open: the wrapper passes the key from its own environment to the service
+in the in-memory `work` message over the user-only socket.
+Never in the on-disk work item, a unit file or the manager's environment.
+
+- The wrapper (`service_handoff::hand_over`) reads `SHADOW_REVIEW_LLMGATEWAY_API_KEY`, else
+  `STOP_REMINDER_LLMGATEWAY_API_KEY` (an empty first value is no key, as in the script) and sends it as the optional
+  `reviewKey` field of the `work` message (`service_client::wake`).
+  The records written before the message hold no key field.
+- `ReviewKey` (`service_review_key.rs`) prints as redacted in every `Debug` output, so a log line or a failed assertion
+  cannot show it; only `expose` returns the text, and only the request header and the message encoder call it.
+- The service holds the key in `GitHandlers` per repository for the round that brought it (`service_work::run_round`),
+  and forgets it when that repository has been drained.
+  `review_variables` answers the two credential variable names from that key alone, and never from the service's own
+  environment; every other variable still comes from the environment.
+- A review that has no key records the plain `Luna failed: no ... API_KEY` outcome and contacts no one.
+- The audit file is the only place a review writes, and a test checks that the log never holds the key.
+
+Guard evidence, each guard removed with the test that watches it, which then failed:
+the key used by the review (`the_key_from_the_message_reaches_the_gateway`),
+no key invented when none came (`a_review_without_a_key_records_no_key`),
+the environment not read for the second credential name (`the_service_environment_never_supplies_a_key`),
+the on-disk records free of the key, scanned byte by byte over the worktree and the Git directory
+(`the_on_disk_work_items_never_hold_the_key`),
+redacted printing (`a_key_never_prints_its_text`),
+the key sent in the message (`the_wake_message_carries_the_key_to_the_service`),
+the key read from the message (`a_work_message_carries_the_review_key_and_hides_it_when_printed`),
+and forgotten after the round (`a_round_forgets_the_credentials_it_was_given`).
+
+Not covered: a real service socket and unit, and a request to the real gateway; the key reaches the review in tests
+through the loopback mock only.
+
 ### Removed with the wiring
 
 The local Git config keys `hook.standards-review-shadow.event` and `.command` in the shared Git config
@@ -599,10 +632,7 @@ The runbook's full-review route (`SHADOW_REVIEW_ALLOW=1`, `pi`) went with the ta
   a TLS handshake (no local TLS server and no real call),
   and the 24000-unit cut on a real repository text with a split surrogate pair.
 - Forwarded-command latency before and after (above).
-- The service reads the gateway key from its own environment.
-  A systemd user service does not inherit the shell's variables,
-  so provisioning has to give the service `SHADOW_REVIEW_LLMGATEWAY_API_KEY` (or the stop-hook key);
-  until it does, each reviewed commit logs `Luna failed: no ... API_KEY`.
-  Provisioning belongs to another owner and was not touched.
+- The gateway key travels in the work message (heading `The review credential`); a service restarted before the review
+  runs has none, and that one review records `Luna failed: no ... API_KEY`.
 - No end-to-end run through a real service socket and a real systemd unit:
   the handler, the drain and the handoff are tested separately against the loopback mock.

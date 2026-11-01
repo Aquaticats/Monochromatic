@@ -98,7 +98,7 @@ fn retire_round_trips() {
 /// A work message survives encoding; a relative or empty directory, and a missing one, are refused.
 #[test]
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
-    let sent: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git") };
+    let sent: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
     let line: String = encode_client(&sent);
     for bad in ["relative/.git", "", "\\u0000/.git"] {
@@ -147,4 +147,22 @@ fn an_amend_carries_its_tree_and_only_an_amend_does() {
     let mut bad_tree: CommitRequest = amend;
     bad_tree.tree = Some(String::from("not-an-object"));
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad_tree))).as_str()).is_err(), "a tree that is no object name");
+}
+
+/// A work message carries the review key when it has one and nothing otherwise; a key of another type is refused, and no
+/// printed form of the message shows the key.
+#[test]
+fn a_work_message_carries_the_review_key_and_hides_it_when_printed() {
+    const SECRET: &str = "test-key-not-a-secret";
+    let with_key: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git"), review_key: ReviewKey::new(SECRET) };
+    let line: String = encode_client(&with_key);
+    assert!(line.contains(SECRET), "the key travels in the message");
+    assert_eq!(decode_client(line.as_str()), Ok(with_key.clone()));
+    assert!(!format!("{with_key:?}").contains(SECRET));
+    let without_key: ClientMessage = ClientMessage::Work { common_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
+    assert!(!encode_client(&without_key).contains("reviewKey"));
+    let wrong_type: String = line.replace(&format!("\"{SECRET}\""), "42");
+    assert!(decode_client(wrong_type.as_str()).is_err());
+    let empty: String = line.replace(SECRET, "");
+    assert_eq!(decode_client(empty.as_str()), Ok(without_key), "an empty key is no key");
 }
