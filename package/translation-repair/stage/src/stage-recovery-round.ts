@@ -206,6 +206,20 @@ async function recoverRunaway<ValueT,>(
    The client the round asks through, whose view of the provider meters the pool of alternates reads.
    */
   const { client, } = roundRequest;
+  // A MODEL THE RUN WITHHOLDS FROM THE SEAT'S ROLE IN THE READING IS NOT AN ALTERNATE (ledger B1330): the client's
+  // dryness view says where Hyper would serve a model, so Qwen3.8-27B is left out of an editor's alternates then and
+  // not where Synthetic serves it; a client with no view leaves out every model with such a hold. The reading is
+  // awaited before the models other seats took are read, since a seat of the same question that ran away at the same
+  // time takes its model in the step the await yields to (ledger B1343).
+  /**
+   How the holds the run applies at seating time reach the pool of this round.
+   */
+  const routeTimeHolds = await rulePastReading({
+    readDry: client.providerDryness,
+    signal: roundRequest.signal,
+    l: rl,
+  },);
+
   /**
    Models to ask in the order of their share of runaways, and the ones left out of the seat's role, the bench or an
    earlier ask.
@@ -219,14 +233,7 @@ async function recoverRunaway<ValueT,>(
     bench,
     askedAlready: (askedInstead === undefined) ? [] : [askedInstead,],
     askedForOtherSeats: takenFor({ seat: named, },),
-    // A MODEL THE RUN WITHHOLDS FROM THE SEAT'S ROLE IN THE READING IS NOT AN ALTERNATE (ledger B1330): the client's
-    // dryness view says where Hyper would serve a model, so Qwen3.8-27B is left out of an editor's alternates then and
-    // not where Synthetic serves it; a client with no view leaves out every model with such a hold.
-    routeTimeHolds: await rulePastReading({
-      readDry: client.providerDryness,
-      signal: roundRequest.signal,
-      l: rl,
-    },),
+    routeTimeHolds,
   },);
   // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines of
   // the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).

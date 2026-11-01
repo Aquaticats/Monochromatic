@@ -270,11 +270,17 @@ export async function runRefinePhase(
            Rewriters of this slice, the lane's own where the reading names none.
            */
           const sliceRefiners = sliceModels.refinerModelIds ?? [];
+          /**
+           Roster the slice's stages read, holding the lane's checker bench: the checker stage compares the bench the
+           hook names now with the bench it was seated with, and refuses one below the checker floor, which it could
+           not do if the slice were handed the bench the hook names as its own (ledger B1343).
+           */
+          const stageModels: RepairModels = { ...sliceModels, checkerModelIds: models.checkerModelIds, };
           return await settleRefinePhaseSlice({
             client,
             outcome,
             slices,
-            models: sliceModels,
+            models: stageModels,
             ...((reseat === undefined) ? {} : { reseat, }),
             refinerModelIds: (sliceRefiners.length === 0) ? refinerModelIds : sliceRefiners,
             runShape: (seating.repairModels === undefined)

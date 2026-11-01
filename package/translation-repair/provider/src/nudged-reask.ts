@@ -298,6 +298,18 @@ export async function reaskElsewhereNudged<ValueT,>(
       return NO_OTHER_MODEL_TOOK_IT;
     }
 
+    // THE READING IS AWAITED BEFORE THE MODELS OTHER SEATS TOOK ARE READ: a seat of the same question that ran away at
+    // the same time takes its model in the step the await yields to, so a list of the taken models read first would
+    // be stale by the time this seat asks (ledger B1343).
+    /**
+     How the holds the run applies at seating time reach the pool of this re-ask.
+     */
+    const routeTimeHolds = await rulePastReading({
+      readDry,
+      signal: request.signal,
+      l: ol,
+    },);
+
     /**
      Models to try in the order of their share of runaways, and the ones left out of the seat's role, bench, earlier
      asks for this question or holds.
@@ -310,11 +322,7 @@ export async function reaskElsewhereNudged<ValueT,>(
       role: reaskSeat.role,
       bench: reaskSeat.bench,
       askedForOtherSeats: takenFor({ seat: reaskSeat, },),
-      routeTimeHolds: await rulePastReading({
-        readDry,
-        signal: request.signal,
-        l: ol,
-      },),
+      routeTimeHolds,
     },);
     // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the lines
     // of the asks that follow, which a model without a provider repeats, never carry it again (ledger B1100).
