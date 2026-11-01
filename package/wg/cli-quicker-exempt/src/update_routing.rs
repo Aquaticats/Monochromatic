@@ -20,6 +20,14 @@ use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
 /// Classification of processes.
 use crate::update_entry_points::classify;
+/// Clock,
+/// stop check,
+/// retry wait
+/// and manager reach.
+use crate::routing_support::{adoptable_cgroup, retry_backoff, Clock, StopCheck};
+/// Clock and stop check for the test-only rescan.
+#[cfg(test)]
+use crate::routing_support::{NeverStop, SystemClock};
 /// Outcomes and their wording.
 use crate::update_report::Outcome;
 /// Tracking of processes already handled.
@@ -31,40 +39,13 @@ use std::time::{Duration, Instant};
 
 /// Failed moves one pass may spend before it postpones the rest,
 /// so a manager that fails slowly cannot stall the watcher for long.
-const FAILED_ATTEMPTS_PER_PASS: u32 = 3;
-/// Wait before the second attempt;
-/// each later wait doubles.
-const RETRY_BACKOFF_BASE: Duration = Duration::from_secs(1);
-/// Longest wait between attempts for one process.
-const RETRY_BACKOFF_MAX: Duration = Duration::from_secs(60);
+const FAILED_ATTEMPTS_PER_PASS: u32 = 2;
+/// Time one pass may spend on moves before it postpones the rest.
+/// A pass can overrun it by the one attempt in progress,
+/// which the client timeout bounds.
+const PASS_MOVE_BUDGET: Duration = Duration::from_secs(2);
 /// How long no move is attempted after the manager did not answer in time.
-const BLOCK_AFTER_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// Reports whether a cgroup path can be adopted by the user's manager.
-/// The path must lie in the user manager's subtree,
-/// and must not be the cgroup of a service's main process.
-pub fn adoptable_cgroup(cgroup: &str, uid: u32) -> Result<(), String> {
-    let prefix = format!("/user.slice/user-{uid}.slice/user@{uid}.service/");
-    if !cgroup.starts_with(&prefix) {
-        return Err(format!(
-            "its cgroup {cgroup} is outside the user manager's subtree, which the manager cannot move processes out of"
-        ));
-    }
-    let leaf = cgroup.rsplit('/').next().unwrap_or("");
-    if leaf.ends_with(".service") {
-        return Err(format!("it is the main process of the service {leaf}, and moving it would empty that service"));
-    }
-    return Ok(());
-}
-
-/// The wait before attempt number `attempt` plus one:
-/// one second after the first failure,
-/// doubling,
-/// capped.
-pub fn retry_backoff(attempt: u32) -> Duration {
-    let doublings = attempt.saturating_sub(1).min(6);
-    return RETRY_BACKOFF_BASE.saturating_mul(1 << doublings).min(RETRY_BACKOFF_MAX);
-}
+const BLOCK_AFTER_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Reports whether a collected group already holds `pid`.
 fn contains_pid(group: &[(i32, u64)], pid: i32) -> bool {
@@ -121,6 +102,8 @@ pub struct UpdateRouting {
     failed_attempts_this_pass: u32,
     /// No move is attempted before this time.
     blocked_until: Option<Instant>,
+    /// When the current pass began.
+    pass_started: Option<Instant>,
 }
 
 /// Behavior of the policy engine.
@@ -135,7 +118,14 @@ impl UpdateRouting {
             failures: HashMap::new(),
             failed_attempts_this_pass: 0,
             blocked_until: None,
+            pass_started: None,
         };
+    }
+
+    /// Reports whether the watcher could read its own pid namespace.
+    /// Without it a process in a container or a sandbox cannot be told apart.
+    pub fn pid_namespace_known(&self) -> bool {
+        return self.own_pid_namespace.is_some();
     }
 
     /// Makes sure the updates slice exists below the user's `app.slice`,
@@ -149,10 +139,33 @@ impl UpdateRouting {
         );
     }
 
-    /// Starts a pass:
+    /// Starts a pass now:
     /// failed moves spent earlier no longer count against the next ones.
     pub fn begin_pass(&mut self) {
+        self.begin_pass_at(Instant::now());
+    }
+
+    /// Starts a pass at `now`.
+    pub fn begin_pass_at(&mut self, now: Instant) {
         self.failed_attempts_this_pass = 0;
+        self.pass_started = Some(now);
+    }
+
+    /// Why a move must wait now,
+    /// or `None` when it may go ahead.
+    fn postponement(&self, now: Instant) -> Option<&'static str> {
+        if self.is_blocked(now) {
+            return Some("the user's service manager did not answer in time, so moves are paused for a few seconds");
+        }
+        if self.failed_attempts_this_pass >= FAILED_ATTEMPTS_PER_PASS {
+            return Some("earlier moves in this pass failed, and a pass spends at most two failed attempts");
+        }
+        if let Some(started) = self.pass_started
+            && now.duration_since(started) >= PASS_MOVE_BUDGET
+        {
+            return Some("this pass used its time budget for moves");
+        }
+        return None;
     }
 
     /// Reports whether moves are paused after a client timeout.
@@ -269,21 +282,29 @@ impl UpdateRouting {
             self.handled.insert(key);
             return Outcome::AlreadyInSlice;
         }
-        if let (Some(own), Some(theirs)) = (&self.own_pid_namespace, &info.pid_namespace)
-            && own != theirs
-        {
-            self.handled.insert(key);
-            return Outcome::Skipped {
-                pid,
-                why: format!("it runs in another pid namespace ({theirs}), such as a container or a sandbox, which this policy does not enter"),
-            };
+        match (&self.own_pid_namespace, &info.pid_namespace) {
+            (Some(own), Some(theirs)) if own != theirs => {
+                self.handled.insert(key);
+                return Outcome::Skipped {
+                    pid,
+                    why: format!("it runs in another pid namespace ({theirs}), such as a container or a sandbox, which this policy does not enter"),
+                };
+            }
+            (Some(_own), None) => {
+                self.handled.insert(key);
+                return Outcome::Skipped {
+                    pid,
+                    why: "its pid namespace cannot be read, so it cannot be told apart from a process in a container or a sandbox, which this policy does not enter".to_string(),
+                };
+            }
+            _ => {}
         }
         if let Err(why) = adoptable_cgroup(&info.cgroup, self.setup.uid) {
             self.handled.insert(key);
             return Outcome::Skipped { pid, why };
         }
-        if self.is_blocked(now) || self.failed_attempts_this_pass >= FAILED_ATTEMPTS_PER_PASS {
-            return Outcome::Deferred;
+        if let Some(why) = self.postponement(now) {
+            return Outcome::Deferred { pid, why };
         }
         let (group, unreadable) = match self.collect_group(&info) {
             Ok(collected) => collected,
@@ -306,12 +327,14 @@ impl UpdateRouting {
                 return self.register_failure(key, now, text);
             }
         };
+        let scope_label = format!("{pid}-{}", key.1);
         let request = AdoptRequest {
             pids: &pids,
             uid: self.setup.uid,
             gid: self.setup.gid,
             slice: TOOLCHAIN_UPDATES_SLICE,
             limits: &limits,
+            scope_label: &scope_label,
         };
         return match self.setup.adopter.adopt(&request) {
             Ok(()) => {
@@ -352,21 +375,28 @@ impl UpdateRouting {
     }
 
     /// Considers every live process now and forgets handled processes that no longer exist.
+    #[cfg(test)]
     pub fn rescan(&mut self) -> Vec<Outcome> {
-        return self.rescan_at(Instant::now());
+        return self.rescan_with(&SystemClock, &NeverStop);
     }
 
-    /// Considers every live process at `now` and forgets handled processes that no longer exist.
+    /// Considers every live process,
+    /// reading the time from `clock` before each one,
+    /// and stops early when `stop` asks to,
+    /// so a shutdown signal is not left waiting behind a long pass.
     /// Processes that need no report are left out of the result.
-    pub fn rescan_at(&mut self, now: Instant) -> Vec<Outcome> {
-        self.begin_pass();
+    pub fn rescan_with(&mut self, clock: &dyn Clock, stop: &dyn StopCheck) -> Vec<Outcome> {
+        self.begin_pass_at(clock.now());
         let pids = match list_pids(&self.setup.proc_root) {
             Ok(pids) => pids,
             Err(error) => return vec![Outcome::ScanFailed { error: error.to_string() }],
         };
         let mut outcomes: Vec<Outcome> = Vec::new();
         for pid in &pids {
-            let outcome = self.consider_at(*pid, now);
+            if stop.stop_requested() {
+                return outcomes;
+            }
+            let outcome = self.consider_at(*pid, clock.now());
             if outcome != Outcome::Ignored {
                 outcomes.push(outcome);
             }

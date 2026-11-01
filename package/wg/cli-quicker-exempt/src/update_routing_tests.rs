@@ -15,7 +15,9 @@ use crate::update_entry_points::{install_roots, MatchReason};
 /// Outcomes under test.
 use crate::update_report::Outcome;
 /// Policy under test.
-use crate::update_routing::{adoptable_cgroup, retry_backoff, RoutingSetup, UpdateRouting};
+use crate::routing_support::{adoptable_cgroup, retry_backoff, StopCheck, SystemClock};
+/// Policy under test.
+use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// Shared recording between the test and the engine.
 use std::cell::RefCell;
 /// Scripted results in order.
@@ -40,6 +42,8 @@ const SCOPE: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/app
 /// What the fake adopter was asked to do.
 #[derive(Debug, Eq, PartialEq)]
 struct Recorded {
+    /// Text that makes the scope name unique.
+    scope_label: String,
     /// Pids requested.
     pids: Vec<i32>,
     /// Group id passed for the privilege drop.
@@ -66,7 +70,7 @@ impl Adopter for ScriptedAdopter {
 
     /// Records the request and answers from the script.
     fn adopt(&self, request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
-        self.requests.borrow_mut().push(Recorded { pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
+        self.requests.borrow_mut().push(Recorded { scope_label: request.scope_label.to_string(), pids: request.pids.to_vec(), gid: request.gid, limits: request.limits.clone() });
         return self.script.borrow_mut().pop_front().unwrap_or(Ok(()));
     }
 }
@@ -246,7 +250,7 @@ fn processes_already_in_the_slice_or_outside_the_subtree_are_not_moved() {
     assert_eq!(fixture.routing.consider(30), Outcome::AlreadyInSlice);
     let skipped = fixture.routing.consider(31);
     assert!(matches!(skipped, Outcome::Skipped { pid: 31, .. }));
-    assert!(skipped.is_failure());
+    assert!(skipped.failure_kind().is_some());
     assert_eq!(fixture.routing.consider(31), Outcome::Ignored, "a permanent skip is reported once");
     assert!(fixture.requests.borrow().is_empty());
 }
@@ -272,8 +276,20 @@ fn a_process_in_another_pid_namespace_is_reported_and_not_moved() {
     let sandboxed = routing.consider(40);
     assert!(matches!(&sandboxed, Outcome::Skipped { pid: 40, why } if why.contains("another pid namespace")), "{sandboxed:?}");
     assert!(matches!(routing.consider(41), Outcome::Adopted { .. }));
-    assert!(matches!(routing.consider(42), Outcome::Adopted { .. }));
-    assert_eq!(fixture.requests.borrow().len(), 2);
+    let unreadable = routing.consider(42);
+    assert!(matches!(&unreadable, Outcome::Skipped { pid: 42, why } if why.contains("pid namespace cannot be read")), "{unreadable:?}");
+    assert!(unreadable.failure_kind().is_some());
+    assert_eq!(fixture.requests.borrow().len(), 1);
+}
+
+/// A watcher that cannot read its own pid namespace says so at start,
+/// and treats every process like any other.
+#[test]
+fn a_watcher_without_its_own_namespace_link_says_so_and_moves_processes_as_before() {
+    let mut fixture = fixture("namespace-unknown", vec![]);
+    assert!(!fixture.routing.pid_namespace_known());
+    make_process(&fixture.proc_root, &Fake { namespace: Some("pid:[4026533586]"), ..mise(40) });
+    assert!(matches!(fixture.routing.consider(40), Outcome::Adopted { .. }));
 }
 
 /// A failing adoption is reported loudly,
@@ -287,14 +303,14 @@ fn a_failed_adoption_is_reported_and_retried_after_a_backoff() {
     let start = Instant::now();
     let first = fixture.routing.consider_at(40, start);
     assert!(matches!(&first, Outcome::Failed { pid: 40, attempt: 1, .. }), "{first:?}");
-    assert!(first.is_failure());
+    assert!(first.failure_kind().is_some());
     assert_eq!(fixture.routing.consider_at(40, start + Duration::from_millis(500)), Outcome::Ignored);
     assert_eq!(fixture.requests.borrow().len(), 1, "no attempt before the wait is over");
-    fixture.routing.begin_pass();
+    fixture.routing.begin_pass_at(start + Duration::from_secs(1));
     let second = fixture.routing.consider_at(40, start + Duration::from_secs(1));
     assert!(matches!(&second, Outcome::Failed { attempt: 2, retry_in, .. } if *retry_in == Duration::from_secs(2)), "{second:?}");
     assert_eq!(fixture.routing.consider_at(40, start + Duration::from_millis(2500)), Outcome::Ignored);
-    fixture.routing.begin_pass();
+    fixture.routing.begin_pass_at(start + Duration::from_secs(3));
     let third = fixture.routing.consider_at(40, start + Duration::from_secs(3));
     assert!(matches!(third, Outcome::Adopted { pid: 40, .. }), "{third:?}");
     assert_eq!(fixture.routing.consider_at(40, start + Duration::from_secs(100)), Outcome::Ignored);
@@ -327,10 +343,15 @@ fn one_pass_spends_only_a_few_failed_moves() {
         make_process(&fixture.proc_root, &mise(pid));
     }
     let outcomes: Vec<Outcome> = (40..45).map(|pid| return fixture.routing.consider_at(pid, start)).collect();
-    assert_eq!(outcomes.iter().filter(|outcome| return matches!(outcome, Outcome::Failed { .. })).count(), 3);
-    assert_eq!(outcomes.iter().filter(|outcome| return matches!(outcome, Outcome::Deferred)).count(), 2);
-    assert_eq!(fixture.requests.borrow().len(), 3);
-    fixture.routing.begin_pass();
+    assert_eq!(outcomes.iter().filter(|outcome| return matches!(outcome, Outcome::Failed { .. })).count(), 2);
+    assert_eq!(outcomes.iter().filter(|outcome| return matches!(outcome, Outcome::Deferred { .. })).count(), 3);
+    assert_eq!(fixture.requests.borrow().len(), 2);
+    let postponed = outcomes.iter().find(|outcome| return matches!(outcome, Outcome::Deferred { .. })).expect("a postponed move");
+    let line = crate::update_report::describe_outcome(postponed).expect("a postponed move is reported");
+    assert!(line.contains("POLICY NOT IN FORCE"));
+    assert!(line.contains("at most two failed attempts"), "{line}");
+    assert_eq!(postponed.failure_kind(), Some("move postponed"));
+    fixture.routing.begin_pass_at(start + Duration::from_millis(1));
     assert!(matches!(fixture.routing.consider_at(43, start + Duration::from_millis(1)), Outcome::Failed { attempt: 1, .. }));
 }
 
@@ -344,11 +365,75 @@ fn a_timeout_blocks_further_moves_for_a_while() {
     let start = Instant::now();
     let hit = fixture.routing.consider_at(40, start);
     assert!(matches!(&hit, Outcome::Failed { error, .. } if error.contains("no move is attempted for")), "{hit:?}");
-    fixture.routing.begin_pass();
-    assert_eq!(fixture.routing.consider_at(41, start + Duration::from_secs(5)), Outcome::Deferred);
+    fixture.routing.begin_pass_at(start + Duration::from_secs(5));
+    let paused = fixture.routing.consider_at(41, start + Duration::from_secs(5));
+    assert!(matches!(&paused, Outcome::Deferred { pid: 41, why } if why.contains("did not answer in time")), "{paused:?}");
     assert_eq!(fixture.requests.borrow().len(), 1);
-    fixture.routing.begin_pass();
-    assert!(matches!(fixture.routing.consider_at(41, start + Duration::from_secs(31)), Outcome::Adopted { .. }));
+    fixture.routing.begin_pass_at(start + Duration::from_secs(11));
+    assert!(matches!(fixture.routing.consider_at(41, start + Duration::from_secs(11)), Outcome::Adopted { .. }));
+}
+
+/// A pass that has spent its time budget on moves postpones the rest and says why,
+/// so a slow manager cannot hold the watcher for long.
+#[test]
+fn a_pass_postpones_moves_after_its_time_budget() {
+    let mut fixture = fixture("time-budget", vec![]);
+    make_process(&fixture.proc_root, &mise(40));
+    make_process(&fixture.proc_root, &mise(41));
+    let start = Instant::now();
+    fixture.routing.begin_pass_at(start);
+    assert!(matches!(fixture.routing.consider_at(40, start), Outcome::Adopted { .. }));
+    let late = fixture.routing.consider_at(41, start + Duration::from_secs(3));
+    assert!(matches!(&late, Outcome::Deferred { pid: 41, why } if why.contains("time budget")), "{late:?}");
+    fixture.routing.begin_pass_at(start + Duration::from_secs(4));
+    assert!(matches!(fixture.routing.consider_at(41, start + Duration::from_secs(4)), Outcome::Adopted { .. }));
+}
+
+/// Stops a pass after a number of processes,
+/// the way a shutdown signal would.
+struct StopAfter {
+    /// Checks left before the pass is asked to stop.
+    remaining: std::cell::Cell<u32>,
+}
+
+/// The counting stop check.
+impl StopCheck for StopAfter {
+    /// Asks to stop once the count is used up.
+    fn stop_requested(&self) -> bool {
+        let left = self.remaining.get();
+        if left == 0 {
+            return true;
+        }
+        self.remaining.set(left - 1);
+        return false;
+    }
+}
+
+/// A shutdown signal that arrives during a rescan ends it between two processes,
+/// and the rest are left for the next rescan.
+#[test]
+fn a_rescan_stops_between_processes_when_asked_to() {
+    let mut fixture = fixture("stop", vec![]);
+    for pid in 40..46 {
+        make_process(&fixture.proc_root, &mise(pid));
+    }
+    let outcomes = fixture.routing.rescan_with(&SystemClock, &StopAfter { remaining: std::cell::Cell::new(2) });
+    assert_eq!(outcomes.iter().filter(|outcome| return matches!(outcome, Outcome::Adopted { .. })).count(), 2);
+    let rest = fixture.routing.rescan();
+    assert_eq!(rest.iter().filter(|outcome| return matches!(outcome, Outcome::Adopted { .. })).count(), 4);
+}
+
+/// The scope name carries the pid and its start time,
+/// so a reused pid never collides with a scope that still holds old descendants.
+#[test]
+fn a_reused_pid_gets_a_different_scope_label() {
+    let mut fixture = fixture("label", vec![]);
+    make_process(&fixture.proc_root, &mise(50));
+    assert!(matches!(fixture.routing.consider(50), Outcome::Adopted { .. }));
+    make_process(&fixture.proc_root, &Fake { start: 777, ..mise(50) });
+    assert!(matches!(fixture.routing.consider(50), Outcome::Adopted { .. }));
+    let labels: Vec<String> = fixture.requests.borrow().iter().map(|request| return request.scope_label.clone()).collect();
+    assert_eq!(labels, vec!["50-100".to_string(), "50-777".to_string()]);
 }
 
 /// Moves the matched process together with its live descendants of the same user in the same cgroup.
@@ -396,7 +481,7 @@ fn an_unreadable_process_is_reported_once() {
     std::fs::write(fixture.proc_root.join("70/exe"), b"not a link").expect("replace it by a file");
     let first = fixture.routing.consider(70);
     assert!(matches!(first, Outcome::Unreadable { pid: 70, .. }), "{first:?}");
-    assert!(first.is_failure());
+    assert!(first.failure_kind().is_some());
     assert_eq!(fixture.routing.consider(70), Outcome::Ignored);
 }
 

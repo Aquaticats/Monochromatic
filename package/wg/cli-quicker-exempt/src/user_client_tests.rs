@@ -104,3 +104,14 @@ fn failures_name_their_cause() {
     let start_error = missing.run(uid, gid, &[]).expect_err("no such client");
     assert!(matches!(start_error, ClientError::NotStarted(_)));
 }
+
+/// What the client printed is returned,
+/// which is how the id of a notification is read.
+#[test]
+fn the_output_of_the_client_is_returned() {
+    let directory = scratch("output");
+    let fake = script(&directory, "echo 'u 42'");
+    let client = UserClient { program: fake.to_string_lossy().into_owned(), timeout: Duration::from_secs(5) };
+    let (uid, gid) = own_ids();
+    assert_eq!(client.run(uid, gid, &[]).expect("the client succeeds"), "u 42\n");
+}

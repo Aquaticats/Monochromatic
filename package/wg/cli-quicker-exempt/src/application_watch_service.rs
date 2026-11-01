@@ -27,10 +27,14 @@ use crate::update_entry_points::install_roots;
 use crate::scope_adoption::BusctlAdopter;
 /// The watched user's account.
 use crate::user_account::lookup_user;
+/// Non-panicking output and escaping.
+use crate::log_line::{log_line, sanitize, write_unchecked};
+/// The death watch of the watcher.
+use crate::watcher_sentinel::SENTINEL_COMMAND;
 /// The policy engine and its setup.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.
-use crate::update_report::{policy_notice, POLICY_NOT_IN_FORCE_MARKER};
+use crate::update_report::{policy_failure, policy_notice, POLICY_NOT_IN_FORCE_MARKER};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
 /// The account of the watched user.
@@ -126,6 +130,24 @@ fn read_watch_log(key: &str) -> io::Result<String> {
     }
 }
 
+/// Most bytes of the watcher log read to relay its startup reports.
+const MAX_RELAY_BYTES: u64 = 1_048_576;
+
+/// Reads at most `MAX_RELAY_BYTES` of the watcher log from byte `offset` on,
+/// so a long-lived log is never read whole.
+fn read_watch_log_since(key: &str, offset: u64) -> io::Result<String> {
+    let path = watch_log_path(key)?;
+    let mut file = match std::fs::File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(String::new()),
+        Err(error) => return Err(error),
+    };
+    io::Seek::seek(&mut file, io::SeekFrom::Start(offset))?;
+    let mut bytes: Vec<u8> = Vec::new();
+    io::Read::read_to_end(&mut io::Read::take(file, MAX_RELAY_BYTES), &mut bytes)?;
+    return Ok(String::from_utf8_lossy(&bytes).into_owned());
+}
+
 /// Size of the watcher log now,
 /// zero when it does not exist yet.
 fn watch_log_length(key: &str) -> u64 {
@@ -154,9 +176,9 @@ pub fn failure_lines_since(log: &str, offset: u64) -> Vec<String> {
 /// so a failure at startup reaches the terminal that ran `up`.
 /// The log stays the full record.
 fn forward_startup_failures(key: &str, offset: u64) -> io::Result<()> {
-    let text = read_watch_log(key)?;
-    for line in failure_lines_since(&text, offset) {
-        eprintln!("{line}");
+    let text = read_watch_log_since(key, offset)?;
+    for line in failure_lines_since(&text, 0) {
+        write_unchecked(&sanitize(&line));
     }
     return Ok(());
 }
@@ -247,6 +269,28 @@ fn spawn_watch_candidate(
     });
 }
 
+/// Starts the detached sentinel that reports the watcher's own death.
+fn spawn_sentinel(key: &str, process: WatchProcess, gid: u32) -> io::Result<()> {
+    let executable = std::env::current_exe()?;
+    let mut command = Command::new(executable);
+    command
+        .arg(SENTINEL_COMMAND)
+        .arg(key)
+        .arg(process.pid.to_string())
+        .arg(process.start_time.to_string())
+        .arg(process.uid.to_string())
+        .arg(gid.to_string())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    // SAFETY: setsid is async-signal-safe and isolates the sentinel from the invoking terminal.
+    unsafe {
+        command.pre_exec(start_new_session);
+    }
+    let _sentinel = command.spawn()?;
+    return Ok(());
+}
+
 /// Starts fresh watcher after validated old watcher shutdown.
 pub fn start_application_watch(
     key: &str,
@@ -254,8 +298,8 @@ pub fn start_application_watch(
     uid: u32,
 ) -> io::Result<()> {
     stop_application_watch(key)?;
-    let (_account, roots) = user_install_roots(uid)?;
-    eprintln!("{}", policy_notice(&roots));
+    let (account, roots) = user_install_roots(uid)?;
+    write_unchecked(&policy_notice(&roots, &account.home));
     let log_offset = watch_log_length(key);
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
@@ -276,7 +320,15 @@ pub fn start_application_watch(
     // failing to relay its startup reports must not undo that,
     // but it must be said.
     if let Err(error) = forward_startup_failures(key, log_offset) {
-        eprintln!("wg-quicker-exempt: the watcher started, but its startup reports could not be read from its log: {error}");
+        write_unchecked(&format!(
+            "wg-quicker-exempt: the watcher started, but its startup reports could not be read from its log: {}",
+            sanitize(&error.to_string())
+        ));
+    }
+    if let Err(error) = spawn_sentinel(key, candidate.process, account.gid) {
+        write_unchecked(&policy_failure(&format!(
+            "the sentinel that reports the watcher's own death could not start ({error}), so if the watcher is killed or runs out of memory nothing will say so"
+        )));
     }
     return Ok(());
 }
@@ -295,7 +347,7 @@ pub fn run_application_watch_child(
         cgroup_root: Path::new("/sys/fs/cgroup"),
     };
     let (account, install_root_list) = user_install_roots(uid)?;
-    eprintln!("{}", policy_notice(&install_root_list));
+    log_line(&policy_notice(&install_root_list, &account.home));
     let routing = UpdateRouting::new(RoutingSetup {
         uid,
         gid: account.gid,
@@ -305,14 +357,14 @@ pub fn run_application_watch_child(
         adopter: Box::new(BusctlAdopter::new()),
     });
     let mut watch = prepare_application_watch(roots, mark, routing, RuntimeReporter::new(uid, account.gid))?;
-    println!("{READY}");
+    writeln!(io::stdout(), "{READY}")?;
     io::stdout().flush()?;
     let mut commit = String::new();
     io::stdin().lock().read_line(&mut commit)?;
     if commit.trim_end() != COMMIT {
         return Ok(());
     }
-    println!("{COMMITTED}");
+    writeln!(io::stdout(), "{COMMITTED}")?;
     io::stdout().flush()?;
     return run_application_watch(&mut watch);
 }

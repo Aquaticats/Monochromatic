@@ -6,6 +6,12 @@ use crate::application_targets::{scan_application_targets, ScanRoots};
 use crate::process_events::{drain_exec_events, subscribe};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
+/// Non-panicking bounded log.
+use crate::log_line::{log_line, sanitize};
+/// Shutdown signal descriptors.
+use crate::signal_descriptor::{consume_signal, create_signal_fd, owned_descriptor, SignalPending};
+/// Policy engine and its seams.
+use crate::routing_support::{StopCheck, SystemClock};
 /// Policy engine.
 use crate::update_routing::UpdateRouting;
 /// The words of the policy.
@@ -17,7 +23,7 @@ use crate::bpf::{attach_marker_unpinned, MarkerLinks};
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{AsRawFd, OwnedFd};
 /// Raw Unix path bytes for inotify watch registration.
 use std::os::unix::ffi::OsStrExt;
 /// Target paths.
@@ -64,47 +70,6 @@ pub struct ApplicationWatch<'a> {
 /// It is a duration and not a count of loop wakeups,
 /// because a busy event stream wakes the loop far more often than the poll timeout.
 const FULL_SCAN_INTERVAL: Duration = Duration::from_secs(2);
-
-/// Creates owned descriptor from successful nonnegative syscall return.
-fn owned_descriptor(raw: libc::c_int) -> io::Result<OwnedFd> {
-    if raw < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: successful syscall returned a new descriptor owned by caller.
-    return Ok(unsafe { OwnedFd::from_raw_fd(raw) });
-}
-
-/// Blocks termination signals and returns signalfd receiving them.
-fn create_signal_fd() -> io::Result<OwnedFd> {
-    // SAFETY: zeroed signal set is initialized immediately by sigemptyset.
-    let mut mask: libc::sigset_t = unsafe { std::mem::zeroed() };
-    // SAFETY: mask points to writable signal set.
-    if unsafe { libc::sigemptyset(&mut mask) } < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: mask remains initialized and writable.
-    if unsafe { libc::sigaddset(&mut mask, libc::SIGTERM) } < 0
-        || unsafe { libc::sigaddset(&mut mask, libc::SIGINT) } < 0
-    {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: blocks selected signals in dedicated watcher process before child threads exist.
-    let mask_result = unsafe {
-        libc::pthread_sigmask(libc::SIG_BLOCK, &mask, std::ptr::null_mut())
-    };
-    if mask_result != 0 {
-        return Err(io::Error::from_raw_os_error(mask_result));
-    }
-    // SAFETY: signalfd copies mask during call and returns newly owned descriptor.
-    let raw = unsafe {
-        libc::signalfd(
-            -1,
-            &mask,
-            libc::SFD_CLOEXEC | libc::SFD_NONBLOCK,
-        )
-    };
-    return owned_descriptor(raw);
-}
 
 /// Reports the `app.slice` path error for an embedded NUL byte.
 fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
@@ -197,24 +162,6 @@ fn drain_inotify(inotify: &OwnedFd) -> io::Result<()> {
     }
 }
 
-/// Reads one signalfd record and confirms shutdown event was delivered.
-fn consume_signal(signals: &OwnedFd) -> io::Result<()> {
-    // SAFETY: zeroed record is writable output storage for signalfd read.
-    let mut signal: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
-    // SAFETY: output pointer and length describe complete signalfd record.
-    let count = unsafe {
-        libc::read(
-            signals.as_raw_fd(),
-            std::ptr::addr_of_mut!(signal).cast(),
-            std::mem::size_of::<libc::signalfd_siginfo>(),
-        )
-    };
-    if count < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    return Ok(());
-}
-
 /// Installs watch before scan,
 ///  then rescans after draining creation race events.
 pub fn prepare_application_watch(
@@ -226,17 +173,19 @@ pub fn prepare_application_watch(
     let inotify = create_inotify(roots.app_slice)?;
     let signals = create_signal_fd()?;
     if let Err(error) = routing.ensure_slice(roots.app_slice) {
-        eprintln!("{}", policy_failure(&format!("the updates slice cannot be created: {error}")));
+        log_line(&policy_failure(&format!("the updates slice cannot be created: {error}")));
+    }
+    if !routing.pid_namespace_known() {
+        log_line(&policy_failure(
+            "the watcher cannot read its own pid namespace, so a process in a container or a sandbox cannot be told apart and is treated like any other",
+        ));
     }
     let events = match subscribe() {
         Ok(socket) => Some(socket),
         Err(error) => {
-            eprintln!(
-                "{}",
-                policy_failure(&format!(
-                    "the kernel process-event subscription failed: {error}; update entry points are found only by the periodic scan"
-                ))
-            );
+            log_line(&policy_failure(&format!(
+                "the kernel process-event subscription failed: {error}; update entry points are found only by the periodic scan"
+            )));
             None
         }
     };
@@ -254,53 +203,67 @@ pub fn prepare_application_watch(
     reconcile(&mut watch)?;
     drain_inotify(&watch.inotify)?;
     reconcile(&mut watch)?;
-    let outcomes = watch.routing.rescan();
+    let outcomes = watch.routing.rescan_with(&SystemClock, &SignalPending { signals: &watch.signals });
     report_outcomes(&mut watch.reporter, &outcomes);
     return Ok(watch);
 }
 
 /// Delivers each outcome that needs saying:
-/// a failure through the reporter so a person sees it,
+/// a failure through the reporter,
+/// by its kind,
+/// so a person sees it,
 /// and a successful move to the log.
 fn report_outcomes(reporter: &mut RuntimeReporter, outcomes: &[Outcome]) {
     for outcome in outcomes {
         let Some(line) = describe_outcome(outcome) else {
             continue;
         };
-        if outcome.is_failure() {
-            reporter.report_failure(&line);
-        } else {
-            eprintln!("{line}");
+        match outcome.failure_kind() {
+            Some(kind) => {
+                reporter.report_failure(kind, &line);
+            }
+            None => log_line(&line),
         }
     }
 }
 
 /// Applies the exec events the kernel queued,
 /// and falls back to a full scan after an overrun or when the scan interval passed.
+/// A shutdown signal that arrives meanwhile ends the work between two processes.
+/// A socket that fails to be read is dropped,
+/// so a persistent error is reported once instead of spinning the loop,
+/// and the periodic scan carries on alone.
 fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
     let mut full_scan = false;
     watch.routing.begin_pass();
-    if let Some(socket) = &watch.events {
-        match drain_exec_events(socket) {
-            Ok(drained) => {
-                if drained.overrun {
-                    watch.reporter.report_failure(&policy_failure("the kernel dropped process events; every process is rescanned now"));
-                    full_scan = true;
-                }
-                for pid in drained.pids {
-                    let outcome = watch.routing.consider(pid);
-                    report_outcomes(&mut watch.reporter, &[outcome]);
-                }
+    let drain_result = watch.events.as_ref().map(drain_exec_events);
+    match drain_result {
+        Some(Ok(batch)) => {
+            if batch.overrun {
+                watch.reporter.report_failure("process events dropped", &policy_failure("the kernel dropped process events; every process is rescanned now"));
+                full_scan = true;
             }
-            Err(error) => {
-                watch.reporter.report_failure(&policy_failure(&format!(
-                    "reading process events failed: {error}; the periodic scan continues"
-                )));
+            for pid in batch.pids {
+                if (SignalPending { signals: &watch.signals }).stop_requested() {
+                    return;
+                }
+                let outcome = watch.routing.consider(pid);
+                report_outcomes(&mut watch.reporter, &[outcome]);
             }
         }
+        Some(Err(error)) => {
+            watch.events = None;
+            watch.reporter.report_failure(
+                "process events unreadable",
+                &policy_failure(&format!(
+                    "reading process events failed: {error}; the socket is dropped, and update entry points are found only by the periodic scan from now on"
+                )),
+            );
+        }
+        None => {}
     }
     if full_scan || watch.last_full_scan.elapsed() >= FULL_SCAN_INTERVAL {
-        let outcomes = watch.routing.rescan();
+        let outcomes = watch.routing.rescan_with(&SystemClock, &SignalPending { signals: &watch.signals });
         report_outcomes(&mut watch.reporter, &outcomes);
         watch.last_full_scan = Instant::now();
     }
@@ -312,10 +275,14 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
 pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
     let result = poll_until_stopped(watch);
     if let Err(error) = &result {
-        watch.reporter.report_failure(&format!(
-            "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups, and {POLICY_PROCESS_WATCH}: \
-the watcher stopped because {error}, and neither is enforced any more; run wg-quicker up again after fixing the cause"
-        ));
+        watch.reporter.report_failure(
+            "watcher stopped",
+            &format!(
+                "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups, and {POLICY_PROCESS_WATCH}: \
+the watcher stopped because {}, and neither is enforced any more; run wg-quicker up again after fixing the cause",
+                sanitize(&error.to_string())
+            ),
+        );
     }
     return result;
 }
@@ -370,9 +337,13 @@ fn poll_until_stopped(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
         if cgroup_event || last_reconcile.elapsed().as_millis() >= RESCAN_INTERVAL_MS as u128 {
             last_reconcile = Instant::now();
             if let Err(error) = reconcile(watch) {
-                watch.reporter.report_failure(&format!(
-                    "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups: the rescan failed: {error}"
-                ));
+                watch.reporter.report_failure(
+                    "socket marking rescan failed",
+                    &format!(
+                        "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups: the rescan failed: {}",
+                        sanitize(&error.to_string())
+                    ),
+                );
             }
         }
         handle_process_events(watch);

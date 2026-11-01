@@ -133,6 +133,13 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   The home comes from the system user database for the watched uid,
   in the spelling the user database gives and its resolved spelling.
   A custom `XDG_DATA_HOME` is not seen by the root watcher.
+  A root that is a link,
+  or that sits below one,
+  also counts as the directory it points to,
+  resolved when the watcher starts,
+  because a resolved executable path names that place;
+  a link created later is not seen until the next start.
+  The start notice lists installed tools only from real directories that stay inside the home.
   The roots cover every program the toolchain installed,
   so every script and dev server run by the toolchain's node leaves the tunnel too,
   not only updates;
@@ -208,13 +215,23 @@ then two,
 then four,
 up to a minute between attempts,
 and each failure is reported with its attempt number.
-One pass spends at most three failed attempts and postpones the rest.
+One pass spends at most two failed attempts and two seconds on moves,
+and postpones the rest;
+a postponed move is reported with the reason (`move postponed`),
+because until it is tried again its traffic uses the tunnel.
 The `busctl` client is killed after three seconds,
-and a timeout pauses all moves for thirty seconds,
+and a timeout pauses all moves for ten seconds,
 so a hung manager cannot stall the watcher for long.
+A shutdown signal is checked between two processes,
+so a long pass does not leave it waiting.
+The scope is named `wg-quicker-update-<pid>-<start time>.scope`,
+so a reused pid never collides with a scope that still holds the old process's descendants.
 A process of the watched user that the watcher may not inspect is reported once,
 and is not mistaken for one that exited.
-A process in another pid namespace (a container or a sandbox) is reported and left alone.
+A process in another pid namespace (a container or a sandbox) is reported and left alone,
+and so is a process whose pid namespace link cannot be read,
+because it cannot be told apart from one.
+A watcher that cannot read its own pid namespace says so at start.
 
 The new scope carries the limits of the cgroup the process left,
 so moving a process for routing never loosens a cap such as the CPU quota of `claude-code-bash`.
@@ -267,31 +284,107 @@ No failure invents a fallback route.
 
 The watcher runs detached,
 and its standard error is a log file nobody reads while working.
-A failure after startup is therefore delivered three ways:
+The owner chose "Notification + journal":
+every failure goes to the system journal at error level and to a desktop notification for the tunnel's user,
+rate limited so a repeating failure does not flood.
+A failure after startup is delivered through three channels,
+each with its own limit per failure kind:
 
-- the log file,
-  the watcher's standard error;
+- the log file once per kind every ten seconds;
 - the system journal,
   under the identifier `wg-quicker-exempt`,
   at error level (`journalctl --identifier=wg-quicker-exempt`),
-  once per distinct failure per minute;
+  once per kind every minute;
 - a desktop notification to the watched user through `org.freedesktop.Notifications`,
   sent with `busctl` as that user,
-  once per distinct failure every ten minutes.
+  once per kind every ten minutes.
 
-Two failures are the same when they differ only in digits such as pids and durations.
+The limit keys on the kind of failure (`move failed`,
+`move skipped`,
+`move postponed`,
+`process unreadable`,
+`process list unreadable`,
+`process events dropped`,
+`process events unreadable`,
+`socket marking rescan failed`,
+`watcher stopped`,
+`watcher died`) and never on the text,
+because the text embeds names a user chose,
+such as a cgroup path,
+and distinct names would defeat a text key.
+The map of remembered kinds is bounded;
+when it is full the oldest kind is forgotten.
 A repeat held back by the limit is counted,
-and the next delivery of that failure says "repeated N more time(s) since the last report",
-so a failure that repeats every second or two cannot flood the journal or the desktop and no occurrence is lost.
-The log file receives every failure.
-The route watcher of `wg-quicker` delivers its own failures after startup the same way,
-under the identifier `wg-quicker`.
+and the next delivery of that kind says "repeated N more time(s) since the last report",
+so no occurrence is lost from the record.
 
-A channel that fails is named in the log,
-and no channel failure changes routing.
+A notification never blocks the watcher.
+A worker thread sends it through a queue of eight;
+when the queue is full the notification is refused and the refusal is named in the log.
+A later notification of the same kind replaces the earlier one on the desktop
+(the id `Notify` returned is passed as `replaces_id`),
+and each notification expires after the interval,
+so one persistent failure shows one notification and not six an hour.
+
+Nothing here can panic.
+The standard `eprintln!` panics when a write fails,
+for example on a full `/run` tmpfs,
+and a panic would end every policy the watcher enforces without a word;
+every write is a plain `write` whose failure is ignored.
+One channel failing never keeps the others from receiving the report,
+and the failing channel is named in the log.
+The log is bounded too:
+256 KiB per hour and 4 MiB over the life of the watcher,
+after which the log says so once and drops lines
+(the journal and the desktop still receive failures).
+A start reads at most 1 MiB of the log to relay its startup reports.
+
+Text that a user chose reaches a line escaped.
+Every loud line is built through one function that escapes control characters,
+escape sequences,
+line breaks and direction marks as `\u{XXXX}`,
+so a cgroup name cannot repaint the terminal that ran `watch-start`,
+start a second journal line or end the line early;
+the notification body also has `<`,
+`>` and `&` turned into entities,
+and the startup relay escapes again.
+
 The loop ending on an error is reported the same way before the watcher exits,
 naming that neither the socket marking nor the process watch is enforced any more.
+A process-event socket that fails to be read is dropped and reported once,
+so a persistent error cannot spin the loop;
+the periodic scan carries on alone.
 Successful moves are logged to the file only.
+
+### When the watcher itself dies
+
+The watcher cannot report its own death when `SIGKILL`,
+the out-of-memory killer or `systemd-oomd` ends it,
+and from then on neither the socket marking nor the process watch is enforced.
+A second small process,
+the sentinel (`__sentinel`),
+is started by `watch-start` after the watcher committed.
+It waits on the watcher through a process file descriptor (`pidfd_open`),
+which refers to the process itself and so cannot be fooled by a reused pid;
+where the kernel has none it polls the start time of the pid.
+When the watcher is gone the sentinel waits one and a half seconds,
+then reads the watcher's state:
+if `watch-stop` removed it,
+or a newer start replaced it,
+the end was asked for and the sentinel exits quietly;
+if it still names the dead watcher,
+the death was not asked for and the sentinel reports it (kind `watcher died`) through the same channels,
+naming both policies as not in force and telling to run `wg-quicker up` again,
+and waits for the notification to be sent before it exits.
+An unreadable state is reported too,
+as unknown.
+A watcher killed by a clean system shutdown may be reported if the sentinel outlives it by a moment;
+the notification then fails harmlessly.
+The limit is stated plainly:
+if the sentinel is killed first,
+or both die together,
+nothing reports it.
+The bypass route watcher of `wg-quicker` has its own sentinel.
 
 ### Verification
 

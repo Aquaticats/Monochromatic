@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 
 /// How long a client may run before it is killed.
 pub const CLIENT_TIMEOUT: Duration = Duration::from_secs(3);
+/// Most bytes of standard output kept from a client.
+const MAX_OUTPUT_BYTES: u64 = 65_536;
 /// Pause between exit checks.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
@@ -87,9 +89,11 @@ impl UserClient {
     }
 
     /// Runs the client as the target user against that user's manager bus,
-    /// failing when it exits nonzero or runs past its timeout.
+    /// failing when it exits nonzero or runs past its timeout,
+    /// and returns what it printed to standard output,
+    /// at most `MAX_OUTPUT_BYTES` of it.
     /// The environment is cleared and holds only `PATH` and the user's runtime directory.
-    pub fn run(&self, uid: u32, gid: u32, arguments: &[String]) -> Result<(), ClientError> {
+    pub fn run(&self, uid: u32, gid: u32, arguments: &[String]) -> Result<String, ClientError> {
         // SAFETY: geteuid has no preconditions.
         let as_root = unsafe { libc::geteuid() } == 0;
         let (program, full_arguments) = client_command(&self.program, uid, gid, arguments, as_root);
@@ -100,7 +104,7 @@ impl UserClient {
             .env("PATH", "/usr/bin:/bin")
             .env("XDG_RUNTIME_DIR", format!("/run/user/{uid}"))
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
+            .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = command.spawn().map_err(ClientError::NotStarted)?;
         let started = Instant::now();
@@ -108,7 +112,11 @@ impl UserClient {
             match child.try_wait() {
                 Ok(Some(status)) => {
                     if status.success() {
-                        return Ok(());
+                        let mut output = String::new();
+                        if let Some(stdout) = child.stdout.take() {
+                            let _read = io::Read::read_to_string(&mut io::Read::take(stdout, MAX_OUTPUT_BYTES), &mut output);
+                        }
+                        return Ok(output);
                     }
                     let mut message = String::new();
                     if let Some(mut stderr) = child.stderr.take() {

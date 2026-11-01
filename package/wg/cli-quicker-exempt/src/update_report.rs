@@ -7,11 +7,13 @@
 
 /// Slice and cgroup names.
 use crate::application_targets::TOOLCHAIN_UPDATES_SLICE;
+/// Escaping of untrusted text.
+use crate::log_line::sanitize;
 /// Why a process matched,
 /// and the installed tool names.
 use crate::update_entry_points::{installed_tool_names, MatchReason};
 /// Install root paths.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 /// Retry waits.
 use std::time::Duration;
 
@@ -27,8 +29,8 @@ pub const POLICY_NOT_IN_FORCE_MARKER: &str = "POLICY NOT IN FORCE";
 /// so anyone using the wg tools knows before traffic flows.
 /// `install_roots` are the watched user's toolchain roots,
 /// whose entries the notice lists as installed now.
-pub fn policy_notice(install_roots: &[PathBuf]) -> String {
-    let installed = installed_tool_names(install_roots);
+pub fn policy_notice(install_roots: &[PathBuf], home: &Path) -> String {
+    let installed = installed_tool_names(install_roots, home);
     let installed_text = if installed.is_empty() { "nothing yet".to_string() } else { installed.join(", ") };
     return [
         "wg-quicker-exempt: POLICY NOTICE. By the repository's policy, and without any switch, this traffic leaves outside the tunnel".to_string(),
@@ -43,6 +45,7 @@ pub fn policy_notice(install_roots: &[PathBuf]) -> String {
         "    together with its command-line words, the tail of a toolchain script path, any executable named mpm,".to_string(),
         "    and any executable under the install roots, which are inside a home directory the user can write.".to_string(),
         "    Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.".to_string(),
+        "    A root that is a link counts as the directory it points to.".to_string(),
         "  - Not covered: processes in another pid namespace (containers and sandboxes), and processes the user's service manager".to_string(),
         "    cannot move (login sessions and the main process of a service); each is reported when it matches.".to_string(),
         "  - Moved processes keep the CPU, memory and task limits of the cgroup they left, as their own limits.".to_string(),
@@ -53,8 +56,14 @@ pub fn policy_notice(install_roots: &[PathBuf]) -> String {
 }
 
 /// Builds the loud report for a policy that cannot be enforced.
+/// Every character that could start an escape sequence or end the line is escaped,
+/// because the detail often embeds names a user chose,
+/// such as a cgroup path,
+/// and the line reaches a log,
+/// the journal
+/// and a terminal.
 pub fn policy_failure(detail: &str) -> String {
-    return format!("wg-quicker-exempt: {POLICY_NOT_IN_FORCE_MARKER}: {POLICY_PROCESS_WATCH}: {detail}");
+    return format!("wg-quicker-exempt: {POLICY_NOT_IN_FORCE_MARKER}: {POLICY_PROCESS_WATCH}: {}", sanitize(detail));
 }
 
 /// What considering one process led to.
@@ -66,10 +75,14 @@ pub enum Outcome {
     Ignored,
     /// The process already runs in the slice.
     AlreadyInSlice,
-    /// The process matched but the attempt was postponed,
-    /// because earlier attempts in this pass failed or the manager did not answer in time.
+    /// The process matched but the attempt was postponed.
     /// It is tried again on a later pass.
-    Deferred,
+    Deferred {
+        /// Matched process.
+        pid: i32,
+        /// Why the attempt was postponed.
+        why: &'static str,
+    },
     /// The process matched and was moved with its descendants.
     Adopted {
         /// Matched process.
@@ -115,17 +128,32 @@ pub enum Outcome {
 
 /// Classification of outcomes.
 impl Outcome {
-    /// Reports whether the outcome means the policy is not in force for some process.
-    pub fn is_failure(&self) -> bool {
-        return matches!(self, Outcome::Skipped { .. } | Outcome::Failed { .. } | Outcome::Unreadable { .. } | Outcome::ScanFailed { .. });
+    /// The failure kind when the outcome means the policy is not in force for some process.
+    /// The kind,
+    /// not the text,
+    /// decides what counts as a repeat of a report,
+    /// because the text embeds names a user chose.
+    pub fn failure_kind(&self) -> Option<&'static str> {
+        return match self {
+            Outcome::Skipped { .. } => Some("move skipped"),
+            Outcome::Failed { .. } => Some("move failed"),
+            Outcome::Deferred { .. } => Some("move postponed"),
+            Outcome::Unreadable { .. } => Some("process unreadable"),
+            Outcome::ScanFailed { .. } => Some("process list unreadable"),
+            Outcome::Ignored | Outcome::AlreadyInSlice | Outcome::Adopted { .. } => None,
+        };
     }
+
 }
 
 /// Formats an outcome for the watcher log,
 /// or `None` when nothing needs saying.
 pub fn describe_outcome(outcome: &Outcome) -> Option<String> {
     return match outcome {
-        Outcome::Ignored | Outcome::AlreadyInSlice | Outcome::Deferred => None,
+        Outcome::Ignored | Outcome::AlreadyInSlice => None,
+        Outcome::Deferred { pid, why } => Some(policy_failure(&format!(
+            "pid {pid} matched but its move was postponed ({why}); it is tried again on a later pass, and until then its traffic uses the tunnel"
+        ))),
         Outcome::Adopted { pid, reason, count, left_behind } => {
             let mut line = format!(
                 "wg-quicker-exempt: moved pid {pid} ({}) and {} descendant(s) into {TOOLCHAIN_UPDATES_SLICE}",

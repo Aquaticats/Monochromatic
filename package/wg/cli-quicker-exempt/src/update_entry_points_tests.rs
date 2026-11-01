@@ -288,3 +288,22 @@ fn listed_toolchain_scripts_exist() {
         assert!(repository_root().join(&relative).is_file(), "{relative}");
     }
 }
+
+/// A root that is a link is also known by the place it points to,
+/// because a resolved executable path names that place.
+#[test]
+fn a_linked_root_matches_through_the_place_it_points_to() {
+    let base = crate::test_scratch::scratch_root().join(format!("wg-quicker-roots-{}", std::process::id()));
+    let _removed = std::fs::remove_dir_all(&base);
+    let home = base.join("home");
+    let target = base.join("elsewhere");
+    std::fs::create_dir_all(home.join(".local/share/monochromatic-dev")).expect("make the data directory");
+    std::fs::create_dir_all(target.join("node/bin")).expect("make the link target");
+    std::os::unix::fs::symlink(&target, home.join(".local/share/monochromatic-dev/toolchain")).expect("link the root");
+    let roots = install_roots(&home, None);
+    let resolved = std::fs::canonicalize(&target).expect("resolve the target");
+    assert!(roots.contains(&resolved), "{roots:?}");
+    let exe = resolved.join("node/bin/node");
+    assert_eq!(classify(&exe, &words(&["tool"]), &roots), Some(MatchReason::ToolchainPath));
+    assert_eq!(classify(Path::new("/usr/bin/curl"), &words(&["tool"]), &roots), None);
+}

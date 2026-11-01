@@ -135,7 +135,7 @@ fn own_ids() -> (u32, u32) {
 /// Builds a request for pid 77 with the given limits.
 fn request<'a>(limits: &'a InheritedLimits, pids: &'a [i32]) -> AdoptRequest<'a> {
     let (uid, gid) = own_ids();
-    return AdoptRequest { pids, uid, gid, slice: SLICE, limits };
+    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_label: "77-1234" };
 }
 
 /// Runs the client against the user's bus path and confirms the move.
@@ -147,7 +147,7 @@ fn a_successful_adoption_runs_busctl_with_the_user_bus_and_confirms_the_move() {
     adopter.adopt(&request(&limits, &[77])).expect("the move is confirmed");
     let recorded = std::fs::read_to_string(log).expect("read the log");
     assert!(recorded.contains("StartTransientUnit"));
-    assert!(recorded.contains("wg-quicker-update-77.scope"));
+    assert!(recorded.contains("wg-quicker-update-77-1234.scope"));
     assert!(recorded.contains("MemoryMax\nt\n4096"));
     assert!(recorded.contains(&format!("env=/run/user/{uid}")));
 }
@@ -235,7 +235,7 @@ fn the_real_manager_adopts_a_sleeping_child() {
     let limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), ..InheritedLimits::default() };
     let started = Instant::now();
     let (uid, gid) = own_ids();
-    let result = BusctlAdopter::new().adopt(&AdoptRequest { pids: &[pid], uid, gid, slice, limits: &limits });
+    let result = BusctlAdopter::new().adopt(&AdoptRequest { pids: &[pid], uid, gid, slice, limits: &limits, scope_label: &format!("{pid}-1") });
     let elapsed = started.elapsed();
     let shown = std::process::Command::new("systemctl")
         .args(["--user", "show", &format!("wg-quicker-update-{pid}.scope"), "--property=MemoryMax,CPUQuotaPerSecUSec,TasksMax"])

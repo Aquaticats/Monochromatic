@@ -41,6 +41,10 @@ pub struct AdoptRequest<'a> {
     /// Limits the scope carries,
     /// read from the cgroup the processes leave.
     pub limits: &'a InheritedLimits,
+    /// Text that makes the scope name unique,
+    /// the matched pid with its start time,
+    /// because a reused pid must not collide with a scope that still holds its old descendants.
+    pub scope_label: &'a str,
 }
 
 /// Why an adoption did not happen.
@@ -218,10 +222,10 @@ impl Adopter for BusctlAdopter {
         let Some(first) = request.pids.first() else {
             return Err(AdoptError::Failed("no pid to adopt".to_string()));
         };
-        let scope_name = format!("wg-quicker-update-{first}.scope");
+        let scope_name = format!("wg-quicker-update-{}.scope", request.scope_label);
         let arguments = adopt_arguments(&scope_name, request.slice, request.pids, request.limits);
         match self.client.run(request.uid, request.gid, &arguments) {
-            Ok(()) => {}
+            Ok(_output) => {}
             Err(ClientError::TimedOut(text)) => return Err(AdoptError::TimedOut(text)),
             Err(error) => {
                 if !self.process_exists(*first) {
