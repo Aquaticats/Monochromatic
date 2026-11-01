@@ -1402,7 +1402,51 @@ each finished branch is reviewed and merged into `main`):
   Design note,
   not acted on:
   a rebuild with hashed lazy chunks can break any long-running server started from `dist`.
-- #2576:
+- CI crate releases landed as `bae8ccba5b`
+  ("merge: land the crate-release CLI redesign from worktree-agent-ae9152410c9c52921").
+  The merge conflicted with `3f0bff8248` (#3371, test expectations from named constants)
+  in `cli.unit.test.ts` and `release-steps.unit.test.ts`:
+  kept the branch's lock step (`cargo update --workspace` in the lock directory) written with main's constants,
+  and dropped the `taskRunnerProgram` import the branch removed.
+  Checked before committing:
+  `lint:types` clean,
+  `lint:oxlint` 0 warnings and 0 errors,
+  `test:unit` 76 PASS lines including the three resolved tests.
+  This session's commit was refused (`commit-only/pathspec-required`;
+  the wrapper suggests `--no-only` for a whole-index commit),
+  and another session's commit landed the staged merge with its own message
+  (verified:
+  my resolution,
+  the branch's 52 files,
+  on origin).
+  Lesson for the next merge in the shared checkout:
+  commit it with `git commit --no-only` at once,
+  because a staged merge is swept into the next session's commit.
+  Note:
+  `mise run a b c` runs only `a` and passes `b c` to it as arguments;
+  run each task separately.
+- forbidden-strings 0.6.1 from CI:
+  dry run `41287463221` succeeded (release success, publish skipped);
+  real run `41303293802` started,
+  watched with `release:wait`.
+- #2576 decided 2026-11-01 in the question tool:
+  "llama.cpp + GGUF (Recommended)" and "Documented command (Recommended)".
+  The research note is merged (`doc/research/xiaomi-ocr-without-python.md`).
+  An agent is verifying the CPU build in a capped container,
+  then adding the global plan entry (`llama-cpu-cli`),
+  pinning the weights and documenting the command line.
+  The owner's request:
+  "gh issue #2576. But prioritize cutover first."
+- wg review fixes returned (`15db705ec1..f7217a7b5b`, six commits),
+  under re-review.
+  The live apply order changed:
+  the old-scope sweep is built into the watcher's start,
+  so the order is build both packages,
+  `down` with the new build,
+  `up`,
+  then read the watcher's "swept the scopes of the earlier design" line.
+  Old-style scope count rising about 30 a minute (5289 at the agent's last read).
+- #2576 earlier:
   the owner asked "What is going on? Why are we writing any Python?"
   after the dependency questions;
   their answers so far (torchvision kept, `uv_build`, `argparse`) assume the wrapper,
