@@ -2277,6 +2277,20 @@ Wave-4 sixty-fourth checkpoint (2026-11-01, electron-infra closed, search-mcp re
   rolldown-import-attributes 001 rr-ria-001, search-mcp retry 001 rr-sfm-002,
   islands-black 001 rr-iib-001, and runtime-error/bun 001 rr-reb-001.
 
+Wave-4 sixty-fifth checkpoint (2026-11-01, islands-black closed):
+
+- `w5-intellij-islands-black` is COMPLETE: 5 rows, 5 of 5 clean; 13 tracked
+  files accounted for, including the 427/674/165-line licenses, the jar entries
+  and the screenshot. The blocker is the `since-build='233'` floor against the
+  Islands Dark parent that ships from 2025.3; the repository already tracks that
+  exact pair as issue 1360, so its `dedupe_keywords` now carry `1360` and
+  `issue 1360` for the filing pass. Next id 006 if a new row appears.
+- The freed slot opens `package/pnpm-override/shim-readable-stream` (13 files,
+  `w5-pnpm-shim-readable-stream`, id 001, base rr-psr-001, 40-turn cap).
+- Live lanes: planning 045 rr-dp-005, troubleshooting 129 rr-ts-386,
+  rolldown-import-attributes 001 rr-ria-001, search-mcp retry 001 rr-sfm-002,
+  runtime-error/bun 001 rr-reb-001, and the readable-stream shim 001 rr-psr-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
