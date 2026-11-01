@@ -53,7 +53,7 @@ fn configuration_listings_equal_git() {
         .expect("config listing");
     let given: Vec<OsString> = ["config", "--list", "-z", "--show-scope"].iter().map(OsString::from).collect();
     let added = pairs(&injected);
-    let found = answer_with(&Query { arguments: given.as_slice(), directory: Some(repo.as_path()), variables: added.as_slice() }, pairs(&fixed), &scope).expect("answered");
+    let found = answer_with(&Query { arguments: given.as_slice(), directory: Some(repo.as_path()), variables: added.as_slice(), input: None }, pairs(&fixed), &scope).expect("answered");
     assert_eq!(found.stdout, expected.stdout);
     assert!(expected.stdout.windows(5).any(|window| { return window == b"extra"; }), "the included file is listed");
     assert!(expected.stdout.windows(7).any(|window| { return window == b"command"; }), "the injected entries are listed");

@@ -21,6 +21,7 @@ use super::repo_read_diff::{PathFilter, diff_sorted, name_lines, parse_diff_filt
 use super::repo_read_index::{INTENT_TO_ADD, IndexEntry, parse_index};
 use super::repo_read_layout::{RepoLayout, read_layout_with};
 use super::repo_read_object::{ObjectKind, from_hex, name_length, to_hex};
+
 use super::repo_read_odb::ObjectDatabase;
 use super::repo_read_query_refs::{config_list, for_each_ref, remote_url, rev_parse, symbolic_ref};
 use super::repo_read_tree::{FlatEntry, flatten_tree, parse_commit, subject_of};
@@ -35,6 +36,8 @@ pub struct Query<'a> {
     pub directory: Option<&'a Path>,
     /// The variables added to Git's environment for this run.
     pub variables: &'a [(OsString, OsString)],
+    /// The bytes sent to Git's standard input, for the commands that read object names from it.
+    pub input: Option<&'a [u8]>,
 }
 
 /// What Git would have printed and returned.
@@ -287,6 +290,25 @@ fn show_subject(context: &Context, parsed: &Parsed<'_>) -> Option<Answer> {
     return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
 }
 
+/// `cat-file --batch` fed full object names, one per line: for each, `<name> <kind> <size>`, the content and a line feed.
+fn batch_objects(context: &Context, parsed: &Parsed<'_>, input: Option<&[u8]>) -> Option<Answer> {
+    if !flags_are(&parsed.flags, &["--batch"], &[]) || !parsed.operands.is_empty() || !parsed.specs.is_empty() {
+        return None;
+    }
+    let database: ObjectDatabase = context.database()?;
+    let mut stdout: Vec<u8> = Vec::new();
+    let text: &[u8] = input?.strip_suffix(b"\n")?;
+    for line in text.split(|byte| { return *byte == b'\n'; }) {
+        let name: Vec<u8> = from_hex(line, context.layout.object_format)?;
+        // A name the store lacks is Git's `missing` line, which the reader leaves to it.
+        let object = database.read(name.as_slice())?;
+        stdout.extend_from_slice(format!("{} {} {}\n", to_hex(name.as_slice()), object.kind.word(), object.bytes.len()).as_bytes());
+        stdout.extend_from_slice(object.bytes.as_slice());
+        stdout.push(b'\n');
+    }
+    return Some(Answer { stdout, stderr: Vec::new(), code: 0 });
+}
+
 /// What:
 ///  The answer to `query`, or `None` when Git must be started.
 /// Why:
@@ -311,7 +333,7 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         None => std::env::current_dir().ok()?,
     };
     let parsed: Parsed<'_> = parse(query.arguments, &mut start)?;
-    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show" | "config" | "remote" | "rev-parse" | "for-each-ref" | "symbolic-ref") {
+    if !matches!(parsed.command, "ls-files" | "diff-index" | "diff" | "diff-tree" | "show" | "config" | "remote" | "rev-parse" | "for-each-ref" | "symbolic-ref" | "cat-file") {
         return None;
     }
     let (variables, index_variable, objects_variable) = environment(base, query.variables);
@@ -340,6 +362,7 @@ pub fn answer_with(query: &Query<'_>, base: Vec<(OsString, OsString)>, scope: &S
         "for-each-ref" => for_each_ref(&context, &parsed),
         "rev-parse" => rev_parse(&context, &parsed),
         "symbolic-ref" => symbolic_ref(&context, &parsed),
+        "cat-file" => batch_objects(&context, &parsed, query.input),
         _ => None,
     };
 }

@@ -52,6 +52,7 @@ fn attempt(
     directory: Option<&Path>,
     base: Vec<(OsString, OsString)>,
     variables: &[(OsString, OsString)],
+    input: Option<&[u8]>,
 ) -> Option<Answer> {
     if !enabled(variables) {
         return None;
@@ -59,7 +60,7 @@ fn attempt(
     let mut effective: Vec<(OsString, OsString)> = base.clone();
     effective.extend(variables.iter().cloned());
     let scope: ScopeEnvironment = ScopeEnvironment::from_variables(effective.as_slice());
-    return answer_with(&Query { arguments, directory, variables }, base, &scope);
+    return answer_with(&Query { arguments, directory, variables, input }, base, &scope);
 }
 
 /// What:
@@ -73,7 +74,7 @@ fn attempt(
 /// ```
 #[cfg(unix)]
 pub fn try_metadata(arguments: &[OsString], overlay: &[(OsString, OsString)]) -> Option<MetadataOutput> {
-    let found: Answer = attempt(arguments, None, std::env::vars_os().collect(), overlay)?;
+    let found: Answer = attempt(arguments, None, std::env::vars_os().collect(), overlay, None)?;
     return Some(MetadataOutput { success: found.code == 0, code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }
 
@@ -94,7 +95,7 @@ pub fn try_metadata(_arguments: &[OsString], _overlay: &[(OsString, OsString)]) 
 /// ```
 #[cfg(unix)]
 pub fn try_complete(arguments: &[OsString], directory: &Path, environment: &[(OsString, OsString)]) -> Option<(Option<i32>, Vec<u8>, Vec<u8>)> {
-    let found: Answer = attempt(arguments, Some(directory), Vec::new(), environment)?;
+    let found: Answer = attempt(arguments, Some(directory), Vec::new(), environment, None)?;
     return Some((Some(found.code), found.stdout, found.stderr));
 }
 
@@ -116,9 +117,6 @@ pub fn try_complete(_arguments: &[OsString], _directory: &std::path::Path, _envi
 /// ```
 #[cfg(unix)]
 pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutput> {
-    if request.input.is_some() {
-        return None;
-    }
     let mut arguments: Vec<OsString> = Vec::new();
     if !request.without_prefix {
         arguments.extend(context.global_prefix.iter().cloned());
@@ -135,7 +133,7 @@ pub fn try_request(context: &GitContext, request: &GitRequest) -> Option<GitOutp
     let base: Vec<(OsString, OsString)> = std::env::vars_os()
         .filter(|(name, _)| { return !request.unset.contains(name); })
         .collect();
-    let found: Answer = attempt(arguments.as_slice(), Some(request.cwd.as_path()), base, variables.as_slice())?;
+    let found: Answer = attempt(arguments.as_slice(), Some(request.cwd.as_path()), base, variables.as_slice(), request.input.as_deref())?;
     return Some(GitOutput { code: Some(found.code), stdout: found.stdout, stderr: found.stderr });
 }
 
@@ -148,3 +146,8 @@ pub fn try_request(_context: &GitContext, _request: &GitRequest) -> Option<GitOu
 #[cfg(test)]
 #[path = "repo_read_hook_tests.rs"]
 mod tests;
+
+/// Differential controls for the in-process `cat-file --batch` request.
+#[cfg(test)]
+#[path = "repo_read_batch_tests.rs"]
+mod batch_tests;

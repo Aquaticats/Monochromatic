@@ -16,7 +16,7 @@ pub(crate) fn scope(root: &Path) -> ScopeEnvironment {
 /// What the readers answer for `arguments` run in `repo`.
 pub(crate) fn mine(root: &Path, repo: &Path, arguments: &[&str]) -> Option<Answer> {
     let given: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo), variables: &[] }, Vec::new(), &scope(root));
+    return answer_with(&Query { arguments: given.as_slice(), directory: Some(repo), variables: &[], input: None }, Vec::new(), &scope(root));
 }
 
 /// Require equal output and exit code with Git; returns whether the readers answered.

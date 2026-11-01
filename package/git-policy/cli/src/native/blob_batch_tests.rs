@@ -188,7 +188,8 @@ fn real_git_supplies_blobs() {
     );
     let unstartable: crate::transaction_git::GitContext = crate::transaction_git::GitContext {
         real_git: root.join("no-git"),
-        overlay: Vec::new(),
+        // The in-process answers are off: this control is about a Git that cannot start.
+        overlay: crate::repo_read_hook::switch_off().to_vec(),
         global_prefix: Vec::new(),
         common_dir: None,
     };
