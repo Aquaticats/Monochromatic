@@ -86,7 +86,10 @@ fn a_violation_warns_on_stderr_and_pnpm_runs_with_its_own_output_and_status() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(stdout.trim_end(), format!("{FAKE_MARKER} install --frozen-lockfile"));
-    assert!(stderr.contains("pnpm-shadow: warning:"));
+    assert!(stderr.contains("warning:"));
+    // The wrapper names itself only after `--version` and `--help`, never in a warning.
+    assert!(!stderr.contains("pnpm-shadow"));
+    assert!(!stderr.to_lowercase().contains("shadow"));
     assert!(stderr.contains("left-pad"));
     assert_eq!(output.status.code(), Some(DISTINCT_EXIT_CODE));
 }
@@ -97,11 +100,79 @@ fn a_clean_workspace_is_silent_and_pnpm_runs() {
     write_workspace(&world, CLEAN);
     let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
 
-    let output = run_shadow(&world, &path, &["--version"], 0);
+    let output = run_shadow(&world, &path, &["list"], 0);
 
     assert!(output.stderr.is_empty());
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} --version"));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} list"));
     assert_eq!(output.status.code(), Some(0));
+}
+
+/// The text the notice prints for `--version`, from the fake's own path.
+fn expected_version_line(world: &World) -> String {
+    return format!(
+        "pnpm-shadow {}, shadowing pnpm at {}\n",
+        env!("CARGO_PKG_VERSION"),
+        world.fake_directory.join("pnpm").display()
+    );
+}
+
+#[test]
+fn version_prints_pnpms_text_then_one_line_naming_the_wrapper_and_the_real_pnpm() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let long = run_shadow(&world, &path, &["--version"], 0);
+    let short = run_shadow(&world, &path, &["-v"], 0);
+
+    let expected_long = format!("{FAKE_MARKER} --version\n{}", expected_version_line(&world));
+    let expected_short = format!("{FAKE_MARKER} -v\n{}", expected_version_line(&world));
+    assert_eq!(String::from_utf8_lossy(&long.stdout), expected_long);
+    assert_eq!(String::from_utf8_lossy(&short.stdout), expected_short);
+    assert!(long.stderr.is_empty());
+}
+
+#[test]
+fn help_prints_pnpms_text_then_a_section_naming_the_wrapper() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    for word in ["--help", "-h", "help"] {
+        let output = run_shadow(&world, &path, &[word], 0);
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.starts_with(&format!("{FAKE_MARKER} {word}\n\n")), "word {word}");
+        assert!(stdout.contains(&expected_version_line(&world)), "word {word}");
+        assert!(stdout.contains("never blocks pnpm"), "word {word}");
+    }
+}
+
+#[test]
+fn a_commands_own_help_and_every_ordinary_run_print_exactly_pnpms_text() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let command_lines: [&[&str]; 3] = [&["install", "--help"], &["help", "install"], &["install"]];
+    for command_line in command_lines {
+        let output = run_shadow(&world, &path, command_line, 0);
+
+        let expected = format!("{FAKE_MARKER} {}\n", command_line.join(" "));
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "{command_line:?}");
+    }
+}
+
+#[test]
+fn a_failing_version_run_gets_no_notice() {
+    let world = make_world();
+    write_workspace(&world, CLEAN);
+    let path = path_of(&[&world.shadow_directory, &world.fake_directory]);
+
+    let output = run_shadow(&world, &path, &["--version"], DISTINCT_EXIT_CODE);
+
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{FAKE_MARKER} --version\n"));
+    assert_eq!(output.status.code(), Some(DISTINCT_EXIT_CODE));
 }
 
 #[test]
@@ -124,7 +195,7 @@ fn the_warning_repeats_on_every_run() {
     let first = run_shadow(&world, &path, &["list"], 0);
     let second = run_shadow(&world, &path, &["list"], 0);
 
-    assert!(String::from_utf8_lossy(&first.stderr).contains("pnpm-shadow: warning:"));
+    assert!(String::from_utf8_lossy(&first.stderr).contains("warning:"));
     assert_eq!(first.stderr, second.stderr);
 }
 

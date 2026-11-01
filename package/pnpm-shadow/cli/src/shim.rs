@@ -54,6 +54,8 @@ use crate::real_binary::find_in_path;
 use crate::report::render_report;
 /// Imports the workspace scan.
 use crate::scan::{find_workspace_root, scan_workspace};
+/// Imports the notice that follows pnpm's version and help.
+use crate::shadow_notice::{TopLevelRequest, notice_text, top_level_request};
 
 /// What:
 /// `pub fn exit_code_of(status: ExitStatus) -> i32` turns a finished child's status into the number the shadow exits with.
@@ -161,8 +163,19 @@ pub fn run_shim(arguments: Vec<OsString>) -> i32 {
             return NOT_FOUND_EXIT_CODE;
         }
     };
+    let request: TopLevelRequest = top_level_request(&arguments);
     match run_program(&program, &arguments) {
-        Ok(code) => return code,
+        Ok(code) => {
+            // Like hub after git's version: only after a successful top-level `--version` or `--help` of pnpm itself,
+            // so the notice follows pnpm's own text and is the one place the shadow names itself. A closed standard
+            // output is ignored on purpose: pnpm's output already went out.
+            if code == 0 {
+                if let Some(text) = notice_text(request, &program) {
+                    let _ = std::io::stdout().write_all(text.as_bytes());
+                }
+            }
+            return code;
+        }
         Err(error) => {
             eprintln!("pnpm-shadow: could not start {}: {error}", program.display());
             return EXEC_FAILED_EXIT_CODE;

@@ -16,8 +16,9 @@ use std::path::Path;
 /// Imports the scan result.
 use crate::scan::ScanReport;
 
-/// The prefix every line carries, so a person can tell the shadow's lines from pnpm's.
-pub const LINE_PREFIX: &str = "pnpm-shadow: warning: ";
+/// The prefix every line carries. It does not name the wrapper: the wrapper names itself only after `--version` and
+/// `--help` (`shadow_notice.rs`), and these lines name the manifests and the rule instead.
+pub const LINE_PREFIX: &str = "warning: ";
 
 /// What:
 /// `pub const RULE_SUMMARY: &str = "...";` is the closing paragraph: the rule in one sentence, then what the shadow
@@ -32,7 +33,7 @@ pub const LINE_PREFIX: &str = "pnpm-shadow: warning: ";
 pub const RULE_SUMMARY: &str = "the repository allows `catalog:`, `catalog:<name>` or exactly `workspace:*` in dependencies, \
 devDependencies and optionalDependencies, and `*`, `catalog:` or `catalog:<name>` in peerDependencies, and allows \
 only package.json manifests. This is advice only: pnpm runs next with its own arguments and its own exit status. \
-The shadow warns on every run and has no switch to turn that off; the way to silence it is to fix the manifests \
+The warning appears on every run and has no switch to turn it off; the way to silence it is to fix the manifests \
 named above.";
 
 /// What:
