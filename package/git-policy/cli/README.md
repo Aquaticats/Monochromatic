@@ -840,6 +840,24 @@ mise run //package/git-policy/cli:native:test:container
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with Git 2.56.0 and no network.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
+  The test run uses `cargo nextest run --no-fail-fast`, so every test runs even after a failure and one flaky test
+  never hides the rest; the exit status is still non-zero, and nextest prints its summary and the list of failed tests
+  last.
+  The image build is layered so that a rebuild reuses everything the change did not reach, with no network and
+  `--locked` throughout (`bin/native-layered-build.ts`, `bin/native-test-containerfile.ts`):
+  - The dependency layer compiles every registry crate from the manifests, the lock files, the vendored sources and
+    empty stand-in source files, so its cache key holds no source file.
+    Only a change to a manifest or a lock file rebuilds it, which includes a version bump of the crate or of a path
+    crate.
+  - The path-crate layer copies the JSONC crate and the scanner with its engine and compiles them (the scanner's
+    build script precompiles the embedded baseline), so it is rebuilt only when one of them changes.
+  - The subject layer copies the wrapper's `src/native` and `README.md` (the tests include it) and compiles only the
+    wrapper, so a test sidecar edit or a source edit recompiles one crate.
+  - The linter stage follows the same split: its registry dependencies compile from stand-ins, then its own sources.
+  - Each real-source layer touches the copied files in the same step, because Cargo compares file times with the
+    stand-in build and would otherwise treat the stand-in output as current.
+  - Every build step costs a fixed amount on a busy host (measured as tens of seconds, up to minutes, for a step that
+    does no work), so the Containerfile keeps its step count low and puts the steps that rarely change first.
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
   explicit-path commits, with paired direct-Git samples in disposable repositories.
   It reports the median, p95 and median absolute deviation of both sides and the added delta,
