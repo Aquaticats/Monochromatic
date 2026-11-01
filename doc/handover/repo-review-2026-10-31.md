@@ -2677,6 +2677,29 @@ Wave-4 ninetieth checkpoint (2026-11-01, test-fixture slices two and three):
   rr-tte-002; test-fixture css-imported-no-exports 001 rr-tfce-001 (8 files);
   test-fixture data-sequence 001 rr-tds-001 (11 files).
 
+Wave-4 ninety-first checkpoint (2026-11-01, one refuted row parked):
+
+- Planning slice 15 added rows 115 to 122 over positions 496 to 515; row 006 was
+  parked after a concurrent doc reflow moved its lines. Ledger 121 active rows,
+  all clean; next id 123 at positions 516 to 535, base rr-dp-017.
+- Troubleshooting added rows 228 to 236 over lines 368 to 377; row 236's
+  untracked `.config/mise/conf.d` line was removed and remains the external
+  control. Ledger 235 of 235 clean; next id 237 at line 378, base rr-ts-391.
+- Test-fixture oxlint-no-restricted-syntax is COMPLETE at 8 rows after slice 2;
+  13 of 13 tail paths read, and the lead held: three `src/valid` files produce
+  eight plugin errors. css-imported-no-exports is COMPLETE at 1 row;
+  data-sequence is COMPLETE at 6 rows.
+- Test-fixture toml-edit added rows 007 to 013. Row 002 was REFUTED and parked:
+  the live TOML 1.1.0 spec at `https://toml.io/en/v1.1.0` says bare keys are
+  ASCII-only (`A-Za-z0-9_-`), so the Unicode bare-key fixture is correctly in
+  `src/invalid` and the suggested move is wrong. Ledger 12 of 12 clean; slice 3
+  is the last six paths, id 014, base rr-tte-003.
+- Live lanes: planning 123 rr-dp-017; troubleshooting 237 rr-ts-391; toml-edit
+  slice 3 014 rr-tte-003; test-fixture oxlint-tsdoc 001 rr-tot-001 (25 files);
+  css-importing 001 rr-tfci-001 (7); effect-subject-toml-edit 001 rr-tfes-001
+  (10). The only test-fixture package left after these is css-importing-filepath
+  (7 files).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
