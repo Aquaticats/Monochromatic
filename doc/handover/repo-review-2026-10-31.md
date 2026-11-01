@@ -288,6 +288,58 @@ the tree before recording):
   `w2-throw-async-a-81` should be refuted as deliberate per the recreated
   `post-batch2-corrections.md`.
 
+Wave-4 fifth checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: `w4-mp-design` finished claude-code-plugin/source end to end (rows
+  `w4-cc-source-013` to `-035`; 83 of 83 tracked files; the final turn read all 8 remaining
+  test files including the luna-handler the concurrent session extended to 1071 lines
+  mid-turn; `-035`: the handler-runtime records() helper discards parse errors; file 35 of
+  35 verify-clean). `w4-fm-variant-qt` finished wg/cli-quicker-exempt (rows `-001` to
+  `-006`, 68 of 68). `w4-cc-statusline` finished forbidden-strings/core (rows
+  `w4-fs-core-009` to `-015`, 82 of 82) and moved to forbidden-strings/cli (new file
+  `w4-fs-cli.jsonl`, rows `-001` to `-010` verified; the turn-7 `scan:all` invalid-argv
+  blocker recorded for filing).
+- Queue correction measured: wg/cli-quicker is TypeScript with 138 tracked files (the
+  queue's "110 files" Rust label was wrong). Rows `w4-wg-quicker-001` to `-011` verify 11
+  of 11; 70 of 138 files covered; the turn-2 cross-check target
+  `doc/troubleshooting/node-runtime-watcher-upgrade.md` no longer exists, that check is
+  moot; rows 004 and 005 still lack covering tests.
+- Manual queue slice 1 complete and orchestrator-verified: `w4-fm-variant-qt` processed the
+  first 60 `kind:"problems"` entries (outcome log `manual-repair-slice1.jsonl`): 59
+  repaired in place (ci-depot 34, docs-core 16, docs-decisions 5, docs-ops 5; the 22-row
+  ci-depot 75-96 block was a different schema, restored mechanically), 1 needs-refutation
+  (`docs-core-56`: `reject_unknown_keys` was deleted from model_decode.rs by the
+  concurrent rewrite; surviving refs re-quoted, confidence uncertain). My own verify run
+  over the four touched files confirms none of the 60 ids are flagged and the remaining
+  BAD rows (ci-depot 21, docs-core 4, docs-decisions 1, docs-ops 6) match the child's
+  stated pre-existing lists exactly. Slice 2 (next 60) in flight.
+- Churn and incident repairs: `w4-cc-source-014`, `-016`, `-025`, `w4-fs-core-002`, `-004`
+  re-quoted by exact-text relocation after concurrent commits; every finding survived.
+  `pkg-observable-077`'s evidence quote 2 was an off-by-one (cited 471, actual 472) left by
+  the child's post-incident unicode-escape rebuild; relocated and re-verified. Footgun
+  confirmed and now canonical: `systemd-run` expands dollar-brace sequences in command
+  arguments before the wrapped command parses them, so wrapper-arg payloads containing
+  such text arrive emptied; keep it out of wrapper args or rebuild from unicode escapes.
+- Returns verified and re-briefed: `w4-android-app` rows `-094` to `-097` (FolderRail cites
+  deleted design docs, DisplayPath empty-segment guard, TrackListPane menu-key consumption,
+  folderScrollIndexFor KDoc stranded; the carried lead closed) with 41 core files left;
+  `w4-desktop-app` rows `-073` to `-077` (measure_tests temp_cache header, No-droppings
+  cleanup missing wal/shm sidecars, non_spacing_mark flag/skin-tone split, oklch mix
+  pseudocode achromatic takeover, pagination pseudocode ordering) with 141 files left
+  from output_cpal.rs.
+- Assignments now running: `w4-mp-design` turn 10 (claude-code-plugin subpackages beyond
+  source and statusline; 70-file zero-coverage set: hook-type, prompt-time, research-agent,
+  session-start-housekeeping, stop-reminder, terminal-title, verbose-tool-output, root
+  README; new file `w4-cc-plugins.jsonl` from `-001`), `w4-android-app` turn 11
+  (Pagination onward), `w4-desktop-app` turn 13 (output_cpal.rs onward), `w4-cc-statusline`
+  turn 9 (fs-cli test sidecars and bin scripts), `w4-fe-core-tests` turn 9
+  (opensnitch-rules-command.ts onward, 68 files), `w4-fm-variant-qt` slice 2.
+- claude-code-plugin coverage accounting (measured): 237 tracked files; source 83 complete,
+  statusline 23 complete; the wave-3 test slice's 11 files are the only proven coverage
+  among the remaining 131 (that relay is blocked, see the relay board); subpackage
+  mention counts in findings files (bash-output-filter, claude-spawn, correction-reminder,
+  cost-dismissal, guardrail) are unproven per-file coverage.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
@@ -784,7 +836,11 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
    hangs are fixed, then refresh the triage.
 7. Work the manual queue: `manual-b3v2.jsonl` (825 entries, ambiguous plus 416 with evidence
    problems) replaces the old 518-entry queue for batch 3; evidence repair first, then ambiguous
-   adjudication. The old `manual-queue.jsonl` (batch 1/2 era) still holds its own entries.
+   adjudication. Slice 1 (first 60 problems entries) is repaired and verified (see the fifth
+   checkpoint); slice 2 in flight, then remaining problems slices (about 356 entries after
+   slice 2), then ambiguous adjudication; `docs-core-56` needs re-verification of the deleted
+   `reject_unknown_keys` mechanism. The old `manual-queue.jsonl` (batch 1/2 era) still holds
+   its own entries.
 8. Keep updating and committing this handover at every wave transition.
 
 ## Stop conditions
