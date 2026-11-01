@@ -179,6 +179,88 @@ await describe({
       },
     },),
     it({
+      name: 'LEAVES BEDROCK OFF AS THE RUN DOES: avoids it, sends it nothing and reads no ledger for it, and leaves '
+        + 'its reading `bedrock=dry` where the run\'s own first METERS line reads it, though a key and a credit are set',
+      fn: async (ctx) => {
+        ctx.sinon.stub(
+          console,
+          'info',
+        );
+        ctx.sinon.stub(
+          console,
+          'warn',
+        );
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        const seen: TransportExchange[] = [];
+        const {
+          logger,
+          lines,
+        } = capturingLoggerPair();
+
+        await sampleBudgets({
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: { [CREDIT_VARIABLE]: '25', },
+          },),
+          transport: unreachableTransport({ seen, },),
+          l: logger,
+        },);
+
+        expect(lines.at(-1,),).toBe(
+          `[sampleBudgets] SAMPLED: routing would use neuralwatt, use synthetic, avoid bedrock, avoid deepseek, avoid xiaomi, avoid anthropic, use hyper, use openrouter${SUMMARY_CLOSING}`,
+        );
+        expect(seen.some(function reachedBedrock(exchange,): boolean {
+          return exchange.url.includes('bedrock',) || (exchange.headers.Authorization ?? '').includes('whisker-key-0003',);
+        },),).toBe(false,);
+        /**
+         Run folder the sample is taken into.
+         */
+        const runDir = join(
+          scratch.path,
+          'corpus-pass-tabby',
+        );
+        await sampleIntoRunLog({
+          runDir,
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: { [CREDIT_VARIABLE]: '25', },
+          },),
+          transport: unreachableTransport({ seen: [], },),
+          l: contextRoot({ tag: 'budget-sample', },),
+        },);
+        /**
+         The one METERS line the sample left in the folder.
+         */
+        const readings = (await readRunLogText({ path: runDir, },)).split('\n',).filter(function isReading(line,): boolean {
+          return line.includes(' METERS ',);
+        },);
+        expect(readings.length,).toBe(1,);
+        expect(readings[0] ?? '',).toContain('bedrock=dry',);
+        expect(readings[0] ?? '',).not.toContain('bedrock=wet',);
+      },
+    },),
+    it({
+      name: 'SAMPLES WITHOUT A BEDROCK KEY when Bedrock is off, refusing nothing, since the run asks it nothing',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'budget-run-', },);
+        const {
+          logger,
+          lines,
+        } = capturingLoggerPair();
+
+        await sampleBudgets({
+          env: envWith({
+            ledgerDir: scratch.path,
+            extra: { TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: '', },
+          },),
+          transport: unreachableTransport({ seen: [], },),
+          l: logger,
+        },);
+
+        expect(lines.at(-1,),).toContain('avoid bedrock',);
+      },
+    },),
+    it({
       name: 'SAYS routing would avoid Bedrock when its credit is spent, and use the providers whose meters are unreadable',
       fn: async () => {
         await using scratch = await scratchDir({ prefix: 'budget-run-', },);

@@ -87,6 +87,30 @@ await describe({
     },),
 
     it({
+      name: 'READS BACK A RECORD OF A PAGE SHIPPED FOR A STAGE THAT HEARD NO VOICE (`provider-unavailable`) as it reads '
+        + 'one shipped for a dry stop, since an entry stopped either way ships what it settled and stays open',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-', },);
+        const interimDir = join(
+          root.path,
+          INTERIM_DIR,
+        );
+        /**
+         The record of an entry whose consolidation heard no producer.
+         */
+        const record: InterimEntryRecord = {
+          ...recordFor({ id: 'Tabby', },),
+          reason: 'provider-unavailable',
+        };
+        await writeInterimEntry({
+          interimDir,
+          record,
+        },);
+        expect([...await readInterimEntries({ interimDir, },),],).toStrictEqual([['Tabby', record,],],);
+      },
+    },),
+
+    it({
       name: 'DIGESTS a page by its bytes, so the same text gives the same digest and a changed page gives another',
       fn: async () => {
         expect(interimPageDigest({ pageText: 'The cat waits.\n', },),).toBe(

@@ -13,6 +13,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { wrapReplacementText, } from '@monochromatic-dev/translation-repair-typography';
 import {
   translateWinnerBallotsOf,
   type TranslateWinnerRecord,
@@ -24,12 +25,33 @@ import {
 const SHIPPED = 'The cat naps on the sill.';
 
 /**
+ What the lane's round chose at slice 44 of a settled artifact, as the judges saw it: one line to a paragraph, a note
+ mark inside a quotation. Invented in the shape of XingZ6022's slice 44, whose wording is not copied here.
+ */
+const JUDGED_QUOTATION = '> Hey, have you seen the new cat video? It is called something like Purr-something Light[^3]. '
+  + 'It is really fun. Other videos are all naps, stretches or naps, naps, stretches, but this video is naps, naps, '
+  + 'naps, stretches. It is really fun.\n\nI vaguely remember that, back then, her purr was actually full of laughter.';
+
+/**
+ The same wording after the lane's semantic wrap, which is what the translate document and the delivery ledger carry:
+ a break after every clause, and the quotation's `> ` prefix on each line the wrap added.
+ */
+const WRAPPED_QUOTATION = '> Hey,\n> have you seen the new cat video?\n> It is called something like Purr-something Light[^3].\n'
+  + '> It is really fun.\n> Other videos are all naps,\n> stretches or naps,\n> naps,\n> stretches,\n'
+  + '> but this video is naps,\n> naps,\n> naps,\n> stretches.\n> It is really fun.\n\n'
+  + 'I vaguely remember that,\nback then,\nher purr was actually full of laughter.';
+
+/**
  A record the lane's round settled, whose round chose position 2 with the given ballots.
 
  @param sliceIndex - slice the record answers
  @param origin - whether the round chose fresh wording or kept the archive's
- @param text - wording the round ships
+ @param text - wording the lane delivers, after the semantic wrap
  @param ballots - ballots that named position 2
+ @param judged - wording the judges saw, which the round's result carries beside the delivered one; the delivered
+ wording by default
+ @param changed - whether the delivered wording differs from the archive's, true by default
+ @param disposition - what the driver did with the round's result, `stage-result` by default
 
  @returns Record shaped as the part of the lane's record this reads
 
@@ -44,18 +66,29 @@ function recordOf(
     origin,
     text,
     ballots,
+    judged = text,
+    changed = true,
+    disposition = 'stage-result',
   }: {
     readonly sliceIndex: number;
     readonly origin: 'fresh' | 'incumbent';
     readonly text: string;
     readonly ballots: number;
+    readonly judged?: string;
+    readonly changed?: boolean;
+    readonly disposition?: TranslateWinnerRecord['disposition'];
   },
 ): TranslateWinnerRecord {
   return {
     sliceIndex,
+    outputText: text,
+    changed,
+    disposition,
+    // The round's result carries the wording the judges saw; the count never reads it, and spreading it in keeps the
+    // fixture the shape of a real record, whose result holds more than the part this reads.
     stageResult: {
+      ...{ text: judged, },
       origin,
-      text,
       shippedIndex: 2,
       perCandidate: [
         {
@@ -119,6 +152,76 @@ await describe({
             3,
           ],
         ],);
+      },
+    },),
+    it({
+      name: 'COUNTS THE BALLOTS OF A WORDING THE SEMANTIC WRAP BROKE ACROSS LINES, a quotation and its second '
+        + 'paragraph included: the ledger row holds the delivered form, the judges saw the one-line form, and two '
+        + 'ballots named it (XingZ6022 slice 44, XingZ6023 slices 13, 44, 68 and 69)',
+      fn: async () => {
+        const counted = translateWinnerBallotsOf({
+          records: [
+            recordOf({
+              sliceIndex: 44,
+              origin: 'fresh',
+              text: WRAPPED_QUOTATION,
+              judged: JUDGED_QUOTATION,
+              ballots: 2,
+            },),
+          ],
+          comparison: [
+            {
+              sliceIndex: 44,
+              translateText: WRAPPED_QUOTATION,
+            },
+          ],
+        },);
+        // THE DELIVERED FORM IS THE REAL WRAP'S OUTPUT, not a hand-made one the count could agree with by accident.
+        expect(wrapReplacementText({ text: JUDGED_QUOTATION, },),).toBe(WRAPPED_QUOTATION,);
+        expect([...counted,],).toEqual([
+          [
+            44,
+            2,
+          ],
+        ],);
+      },
+    },),
+    it({
+      name: 'CREDITS NOTHING WHERE THE GUARD REFUSED THE ROUND\'S CHOICE or the wrap made the wording the archive\'s '
+        + 'own bytes, though the ledger row equals the delivered text and the round chose fresh wording',
+      fn: async () => {
+        const counted = translateWinnerBallotsOf({
+          records: [
+            recordOf({
+              sliceIndex: 5,
+              origin: 'fresh',
+              text: SHIPPED,
+              judged: 'A cat naps on the sill, as chosen.',
+              ballots: 2,
+              disposition: 'refused-quote-loss',
+              changed: false,
+            },),
+            recordOf({
+              sliceIndex: 6,
+              origin: 'fresh',
+              text: 'A cat dozes.',
+              judged: 'A cat   dozes.',
+              ballots: 2,
+              changed: false,
+            },),
+          ],
+          comparison: [
+            {
+              sliceIndex: 5,
+              translateText: SHIPPED,
+            },
+            {
+              sliceIndex: 6,
+              translateText: 'A cat dozes.',
+            },
+          ],
+        },);
+        expect([...counted,],).toEqual([],);
       },
     },),
     it({

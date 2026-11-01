@@ -1,5 +1,6 @@
 /**
- Tests final boundary for passages proven rendered elsewhere before lanes.
+ Tests final boundary for passages proven rendered elsewhere before lanes, which reports a lost region as a defect the
+ page ships with and never stops the entry (owner: "no matter what, we must ship").
 
  @module
  */
@@ -11,10 +12,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';
 import {
   assertCarriedInsertionsRemain,
+  CarriedEvidenceLostError,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';
 import {
@@ -106,6 +107,7 @@ await describe({
       name: 'ACCEPTS final page retaining exact carried region',
       fn: async () => {
         expect(() => assertCarriedInsertionsRemain({
+          entryId: 'BookshopCat',
           artifact: artifactShipping({ text: TARGET, }),
           slices: SLICES,
           targetText: TARGET,
@@ -118,6 +120,7 @@ await describe({
         + 'anchoring did (the fifth yuki418330012 launch of 2026-09-08 shipped the credits line as four lines)',
       fn: async () => {
         expect(() => assertCarriedInsertionsRemain({
+          entryId: 'BookshopCat',
           artifact: artifactShipping({ text: 'The cat sleeps\nin warm sunlight.\n', }),
           slices: SLICES,
           targetText: TARGET,
@@ -126,18 +129,20 @@ await describe({
       },
     },),
     it({
-      name: 'PAUSES when final stage removes carried region instead of publishing omission',
+      name: 'REPORTS WHEN final stage removes carried region instead of publishing omission, as a refusal the '
+        + 'publish step turns into a reported defect and not an interruption that stops the entry',
       fn: async () => {
         expect(() => assertCarriedInsertionsRemain({
+          entryId: 'BookshopCat',
           artifact: artifactShipping({ text: 'The cat waits by the window.\n', }),
           slices: SLICES,
           targetText: TARGET,
           carried: CARRIED,
-        },),).toThrow(TranslationRepairInterruptedError,);
+        },),).toThrow(CarriedEvidenceLostError,);
       },
     },),
     it({
-      name: 'PAUSES when only the original an unfilled anchor ships carries the region, since that original is no '
+      name: 'REPORTS WHEN only the original an unfilled anchor ships carries the region, since that original is no '
         + 'wording of the pipeline and keeps no passage the lanes admitted',
       fn: async () => {
         /**
@@ -154,17 +159,19 @@ await describe({
           },
         ];
         expect(() => assertCarriedInsertionsRemain({
+          entryId: 'BookshopCat',
           artifact: sourceShippedArtifact({ rows, },),
           slices: sourceShippedSlices({ rows, },),
           targetText: sourceShippedArchive({ rows, },),
           carried: CARRIED,
-        },),).toThrow(TranslationRepairInterruptedError,);
+        },),).toThrow(CarriedEvidenceLostError,);
       },
     },),
     it({
       name: 'ACCEPTS a page with no carried passage whatever it ships, since there is no region to lose',
       fn: async () => {
         expect(() => assertCarriedInsertionsRemain({
+          entryId: 'BookshopCat',
           artifact: artifactShipping({ text: 'The cat waits by the window.\n', }),
           slices: SLICES,
           targetText: TARGET,
@@ -173,10 +180,11 @@ await describe({
       },
     },),
     it({
-      name: 'PAUSES for a carried passage admitted with no region recorded, naming it as having none',
+      name: 'REPORTS A CARRIED PASSAGE ADMITTED WITH NO REGION RECORDED, naming it as having none',
       fn: async () => {
-        const interruption = caught(function act(): unknown {
+        const refusal = caught(function act(): unknown {
           return assertCarriedInsertionsRemain({
+            entryId: 'BookshopCat',
             artifact: artifactShipping({ text: TARGET, }),
             slices: SLICES,
             targetText: TARGET,
@@ -188,13 +196,17 @@ await describe({
             },],
           },);
         },);
-        if (!(interruption instanceof TranslationRepairInterruptedError))
-          throw new Error('expected the passage with no region to pause the page',);
-        expect(interruption.reason,).toBe('carried-evidence-lost',);
-        expect(interruption.findings,).toEqual([
+        if (!(refusal instanceof CarriedEvidenceLostError))
+          throw new Error('expected the passage with no region to be refused as a lost carried region',);
+        expect(refusal.findings,).toEqual([
           'carried-insertion-evidence-lost (count 1)',
           'carried-insertion-evidence-lost slice 1: "(no region recorded)"',
         ],);
+        // THE MESSAGE NAMES SLICES AND COUNTS ONLY, as a published defect's does; the regions stay on `findings`.
+        expect(refusal.message,).toContain('entry BookshopCat',);
+        expect(refusal.message,).toContain('carried-insertion-evidence-lost (count 1) in slices [1]',);
+        expect(refusal.message,).not.toContain('no region recorded',);
+        expect(refusal.messageNamesOnly,).toBe(true,);
       },
     },),
   ],

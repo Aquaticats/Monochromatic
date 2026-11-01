@@ -109,6 +109,44 @@ await describe({
       },
     },),
     it({
+      name: 'READS THE KEY OF A PROVIDER THE OWNER LEFT OFF AS UNSET, as the run does (`keyUnlessOff`), so a key still '
+        + 'in the environment turns nothing back on (Bedrock, since 2026-10-20)',
+      fn: async () => {
+        expect(readProviderKeys({ env: ALL_FIVE, },).bedrock,).toBe('',);
+        expect(readProviderKeys({ env: ALL_FIVE, },).synthetic,).toBe('whisker-key-0001',);
+      },
+    },),
+    it({
+      name: 'REFUSES NOTHING FOR THE ABSENT KEY OF A PROVIDER LEFT OFF, since the run asks that provider nothing '
+        + 'and a refusal here would stop the pre-launch reading on a key the run does not use',
+      fn: async () => {
+        expect(readProviderKeys({
+          env: {
+            ...ALL_FIVE,
+            TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: '',
+          },
+        },).bedrock,).toBe('',);
+      },
+    },),
+    it({
+      name: 'STILL REFUSES NAMING THE BEDROCK VARIABLE when no provider is left off and its key is absent, which is '
+        + 'the all-or-none rule for every provider the run asks',
+      fn: async () => {
+        const refusal = await rejectionOf(function readKeys(): Promise<void> {
+          readProviderKeys({
+            env: {
+              ...ALL_FIVE,
+              TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY: '',
+            },
+            off: [],
+          },);
+          return Promise.resolve();
+        },);
+        expect(refusal,).toBeInstanceOf(StatedRefusalError,);
+        expect(String(refusal,),).toContain('TRANSLATION_REPAIR_AMAZON_BEDROCK_API_KEY is absent',);
+      },
+    },),
+    it({
       name: 'REFUSES naming only the NeuralWatt variable as absent when that one is left out',
       fn: async () => {
         expect(await refusalOver({
