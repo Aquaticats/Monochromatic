@@ -57,6 +57,67 @@ fn fixtures_are_created_outside_the_system_temporary_directory() {
     );
 }
 
+/// Two paths on different filesystems are told apart, and a path with itself is not.
+/// `/proc` is a filesystem of its own on Linux, whatever the host's disks are.
+#[test]
+fn the_filesystem_comparison_tells_a_separate_filesystem_apart() {
+    let built: &Path = Path::new(super::support::WRAPPER);
+    assert!(super::support::same_filesystem(built, built));
+    assert!(!super::support::same_filesystem(Path::new("/proc"), built));
+    assert!(!super::support::same_filesystem(built, Path::new("/nonexistent-path-for-the-comparison")));
+}
+
+/// The stored copy of a build is one file with the build's bytes, however many callers ask at once, and a second ask
+/// finds it instead of copying again.
+#[test]
+fn concurrent_callers_get_one_stored_copy_of_the_build() {
+    use std::os::unix::fs::MetadataExt;
+    let created: Fixture = fixture("store-once");
+    let built: &Path = Path::new(super::support::WRAPPER);
+    let callers: usize = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get).max(4);
+    let copies_before: usize = super::wrapper_store::COPIES_MADE.load(std::sync::atomic::Ordering::SeqCst);
+    let paths: Vec<PathBuf> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..callers)
+            .map(|_| { return scope.spawn(|| { return super::wrapper_store::shared_copy(built, created.root.as_path()).expect("stored copy"); }); })
+            .collect();
+        return handles.into_iter().map(|handle| { return handle.join().expect("caller finished"); }).collect();
+    });
+    assert!(paths.iter().all(|path| { return *path == paths[0]; }), "{paths:?}");
+    assert_eq!(
+        super::wrapper_store::COPIES_MADE.load(std::sync::atomic::Ordering::SeqCst) - copies_before,
+        1,
+        "{callers} callers made more than one copy"
+    );
+    let store: PathBuf = created.root.join(super::wrapper_store::STORE_DIRECTORY);
+    let names: Vec<String> = std::fs::read_dir(&store)
+        .expect("store")
+        .map(|entry| { return entry.expect("entry").file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return !name.starts_with('.'); })
+        .collect();
+    assert_eq!(names.len(), 1, "one copy of the one build, no partial: {names:?}");
+    assert_eq!(std::fs::read(&paths[0]).expect("stored bytes"), std::fs::read(built).expect("built bytes"));
+    let again: PathBuf = super::wrapper_store::shared_copy(built, created.root.as_path()).expect("second ask");
+    assert_eq!(
+        std::fs::metadata(&again).expect("again").ino(),
+        std::fs::metadata(&paths[0]).expect("first").ino(),
+        "the second ask copied again"
+    );
+}
+
+/// A copy of an older build leaves the store when the current build is stored.
+#[test]
+fn an_older_builds_copy_leaves_the_store() {
+    let created: Fixture = fixture("store-older");
+    let store: PathBuf = created.root.join(super::wrapper_store::STORE_DIRECTORY);
+    std::fs::create_dir_all(&store).expect("store");
+    let older: PathBuf = store.join("1-0000000000000000000-cli-git-native");
+    std::fs::write(&older, b"older build").expect("older copy");
+    let stored: PathBuf = super::wrapper_store::shared_copy(Path::new(super::support::WRAPPER), created.root.as_path())
+        .expect("stored copy");
+    assert!(!older.exists(), "{} stayed", older.display());
+    assert!(stored.exists());
+}
+
 /// What:
 ///  How many of the first extents of a file the filesystem reports as shared with another file,
 ///  absent when the filesystem cannot report extents.
@@ -117,26 +178,36 @@ fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
     }
 }
 
-/// Every fixture starts the built executable itself, through a hard link, so one set of cached pages serves all
-/// fixtures of all test processes and the cold read of a slow disk is paid once, not once per test.
-/// A fixture on another filesystem (a moved root) gets a copy and the check does not apply.
+/// What:
+///  Every fixture starts one shared file with the built executable's bytes, through a hard link: the build itself where
+///  the fixture is on its filesystem, else the one stored copy of it. One set of cached pages then serves all fixtures
+///  of all test processes, and the cold read of a slow disk is paid once, not once per test.
+/// Why:
+///  Cargo's scratch directory can be on another volume than the final artifacts (a relocated `build.build-dir`), where
+///  every fixture used to copy 22 MB instead of linking: 169 fixtures wrote 3.7 GB, about 1.5 GB of it dirty at once,
+///  and the sync calls of the commands under the 5-second bound queued behind it. Only a root the person moved with
+///  `CLI_GIT_TEST_ROOT` gets a per-fixture copy.
 #[test]
-fn a_fixture_wrapper_is_the_built_executable_itself() {
+fn fixtures_share_one_wrapper_file_with_the_built_executables_bytes() {
     use std::os::unix::fs::MetadataExt;
-    let created: Fixture = fixture("same-inode");
-    let built = std::fs::metadata(super::support::WRAPPER).expect("built wrapper");
-    let linked = std::fs::metadata(&created.wrapper).expect("fixture wrapper");
-    // The fixture falls back to a copy exactly where a hard link of the build cannot be made, so ask the same question.
-    let probe: PathBuf = created.root.join("link-probe");
-    if let Err(error) = std::fs::hard_link(super::support::WRAPPER, &probe) {
-        eprintln!("{} cannot hold a hard link of the build ({error}); nothing to check", created.root.display());
+    if std::env::var_os(FIXTURE_ROOT_VARIABLE).is_some() {
         return;
     }
+    let first: Fixture = fixture("share-first");
+    let second: Fixture = fixture("share-second");
+    let identity = |fixture: &Fixture| {
+        let metadata = std::fs::metadata(&fixture.wrapper).expect("fixture wrapper");
+        return (metadata.dev(), metadata.ino());
+    };
     assert_eq!(
-        (linked.dev(), linked.ino()),
-        (built.dev(), built.ino()),
-        "{} is not the same file as {}",
-        created.wrapper.display(),
-        super::support::WRAPPER
+        identity(&first),
+        identity(&second),
+        "{} and {} are separate files",
+        first.wrapper.display(),
+        second.wrapper.display()
+    );
+    assert_eq!(
+        std::fs::read(&first.wrapper).expect("fixture bytes"),
+        std::fs::read(super::support::WRAPPER).expect("built bytes"),
     );
 }

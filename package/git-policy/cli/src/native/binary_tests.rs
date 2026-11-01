@@ -19,6 +19,10 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// The one copy of the built executable per build that fixtures on another filesystem link.
+#[path = "binary_wrapper_store.rs"]
+mod wrapper_store;
+
 /// Where fixtures live and that they go away however their test ends.
 #[path = "binary_fixture_tests.rs"]
 mod fixture_guard;
