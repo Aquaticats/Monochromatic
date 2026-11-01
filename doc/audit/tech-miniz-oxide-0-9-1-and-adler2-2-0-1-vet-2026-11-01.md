@@ -3,12 +3,14 @@
 ## Status
 
 - Status: complete for the hard gates and the source audit of an already adopted dependency; no gate failed.
-- Lifecycle phase: hard-gate confirmed and validated; not scored, because no alternative was discovered or compared here.
+- Lifecycle phase: hard-gate confirmed and validated;
+  not scored, because no alternative was discovered or compared here.
 - Subject: `miniz_oxide` 0.9.1 (features `with-alloc` only) and its one runtime dependency `adler2` 2.0.1.
 - Scope: the pure Rust zlib inflate used by the in-process repository readers of `package/git-policy/cli`
   (`src/native/repo_read_object.rs`, `inflate_zlib`).
 - Started and last updated: 2026-11-01.
-- Governing skill: `.agents/skills/choosing-technology/SKILL.md`, last commit `45d42d9b23d2f2752f9c512683b45905e13afe99`;
+- Governing skill: `.agents/skills/choosing-technology/SKILL.md`,
+  last commit `45d42d9b23d2f2752f9c512683b45905e13afe99`;
   the loaded copy has SHA-256 `f4cfa6bc5d1d71f4b136f92ff9fbdab68575c920bd334f824d253336c8782e1b`.
 - Compatibility fingerprint (SHA-256 of the RFC 8785 form of the inputs listed in the skill):
   `567c792df182bf63e5c08ef139a6e24712485ba97066391b95a8fc469d0182ab`.
@@ -121,7 +123,8 @@ Read: `src/inflate/mod.rs` (391 lines), `src/inflate/core.rs` (2381 lines, the d
   None can affect the used path: the used path is `inflate` with `with-alloc` on Linux x86_64.
 - Fuzzing: five targets in `fuzz/fuzz_targets` (`fuzz_high`, `inflate_nonwrapping`, `roundtrip`, `roundtrip_zlib`,
   `via_flate2`). They are not run in CI: `run_fuzz.sh` begins with `# TODO: This is broken at the moment.`, and
-  upstream issue 196 ("Fuzz targets fail to build") was opened 2026-07-18 and last updated, closed, 2026-08-12. Not executed here.
+  upstream issue 196 ("Fuzz targets fail to build") was opened 2026-07-18 and last updated, closed, 2026-08-12.
+  Not executed here.
 - Mutation testing: none found (no `cargo-mutants` or `mutants` configuration in the repository).
 - Property tests: none found.
 
