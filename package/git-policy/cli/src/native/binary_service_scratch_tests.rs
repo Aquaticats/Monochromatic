@@ -144,9 +144,9 @@ fn a_frozen_service_takes_the_directory_when_it_runs_again() {
     assert_eq!(unsafe { libc::kill(pid, libc::SIGSTOP) }, 0, "the service freezes");
     let began: Instant = Instant::now();
     let quick = ClientConfig { start_wait: Duration::from_secs(2), ..config(name.as_str()) };
-    let watch: Option<ScratchWatch> = watch_scratch(&quick, git_dir.as_path(), scratch.as_path());
+    let offered: Option<ScratchWatch> = watch_scratch(&quick, git_dir.as_path(), scratch.as_path());
     assert!(began.elapsed() < Duration::from_secs(2), "the client did not wait for the frozen service to greet it");
-    let watch: ScratchWatch = watch.expect("the announcement is written without waiting for a greeting");
+    let watch: ScratchWatch = offered.expect("the announcement is written without waiting for a greeting");
     // The client dies while the service is frozen.
     drop(watch);
     // SAFETY: as above.

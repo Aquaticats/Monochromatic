@@ -407,12 +407,12 @@ fn plan_named_push(git: &PushGit, branch_ref: &str, err: &mut dyn Write) -> Resu
 pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
     // The record names the branch, and the worktree may have left it since: only a worktree still on it has the plain push.
     let planned: Planned = if read_symbolic_head(git)?.as_deref() == Some(branch_ref) { plan_push(git, err)? } else { plan_named_push(git, branch_ref, err)? };
-    let (branch_ref, has_upstream, arguments): (String, bool, Vec<String>) = match planned {
+    let (pushed_ref, has_upstream, arguments): (String, bool, Vec<String>) = match planned {
         Planned::Skip(result) => return Ok(result),
-        Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
+        Planned::Push { branch_ref: planned_ref, has_upstream, arguments } => (planned_ref, has_upstream, arguments),
     };
     let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
-    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {branch_ref}"));
+    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {pushed_ref}"));
     let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
     // The instances of two worktrees share the repository's references. While another holds the lock of the remote-tracking
     //  reference this push updates, Git still delivers the push, prints the refusal to update the reference, and exits 0, which
@@ -424,7 +424,7 @@ pub fn push_once(git: &PushGit, branch_ref: &str, landed_oid: &str, err: &mut dy
         attempt = run_push_command(git, argument_views.as_slice())?;
     }
     if has_upstream && attempt.exit_code != 0 {
-        attempt = reconcile_divergent_push(git, &branch_ref, attempt)?;
+        attempt = reconcile_divergent_push(git, &pushed_ref, attempt)?;
     }
     let failed: bool = attempt.exit_code != 0;
     let shown: String = filter_push_output(&attempt.output, attempt.exit_code);

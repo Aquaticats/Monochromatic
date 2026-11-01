@@ -573,8 +573,8 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
     let switched: CommitRequest = linked_request("lost");
     let wt_tip: String = git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]);
     git(linked.as_path(), &["switch", "--quiet", "--force", "other"]);
-    let outcomes = land_batch(&world.context, 2, &[switched]).expect("answered");
-    assert_eq!(outcomes, vec![Outcome::BranchMoved]);
+    let refused = land_batch(&world.context, 2, &[switched]).expect("answered");
+    assert_eq!(refused, vec![Outcome::BranchMoved]);
     assert_eq!(git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]), wt_tip, "the linked worktree's branch did not move");
     remove(world.root.as_path());
 }
@@ -601,8 +601,8 @@ fn a_switch_is_found_in_a_reftable_repository() {
     let switched: CommitRequest = request(&world, "lost", "lost.txt", "x\n");
     let tip: String = git_text(repo.as_path(), &["rev-parse", "main"]);
     git(repo.as_path(), &["switch", "--quiet", "--force", "side"]);
-    let outcomes = land_batch(&world.context, 2, &[switched]).expect("answered");
-    assert_eq!(outcomes, vec![Outcome::BranchMoved]);
+    let refused = land_batch(&world.context, 2, &[switched]).expect("answered");
+    assert_eq!(refused, vec![Outcome::BranchMoved]);
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "main"]), tip, "the branch did not move");
     remove(root.as_path());
 }
