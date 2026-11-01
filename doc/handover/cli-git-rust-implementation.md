@@ -5907,3 +5907,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
   to read the shipped file and expect accordingly (`the_repository_configuration_loads_and_the_catalog_policy_follows_it`); host run of
   `catalog_specifiers` in progress (log `~/temp/agent/catalog-test-run.log`). Gate 6 (on `af7e0fb33b`) predates both, so it will show
   this test and the githooks test failing; gate 7 after `a21d6fec9d0d04797`'s READY.
+- Merged: service step 1 `234f4db78f` (`git cli-git service install|uninstall|status`; the wrapper only enables the socket, never
+  starts the daemon; tests use a stand-in `systemctl` and a temporary unit directory, checked); fsmonitor rollback plus githooks
+  source `0a6d8988d6` (`core.fsmonitor` left as configured, control `a_core_fsmonitor_program_is_left_as_configured`; the
+  completeness test reads `/work/git-source/Documentation/githooks.adoc`, which the image already has from the Git 2.56.0 source).
+  Flipped the tripwire control `config_repository_tests` to the activated catalog policy (`Error`, explicit), as its message asked.
+  18 config, hooks-off and external-hook unit tests pass on the merged main.
+- Gate 6 FAILED at the dependency layer: ENOENT copying `package/linter/monochromatic-lint/Cargo.lock`; the stub builder copies every
+  linked crate's lockfile, the embedding's linter snapshot held only `Cargo.toml` and `src`. Fixed `e0396d510e` (snapshot includes the
+  lockfile). Gate 7 on `e0396d510e`: unit `gpc-main-gate7`, tag `main-gate7`, log `~/temp/agent/gate/main-gate7.log`. If green and
+  crates.io has linter 0.5.0 (publish run `41312100575`), dispatch wrapper 0.5.1.
+- PUBLISHED: `monochromatic-lint 0.5.0` on crates.io at 2026-11-01T13:39:33Z (job `ml-publish-crate` of run `41312100575`); seven of
+  eight release binaries built when recorded, `x86_64-pc-windows-msvc` still building. After the run completes: move the repository's
+  own linter through `mise run toolchain:update -- cargo:monochromatic-lint`, then `toolchain:install`, committing only
+  `toolchain.lock.json` (rule UPN; inspect the lock diff).

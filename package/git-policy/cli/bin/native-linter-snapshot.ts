@@ -29,7 +29,8 @@ const linterCrate = 'linter/monochromatic-lint';
  @param context - build context directory receiving the repository-shaped snapshot
 
  @returns entries keeping the repository layout, so the wrapper's relative path dependency resolves;
-   a library build of the linter reads only its manifest and `src`
+   a library build of the linter reads only its manifest and `src`, and the dependency layer's stub builder copies
+   every linked crate's `Cargo.lock` beside its manifest, so the lockfile is copied too
 
  @example
  ```ts
@@ -41,6 +42,7 @@ export function linterSnapshotEntries({ context, }: {
 },): readonly SnapshotEntry[] {
   return [
     'Cargo.toml',
+    'Cargo.lock',
     'src',
   ].map(function linterEntry(name) {
     return {

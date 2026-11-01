@@ -32,12 +32,6 @@ const TAG: &str = "externalHooks";
 /// The key parts around a hook name: `hook.<name>.event` and `hook.<name>.command`.
 const HOOK_PREFIX: &str = "hook.";
 
-/// The setting whose program value is the hook `fsmonitor-watchman`; the report names it like a configured hook.
-pub const FSMONITOR_KEY: &str = "core.fsmonitor";
-
-/// The event the program `core.fsmonitor` names is.
-const FSMONITOR_EVENT: &str = "fsmonitor-watchman";
-
 /// What:
 ///  One configured hook.
 /// Why:
@@ -117,50 +111,7 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
     hooks.retain(|hook| {
         return !matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false));
     });
-    if names_a_monitor_program(snapshot) {
-        hooks.push(ConfiguredHook {
-            name: String::from(FSMONITOR_KEY),
-            events: vec![String::from(FSMONITOR_EVENT)],
-            has_command: true,
-        });
-    }
     return hooks;
-}
-
-/// What:
-///  Whether `core.fsmonitor` names a program rather than switching the built-in monitor on or off.
-/// Why:
-///   Git starts that program as the hook `fsmonitor-watchman` without consulting the hooks path or any event switch,
-///  so the wrapper switches it off with `core.fsmonitor=false` and reports it like a configured hook.
-///  A boolean value, or none, names no program.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// lastValue('core.fsmonitor') !== undefined && !isGitBoolean(lastValue('core.fsmonitor'))
-/// ```
-fn names_a_monitor_program(snapshot: &ConfigSnapshot) -> bool {
-    if !matches!(snapshot.bool_value(FSMONITOR_KEY), Lookup::Unhandled) {
-        return false;
-    }
-    let last = snapshot.entries().iter().rev().find(|entry| { return entry.key == FSMONITOR_KEY; });
-    return last.is_some_and(|entry| { return !lossy(entry.value.as_ref()).is_empty(); });
-}
-
-/// What:
-///  The configuration key a configured hook is removed with: `hook.<name>`, or `core.fsmonitor` for the monitor
-///  program.
-/// Why:
-///   The report lists keys the author can unset.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// hook.name === 'core.fsmonitor' ? hook.name : `hook.${hook.name}`
-/// ```
-pub fn hook_key(hook: &ConfiguredHook) -> String {
-    if hook.name == FSMONITOR_KEY {
-        return hook.name.clone();
-    }
-    return format!("hook.{}", hook.name);
 }
 
 /// What:
@@ -174,9 +125,9 @@ pub fn hook_key(hook: &ConfiguredHook) -> String {
 /// ```
 pub fn describe_hook(hook: &ConfiguredHook) -> String {
     if hook.events.is_empty() {
-        return format!("{} (no event)", hook_key(hook));
+        return format!("hook.{} (no event)", hook.name);
     }
-    return format!("{} (events: {})", hook_key(hook), hook.events.join(", "));
+    return format!("hook.{} (events: {})", hook.name, hook.events.join(", "));
 }
 
 /// What:
@@ -195,8 +146,7 @@ pub fn explain_external_hooks(hooks: &[ConfiguredHook]) -> String {
          starts has every hook event switched off and these never run. Ways forward: remove them with \
          `git config --unset-all hook.<name>.event` and `git config --unset-all hook.<name>.command` for each name \
          (the keys may live in a global or system file; `git config --show-origin --get-regexp '^hook[.]'` shows \
-         where; `core.fsmonitor` naming a program is the hook `fsmonitor-watchman` and goes with \
-         `git config --unset-all core.fsmonitor`), or express what the hook checked as a cli-git policy under policies in cli-git.config.jsonc. cli-git \
+         where), or express what the hook checked as a cli-git policy under policies in cli-git.config.jsonc. cli-git \
          runs no program named by any configuration, so no setting can bring a hook back. `git cli-git doctor` lists \
          these hooks.",
         listed.join("; ")
@@ -218,7 +168,7 @@ pub fn external_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<Strin
     if hooks.is_empty() {
         return None;
     }
-    let names: Vec<String> = hooks.iter().map(hook_key).collect();
+    let names: Vec<String> = hooks.iter().map(|hook| { return format!("hook.{}", hook.name); }).collect();
     return Some(render_configuration_warning(
         0,
         EXTERNAL_HOOKS_UNSUPPORTED_CODE,
