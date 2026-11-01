@@ -89,13 +89,12 @@ fn owner_pid(record: &TransactionOwner) -> i64 {
 fn published_owners_must_be_valid() {
     let root: PathBuf = fixture("recovery-inspect-invalid");
     let published: RegistryEntry = entry(root.as_path(), ID, None);
-    assert_eq!(
-        inspect_registry_entry(&published).expect_err("missing").0,
-        format!(
-            "Transaction owner record is missing: {}",
-            published.path.display()
-        )
+    let missing: String = inspect_registry_entry(&published).expect_err("missing").0;
+    assert!(
+        missing.starts_with(format!("Transaction owner record is missing: {}.", published.path.display()).as_str()),
+        "{missing}"
     );
+    assert!(missing.contains(format!("rm -r {}", published.path.display()).as_str()), "{missing}");
     std::fs::write(published.path.join(OWNER_FILENAME), b"{}").expect("malformed");
     assert_eq!(
         inspect_registry_entry(&published).expect_err("malformed").0,
@@ -133,6 +132,23 @@ fn published_owners_must_be_valid() {
         inspect_registry_entry(&published).expect("vanished").owner,
         OwnerEvidence::Vanished
     );
+    remove(root.as_path());
+}
+
+/// A published directory without an owner record that nothing has changed for the patience is abandoned: it is
+/// recovered like a dead owner's, under the sentinel number, and ordered after every attributed entry.
+#[cfg(unix)]
+#[test]
+fn an_aged_published_directory_without_an_owner_record_is_abandoned() {
+    let root: PathBuf = fixture("recovery-inspect-abandoned");
+    let published: RegistryEntry = entry(root.as_path(), ID, None);
+    let old: std::time::SystemTime = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
+    std::fs::File::open(&published.path).expect("open").set_modified(old).expect("age");
+    let inspected: InspectedEntry = inspect_registry_entry(&published).expect("abandoned");
+    assert_eq!(inspected.owner, OwnerEvidence::Abandoned);
+    assert_eq!(inspected.dead_owner(), None);
+    assert_eq!(inspected.recoverable_owner_pid(), Some(NO_OWNER_PID));
+    assert_eq!(creation_key(&inspected), format!("~{}", published.path.display()));
     remove(root.as_path());
 }
 

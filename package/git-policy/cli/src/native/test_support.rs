@@ -385,6 +385,58 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
     return command.status().expect("the child test starts");
 }
 
+/// What:
+///  A sleeping process that stands in for a live wrapper or Git process,
+///  stopped and reaped when the test ends.
+/// Why:
+///   A control of "a live process holds this" needs a real process number that exists,
+///  and a failed assertion must not leave the sleeper running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await using sleeper = spawnSleeper({ cwd, stdin });
+/// ```
+#[cfg(unix)]
+pub(crate) struct Sleeper(pub(crate) std::process::Child);
+
+/// Starting a sleeper.
+#[cfg(unix)]
+impl Sleeper {
+    /// What:
+    ///  Start `sleep` with a working directory and a file as its standard input.
+    /// Why:
+    ///   The working directory and the open descriptor are the two ways the scan sees a process use a path.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// spawn('sleep', ['120'], { cwd, stdio: [openSync(file), 'ignore', 'ignore'] })
+    /// ```
+    pub(crate) fn start(directory: &Path, held: Option<&Path>) -> Sleeper {
+        let mut command: Command = Command::new("sleep");
+        command.arg("120").current_dir(directory).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        match held {
+            Some(file) => command.stdin(std::fs::File::open(file).expect("the file to hold open")),
+            None => command.stdin(std::process::Stdio::null()),
+        };
+        return Sleeper(command.spawn().expect("the sleeper starts"));
+    }
+
+    /// The sleeper's process number.
+    pub(crate) fn pid(&self) -> i64 {
+        return i64::from(self.0.id());
+    }
+}
+
+/// Stopping a sleeper.
+#[cfg(unix)]
+impl Drop for Sleeper {
+    /// Kill and reap the process.
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 /// Controls for the fixture helpers above.
 #[path = "test_support_tests.rs"]
 mod tests;

@@ -24,8 +24,10 @@ use super::recovery_error::{RecoveryError, io_failure};
 use super::recovery_evidence::entered_landing;
 /// Owner inspection and order.
 use super::recovery_inspect::{
-    InspectedEntry, OwnerEvidence, inspect_registry_entry, oldest_first,
+    InspectedEntry, NO_OWNER_PID, OwnerEvidence, inspect_registry_entry, oldest_first,
 };
+/// The real index of a transaction and the PID file that announces its dead owner.
+use super::recovery_unrecorded_lock::{announces_owner, real_index_of_transaction};
 /// Dead-transaction recovery.
 use super::recovery_landing::{RecoveryAction, RecoveryPlace, recover_dead_transaction};
 /// Isolated merges that died.
@@ -95,6 +97,18 @@ pub fn recover_inspected_entry(
                 .as_str(),
             );
             return Ok(RecoveryAction::StagingUnattributed);
+        }
+        OwnerEvidence::Abandoned => {
+            debug(
+                "recoverInspectedEntry",
+                format!("no owner record and nothing used it for the patience; recovering {}", path.display()).as_str(),
+            );
+            return recover_dead_transaction_unless_vanished(
+                place,
+                path,
+                inspected.entry.transaction_id.as_str(),
+                NO_OWNER_PID,
+            );
         }
         OwnerEvidence::Owned(record, OwnerLiveness::Alive) => {
             debug(
@@ -180,10 +194,37 @@ fn recover_dead_transaction_unless_vanished(
 /// async function needsLandingLock(inspected: InspectedEntry): Promise<boolean>;
 /// ```
 fn needs_landing_lock(inspected: &InspectedEntry) -> Result<bool, RecoveryError> {
-    if inspected.entry.kind != EntryKind::Transaction || inspected.dead_owner().is_none() {
+    let Some(owner_pid) = inspected.recoverable_owner_pid() else {
+        return Ok(false);
+    };
+    if inspected.entry.kind != EntryKind::Transaction {
         return Ok(false);
     }
-    return entered_landing_unless_vanished(inspected.entry.path.as_path());
+    return in_landing_section(inspected.entry.path.as_path(), owner_pid);
+}
+
+/// What:
+///  Whether a dead or abandoned transaction is in the landing critical section:
+///  it recorded a lock or a landing,
+///  or the PID file beside its real index announces the dead owner,
+///  which is the lock evidence left when the lock record's name was lost.
+/// Why:
+///   Releasing that lock is the landing pass's work,
+///  so the landing lock must be held before recovery looks at it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await enteredLanding(directory)) || announcesOwner(realIndexOf(directory), ownerPid)
+/// ```
+fn in_landing_section(directory: &Path, owner_pid: i64) -> Result<bool, RecoveryError> {
+    if entered_landing_unless_vanished(directory)? {
+        return Ok(true);
+    }
+    // A directory a peer already removed has nothing left to recover, whatever PID file remains.
+    if !directory.exists() {
+        return Ok(false);
+    }
+    return Ok(announces_owner(real_index_of_transaction(directory).as_path(), owner_pid));
 }
 
 /// What:
@@ -240,10 +281,10 @@ pub fn recover_dead_landings(
     // `mut` allows collecting outcomes in recovery order.
     let mut outcomes: Vec<RecoveryOutcome> = Vec::new();
     for item in oldest_first(inspected) {
-        let Some(record) = item.dead_owner() else {
+        let Some(owner_pid) = item.recoverable_owner_pid() else {
             continue;
         };
-        if !entered_landing_unless_vanished(item.entry.path.as_path())? {
+        if !in_landing_section(item.entry.path.as_path(), owner_pid)? {
             continue;
         }
         debug(
@@ -254,7 +295,7 @@ pub fn recover_dead_landings(
             place,
             item.entry.path.as_path(),
             item.entry.transaction_id.as_str(),
-            record.owner_pid,
+            owner_pid,
         )?;
         outcomes.push(RecoveryOutcome {
             directory: item.entry.path.clone(),

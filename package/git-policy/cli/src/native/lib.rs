@@ -803,6 +803,15 @@ pub mod blob_batch;
 /// Bringing added paths' worktree copies to their landed bytes.
 pub mod worktree_completion;
 
+/// The processes of this host that use a directory or a file.
+pub mod process_use;
+
+/// Whether a published transaction directory without an owner record is abandoned.
+pub mod ownerless_directory;
+
+/// The release of a real index lock that a dead wrapper's PID file announces without a lock record.
+pub mod recovery_unrecorded_lock;
+
 /// Owner inspection of registry entries and the oldest-first order.
 pub mod recovery_inspect;
 
