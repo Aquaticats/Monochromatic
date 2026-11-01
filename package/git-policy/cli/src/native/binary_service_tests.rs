@@ -17,7 +17,7 @@ use super::commit::{git_text, remove_settled};
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE};
-use git_policy_cli::service_messages::{ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
+use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_service,
 };
@@ -291,9 +291,9 @@ fn a_late_service_is_waited_for_and_an_absent_one_is_reported_plainly() {
     let sent: CommitRequest = request(&fixture, &repo, "late-1", "l.txt", "l\n");
     let nobody = ClientConfig { start_wait: Duration::from_millis(300), ..config(name.as_str()) };
     assert_eq!(submit_quietly(&nobody, &sent), Err(ClientFailure::DidNotStart));
-    let uninstalled = ClientConfig { activation: Activation::NotInstalled, ..config(name.as_str()) };
+    let uninstalled = ClientConfig { activation: Activation::Unsupported(Platform::LinuxWithoutUserServices), ..config(name.as_str()) };
     let began: Instant = Instant::now();
-    assert_eq!(submit_quietly(&uninstalled, &sent), Err(ClientFailure::NotInstalled));
+    assert_eq!(submit_quietly(&uninstalled, &sent), Err(ClientFailure::NoActivation(Platform::LinuxWithoutUserServices)));
     assert!(began.elapsed() < Duration::from_secs(5), "an absent activation is reported at once");
     let started_late = std::thread::spawn({
         let client: ClientConfig = config(name.as_str());

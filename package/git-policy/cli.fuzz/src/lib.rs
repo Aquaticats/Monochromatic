@@ -26,6 +26,9 @@ mod control_tables;
 /// Control-bearing argument vectors and the invariants of removal and of the refusal frontier.
 pub mod controls;
 
+/// Raw and generated D-Bus replies and the session bus client's reply reader invariants.
+pub mod dbus_reply;
+
 /// Generated `git cat-file --batch` replies and the reply-reading invariants.
 pub mod batch;
 
