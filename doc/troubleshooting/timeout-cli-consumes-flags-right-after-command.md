@@ -1219,18 +1219,26 @@ Recorded 2026-11-01 against `timeout-cli` `f11480d` and `clap` 4.5.43 and 4.6.7.
     and the output is recorded under this list.
 7.  Runnable clean-machine reproduction (a minimal repository with a CI workflow):
     not run.
-    It needs a repository under the poster's GitHub account,
-    which requires the account's token,
-    and the instructions for this investigation say the owner's GitHub token never goes into any file,
-    command,
-    or environment.
+    It needs a new repository in the poster's GitHub account,
+    which is a write outside this repository.
+    The brief for this investigation limits the work to a local document
+    ("Don't file anything upstream.
+    The draft stays in the doc."),
+    and `AGENTS.md` `PX3` lists what may be done without asking:
+    "Act + report on local work,
+    current-repo GitHub mutations,
+    and solely user-controlled resources.
+    Else need authorization;
+    unsure -> ask."
+    Whether a new private repository in the poster's account counts as solely user-controlled was unclear,
+    so it was left for the poster.
     The draft's reproduction is a single `cargo install` followed by five commands,
     which any machine with Rust can run.
 8.  Verdict:
     not recommended for filing from this document,
     for the reason in item 7.
     The blocker is the missing CI reproduction repository,
-    and it clears when the poster (or a session the poster authorizes to use the account) creates it as a private repository,
+    and it clears when the poster authorizes a session to create it as a private repository,
     or decides it is not wanted.
     Everything else the agent can close is closed,
     and the draft needs no other change.
