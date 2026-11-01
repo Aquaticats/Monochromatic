@@ -1232,6 +1232,35 @@ each finished branch is reviewed and merged into `main`):
   then the Docker removal (#35) and the Depot removal (#36),
   the global plan conversion,
   and a real `prepare:playwright` pull.
+- wg-quicker update scopes and whole-system performance (2026-11-01, owner:
+  "And wg-quicker-update might have been causing some whole-system perf issues. Fix it.").
+  Measured about 01:20 EDT,
+  user manager:
+  1293 `wg-quicker-update-*` scopes active/running with `cgroup.events` `populated 0`,
+  18 running and populated,
+  982 failed with no cgroup
+  (user journal: 980 times "No PIDs left to attach to the scope's control group, refusing.");
+  scopes are created without `CollectMode`.
+  The `__watch` process averaged 17.3% of one CPU over 73 minutes.
+  Copied limits:
+  1199 scopes with no CPU or memory cap,
+  88 with `CPUQuotaPerSecUSec=28s` and `MemoryMax=32000000000` each,
+  copied per process from the shared `app.slice/claude-code-bash` `cpu.max` that `claude-cpu-watch` writes
+  (`package/claude-cpu-cap/daemon/src/paths.ts:156`),
+  so each moved process leaves that shared cap and its `io.weight`.
+  IO pressure at the time was mostly not wg
+  (10 s sample: a podman `conmon` wrote 392 MiB and one `claude` process read 393 MiB).
+  Mechanism, read in source:
+  systemd v259.10 `src/core/scope.c:391` `scope_enter_running` enters running when any attach counts
+  and "rel[ies] on empty notifications";
+  `src/core/cgroup.c:2181` `unit_attach_pids_to_cgroup` counts a successful `cgroup.procs` write as attached
+  and drops the unit from the empty queue;
+  kernel v7.2.11 `kernel/cgroup/cgroup.c:2594-2596` `cgroup_migrate_add_task` returns early for `PF_EXITING`,
+  so a scope adopting an exiting process is never populated and never stops.
+  Next:
+  the fix goes to the wg agent;
+  a troubleshooting doc with a throwaway reproduction goes to a doc agent;
+  owner question pending on shared versus per-process caps.
 - After the cutover merge (2026-11-01):
   - `mise run toolchain:install` in `main` ran as the unit `cutover-toolchain-install`
     (log `${HOME}/temp/agent/cutover-backup/install.log`;
