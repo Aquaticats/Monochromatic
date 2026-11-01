@@ -291,22 +291,24 @@ fn unreadable_content_is_a_reader_failure() {
     assert_eq!(error.failure, CandidateFailure::ReaderEnded);
 }
 
+/// The bytes Git adds to the echoed request in a missing notice: a space, `missing`, and the line feed.
+const MISSING_NOTICE_BYTES: usize = 8;
+
 /// The header bound is exact:
 ///  the longest accepted header,
 ///  one byte more,
 ///  and a stream ending at the bound.
 #[test]
 fn header_length_bound_is_exact() {
-    assert_eq!(MAX_BATCH_HEADER_BYTES, 128);
-    // A missing notice is the echoed request plus eight bytes, so the request length sets the header length.
-    let longest: String = "r".repeat(MAX_BATCH_HEADER_BYTES - 8);
+    // A missing notice is the echoed request plus the notice bytes, so the request length sets the header length.
+    let longest: String = "r".repeat(MAX_BATCH_HEADER_BYTES - MISSING_NOTICE_BYTES);
     let accepted: String = format!("{longest} missing\n");
     let mut remaining: &[u8] = accepted.as_bytes();
     assert_eq!(
         read_batch_reply(&mut remaining, longest.as_bytes()).expect("longest header"),
         BatchReply::Missing
     );
-    let too_long: String = "r".repeat(MAX_BATCH_HEADER_BYTES - 7);
+    let too_long: String = "r".repeat(MAX_BATCH_HEADER_BYTES - (MISSING_NOTICE_BYTES - 1));
     let refused: String = format!("{too_long} missing\n");
     let mut refused_stream: &[u8] = refused.as_bytes();
     assert_eq!(

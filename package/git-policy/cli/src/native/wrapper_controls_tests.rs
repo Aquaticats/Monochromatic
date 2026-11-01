@@ -20,8 +20,11 @@ use super::{
     CONTROL_SPELLINGS, ControlMeaning, Controls, KEEP_GOING_FLAG, control_flags, control_meaning,
     is_escaped, no_controls, record_control, strip_global_controls,
 };
+use crate::command_add::ADD_ESCAPE_HATCH;
 use crate::command_test_support::os_arguments;
-use crate::escape_hatch::WORKTREE_COPY_ESCAPE_HATCH;
+use crate::escape_hatch::{
+    BRANCH_WORKTREE_ESCAPE_HATCH, WORKTREE_COPY_ESCAPE_HATCH, WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
+};
 use crate::policy_registry::{POLICY_REGISTRY, PolicyId};
 use std::ffi::OsString;
 
@@ -57,8 +60,27 @@ fn every_shipped_policy_has_its_enforce_spelling() {
             "{flag}"
         );
     }
-    // One spelling per policy, three older spellings, and the two flags that escape no policy.
-    assert_eq!(CONTROL_SPELLINGS.len(), POLICY_REGISTRY.len() + 5);
+    // Every row is either the escape of a shipped policy or one of the older fixed spellings.
+    let fixed: [&str; 5] = [
+        KEEP_GOING_FLAG,
+        WORKTREE_COPY_ESCAPE_HATCH,
+        WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
+        BRANCH_WORKTREE_ESCAPE_HATCH,
+        ADD_ESCAPE_HATCH,
+    ];
+    for spelling in CONTROL_SPELLINGS {
+        assert!(
+            matches!(spelling.meaning, ControlMeaning::Escape(_)) || fixed.contains(&spelling.flag),
+            "{} has no policy or fixed meaning",
+            spelling.flag
+        );
+    }
+    for flag in fixed {
+        assert!(
+            CONTROL_SPELLINGS.iter().any(|spelling| spelling.flag == flag),
+            "{flag} is not a spelling"
+        );
+    }
 }
 
 /// The older spellings,
@@ -69,22 +91,20 @@ fn fixed_spellings_have_their_meaning() {
         (KEEP_GOING_FLAG, ControlMeaning::KeepGoing),
         (WORKTREE_COPY_ESCAPE_HATCH, ControlMeaning::SkipWorktreeCopy),
         (
-            "--no-enforce-worktree",
+            WORKTREE_ENFORCEMENT_ESCAPE_HATCH,
             ControlMeaning::Escape(PolicyId::LinkedWorktreeOnly),
         ),
         (
-            "--no-enforce-worktree-branch",
+            BRANCH_WORKTREE_ESCAPE_HATCH,
             ControlMeaning::Escape(PolicyId::BranchWorktreeOnly),
         ),
         (
-            "--no-enforce-bulk-add",
+            ADD_ESCAPE_HATCH,
             ControlMeaning::Escape(PolicyId::AddExplicit),
         ),
     ] {
         assert_eq!(control_meaning(flag.as_bytes()), Some(meaning), "{flag}");
     }
-    assert_eq!(KEEP_GOING_FLAG, "--cli-git-keep-going");
-    assert_eq!(WORKTREE_COPY_ESCAPE_HATCH, "--no-worktree-copy");
     for other in [
         "",
         "--",

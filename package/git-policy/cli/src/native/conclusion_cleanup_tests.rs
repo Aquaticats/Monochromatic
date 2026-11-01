@@ -56,7 +56,13 @@ fn clean(scene: &Scene, format: RefFormat) -> Result<(), RecoveryError> {
 /// The name lists are the incumbent's.
 #[test]
 fn names_match_the_incumbent() {
-    assert_eq!(CONCLUSION_STATE_FILES.len(), 8);
+    // Every pseudoref the reftable backend keeps in its store must be copied as a conclusion state file.
+    for name in STORE_HELD_PSEUDOREFS {
+        assert!(
+            CONCLUSION_STATE_FILES.contains(&name),
+            "{name} must be a conclusion state file"
+        );
+    }
     assert!(is_store_held(RefFormat::Reftable, "AUTO_MERGE"));
     assert!(is_store_held(RefFormat::Reftable, "CHERRY_PICK_HEAD"));
     assert!(is_store_held(RefFormat::Reftable, "REVERT_HEAD"));

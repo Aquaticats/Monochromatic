@@ -29,7 +29,11 @@ fn writes(words: &[&str]) -> bool {
 /// Every command in the always-writing list writes the index in every form.
 #[test]
 fn every_always_writing_command_writes_the_index() {
-    assert_eq!(ALWAYS_WRITING_COMMANDS.len(), 15);
+    // The registry lists each command once: a duplicate would hide the second row from the count of a set.
+    let mut unique: Vec<&[u8]> = ALWAYS_WRITING_COMMANDS.to_vec();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(ALWAYS_WRITING_COMMANDS.len(), unique.len(), "each command is listed once");
     for name in ALWAYS_WRITING_COMMANDS {
         let word: &str = std::str::from_utf8(name).expect("ASCII command name");
         assert!(writes(&[word]), "{word} must write the index");

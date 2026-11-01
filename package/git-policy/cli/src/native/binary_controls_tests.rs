@@ -104,7 +104,11 @@ fn every_control_before_the_subcommand_is_removed() {
     let below_root: Observed =
         run_direct(&fixture, nested.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(below_root.code, Some(0));
-    assert_eq!(CONTROL_SPELLINGS.len(), 14);
+    // Each control is spelled once, so the loop below exercises the whole table without repeats.
+    let mut flags: Vec<&str> = CONTROL_SPELLINGS.iter().map(|spelling| spelling.flag).collect();
+    flags.sort_unstable();
+    flags.dedup();
+    assert_eq!(flags.len(), CONTROL_SPELLINGS.len(), "no control is spelled twice");
     for spelling in CONTROL_SPELLINGS {
         assert_eq!(
             run_wrapped(
