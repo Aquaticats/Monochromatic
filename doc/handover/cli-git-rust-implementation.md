@@ -4654,3 +4654,17 @@ This block supersedes "State at 2026-10-29 (night, later)".
   one `git apply --reverse --check` per case on at most four worker threads; same seeded inputs and assertions.
 - On its report: verify patch equality evidence and the guard failure, merge, run the container gate, then release with the
   next wrapper fix (tests only, so a release is optional; fold into the next functional change).
+
+## Replay unit tests batched and merged (2026-10-31)
+
+- Merged the worktree agent's branch (merge commit on main). `strict_reverse_agrees_with_git_apply_on_seeded_cases` now
+  starts Git 114 times instead of 1221 (1 init, 1 fast-import, 1 diff-tree, 111 apply; the old 1221 included 333
+  `git maintenance run --auto` children spawned by the commits), and runs in 0.25 s unstraced. Counts came from
+  `strace -f -e trace=execve` around the host test task. The batched patches were proved byte-equal to the old
+  per-repository patches for all 111 cases in a scratch test (removed). The guard (`ours` forced true) failed with the
+  case message and was restored. Helpers are in the new `replay_reverse_apply_test_support.rs`.
+- `shared_paths_list_the_paths_both_sides_changed` was left unchanged: one fixed scenario, about 13 Git starts plus the
+  code's own diffs, no per-case loop. It hung only because the whole host stalled.
+- Container gate on the merged tree: 2677 run, 2677 passed, 7 skipped, 211.8 s.
+- Not exercised: the worker-thread panic path (a `case N:` message from a failed write inside a worker).
+- Tests only; no release needed. Fold into the next wrapper change.
