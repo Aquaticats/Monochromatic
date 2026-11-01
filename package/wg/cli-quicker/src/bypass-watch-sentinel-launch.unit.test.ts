@@ -24,6 +24,10 @@ import {
   type SentinelLaunch,
 } from '../dist/final/node/bypass-watch-sentinel-launch.mjs';
 import {
+  pathBreaksEnv,
+  unitStateMeansGone,
+} from '../dist/final/node/bypass-watch-sentinel-service.mjs';
+import {
   readSentinelMarker,
   sentinelMarkerPath,
   writeSentinelMarker,
@@ -74,6 +78,9 @@ const STATE_PATH = '/run/wg-quicker/wgtest.json';
  @param detachedMarkers - What reads answer after the sentinel started detached,
  the same as `markers` when absent.
 
+ @param stopError - Why the stopped unit cannot be shown to be gone,
+ or nothing when stopping works.
+
  @param alive - Whether the sentinel process is alive.
 
  @returns The steps,
@@ -91,12 +98,14 @@ function fakeLaunch(
     detachedFails,
     markers,
     detachedMarkers = markers,
+    stopError,
     alive,
   }: {
     readonly serviceFails: boolean;
     readonly detachedFails: boolean;
     readonly markers: readonly SentinelMarkerRead[];
     readonly detachedMarkers?: readonly SentinelMarkerRead[];
+    readonly stopError?: string;
     readonly alive: boolean;
   },
 ) {
@@ -123,7 +132,7 @@ function fakeLaunch(
     },
     stopService: ({ unit, },) => {
       events.push(`stop ${unit}`,);
-      return Promise.resolve();
+      return stopError === undefined ? Promise.resolve() : Promise.reject(new Error(stopError,),);
     },
     startDetached: ({ args, },) => {
       events.push(`detached ${args.join(' ',)}`,);
@@ -202,6 +211,49 @@ await describe({
          */
         const args = systemdRunArguments({ identity: IDENTITY, scriptArguments: ['/app/s.mjs',], environment: {}, },);
         expect(args.some((argument,) => argument.startsWith('--setenv',),),).toBe(false,);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: pathBreaksEnv.name,
+  children: [
+    it({
+      name: 'is true for any program path that contains an equals sign and false otherwise',
+      fn: async () => {
+        expect(pathBreaksEnv({ path: '/opt/a=b/node', },),).toBe(true,);
+        expect(pathBreaksEnv({ path: '/opt/node=', },),).toBe(true,);
+        expect(pathBreaksEnv({ path: '/opt/a b/node', },),).toBe(false,);
+        expect(pathBreaksEnv({ path: '/opt/node', },),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'puts the program path it is given behind env in the systemd-run arguments',
+      fn: async () => {
+        /**
+         Arguments for a program at another path.
+         */
+        const args = systemdRunArguments({ identity: IDENTITY, scriptArguments: ['/app/s.mjs',], environment: {}, programPath: '/opt/other/node', },);
+        expect(args.slice(args.indexOf('--',) + 1,),).toEqual(['/usr/bin/env', '/opt/other/node', '/app/s.mjs',],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: unitStateMeansGone.name,
+  children: [
+    it({
+      name: 'means gone only for inactive and failed',
+      fn: async () => {
+        expect(unitStateMeansGone({ printed: 'inactive\n', },),).toBe(true,);
+        expect(unitStateMeansGone({ printed: 'failed\n', },),).toBe(true,);
+        expect(unitStateMeansGone({ printed: 'active\n', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: 'activating\n', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: 'deactivating\n', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: '', },),).toBe(false,);
+        expect(unitStateMeansGone({ printed: 'inactive active', },),).toBe(false,);
       },
     },),
   ],
@@ -288,6 +340,42 @@ await describe({
         expect(reports[0],).toContain('ends both without a report',);
         expect(events.map((event,) => event.split(' ',)[0],),).toEqual(['removeMarker', 'service', 'stop', 'removeMarker', 'detached',],);
         expect(events.includes('stop wg-quicker-sentinel-4242-9001',),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'says that two sentinels may run and a death may be reported twice when the unit cannot be shown to be stopped, and still starts the one beside the watcher',
+      fn: async () => {
+        const { launch, reports, events, } = fakeLaunch({
+          serviceFails: false,
+          detachedFails: false,
+          markers: [NOT_FOUND,],
+          detachedMarkers: [FOUND,],
+          stopError: 'the unit is active (systemctl exited 1: timed out)',
+          alive: true,
+        },);
+        const outcome = await startSentinelOrReport({ statePath: STATE_PATH, identity: IDENTITY, environment: {}, launch, },);
+        expect(outcome,).toEqual({ placement: 'beside the watcher', confirmed: true, },);
+        expect(reports,).toHaveLength(2,);
+        expect(reports[1],).toContain('wg-quicker-sentinel-4242-9001 could not be shown to be stopped',);
+        expect(reports[1],).toContain('the unit is active (systemctl exited 1: timed out)',);
+        expect(reports[1],).toContain('two sentinels may run',);
+        expect(reports[1],).toContain('reported twice',);
+        expect(events.some((event,) => event.startsWith('detached',),),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'refuses a program path with an equals sign as a service, because env would read it as an assignment, and starts the sentinel beside the watcher',
+      fn: async () => {
+        const { launch, reports, events, } = fakeLaunch({ serviceFails: false, detachedFails: false, markers: [FOUND,], alive: true, },);
+        const outcome = await startSentinelOrReport({ statePath: STATE_PATH, identity: IDENTITY, environment: {}, launch, programPath: '/opt/a=b/node', },);
+        expect(outcome,).toEqual({ placement: 'beside the watcher', confirmed: true, },);
+        expect(reports,).toHaveLength(1,);
+        expect(reports[0],).toContain("contains '='",);
+        expect(reports[0],).toContain('variable assignment',);
+        expect(reports[0],).toContain('/opt/a=b/node',);
+        expect(reports[0],).toContain('ends both without a report',);
+        expect(events.some((event,) => event.startsWith('service',) || event.startsWith('stop',),),).toBe(false,);
+        expect(events.some((event,) => event.startsWith('detached',),),).toBe(true,);
       },
     },),
     it({

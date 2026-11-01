@@ -13,7 +13,12 @@ import {
   readSentinelMarker,
   sentinelMarkerPath,
 } from './bypass-watch-sentinel-marker.ts';
-import { runDeliveryCommandWithin, } from './runtime-failure-report.ts';
+import {
+  pathBreaksEnv,
+  SERVICE_TRAMPOLINE,
+  startServiceSentinel,
+  stopServiceSentinel,
+} from './bypass-watch-sentinel-service.ts';
 import type { SudoEnvironment, } from './notification-user.ts';
 import type { WatcherProcessIdentity, } from './tunnel-bypass-watcher-sidecar.ts';
 import {
@@ -53,22 +58,6 @@ const CONFIRM_ATTEMPTS = 100;
 const CONFIRM_DELAY_MS = 20;
 
 /**
- Milliseconds `systemd-run` and `systemctl` may take before they are ended.
- */
-const SYSTEMD_COMMAND_LIMIT_MS = 10_000;
-
-/**
- The first program of the service,
- which the system manager may execute where it may not execute the sentinel's program itself.
- On an SELinux host the system manager (`init_t`) may not execute files under a home directory,
- and the toolchain `node` sits in one,
- but it may execute `/usr/bin/env`,
- after which the service runs in `unconfined_service_t`, which may.
- See `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
- */
-const SERVICE_TRAMPOLINE = '/usr/bin/env';
-
-/**
  How the sentinel was started.
  */
 export type SentinelPlacement = 'service' | 'beside the watcher';
@@ -84,7 +73,8 @@ export type SentinelLaunch = {
   readonly startAsService: (call: { readonly args: readonly string[]; },) => Promise<void>;
 
   /**
-   Stops the transient service with this unit name when it still exists.
+   Stops the transient service with this unit name and checks that no process of it is left.
+   Rejects with the reason when the unit cannot be shown to be gone.
    */
   readonly stopService: (call: { readonly unit: string; },) => Promise<void>;
 
@@ -223,10 +213,12 @@ export function systemdRunArguments(
     identity,
     scriptArguments,
     environment,
+    programPath = process.execPath,
   }: {
     readonly identity: WatcherProcessIdentity;
     readonly scriptArguments: readonly string[];
     readonly environment: SudoEnvironment;
+    readonly programPath?: string;
   },
 ): readonly string[] {
   /**
@@ -248,7 +240,7 @@ export function systemdRunArguments(
     ...setenv,
     '--',
     SERVICE_TRAMPOLINE,
-    process.execPath,
+    programPath,
     ...scriptArguments,
   ];
 }
@@ -338,57 +330,6 @@ async function startDetachedSentinel({ args, }: { readonly args: readonly string
     sentinel,
     'spawn',
   );
-}
-
-/**
- Starts the sentinel as a transient service of the system manager.
-
- @param args - Arguments after `systemd-run`.
-
- @throws When `systemd-run` is missing or the manager refuses the unit.
-
- @example
- ```ts
- await startServiceSentinel({ args: ['--unit=x', '--', '/usr/bin/true'] });
- ```
- */
-async function startServiceSentinel({ args, }: { readonly args: readonly string[]; },): Promise<void> {
-  await runDeliveryCommandWithin({
-    call: {
-      command: 'systemd-run',
-      args,
-    },
-    timeoutMs: SYSTEMD_COMMAND_LIMIT_MS,
-  },);
-}
-
-/**
- Stops the transient service of a sentinel when it still exists.
- A unit that is already gone is not an error.
-
- @param unit - Name of the unit.
-
- @example
- ```ts
- await stopServiceSentinel({ unit: 'wg-quicker-sentinel-4242-9001' });
- ```
- */
-async function stopServiceSentinel({ unit, }: { readonly unit: string; },): Promise<void> {
-  try {
-    await runDeliveryCommandWithin({
-      call: {
-        command: 'systemctl',
-        args: [
-          'stop',
-          unit,
-        ],
-      },
-      timeoutMs: SYSTEMD_COMMAND_LIMIT_MS,
-    },);
-  }
-  catch (error) {
-    l.debug(`stopping ${unit} did not succeed (it may already be gone): ${String(error,)}`,);
-  }
 }
 
 /**
@@ -528,11 +469,13 @@ export async function startSentinelOrReport(
     identity,
     environment = currentSudoEnvironment(),
     launch = PRODUCTION_LAUNCH,
+    programPath = process.execPath,
   }: {
     readonly statePath: string;
     readonly identity: WatcherProcessIdentity;
     readonly environment?: SudoEnvironment;
     readonly launch?: SentinelLaunch;
+    readonly programPath?: string;
   },
 ): Promise<{
   readonly placement?: SentinelPlacement;
@@ -550,12 +493,27 @@ export async function startSentinelOrReport(
    Name of the unit that holds the sentinel.
    */
   const unit = sentinelUnitName({ identity, },);
+  if (pathBreaksEnv({ path: programPath, },)) {
+    launch.report(policyNotInForce({
+      policy: POLICY_BYPASS_TABLE,
+      detail: 'the sentinel that reports the route watcher\'s own death could not start as its own service '
+        + `(the program path ${programPath} contains '=', which /usr/bin/env would read as a variable assignment and not as a program), `
+        + 'so it starts beside the watcher: a kill of the watcher\'s whole cgroup, for example by systemd-oomd, then ends both without a report',
+    },),);
+    return startBesideTheWatcher({
+      statePath,
+      identity,
+      scriptArguments,
+      launch,
+    },);
+  }
   try {
     await launch.startAsService({
       args: systemdRunArguments({
         identity,
         scriptArguments,
         environment,
+        programPath,
       },),
     },);
   }
@@ -581,7 +539,6 @@ export async function startSentinelOrReport(
       placement: 'service',
       confirmed: true,
     };
-  await launch.stopService({ unit, },);
   launch.report(policyNotInForce({
     policy: POLICY_BYPASS_TABLE,
     detail: 'the sentinel that reports the route watcher\'s own death was accepted as a service '
@@ -589,6 +546,17 @@ export async function startSentinelOrReport(
       + `(its program may have failed to execute; look at \`journalctl --unit=${unit}\`), `
       + 'so it starts beside the watcher: a kill of the watcher\'s whole cgroup, for example by systemd-oomd, then ends both without a report',
   },),);
+  try {
+    await launch.stopService({ unit, },);
+  }
+  catch (stopError) {
+    launch.report(policyNotInForce({
+      policy: POLICY_BYPASS_TABLE,
+      detail: `the unit ${unit} could not be shown to be stopped (${String(stopError,)}), `
+        + 'so it may still run next to the sentinel that starts beside the watcher: '
+        + 'two sentinels may run, and one death of the watcher may be reported twice',
+    },),);
+  }
   return startBesideTheWatcher({
     statePath,
     identity,
