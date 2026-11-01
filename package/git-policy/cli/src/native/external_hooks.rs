@@ -15,7 +15,6 @@
 //! ```
 
 /// Debug logging of a stream that refused the warning.
-use super::hooks_off::remember_hook_names;
 use super::diagnostic_log::debug;
 /// The warning's JSONL rendering, shared with the other configuration warnings.
 use super::diagnostics::render_configuration_warning;
@@ -152,36 +151,6 @@ pub fn explain_external_hooks(hooks: &[ConfiguredHook]) -> String {
          these hooks.",
         listed.join("; ")
     );
-}
-
-/// What:
-///  The names of the hooks the snapshot configures.
-/// Why:
-///   A push switches each off by name, because it cannot switch off the whole `pre-push` event.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// configuredHooks(snapshot).map((hook) => hook.name);
-/// ```
-pub fn hook_names(snapshot: &ConfigSnapshot) -> Vec<String> {
-    return configured_hooks(snapshot).into_iter().map(|hook| { return hook.name; }).collect();
-}
-
-/// What:
-///  Make every later real-Git start of this process switch off the hooks `snapshot` configures, each by its name.
-/// Why:
-///   The event switches cover every event but `pre-push`, so a configured `pre-push` hook is switched off by name,
-///  for the pushes a command starts as well as for the pushes the wrapper makes after a commit lands.
-///  The snapshot is the one the command already read, so this costs no Git start.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (snapshot) hooksOff.rememberHookNames(hookNames(snapshot));
-/// ```
-pub fn switch_off_by_name(snapshot: Option<&ConfigSnapshot>) {
-    if let Some(found) = snapshot {
-        remember_hook_names(hook_names(found));
-    }
 }
 
 /// What:

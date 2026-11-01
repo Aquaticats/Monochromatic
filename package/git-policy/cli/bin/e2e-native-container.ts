@@ -176,6 +176,13 @@ async function copySnapshot({ context, }: {
     'package/jsonc-edit/core-rust',
   );
   /**
+   Where the catalog specifier crate the wrapper links lands in the snapshot.
+   */
+  const catalogDependency = join(
+    context,
+    'package/catalog-specifier/core-rust',
+  );
+  /**
    Everything the compile stage builds from: the wrapper, its path dependencies and the scanner crates.
    */
   const entries: readonly SnapshotEntry[] = [
@@ -206,6 +213,23 @@ async function copySnapshot({ context, }: {
         ),
         to: join(
           dependency,
+          name,
+        ),
+      };
+    }),
+    ...[
+      'Cargo.toml',
+      'Cargo.lock',
+      'src',
+      'fixtures',
+    ].map(function catalogDependencyEntry(name) {
+      return {
+        from: resolve(
+          '../../catalog-specifier/core-rust',
+          name,
+        ),
+        to: join(
+          catalogDependency,
           name,
         ),
       };

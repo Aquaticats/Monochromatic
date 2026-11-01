@@ -53,7 +53,7 @@ use super::journal_record::{RecordSync, write_record};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::{GitContext, GitFailure};
 use super::transaction_journal::{Base, Conclusion, PREPARING_FILENAME, PreparingRecord, TransactionMode};
-use super::external_hooks::{switch_off_by_name, warn_external_hooks};
+use super::external_hooks::warn_external_hooks;
 use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_journal_encode::encode_preparing;
 use super::transaction_phase::PhaseMarkerError;
@@ -91,8 +91,6 @@ pub struct CommitInvocation<'a> {
     pub config: &'a CliGitConfig,
     /// The wrapper controls given on the command line.
     pub controls: &'a Controls,
-    /// This executable, which the LFS pre-push hook command names.
-    pub executable: &'a Path,
 }
 
 /// What:
@@ -527,7 +525,6 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
     let layout: InvocationLayout = capture_invocation_layout(context, cwd, invocation.region.amend)?;
     // Decided from the snapshot the layout already holds: no process and no file system call, and it never blocks.
     warn_traditional_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
-    switch_off_by_name(layout.config_snapshot.as_ref());
     warn_external_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
     let selection: Selection = decide_selection(invocation.region, layout.conclusion);
     let mut workspace: CommitWorkspace = create_commit_workspace(&layout)?;

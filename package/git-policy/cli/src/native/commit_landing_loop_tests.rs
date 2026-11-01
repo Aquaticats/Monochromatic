@@ -115,7 +115,6 @@ fn completions_are_retargeted_to_the_replayed_blobs() {
         region: &region,
         config: &config,
         controls: &controls,
-        executable: Path::new("/nonexistent"),
     };
     let record = |path: &str, mode: &str| {
         return AddedPath {

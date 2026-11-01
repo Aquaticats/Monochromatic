@@ -164,13 +164,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     }
     let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return PathBuf::from("."); });
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
-    let executable: PathBuf = match std::env::current_exe() {
-        Ok(found) => found,
-        Err(error) => {
-            write_stderr(format!("cli-git: cannot determine this executable: {error}\n").as_str());
-            return CommitEnding { code: 2 };
-        }
-    };
     let invocation: CommitInvocation<'_> = CommitInvocation {
         context: command.context,
         environment: command.environment,
@@ -180,7 +173,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
         region: command.region,
         config: command.config,
         controls: command.controls,
-        executable: executable.as_path(),
     };
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,
@@ -223,7 +215,7 @@ fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, l
         real_git: command.context.real_git.clone(),
         cwd: invocation.cwd.to_path_buf(),
         environment: environment_with_overlay(command.environment, command.context.overlay.as_slice()),
-        lfs_pre_push: if uses_lfs { Some(invocation.executable.to_path_buf()) } else { None },
+        lfs: uses_lfs,
     };
     let mut stderr = std::io::stderr();
     match run_post_commit(&request, &git, &mut stderr) {

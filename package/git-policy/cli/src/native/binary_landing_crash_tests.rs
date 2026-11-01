@@ -60,7 +60,7 @@ fn spawn_child(world: &World, signal: &str) -> Child {
 /// Start the child with a marker armed and a conclusion kind for its capture.
 fn spawn_child_with(world: &World, signal: &str, conclusion: &str) -> Child {
     let log = std::fs::File::create(world.root.join("child.log")).expect("child log");
-    return Command::new(std::env::current_exe().expect("test binary"))
+    return Command::new(super::support::this_test_binary().expect("test binary"))
         .args(["--exact", "landing_crash::child_lands", "--ignored", "--nocapture"])
         .env(WORLD_VARIABLE, &world.root)
         .env(CONCLUSION_VARIABLE, conclusion)

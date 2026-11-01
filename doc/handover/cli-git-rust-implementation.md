@@ -5614,3 +5614,47 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - CI release bug found by 6e: the bump commit is refused when `main` moves during the run (forbidden-strings run `41303293802`, "Expected branch to
   point to ... but it did not", nothing pushed). A retry-onto-the-new-head fix is in progress on their side. The wrapper release WAITS for it (told
   6e: no local release). Main moves constantly with many sessions, so this bug would hit the wrapper release.
+
+### Gate 3 green on main's content; mutation campaign started; QUEUED work (no agent slot)
+
+- Gate 3 (`gpc-ct-gate3`, trial tree `452f828b90` = main's wrapper content after the commit-timeouts and layered-image merge): 2 773 tests run,
+  2 773 passed, 7 skipped, clippy clean, test phase 262.1 s, exit 0. The CI release dry run was dispatched: GitHub run `41306647962`
+  (`native:release -- --dry-run 0.4.6 0.4.7 ...`), watched with `gh run watch` (the wrapper's await command has no dry-run mode and requires `<run> <version>`).
+- Mutation campaign `m048` started by the coordinator in unit `cli-git-mutpar-m048` from the clean trial worktree `.claude/worktrees/merge-ct`
+  (log `~/temp/agent/mutpar-m048.log`; `--timeout 900`): `index_flags.rs child_class.rs shadow_skeleton.rs commit_index.rs transaction_git.rs
+  child_watch.rs shadow_create.rs` (new on main) plus `private_storage.rs process_tree.rs real_index_lock.rs` (timed out last time). Survivors
+  and timeouts get killed by tests when an agent slot is free.
+- QUEUED (the concurrent subagent limit of 5 refused these launches; written now per rule QWD, each needs an agent when a slot frees):
+  1. In-process read-only Git queries (owner direction "Invoke real git as rarely as possible"): replace read-only Git starts on the commit path and
+     common forwarded commands (design review counted 27 of the 39 budgeted starts as read-only; `repository_facts.rs`, `candidate_*`, `git_facts*`,
+     `diff-index` x4, `ls-files` x3 to 4, `cat-file --batch` x2, `rev-parse` x6 to 11, `config` x9) with in-process readers, differential tests
+     against real Git, fall back to Git on anything not fully understood, dependency choice by measurement (binary size, build time, latency).
+  2. Slow and flaky tests fixed at the cause: `takes_over_from_a_pusher_killed_mid_push` (fixed 30 s wait), `auto_push_reconcile` tests (34 to 40 s),
+     `candidate_prediction` (about 14 s), `command_add` (about 9.5 s), `a_busy_remote_is_merged_into_until_it_settles` (about 40 s), the `live_lock`
+     unit test that failed once under load, the `merge_isolation` test that failed once on a "still waiting for git commit-tree" notice.
+  3. Killing the m048 survivors and timeouts with tests (after the campaign reports).
+  A brief for 1 and 2 was drafted this turn (ownership, merge protocol and bans are in `~/temp/agent/charter.md`); relaunch when `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`
+  allows or when an agent finishes. Raising that limit is the owner's setting; not changed by me.
+
+### Catalog policy merged to main; agents cannot merge; compute rule; mutation campaign narrowed
+
+- Catalog policy: the branch `worktree-agent-a026a6b10f496cda2` (head `64cf7b3ea2` plus `59af3ecc2d`, containing main as of `09717e1413`) was merged to main by the
+  coordinator (merge log `~/temp/agent/main-merge-catalog.log`, exit 0). Behavior (agent's report): policy id `mono/catalog-specifiers`, default severity `error`,
+  no options, `off_unless_listed: true` (not listed in `cli-git.config.jsonc`; older configs load unchanged); reads candidate bytes (staged or index content,
+  never the worktree) of every `package.json`; a dependency must be `catalog:`, `catalog:<name>` or exactly `workspace:*` (peer dependencies: `*`, `catalog:` or
+  `catalog:<name>`); a tracked `package.json5`, `package.yaml` or `package.yml` is reported by file name without being read; finding codes
+  `unsupported-manifest-format`, `invalid-manifest`, `malformed-section`, `duplicate-key`, `non-string-specifier`, `disallowed-specifier`
+  (JSONL `mono/catalog-specifiers/<code>`); runs at commit and add (`pre-forward`), after a landed commit, on a manual push and for `check`; never for `fix`;
+  `--no-enforce-mono/catalog-specifiers` skips it. Gap fixed: `git cli-git check|fix --policy <id>` now exits 2 with a `config-invalid` event when a selected
+  policy would run nothing (off, or on without a trigger for that command). `--no-enforce-<policy>` for a selected policy is not refused (vacuous pass left
+  open). Its verification: host clippy clean, lib 2442 of 2443 (the one failure needs the gate image's linter), five binary tests hit the 5-second shared bound
+  under load average 32 and passed in isolation; no container gate, no sol review yet. The dependency `monochromatic-catalog-specifier` 0.1.0 is published (no
+  unpublished claim anywhere). Follow-up the agent named: cargo-publish job ordering (wrapper publish must wait for a catalog-specifier publish only when the
+  catalog crate's version changes; 0.1.0 is already on crates.io).
+- CHARTER AMENDMENT: worktree-isolated agents cannot run git in the root checkout, so agents do not merge; they report `READY <sha>` and the coordinator merges and
+  gates (sent to every running agent). Owner, verbatim: "Avoid wasting compute on stuff that would be shortly superseded." Applied immediately: the broad mutation
+  campaign `m048` was stopped and relaunched as `m048c` (unit `cli-git-mutpar-m048c`, log `~/temp/agent/mutpar-m048c.log`, from the clean worktree
+  `.claude/worktrees/merge-ct`, which needed `package/mutation-test/cli-cargo-mutants/node_modules` linked) over only `index_flags.rs`, `child_class.rs`,
+  `child_watch.rs`, `process_tree.rs`, `real_index_lock.rs`, files that survive any architecture. Dropped until the architecture decision: `shadow_skeleton.rs`,
+  `shadow_create.rs`, `commit_index.rs`, `transaction_git.rs`, `private_storage.rs`. The container gate on the combined state waits until the LFS and hooks
+  branches are merged, because a gate on the catalog-only tree would be superseded within the hour.

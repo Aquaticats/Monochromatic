@@ -135,7 +135,9 @@ pub fn policy_triggers(id: PolicyId) -> &'static [Trigger] {
                 Trigger::DirectFix,
             ];
         }
-        PolicyId::ForbiddenStrings => {
+        // Content policies that check what is committed, pushed or named, and fix nothing, run at the
+        // same points: a manifest edited and committed, a landed commit, a push, and `check`.
+        PolicyId::CatalogSpecifiers | PolicyId::ForbiddenStrings => {
             return &[
                 Trigger::PreForward,
                 Trigger::PostCommit,

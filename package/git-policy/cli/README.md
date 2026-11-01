@@ -55,8 +55,7 @@ Read-only commands,
    `-c core.hooksPath=/dev/null/cli-git-no-hooks`, a directory that cannot exist, and `-c hook.<event>.enabled=false`
    for every hook event Git knows, after your global options and before the subcommand, so no `-c` of yours brings a
    hook back.
-  The wrapper's own Git LFS upload step rides `pre-push`, so that one event stays on for now (see "Git LFS"), and a
-   configured `pre-push` hook is switched off by its name instead.
+  The wrapper injects no hook of its own, so `pre-push` is switched off like every other event.
   A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs hooks.
   The wrapper runs no program that any configuration names: what a hook checked is a cli-git policy under `policies`
    in `cli-git.config.jsonc`, and there is no setting that brings a hook back.
@@ -70,14 +69,17 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
-   `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
-   Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
+  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+   the push carries no hook, the wrapper never starts itself and writes no shell text.
+  The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
+   refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
+  The wrapper, as the parent that ran the upload, prints the explanation.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.
-  Without `git-lfs` on `PATH` the push stops and the message says to install it, remove the LFS configuration
-   or use `git push --no-verify`.
+  `--no-verify`, `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
+  Without `git-lfs` on `PATH` the push stops before anything starts and the message says to install it, remove the
+   LFS configuration or use `git push --no-verify`.
   The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
    files read-only, do nothing without the `lockable` attribute, and are not run.
   See the SPEC section "Git LFS upload before a push" for the evidence and the limits.
@@ -85,7 +87,8 @@ Read-only commands,
   `final-newline`,
    `markdown/autofix`,
    `mono/forbidden-root-context`,
-   `mono/dependent-version-bump` and
+   `mono/dependent-version-bump`,
+   `mono/catalog-specifiers` and
   `security/forbidden-strings` check or rewrite what a commit contains.
   The same content policies scan what a manual `git push` newly publishes.
 - After a landed commit.
@@ -211,14 +214,29 @@ git cli-git doctor
 git cli-git --help
 ```
 
-`git cli-git lfs-pre-push <remote> <url>` is the entry Git starts for the Git LFS upload described under "Git LFS";
-it is not meant to be typed.
-It reads the ref-update lines on standard input, runs `git-lfs pre-push` with them and returns its status.
+The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
+parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
+A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
+the hook dispatcher that still reads `argv[0]` is the one listed exception, until it is removed.
 
 Exactly one scope is required:
  `--all`,
  or pathspecs after `--`.
 `--policy <id>` limits the run to one policy and may be repeated.
+A selected policy that is off stops the run with exit `2`,
+ because it would check nothing and read as clean:
+ a `config-invalid` event on standard output names the policy
+ and the `cli-git.config.jsonc` key that turns it on
+ (`"policies": { "<id>": "error" }`,
+ or the value the file now sets to `"off"`).
+This holds for the four older optional policies as well,
+ which used to exit `0` with no output in that case.
+A selected policy that is on but does not run for the command is refused the same way,
+ with the command that does run it:
+ `fix --policy mono/catalog-specifiers` stops with exit `2` and points to `check`.
+Without `--policy` an off policy is skipped without a word,
+ and so it is when a commit,
+ an add or a push runs.
 Events are JSON lines on standard output.
 
 `git cli-git doctor` takes no options.
@@ -487,6 +505,7 @@ The keys `plugins` and `trust` are refused.
     "markdown/autofix": ["warn", { "rules": ["lfs-image-url"], "exclude": ["package/ssg/"] }],
     "mono/forbidden-root-context": "error",
     "mono/dependent-version-bump": "error",
+    "mono/catalog-specifiers": "error",
     "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ["forbidden-strings.append.txt", { "path": "forbidden-strings.append.local.txt", "optional": true }] }]
   },
   "hooks": { "concurrentCommits": false },
@@ -502,7 +521,9 @@ An unknown key,
 
 The wrapper ships these policies and no others.
 The first five run at their default severity without being listed.
-The last four run only where the file lists them.
+The last five run only where the file lists them.
+Listing one with a severity is the only way to turn it on,
+ and a configuration that does not name a policy behaves exactly as it did before the policy shipped.
 
 - `require-root`:
    default `error`.
@@ -530,6 +551,39 @@ The last four run only where the file lists them.
 - `mono/dependent-version-bump`:
    default `error`.
   Packages that depend on a package with a bumped version follow the bump.
+- `mono/catalog-specifiers`:
+   default `error`,
+   no options.
+  Every dependency in a tracked `package.json` is `catalog:`,
+   `catalog:<name>` or exactly `workspace:*`
+   (`peerDependencies` take `*`,
+   `catalog:` or `catalog:<name>`).
+  The rule belongs to the `monochromatic-catalog-specifier` crate,
+   whose README is its contract;
+   the policy hands it each candidate `package.json`'s bytes,
+   never the worktree's,
+   and reports its findings.
+  A tracked `package.json5`,
+   `package.yaml` or `package.yml` is a finding too,
+   reported by name without reading it.
+  The policy checks syntax only:
+   it looks up no catalog entry and does not read `pnpm-workspace.yaml`.
+  It runs when a commit is made,
+   when `git add` stages,
+   after a landed commit,
+   before a push,
+   and for `check`;
+   it proposes no correction,
+   so `fix` skips it.
+  The finding codes are `unsupported-manifest-format`,
+   `invalid-manifest`,
+   `malformed-section`,
+   `duplicate-key`,
+   `non-string-specifier` and `disallowed-specifier`.
+  A `warn` lets a literal version into the commit,
+   so it earns the unsafe-`warn` notice.
+  This repository's `cli-git.config.jsonc` does not list it yet,
+   so the policy is off here.
 - `security/forbidden-strings`:
    default `error`.
   Scans candidate bytes and path names with the linked scanner.

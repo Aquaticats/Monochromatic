@@ -26,6 +26,14 @@ pub const WRAPPER: &str = env!("CARGO_BIN_EXE_cli-git-native");
 /// The real Git 2.56.0 executable installed in the verification image.
 pub const REAL_GIT: &str = "/usr/bin/git";
 
+/// This test process's own executable, for the helper processes a control starts from the test binary.
+///  A test starts the test binary, never the wrapper: the ban on `std::env::current_exe` (`clippy.toml`) is about the
+///  wrapper starting itself, so this is the one place the lint is excused for tests.
+#[allow(clippy::disallowed_methods, reason = "identifies the running test binary so a control can start a helper copy of it; the wrapper is never started this way")]
+pub fn this_test_binary() -> std::io::Result<PathBuf> {
+    return std::env::current_exe();
+}
+
 /// Seconds after which a wrapped command is killed;
 ///  real commands here finish in milliseconds.
 /// The bound is short so a mutant that loops fails every affected control quickly.

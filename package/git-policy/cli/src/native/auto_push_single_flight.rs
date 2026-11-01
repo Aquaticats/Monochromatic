@@ -23,7 +23,6 @@ use super::bounded_push::{PUSH_DEADLINE_VARIABLE, STOP_GRACE, lock_wait_limit};
 use super::bounded_query::{QueryOutput, query_deadline, run_bounded_query};
 use super::diagnostic_log::debug;
 use super::js_text::trim_javascript;
-use super::lfs_pre_push::with_lfs_hook;
 use super::owner_lock::{DEFAULT_POLL_DELAY, OwnerLock, OwnerLockError, WaitNotice, acquire_within};
 /// The invocation's environment values and the cadence of a wait's notices.
 use super::child_environment::environment_value;
@@ -77,6 +76,11 @@ pub enum SingleFlightError {
         /// The deadline it exceeded, in whole seconds.
         seconds: u64,
     },
+    /// A Git query was not started because the time the lock holder may spend was already spent.
+    BudgetSpent {
+        /// Arguments of the query, for the diagnostic.
+        arguments: String,
+    },
 }
 
 impl std::fmt::Display for SingleFlightError {
@@ -98,6 +102,11 @@ impl std::fmt::Display for SingleFlightError {
             Self::TimedOut { arguments, seconds } => write!(
                 formatter,
                 "git {arguments} did not finish within {seconds} seconds and was stopped; \
+                 {PUSH_DEADLINE_VARIABLE} sets the limit"
+            ),
+            Self::BudgetSpent { arguments } => write!(
+                formatter,
+                "git {arguments} was not started: the time this process may hold the push lock is spent; \
                  {PUSH_DEADLINE_VARIABLE} sets the limit"
             ),
         };
@@ -205,27 +214,8 @@ pub struct PushGit {
     pub cwd: PathBuf,
     /// Complete environment every Git child receives: the invocation's variables with the overlay applied.
     pub environment: Vec<(OsString, OsString)>,
-    /// The wrapper executable the Git LFS pre-push hook names, when the pushes of this coordinator must upload LFS
-    ///  objects first; queries and fetches never carry it.
-    pub lfs_pre_push: Option<PathBuf>,
-}
-
-/// What:
-///  Build a real Git `push` command: the hook of the Git LFS upload comes first when the coordinator has one.
-/// Why:
-///   Auto-push and its reconcile pushes publish refs, so they must upload the LFS objects the pushed commits point to
-///  exactly as a typed `git push` does; the hook runs inside Git, which gives it the remote, the URL and the update
-///  lines, and a failed upload stops the push before any ref changes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// gitCommand(git, [...lfsHookArguments(git.lfsPrePush), ...pushArguments])
-/// ```
-pub fn push_command(git: &PushGit, arguments: &[OsString]) -> Command {
-    return match git.lfs_pre_push.as_deref() {
-        Some(executable) => git_command(git, &with_lfs_hook(arguments, executable)),
-        None => git_command(git, arguments),
-    };
+    /// Whether the pushes of this coordinator must upload LFS objects first (`lfs_bounded_push`); queries and fetches never do.
+    pub lfs: bool,
 }
 
 /// What:
@@ -240,24 +230,6 @@ pub fn push_command(git: &PushGit, arguments: &[OsString]) -> Command {
 pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
     let mut command = Command::new(&git.real_git);
     super::hooks_off::add_arguments(&mut command, arguments);
-    return in_push_environment(command, git);
-}
-
-/// What:
-///  Build a real Git command that gets no hooks-off options, for the push probe whose arguments carry their own
-///  `core.hooksPath` and `hook.pre-push.enabled`.
-/// Why:
-///   The probe records a push's updates through a recording hook of the wrapper's own in a private directory; the
-///  hooks-off options follow the caller's global options and would replace that directory.
-///  The probe's arguments switch the configured `pre-push` hooks off themselves, and a dry-run push runs no other.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// nanoSpawn(gitPath, probeArgs, { cwd })
-/// ```
-pub fn probe_git_command(git: &PushGit, arguments: &[OsString]) -> Command {
-    let mut command = Command::new(&git.real_git);
-    command.args(arguments);
     return in_push_environment(command, git);
 }
 
@@ -551,6 +523,8 @@ pub fn run_single_flight_push_repeating(
         cadence,
     )
     .map_err(SingleFlightError::Lock)?;
+    // Everything the holder does from here on shares one time budget, so the waiters' limit can be derived from it.
+    let budget = super::holder_budget::enter(super::bounded_push::holder_budget(&git.environment));
     let after = read_record(&paths.record_path)?;
     let late = match &after {
         LastPushedRead::Record(record)
@@ -599,6 +573,9 @@ pub fn run_single_flight_push_repeating(
             attempt.output.clone()
         },
     };
+    // The budget ends with the push: recording the outcome and the one query that follows are bounded on their own, and
+    //  a push that succeeded in the last moments must not be reported as a failure for want of time.
+    drop(budget);
     write_last_pushed_record(&paths.record_path, &record).map_err(SingleFlightError::Io)?;
     let covered = tip_contains(git, landed_oid, &tip)?;
     drop(lock);

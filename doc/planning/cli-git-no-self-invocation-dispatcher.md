@@ -55,13 +55,8 @@ The wrapper runs no external hook program and no program any configuration names
   Controls: the host Git lists each name as a hook event (with a made-up name as the positive control), lists a
   configured hook of every event as disabled with the options and enabled without them, and, when the `githooks(5)` page
   is installed, every documented event is in the list.
-- `pre-push` is the one event left on, because the wrapper's own Git LFS upload step is a configured `pre-push` hook on
-  this branch and an event-level switch would turn it off.
-  The LFS branch removes that injected hook (the parent runs `git lfs push` itself); when it merges, delete the
-  `PUSH_EVENT` filter in `switched_off_events` (`hooks_off.rs`) and the exception ends.
-  Until then a user's configured `pre-push` hook is switched off by its name (`-c hook.<name>.enabled=false`) from the
-  snapshot a push or a commit already read, for typed pushes, probes and auto-pushes alike (guard: binary tests in
-  `binary_hooks_off_tests.rs` and `binary_external_hook_tests.rs`, shown failing before the auto-push read existed).
+- `pre-push` is switched off like the other 27 events: the LFS branch removed the wrapper's injected LFS hook, so no
+  exception remains (the temporary by-name switch for a configured `pre-push` hook was removed with it).
 - The shadow's `config` switches the same events off after its include (a guard test asserts each event and the order).
 - The native commit is `git <kept options> --git-dir=<shadow> -c core.hooksPath=<absent> commit ...`, with no
   `--work-tree` and no lease, lock or plan.

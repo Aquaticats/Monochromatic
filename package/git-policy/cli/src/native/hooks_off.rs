@@ -10,8 +10,7 @@
 //!  They follow every global option of the caller and precede the subcommand, so no `-c` or `--config-env` of the caller
 //!  can switch a hook or the hooks path back on.
 //!  The options are part of the argument vector, so they add no system call and no process start.
-//!  `pre-push` is the one event left on, because the wrapper's own Git LFS upload step rides it while the push phase
-//!  of the self-invocation ban is open.
+//!  The wrapper injects no hook of its own, so `pre-push` is switched off like every other event.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -24,8 +23,6 @@ use super::global_arguments::{GlobalOutcome, global_layout};
 use std::ffi::OsString;
 /// The switch that turns the option on for the process.
 use std::sync::atomic::{AtomicBool, Ordering};
-/// A lock that survives a panic of another holder.
-use std::sync::{Mutex, PoisonError};
 /// The child that gets the option.
 use std::process::Command;
 
@@ -66,12 +63,9 @@ pub const HOOK_EVENTS: &[&str] = &[
     "post-index-change",
 ];
 
-/// The event the wrapper's own Git LFS upload hook rides; its configured hooks stay on for now.
-pub const PUSH_EVENT: &str = "pre-push";
-
-/// The events a real-Git start of the wrapper switches off.
+/// The events a real-Git start of the wrapper switches off: every hook event Git knows.
 pub fn switched_off_events() -> impl Iterator<Item = &'static str> {
-    return HOOK_EVENTS.iter().copied().filter(|event| { return *event != PUSH_EVENT; });
+    return HOOK_EVENTS.iter().copied();
 }
 
 /// What:
@@ -93,9 +87,6 @@ fn is_configuration_query(arguments: &[OsString]) -> bool {
 /// Whether this process starts real Git with hooks off; the executable switches it on before any start.
 static ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Names of the configured hooks this process has read from a repository's configuration.
-static CONFIGURED_NAMES: Mutex<Vec<String>> = Mutex::new(Vec::new());
-
 /// What:
 ///  Switch the hooks-off option on for every real-Git start this process makes from now on.
 /// Why:
@@ -109,40 +100,6 @@ static CONFIGURED_NAMES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 /// ```
 pub fn activate() {
     ACTIVE.store(true, Ordering::SeqCst);
-}
-
-/// What:
-///  Remember configured hook names, so every later real-Git start of this process switches each off by name.
-/// Why:
-///   `pre-push` is the one event not switched off as a whole (the wrapper's own Git LFS upload step rides it), so a
-///  configured `pre-push` hook is switched off by its name instead.
-///  The names come from the configuration snapshot the push path already reads, so no extra Git start is needed, and
-///  the wrapper's own injected hook is never among them: it is added to the command line after the read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// hooksOff.configuredNames.push(...names);
-/// ```
-pub fn remember_hook_names(names: impl IntoIterator<Item = String>) {
-    let mut remembered = CONFIGURED_NAMES.lock().unwrap_or_else(PoisonError::into_inner);
-    for name in names {
-        if !remembered.contains(&name) {
-            remembered.push(name);
-        }
-    }
-}
-
-/// What:
-///  The configured hook names remembered so far, in the order they were first seen.
-/// Why:
-///   The argument builder reads them once per start.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// [...hooksOff.configuredNames];
-/// ```
-pub fn remembered_hook_names() -> Vec<String> {
-    return CONFIGURED_NAMES.lock().unwrap_or_else(PoisonError::into_inner).clone();
 }
 
 /// What:
@@ -169,10 +126,6 @@ pub fn hooks_off_arguments(arguments: &[OsString]) -> Vec<OsString> {
     for event in switched_off_events() {
         result.push(OsString::from("-c"));
         result.push(OsString::from(format!("hook.{event}.enabled=false")));
-    }
-    for name in remembered_hook_names() {
-        result.push(OsString::from("-c"));
-        result.push(OsString::from(format!("hook.{name}.enabled=false")));
     }
     result.extend_from_slice(&arguments[split..]);
     return result;

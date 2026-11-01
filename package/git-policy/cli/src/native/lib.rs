@@ -85,6 +85,9 @@ pub mod management;
 /// The `git cli-git` argument grammar.
 pub mod management_arguments;
 
+/// The refusal of a direct command whose `--policy` selects a policy that is off.
+pub mod management_selection;
+
 /// The fixed registry of shipped policies.
 pub mod policy_registry;
 
@@ -412,6 +415,10 @@ pub mod policy_final_newline;
 ///  no top-level `CONTEXT.md` enters the index.
 pub mod policy_root_context;
 
+/// The optional catalog-specifier policy over the shared rule crate:
+///  every dependency in a tracked `package.json` is a catalog or workspace reference.
+pub mod policy_catalog_specifiers;
+
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.
 pub mod policy_forbidden_strings;
@@ -652,8 +659,26 @@ pub mod traditional_hook_warning;
 /// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
 pub mod doctor;
 
-/// The Git LFS upload before a push, as a configuration hook the wrapper puts in effect for its own pushes.
+/// When a push needs the Git LFS upload, and the texts the parent prints around it.
 pub mod lfs_pre_push;
+
+/// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
+pub mod lfs_upload_plan;
+
+/// The parent's bounded or interactive run of the Git LFS upload.
+pub mod lfs_upload;
+
+/// The check that `git-lfs` can start, made before a push that is preceded by the upload.
+pub mod lfs_push_precheck;
+
+/// What a waiting notice says about the lock holder: its age, its command and the limits.
+pub mod lock_holder_facts;
+
+/// The auto-push's bounded `git push`, preceded by the upload, its pre-check and its explanation.
+pub mod lfs_bounded_push;
+
+/// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
+pub mod stacked_merge_push;
 
 /// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
 pub mod hooks_off;
@@ -960,6 +985,9 @@ pub mod child_class;
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;
 
+/// One time budget for everything a lock holder does under the push lock.
+pub mod holder_budget;
+
 /// The auto-push's real `git push` with a deadline, its low-speed abort and the lock wait limit derived from it.
 pub mod bounded_push;
 
@@ -982,6 +1010,9 @@ pub mod auto_push;
 pub mod post_commit;
 
 /// Authoritative manual-push updates discovered by a private dry-run push and confirmed with ls-remote.
+pub mod manual_push_porcelain;
+
+/// The updates a manual `git push` would send, learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
 
 /// Published-set and range computation for manual-push scans: which pushed commits a remote does not have.
@@ -1055,3 +1086,8 @@ pub mod worktree_copy;
 
 /// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
 pub mod worktree_copy_forward;
+
+/// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
+#[cfg(test)]
+#[path = "no_self_invocation_tests.rs"]
+mod no_self_invocation_tests;

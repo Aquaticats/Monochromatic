@@ -831,6 +831,21 @@ The user confirmed the shared understanding and the order below, after the third
   Also from 6e: the CI release workflow has a known bug (the bump commit is refused when main moves during the run, seen on
   forbidden-strings run 41303293802; nothing pushed) and a fix is in progress, so the wrapper release waits for it.
 
+- 2026-11-01, `monochromatic-8c` result report (a peer's report; the policy is merged to main, not released): id
+  `mono/catalog-specifiers`, default severity `error`, no options, `off_unless_listed: true`, not listed in this repository's
+  `cli-git.config.jsonc`, older configs load unchanged.
+  It reads staged or index bytes (never the worktree) of every `package.json`; the allowed specifiers match the agreed policy;
+  tracked `package.json5`, `package.yaml` and `package.yml` are reported by file name without being read.
+  JSONL codes are `mono/catalog-specifiers/<code>`; the six codes it lists equal the six `as_str()` values in
+  `package/catalog-specifier/core-rust/src/finding.rs` lines 96 to 101 (checked), so nothing differs from the specification.
+  It runs at commit and add, after a landed commit, on a manual push and for `check`, never for `fix`;
+  `--no-enforce-mono/catalog-specifiers` skips it. A direct `git cli-git check|fix --policy <id>` that would run nothing now exits 2
+  with a `config-invalid` event. It depends on `monochromatic-catalog-specifier` `=0.1.0` by path plus exact pin.
+  The release waits for the LFS and hook-removal branches and the CI release fix.
+  Consequence for the CI workflow: the check reads index bytes, so the negative-control fixture must be staged (`git add`) in a
+  throwaway repository before `check --all --policy mono/catalog-specifiers`; an unstaged file proves nothing. The CI run on a
+  checkout reads the real index, which equals the worktree there. Both must be exercised when the workflow is written.
+
 ## Open items
 
 - Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
