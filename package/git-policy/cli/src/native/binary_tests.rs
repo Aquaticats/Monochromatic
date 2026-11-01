@@ -225,6 +225,14 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// The message and identity options through the service, compared with native Git field by field.
+#[path = "binary_service_options_tests.rs"]
+mod service_options;
+
+/// Index commits and `commit -a` through the service, compared with native Git including what is left behind.
+#[path = "binary_service_selection_tests.rs"]
+mod service_selection;
+
 /// The choice of commit path when the variable is unset, `0` or `1`, with the activation installed or not.
 #[path = "binary_service_default_tests.rs"]
 mod service_default;

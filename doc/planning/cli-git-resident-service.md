@@ -555,3 +555,31 @@ Tests: `service_work_tests.rs` (coalescing, kinds, notices shown once, refused i
 message, and two binary tests with a real service and a bare upstream (the push happens after the commit returned and both
 records end in `done`; a vanished upstream fails the push, not the commit, and the next commit prints the notice once). The
 handoff guard was shown failing by dropping the push record from the handoff.
+
+## Command lines the service covers now, and what still goes through the transaction
+
+Covered, each compared field by field with the commit native `git commit` makes (tree, whole message, author with date,
+committer, parents) and with what is left staged, modified and untracked:
+- `-m` (repeated), `-F <file>` in each spelling, `--cleanup=whitespace|default|verbatim`, `--allow-empty-message`.
+- `--author=Name <email>`, `--date=<date>` (Git's own `var` reads the date), `--trailer=<t>` (Git's `interpret-trailers`).
+- An index commit and `commit -a` (the shipped commit-only enforcement blocks both unless `--no-enforce-only` or
+  `--no-only` is given, so they are rare here); named paths as before.
+
+Declined to the transaction, before anything changes: `-F -` (standard input is Git's to read), a message from both `-m`
+and `-F`, `--author` without an email (Git searches history for it), `-s`, `-S` and `commit.gpgSign`, `-e` and the editor,
+`-c`, `-C`, `-t`, `--cleanup=strip|scissors`, `--amend`, `--allow-empty`, `--fixup` and `--squash`, `-i`, `-p`, `--dry-run`,
+`--pathspec-from-file`, a conclusion of a merge, a cherry-pick or a revert, an unborn or detached head, and a repository whose
+configuration sets `commit.template`, `commit.cleanup`, `i18n.commitEncoding`, `core.commentChar`, `commit.signoff`,
+`commit.verbose` or any `trailer.*` key. The last group closes a gap that existed before: the service path used to ignore
+those settings silently.
+
+What stands between this and deleting the old landing path, shadow, replay and locks: the transaction still serves the
+declined group above, and several of those need real Git to build the commit (the editor, signing, sign-off, amend). The
+design question is how the service lands a commit that real Git built. The proposal, for the owner or coordinator to accept
+before the deletion: the wrapper runs real `git commit` against a thin scratch Git directory (its own `HEAD` at the base, the
+private index, the private object directory with the real object store as an alternate), and ships the resulting commit's
+identity to the service, which lands it by comparing and swapping the branch when the base is still the branch value, and by
+asking the client to prepare again when it is not (a signed commit cannot be rebuilt on another parent). That keeps Git as
+the only author of the message, trailers, signature and amend semantics, takes no lock, and is a smaller piece of code than
+the shadow, replay and recovery machinery it replaces. It does not remove the scratch Git directory; it removes the shadow's
+landing, replay, registry and recovery.

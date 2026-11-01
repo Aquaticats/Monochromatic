@@ -11,23 +11,56 @@ fn args(words: &[&str]) -> Vec<OsString> {
 /// The plain scoped commit is covered, in each spelling of the message and the quiet flag.
 #[test]
 fn plain_scoped_commits_are_covered() {
-    let one = ServiceCommitArgs { messages: vec![String::from("subject")], quiet: false };
+    let one = ServiceCommitArgs { messages: vec![String::from("subject")], ..ServiceCommitArgs::default() };
     assert_eq!(parse_service_commit(&args(&["-m", "subject", "--", "a.txt"])), Some(one.clone()));
     assert_eq!(parse_service_commit(&args(&["-msubject", "a.txt"])), Some(one.clone()));
     assert_eq!(parse_service_commit(&args(&["--message=subject", "--", "a.txt"])), Some(one.clone()));
     assert_eq!(parse_service_commit(&args(&["--message", "subject", "a.txt"])), Some(one));
-    let quiet = ServiceCommitArgs { messages: vec![String::from("s"), String::from("body")], quiet: true };
+    let quiet = ServiceCommitArgs { messages: vec![String::from("s"), String::from("body")], quiet: true, ..ServiceCommitArgs::default() };
     assert_eq!(parse_service_commit(&args(&["-qm", "s", "-m", "body", "--only", "--", "a.txt"])), Some(quiet.clone()));
     assert_eq!(parse_service_commit(&args(&["--quiet", "--no-verify", "-m", "s", "-m", "body", "-o", "--", "a.txt"])), Some(quiet));
 }
 
-/// Everything else is left to native `git commit`: amend, editor, files, authorship, signing, trailers, `-a`.
+/// The options that only shape the message or the identity are covered, in each spelling.
+#[test]
+fn message_and_identity_options_are_covered() {
+    let file = parse_service_commit(&args(&["-F", "m.txt", "--", "a.txt"])).expect("covered");
+    assert_eq!(file.file, Some(OsString::from("m.txt")));
+    assert_eq!(parse_service_commit(&args(&["-Fm.txt", "a.txt"])), Some(file.clone()));
+    assert_eq!(parse_service_commit(&args(&["--file=m.txt", "a.txt"])), Some(file.clone()));
+    assert_eq!(parse_service_commit(&args(&["--file", "m.txt", "a.txt"])), Some(file));
+    let full = parse_service_commit(&args(&[
+        "-m", "s", "--author=A U <a@b.c>", "--date", "2020-01-02T03:04:05Z", "--trailer=Fixes: 1", "--trailer", "Cc: x", "--cleanup=verbatim",
+        "--allow-empty-message", "--", "a.txt",
+    ]))
+    .expect("covered");
+    assert_eq!(full.author.as_deref(), Some("A U <a@b.c>"));
+    assert_eq!(full.date.as_deref(), Some("2020-01-02T03:04:05Z"));
+    assert_eq!(full.trailers, vec![String::from("Fixes: 1"), String::from("Cc: x")]);
+    assert!(full.verbatim && full.allow_empty_message);
+    let whitespace = parse_service_commit(&args(&["-m", "s", "--cleanup", "whitespace", "--no-edit", "--no-gpg-sign", "--", "a.txt"])).expect("covered");
+    assert!(!whitespace.verbatim);
+}
+
+/// `-a` and `--all` only widen what the selection takes, which the preparation decides; the command line is covered.
+#[test]
+fn all_is_covered() {
+    for option in ["-a", "--all", "-qa", "-am"] {
+        let words: Vec<&str> = if option == "-am" { vec![option, "s"] } else { vec!["-m", "s", option] };
+        assert!(parse_service_commit(&args(words.as_slice())).is_some(), "{option}");
+    }
+}
+
+/// Everything else is left to the transaction: amend, editor, standard input, a message from two places, signing, sign-off,
+///  an author Git would have to look up, an unknown clean-up mode, `-a`.
 #[test]
 fn other_options_are_not_covered() {
-    for option in ["--amend", "-a", "--all", "-F", "--file=x", "-C", "--author=A <a@b>", "--date=now", "-S", "-s", "--signoff",
-        "--allow-empty", "--fixup=HEAD", "-e", "--edit", "--no-edit", "--trailer=a:b", "--cleanup=verbatim", "-t", "-v", "-u"] {
+    for option in ["--amend", "-C", "-c", "-S", "-s", "--signoff", "--allow-empty", "--fixup=HEAD", "-e", "--edit", "-t",
+        "-v", "-u", "--author=somebody", "--cleanup=strip", "--cleanup=scissors", "--reset-author", "-F-", "--gpg-sign"] {
         assert_eq!(parse_service_commit(&args(&["-m", "s", option, "--", "a.txt"])), None, "{option}");
     }
+    assert_eq!(parse_service_commit(&args(&["-F", "m.txt", "-m", "s", "--", "a.txt"])), None, "two places for the message");
+    assert_eq!(parse_service_commit(&args(&["-F", "-", "--", "a.txt"])), None, "standard input is Git's to read");
     assert_eq!(parse_service_commit(&args(&["--", "a.txt"])), None, "no message means the editor");
     assert_eq!(parse_service_commit(&args(&["-m"])), None, "a message option with no text");
 }
