@@ -158,6 +158,35 @@ fn an_old_side_branch_merged_late_drags_no_known_history() {
     remove(root.as_path());
 }
 
+/// The walk goes newest first and stops soon after the new commits are done, so the history far behind the known tip is
+///  never read: a commit deep in that history is deleted from the store (as a shallow clone lacks it), and the scan of
+///  what lies above the tip still answers. A walk that read oldest first would reach the hole and decline.
+#[test]
+fn history_far_behind_the_known_tip_is_never_read() {
+    let root = fixture("lfs-scan-deep");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::create_dir_all(repo.join("assets")).expect("assets");
+    std::fs::write(repo.join("assets/one.bin"), pointer(1)).expect("pointer");
+    git(repo.as_path(), &["add", "--all"]);
+    let mut names: Vec<String> = Vec::new();
+    for step in 0..30_u32 {
+        let date: String = format!("{} +0000", 1_000_000_000 + step * 10);
+        dated(repo.as_path(), &["commit", "--quiet", "--allow-empty", &format!("--message=known {step}")], &date);
+        names.push(name_of(repo.as_path(), "HEAD"));
+    }
+    let hole: &String = &names[3];
+    std::fs::remove_file(repo.join(".git/objects").join(&hole[..2]).join(&hole[2..])).expect("the commit is stored loose");
+    let known: &String = names.last().expect("a tip");
+    std::fs::write(repo.join("docs.txt"), "new\n").expect("file");
+    git(repo.as_path(), &["add", "--all"]);
+    dated(repo.as_path(), &["commit", "--quiet", "--message=new"], "1000001000 +0000");
+    let top: String = name_of(repo.as_path(), "HEAD");
+    assert_eq!(scan(repo.as_path(), &[top.as_str()], &[known.as_str()]), Some(Vec::new()));
+    remove(root.as_path());
+}
+
 /// Blobs that are not pointers (large, or lookalikes) are never named, whatever their path.
 #[test]
 fn lookalikes_and_large_files_are_not_named() {
