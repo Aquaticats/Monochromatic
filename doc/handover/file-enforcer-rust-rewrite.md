@@ -1636,6 +1636,29 @@ each finished branch is reviewed and merged into `main`):
   it should count as a vanish.
   Name quirk:
   scopes for a terminal origin end in `.scope.scope`.
+- pnpm shadow 0.1.1 live (commit `5aea48d735`):
+  locked (row and digest only),
+  installed,
+  checked behind the real launcher in a throwaway PATH with each command bounded,
+  then `.cache/pnpm-shadow-bin` put back before `.cache/toolchain-bin`;
+  in a fresh `mise env`,
+  `pnpm --version` (12.16.1),
+  `root`
+  and `--help` exit 0 and the real pnpm is the next one on PATH.
+  `monochromatic-60` (the catalog-specifier session) was told.
+- WR4 tightened (commit `2c44873a70`;
+  owner: "Why are you even using magic numbers in prose?",
+  then "Tighten WR4 (Recommended)").
+  Lint finds semantic-line-break errors in another session's IRW rule (`AGENTS.md` lines 231 and 233),
+  left alone.
+- The wg cleanup agent resumed:
+  the test fixes,
+  the vanish-noise fix,
+  and the queued hardening (forward `iifname`,
+  route-token pinning,
+  no runtime-directory pass-through for root),
+  each in its own commit;
+  then a review and one more restart.
   Queued after the restart (inert here:
   `ip_forward` 0,
   no guests,
