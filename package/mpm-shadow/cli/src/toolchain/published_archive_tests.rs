@@ -17,7 +17,7 @@ use super::commands::older_lock_warning_lines;
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::hash::sha256_hex;
-use super::launcher::{LaunchRecord, prepare_launch, usable_source};
+use super::launcher::{LaunchRecord, PROC_SELF_EXE, prepare_launch, usable_source};
 use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
@@ -319,13 +319,33 @@ fn the_launcher_finds_the_version_of_a_release_archive_below_any_number_of_folde
 }
 
 #[test]
+fn an_archive_folder_named_current_does_not_hide_the_link_that_names_the_version() {
+    let rig = Rig::new();
+    let tool_dir = rig._directory.path().join("folder-named-current").join(ID);
+    fs::create_dir_all(tool_dir.join("0.2.1").join("current")).expect("make the version and its folder");
+    std::os::unix::fs::symlink("0.2.1", tool_dir.join("current")).expect("link current");
+    let record = LaunchRecord {
+        tool_id: ID.to_string(),
+        lock_file: rig._directory.path().join("toolchain.lock.json"),
+        real: tool_dir.join("current").join("current").join(BIN),
+    };
+    let launch = prepare_launch(&record, Some(&lock_text("0.2.0")));
+    assert_eq!(launch.warning, Some(older_lock_message(ID, "0.2.0", "0.2.1")), "the nearest ancestor that is a link wins, not the folder");
+    assert_eq!(prepare_launch(&record, Some(&lock_text("0.2.1"))).warning, None);
+}
+
+#[test]
 fn a_launcher_is_made_from_proc_when_the_running_file_was_deleted() {
     let rig = Rig::new();
     let present = rig._directory.path().join("present");
     fs::write(&present, "x").expect("write");
-    assert_eq!(usable_source(present.clone()), present, "a file that exists is used as it is");
+    assert_eq!(usable_source(present.clone(), true).expect("used"), present, "a file that exists is used as it is");
+    assert_eq!(usable_source(present.clone(), false).expect("used"), present, "on every platform");
     let gone = rig._directory.path().join("deleted (deleted)");
-    assert_eq!(usable_source(gone), PathBuf::from("/proc/self/exe"), "a replaced running binary is read through /proc");
+    assert_eq!(usable_source(gone.clone(), true).expect("through proc"), PathBuf::from(PROC_SELF_EXE), "a replaced running binary is read through /proc");
+    let error = usable_source(gone.clone(), false).expect_err("no /proc");
+    assert!(error.message.contains(&gone.display().to_string()), "the error names the vanished path: {error}");
+    assert!(error.message.contains("no longer exists") && !error.message.contains("/proc"), "and does not blame a /proc path: {error}");
 }
 
 /// A lock text naming the release tool at `version`,

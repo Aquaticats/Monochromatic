@@ -151,10 +151,14 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
     return Ok(());
 }
 
+/// The running process's own executable as the Linux kernel exposes it,
+/// readable even after the file it was started from was deleted.
+pub const PROC_SELF_EXE: &str = "/proc/self/exe";
+
 /// What:
 /// The file to make a launcher from:
 /// the running executable's path,
-/// or `/proc/self/exe` when that path no longer names a file.
+/// or (on Linux) `/proc/self/exe` when that path no longer names a file.
 /// Why:
 /// An `mpm-shadow` that installs a newer `mpm-shadow` deletes its own version directory (older repository tools are never
 /// kept) before it rebuilds the exposure directory,
@@ -170,16 +174,36 @@ fn running_binary() -> Result<PathBuf, ToolchainError> {
         Ok(found) => found,
         Err(error) => return Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
     };
-    return Ok(usable_source(path));
+    return usable_source(path, cfg!(target_os = "linux"));
 }
 
-/// `path` when it names a file,
-/// otherwise the running process's own executable through `/proc`.
-pub fn usable_source(path: PathBuf) -> PathBuf {
+/// What:
+/// `path` when it names a file;
+/// otherwise the running process's own executable through `/proc` when `proc_available`;
+/// otherwise an error that says the running program's file is gone and what to do.
+/// Why:
+/// Only Linux has `/proc/self/exe`.
+/// On macOS a deleted running program reports its old path and no other way to read it exists,
+/// so naming `/proc/self/exe` there would end in a `cannot copy /proc/self/exe` message about a file that never existed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function usableSource(path: string, procAvailable: boolean): string  // throws
+/// ```
+pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, ToolchainError> {
     if path.exists() {
-        return path;
+        return Ok(path);
     }
-    return PathBuf::from("/proc/self/exe");
+    if proc_available {
+        return Ok(PathBuf::from(PROC_SELF_EXE));
+    }
+    return Err(ToolchainError::failure(format!(
+        "the running mpm-shadow, {}, no longer exists: installing a newer mpm-shadow removes the version directory this one was started from, \
+         and this operating system has no way to read a running program whose file was deleted, so the launchers could not be made. \
+         The newer mpm-shadow is installed; run the same command again with it \
+         (its `current` link in the toolchain root) and the launchers are made then",
+        path.display()
+    )));
 }
 
 /// What:
@@ -231,10 +255,11 @@ fn locked_version(lock_text: &str, tool_id: &str) -> Option<String> {
     return lock.get("tools")?.get(tool_id)?.get("version")?.as_str().map(str::to_string);
 }
 
-/// Whether a path is named `current`,
-/// the link of a repository-published tool.
+/// Whether a path is a link named `current`,
+/// the link of a repository-published tool
+/// (an archive folder that happens to be called `current` is a directory and does not count).
 fn is_current_link(candidate: &&Path) -> bool {
-    return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME));
+    return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME)) && candidate.is_symlink();
 }
 
 /// The version the tool's `current` link names,

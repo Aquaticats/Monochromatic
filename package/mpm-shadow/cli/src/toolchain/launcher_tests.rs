@@ -94,3 +94,56 @@ fn a_launcher_is_made_with_its_record_beside_it() {
     names.sort();
     assert_eq!(names, vec!["git".to_string(), "git.launch".to_string()]);
 }
+
+/// The environment variable that makes a copy of the test binary act as the child of the test below;
+/// it holds the file the child writes its report to,
+/// and its presence is the guard against the child starting another child.
+#[cfg(target_os = "linux")]
+const DELETED_BINARY_CHILD: &str = "MPM_SHADOW_TEST_DELETED_BINARY_CHILD";
+
+/// The full test name the child is asked to run.
+#[cfg(target_os = "linux")]
+const DELETED_BINARY_TEST: &str = "toolchain::launcher_tests::a_launcher_is_made_from_the_running_binary_after_its_file_was_deleted";
+
+/// The child half of the test below:
+/// deletes the file this process runs from,
+/// asks `ensure_launcher` for a launcher,
+/// and reports the launcher's size.
+#[cfg(target_os = "linux")]
+fn make_a_launcher_after_deleting_the_running_binary(report: &Path) {
+    let rig = Rig::new();
+    let running = std::env::current_exe().expect("the running binary");
+    fs::remove_file(&running).expect("delete the running binary");
+    assert!(!running.exists(), "the file the process runs from is gone");
+    let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
+    let launcher = ensure_launcher(&rig.scope, TOOL, "git", &real).expect("a launcher is made through /proc/self/exe");
+    fs::write(report, fs::metadata(&launcher).expect("the launcher exists").len().to_string()).expect("write the report");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_launcher_is_made_from_the_running_binary_after_its_file_was_deleted() {
+    if let Ok(report) = std::env::var(DELETED_BINARY_CHILD) {
+        make_a_launcher_after_deleting_the_running_binary(Path::new(&report));
+        return;
+    }
+    // The parent copies this test binary, starts the copy as the child and lets it delete itself.
+    let rig = Rig::new();
+    let own = std::env::current_exe().expect("the test binary");
+    let copy = rig._directory.path().join("test-binary-copy");
+    fs::copy(&own, &copy).expect("copy the test binary");
+    let report = rig._directory.path().join("child-report");
+    let output = std::process::Command::new(&copy)
+        .args(["--exact", DELETED_BINARY_TEST, "--nocapture", "--test-threads", "1"])
+        .env(DELETED_BINARY_CHILD, &report)
+        .output()
+        .expect("start the copy");
+    assert!(
+        output.status.success(),
+        "the child failed:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let launcher_size: u64 = fs::read_to_string(&report).expect("the child reported").parse().expect("a size");
+    assert_eq!(launcher_size, fs::metadata(&own).expect("size").len(), "the launcher is a whole copy of the deleted binary");
+}
