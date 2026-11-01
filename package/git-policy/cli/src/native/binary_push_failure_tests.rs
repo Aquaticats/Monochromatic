@@ -14,7 +14,13 @@
 
 use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, fixture, git, repository, run_direct, run_wrapped, start_fixture_service, FixtureService};
+use git_policy_cli::iso_time::now_iso;
 use git_policy_cli::push_failure_notice::notice_directory;
+use git_policy_cli::service_client::{Activation, ClientConfig, wake};
+use git_policy_cli::service_route::SOCKET_RELATIVE;
+use git_policy_cli::service_server::Bind;
+use git_policy_cli::service_work::work_directory;
+use git_policy_cli::work_item::{WorkItem, WorkKind, enqueue};
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -138,6 +144,30 @@ fn a_shown_failure_is_not_shown_again() {
     remove_settled(&setup.fixture);
 }
 
+/// Hands the service a push of `commit` as the wrapper's commit does, without running a wrapper command, and returns once
+///  the service has settled it.
+fn push_through_service(setup: &Setup, commit: &str) {
+    let item: WorkItem = WorkItem {
+        kind: WorkKind::Push,
+        repository: setup.repo.display().to_string(),
+        git_dir: common_dir(setup).display().to_string(),
+        branch_ref: String::from("refs/heads/main"),
+        oid: commit.to_string(),
+        parent: String::new(),
+        created: now_iso(),
+        tries: 0,
+    };
+    enqueue(work_directory(common_dir(setup).as_path()).as_path(), &item).expect("the push is recorded for the service");
+    let config: ClientConfig = ClientConfig {
+        address: Bind::Path(setup.service.runtime.join(SOCKET_RELATIVE)),
+        activation: Activation::Managed,
+        start_wait: PATIENCE,
+        commit_wait: PATIENCE,
+    };
+    wake(&config, common_dir(setup).as_path(), None, &mut std::io::sink()).expect("the service takes the wake");
+    wait_until_settled(setup, commit);
+}
+
 /// A later push of the branch that goes through clears a failure nobody has seen yet, so the person is not told about a
 ///  backup that has since been made.
 #[test]
@@ -148,8 +178,12 @@ fn a_later_successful_push_clears_the_unshown_failure() {
     wait_until_settled(&setup, failed.as_str());
     assert_eq!(waiting_records(&setup), 1, "the refusal was recorded");
     accept_pushes(setup.remote.as_path());
-    let pushed: String = commit_through_service(&setup, "third\n");
-    wait_until_settled(&setup, pushed.as_str());
+    // Real Git commits directly: a wrapper command would show the waiting record before the push could clear it.
+    std::fs::write(setup.repo.join("a.txt"), "third\n").expect("edit");
+    git(&setup.fixture, &setup.repo, &["commit", "--quiet", "--all", "--message=third"]);
+    let named = git(&setup.fixture, &setup.repo, &["rev-parse", "HEAD"]);
+    let pushed: String = String::from_utf8_lossy(&named.stdout).trim().to_string();
+    push_through_service(&setup, pushed.as_str());
     assert_eq!(waiting_records(&setup), 0, "the push that went through cleared the record");
     let after: Observed = run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]);
     assert_eq!(stderr_text(&after), "");
