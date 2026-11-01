@@ -1915,6 +1915,27 @@ lanes keep running):
 - Active: cc-docs on the deep middles, fm-decision at position 44, slice-cache
   on its unread tests, corpus-pass on its package, troubleshooting at line 73.
 
+Wave-4 forty-eighth checkpoint (2026-11-01, slice-cache and corpus-pass returns verified and
+relaunched; cc and fm still running):
+
+- slice-cache round 2: 12 more tests read, rows `w5-tr-slice-cache-005`
+  (commitFileAt example doubles its newline escape), `-006` (corpus-pin test
+  names an unqualified run-config.ts that lives in the sibling run package) and
+  `-007` (the settled-carve test promises an unsettled or legacy forward but
+  asserts only unsettled). My spots reproduce all three; ledger 7 of 7, 95 of 119
+  files. Next: consolidate-cache-store.unit.test.ts, id
+  w5-tr-slice-cache-008, base rr-tsc-003.
+- corpus-pass round 1: rows `w5-tr-corpus-pass-001` (README files adjudication as
+  a test-only devDependency while production imports its /ts subpath), `-002`
+  (README names pass-entry.ts for settleEntry, which is declared in
+  pass-entry-settle.ts) and `-003` (visualEvidenceReader lacks @param in both
+  functions). My spots reproduce all three; ledger 3 of 3; about 17 of 101
+  non-test modules read fully. Next: pass-dry-stop and the remaining modules, id
+  w5-tr-corpus-pass-004, base rr-tcp-002.
+- Active: cc-docs on the deep middles, fm-decision at position 44,
+  troubleshooting at line 73, slice-cache on its remaining tests, corpus-pass
+  on its remaining modules.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
