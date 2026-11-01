@@ -11,12 +11,7 @@ fn tokens(command: &Command) -> Vec<String> {
 
 /// The options as they are spelled on the command line: the hooks path, then one switch per event.
 fn prefix() -> Vec<String> {
-    let mut tokens: Vec<String> = vec![
-        String::from("-c"),
-        format!("core.hooksPath={NO_HOOKS_DIRECTORY}"),
-        String::from("-c"),
-        String::from(FSMONITOR_OFF),
-    ];
+    let mut tokens: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={NO_HOOKS_DIRECTORY}")];
     for event in switched_off_events() {
         tokens.push(String::from("-c"));
         tokens.push(format!("hook.{event}.enabled=false"));
@@ -236,7 +231,9 @@ fn events_from_manual() -> Option<Vec<String>> {
 /// The events the AsciiDoc source of the page lists: each is a line of event spelling followed by a line of tildes.
 ///  `None` when no installed copy of the source exists.
 fn events_from_source() -> Option<Vec<String>> {
-    let directories: [&str; 2] = ["/usr/share/doc/git", "/usr/share/doc/git-doc"];
+    // The gate image keeps the source tree Git 2.56.0 was built from, so the list always matches the Git under test;
+    //  a host's own documentation comes second.
+    let directories: [&str; 3] = ["/work/git-source/Documentation", "/usr/share/doc/git", "/usr/share/doc/git-doc"];
     let text: String = directories
         .iter()
         .find_map(|directory| { return std::fs::read_to_string(Path::new(directory).join("githooks.adoc")).ok(); })?;

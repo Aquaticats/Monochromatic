@@ -797,9 +797,10 @@ the auto-push, the reconcile and integration pushes, maintenance), carries
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
 The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows, `pre-push` included, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-It also carries `-c core.fsmonitor=false`: a `core.fsmonitor` that names a program is the hook `fsmonitor-watchman`,
-Git starts it without consulting the hooks path or any event switch (measured on Git 2.56.0), and the built-in monitor
-daemon is switched off with it.
+`core.fsmonitor` is left as configured, like the other programs Git starts for its own features (filters, editors,
+signing programs, credential helpers): the program it names is not reached by the hooks path or by any event switch
+(measured on Git 2.56.0, including with `hook.fsmonitor-watchman.enabled=false`), and the built-in monitor daemon keeps
+working.
 The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
@@ -1860,7 +1861,7 @@ and the executable does not read the name it was started under.
 The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
 not the git directory, not the environment.
 The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
-wrapper's, and stay; a program that is a hook (every hook event, and the program `core.fsmonitor` names) is switched off.
+wrapper's, and stay, `core.fsmonitor` included; a program that is a hook event is switched off.
 `cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
 (`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
 What a hook checked belongs in a cli-git policy.

@@ -1,10 +1,10 @@
 //! Binary-level controls for the ways a configuration could still make a Git the wrapper started run a program that a
-//!  hook is: an alias that carries its own `-c` options, `core.fsmonitor` naming a program, and the editor of
-//!  `git config --edit`.
+//!  hook is: an alias that carries its own `-c` options and the editor of `git config --edit`; and the control that
+//!  `core.fsmonitor` is left as configured.
 //! Each control has a positive control that runs the same setup through real Git started directly and must write the
 //!  marker, so an empty marker file proves the wrapper's options, not a setup that never fires.
 
-use super::commit::{remove_settled, run_commit, wrapped_commit};
+use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -83,20 +83,23 @@ fn an_alias_that_carries_hook_options_cannot_bring_a_hook_back() {
     remove_settled(&fixture);
 }
 
-/// `core.fsmonitor` naming a program is the hook `fsmonitor-watchman`; the wrapper's Git does not run it.
+/// `core.fsmonitor` is left as configured: a program it names is Git's own feature, not a hook of the wrapper's
+///  report, and the per-event switch `hook.fsmonitor-watchman.enabled=false` the wrapper passes does not stop it.
 #[test]
-fn a_core_fsmonitor_program_does_not_run() {
+fn a_core_fsmonitor_program_is_left_as_configured() {
     let fixture: Fixture = fixture("hooks-off-fsmonitor");
     let scene: Scene = scene(&fixture);
     let monitor: PathBuf = program(&fixture, &scene, "fsmonitor", "fsmonitor", "exit 1");
     git(&fixture, scene.repo.as_path(), &["config", "core.fsmonitor", monitor.to_str().expect("UTF-8")]);
     let control = direct(&fixture).current_dir(&scene.repo).args(["status", "--short"]).output().expect("git starts");
     assert!(control.status.success());
-    assert!(markers(&scene).contains("fsmonitor"), "real Git must run the program");
+    let direct_runs: String = markers(&scene);
+    assert!(direct_runs.contains("fsmonitor"), "real Git must run the program");
     std::fs::remove_file(&scene.markers).expect("clear the markers");
     let switched: Observed = wrapped(&fixture, &scene, &["status", "--short"]);
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
-    assert_eq!(markers(&scene), "", "the monitor program must not run through the wrapper");
+    assert_eq!(markers(&scene), direct_runs, "the wrapper must leave the program exactly as configured");
+    assert!(!stderr_of(&switched).contains("external-hooks-unsupported"), "{}", stderr_of(&switched));
     remove_settled(&fixture);
 }
 
@@ -122,25 +125,5 @@ fn a_git_started_by_the_config_editor_runs_no_hook() {
     let switched: Observed = observe(&mut command, b"");
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
     assert_eq!(markers(&scene), "editor\n", "the editor ran and its Git ran no hook");
-    remove_settled(&fixture);
-}
-
-/// A commit in a repository whose `core.fsmonitor` names a program runs no monitor program in any Git it starts, the
-///  native commit in the shadow included, and the commit lands.
-#[test]
-fn a_commit_runs_no_core_fsmonitor_program() {
-    let fixture: Fixture = fixture("hooks-off-fsmonitor-commit");
-    let scene: Scene = scene(&fixture);
-    std::fs::write(scene.repo.join("a.txt"), b"one\n").expect("file");
-    git(&fixture, scene.repo.as_path(), &["add", "--all"]);
-    git(&fixture, scene.repo.as_path(), &["commit", "--quiet", "--message=base"]);
-    std::fs::write(scene.repo.join("a.txt"), b"one\ntwo\n").expect("edit");
-    let monitor: PathBuf = program(&fixture, &scene, "fsmonitor", "fsmonitor", "exit 1");
-    git(&fixture, scene.repo.as_path(), &["config", "core.fsmonitor", monitor.to_str().expect("UTF-8")]);
-    let committed = run_commit(&fixture, scene.repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
-    assert_eq!(committed.code, Some(0), "{}", stderr_of(&committed));
-    assert_eq!(markers(&scene), "", "the monitor program must not run during a commit");
-    let subject = git(&fixture, scene.repo.as_path(), &["log", "-1", "--format=%s"]);
-    assert_eq!(String::from_utf8_lossy(&subject.stdout).trim(), "second");
     remove_settled(&fixture);
 }

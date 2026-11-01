@@ -151,12 +151,7 @@ fn argument_bytes_reach_git_unchanged() {
         b"",
     );
     // The wrapper's own hooks-off options come first; the caller's bytes follow them unchanged.
-    let mut off: Vec<String> = vec![
-        String::from("-c"),
-        format!("core.hooksPath={}", git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY),
-        String::from("-c"),
-        String::from(git_policy_cli::hooks_off::FSMONITOR_OFF),
-    ];
+    let mut off: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={}", git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY)];
     for event in git_policy_cli::hooks_off::switched_off_events() {
         off.push(String::from("-c"));
         off.push(format!("hook.{event}.enabled=false"));
