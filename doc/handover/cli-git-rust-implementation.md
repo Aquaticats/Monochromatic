@@ -7054,3 +7054,19 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   worktrees drain only when the main worktree's instance wakes; the ignored real-0.5.4 upgrade test was not run.
 - Next: gate 20, merge 0.5.6, release, bump, migrate; in parallel an integrator merges `a1038d28f6` onto `877bdab090`
   for 0.5.7, a cross-vendor review of the per-worktree diff, the subcommand agent, the host-layout lib failures.
+
+## 2026-11-01: kernel-argument script for the owner
+
+- OWNER asked: "Write a .sh in ~/Downloads/ that I can run just after my rpm-ostree deployment is done that adds the
+  kernel args." Written: `~/Downloads/add-btrfs-rootflags.sh` (outside Git, the owner's file).
+- It refuses unless `rpm-ostree status` shows `State: idle`, reads the pending deployment's kargs (rpm-ostree client
+  `rpmostree-builtin-kargs.cxx:246`, `is_pending = !opt_import_proc_cmdline`), requires exactly one `rootflags=`, adds
+  `compress=zstd:1` and `user_subvol_rm_allowed` only where missing (a different `compress=` value is kept), and runs
+  `sudo rpm-ostree kargs --delete=rootflags=<old> --append=rootflags=<new>`, then re-reads to verify. `--dry-run` prints
+  only.
+- Why delete plus append: the daemon applies deletes, then replaces, then appends
+  (`rpmostreed-transaction-types.cxx`, kernel-arg transaction), and libostree splits each argument at the first `=`
+  (`ostree-kernel-args.c`, `split_keyeq`), so `--replace=rootflags=subvol=root,...` is read as old value `subvol`.
+- Verified: eight cases against stub `rpm-ostree` and `sudo` on a throwaway PATH all pass
+  (`~/temp/agent/kargs-src/test-script.ts`); a real `--dry-run` refused with the live "State: busy" rebase. The real
+  change was not run (the owner runs it).
