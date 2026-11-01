@@ -92,3 +92,88 @@ fn a_review_record_is_left_only_where_the_repository_keeps_a_shadow_log() {
     assert_eq!(std::fs::read_dir(pending).expect("pending").count(), 2 * HANDED_OVER.len() + 1);
     remove(root.as_path());
 }
+
+/// Every file under a directory, recursively.
+fn files_under(directory: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(listing) = std::fs::read_dir(directory) {
+        for entry in listing.flatten() {
+            let path: std::path::PathBuf = entry.path();
+            if path.is_dir() {
+                found.extend(files_under(path.as_path()));
+            } else {
+                found.push(path);
+            }
+        }
+    }
+    return found;
+}
+
+/// Whether `needle` occurs in `bytes`.
+fn contains_bytes(bytes: &[u8], needle: &[u8]) -> bool {
+    return bytes.windows(needle.len()).any(|window| { return window == needle; });
+}
+
+/// The credential never reaches a file: every byte under the worktree and the Git directory is scanned, after records
+/// were written, and a positive control shows the scan reads the records.
+#[test]
+fn the_on_disk_work_items_never_hold_the_key() {
+    const SECRET: &str = "test-key-not-a-secret-on-disk";
+    let root: std::path::PathBuf = fixture("handoff-key-disk");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let log: std::path::PathBuf = handoff.repository.join(crate::standards_review_input::LOG_RELATIVE);
+    std::fs::create_dir_all(log.parent().expect("parent")).expect("directory");
+    std::fs::write(log.as_path(), "").expect("log");
+    let key: ReviewKey = ReviewKey::new(SECRET).expect("a key");
+    let mut sink: Vec<u8> = Vec::new();
+    let _result = hand_over_with_key(&handoff, OID, Some(&key), &mut sink);
+    let files: Vec<std::path::PathBuf> = files_under(root.as_path());
+    let records: usize = files.iter().filter(|path| { return path.to_string_lossy().contains(OID); }).count();
+    assert_eq!(records, HANDED_OVER.len() + 1, "the scan sees the records, review included");
+    for path in &files {
+        let bytes: Vec<u8> = std::fs::read(path).expect("a readable file");
+        assert!(!contains_bytes(bytes.as_slice(), SECRET.as_bytes()), "{} holds the key", path.display());
+    }
+    assert!(!String::from_utf8_lossy(sink.as_slice()).contains(SECRET), "the notices never print the key");
+    remove(root.as_path());
+}
+
+/// The wake message that reaches the service carries the key, and carries none when there is none.
+#[test]
+fn the_wake_message_carries_the_key_to_the_service() {
+    const SECRET: &str = "test-key-not-a-secret-on-the-wire";
+    let root: std::path::PathBuf = fixture("handoff-key-wire");
+    let name: String = format!("cli-git-test-wake-key-{}", std::process::id());
+    let mut config: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    config.config.address = Bind::Abstract(name.clone());
+    let listener: std::os::unix::net::UnixListener = crate::service_server::bind(&Bind::Abstract(name)).expect("fake service socket");
+    let received: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&received);
+    let server: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        use std::io::{BufRead, Write};
+        for _ in 0..2 {
+            let Ok((mut stream, _)) = listener.accept() else { return };
+            let welcome: String = crate::service_protocol::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION });
+            let _written = writeln!(stream, "{welcome}");
+            let mut line: String = String::new();
+            let _read = std::io::BufReader::new(&stream).read_line(&mut line);
+            sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(line);
+        }
+    });
+    let mut notices: Vec<u8> = Vec::new();
+    let key: ReviewKey = ReviewKey::new(SECRET).expect("a key");
+    hand_over_with_key(&config, OID, Some(&key), &mut notices).expect("woken with a key");
+    hand_over_with_key(&config, PARENT, None, &mut notices).expect("woken without a key");
+    let _joined = server.join();
+    let lines: Vec<String> = received.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+    assert_eq!(lines.len(), 2);
+    match crate::service_protocol::decode_client(lines[0].trim_end()) {
+        Ok(crate::service_protocol::ClientMessage::Work { review_key, common_dir }) => {
+            assert_eq!(review_key, Some(key));
+            assert_eq!(common_dir, config.common_dir);
+        }
+        other => panic!("not a work message: {other:?}"),
+    }
+    assert!(matches!(crate::service_protocol::decode_client(lines[1].trim_end()), Ok(crate::service_protocol::ClientMessage::Work { review_key: None, .. })));
+    remove(root.as_path());
+}

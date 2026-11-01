@@ -20,7 +20,8 @@ use super::lfs_pre_push::uses_lfs;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::service_messages::push_failed_notice;
 use super::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use super::service_review::{BUDGET, options_for, review_item};
+use super::service_review::{BUDGET, options_for, review_item, review_variables};
+use super::service_review_key::ReviewKey;
 use super::transaction_git::GitContext;
 use super::work_item::{DONE, FAILED, WORK_DIRECTORY, WorkItem, WorkKind, claim_next_of, requeue_expired, settle};
 use std::path::{Path, PathBuf};
@@ -38,6 +39,9 @@ pub const MAX_TRIES: u32 = 3;
 
 /// Directory under the common Git directory that holds notices for the person.
 pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
+
+/// What a wake message brings: the repository to work on and the review credential that came with it, if any.
+pub type Wake = (PathBuf, Option<ReviewKey>);
 
 /// What a handler came to.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -210,10 +214,32 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
 pub struct GitHandlers {
     /// The context every Git child of the service runs in.
     pub context: GitContext,
+    /// The review credential of each repository whose wake message carried one. Held in memory only, removed when the
+    /// round that used it ends.
+    review_keys: std::sync::Mutex<std::collections::HashMap<PathBuf, ReviewKey>>,
 }
 
 /// Methods over the real handlers.
 impl GitHandlers {
+    /// Handlers that run real Git in `context`, with no review credential yet.
+    pub fn new(context: GitContext) -> GitHandlers {
+        return GitHandlers { context, review_keys: std::sync::Mutex::new(std::collections::HashMap::new()) };
+    }
+
+    /// Keep the credential for the reviews of this repository until `forget_review_key`.
+    pub fn remember_review_key(&self, common_dir: &Path, key: ReviewKey) {
+        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(common_dir.to_path_buf(), key);
+    }
+
+    /// Drop the credential of this repository.
+    pub fn forget_review_key(&self, common_dir: &Path) {
+        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(common_dir);
+    }
+
+    fn review_key_of(&self, common_dir: &Path) -> Option<ReviewKey> {
+        return self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(common_dir).cloned();
+    }
+
     fn push_git(&self, item: &WorkItem) -> PushGit {
         let cwd: PathBuf = PathBuf::from(item.repository.as_str());
         return PushGit {
@@ -247,7 +273,8 @@ impl WorkHandlers for GitHandlers {
     }
 
     fn review(&self, item: &WorkItem) -> Verdict {
-        return review_item(&self.context, item, options_for(item, &|name| { return std::env::var(name).ok(); }), BUDGET);
+        let key: Option<ReviewKey> = self.review_key_of(Path::new(item.git_dir.as_str()));
+        return review_item(&self.context, item, options_for(item, &review_variables(key.as_ref())), BUDGET);
     }
 }
 

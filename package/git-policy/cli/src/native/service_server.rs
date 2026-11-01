@@ -14,7 +14,7 @@
 
 use super::service_journal::landed_commits;
 use super::service_land::{LandContext, Outcome, land_batch, recover};
-use super::service_work::{GitHandlers, drain};
+use super::service_work::{GitHandlers, Wake, drain};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client, encode_service,
 };
@@ -110,7 +110,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<std::path::PathBuf>) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -135,8 +135,8 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<std:
         Ok(ClientMessage::Retire) => {
             let _queued = queue.send(Job::Retire);
         }
-        Ok(ClientMessage::Work { common_dir }) => {
-            let _queued = work.send(common_dir);
+        Ok(ClientMessage::Work { common_dir, review_key }) => {
+            let _queued = work.send((common_dir, review_key));
             let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
@@ -207,17 +207,22 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
 /// ```ts
 /// for await (const dir of wakes) await drain(dir, handlers)
 /// ```
-fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers, busy: &AtomicUsize) {
+fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize) {
     while let Ok(first) = receiver.recv() {
         busy.fetch_add(1, Ordering::SeqCst);
-        let mut directories: Vec<std::path::PathBuf> = vec![first];
-        while let Ok(more) = receiver.try_recv() {
-            if !directories.contains(&more) {
-                directories.push(more);
+        let mut directories: Vec<std::path::PathBuf> = Vec::new();
+        for (directory, review_key) in std::iter::once(first).chain(std::iter::from_fn(|| { return receiver.try_recv().ok(); })) {
+            // The credential is held in memory for the reviews of this round only.
+            if let Some(key) = review_key {
+                handlers.remember_review_key(directory.as_path(), key);
+            }
+            if !directories.contains(&directory) {
+                directories.push(directory);
             }
         }
         for directory in directories {
             drain(directory.as_path(), handlers, std::time::SystemTime::now());
+            handlers.forget_review_key(directory.as_path());
         }
         busy.fetch_sub(1, Ordering::SeqCst);
     }
@@ -239,15 +244,15 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
     // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
-    let (work_sender, work_receiver): (Sender<std::path::PathBuf>, Receiver<std::path::PathBuf>) = channel();
-    let handlers: GitHandlers = GitHandlers { context: context.git.clone() };
+    let (work_sender, work_receiver): (Sender<Wake>, Receiver<Wake>) = channel();
+    let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
-            let work: Sender<std::path::PathBuf> = work_sender.clone();
+            let work: Sender<Wake> = work_sender.clone();
             std::thread::spawn(move || { handle_connection(connection, &queue, &work); });
         }
     });

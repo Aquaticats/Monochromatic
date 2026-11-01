@@ -208,3 +208,18 @@ fn an_expired_claim_is_run_again_and_given_up_after_the_tries() {
     assert_eq!(names(&repo, DONE), vec![stuck.id()]);
     remove(repo.root.as_path());
 }
+
+/// The credential a wake brought is held for that repository only, and is gone once its round ends.
+#[test]
+fn the_review_key_is_held_per_repository_and_forgotten() {
+    let handlers: GitHandlers = GitHandlers::new(crate::test_support::git_context());
+    let first: PathBuf = PathBuf::from("/srv/one/.git");
+    let second: PathBuf = PathBuf::from("/srv/two/.git");
+    let key: ReviewKey = ReviewKey::new("test-key-not-a-secret").expect("a key");
+    assert_eq!(handlers.review_key_of(first.as_path()), None);
+    handlers.remember_review_key(first.as_path(), key.clone());
+    assert_eq!(handlers.review_key_of(first.as_path()), Some(key));
+    assert_eq!(handlers.review_key_of(second.as_path()), None, "another repository does not see it");
+    handlers.forget_review_key(first.as_path());
+    assert_eq!(handlers.review_key_of(first.as_path()), None);
+}

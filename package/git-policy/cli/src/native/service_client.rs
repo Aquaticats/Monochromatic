@@ -16,6 +16,7 @@ use super::service_messages::{ClientFailure, Platform, STARTING_NOTICE, UPDATING
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client,
 };
+use super::service_review_key::ReviewKey;
 use super::service_server::Bind;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -228,10 +229,10 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await wake(config, commonDir)
+/// await wake(config, commonDir, reviewKey)
 /// ```
-pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf() });
+pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
     let mut replacements: usize = 0;
