@@ -733,6 +733,33 @@ each finished branch is reviewed and merged into `main`):
   Meanwhile a read-only agent writes `${HOME}/temp/agent/issue-2576/design-research.md`
   (dependencies first,
   then the open decisions with pnpm and uv precedent);
+  written 2026-11-01.
+  Its main points:
+  `--from` is hidden in uv 0.13.6's `uv tool install` (a local wheel goes in the positional argument,
+  as mpm-shadow's wheel bootstrap already does);
+  uv's tool receipt cannot record a torch backend,
+  and mpm-shadow's `changed_fields` and `observe_mpm_uvx` would miss a changed Python,
+  backend or source,
+  so drift needs an mpm-shadow marker;
+  suggested options `uvPython` and `uvTorchBackend` (flat,
+  like the existing ones),
+  with `uvWith` deferred;
+  for the wrapper source it ranks a local wheel with its sha256 in the lock first,
+  then PyPI,
+  a GitHub release asset,
+  and a directory source
+  (PyPI and release assets are publishing,
+  an owner question);
+  the repository has no Python precedent,
+  so the test runner,
+  linter,
+  formatter and type checker are unpicked;
+  the change lands after 0.2.1 and needs another mpm-shadow release.
+  It also found the cutover procedure in `doc/planning/file-enforcer-rust-cutover.md` still uses the old verbs
+  (`sync`,
+  `status`,
+  `lock --check`);
+  sent to the switch agent to update before the global conversion runs from it.
   after the cutover,
   grill the owner on the dependency picks,
   then the decisions,
