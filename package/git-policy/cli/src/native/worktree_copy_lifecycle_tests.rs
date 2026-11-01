@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
-use crate::worktree_copy_lock::SETTLEMENT_LOCK_NAME;
+use crate::worktree_copy_claim::claims_exist;
+use crate::worktree_copy_journal::{ensure_journal_root, journal_root, read_pending_journals};
 use std::process::Output;
 
 /// A repository with an ignored `cache` directory, returned with its canonical common directory.
@@ -97,10 +97,10 @@ fn exit_status_follows_the_settlement_table() {
     );
 }
 
-/// A worktree added from a linked worktree gets its ignored files, the summary line, and leaves no lock behind.
+/// A worktree added from a linked worktree gets its ignored files, the summary line, and leaves no claim behind.
 #[cfg(unix)]
 #[test]
-fn added_worktree_receives_ignored_state_and_lock_is_released() {
+fn added_worktree_receives_ignored_state_and_its_claim_is_released() {
     let root: PathBuf = fixture("lifecycle-add");
     let (main, common) = source(root.as_path());
     std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
@@ -141,12 +141,10 @@ fn added_worktree_receives_ignored_state_and_lock_is_released() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
-        &mut |_token| return Ok(run_real(source_canonical.as_path(), args.as_slice())),
-        &mut || return Ok(identity.clone()),
+        &mut || return Ok(run_real(source_canonical.as_path(), args.as_slice())),
         &mut stderr,
     )
     .expect("settled");
@@ -162,12 +160,7 @@ fn added_worktree_receives_ignored_state_and_lock_is_released() {
             quote(source_canonical.to_string_lossy().as_ref())
         )
     );
-    assert!(
-        !ensure_journal_root(common.as_path())
-            .expect("root")
-            .join(SETTLEMENT_LOCK_NAME)
-            .exists()
-    );
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
     assert!(
         read_pending_journals(common.as_path())
             .expect("pending")
@@ -193,12 +186,11 @@ fn opted_out_invocation_skips_synchronization() {
             creates_or_moves: true,
             opted_out: true,
             short_circuit: false,
-            inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
-        &mut |token| {
-            seen.push(token.map(str::to_string));
+        &mut || {
+            seen.push(None);
             return Ok(run_real(
                 main.as_path(),
                 &[
@@ -211,7 +203,6 @@ fn opted_out_invocation_skips_synchronization() {
                 ],
             ));
         },
-        &mut || return Ok(identity.clone()),
         &mut stderr,
     )
     .expect("settled");
@@ -219,7 +210,7 @@ fn opted_out_invocation_skips_synchronization() {
     assert_eq!(
         seen,
         vec![None],
-        "no settlement lease is handed to a skipped run"
+        "the runner is called once for a skipped run"
     );
     assert!(!topic.join("cache").exists());
     assert!(stderr.is_empty());
@@ -240,30 +231,23 @@ fn main_worktree_invocation_is_not_applicable() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
-        &mut |token| {
-            seen.push(token.map(str::to_string));
+        &mut || {
+            seen.push(None);
             return Ok(GitStatus { code: Some(7) });
         },
-        &mut || return Ok(identity.clone()),
         &mut Vec::new(),
     )
     .expect("settled");
     assert_eq!(exit_code(&settlement), 7);
     assert_eq!(seen, vec![None]);
-    assert!(
-        !ensure_journal_root(common.as_path())
-            .expect("root")
-            .join(SETTLEMENT_LOCK_NAME)
-            .exists()
-    );
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
     remove(root.as_path());
 }
 
-/// A command that creates no worktrees runs outside the lock; a pending journal alone takes it for recovery.
+/// A command that creates no worktrees forwards after recovering what is pending, without a copy.
 #[cfg(unix)]
 #[test]
 fn non_worktree_command_runs_without_settlement() {
@@ -282,15 +266,13 @@ fn non_worktree_command_runs_without_settlement() {
             creates_or_moves: false,
             opted_out: false,
             short_circuit: false,
-            inherited_token: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
-        &mut |token| {
-            seen.push(token.map(str::to_string));
+        &mut || {
+            seen.push(None);
             return Ok(GitStatus { code: Some(0) });
         },
-        &mut || return Ok(identity.clone()),
         &mut Vec::new(),
     )
     .expect("settled");
@@ -299,45 +281,135 @@ fn non_worktree_command_runs_without_settlement() {
     remove(root.as_path());
 }
 
-/// A valid inherited lease forwards without taking the lock again, while a stale token is not trusted.
-#[cfg(unix)]
-#[test]
-fn inherited_lease_forwards_without_settlement() {
-    let root: PathBuf = fixture("lifecycle-inherited");
-    let (main, common) = source(root.as_path());
-    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
-        common_dir: common.clone(),
-        git_dir: common.clone(),
-        worktree_root: main.clone(),
+/// A linked worktree identity for a source at `root` whose administrative directory is `admin`.
+fn linked_identity(root: &Path, common: &Path, admin: &Path) -> WorktreeIdentity {
+    return WorktreeIdentity::LinkedWorktree {
+        common_dir: common.to_path_buf(),
+        git_dir: admin.to_path_buf(),
+        worktree_root: root.to_path_buf(),
     };
-    let held = crate::worktree_copy_lock::try_acquire_worktree_copy_lock(common.as_path())
-        .expect("attempt")
-        .expect("free");
-    let token: String = held.lease_token().to_string();
-    let mut seen: Vec<Option<String>> = Vec::new();
-    // A valid inherited token would wait forever if the lock were taken again, so this returns only if the lock is skipped.
+}
+
+/// Runs `git worktree add` for `topic` through the lifecycle, calling `after_git` with the new worktree's path once real Git returned.
+fn add_then(
+    root: &Path,
+    main: &Path,
+    common: &Path,
+    after_git: &mut dyn FnMut(&Path),
+) -> (Settlement, String, PathBuf) {
+    let topic: PathBuf = root.join("topic");
+    let identity: WorktreeIdentity = main_identity(main, common);
+    let args: Vec<String> = vec![
+        String::from("worktree"),
+        String::from("add"),
+        String::from("--quiet"),
+        String::from("-b"),
+        String::from("topic"),
+        topic.to_string_lossy().into_owned(),
+    ];
+    let mut stderr: Vec<u8> = Vec::new();
     let settlement: Settlement = run_with_worktree_copy(
         &Invocation {
-            identity: identity.clone(),
+            identity,
+            effective_cwd: main.to_path_buf(),
+            creates_or_moves: true,
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            main_checkout_paths: vec![String::from("cache/data")],
+        },
+        &mut || {
+            let status: GitStatus = run_real(main, args.as_slice());
+            after_git(topic.as_path());
+            return Ok(status);
+        },
+        &mut stderr,
+    )
+    .expect("settled");
+    return (settlement, String::from_utf8(stderr).expect("utf8"), topic);
+}
+
+/// A creating command run from a linked worktree that Git is still creating (a filter or hook of an enclosing
+///  `git worktree add`) forwards without observing, recovering or copying: the enclosing command copies.
+#[cfg(unix)]
+#[test]
+fn a_creating_command_inside_an_unfinished_source_only_forwards() {
+    let root: PathBuf = fixture("lifecycle-unfinished-source");
+    let (main, common) = source(root.as_path());
+    let admin: PathBuf = common.join("worktrees").join("enclosing");
+    std::fs::create_dir_all(admin.as_path()).expect("administrative directory");
+    std::fs::write(admin.join("locked"), b"initializing").expect("Git's mark of a worktree being created");
+    let mut ran: usize = 0;
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity: linked_identity(main.as_path(), common.as_path(), admin.as_path()),
             effective_cwd: main.clone(),
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
-            inherited_token: Some(token),
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
-        &mut |lease| {
-            seen.push(lease.map(str::to_string));
+        &mut || {
+            ran += 1;
             return Ok(GitStatus { code: Some(0) });
         },
-        &mut || return Ok(identity.clone()),
-        &mut Vec::new(),
+        &mut stderr,
     )
     .expect("settled");
     assert_eq!(exit_code(&settlement), 0);
-    assert_eq!(seen, vec![None]);
-    held.release().expect("released");
+    assert_eq!(ran, 1);
+    assert!(stderr.is_empty());
+    assert!(!journal_root(common.as_path()).exists(), "nothing was observed or created");
+    remove(root.as_path());
+}
+
+/// A worktree another command already copied and marked is not this command's to count: it prints no summary.
+#[cfg(unix)]
+#[test]
+fn a_destination_a_peer_already_copied_is_not_counted() {
+    let root: PathBuf = fixture("lifecycle-peer-copied");
+    let (main, common) = source(root.as_path());
+    let (settlement, stderr, topic) = add_then(root.as_path(), main.as_path(), common.as_path(), &mut |_topic| {
+        std::fs::write(common.join("worktrees/topic").join(crate::worktree_copy_registry::COPIED_MARKER_NAME), b"")
+            .expect("the peer's marker");
+    });
+    assert_eq!(exit_code(&settlement), 0);
+    assert!(stderr.is_empty(), "{stderr}");
+    assert!(!topic.join("cache").exists(), "the peer's copy is the peer's");
+    remove(root.as_path());
+}
+
+/// A worktree another command is copying right now is yielded to, with a notice, and no summary is printed.
+#[cfg(unix)]
+#[test]
+fn a_destination_a_peer_is_copying_is_yielded_to_with_a_notice() {
+    let root: PathBuf = fixture("lifecycle-peer-copying");
+    let (main, common) = source(root.as_path());
+    let mut peer = None;
+    let (settlement, stderr, topic) = add_then(root.as_path(), main.as_path(), common.as_path(), &mut |topic| {
+        let canonical: PathBuf = std::fs::canonicalize(topic).expect("canonical");
+        let container: PathBuf = crate::worktree_copy_stage::new_stage_container(canonical.as_path()).expect("container");
+        peer = crate::worktree_copy_claim::publish_claim(
+            ensure_journal_root(common.as_path()).expect("root").as_path(),
+            "topic",
+            canonical.as_path(),
+            container.as_path(),
+        )
+        .expect("published");
+    });
+    assert_eq!(exit_code(&settlement), 0);
+    assert!(peer.is_some(), "the peer holds the claim");
+    let canonical: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical");
+    assert_eq!(
+        stderr,
+        format!(
+            "cli-git: left the ignored-state copy into {} to another process: another descriptor of this process has it open.\n",
+            quote(canonical.to_string_lossy().as_ref())
+        )
+    );
+    assert!(!topic.join("cache").exists());
     remove(root.as_path());
 }
 
@@ -387,26 +459,19 @@ fn add_from_main(
             creates_or_moves: flags.0,
             opted_out: flags.1,
             short_circuit: false,
-            inherited_token: None,
             context: git_context(),
             main_checkout_paths: named.iter().map(|path| return String::from(*path)).collect(),
         },
-        &mut |_token| return Ok(run_real(main, args.as_slice())),
-        &mut || return Ok(identity.clone()),
+        &mut || return Ok(run_real(main, args.as_slice())),
         &mut stderr,
     )
     .expect("settled");
     return (settlement, String::from_utf8(stderr).expect("utf8"), topic);
 }
 
-/// Nothing of the copy stays behind: no lock, no pending journal and no private stage beside the worktree.
+/// Nothing of the copy stays behind: no claim, no pending journal and no private stage beside the worktree.
 fn assert_nothing_left(root: &Path, common: &Path) {
-    assert!(
-        !ensure_journal_root(common)
-            .expect("root")
-            .join(SETTLEMENT_LOCK_NAME)
-            .exists()
-    );
+    assert!(!claims_exist(journal_root(common).as_path()).expect("claims"));
     assert!(read_pending_journals(common).expect("pending").is_empty());
     let leftovers: Vec<String> = std::fs::read_dir(root)
         .expect("listing")

@@ -91,7 +91,7 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     remove(root.as_path());
 }
 
-/// A settled creation from the main checkout runs Git with the lease, copies the named file, and keeps Git's status.
+/// A settled creation from the main checkout copies the named file after Git, and keeps Git's status.
 #[cfg(unix)]
 #[test]
 fn a_settled_creation_copies_the_named_file() {
@@ -145,10 +145,10 @@ fn a_settled_creation_copies_the_named_file() {
     remove(root.as_path());
 }
 
-/// A settled run whose repository cannot be asked about again ends as an engine failure with the reason.
+/// A settled run whose Git cannot be started ends as an engine failure with the reason.
 #[cfg(unix)]
 #[test]
-fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
+fn a_settled_run_that_cannot_start_git_fails_with_the_reason() {
     let root: PathBuf = fixture("forward-unstartable");
     let (main, common) = source(root.as_path());
     git(main.as_path(), &["config", "user.name", "t"]);

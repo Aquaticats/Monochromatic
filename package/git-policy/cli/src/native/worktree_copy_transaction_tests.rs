@@ -1,12 +1,13 @@
 //! Journaled installation checks against real Git repositories: completion, failure, and resumption from the log.
 
 use super::*;
+use crate::worktree_copy_claim::claims_exist;
+use crate::worktree_copy_registry::{COPIED_MARKER_NAME, CreatedWorktree};
 use crate::worktree_copy_stage::new_stage_container;
-use crate::worktree_copy_stage_claim::stage_claims_exist;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::worktree_copy_install_entry::capture_installed_path;
 use crate::worktree_copy_install_log::{INSTALL_LOG_NAME, open_install_log};
-use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
+use crate::worktree_copy_journal::{ensure_journal_root, journal_root, read_pending_journals};
 
 /// A source repository whose ignored `cache` holds one nested file, and a destination directory beside it.
 fn ignored_source(root: &Path) -> (PathBuf, PathBuf) {
@@ -25,6 +26,19 @@ fn ignored_source(root: &Path) -> (PathBuf, PathBuf) {
 /// The common Git directory of a repository.
 fn common_of(source: &Path) -> PathBuf {
     return std::fs::canonicalize(source.join(".git")).expect("common directory");
+}
+
+/// Whether any claim or claim temporary stands under the repository's journal root.
+fn claims_left(common: &Path) -> bool {
+    return claims_exist(journal_root(common).as_path()).expect("claims");
+}
+
+/// The created worktree a registration at `root` describes: its administrative name is the root's last component.
+fn created(root: &Path) -> CreatedWorktree {
+    return CreatedWorktree {
+        admin_id: root.file_name().expect("name").to_string_lossy().into_owned(),
+        root: root.to_path_buf(),
+    };
 }
 
 /// A staged snapshot of the source, as the copy would produce it.
@@ -76,16 +90,21 @@ fn completed_synchronization_leaves_no_journal_or_stage() {
     let destination_canonical: PathBuf =
         std::fs::canonicalize(&destination).expect("canonical destination");
     let common: PathBuf = common_of(source.as_path());
-    let copied: usize = synchronize_created_worktree(
+    let copied: Synchronized = synchronize_created_worktree(
         &git_context(),
         common.as_path(),
         source.as_path(),
-        destination_canonical.as_path(),
+        &created(destination_canonical.as_path()),
         &[],
         &CopySelection::Ignored,
+        &mut Vec::new(),
     )
     .expect("synchronized");
-    assert_eq!(copied, 4);
+    assert_eq!(copied, Synchronized::Copied(4));
+    assert!(
+        common.join("worktrees/topic").join(COPIED_MARKER_NAME).exists(),
+        "a finished copy marks its registration"
+    );
     assert_eq!(
         std::fs::read(destination_canonical.join("cache/deep/data")).expect("data"),
         b"payload"
@@ -107,10 +126,7 @@ fn completed_synchronization_leaves_no_journal_or_stage() {
         .filter(|name| return name.starts_with(".cli-git-worktree-copy-"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
-    assert!(
-        !stage_claims_exist(common.as_path()).expect("claims"),
-        "a settled copy releases its stage claim"
-    );
+    assert!(!claims_left(common.as_path()), "a settled copy releases its claim");
     remove(root.as_path());
 }
 
@@ -119,20 +135,28 @@ fn completed_synchronization_leaves_no_journal_or_stage() {
 #[test]
 fn failed_staging_releases_its_claim() {
     let root: PathBuf = fixture("transaction-staging-failure");
-    let (source, _destination) = ignored_source(root.as_path());
+    let (source, destination) = ignored_source(root.as_path());
+    git(
+        source.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", destination.to_str().expect("utf8")],
+    );
+    let destination_canonical: PathBuf = std::fs::canonicalize(&destination).expect("canonical destination");
     let common: PathBuf = common_of(source.as_path());
-    let destination: PathBuf = root.join("absent").join("topic");
+    // A source that is no repository makes the selection, and so the staging, fail.
+    let not_a_source: PathBuf = root.join("not-a-source");
+    std::fs::create_dir(not_a_source.as_path()).expect("directory");
     let failure: WorktreeCopyError = synchronize_created_worktree(
         &git_context(),
         common.as_path(),
-        source.as_path(),
-        destination.as_path(),
+        not_a_source.as_path(),
+        &created(destination_canonical.as_path()),
         &[],
         &CopySelection::Ignored,
+        &mut Vec::new(),
     )
-    .expect_err("the stage parent is absent");
+    .expect_err("the source is no repository");
     assert!(!failure.0.is_empty());
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"), "the failed copy released its claim");
+    assert!(!claims_left(common.as_path()), "the failed copy released its claim");
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     remove(root.as_path());
 }

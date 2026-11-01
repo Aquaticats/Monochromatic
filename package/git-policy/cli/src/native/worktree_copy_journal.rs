@@ -719,8 +719,16 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
     let mut pending: Vec<PendingJournal> = Vec::new();
     for name in names {
         let path: PathBuf = root.join(name.as_str());
+        // A journal its copy finished and removed since the listing is gone, not unreadable: copies run concurrently.
+        match std::fs::symlink_metadata(path.as_path()) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(raw_failure(&error)),
+        }
         assert_private_path(path.as_path(), Role::JournalFile)?;
-        let text: String = read_journal_text(path.as_path())?;
+        let Some(text) = read_journal_text(path.as_path())? else {
+            continue;
+        };
         let journal: Journal = parse_journal(text.as_str(), path.as_path(), root.as_path())?;
         pending.push(PendingJournal { path, journal });
     }
@@ -728,23 +736,28 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
 }
 
 /// What:
-///  The text of one journal file, read as UTF-8 with replacement, as the incumbent reads it.
+///  The text of one journal file, read as UTF-8 with replacement, as the incumbent reads it, or nothing when it is gone.
 /// Why:
-///   An unreadable journal is named, not skipped.
+///   An unreadable journal is named, not skipped; a journal removed by its finished copy is not unreadable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await readFile(path, 'utf8')
 /// ```
-fn read_journal_text(path: &Path) -> Result<String, WorktreeCopyError> {
-    let bytes: Vec<u8> = std::fs::read(path).map_err(|error| {
-        let message: String = format!(
-            "cli-git: could not read worktree-copy journal {}.",
-            quote(path.to_string_lossy().as_ref())
-        );
-        return failure_with_cause(message.as_str(), Some(&error));
-    })?;
-    return Ok(String::from_utf8_lossy(bytes.as_slice()).into_owned());
+fn read_journal_text(path: &Path) -> Result<Option<String>, WorktreeCopyError> {
+    // `match` on the read: a journal removed since it was found is absent; any other failure names the journal.
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            let message: String = format!(
+                "cli-git: could not read worktree-copy journal {}.",
+                quote(path.to_string_lossy().as_ref())
+            );
+            return Err(failure_with_cause(message.as_str(), Some(&error)));
+        }
+    };
+    return Ok(Some(String::from_utf8_lossy(bytes.as_slice()).into_owned()));
 }
 
 /// What:

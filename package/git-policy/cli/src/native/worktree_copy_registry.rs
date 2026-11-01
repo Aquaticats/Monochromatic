@@ -36,6 +36,40 @@ use std::path::{Path, PathBuf};
 const GITDIR_PREFIX: &str = "gitdir: ";
 
 /// What:
+///  The file inside a worktree's administrative directory that Git uses to lock it.
+/// Why:
+///   Git writes it with the text `initializing` while it creates a worktree and removes it when the checkout is done.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LOCKED_NAME = 'locked';
+/// ```
+const LOCKED_NAME: &str = "locked";
+
+/// What:
+///  The text Git puts in `locked` while it creates a worktree (English; a localized Git writes a translation).
+/// Why:
+///   A worktree that still says so belongs to the Git run that creates it, and no other copy may fill it yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const INITIALIZING_TEXT = 'initializing';
+/// ```
+const INITIALIZING_TEXT: &str = "initializing";
+
+/// What:
+///  The marker file a finished copy leaves inside the worktree's administrative directory.
+/// Why:
+///   Git deletes the directory, marker included, when it removes or prunes the worktree, so the marker lasts exactly as
+///  long as the registration it describes and an overlapping command that arrives later skips the destination.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const COPIED_MARKER_NAME = 'cli-git-copied';
+/// ```
+pub const COPIED_MARKER_NAME: &str = "cli-git-copied";
+
+/// What:
 ///  The facts captured before real Git runs for an applicable invocation.
 /// Why:
 ///   The comparison after Git needs the administrative directory, the identities that
@@ -419,6 +453,86 @@ fn read_registered_worktrees(
 }
 
 /// What:
+///  Whether Git is still creating a registered worktree.
+/// Why:
+///   A copy into a half-checked-out worktree can make its checkout fail, so it is left to the command that creates it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await readFile(join(adminRoot, adminId, 'locked'), 'utf8').catch(() => '')).trim() === 'initializing'
+/// ```
+pub fn is_initializing(admin_root: &Path, admin_id: &str) -> Result<bool, WorktreeCopyError> {
+    // `match` on the read: no `locked` file means no creation in progress; any other failure is reported.
+    match std::fs::read_to_string(admin_root.join(admin_id).join(LOCKED_NAME)) {
+        Ok(text) => return Ok(text.trim() == INITIALIZING_TEXT),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.raw_os_error() == Some(libc::ENOTDIR) => return Ok(false),
+        Err(error) => return Err(inspect_failure(admin_root, &error)),
+    }
+}
+
+/// What:
+///  Whether a finished copy marked this registration.
+/// Why:
+///   An overlapping command that sees the worktree after the copy is done must not copy again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await exists(join(adminRoot, adminId, 'cli-git-copied'))
+/// ```
+pub fn copied_marker_exists(admin_root: &Path, admin_id: &str) -> Result<bool, WorktreeCopyError> {
+    // `match` on the stat: absence means unmarked; any other failure is reported.
+    match std::fs::symlink_metadata(admin_root.join(admin_id).join(COPIED_MARKER_NAME)) {
+        Ok(_) => return Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.raw_os_error() == Some(libc::ENOTDIR) => return Ok(false),
+        Err(error) => return Err(inspect_failure(admin_root, &error)),
+    }
+}
+
+/// What:
+///  Marks a registration as copied; a registration that is already marked or already removed needs nothing.
+/// Why:
+///   The copy has ended either way, and a removed worktree has no administrative directory left to mark.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(join(adminRoot, adminId, 'cli-git-copied'), '', { flag: 'wx' }).catch(ignoreExistsAndMissing);
+/// ```
+pub fn mark_copied(admin_root: &Path, admin_id: &str) -> Result<(), WorktreeCopyError> {
+    // `match` on the exclusive create: marked already and removed meanwhile both mean there is nothing to write.
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(admin_root.join(admin_id).join(COPIED_MARKER_NAME))
+    {
+        Ok(_) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(inspect_failure(admin_root, &error)),
+    }
+}
+
+/// What:
+///  The observation with its before-set read again.
+/// Why:
+///   Recovery may run between the first observation and real Git; the before-set must be as close to Git as possible so
+///  worktrees other commands registered meanwhile are not taken for this command's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// { ...observation, beforeAdminIds: await readAdminIds(observation.adminRoot) }
+/// ```
+pub fn refresh_before_admin_ids(
+    observation: &WorktreeCopyObservation,
+) -> Result<WorktreeCopyObservation, WorktreeCopyError> {
+    return Ok(WorktreeCopyObservation {
+        before_admin_ids: read_admin_ids(observation.admin_root.as_path())?,
+        ..observation.clone()
+    });
+}
+
+/// What:
 ///  The worktrees newly registered since the observation, with every registered root.
 /// Why:
 ///   Runs after real Git returned, whatever its status,
@@ -433,10 +547,13 @@ pub fn find_created_worktrees(
     observation: &WorktreeCopyObservation,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
     let after_admin_ids: BTreeSet<String> = read_admin_ids(observation.admin_root.as_path())?;
-    let created_ids: Vec<String> = after_admin_ids
-        .difference(&observation.before_admin_ids)
-        .cloned()
-        .collect();
+    let mut created_ids: Vec<String> = Vec::new();
+    for admin_id in after_admin_ids.difference(&observation.before_admin_ids) {
+        // A worktree Git is still creating belongs to the command that creates it.
+        if !is_initializing(observation.admin_root.as_path(), admin_id.as_str())? {
+            created_ids.push(admin_id.clone());
+        }
+    }
     if created_ids.is_empty() {
         return Ok(CreatedWorktrees {
             created: Vec::new(),

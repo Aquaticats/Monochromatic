@@ -408,3 +408,67 @@ fn registration_without_root_fails() {
     );
     remove(root.as_path());
 }
+
+/// Only Git's own `initializing` text marks a worktree as still being created; no file, or any other reason, does not.
+#[test]
+fn only_the_initializing_text_marks_a_worktree_as_being_created() {
+    let root: PathBuf = fixture("registry-initializing");
+    let admin: PathBuf = root.join("worktrees");
+    std::fs::create_dir_all(admin.join("topic")).expect("administrative directory");
+    assert!(!is_initializing(admin.as_path(), "topic").expect("no lock file"));
+    assert!(!is_initializing(admin.as_path(), "absent").expect("no administrative directory"));
+    std::fs::write(admin.join("topic/locked"), b"initializing\n").expect("locked");
+    assert!(is_initializing(admin.as_path(), "topic").expect("initializing"));
+    std::fs::write(admin.join("topic/locked"), b"added with --lock").expect("locked by the user");
+    assert!(!is_initializing(admin.as_path(), "topic").expect("a lock reason"));
+    std::fs::write(admin.join("plain"), b"a file").expect("a file where a directory belongs");
+    assert!(!is_initializing(admin.as_path(), "plain").expect("not a directory"));
+    remove(root.as_path());
+}
+
+/// A marker is written once, reads back, and a registration that vanished needs none.
+#[test]
+fn the_copied_marker_is_written_once_and_a_removed_registration_needs_none() {
+    let root: PathBuf = fixture("registry-marker");
+    let admin: PathBuf = root.join("worktrees");
+    std::fs::create_dir_all(admin.join("topic")).expect("administrative directory");
+    assert!(!copied_marker_exists(admin.as_path(), "topic").expect("unmarked"));
+    mark_copied(admin.as_path(), "topic").expect("marked");
+    assert!(copied_marker_exists(admin.as_path(), "topic").expect("marked"));
+    mark_copied(admin.as_path(), "topic").expect("marked again");
+    mark_copied(admin.as_path(), "removed").expect("a removed registration has nothing to mark");
+    assert!(!copied_marker_exists(admin.as_path(), "removed").expect("removed"));
+    std::fs::write(admin.join("plain"), b"a file").expect("a file where a directory belongs");
+    assert!(!copied_marker_exists(admin.as_path(), "plain").expect("not a directory"));
+    remove(root.as_path());
+}
+
+/// Refreshing the before-set reads the administrative directory again and keeps everything else.
+#[test]
+fn refreshing_the_before_set_rereads_the_administration_only() {
+    let root: PathBuf = fixture("registry-refresh");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = common_dir_of(main.as_path());
+    let observation: WorktreeCopyObservation = observe_worktree_repository(
+        &linked(common.as_path(), main.as_path()),
+        main.as_path(),
+    )
+    .expect("observed")
+    .expect("applicable");
+    assert!(observation.before_admin_ids.is_empty());
+    let topic: PathBuf = root.join("topic");
+    git(
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8")],
+    );
+    let refreshed: WorktreeCopyObservation = refresh_before_admin_ids(&observation).expect("refreshed");
+    assert_eq!(refreshed.before_admin_ids, BTreeSet::from([String::from("topic")]));
+    assert_eq!(
+        WorktreeCopyObservation {
+            before_admin_ids: BTreeSet::new(),
+            ..refreshed
+        },
+        observation
+    );
+    remove(root.as_path());
+}

@@ -1,9 +1,9 @@
 //! What:
 //!  Running a forwarded Git command through the linked-worktree ignored-state copy:
-//!  which invocations the copy applies to, and the child-process run that carries the settlement lease.
+//!  which invocations the copy applies to, and the child-process run around which the copy is settled.
 //! Why:
-//!  A command that creates or moves worktrees must stay under the settlement lock while real Git runs and the
-//!  ignored state is copied, and a command run from a linked worktree must first recover an interrupted copy;
+//!  A command that creates or moves worktrees must copy the ignored state into the worktrees real Git registered once
+//!  it returns, and a command run from a linked worktree must first recover an interrupted copy;
 //!  replacing the process with Git would drop both duties, so these invocations run Git as a child.
 //!  The main checkout is a source only for the configured rules file, so it takes this path only when the
 //!  command creates a worktree and the configuration names that file.
@@ -35,9 +35,9 @@ pub struct CopyFacts {
     pub creates_or_moves: bool,
     /// Repository paths a main-checkout source hands over (the configured rules file).
     pub main_checkout_paths: Vec<String>,
-    /// The invocation's global options, replayed before the repository queries that ask for the identity again.
+    /// The invocation's global options. The copy no longer asks for the identity again, so it does not read them.
     pub global_prefix: Vec<OsString>,
-    /// The environment the invocation inherited, which may carry an outer settlement's lease.
+    /// The environment the invocation inherited. The copy reads none of it since the settlement lease was removed.
     pub environment: Vec<(OsString, OsString)>,
 }
 
@@ -171,7 +171,7 @@ pub fn run_forwarded_git(
 /// What:
 ///  The settled run: the lifecycle with real Git as its runner and the process's standard error as its stream.
 /// Why:
-///   The runner receives the lease token to put into the child's environment while the settlement lock is held.
+///   Real Git runs as a child between the recovery before it and the copy after it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -184,13 +184,10 @@ fn run_settled(
     overlay: &[(OsString, OsString)],
     facts: &CopyFacts,
 ) -> ForwardedRun {
-    use super::child_environment::environment_value;
     use std::io::Write;
-    use super::repository_facts::{RepositoryFacts, git_facts};
     use super::transaction_git::GitContext;
     use super::worktree_copy::{GitStatus, Invocation, exit_code, run_with_worktree_copy};
     use super::worktree_copy_error::WorktreeCopyError;
-    use super::worktree_copy_lock::WORKTREE_COPY_LEASE_ENV;
 
     let context: GitContext = GitContext {
         real_git: real_git.to_path_buf(),
@@ -206,19 +203,13 @@ fn run_settled(
         creates_or_moves: facts.creates_or_moves,
         opted_out: false,
         short_circuit: false,
-        inherited_token: environment_value(facts.environment.as_slice(), WORKTREE_COPY_LEASE_ENV)
-            .map(|token| return token.to_string_lossy().into_owned()),
         context,
         main_checkout_paths: facts.main_checkout_paths.clone(),
     };
     let mut stderr = std::io::stderr();
-    // The runner starts Git as a child with the lease token, so nested wrappers see the lock they are inside.
-    let mut run_git = |token: Option<&str>| -> Result<GitStatus, WorktreeCopyError> {
-        let mut child_overlay: Vec<(OsString, OsString)> = overlay.to_vec();
-        if let Some(value) = token {
-            child_overlay.push((OsString::from(WORKTREE_COPY_LEASE_ENV), OsString::from(value)));
-        }
-        match run_real_git(real_git, arguments, child_overlay.as_slice()) {
+    // The runner starts Git as a child; nothing it runs, hooks and filters included, waits on or is told about the copy.
+    let mut run_git = || -> Result<GitStatus, WorktreeCopyError> {
+        match run_real_git(real_git, arguments, overlay) {
             Ok(ChildOutcome::Exited(code)) => return Ok(GitStatus { code: Some(code) }),
             Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
             Err(error) => {
@@ -229,15 +220,7 @@ fn run_settled(
             }
         }
     };
-    // The identity is asked again once the lock is held, as the incumbent re-observes its repository.
-    let mut identity_after_lock = || -> Result<WorktreeIdentity, WorktreeCopyError> {
-        let mut facts_again = git_facts(real_git, facts.global_prefix.as_slice(), overlay);
-        match facts_again.location() {
-            Ok(location) => return Ok(location.identity),
-            Err(message) => return Err(WorktreeCopyError(format!("cli-git: {message}"))),
-        }
-    };
-    match run_with_worktree_copy(&invocation, &mut run_git, &mut identity_after_lock, &mut stderr) {
+    match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
         Ok(settlement) => {
             if let Some(failure) = &settlement.copy_failure {
                 // A closed standard error leaves nowhere to report the failure, and the exit status still carries it.

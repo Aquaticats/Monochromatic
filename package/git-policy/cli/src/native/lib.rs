@@ -1081,9 +1081,9 @@ pub mod worktree_copy_rollback;
 #[cfg(unix)]
 pub mod worktree_copy_journal;
 
-/// The durable claim on a stage container's name, and the removal of stages an interrupted copy left behind.
+/// The one-time claim on a destination's copy, held open for the copy's life, and the evidence that tells live from abandoned.
 #[cfg(unix)]
-pub mod worktree_copy_stage_claim;
+pub mod worktree_copy_claim;
 
 /// The append-only install log of one stage: per-batch intents and creations, with resumption.
 #[cfg(unix)]
@@ -1093,11 +1093,7 @@ pub mod worktree_copy_install_log;
 #[cfg(unix)]
 pub mod worktree_copy_transaction;
 
-/// The settlement lock that serializes copy installation and recovery, its owner record, and inherited leases.
-#[cfg(unix)]
-pub mod worktree_copy_lock;
-
-/// Recovery of interrupted copies: registration checks, discards with notices, resumption, and the pending check.
+/// Recovery of interrupted copies: registration checks, settling abandoned claims, discards with notices, resumption, and the pending check.
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
 
@@ -1105,7 +1101,7 @@ pub mod worktree_copy_recovery;
 #[cfg(unix)]
 pub mod worktree_copy;
 
-/// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
+/// Which forwarded invocations the copy applies to, and the child run around which the copy is settled.
 pub mod worktree_copy_forward;
 
 /// The system configuration file a real Git executable reads, learned once per executable identity.

@@ -3,13 +3,12 @@
 use super::*;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::worktree_copy_install_entry::InstalledPath;
+use crate::worktree_copy_claim::{Claim, claims_exist, publish_claim};
 use crate::worktree_copy_journal::{
-    Journal, create_journal, ensure_journal_root, read_pending_journals, write_journal,
+    Journal, create_journal, ensure_journal_root, journal_root, read_pending_journals, write_journal,
 };
-use crate::worktree_copy_lock::{SETTLEMENT_LOCK_NAME, acquire_worktree_copy_lock};
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
-use crate::worktree_copy_stage_claim::{claim_stage, stage_claims_exist};
 use std::os::unix::fs::PermissionsExt;
 
 /// A repository with an ignored `cache` file and a linked worktree at `topic` that the copy would fill.
@@ -197,30 +196,57 @@ fn completed_journal_only_cleans_up() {
     remove(root.as_path());
 }
 
-/// Recovery skips the settlement lock when no journal is pending, and skips recovery while a live owner holds it.
+/// With nothing pending the pass reads two directories and creates nothing; a journal that a live claim names is left
+///  alone, and the same journal is recovered the moment its claim has no holder.
 #[cfg(unix)]
 #[test]
-fn pending_check_takes_the_lock_only_for_a_journal() {
+fn pending_check_leaves_a_journal_a_live_claim_names() {
     let root: PathBuf = fixture("recovery-pending-check");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     recover_pending_worktree_copies(common.as_path(), &mut Vec::new()).expect("nothing pending");
     assert!(
-        !ensure_journal_root(common.as_path())
-            .expect("root")
-            .join(SETTLEMENT_LOCK_NAME)
-            .exists()
+        !journal_root(common.as_path()).exists(),
+        "a repository with nothing pending gets no journal root"
     );
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let claim: Claim = publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        Path::new(pending.journal.stage_container.as_str()),
+    )
+    .expect("published")
+    .expect("won the name");
     let mut stderr: Vec<u8> = Vec::new();
-    let held = acquire_worktree_copy_lock(common.as_path(), &mut stderr).expect("held by us");
-    recover_pending_worktree_copies(common.as_path(), &mut Vec::new())
-        .expect("held by a live owner");
-    assert!(
-        pending.path.exists(),
-        "a live owner keeps the journal for itself"
+    recover_pending_worktree_copies(common.as_path(), &mut stderr).expect("held by a live copy");
+    assert!(pending.path.exists(), "a live copy keeps its journal for itself");
+    assert!(stderr.is_empty(), "{}", String::from_utf8_lossy(stderr.as_slice()));
+    drop(claim);
+    recover_pending_worktree_copies(common.as_path(), &mut stderr).expect("settled");
+    assert!(!pending.path.exists());
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("recovered copy"),
+        b"payload"
     );
-    held.release().expect("released");
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
+    remove(root.as_path());
+}
+
+/// A journal that no claim names (an older release wrote those) is adopted and recovered, and leaves no claim behind.
+#[cfg(unix)]
+#[test]
+fn a_journal_without_a_claim_is_adopted_and_recovered() {
+    let root: PathBuf = fixture("recovery-adopt");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert!(!pending.path.exists());
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("copy"), b"payload");
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
     remove(root.as_path());
 }
 
@@ -231,39 +257,175 @@ fn recovery_removes_a_stage_no_journal_names() {
     let root: PathBuf = fixture("recovery-abandoned-stage");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let claim = claim_stage(common.as_path(), topic.as_path()).expect("claim");
-    std::fs::create_dir(claim.container()).expect("stage");
-    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
-    std::fs::write(claim.container().join("half"), b"copied so far").expect("partial copy");
+    let container: PathBuf = new_stage_container(topic.as_path()).expect("container");
+    let claim: Claim = publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        container.as_path(),
+    )
+    .expect("published")
+    .expect("won the name");
+    std::fs::create_dir(container.as_path()).expect("stage");
+    std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    std::fs::write(container.join("half"), b"copied so far").expect("partial copy");
+    drop(claim);
     let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     assert_eq!(report.notices.len(), 1);
     assert!(report.notices[0].contains("removed the stage"), "{:?}", report.notices);
-    assert!(!claim.container().exists());
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"));
+    assert!(!container.exists());
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
     remove(root.as_path());
 }
 
-/// A forwarded command that creates no worktree reaps an abandoned stage when no live copy holds the lock,
-/// and leaves it alone while one does.
+/// A forwarded command that creates no worktree reaps an abandoned stage, and leaves it alone while a live copy holds
+/// the claim that names it: the copy may still be staging.
 #[cfg(unix)]
 #[test]
-fn the_pending_check_reaps_abandoned_stages_only_without_a_live_owner() {
+fn the_pending_check_reaps_abandoned_stages_only_without_a_live_copy() {
     let root: PathBuf = fixture("recovery-pending-claim");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
-    let claim = claim_stage(common.as_path(), topic.as_path()).expect("claim");
-    std::fs::create_dir(claim.container()).expect("stage");
-    std::fs::set_permissions(claim.container(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    let container: PathBuf = new_stage_container(topic.as_path()).expect("container");
+    let claim: Claim = publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        container.as_path(),
+    )
+    .expect("published")
+    .expect("won the name");
+    std::fs::create_dir(container.as_path()).expect("stage");
+    std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
     let mut stderr: Vec<u8> = Vec::new();
-    let held = acquire_worktree_copy_lock(common.as_path(), &mut stderr).expect("held by us");
-    recover_pending_worktree_copies(common.as_path(), &mut stderr).expect("held by a live owner");
-    assert!(claim.container().exists(), "a live copy may still be staging");
-    held.release().expect("released");
+    recover_pending_worktree_copies(common.as_path(), &mut stderr).expect("held by a live copy");
+    assert!(container.exists(), "a live copy may still be staging");
+    assert!(stderr.is_empty());
+    drop(claim);
     let mut notices: Vec<u8> = Vec::new();
     recover_pending_worktree_copies(common.as_path(), &mut notices).expect("reaped");
-    assert!(!claim.container().exists());
+    assert!(!container.exists());
     assert!(String::from_utf8_lossy(notices.as_slice()).contains("removed the stage"));
+    remove(root.as_path());
+}
+
+/// A claim that names a path outside the stage container naming is refused, and the named path survives.
+#[cfg(unix)]
+#[test]
+fn a_claim_naming_another_directory_is_refused() {
+    let root: PathBuf = fixture("recovery-foreign-name");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let victim: PathBuf = root.join("precious");
+    std::fs::create_dir_all(victim.as_path()).expect("victim");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim_file: PathBuf = journals.join("forged.claim");
+    let forged: String = format!(
+        "{{\"destinationRoot\":{},\"stageContainer\":{},\"version\":1}}\n",
+        quote(topic.to_string_lossy().as_ref()),
+        quote(victim.to_string_lossy().as_ref())
+    );
+    crate::private_storage::write_private_file(claim_file.as_path(), forged.as_bytes()).expect("forged claim");
+    let failure: WorktreeCopyError = recover_worktree_copy_transactions(common.as_path()).expect_err("refused");
+    assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
+    assert!(victim.exists());
+    assert!(claim_file.exists(), "an unproven claim stays for inspection");
+    remove(root.as_path());
+}
+
+/// A claim that names a stage others can read is refused: the directory is not provably cli-git's own.
+#[cfg(unix)]
+#[test]
+fn a_shared_stage_is_refused_and_kept() {
+    let root: PathBuf = fixture("recovery-shared-stage");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let container: PathBuf = new_stage_container(topic.as_path()).expect("container");
+    publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        container.as_path(),
+    )
+    .expect("published")
+    .expect("won the name");
+    std::fs::create_dir(container.as_path()).expect("container");
+    std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(0o755)).expect("shared");
+    let failure: WorktreeCopyError = recover_worktree_copy_transactions(common.as_path()).expect_err("refused");
+    assert!(failure.0.contains("private stage is unsafe"), "{}", failure.0);
+    assert!(container.exists());
+    remove(root.as_path());
+}
+
+/// A claim file others can read is refused before it is believed.
+#[cfg(unix)]
+#[test]
+fn a_shared_claim_file_is_refused() {
+    let root: PathBuf = fixture("recovery-shared-claim");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let container: PathBuf = new_stage_container(topic.as_path()).expect("container");
+    let claim: Claim = publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        container.as_path(),
+    )
+    .expect("published")
+    .expect("won the name");
+    std::fs::set_permissions(claim.path(), std::fs::Permissions::from_mode(0o644)).expect("shared");
+    let failure: WorktreeCopyError = recover_worktree_copy_transactions(common.as_path()).expect_err("refused");
+    assert!(failure.0.contains("claim file is unsafe"), "{}", failure.0);
+    remove(root.as_path());
+}
+
+/// A symbolic link in the container's place is refused, so a planted link never redirects the removal.
+#[cfg(unix)]
+#[test]
+fn a_symbolic_link_in_the_container_place_is_refused_and_its_target_kept() {
+    let root: PathBuf = fixture("recovery-linked-container");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let target: PathBuf = root.join("target");
+    std::fs::create_dir(target.as_path()).expect("target");
+    std::fs::write(target.join("keep"), b"keep").expect("keep");
+    let container: PathBuf = new_stage_container(topic.as_path()).expect("container");
+    let claim: Claim = publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        container.as_path(),
+    )
+    .expect("published")
+    .expect("won the name");
+    std::os::unix::fs::symlink(target.as_path(), container.as_path()).expect("link");
+    drop(claim);
+    assert!(recover_worktree_copy_transactions(common.as_path()).is_err());
+    assert!(target.join("keep").exists());
+    remove(root.as_path());
+}
+
+/// A claim whose container was never created is settled quietly: nothing was staged.
+#[cfg(unix)]
+#[test]
+fn an_abandoned_claim_without_a_container_is_settled_without_a_notice() {
+    let root: PathBuf = fixture("recovery-claim-no-container");
+    let (source, topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let container: PathBuf = new_stage_container(topic.as_path()).expect("container");
+    publish_claim(
+        ensure_journal_root(common.as_path()).expect("root").as_path(),
+        "topic",
+        topic.as_path(),
+        container.as_path(),
+    )
+    .expect("published")
+    .expect("won the name");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("settled");
+    assert_eq!(report.recovered, 0);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
     remove(root.as_path());
 }
 

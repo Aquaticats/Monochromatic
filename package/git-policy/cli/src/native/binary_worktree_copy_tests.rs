@@ -16,10 +16,10 @@
 use super::support::{
     Fixture, Observed, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped,
 };
-use git_policy_cli::worktree_copy_journal::{create_journal, read_pending_journals};
+use git_policy_cli::worktree_copy_claim::{claims_exist, publish_claim};
+use git_policy_cli::worktree_copy_journal::{create_journal, ensure_journal_root, journal_root, read_pending_journals};
 use git_policy_cli::worktree_copy_selection::CopySelection;
 use git_policy_cli::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
-use git_policy_cli::worktree_copy_stage_claim::{claim_stage, stage_claims_exist};
 use git_policy_cli::transaction_git::GitContext;
 use std::ffi::OsStr;
 use std::os::unix::fs::PermissionsExt;
@@ -344,9 +344,17 @@ fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
     assert_eq!(opted_out.code, Some(0));
     let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    // The state a killed copy leaves: the claim, and a half-filled private stage that no journal names.
-    let claim = claim_stage(common.as_path(), one.as_path()).expect("claim");
-    let stage: PathBuf = claim.container().to_path_buf();
+    // The state a killed copy leaves: the claim nobody holds, and a half-filled private stage that no journal names.
+    let stage: PathBuf = new_stage_container(one.as_path()).expect("container");
+    let claim = publish_claim(
+        ensure_journal_root(common.as_path()).expect("journal root").as_path(),
+        "one",
+        one.as_path(),
+        stage.as_path(),
+    )
+    .expect("claim")
+    .expect("won the name");
+    drop(claim);
     std::fs::create_dir(stage.as_path()).expect("stage");
     std::fs::set_permissions(stage.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
     std::fs::create_dir(stage.join("payload")).expect("payload");
@@ -356,17 +364,17 @@ fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
     assert_eq!(status.stdout, b"true\n");
     assert!(stderr_of(&status).starts_with("cli-git: removed the stage "), "{}", stderr_of(&status));
     assert!(!stage.exists());
-    assert!(!stage_claims_exist(common.as_path()).expect("claims"));
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
     // Removal is not repeated.
     let again: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert!(again.stderr.is_empty(), "{}", stderr_of(&again));
     remove(&fixture);
 }
 
-/// A nested Git command that inherits a live settlement lease is forwarded without settling again,
-/// while a token that does not belong to the lock is not trusted.
+/// The lease variable of the settlement lock that older releases set is ignored: a command that inherits one runs
+/// as any other command does.
 #[test]
-fn a_nested_command_with_a_foreign_lease_still_runs() {
+fn a_leftover_lease_variable_is_ignored() {
     let fixture: Fixture = fixture("copy-lease");
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let created: Observed = run_wrapped(
@@ -388,18 +396,19 @@ fn a_nested_command_with_a_foreign_lease_still_runs() {
     remove(&fixture);
 }
 
-/// Git runs a smudge filter while it checks out the new worktree and the settlement lock is held;
-///  a worktree that filter creates through the wrapper inherits the lease instead of waiting for the lock it is inside.
+/// Git runs a smudge filter while it checks out the new worktree, which Git still marks as being created;
+///  a worktree that filter creates through the wrapper is left to the enclosing command, which copies into both from the
+///  real source, and nothing waits for anything.
 ///  (A hook used to play this part; the wrapper supports no external hook program, and a filter is a program Git starts
 ///  with the same environment.)
 #[test]
-fn a_filter_that_creates_a_worktree_runs_under_the_inherited_lease() {
-    let fixture: Fixture = fixture("copy-filter-lease");
+fn a_filter_that_creates_a_worktree_leaves_its_copy_to_the_enclosing_command() {
+    let fixture: Fixture = fixture("copy-filter-nested");
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let filter: PathBuf = fixture.root.join("smudge-filter");
     super::support::executable(
         filter.as_path(),
-        b"#!/bin/sh\ncat\nif [ -n \"$CLI_GIT_WORKTREE_COPY_LEASE\" ] && [ ! -e ../nested ]; then\n  printf 'leased' > ../hook-saw-lease\n  \"$CLI_GIT_TEST_WRAPPER\" worktree add --quiet -b nested ../nested >&2 || exit 1\nfi\n",
+        b"#!/bin/sh\ncat\nif [ ! -e ../nested ]; then\n  printf 'ran' > ../filter-ran\n  \"$CLI_GIT_TEST_WRAPPER\" worktree add --quiet -b nested ../nested >&2 || exit 1\nfi\n",
     );
     std::fs::write(repo.join(".gitattributes"), b"*.probe filter=probe\n").expect("attributes");
     std::fs::write(repo.join("x.probe"), b"probe\n").expect("probe file");
@@ -416,14 +425,105 @@ fn a_filter_that_creates_a_worktree_runs_under_the_inherited_lease() {
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     assert_eq!(
-        std::fs::read(fixture.root.join("hook-saw-lease")).expect("the filter saw the lease"),
-        b"leased"
+        std::fs::read(fixture.root.join("filter-ran")).expect("the filter ran inside the checkout"),
+        b"ran"
     );
     assert!(fixture.root.join("nested/.git").exists(), "the nested creation ran");
     assert!(fixture.root.join("one").join(RULES_FILE).exists(), "the outer copy finished");
     // The outer settlement sees both registrations, so it copies into both worktrees.
     assert!(fixture.root.join("nested").join(RULES_FILE).exists());
     assert!(stderr_of(&created).ends_with(" into 2 new worktrees.\n"), "{}", stderr_of(&created));
+    remove(&fixture);
+}
+
+/// Waits, with a deadline, until a marker a child process writes exists.
+fn wait_for(marker: &Path) {
+    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while !marker.exists() {
+        assert!(std::time::Instant::now() < deadline, "{} never appeared", marker.display());
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+/// Two wrappers create worktrees at overlapping times, each held inside its checkout by a filter that waits for a
+///  signal. The first to finish finds the other's worktree registered but still being created and leaves it alone;
+///  the second then copies into its own. Neither waits for the other, and nothing of either copy is left behind.
+#[test]
+fn overlapping_creations_each_copy_their_own_worktree_once() {
+    let fixture: Fixture = fixture("copy-overlap");
+    let repo: PathBuf = repository_with_rules(&fixture, true);
+    let filter: PathBuf = fixture.root.join("barrier-filter");
+    super::support::executable(
+        filter.as_path(),
+        b"#!/bin/sh\ncat\nname=$(basename \"$PWD\")\n: > \"$CLI_GIT_TEST_ROOT/in-$name\"\ncat \"$CLI_GIT_TEST_ROOT/go-$name\" > /dev/null\n",
+    );
+    std::fs::write(repo.join(".gitattributes"), b"*.probe filter=probe\n").expect("attributes");
+    std::fs::write(repo.join("x.probe"), b"probe\n").expect("probe file");
+    super::support::git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "x.probe"]);
+    super::support::git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=probe"]);
+    super::support::git(&fixture, repo.as_path(), &["config", "filter.probe.smudge", filter.to_str().expect("UTF-8")]);
+    for name in ["one", "two"] {
+        let made = std::process::Command::new("mkfifo")
+            .arg(fixture.root.join(format!("go-{name}")))
+            .status()
+            .expect("mkfifo starts");
+        assert!(made.success());
+    }
+    let add = |name: &str| -> Observed {
+        return observe(
+            wrapped(&fixture)
+                .current_dir(&repo)
+                .env("CLI_GIT_TEST_ROOT", &fixture.root)
+                .env("LC_ALL", "C")
+                .args(["worktree", "add", "--quiet", "-b", name, format!("../{name}").as_str()]),
+            b"",
+        );
+    };
+    let release = |name: &str| {
+        // Opening a FIFO for writing completes once the filter reads it; closing it ends the filter's wait.
+        drop(
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(fixture.root.join(format!("go-{name}")))
+                .expect("release"),
+        );
+    };
+    let (first, second) = std::thread::scope(|scope| {
+        let first = scope.spawn(|| add("one"));
+        wait_for(fixture.root.join("in-one").as_path());
+        let second = scope.spawn(|| add("two"));
+        wait_for(fixture.root.join("in-two").as_path());
+        release("one");
+        let first_done: Observed = first.join().expect("first wrapper");
+        // The second worktree is still inside its checkout, so the first command left it alone.
+        assert!(
+            !fixture.root.join("two").join(RULES_FILE).exists(),
+            "a worktree still being created was filled by another command"
+        );
+        release("two");
+        return (first_done, second.join().expect("second wrapper"));
+    });
+    assert_eq!(first.code, Some(0), "{}", stderr_of(&first));
+    assert_eq!(second.code, Some(0), "{}", stderr_of(&second));
+    assert!(stderr_of(&first).ends_with(" into 1 new worktree.\n"), "{}", stderr_of(&first));
+    assert!(stderr_of(&second).ends_with(" into 1 new worktree.\n"), "{}", stderr_of(&second));
+    for name in ["one", "two"] {
+        assert_eq!(
+            std::fs::read(fixture.root.join(name).join(RULES_FILE)).expect("copied rules"),
+            format!("{}\n", needle()).into_bytes(),
+            "{name}"
+        );
+    }
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    let stages: Vec<String> = std::fs::read_dir(fixture.root.as_path())
+        .expect("listing")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| return name.starts_with(".cli-git-worktree-copy-"))
+        .collect();
+    assert!(stages.is_empty(), "{stages:?}");
     remove(&fixture);
 }
 

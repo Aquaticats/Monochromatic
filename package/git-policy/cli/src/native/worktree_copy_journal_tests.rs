@@ -517,3 +517,16 @@ fn only_a_journals_own_temporaries_are_removed() {
     }
     remove(root.as_path());
 }
+
+/// A journal file removed since the listing is absent, not unreadable: finished copies remove theirs while others look.
+#[test]
+fn a_journal_removed_since_the_listing_is_skipped() {
+    let root: PathBuf = fixture("journal-vanished");
+    assert_eq!(read_journal_text(root.join("gone.json").as_path()).expect("absent"), None);
+    let present: PathBuf = root.join("present.json");
+    std::fs::write(present.as_path(), b"text").expect("present");
+    assert_eq!(read_journal_text(present.as_path()).expect("read"), Some(String::from("text")));
+    let failure: WorktreeCopyError = read_journal_text(root.as_path()).expect_err("a directory is no journal");
+    assert!(failure.0.starts_with("cli-git: could not read worktree-copy journal "), "{}", failure.0);
+    remove(root.as_path());
+}
