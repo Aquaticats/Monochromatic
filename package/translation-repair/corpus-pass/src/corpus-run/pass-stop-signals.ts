@@ -29,11 +29,12 @@ import {
 // WHAT "A SECOND SIGNAL" MEANS (B1295, B1297). One `systemctl --user stop` of a unit that runs `mise run <task>`
 // delivered SIGTERM to the task's node process twice in the same millisecond (measured 2026-11-01 UTC; the unit's
 // default `KillMode=control-group` signals the wrapper and the pass, and the wrapper relays), and a Ctrl-C of a
-// foreground launch reaches the wrapper and the pass alike. So a later signal counts as the operator's second only when
-// it arrives `SECOND_SIGNAL_MIN_GAP_MS` or more after the first, whichever signal it is; an earlier one is one stop
-// delivered twice, is ignored, and is recorded with how long after the first it came. A second signal ends the wait for
-// the entry in flight and nothing after it: the flush and the release that follow run to their end, take no signal
-// and have no time bound of their own, so a disk that hangs there is ended by systemd's kill at the stop timeout.
+// foreground launch may reach the wrapper and the pass alike (not measured). So a later signal counts as the operator's
+// second only when it arrives `SECOND_SIGNAL_MIN_GAP_MS` or more after the first, whichever signal it is; an earlier
+// one is one stop delivered twice, is ignored, and is recorded with how long after the first it came. A second signal
+// ends the wait for the entry in flight and nothing after it: the flush and the release that follow run to their end,
+// take no signal and have no time bound of their own, so a disk that hangs there is ended by systemd's kill at the stop
+// timeout.
 //
 // WHAT SHIPS WHEN THE SIGNAL LANDS MID-WRITE. Every page, record and artifact is written to a temporary name and renamed,
 // so a write is either not there or whole. A signal during an interim ship lets that ship finish within the window; a

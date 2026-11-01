@@ -951,7 +951,7 @@ await describe({
             };
           },
           settle: async function settle() {
-            seen.heldWhileSettling.push(seen.made - seen.released === 1,);
+            seen.heldWhileSettling.push((seen.made - seen.released) === 1,);
             // The stop arrives while the first entry runs, so the second never starts.
             seen.stopped = true;
             return { kind: 'stopped', };

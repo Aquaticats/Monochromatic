@@ -216,7 +216,9 @@ export async function runPassQueue(
     },
 
     attempt: async function attempt({ entry, },): Promise<EntryOutcome> {
-      // THE PLACE RESERVED FOR THIS ENTRY IS HELD FOR THE WHOLE ATTEMPT and let go when it returns or throws (B1298).
+      /**
+       The place reserved for this entry, held for the whole attempt and let go when it returns or throws (B1298).
+       */
       using _reservation = reserved.current;
       delete reserved.current;
       countAttempt({

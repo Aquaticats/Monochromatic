@@ -120,9 +120,9 @@ await describe({
           settlement: kept,
         },);
         /**
-         The artifact with that record, as the bytes a file on disk carries.
+         The artifact with that record, as the builder returns it.
          */
-        const written: unknown = JSON.parse(JSON.stringify(settledArtifactOver({
+        const built = settledArtifactOver({
           prepared,
           entryId: 'CatEntry1',
           laneSelection: {
@@ -139,7 +139,15 @@ await describe({
             slices: [record,],
           },
           translateDiffersAt: [0,],
-        },),),);
+        },);
+        /**
+         The bytes a file on disk carries.
+         */
+        const bytes = JSON.stringify(built,);
+        /**
+         The artifact as the file's reader receives it.
+         */
+        const written: unknown = JSON.parse(bytes,);
         /**
          What the reader made of the file.
          */
