@@ -182,7 +182,7 @@ const DEEPSEEK_ALONE: BudgetView = {
 
  @param dry - view the lanes are read under
 
- @returns The line a reading that stops the entry writes
+ @returns Line a reading that stops the entry writes
 
  @example
  ```ts

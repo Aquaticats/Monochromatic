@@ -30,7 +30,6 @@ import type {
 import {
   MEASURED_CHECKER_ORDER,
   reaskPoolOf,
-  type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   benchesOf,
@@ -51,7 +50,10 @@ import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
-import { expectedWritingBench, } from './writing-bench-expectation.test-fixture.ts';
+import {
+  type ExpectedWritingBench,
+  expectedWritingBench,
+} from './writing-bench-expectation.test-fixture.ts';
 
 //region Writing bench backfill tests
 
@@ -251,7 +253,7 @@ function benchesFor(
   /**
    Expected bench of each role.
    */
-  const expected = WRITING_ROLES.map(function expectedOf({
+  const expected: readonly ExpectedWritingBench[] = WRITING_ROLES.map(function expectedOf({
     role,
     staticSeats,
   },) {
@@ -440,7 +442,6 @@ await describe({
               phase: 'lanes',
               signal: new AbortController().signal,
               l: levelCapturingLogger({ lines, },),
-              pollMs: 5,
             },);
             const { backfilled, } = benchesFor({ dry: XINGZ6024, },);
             expect(unreachableWriters,).toEqual([],);
@@ -486,7 +487,6 @@ await describe({
                 phase: 'lanes',
                 signal: new AbortController().signal,
                 l: levelCapturingLogger({ lines, },),
-                pollMs: 5,
               },);
             }
             catch (error) {

@@ -358,7 +358,7 @@ function budgetsClient(
 
  @param view - dryness the reading was taken under
 
- @returns The words the line ends with
+ @returns Words the line ends with
 
  @example
  ```ts

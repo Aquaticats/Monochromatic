@@ -88,7 +88,7 @@ function dayAnchor(): {
 /**
  A DeepSeek balance that reads available.
 
- @returns The balance DeepSeek's meter answers when the key has credit
+ @returns Balance DeepSeek's meter answers when the key has credit
 
  @example
  ```ts

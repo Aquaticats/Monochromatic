@@ -201,7 +201,7 @@ const NONE_HELD: ProviderRecord<number> = {
 
  @param dry - view the lanes are read under
 
- @returns The line: every writing bench of the lanes under its floor, then the seats the role order gave
+ @returns Line: every writing bench of the lanes under its floor, then the seats the role order gave
 
  @example
  ```ts

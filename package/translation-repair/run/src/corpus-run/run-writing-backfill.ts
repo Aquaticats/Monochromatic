@@ -99,7 +99,7 @@ export type WritingBench = {
 
  @param role - writing role the order is for
 
- @param staticSeats - the role's static bench, whose members are never candidates
+ @param staticSeats - static bench of the role, whose members are never candidates
 
  @returns Candidates, best first
 
@@ -149,9 +149,9 @@ export const REFINER_BACKFILL_ORDER: readonly RosterModelId[] = backfillOrderOf(
 /**
  Derives one writing bench for one reading.
 
- @param staticSeats - the role's static bench, whose size is the width
+ @param staticSeats - static bench of the role, whose size is the width
 
- @param backfillOrder - the role order of the models that may fill a dark seat
+ @param backfillOrder - role order of the models that may fill a dark seat
 
  @param served - whether a wet provider would take a model's calls in this reading
 

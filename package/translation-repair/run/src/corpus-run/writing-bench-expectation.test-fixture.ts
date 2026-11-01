@@ -47,7 +47,7 @@ export type ExpectedWritingBench = {
 
  @param dry - which providers are dry in the reading
 
- @param staticSeats - the role's static bench, whose size is the width
+ @param staticSeats - static bench of the role, whose size is the width
 
  @param checkerBench - checkers the same reading seats
 
