@@ -119,20 +119,21 @@ that facility was built and deleted on the owner's instruction, and the key is a
 ### Open product findings
 
 These scenarios fail because of the product, not the harness.
-Each is reported to its owner and is not worked around here:
+Each is for its owner and is not worked around here:
 
 - `baseline-hooks-config` and `hooks-config-concurrent`:
   the service route never prints the `external-hooks-unsupported` warning,
   because `warn_external_hooks` runs only in the retired transaction path (`src/native/commit_transaction.rs`).
 - `sigkill-editor-open`, `sigkill-editor-written`, `sigkill-queued` and `sigkill-after-landing`:
-  a `SIGKILL`ed client leaves its scratch directory `<git dir>/cli-git-service-<id>` behind, and nothing removes it.
+  a `SIGKILL`ed client leaves its scratch directory `<git dir>/cli-git-service-<id>` behind, and nothing removes it
+  (a design gap: neither `SPEC.md` nor `doc/planning/cli-git-resident-service.md` says who removes a dead client's scratch).
 - `sigkill-service-during-work`:
   a service killed while it holds a claimed `push` or `maintenance` record leaves it claimed until its 30-minute lease
   ends, and a restarted service does not take it back.
 - `branch-switch-during-commit`:
   a commit held in its editor while real Git switches branches lands on the branch it started on,
   but the service updates the real index of the new `HEAD` and the push goes to the checked-out branch
-  (`push_once` plans its push from the current branch, not from the record's `branch_ref`).
+  (`plan_push` reads the symbolic `HEAD`, so `push_once` plans from the checked-out branch, not from the record's `branch_ref`).
 - `foreign-index-lock-holder`, `foreign-index-lock-unproven`, `gc-prune-during-commits`,
   `lint-staged-stash-concurrent`, `reservation-after-lost-races` and `amend-during-commits`
   belong to other owners; `gc-prune-during-commits` still holds its commit in a `pre-commit` hook that no longer runs.
@@ -428,15 +429,18 @@ which is how scenarios pin interleavings and inject kills.
 
 ### Hook kinds
 
-Only `baseline-hooks-config`, `hooks-config-concurrent` and `lint-staged-stash-concurrent` register a config hook
+Only `baseline-hooks-config`, `hooks-config-concurrent`, `baseline-lint-staged`, `lint-staged-stash-concurrent`
+and `gc-prune-during-commits` register a config hook
 (`hooks: 'config'` in `RepositoryOptions`, `repository-model-fixture.ts`),
 which `repository-setup-fixture.ts` writes with
 `git config hook.e2e-<event>.command "<hook program> <event>"` and
 `git config --add hook.e2e-<event>.event <event>`.
 The wrapper runs no external hook,
 so the hook program is a canary:
-the first two scenarios assert that it never ran (`hooks-ignored-fixture.ts`),
-and the lint-staged scenario is one of the product findings.
+the first two scenarios assert that it never ran (`hooks-ignored-fixture.ts`).
+The canary has no positive control inside the suite, because no wrapper run can make a hook fill its log.
+The other three still drive their instrument (a lint-staged sequence, a hold for `git gc`) through a hook that no longer runs,
+so what they check is not what they were written for.
 Every other scenario installs no hook and uses the instruments of "Commit service".
 
 Traditional hooks (executable files in `.git/hooks` or a `core.hooksPath` directory)
