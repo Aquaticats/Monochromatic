@@ -3,7 +3,7 @@
 //! and rendered as unit properties.
 
 /// Reading and rendering under test.
-use crate::inherited_limits::{parse_cpu_max, parse_limit, read_inherited_limits, InheritedLimits};
+use crate::inherited_limits::{parse_cpu_max, parse_io_weight, parse_limit, read_inherited_limits, InheritedLimits};
 /// Fixture paths.
 use std::path::{Path, PathBuf};
 
@@ -99,4 +99,64 @@ fn a_garbled_limit_file_is_an_error_naming_the_file() {
     set(&root, &origin, &[("memory.max", "plenty")]);
     let error = read_inherited_limits(&root, &origin, DESTINATION).expect_err("a garbled file");
     assert!(error.to_string().contains("memory.max"), "{error}");
+}
+
+/// The `default` line of `io.weight` is the weight,
+/// device lines are not read,
+/// the kernel default is nothing to carry,
+/// and a file without a default line or with a garbled one is an error.
+#[test]
+fn the_io_weight_default_line_is_read() {
+    assert_eq!(parse_io_weight("default 10\n").expect("ten"), Some(10));
+    assert_eq!(parse_io_weight("default 10\n8:0 50\n").expect("device lines are skipped"), Some(10));
+    assert_eq!(parse_io_weight("default 100\n").expect("the default"), None);
+    assert_eq!(parse_io_weight("default 500\n").expect("a boost"), Some(500));
+    assert!(parse_io_weight("8:0 50\n").is_err());
+    assert!(parse_io_weight("default heavy\n").is_err());
+    assert!(parse_io_weight("").is_err());
+}
+
+/// The origin of the cap daemon has `io.weight` 10,
+/// and the scope carries it.
+#[test]
+fn the_io_weight_of_the_origin_is_carried() {
+    let root = tree("io-carried");
+    let origin = format!("{APP_SLICE}/claude-code-bash");
+    set(&root, &origin, &[("cpu.max", "2800000 100000"), ("io.weight", "default 10")]);
+    let limits = read_inherited_limits(&root, &origin, DESTINATION).expect("readable");
+    assert_eq!(limits.io_weight, Some(10));
+    assert_eq!(limits.properties(), vec![("CPUQuotaPerSecUSec", 28_000_000), ("IOWeight", 10)]);
+}
+
+/// The lightest weight on the way up wins,
+/// a weight above the default is never carried,
+/// and cgroups at the default carry nothing.
+#[test]
+fn the_lightest_io_weight_wins_and_boosts_are_dropped() {
+    let outer = format!("{APP_SLICE}/app-build.slice");
+    let origin = format!("{outer}/app-build-1.scope");
+    let weights = |outer_weight: &str, origin_weight: &str| {
+        let root = tree(&format!("io-{}-{}", outer_weight.replace(' ', "_"), origin_weight.replace(' ', "_")));
+        set(&root, &outer, &[("io.weight", outer_weight)]);
+        set(&root, &origin, &[("io.weight", origin_weight)]);
+        return read_inherited_limits(&root, &origin, DESTINATION).expect("readable").io_weight;
+    };
+    assert_eq!(weights("default 50", "default 20"), Some(20));
+    assert_eq!(weights("default 20", "default 100"), Some(20));
+    assert_eq!(weights("default 500", "default 100"), None);
+    assert_eq!(weights("default 100", "default 100"), None);
+    assert_eq!(weights("default 500", "default 30"), Some(30));
+}
+
+/// A live scope is sent every limit:
+/// the absent ones as unlimited and the weight as the default.
+#[test]
+fn all_properties_name_every_limit() {
+    let none = InheritedLimits::default().all_properties();
+    assert_eq!(none.len(), 6);
+    assert!(none.iter().take(5).all(|(_name, value)| return *value == u64::MAX));
+    assert_eq!(none[5], ("IOWeight", 100));
+    let some = InheritedLimits { memory_max: Some(7), io_weight: Some(10), ..InheritedLimits::default() }.all_properties();
+    assert_eq!(some[1], ("MemoryMax", 7));
+    assert_eq!(some[5], ("IOWeight", 10));
 }

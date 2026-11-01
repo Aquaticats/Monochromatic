@@ -3,10 +3,12 @@
 //! Moving a process for routing must never loosen its CPU or memory limits:
 //! a build under a `CPUQuota=` cap or a memory cap stays capped after the move.
 //! Limits of cgroups above the common ancestor of the old and new place keep applying on their own.
-//! The cap becomes the moved processes' own cap,
-//! no longer shared with the processes that stayed in the old cgroup.
-//! Weights,
-//! I/O limits and cpusets are not copied.
+//! The scope is shared by every process moved from the same origin,
+//! so together they stay within the origin's cap;
+//! the origin keeps its own cap for the processes that stayed.
+//! The I/O weight is copied when it is below the kernel default.
+//! CPU weight,
+//! I/O limits per device and cpusets are not copied.
 
 /// Names a user chose,
 /// delimited so a cause ends them where the line does.
@@ -15,6 +17,13 @@ use crate::report_cause::quote_name;
 use std::io;
 /// Cgroup directories.
 use std::path::Path;
+
+/// The kernel's default I/O weight,
+/// which a cgroup that sets nothing has,
+/// and so a weight with nothing to carry.
+const DEFAULT_IO_WEIGHT: u64 = 100;
+/// The value of a cgroup limit property that means no limit.
+const UNLIMITED: u64 = u64::MAX;
 
 /// The limits the new scope must carry.
 /// Each is the smallest finite value found on the cgroups the process leaves,
@@ -37,6 +46,13 @@ pub struct InheritedLimits {
     /// Task count limit,
     /// from `pids.max`.
     pub tasks_max: Option<u64>,
+    /// I/O weight,
+    /// from the `default` line of `io.weight`,
+    /// the value of `IOWeight`.
+    /// Absent when no cgroup on the way sets a weight below the kernel default.
+    /// The manager writes it to `io.bfq.weight` as well,
+    /// which the BFQ scheduler of this host reads.
+    pub io_weight: Option<u64>,
 }
 
 /// Merging and rendering.
@@ -51,12 +67,27 @@ impl InheritedLimits {
             ("MemoryHigh", self.memory_high),
             ("MemorySwapMax", self.memory_swap_max),
             ("TasksMax", self.tasks_max),
+            ("IOWeight", self.io_weight),
         ] {
             if let Some(number) = value {
                 properties.push((name, number));
             }
         }
         return properties;
+    }
+
+    /// Every limit property for a live scope,
+    /// with the unlimited value for a limit that is absent and the default for the I/O weight,
+    /// because the manager keeps the old value of a property that is not sent.
+    pub fn all_properties(&self) -> Vec<(&'static str, u64)> {
+        return vec![
+            ("CPUQuotaPerSecUSec", self.cpu_quota_per_sec_usec.unwrap_or(UNLIMITED)),
+            ("MemoryMax", self.memory_max.unwrap_or(UNLIMITED)),
+            ("MemoryHigh", self.memory_high.unwrap_or(UNLIMITED)),
+            ("MemorySwapMax", self.memory_swap_max.unwrap_or(UNLIMITED)),
+            ("TasksMax", self.tasks_max.unwrap_or(UNLIMITED)),
+            ("IOWeight", self.io_weight.unwrap_or(DEFAULT_IO_WEIGHT)),
+        ];
     }
 
     /// Keeps the smaller finite value of each limit.
@@ -66,6 +97,7 @@ impl InheritedLimits {
         self.memory_high = smaller(self.memory_high, other.memory_high);
         self.memory_swap_max = smaller(self.memory_swap_max, other.memory_swap_max);
         self.tasks_max = smaller(self.tasks_max, other.tasks_max);
+        self.io_weight = lighter(self.io_weight, other.io_weight);
     }
 }
 
@@ -77,6 +109,34 @@ fn smaller(left: Option<u64>, right: Option<u64>) -> Option<u64> {
         (Some(a), None) => Some(a),
         (None, other) => other,
     };
+}
+
+/// The lighter of two optional I/O weights,
+/// where absent means the kernel default,
+/// and a result at the default is absent again.
+/// A weight above the default is never carried:
+/// the scope may be throttled more than its origin but never less.
+fn lighter(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+    let weight = left.unwrap_or(DEFAULT_IO_WEIGHT).min(right.unwrap_or(DEFAULT_IO_WEIGHT));
+    return if weight == DEFAULT_IO_WEIGHT { None } else { Some(weight) };
+}
+
+/// Parses `io.weight`:
+/// the `default` line holds the weight of the cgroup,
+/// and lines for single devices are not read.
+/// The kernel default is no weight to carry.
+pub fn parse_io_weight(text: &str) -> io::Result<Option<u64>> {
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix("default ") else {
+            continue;
+        };
+        return match rest.trim().parse::<u64>() {
+            Ok(weight) if weight == DEFAULT_IO_WEIGHT => Ok(None),
+            Ok(weight) => Ok(Some(weight)),
+            Err(_error) => Err(io::Error::new(io::ErrorKind::InvalidData, format!("not an io.weight default: {:?}", rest.trim()))),
+        };
+    }
+    return Err(io::Error::new(io::ErrorKind::InvalidData, "an io.weight without a default line"));
 }
 
 /// Parses a cgroup limit file:
@@ -135,6 +195,7 @@ fn read_directory_limits(directory: &Path) -> io::Result<InheritedLimits> {
         memory_high: read_limit_file(directory, "memory.high", parse_limit)?,
         memory_swap_max: read_limit_file(directory, "memory.swap.max", parse_limit)?,
         tasks_max: read_limit_file(directory, "pids.max", parse_limit)?,
+        io_weight: read_limit_file(directory, "io.weight", parse_io_weight)?,
     });
 }
 

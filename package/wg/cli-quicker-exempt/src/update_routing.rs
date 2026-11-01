@@ -18,6 +18,10 @@ use crate::inherited_limits::read_inherited_limits;
 use crate::process_info::{list_pids, read_cgroup_pids, read_own_pid_namespace, read_process, read_start_time, ProcessInfo};
 /// The seam to the service manager.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+/// The scope of each origin.
+use crate::scope_naming::{origin_scope_name, scope_cgroup_path};
+/// What is known about the scopes in use.
+use crate::scope_registry::ScopeRegistry;
 /// Classification of processes.
 use crate::update_entry_points::classify;
 /// Clock,
@@ -96,6 +100,8 @@ pub struct UpdateRouting {
     /// Processes already handled for good,
     /// by pid and start time.
     handled: HashSet<(i32, u64)>,
+    /// The scope of each origin cgroup and the limits it was last given.
+    scopes: ScopeRegistry,
     /// Processes whose move failed and will be tried again.
     failures: HashMap<(i32, u64), Failure>,
     /// Failed moves spent in the current pass.
@@ -115,6 +121,7 @@ impl UpdateRouting {
             setup,
             own_pid_namespace,
             handled: HashSet::new(),
+            scopes: ScopeRegistry::new(),
             failures: HashMap::new(),
             failed_attempts_this_pass: 0,
             blocked_until: None,
@@ -323,10 +330,8 @@ impl UpdateRouting {
         if pids.first() != Some(&pid) {
             return Outcome::Ignored;
         }
-        let destination = format!(
-            "/user.slice/user-{0}.slice/user@{0}.service/app.slice/{TOOLCHAIN_UPDATES_SLICE}/wg-quicker-update.scope",
-            self.setup.uid
-        );
+        let scope_name = origin_scope_name(&info.cgroup, self.setup.uid);
+        let destination = scope_cgroup_path(self.setup.uid, TOOLCHAIN_UPDATES_SLICE, &scope_name);
         let limits = match read_inherited_limits(&self.setup.cgroup_root, &info.cgroup, &destination) {
             Ok(limits) => limits,
             Err(error) => {
@@ -334,22 +339,22 @@ impl UpdateRouting {
                 return self.register_failure(key, now, text);
             }
         };
-        let scope_label = format!("{pid}-{}", key.1);
         let request = AdoptRequest {
             pids: &pids,
             uid: self.setup.uid,
             gid: self.setup.gid,
             slice: TOOLCHAIN_UPDATES_SLICE,
             limits: &limits,
-            scope_label: &scope_label,
+            scope_name: &scope_name,
         };
         return match self.setup.adopter.adopt(&request) {
-            Ok(()) => {
+            Ok(joined) => {
                 self.handled.insert(key);
                 self.failures.remove(&key);
+                self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits);
                 Outcome::Adopted { pid, reason, count: pids.len(), left_behind: unreadable + dropped }
             }
-            Err(AdoptError::Vanished) => {
+            Err(AdoptError::Vanished | AdoptError::ScopeGone) => {
                 self.failures.remove(&key);
                 Outcome::Ignored
             }
@@ -409,6 +414,7 @@ impl UpdateRouting {
             }
         }
         self.forget_exited(&pids);
+        outcomes.extend(self.scopes.follow_origins(&self.setup, TOOLCHAIN_UPDATES_SLICE));
         return outcomes;
     }
 }

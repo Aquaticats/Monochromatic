@@ -12,7 +12,7 @@ use crate::application_watch::{prepare_application_watch, rescan_due, ReporterId
 /// Fake scan roots.
 use crate::application_targets::ScanRoots;
 /// A move the fake manager never has to make.
-use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
+use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, Joined, LimitRequest};
 /// The policy engine over fake trees.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// Threads before and after the setup.
@@ -37,8 +37,13 @@ impl Adopter for IdleAdopter {
 
     /// No process matches in the fake tree,
     /// so no move is requested.
-    fn adopt(&self, _request: &AdoptRequest<'_>) -> Result<(), AdoptError> {
+    fn adopt(&self, _request: &AdoptRequest<'_>) -> Result<Joined, AdoptError> {
         return Err(AdoptError::Failed("this fixture moves nothing".to_string()));
+    }
+
+    /// No scope exists in this fixture.
+    fn apply_limits(&self, _request: &LimitRequest<'_>) -> Result<(), AdoptError> {
+        return Err(AdoptError::ScopeGone);
     }
 }
 
