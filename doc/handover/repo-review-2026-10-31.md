@@ -1183,6 +1183,75 @@ recording):
   repair slice 3, rows 121 onward), `w4-desktop-app` (upstream-fork,
   make-asynchronous).
 
+Wave-4 thirty-first checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Package milestone: `w4-mp-design` completed the ide/app tests/ slice: 83 of 83
+  positions across its turns 36 to 45, 82 Rust files plus tests/fixture/browser-find.json
+  fully read (my recount: 83 files under tests/, 82 .rs). The src-root enumeration is
+  corrected: 15 *_tests.rs files at src root, not about 52; the 52 figure spans
+  excluded subdirectories (my recount: 15). Positions 54 to 64 were covered in the
+  turn-42 sweep after an accounting query; all eleven files confirmed present. The
+  w4-ide-app file stands at 19 rows, 19 of 19 by my run. The child proceeds through the
+  src-root set (embedded_runtime_tests.rs and file_open_tests.rs clean; next
+  find_worker_tests.rs; 13 of 15 remain).
+- Returns verified since the thirtieth checkpoint: `w4-cc-statusline` rows
+  `w4-git-policy-068` to `-074`, 74 of 74 clean by my run: 068 the index_lock_holders
+  citations (absences 0, control 1; the Some(0) pin confirmed at
+  index_lock_holders_tests.rs line 33), 069 to 071 the index-lock wait and writer
+  citations (absences 0, controls 1), 072 (warning) the landing-lease encoding
+  mismatch (the writer stores lock.directory().to_string_lossy() at
+  index_writer_coordination.rs:309 while has_valid_landing_lease compares
+  lock_directory.to_str() at transaction_lease.rs:208; my control read both), 073 a new
+  family path form (src/forward-real-git.ts cited at index_writer_forward.rs:12,
+  absence 0, control 1), 074 run_coordinated_forward's IsolatedMerge dispatch arms
+  (index_writer_forward.rs:155 and :160) with zero merge mentions in the entry tests
+  against abundant coverage in merge_isolation_repository_tests.rs (my control).
+  Adjudications accepted: the RESTART_MANAGER_SCRIPT byte-for-byte scratch
+  comparison, the VALUE_OPTIONS closure, the hooks_off ACTIVE-switch reading.
+- `w4-android-app` rows `w4-git-policy-b-038` to `-045`, 45 of 45 clean by my run. The
+  RecoveryPlace lead closed by b-042: merge_isolation.rs:639 fills common_dir with
+  git_dir against the recovery_landing.rs:141-142 contract; the misfilled place flows
+  only to settle_failed_merge at :643, whose module reads common_dir zero times, and
+  the recover_dead_transaction read at recovery_landing.rs:253 is fed by the
+  recovery-scan flow's own place (my trace). b-040: the identity-inspection misreport
+  at recovery_files.rs:298 against correct io_failure propagation at :368 and :573.
+  b-044 and b-045: the recovery reflog and scan citations (absences 0, controls 1),
+  b-045 closing the last native commit-landing-lock.ts instance. The b-036 follow-up
+  half closes at recovery_landing.rs (transaction_git.rs remains).
+- `w4-fe-core-tests` rows `w4-tr-artifact-010` and `-011`, 11 of 11 clean by my run.
+  010: the correction-chain refusal pins only its findings leg (inputDigest and
+  gatedTextDigest appear in the review test solely as fixtures, 5 hits each, my
+  recount; findingsDigest 6 including the mutating case). 011:
+  assertEvidenceMatchesLedger's incumbentText comparison at row-relations.ts:149 is
+  pinned by no test (refusal string exactly one repo-wide hit; the sibling refusal
+  pinned as the positive control). Turns 54 to 58 clean through the pairing, polish,
+  seat, row-relations, set-relations and tense clusters; 126 of 178 covered. Still
+  open: parseSoleLaneSlice usable arm and benchBelowFloor-on-sole-lane,
+  parseConsistency gates plus polish arm, rendered-sheets sheet-count (all at
+  read.unit.test.ts or the fixture).
+- `w4-fm-variant-qt` corpus-repair slice 3 complete and fully verified: 60 enumeration
+  rows (121 to 180, root-configs-67 to -126), all stale-evidence, zero repairs; the
+  block is the homogeneous file-enforcer TypeScript cutover (bulk proofs reproduce:
+  package/file-enforcer/core zero tracked, core-rust 63, deleting commit e7b5130459).
+  root-configs.jsonl unchanged at 159 total and 36 ok. Slice 4 (rows 181 onward) in
+  flight.
+- `w4-desktop-app` upstream-fork rows `w4-upstream-fork-008` to `-010`, 10 of 10 clean
+  by my run: 008 (blocker) getMessageData throws the non-reply-envelope TypeError at
+  worker-lifecycle.ts:242 inside the worker message listener (:560) while upstream
+  make-asynchronous@2.1.0 never throws and drops strays by request id (index.js:9 and
+  :107-109); 009 isNodeRuntime doc claims a globalThis probe (:25) while the code
+  reads bare process (:35-38); 010 the only-API-shape-deviations claim at index.ts:11.
+  make-asynchronous closed (19 reviewable, template byte-identity measured);
+  make-asynchronous.fuzz in flight.
+- In flight: `w4-cc-statusline` (head, landed_disposal.rs position 282; the
+  maintenance_hk_config.rs boundary at position 300 is close), `w4-android-app` (tail,
+  recovery_scan_tests.rs position 428; 157 remain), `w4-mp-design` (ide/app src-root
+  set, find_worker_tests.rs position 3 of 15), `w4-fe-core-tests` (artifact, the
+  fields, keys, lanes and evidence cluster; 52 remain), `w4-fm-variant-qt` (corpus
+  repair slice 4, rows 181 onward), `w4-desktop-app` (upstream-fork,
+  make-asynchronous.fuzz).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
