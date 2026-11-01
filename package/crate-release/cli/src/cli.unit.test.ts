@@ -13,9 +13,11 @@ import {
   failureExitCode,
   gitProgram,
   releaseWorkflow,
+  staleHeadMessage,
   systemdRunProgram,
   usageExitCode,
 } from './constants.ts';
+import { requestFileName } from './push-run.ts';
 import {
   createStubFixture,
   type StubFixture,
@@ -95,6 +97,86 @@ async function writeRegistryRepository(fixture: StubFixture): Promise<void> {
         + 'forbidden-strings = { path = "../cli", version = "=0.6.0" }\n',
     });
   }));
+}
+
+/**
+ The commit the push fixture started from, the release commit on top of it, and a head the branch moved to.
+ */
+const pushBase = 'a'.repeat(40);
+const pushMoved = 'c'.repeat(40);
+
+/**
+ The subject of the push fixture's release commit.
+ */
+const pushHeadline = `chore(forbidden-strings/cli): release 0.4.10: ${hostileNote}`;
+
+/**
+ The files the push fixture's release commit changes.
+ */
+const pushPaths: readonly string[] = [
+  'package/forbidden-strings/cli/Cargo.toml',
+  'package/forbidden-strings/cli/Cargo.lock',
+];
+
+/**
+ The answer of the commit mutation when the branch is no longer where the commit expected it.
+ */
+const pushStaleAnswer = JSON.stringify({ errors: [{ message: `${staleHeadMessage} "${pushBase}" but it did not.` }] });
+
+/**
+ Fill the fixture of a push: the files of the release commit, what git says about it, and the answer of cargo metadata
+ for the crate and its lock directory.
+
+ @param fixture - fixture to fill
+ */
+async function writePushFixture(fixture: StubFixture): Promise<void> {
+  await Promise.all(pushPaths.map(async function writePath(path) {
+    await fixture.write({ path, text: `contents of ${path}\n` });
+  }));
+  await fixture.script({ key: 'git.rev-list', stdout: `${'b'.repeat(40)} ${pushBase}\n` });
+  await fixture.script({ key: 'git.log', stdout: `${pushHeadline}\n` });
+  await fixture.script({ key: 'git.diff-tree', stdout: `${pushPaths.join('\0')}\0` });
+  await fixture.script({
+    key: 'cargo',
+    stdout: JSON.stringify({
+      packages: [
+        { name: 'forbidden-strings', source: null, manifest_path: `${fixture.directory}/package/forbidden-strings/cli/Cargo.toml` },
+        { name: 'dep', source: null, manifest_path: `${fixture.directory}/package/dep/Cargo.toml` },
+        { name: 'serde', source: 'registry+https://github.com/rust-lang/crates.io-index', manifest_path: '/cargo/serde/Cargo.toml' },
+      ],
+      workspace_root: `${fixture.directory}/package/forbidden-strings/cli`,
+    }),
+  });
+}
+
+/**
+ Run the push executable against the fixture with the stubs first on the search path.
+
+ @param fixture - fixture to run in
+ @param extra - arguments after the fixed options
+ @returns the finished child
+ */
+function runPush({
+  fixture,
+  extra,
+}: {
+  readonly fixture: StubFixture;
+  readonly extra: readonly string[];
+}) {
+  return spawnSync('node', [
+    pushBin,
+    '--root',
+    fixture.directory,
+    '--crate',
+    'forbidden-strings',
+    '--repo',
+    'o/r',
+    '--branch',
+    'main',
+    '--scratch-dir',
+    `${fixture.directory}/scratch`,
+    ...extra,
+  ], { env: fixture.environment(), encoding: 'utf8' });
 }
 
 /**
@@ -523,60 +605,134 @@ await describe({
           name: 'sends the head commit as one signed-by-GitHub commit on its parent, with the whole contents of its files',
           fn: async () => {
             await using fixture = await createStubFixture();
-            await fixture.write({ path: 'package/demo/cli/Cargo.toml', text: '[package]\nversion = "0.4.10"\n' });
-            await fixture.write({ path: 'package/demo/cli/Cargo.lock', text: '# lock\n' });
-            await fixture.script({ key: 'git.rev-list', stdout: `${'b'.repeat(40)} ${'a'.repeat(40)}\n` });
-            await fixture.script({ key: 'git.log', stdout: `chore(demo/cli): release 0.4.10: ${hostileNote}\n` });
-            await fixture.script({ key: 'git.diff-tree', stdout: 'package/demo/cli/Cargo.toml\0package/demo/cli/Cargo.lock\0' });
+            await writePushFixture(fixture);
             await fixture.script({
               key: 'gh.api-graphql',
               stdout: '{"data":{"createCommitOnBranch":{"commit":{"oid":"cccc","url":"https://github.com/o/r/commit/cccc"}}}}',
             });
-            const child = spawnSync('node', [
-              pushBin,
-              '--root',
-              fixture.directory,
-              '--repo',
-              'o/r',
-              '--branch',
-              'main',
-              '--scratch-dir',
-              `${fixture.directory}/scratch`,
-            ], { env: fixture.environment(), encoding: 'utf8' });
+            const child = runPush({ fixture, extra: [] });
             expect(child.stderr).toBe('');
             expect(child.stdout).toContain('PUSHED cccc https://github.com/o/r/commit/cccc');
             expect(child.status).toBe(0);
-            const request = JSON.parse(await fixture.read('scratch/crate-release-commit-request.json')) as {
+            const request = JSON.parse(await fixture.read(`scratch/${requestFileName}`)) as {
               variables: { input: { expectedHeadOid: string; message: { headline: string }; fileChanges: { additions: { path: string; contents: string }[] } } };
             };
-            expect(request.variables.input.expectedHeadOid).toBe('a'.repeat(40));
-            expect(request.variables.input.message.headline).toBe(`chore(demo/cli): release 0.4.10: ${hostileNote}`);
-            expect(request.variables.input.fileChanges.additions).toEqual([
-              { path: 'package/demo/cli/Cargo.toml', contents: Buffer.from('[package]\nversion = "0.4.10"\n').toString('base64') },
-              { path: 'package/demo/cli/Cargo.lock', contents: Buffer.from('# lock\n').toString('base64') },
-            ]);
+            expect(request.variables.input.expectedHeadOid).toBe(pushBase);
+            expect(request.variables.input.message.headline).toBe(pushHeadline);
+            expect(request.variables.input.fileChanges.additions).toEqual(pushPaths.map(function additionOf(path) {
+              return { path, contents: Buffer.from(`contents of ${path}\n`).toString('base64') };
+            }));
             const calls = await fixture.calls();
             expect(calls.at(-1)?.program).toBe('gh');
-            expect(calls.at(-1)?.args).toEqual(['api', 'graphql', `--input=${fixture.directory}/scratch/crate-release-commit-request.json`]);
+            expect(calls.at(-1)?.args).toEqual(['api', 'graphql', `--input=${fixture.directory}/scratch/${requestFileName}`]);
           },
         }),
         it({
-          name: 'exits 1 and says nothing was pushed when GitHub refuses the commit',
+          name: 'records the closure of the crate and of its lock directory with cargo metadata before it sends',
           fn: async () => {
             await using fixture = await createStubFixture();
-            await fixture.write({ path: 'package/demo/cli/Cargo.toml', text: 'x' });
-            await fixture.script({ key: 'git.rev-list', stdout: `${'b'.repeat(40)} ${'a'.repeat(40)}\n` });
-            await fixture.script({ key: 'git.log', stdout: 'subject\n' });
-            await fixture.script({ key: 'git.diff-tree', stdout: 'package/demo/cli/Cargo.toml\0' });
+            await writePushFixture(fixture);
             await fixture.script({
               key: 'gh.api-graphql',
-              stdout: '{"errors":[{"message":"Expected branch to point to aaa but it did not."}]}',
+              stdout: '{"data":{"createCommitOnBranch":{"commit":{"oid":"cccc","url":"https://github.com/o/r/commit/cccc"}}}}',
+            });
+            runPush({ fixture, extra: [] });
+            const calls = await fixture.calls();
+            const cargo = calls.filter(function isCargo(call) {
+              return call.program === 'cargo';
+            });
+            expect(cargo.map(function manifestOf(call) {
+              return call.args.find(function isManifest(argument) {
+                return argument.startsWith('--manifest-path=');
+              }) ?? '';
+            }).toSorted()).toEqual([
+              'package/forbidden-strings/cli/Cargo.toml',
+              'package/git-policy/cli.fuzz/Cargo.toml',
+            ].map(function optionOf(manifest) {
+              return `--manifest-path=${manifest}`;
+            }));
+            expect(cargo.every(function inRoot(call) {
+              return call.cwd === fixture.directory;
+            })).toBe(true);
+          },
+        }),
+        it({
+          name: 'pushes nothing and names the path when the branch moved and a path of the crate changed',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writePushFixture(fixture);
+            await fixture.script({ key: 'gh.api-graphql', stdout: pushStaleAnswer, status: 1 });
+            await fixture.script({
+              key: 'gh.api-repos_o_r_git_ref_heads_main',
+              stdout: JSON.stringify({ object: { type: 'commit', sha: pushMoved } }),
+            });
+            const changed = 'package/forbidden-strings/cli/src/lib.rs';
+            await fixture.script({
+              key: `gh.api-repos_o_r_compare_${pushBase}...${pushMoved}`,
+              stdout: JSON.stringify({ status: 'ahead', files: [{ filename: 'doc/a.md' }, { filename: changed }] }),
+            });
+            const child = runPush({ fixture, extra: [] });
+            expect(child.status).toBe(failureExitCode);
+            expect(child.stdout).toContain(`PUSH REFUSED: Paths the release depends on changed on main since ${pushBase}: ${changed}`);
+            expect(child.stdout).toContain('dispatch the release again');
+            expect(child.stdout).toContain(`main now points to ${pushMoved}`);
+            const graphql = (await fixture.calls()).filter(function isGraphql(call) {
+              return (call.program === 'gh') && (call.args[1] === 'graphql');
+            });
+            expect(graphql).toHaveLength(1);
+          },
+        }),
+        it({
+          name: 'sends again on the new head while nothing the release depends on changes, and gives up at the limit',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writePushFixture(fixture);
+            await fixture.script({ key: 'gh.api-graphql', stdout: pushStaleAnswer, status: 1 });
+            await fixture.script({
+              key: 'gh.api-repos_o_r_git_ref_heads_main',
+              stdout: JSON.stringify({ object: { type: 'commit', sha: pushMoved } }),
+            });
+            await fixture.script({
+              key: `gh.api-repos_o_r_compare_${pushBase}...${pushMoved}`,
+              stdout: JSON.stringify({ status: 'ahead', files: [{ filename: 'doc/a.md' }] }),
+            });
+            const attempts = 2;
+            const child = runPush({ fixture, extra: ['--max-attempts', String(attempts)] });
+            expect(child.status).toBe(failureExitCode);
+            expect(child.stdout).toContain(`decision: none of the watched paths changed; send the commit again on ${pushMoved}`);
+            expect(child.stdout).toContain(`moved before each of the ${String(attempts)} allowed sends`);
+            const graphql = (await fixture.calls()).filter(function isGraphql(call) {
+              return (call.program === 'gh') && (call.args[1] === 'graphql');
+            });
+            expect(graphql).toHaveLength(attempts);
+          },
+        }),
+        it({
+          name: 'exits 1 and says nothing was pushed when GitHub refuses the commit for another reason',
+          fn: async () => {
+            await using fixture = await createStubFixture();
+            await writePushFixture(fixture);
+            await fixture.script({
+              key: 'gh.api-graphql',
+              stdout: '{"errors":[{"message":"Resource not accessible by integration"}]}',
               status: 1,
             });
+            const child = runPush({ fixture, extra: [] });
+            expect(child.status).toBe(failureExitCode);
+            expect(child.stdout).toContain('PUSH REFUSED: Resource not accessible by integration');
+            expect(child.stdout).toContain('Nothing was pushed');
+          },
+        }),
+        it({
+          name: 'refuses a crate the registry does not list before starting any program',
+          fn: async () => {
+            await using fixture = await createStubFixture();
             const child = spawnSync('node', [
               pushBin,
               '--root',
               fixture.directory,
+              '--crate',
+              'nope',
               '--repo',
               'o/r',
               '--branch',
@@ -584,9 +740,9 @@ await describe({
               '--scratch-dir',
               `${fixture.directory}/scratch`,
             ], { env: fixture.environment(), encoding: 'utf8' });
-            expect(child.status).toBe(failureExitCode);
-            expect(child.stdout).toContain('PUSH REFUSED: Expected branch to point to aaa but it did not.');
-            expect(child.stdout).toContain('nothing was pushed');
+            expect(child.status).toBe(usageExitCode);
+            expect(child.stderr).toContain('forbidden-strings, monochromatic-git-policy-cli');
+            expect(await fixture.calls()).toEqual([]);
           },
         }),
         it({
@@ -597,6 +753,8 @@ await describe({
               pushBin,
               '--root',
               fixture.directory,
+              '--crate',
+              'forbidden-strings',
               '--repo',
               'o/r',
               '--branch',

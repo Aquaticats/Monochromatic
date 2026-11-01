@@ -65,14 +65,17 @@ Read-only commands,
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
    `lfs.*` key.
-  The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
-   `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
-   Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
+  The step is `git-lfs push <remote> <refs>`, which the wrapper runs itself as a child before it starts the push;
+   the push carries no hook, the wrapper never starts itself and writes no shell text.
+  The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
+   refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
+  The wrapper, as the parent that ran the upload, prints the explanation.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.
-  Without `git-lfs` on `PATH` the push stops and the message says to install it, remove the LFS configuration
-   or use `git push --no-verify`.
+  `--no-verify`, `GIT_LFS_SKIP_PUSH` and `-c hook.cli-git-lfs-pre-push.enabled=false` skip it.
+  Without `git-lfs` on `PATH` the push stops before anything starts and the message says to install it, remove the
+   LFS configuration or use `git push --no-verify`.
   The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
    files read-only, do nothing without the `lockable` attribute, and are not run.
   See the SPEC section "Git LFS upload before a push" for the evidence and the limits.
@@ -80,7 +83,8 @@ Read-only commands,
   `final-newline`,
    `markdown/autofix`,
    `mono/forbidden-root-context`,
-   `mono/dependent-version-bump` and
+   `mono/dependent-version-bump`,
+   `mono/catalog-specifiers` and
   `security/forbidden-strings` check or rewrite what a commit contains.
   The same content policies scan what a manual `git push` newly publishes.
 - After a landed commit.
@@ -206,14 +210,29 @@ git cli-git doctor
 git cli-git --help
 ```
 
-`git cli-git lfs-pre-push <remote> <url>` is the entry Git starts for the Git LFS upload described under "Git LFS";
-it is not meant to be typed.
-It reads the ref-update lines on standard input, runs `git-lfs pre-push` with them and returns its status.
+The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
+parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
+A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
+the hook dispatcher that still reads `argv[0]` is the one listed exception, until it is removed.
 
 Exactly one scope is required:
  `--all`,
  or pathspecs after `--`.
 `--policy <id>` limits the run to one policy and may be repeated.
+A selected policy that is off stops the run with exit `2`,
+ because it would check nothing and read as clean:
+ a `config-invalid` event on standard output names the policy
+ and the `cli-git.config.jsonc` key that turns it on
+ (`"policies": { "<id>": "error" }`,
+ or the value the file now sets to `"off"`).
+This holds for the four older optional policies as well,
+ which used to exit `0` with no output in that case.
+A selected policy that is on but does not run for the command is refused the same way,
+ with the command that does run it:
+ `fix --policy mono/catalog-specifiers` stops with exit `2` and points to `check`.
+Without `--policy` an off policy is skipped without a word,
+ and so it is when a commit,
+ an add or a push runs.
 Events are JSON lines on standard output.
 
 `git cli-git doctor` takes no options.
@@ -481,6 +500,7 @@ The keys `plugins` and `trust` are refused.
     "markdown/autofix": ["warn", { "rules": ["lfs-image-url"], "exclude": ["package/ssg/"] }],
     "mono/forbidden-root-context": "error",
     "mono/dependent-version-bump": "error",
+    "mono/catalog-specifiers": "error",
     "security/forbidden-strings": ["error", { "builtinRules": true, "rulesFile": ["forbidden-strings.append.txt", { "path": "forbidden-strings.append.local.txt", "optional": true }] }]
   },
   "hooks": { "concurrentCommits": false },
@@ -496,7 +516,9 @@ An unknown key,
 
 The wrapper ships these policies and no others.
 The first five run at their default severity without being listed.
-The last four run only where the file lists them.
+The last five run only where the file lists them.
+Listing one with a severity is the only way to turn it on,
+ and a configuration that does not name a policy behaves exactly as it did before the policy shipped.
 
 - `require-root`:
    default `error`.
@@ -524,6 +546,39 @@ The last four run only where the file lists them.
 - `mono/dependent-version-bump`:
    default `error`.
   Packages that depend on a package with a bumped version follow the bump.
+- `mono/catalog-specifiers`:
+   default `error`,
+   no options.
+  Every dependency in a tracked `package.json` is `catalog:`,
+   `catalog:<name>` or exactly `workspace:*`
+   (`peerDependencies` take `*`,
+   `catalog:` or `catalog:<name>`).
+  The rule belongs to the `monochromatic-catalog-specifier` crate,
+   whose README is its contract;
+   the policy hands it each candidate `package.json`'s bytes,
+   never the worktree's,
+   and reports its findings.
+  A tracked `package.json5`,
+   `package.yaml` or `package.yml` is a finding too,
+   reported by name without reading it.
+  The policy checks syntax only:
+   it looks up no catalog entry and does not read `pnpm-workspace.yaml`.
+  It runs when a commit is made,
+   when `git add` stages,
+   after a landed commit,
+   before a push,
+   and for `check`;
+   it proposes no correction,
+   so `fix` skips it.
+  The finding codes are `unsupported-manifest-format`,
+   `invalid-manifest`,
+   `malformed-section`,
+   `duplicate-key`,
+   `non-string-specifier` and `disallowed-specifier`.
+  A `warn` lets a literal version into the commit,
+   so it earns the unsafe-`warn` notice.
+  This repository's `cli-git.config.jsonc` does not list it yet,
+   so the policy is off here.
 - `security/forbidden-strings`:
    default `error`.
   Scans candidate bytes and path names with the linked scanner.
@@ -641,12 +696,24 @@ fractional or non-numeric value is ignored.
   The command leaves the lock in place and changes nothing else,
    so it can simply be run again.
 - `CLI_GIT_CHILD_WAIT_SECONDS`,
-   default `1800`.
-  How long one Git process that the wrapper starts for itself may run before it is stopped:
-   the object reader (`git cat-file --batch`) that the policy checks read candidate files through,
-   and the Git steps of a commit in the shadow repository.
-  A process that crosses the limit is stopped,
-   and the command reports which one and how to go on.
+   default `60` for a quick query step and `300` for a bulk step.
+  How long one Git process that the wrapper starts for itself may run before it is stopped.
+  A quick query step only reads refs, commits and trees (`rev-parse`, `rev-list`, `ls-tree`, `cat-file`, `diff-tree`,
+   `merge-base`, `write-tree`, `update-ref` and the like);
+   the measured worst case is a fraction of a second whatever the worktree holds.
+  A bulk step is every other step:
+   it moves bytes (`pack-objects`, `index-pack`, `add`, `maintenance run`),
+   or compares the index with the worktree (`reset`, `update-index`, `ls-files`, `diff`),
+   or is not known to be a query.
+  Its time grows with the size of what is committed and with how many files the index must read again
+   (a stat-dirty 20 000-file index made `reset` take 2.9 s against 0.03 s on a clean one).
+  The object reader (`git cat-file --batch`) is a bulk step too, because one request can name a large blob.
+  Setting the variable gives every class the same bound.
+  A process that crosses its bound is stopped,
+   and the command reports which one, its class, the bound and how to go on:
+   run the command again (the next command of the wrapper finishes or undoes an unfinished commit),
+   or raise the bound when the step was only slow.
+  The user's own commit with its hooks is never bounded.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints").
@@ -698,7 +765,9 @@ Each line names what the command waits for,
    which names the file and stops the linter after 60 seconds.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
-   and stop it after `CLI_GIT_CHILD_WAIT_SECONDS`.
+   and stop it at the bound of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
+  The first notice of a quick query step comes after 5 seconds and that of a bulk step after 10 seconds,
+   so a step that only needed a moment prints nothing.
 
 ```text
 // standard error of a commit that waits for the landing lock
@@ -842,6 +911,33 @@ mise run //package/git-policy/cli:native:test:container
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with Git 2.56.0 and no network.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
+  The test run uses `cargo nextest run --no-fail-fast`, so every test runs even after a failure and one flaky test
+  never hides the rest; the exit status is still non-zero, and nextest prints its summary and the list of failed tests
+  last.
+  The image build is layered so that a rebuild reuses everything the change did not reach, with no network and
+  `--locked` throughout (`bin/native-layered-build.ts`, `bin/native-test-containerfile.ts`):
+  - The dependency layer compiles every registry crate from the manifests, the lock files, the vendored sources and
+    empty stand-in source files, so its cache key holds no source file.
+    Only a change to a manifest or a lock file rebuilds it, which includes a version bump of the crate or of a path
+    crate.
+  - The path-crate layer copies the JSONC crate and the scanner with its engine and compiles them (the scanner's
+    build script precompiles the embedded baseline), so it is rebuilt only when one of them changes.
+  - The subject layer copies the wrapper's `src/native` and `README.md` (the tests include it) and compiles only the
+    wrapper, so a test sidecar edit or a source edit recompiles one crate.
+  - The linter stage follows the same split: its registry dependencies compile from stand-ins, then its own sources.
+  - Each real-source layer touches the copied files in the same step, because Cargo compares file times with the
+    stand-in build and would otherwise treat the stand-in output as current.
+  - Build cache mounts (`RUN --mount=type=cache`) are not used: they keep `target/` outside the image, but the test
+    run, the planted controls and the mutation campaigns reuse the image's own `target/`, so the compiled output has to
+    stay in the image.
+  - The image build keeps the same CPU limit as the run.
+    In paired builds at the same time, a cold dependency layer compiled about 1.7 to 1.9 times faster with
+    `--cpus 4` than with the default (47 s and 58 s against 23 s and 31 s) and the path-crate layer about 1.6 times
+    faster, while the wrapper-only layer that a test or source edit rebuilds did not change (about 12 s either way).
+    A cold build happens only after a manifest or lock file change, so the default is unchanged;
+    pass `--cpus 4` after the `--` for that case (the test concurrency follows it too).
+  - Every build step costs a fixed amount on a busy host (measured as tens of seconds, up to minutes, for a step that
+    does no work), so the Containerfile keeps its step count low and puts the steps that rarely change first.
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
   explicit-path commits, with paired direct-Git samples in disposable repositories.
   It reports the median, p95 and median absolute deviation of both sides and the added delta,

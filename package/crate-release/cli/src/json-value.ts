@@ -43,3 +43,27 @@ export function isRecord(value: unknown): value is Readonly<Record<string, unkno
   return ((typeof value) === 'object') && (value !== null)
     && (!Array.isArray(value));
 }
+
+/**
+ List the messages of the errors a GraphQL answer carries.
+
+ @param answer - the parsed answer
+
+ @returns one text per error, the error as JSON when it has no message; empty when the answer lists no error
+
+ @example
+ ```ts
+ graphqlErrorMessages({ errors: [{ message: "m" }] });
+ ```
+ */
+export function graphqlErrorMessages(answer: Readonly<Record<string, unknown>>): readonly string[] {
+  /**
+   GraphQL errors, when the answer lists any.
+   */
+  const errors: unknown = answer.errors;
+  if (!Array.isArray(errors))
+    return [];
+  return (errors as readonly unknown[]).map(function messageOf(error) {
+    return isRecord(error) && ((typeof error.message) === 'string') ? error.message as string : JSON.stringify(error);
+  });
+}

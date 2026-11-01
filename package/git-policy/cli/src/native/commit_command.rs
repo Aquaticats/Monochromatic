@@ -165,6 +165,12 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     }
     let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return PathBuf::from("."); });
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    // The commit hook dispatcher still names this executable; phase 2 of doc/planning/cli-git-no-self-invocation.md
+    //  removes it together with this lookup.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "names the executable for the commit hook dispatcher, which phase 2 of the no-self-invocation plan removes"
+    )]
     let executable: PathBuf = match std::env::current_exe() {
         Ok(found) => found,
         Err(error) => {
@@ -225,7 +231,7 @@ fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, l
         real_git: command.context.real_git.clone(),
         cwd: invocation.cwd.to_path_buf(),
         environment: environment_with_overlay(command.environment, command.context.overlay.as_slice()),
-        lfs_pre_push: if uses_lfs { Some(invocation.executable.to_path_buf()) } else { None },
+        lfs: uses_lfs,
     };
     let mut stderr = std::io::stderr();
     match run_post_commit(&request, &git, &mut stderr) {

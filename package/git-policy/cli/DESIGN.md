@@ -93,3 +93,35 @@ They are revisable; the quotes above are the requirements.
   so that the decision can be reopened when the load changes.
 - When the cause of a limit is in this package or in its build and test tooling,
   find the cause and remove it here.
+
+## No locks: a resident service serializes commits
+
+The owner decided the commit architecture on 2026-11-01.
+Their words, in order:
+
+> Thoughts on locks: I believe they're an anti-pattern. I still think the server client architecture has potential.
+
+> "child or resident proces" - another reason for server client architecture. Some policies are meant to be ran async.
+
+> What is going on? Didn't I say locks are bad?
+
+The last one answered a proposal that still put a kernel lock around the serial commit section.
+The direction is a resident single-writer service that owns commit serialization and the work that runs after a commit
+(push, standards review, maintenance).
+No lock, lock file, owner record or polling loop belongs in the commit path,
+and no second writer falls back to a lock when the service is down.
+The design is in `doc/planning/cli-git-resident-service.md`.
+Working suggestions from the coordinator, revisable with evidence:
+the wrapper stays a thin client for mutating commit-path commands,
+the operating system starts the service and the wrapper never does,
+and a client whose service is unreachable fails fast with an actionable explanation.
+
+The owner added a rule for the failure path, in these words:
+
+> socket activation (OS starts it) or a loud, clear failure - no, never leak internal things that could be resolved to the user.
+
+A client that cannot reach the service has exactly two outcomes:
+the operating system starts the service on demand and the commit proceeds,
+or the client stops with a plain message that says what the user can do.
+Whatever the system can resolve itself (a version mismatch, a stale socket, a crashed service, a slow start, a client killed mid-request)
+is resolved without the user, and no internal state reaches the user.

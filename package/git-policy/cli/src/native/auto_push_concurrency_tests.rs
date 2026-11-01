@@ -162,7 +162,7 @@ struct Reported {
 ///
 /// The helper's stderr is captured so each case reads what the terminal showed.
 fn start_helper(scenario: &Scenario, landed: &str, result: &Path) -> Child {
-    return Command::new(std::env::current_exe().expect("test binary"))
+    return Command::new(crate::test_support::this_test_binary().expect("test binary"))
         .args([
             "--exact",
             "auto_push::concurrency_tests::helper_auto_pushes",
@@ -236,7 +236,7 @@ fn helper_auto_pushes() {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: repo,
         environment,
-        lfs_pre_push: None,
+        lfs: false,
     };
     std::fs::write(result.with_extension("started"), "").expect("announce start");
     // The terminal text goes to a file as it is written, so a case can see that this helper waits, while it waits.
@@ -461,7 +461,7 @@ fn skips_silently_without_an_upstream_or_an_origin_remote() {
                 ),
                 crate::test_support::scratch_environment().remove(0),
             ],
-            lfs_pre_push: None,
+            lfs: false,
         },
         &landed,
         &mut err,

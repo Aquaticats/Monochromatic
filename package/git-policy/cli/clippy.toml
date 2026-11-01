@@ -1,0 +1,16 @@
+# Clippy lint-parameter config of the native wrapper.
+# What: the repository's disallowed methods (copied from the root `clippy.toml`, because Clippy reads the nearest
+#  configuration file only and does not merge a parent's) plus the ban on `std::env::current_exe`.
+# Why: the wrapper never starts its own executable (doc/planning/cli-git-no-self-invocation.md). A call to
+#  `current_exe` is the first step of that design, so each remaining use is identification only and carries an
+#  `#[allow(clippy::disallowed_methods)]` with a comment saying what it identifies; the textual scan in
+#  `src/native/no_self_invocation_tests.rs` covers the spellings Clippy cannot see.
+disallowed-methods = [
+  { path = "std::result::Result::unwrap", reason = "handle errors with ? or explain intentional panic with expect" },
+  { path = "std::env::temp_dir", reason = "the device behind /tmp is unknowable; use a directory under the build directory or .git/cli-git" },
+  { path = "tempfile::tempdir", reason = "creates under std::env::temp_dir; use tempfile::tempdir_in with a directory under the build directory" },
+  { path = "tempfile::tempfile", reason = "creates under std::env::temp_dir; use tempfile::tempfile_in with a directory under the build directory" },
+  { path = "tempfile::TempDir::new", reason = "creates under std::env::temp_dir; use TempDir::new_in with a directory under the build directory" },
+  { path = "tempfile::NamedTempFile::new", reason = "creates under std::env::temp_dir; use NamedTempFile::new_in with a directory under the build directory" },
+  { path = "std::env::current_exe", reason = "the wrapper never starts itself: a hook command, shim, child or argv[0] dispatch built on its own executable path is banned (doc/planning/cli-git-no-self-invocation.md); a remaining use must be identification only and say so in an allow with a justification" },
+]

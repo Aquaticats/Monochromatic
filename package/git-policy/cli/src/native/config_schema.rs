@@ -317,8 +317,8 @@ impl ConcurrencyConfig {
 /// Why:
 ///   The five built-in policies run everywhere at their default severity.
 ///  The four
-///       policies that plugins used to provide run only where `cli-git.config.jsonc` names
-///       them,
+///       policies that plugins used to provide, and `mono/catalog-specifiers`, run only where
+///       `cli-git.config.jsonc` names them,
 ///  whether or not a file exists,
 ///  so an empty file and no file behave alike.
 ///

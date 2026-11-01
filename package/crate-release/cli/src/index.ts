@@ -3,6 +3,7 @@
  */
 export * from './await-options.ts';
 export * from './await-run.ts';
+export * from './branch-api.ts';
 export * from './cli-main.ts';
 export * from './command-line.ts';
 export * from './commit-message.ts';
@@ -15,8 +16,10 @@ export * from './error.ts';
 export * from './manifest-edit.ts';
 export * from './option-parsing.ts';
 export * from './publish-results.ts';
+export * from './push-decision.ts';
 export * from './push-options.ts';
 export * from './push-run.ts';
+export * from './push-watch.ts';
 export * from './release-options.ts';
 export * from './release-run.ts';
 export * from './release-steps.ts';
@@ -28,4 +31,5 @@ export * from './usage.ts';
 export * from './validate.ts';
 export * from './version.ts';
 export * from './wait-options.ts';
+export * from './watch-paths.ts';
 export * from './wait-run.ts';

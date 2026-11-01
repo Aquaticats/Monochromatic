@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import {
   buildCommitRequest,
   type CommitFile,
+  isStaleHeadRefusal,
   parseCommitResponse,
 } from './commit-request.ts';
 import {
@@ -11,12 +12,15 @@ import {
   gitProgram,
 } from './constants.ts';
 import { CrateReleaseError } from './error.ts';
+import { decideAfterStaleHead } from './push-decision.ts';
 import type { PushOptions } from './push-options.ts';
+import { collectWatchSet } from './push-watch.ts';
 import type {
   ProgramCall,
   ProgramResult,
 } from './run-program.ts';
 import { buildGraphqlInputArguments } from './service-arguments.ts';
+import type { WatchSet } from './watch-paths.ts';
 
 /**
  Runs one program call to completion and reports how it ended.
@@ -175,12 +179,167 @@ async function readHeadCommit({
 }
 
 /**
+ Everything one send of the commit needs besides the head it expects.
+ */
+type SendInput = {
+  readonly options: PushOptions;
+  readonly run: PushRunner;
+  readonly writeText: (input: {
+    readonly path: string;
+    readonly text: string
+  }) => Promise<void>;
+  readonly print: (line: string) => void;
+  /**
+   The subject of the release commit.
+   */
+  readonly headline: string;
+  /**
+   The files of the release commit with their whole contents.
+   */
+  readonly files: readonly CommitFile[];
+  /**
+   Full object name of the commit the checkout started from, which the release verified.
+   */
+  readonly base: string;
+  /**
+   The paths the release depends on.
+   */
+  readonly watch: WatchSet;
+};
+
+/**
+ Send the release commit on a head, and again on the new head while the branch keeps moving harmlessly.
+
+ A send is refused when the branch is no longer at the head it expected. The refusal is then settled by
+ `decideAfterStaleHead`: the commit is sent again on the new head only when nothing the release depends on changed since
+ the base, and a branch that stays on the move for every allowed send ends the push with a refusal. Any other refusal
+ ends the push at once, because repeating it would repeat it. The sends are a bounded chain (the attempt limit), each
+ waiting for the one before, so the recursion is as deep as the limit and no deeper.
+
+ @param input - options, program runner, writer, printer, the commit and the watch set
+
+ @param expectedHeadOid - full object name of the head this send expects
+
+ @param attempt - number of this send, from one
+
+ @returns zero when the commit was created, the failure status when it was refused
+
+ @example
+ ```ts
+ await sendCommit({ input, expectedHeadOid: base, attempt: 1 });
+ ```
+ */
+async function sendCommit({
+  input,
+  expectedHeadOid,
+  attempt,
+}: {
+  readonly input: SendInput;
+  readonly expectedHeadOid: string;
+  readonly attempt: number;
+}): Promise<number> {
+  /**
+   Parts of the input this send uses.
+   */
+  const {
+    options,
+    run,
+    writeText,
+    print,
+    headline,
+    files,
+    base,
+    watch
+  } = input;
+  /**
+   Absolute path of the request file.
+   */
+  const requestFile = join(
+    options.scratchDirectory,
+    requestFileName
+  );
+  await writeText({
+    path: requestFile,
+    text: buildCommitRequest({
+      repo: options.repo,
+      branch: options.branch,
+      expectedHeadOid,
+      headline,
+      files,
+    }),
+  });
+  print(
+    `send ${String(attempt)} of at most ${String(options.maxAttempts)}: ${JSON.stringify(headline)} to ${options.repo}@${options.branch} on top of ${expectedHeadOid}`,
+  );
+  /**
+   How `gh` ended.
+   */
+  const result = await run({
+    program: ghProgram,
+    args: buildGraphqlInputArguments(requestFile),
+    cwd: options.root
+  });
+  /**
+   The created commit, or why there is none.
+   */
+  const created = parseCommitResponse(result.stdout);
+  if (created.found) {
+    print(`PUSHED ${created.value
+      .oid} ${created.value
+        .url}`);
+    return 0;
+  }
+  if (!isStaleHeadRefusal(result.stdout)) {
+    print(`PUSH REFUSED: ${created.reason}`);
+    print(
+      `Nothing was pushed. gh exited ${String(result.status)}${
+        result.stderr
+          .trim()
+          === '' ? '' : `: ${result.stderr
+            .trim()}`
+      }`,
+    );
+    return failureExitCode;
+  }
+  print(`${options.branch} moved after the checkout: ${created.reason}`);
+  if (attempt >= options.maxAttempts) {
+    print(
+      `PUSH REFUSED: ${options.branch} moved before each of the ${String(attempt)} allowed sends. Nothing was pushed: dispatch the release again.`,
+    );
+    return failureExitCode;
+  }
+  /**
+   The head to send on again, or why the push is refused.
+   */
+  const next = await decideAfterStaleHead({
+    options,
+    run,
+    writeText,
+    base,
+    watch,
+    print
+  });
+  if (!next.found) {
+    print(`PUSH REFUSED: ${next.reason}. Nothing was pushed: dispatch the release again.`);
+    return failureExitCode;
+  }
+  return await sendCommit({
+    input,
+    expectedHeadOid: next.value,
+    attempt: attempt + 1
+  });
+}
+
+/**
  Append the release commit of a checkout to the remote branch through the GraphQL API, so GitHub signs it.
 
  A branch that requires signed commits refuses the unsigned commit that `git push` would send from a runner. The commit
  is rebuilt on the commit that was checked out, from the head commit's subject and the whole contents of the files it
- changes, and GitHub refuses it when the branch has moved since the checkout, so a release never lands on top of work
- it did not see.
+ changes. GitHub refuses it when the branch has moved since the checkout, and a branch of a busy repository does move
+ during a release, so before anything is sent the command records every path the release depends on: the commit's
+ files, the crate and lock directories, and the path dependency closure that `cargo metadata` reports. A refusal for a
+ moved branch is then followed by a comparison of the new head with the checkout, and the commit is sent again on the new
+ head only when none of those paths changed. A release never lands on top of a change to what it verified.
 
  @param options - validated push options
 
@@ -192,9 +351,10 @@ async function readHeadCommit({
 
  @param print - prints one line
 
- @returns zero when the commit was created, the failure status when GitHub refused it
+ @returns zero when the commit was created, the failure status when GitHub refused it or the branch changed under it
 
- @throws CrateReleaseError when the head commit cannot be read, or GitHub's answer cannot be understood
+ @throws CrateReleaseError when the head commit cannot be read, or the dependency closure cannot be recorded, or
+ GitHub's answer cannot be understood
 
  @example
  ```ts
@@ -225,6 +385,21 @@ export async function pushRelease({
     run
   });
   /**
+   The paths the release depends on, recorded before anything is sent.
+   */
+  const watch = await collectWatchSet({
+    options,
+    run,
+    commitPaths: head.paths
+  });
+  print(`base ${head.parent}; files: ${head.paths
+    .join(', ')}`);
+  print(
+    `watching the files ${watch.files
+      .join(', ')} and the directories ${watch.directories
+        .join(', ')}`,
+  );
+  /**
    The changed files with their contents.
    */
   const files: readonly CommitFile[] = await Promise.all(head.paths
@@ -237,52 +412,18 @@ export async function pushRelease({
         )),
       };
     }));
-  /**
-   Absolute path of the request file.
-   */
-  const requestFile = join(
-    options.scratchDirectory,
-    requestFileName
-  );
-  await writeText({
-    path: requestFile,
-    text: buildCommitRequest({
-      repo: options.repo,
-      branch: options.branch,
-      expectedHeadOid: head.parent,
+  return await sendCommit({
+    input: {
+      options,
+      run,
+      writeText,
+      print,
       headline: head.headline,
       files,
-    }),
+      base: head.parent,
+      watch
+    },
+    expectedHeadOid: head.parent,
+    attempt: 1,
   });
-  print(`pushing ${JSON.stringify(head.headline)} to ${options.repo}@${options.branch} on top of ${head.parent}`);
-  print(`files: ${head.paths
-    .join(', ')}`);
-  /**
-   How `gh` ended.
-   */
-  const result = await run({
-    program: ghProgram,
-    args: buildGraphqlInputArguments(requestFile),
-    cwd: options.root
-  });
-  /**
-   The created commit, or why there is none.
-   */
-  const created = parseCommitResponse(result.stdout);
-  if (!created.found) {
-    print(`PUSH REFUSED: ${created.reason}`);
-    print(
-      `If the branch moved after the checkout, nothing was pushed: dispatch the release again. gh exited ${String(result.status)}${
-        result.stderr
-          .trim()
-          === '' ? '' : `: ${result.stderr
-            .trim()}`
-      }`,
-    );
-    return failureExitCode;
-  }
-  print(`PUSHED ${created.value
-    .oid} ${created.value
-      .url}`);
-  return 0;
 }

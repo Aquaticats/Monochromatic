@@ -296,19 +296,15 @@ fn direct_commands_validate_run_ported_policies_and_refuse_the_rest() {
             stderr: Vec::<u8>::new(),
         }
     );
-    // A direct fix has no command policy to run.
-    assert_eq!(
-        run(
-            &fixture,
-            repo.as_path(),
-            &["cli-git", "fix", "--all", "--policy", "require-root"]
-        ),
-        Observed {
-            code: Some(0),
-            stdout: Vec::<u8>::new(),
-            stderr: Vec::<u8>::new(),
-        }
+    // A direct fix has no command policy to run, so selecting one is refused rather than reported as clean.
+    let refused: Observed = run(
+        &fixture,
+        repo.as_path(),
+        &["cli-git", "fix", "--all", "--policy", "require-root"],
     );
+    let refusal: String = String::from_utf8_lossy(refused.stdout.as_slice()).into_owned();
+    assert_eq!((refused.code, refused.stderr.as_slice()), (Some(2), &b""[..]), "{refusal}");
+    assert!(refusal.contains("would check nothing and exit clean"), "{refusal}");
     // The content policy corrects the worktree file and reports only the summary.
     let index_before: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("index");
     assert_eq!(

@@ -11,7 +11,12 @@ name: crate-release
 #
 # - The bump is committed through the GraphQL API (crate-release-push), not
 #   `git push`: main requires signed commits, GitHub signs a commit made through
-#   that mutation, and a runner has no signing key.
+#   that mutation, and a runner has no signing key. main moves every few minutes
+#   and a release takes a long while, so a refusal for a moved main is settled by
+#   comparing the new head with the checkout over every path the release depends
+#   on (its files, the crate and lock directories, the path dependencies that
+#   cargo metadata reports): the commit is sent again on the new head when none
+#   changed, and nothing is pushed when one did.
 # - Events caused by the repository's GITHUB_TOKEN do not start other workflows,
 #   except workflow_dispatch and repository_dispatch
 #   (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#:~:text=events%20triggered%20by%20the%20GITHUB_TOKEN%20will%20not%20create%20a%20new%20workflow%20run).
@@ -106,7 +111,8 @@ jobs:
       if: ${{ !inputs.dry-run }}
       env:
         GH_TOKEN: ${{ github.token }}
-      run: node package/crate-release/cli/bin/push-release.ts --repo "$GITHUB_REPOSITORY" --branch main --scratch-dir "$RUNNER_TEMP"
+        CRATE: ${{ inputs.crate }}
+      run: node package/crate-release/cli/bin/push-release.ts --crate "$CRATE" --repo "$GITHUB_REPOSITORY" --branch main --scratch-dir "$RUNNER_TEMP"
 
   publish:
     needs: release
