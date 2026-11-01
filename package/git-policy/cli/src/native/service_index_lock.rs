@@ -61,14 +61,14 @@ pub struct IndexLock {
 }
 
 /// An inotify watch on the directory of the lock; nothing on platforms without inotify.
-struct Watch {
+pub struct Watch {
     #[cfg(target_os = "linux")]
     descriptor: i32,
 }
 
 #[cfg(target_os = "linux")]
 impl Watch {
-    fn on(directory: &Path) -> Option<Watch> {
+    pub fn on(directory: &Path) -> Option<Watch> {
         use std::os::unix::ffi::OsStrExt;
         // SAFETY: plain system calls with valid arguments; the descriptor is closed in `Drop`.
         let descriptor: i32 = unsafe { libc::inotify_init1(libc::IN_CLOEXEC) };
@@ -87,7 +87,7 @@ impl Watch {
     }
 
     /// Blocks until something was removed or moved away in the directory, or `timeout` passed; either way the caller looks again.
-    fn wait(&self, timeout: Duration) {
+    pub fn wait(&self, timeout: Duration) {
         let mut entry = libc::pollfd { fd: self.descriptor, events: libc::POLLIN, revents: 0 };
         let milliseconds: i32 = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
         // SAFETY: `entry` is valid for the one descriptor named by the count.
@@ -110,11 +110,11 @@ impl Drop for Watch {
 
 #[cfg(not(target_os = "linux"))]
 impl Watch {
-    fn on(_directory: &Path) -> Option<Watch> {
+    pub fn on(_directory: &Path) -> Option<Watch> {
         return None;
     }
 
-    fn wait(&self, _timeout: Duration) {}
+    pub fn wait(&self, _timeout: Duration) {}
 }
 
 /// What:

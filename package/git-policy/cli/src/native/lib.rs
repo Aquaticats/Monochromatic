@@ -1237,6 +1237,9 @@ pub mod service_commit_args;
 /// The one summary line a landed commit prints, with the abbreviated name Git would print.
 pub mod landed_summary;
 
+/// The wait of a wrapped index writer for the commit service's own hold on the index.
+pub mod service_index_wait;
+
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
