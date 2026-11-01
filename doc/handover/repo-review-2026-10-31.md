@@ -2392,6 +2392,21 @@ Wave-4 seventy-second checkpoint (2026-11-01, ungap shim closed):
   stub-silent 001 rr-pss-001, stub-throwing 001 rr-pst-001,
   truepeak bench 001 rr-tpb-001, and music-player asset 001 rr-mpa-001.
 
+Wave-4 seventy-third checkpoint (2026-11-01, stub-silent closed):
+
+- `w5-pnpm-stub-silent` is COMPLETE: 8 rows, 8 of 8 clean; all 8 files. Two
+  blockers: the `has` trap answers false for the non-configurable `prototype`
+  and throws an invariant TypeError despite the README and blocklist promise,
+  and the catch-all `get` returns the stub for `then`, so `await stub` hangs.
+  Next id 009; the lane is released.
+- The pnpm family now has six of seven complete; stub-throwing is the last one
+  running.
+- The freed slot opens `package/music-player/android-app`, slice 1 (first 100
+  of 354 paths, `w5-music-player-android-app`, id 001, base rr-maa-001).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 142 rr-ts-388,
+  stub-throwing 001 rr-pst-001, truepeak bench 001 rr-tpb-001,
+  music-player asset 001 rr-mpa-001, and android-app slice 1 001 rr-maa-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
