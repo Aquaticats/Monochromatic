@@ -417,6 +417,21 @@ Slips:
 - The first draft of the scan declared its absence as `undefined` in four places,
   which the repository's lint refuses;
   the final one marks absence with a value of the type.
+- Two commands capped evidence:
+  one `rg` with `--max-count 3`,
+  and the `git diff --stat --cached` that fed the counts of `5fff95204a` with `--stat-count=25`.
+  The totals line of the second was complete,
+  so those counts stand.
+- Several blocks carried more than one edit to the same file
+  (the scan six times,
+  this ledger four,
+  the task file twice,
+  one fixture three),
+  where the brief says one edit per file per block.
+- The script that moved the fixtures ran past the foreground limit and was backgrounded,
+  and its progress was polled with `ls` twice and not with a bounded wait on its process.
+- The message of `f258a3bcfe` says 24 descriptions lost their article across 4 files under the source-scan line;
+  22 are in 3 source-scan files and 2 in the artifact-pool test.
 - The one run of the whole source-scan suite found two scans red on the files of this round:
   `tsdoc-leading-articles` listed 24 `@returns` and `@param` descriptions that open with an article in four files,
   and `dead-test-declarations` listed `SharedBuilder`,
@@ -431,4 +446,9 @@ Open:
 - The lock read of B1270 (a decision for the owner).
 - The built-output reads of B1270.
 - `slice-cache:cache-account-audit` was not run (B1271).
+- The whole source-scan suite ran once,
+  on the docs commit,
+  and was red on two scans;
+  after the fix those two and three more passed alone,
+  and the whole suite was not run on the final head.
 - The hand-back lists the gates run.
