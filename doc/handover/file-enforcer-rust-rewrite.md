@@ -1020,7 +1020,28 @@ each finished branch is reviewed and merged into `main`):
   not the owner's:
   an emptied root's `current` forwards to the winner root's `current`.
   Separate review of `5e301c751d..313a81668e` running;
-  the decision record gets a `docs(decision)` commit on the branch.
+  the decision record gets a `docs(decision)` commit on the branch
+  (done:
+  `7c2f5ac08d`,
+  `ae6296a515` dating the bootstrap amendment,
+  `e4107e172f` clearing the file's 14 old lint findings;
+  tip `e4107e172f`).
+  Review 2026-11-01:
+  no blocker.
+  Should-fix:
+  `$CARGO_HOME/bin` itself is not searched for links,
+  so a sibling link such as `~/.cargo/bin/git -> cli-git-native` dangled after removal (executed);
+  sent back as following the owner's option ("nothing dangles").
+  Owner's answer on an unrecorded copy (no `.crates.toml` entry):
+  "Delete it" (removed after its links are re-pointed,
+  version not checked).
+  Minor items sent too:
+  forward `current` before removal,
+  recompute the forward at apply time,
+  gate and `--` in the apply-time `cargo uninstall`,
+  NotFound as done,
+  prune and the global forward,
+  a stale `current` in the winning root.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
