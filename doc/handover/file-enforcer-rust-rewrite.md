@@ -793,6 +793,54 @@ each finished branch is reviewed and merged into `main`):
   confirmed by a marker.
   The author notes the sentinels run user-writable executables as root in long-lived services.
   The same reviewer is re-checking `e1ef91dbb1..557ea24e24`.
+  Re-check 2026-11-01:
+  no blocker.
+  Should-fix (sent to the wg agent):
+  the repeat limit's cause is cut at 200 characters after a fixed prefix of about 128,
+  so different errors of one kind collapse.
+  Minor:
+  sentinels report "watcher died" at logout and reboot;
+  `systemctl status` hint for a collected unit;
+  the TS marker write follows symlinks;
+  no timeout on `systemd-run`.
+  Held for the owner:
+  a link target anywhere strictly under the home is still accepted
+  (a link to `~/.local/share` makes everything under it match).
+- Live 2026-11-01 (the owner's full restart):
+  `557ea24e24` merged into `main` as `3b3020c65a` and pushed;
+  both packages built in `main`;
+  the previous `dist` and watcher binary backed up to `${HOME}/temp/agent/wg-golive/backup`;
+  `wg-quicker down fr-par-fr1` started 22:24:14 EDT,
+  `wg-quicker up fr-par-fr1` exited 0 at 22:24:45
+  (output in `${HOME}/temp/agent/wg-golive/up.log`).
+  Verified:
+  the POLICY NOTICE printed on start;
+  86 update-host rules added
+  (`ip rule` then showed 47 IPv4 and 49 IPv6 lines for table 52000,
+  each family including the fwmark rule);
+  `ip route get 151.101.2.137` (crates.io) leaves via `wlp9s0` table 52000,
+  while 1.1.1.1 and 9.9.9.9 (the tunnel's DNS servers) stay on `fr-par-fr1`;
+  toolchain `node` processes (`open-code-review`,
+  the `mvm` MCP servers and others) now sit in `wg-quicker-update-<pid>-<start>.scope` under the slice;
+  a request from the slice left from `2607:f2c0:...` (physical) and a normal one from `2a02:6ea0:...` (tunnel).
+  Reported loudly at start,
+  by design:
+  about 18 matched processes not moved because each is the main process of another session's service
+  (`cli-git-mutpar-*`,
+  `rr-cent...`).
+  Defect found live:
+  both sentinels were started as services but did not confirm within 2000 ms,
+  and afterwards no `wg-quicker*` unit or sentinel process exists,
+  so a watcher's death would go unreported.
+  System journal:
+  both units failed at exec with "Unable to locate executable '<path under /var/home/user>': Permission denied",
+  `status=203/EXEC`,
+  started by PID 1 in `init_t`;
+  likely SELinux refusing system services the execution of files under the home (unverified;
+  sent to the wg agent to confirm with labels and AVC records,
+  write a troubleshooting doc,
+  and find a placement that runs on this host,
+  ideally applied without another tunnel gap).
 - Separate review of the switch branch (2026-11-01,
   `82bc287a8c..cc96e34a54`):
   no new blocker.
