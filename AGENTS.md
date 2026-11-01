@@ -666,13 +666,23 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Host-exhausting risks (heavy memory/process/fd/disk use,
- unbounded loops,
- uncapped fan-outs,
- stress/bench/load):
- run in `podman run --memory --cpus --pids-limit --blkio-weight --rm` or `mvm`,
- sizing every limit to that command each time,
- and stating bounds.
+ Every command an agent does not consider trivial,
+ in every agent:
+ run it in its own cgroup with CPU,
+ memory,
+ process-count and disk-weight limits,
+ each sized to that command,
+ and state the bounds.
+
+RXS:
+ Per-command cgroups:
+ `systemd-run --user --scope` with `CPUQuota`,
+ `MemoryMax`,
+ `TasksMax`,
+ `IOWeight`;
+ Claude Code adds `--slice=claude-code-bash.slice`;
+ host-exhausting risks:
+ `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
