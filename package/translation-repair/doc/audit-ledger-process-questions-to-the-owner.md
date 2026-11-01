@@ -283,7 +283,12 @@ in `doc/decision/translation-repair-direct-providers.md` and in five comments of
 The owner's recorded answer of that day is the option "Keep archive,
 ship".
 The longer sentence is the lead's paraphrase,
-first in git in `227d4118b6` (2026-10-29).
+first in git in `1f2bb6aef6` (2026-10-29T15:59Z),
+a comment of the code commit that added the interim page,
+where the sentence wraps across two lines;
+`227d4118b6` (2026-10-29T16:11Z) is the first document to carry it.
+This place said `227d4118b6` alone until 2026-11-01 (UTC),
+when `git log -S"No valid wording:"` found `1f2bb6aef6` first (ledger B1302).
 The lead's measure over its own session transcript:
 all 52 user-role occurrences of "No valid wording" are in compaction summaries,
 and none is in a message the owner typed.

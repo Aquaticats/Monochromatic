@@ -619,7 +619,11 @@ B1243).
 waits up to 30 seconds for its interim page and record,
 and then flushes the run log,
 releases the lock and exits 143 (130 for SIGINT);
-a second signal exits at once (ledger B1247).
+a second signal that comes a second or more after the first ends that wait at once,
+and a signal within that second is one stop delivered twice,
+which the pass ignores and records
+(ledger B1247,
+B1295 and B1297).
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,

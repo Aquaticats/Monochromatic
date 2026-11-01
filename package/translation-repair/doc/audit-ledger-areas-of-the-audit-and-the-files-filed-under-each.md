@@ -224,6 +224,7 @@ Filed in:
 - [Audit ledger: every stop ships a page and names its class](audit-ledger-every-stop-ships-a-page-and-names-its-class.md)
 - [Audit ledger: a republish keeps the page that stands](audit-ledger-a-republish-keeps-the-page-that-stands.md)
 - [Audit ledger: the stop signal ships and the pages that stay](audit-ledger-the-stop-signal-ships-and-the-pages-that-stay.md)
+- [Audit ledger: one stop delivered twice is one stop](audit-ledger-one-stop-delivered-twice-is-one-stop.md)
 - [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md)
 - [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md)
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md)

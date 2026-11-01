@@ -885,6 +885,21 @@ named for that subject and listed here.
   the paraphrase quoted as the owner's words (B1253),
   the corrections of round w399 (B1254)
   and the slips with what stays open (B1255).
+- [Audit ledger: one stop delivered twice is one stop](audit-ledger-one-stop-delivered-twice-is-one-stop.md):
+  The fixes of round w404 to what the re-check of round w400 found:
+  the stop that systemd delivers twice,
+  read as one (B1295),
+  the launch shape that stays (B1296),
+  what a second signal ends (B1297),
+  the signal before the entry registers (B1298),
+  the settled count of a stored record (B1299),
+  the counts of the originals left off the page (B1300),
+  the relabel round trip (B1301),
+  the first commit that holds the paraphrase (B1302),
+  the open list with a status for each item (B1303),
+  the nits (B1304),
+  the cache versions (B1305)
+  and the slips with the gates (B1306).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

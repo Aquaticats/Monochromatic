@@ -97,7 +97,12 @@ keep the archive at that slice and ship" (2026-09-27).
 The owner's recorded answer of that day to the question of a slice with no valid wording is the option "Keep archive,
 ship" (the design commitments file records it).
 The longer sentence is the lead's paraphrase,
-first in git in `227d4118b6` (2026-10-29).
+first in git in `1f2bb6aef6` (2026-10-29T15:59Z),
+a comment of the code commit that added the interim page,
+where the sentence wraps across two lines;
+`227d4118b6` (2026-10-29T16:11Z) is the first document to carry it
+(this place said `227d4118b6` alone until 2026-11-01 UTC;
+ledger B1302).
 The lead measured its own session transcript on 2026-11-01 (UTC):
 all 52 user-role occurrences of "No valid wording" are in compaction summaries,
 and none is in a message the owner typed.

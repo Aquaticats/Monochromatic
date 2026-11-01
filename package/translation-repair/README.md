@@ -525,7 +525,11 @@ the pass aborts the entry,
 waits up to 30 seconds for its interim page and record,
 and then flushes its records,
 releases its lock and exits 143 or 130;
-a second signal exits at once (ledger B1247).
+a second signal that comes a second or more after the first ends that wait at once,
+and a signal within that second is one stop delivered twice,
+which the pass ignores and records
+(ledger B1247,
+B1295 and B1297).
 An interim page never replaces a settled page,
 or an interim page with more settled slices (ledger B1242 and B1243).
 The `test:unit` runs of two packages started at once from different shells can clean and rewrite a sibling package's

@@ -390,7 +390,10 @@ TODO | DONE
     Stop the pass with `systemctl --user stop corpus-pass-<name>`:
     it records which signal stopped it,
     aborts the entry in flight and waits up to 30 seconds for that entry's interim page and record
-    (a second signal ends the wait at once;
+    (a second signal that comes a second or more after the first ends the wait at once,
+    and a signal within that second is one stop delivered twice,
+    which the pass ignores and records as `arrived again <n> ms after the first`
+    (ledger B1295);
     the unit sets no `TimeoutStopSec`,
     so systemd's default of 90 seconds
     leaves room for the flush that follows),
@@ -407,6 +410,14 @@ TODO | DONE
     group).
     `systemctl --user stop` signals every process of the unit and is the way to stop the pass;
     a signal sent to the wrapper alone is the wrapper's to forward.
+    The unit keeps systemd's default `KillMode=control-group`,
+    under which one stop signals the wrapper and the pass and the wrapper relays it,
+    so the pass hears SIGTERM twice in the same millisecond (measured 2026-11-01 UTC;
+    ledger B1295);
+    the pass reads that as one stop.
+    `KillMode=mixed` would signal the wrapper alone,
+    and no stop of a unit with it has been measured,
+    so the launch is unchanged (ledger B1296).
 
     A `--setenv=PATH=` on the unit decides which build tools the task's build runs.
     A session's shell started in the main checkout carries that checkout's `node_modules/.bin` first,

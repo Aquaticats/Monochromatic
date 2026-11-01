@@ -251,7 +251,8 @@ Open:
   such as `page-source-unparseable`,
   are among them:
   `refuseFallbackPage` reads only the defects of the grammar's fallback,
-  so a republish over a standing page that composed with one of them still writes (added on 2026-11-01 UTC by round w400;
+  so a republish over a standing page that composed with one of them still writes
+  (added on 2026-11-01 UTC by round w400;
   the header list of `page-republish.ts` names them as well).
 - On a refusal the log still carries the line of `pageThatParses` that begins `the page does not parse`
   and ends `keeping the archive at the slices that break it`,

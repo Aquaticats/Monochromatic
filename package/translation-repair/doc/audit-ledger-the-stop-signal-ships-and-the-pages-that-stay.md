@@ -75,6 +75,9 @@ which is what `gate-kept-standing` is (the gate kept the standing text).
 That is a reading of the one writer;
 the unit case has no gate field and is not a round trip through `describeConsolidateSlice` and `readSettledArtifact`,
 which was not run.
+Corrected on 2026-11-01 UTC by round w404 (B1301):
+the round trip is run now,
+in `artifact-consolidate-archive-kept-round-trip.unit.test.ts`.
 
 Whether a new `ArchiveKeptReason` moves the artifact generation was the question B1222 left open.
 It is not asked:
@@ -277,6 +280,13 @@ so the case did not reach the fallback and was changed.
 Red:
 the case of `interim-page.unit.test.ts` fails on `93dba14869` with a settled count of 1 where the page carries none.
 
+Corrected on 2026-11-01 UTC by round w404 (B1300):
+"counts are read off the page that shipped" was true of the slices the grammar fallback put back and not of the slices
+whose original `composeSourcePage` left off the page (the step `dropped`,
+with the defect `page-source-unparseable`),
+which `interimCountsOf` still counted as carrying the original.
+They count as the archive's now.
+
 ## B1247: a stop signal ships the entry in flight
 
 Red in `5cf92b83b7`,
@@ -299,10 +309,17 @@ in order:
    well under the 90 s default stop timeout of systemd,
    which the runbook's unit leaves unset).
    A second signal ends the wait at once,
-   as B1113 ended the pass.
+   as B1113 ended the pass
+   (corrected on 2026-11-01 UTC by round w404:
+   a later signal is the second only when it comes `SECOND_SIGNAL_MIN_GAP_MS` or more after the first,
+   B1295).
 5. It flushes the run log,
    releases the lock and exits with 128 and the signal's number,
-   as before.
+   as before
+   (corrected on 2026-11-01 UTC by round w404:
+   these two steps take no signal and have no time bound of their own,
+   so "a second signal exits at once" means that it ends the wait of step 4 and nothing after it,
+   B1297).
 
 The queue starts no further entry after the stop and prints no `REATTEMPT` or `STALLED` for the one that was in flight.
 A queue that ended on a stop leaves the closing of the pass to the handler,
@@ -349,6 +366,12 @@ a systemd unit was not started (the rules of this round forbid it),
 so that `systemctl --user stop` waits for the control group to empty up to its stop timeout before it kills is systemd's
 documented behaviour and not a result of this round.
 The first launch's stop is the test.
+Corrected on 2026-11-01 UTC by round w404 (B1295):
+the lead measured it on a throwaway unit of the same shape,
+and one `systemctl --user stop` delivered SIGTERM to the pass's node process twice in the same millisecond,
+which this entry's rule ("a second signal ends the wait at once") read as the operator's second signal,
+so the interim page of the entry in flight was not shipped on the real launch path.
+B1295 has the measurement and the fix.
 
 Red:
 5 cases of `pass-stop-signals.unit.test.ts` (the handler aborts and waits,
@@ -578,7 +601,11 @@ quotation marks as the owner's words of 2026-09-27.
 The owner's recorded answer of that day is the option "Keep archive,
 ship" (the design commitments file records it).
 The longer sentence is the lead's paraphrase,
-first in git in `227d4118b6` (2026-10-29).
+first in git in `1f2bb6aef6` (2026-10-29T15:59Z),
+a comment of the code commit that added the interim page,
+where the sentence wraps across two lines;
+`227d4118b6` (2026-10-29T16:11Z) is the first document to carry it.
+This entry said `227d4118b6` alone until round w404 corrected it on 2026-11-01 UTC (B1302).
 
 The lead measured its own session transcript:
 all 52 user-role occurrences of "No valid wording" are in compaction summaries,
@@ -812,7 +839,9 @@ What stays open:
   the text that named them is not in the record.
 - The default logger imports of `reader-measure` and the other runners (B1099).
 - A page whose record never landed is read as a settled page and kept (B1243).
-- `systemctl --user stop` was not run against a unit (B1247).
+- `systemctl --user stop` was not run against a unit (B1247);
+  the lead measured it afterwards,
+  and round w404 recorded the result and fixed what it showed (B1295).
 - A review the artifact reader refuses ships with `final-naturalness` and leaves an artifact the reader refuses (B1241).
 - `bench`,
   `coverage-census` and `probe` have no `dist` in this tree before a build.
@@ -821,3 +850,6 @@ What stays open:
   since none of their sources changed.
 - The pass still prints `INTERIM` and `TALLY` lines on stdout through `console.log`,
   which ends the process on `EPIPE` (B1238).
+- Round w404 gives each item of this list,
+  and each item the re-check of round w400 added,
+  a status (B1303).
