@@ -44,6 +44,7 @@ export {
   modelDarkReason,
   refuseDarkModel,
 } from './model-dark-reason.ts';
+export { providerChosenOrRefused, } from './provider-router-held.ts';
 export { isCredentialRefusal, } from './provider-budget-refusal.ts';
 export {
   createPaymentMarks,

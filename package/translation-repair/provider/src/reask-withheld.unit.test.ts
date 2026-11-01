@@ -18,43 +18,16 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { readingWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 import {
-  type ChatTextRequest,
   holdsKeepingRequestOff,
   isWithheldFromRole,
   type ReaskSeat,
   routeTimeHoldsInReading,
 } from '../dist/final/node/index.mjs';
+import { requestFor, } from './seated-request.test-fixture.ts';
 
 //region Withheld from a role tests
-
-/**
- Request for a model, naming the seat when one is given, as a router reads it.
-
- @param modelId - model asked
-
- @param reaskSeat - seat the request names, when it names one
-
- @returns Request carrying nothing the hold reads besides the model and the seat
-
- @example
- ```ts
- const reaskSeat: ReaskSeat = { role: 'editor', bench: [], reask: 'other-model', };
- const request = requestFor({ modelId: 'hf:Qwen/Qwen3.8-27B', reaskSeat, },);
- ```
- */
-function requestFor(
-  { modelId, reaskSeat, }: { readonly modelId: RosterModelId; readonly reaskSeat?: ReaskSeat; },
-): ChatTextRequest {
-  return {
-    modelId,
-    messages: [{ role: 'user', content: '这只猫睡在哪里？', },],
-    signal: new AbortController().signal,
-    ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
-  };
-}
 
 await describe({
   name: 'the holds of a card that keep a model out of a role',

@@ -5,7 +5,10 @@ import {
   type ChatTextReply,
   createRoutingClient,
 } from '../dist/final/node/index.mjs';
-import { holdNothing, } from './provider-router-wet-budgets.test-fixture.ts';
+import {
+  holdNothing,
+  markNothingRefused,
+} from './provider-router-wet-budgets.test-fixture.ts';
 
 //region Provider router recording
 // A ROUTER OVER STUB CALLERS THAT RECORD WHICH PROVIDER EACH CALL REACHED, over a reading of the meters the case hands in.
@@ -32,18 +35,6 @@ export type RecordingRouter = {
    */
   readonly lines: string[];
 };
-
-/**
- Marks nothing refused, since these cases refuse nothing at the wire.
-
- @example
- ```ts
- await markNothingRefused();
- ```
- */
-function markNothingRefused(): Promise<void> {
-  return Promise.resolve();
-}
 
 /**
  Builds a router over stub callers that answer and record their provider.

@@ -69,7 +69,7 @@ export function readOlderProvidersWet(): Promise<BudgetView> {
  await markNothingRefused();
  ```
  */
-function markNothingRefused(): Promise<void> {
+export function markNothingRefused(): Promise<void> {
   return Promise.resolve();
 }
 

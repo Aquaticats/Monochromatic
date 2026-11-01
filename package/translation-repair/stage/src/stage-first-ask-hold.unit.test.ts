@@ -27,7 +27,10 @@ import {
   type ModelClient,
   type ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
-import { holdNothing, } from '@monochromatic-dev/translation-repair-provider/ts/provider-router-wet-budgets.test-fixture.ts';
+import {
+  holdNothing,
+  markNothingRefused,
+} from '@monochromatic-dev/translation-repair-provider/ts/provider-router-wet-budgets.test-fixture.ts';
 import {
   isMeowReply,
   MEOW_FORMAT,
@@ -122,7 +125,7 @@ type Sent = {
 
  @param reading - which providers have budget when the router chooses
  @param sent - requests the callers were sent, filled as they arrive
- @param dryness - the older reading of the meters the client reports to a re-ask, when it reports one
+ @param dryness - older reading of the meters, which the client reports to a re-ask, when it reports one
 
  @returns Client the stage can take
 
@@ -171,9 +174,7 @@ function routerClient(
       read: function read() {
         return Promise.resolve(reading,);
       },
-      markRefused: function markNothingRefused(): Promise<void> {
-        return Promise.resolve();
-      },
+      markRefused: markNothingRefused,
       holds: holdNothing,
     },
     l: levelCapturingLogger({ lines: [], },),
@@ -233,7 +234,7 @@ function stageCall(
 
  @param modelId - seat asked about
 
- @returns The seat's counts
+ @returns Counts of the seat
 
  @throws Error when no call was counted against the seat, which these cases never expect
 
