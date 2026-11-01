@@ -845,3 +845,22 @@ in the manager's memory, never on disk, and visible to every unit of the account
 credential the manager passes with `LoadCredential`, which needs the key in a file the account owns. Neither is
 implemented. The first is one more call on the same bus connection, with the cost that other units of the account can read
 the value; that exposure is the decision.
+
+## Worktree copy in the service
+
+The worktree copy (ignored files copied into a new linked worktree) was the last user of a lock outside the commit path.
+Its per-repository settlement lock is gone; a first replacement, one claim file per destination with a process-table proof
+of life, was reviewed by a second vendor and rejected (expired claims bypassed the proof, other hosts and restricted
+process tables are invisible, the marker keyed by administrative name was reused by later worktrees, and a copy killed
+between its journal cleanup and its marker was forgotten). The copy therefore moved into the single-writer service, where
+the exclusion problem does not exist:
+
+- After real Git returns, the wrapper writes one durable request per new worktree it may fill and sends a `copy` message
+  (protocol version 5) naming them; the service runs them on one thread, in order, and answers on the connection.
+  The wrapper waits on its connection, which is not a lock. A killed wrapper leaves the copy to the service, a killed
+  service leaves requests and journals that its next message finishes, and where no service can run the copy fails
+  loudly and the request waits for one.
+- A registration's identity is a token Git deletes with the directory, so a worktree that reuses a name is not mistaken
+  for the one that was copied; the marker is durable before the journal is removed.
+- The design, the ten review findings and the test that answers each are in
+  `package/git-policy/cli/doc/worktree-copy-service.md`.

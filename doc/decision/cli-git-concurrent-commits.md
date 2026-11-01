@@ -266,8 +266,8 @@ Evidence:
   it no longer blocks every invocation while another commit runs.
 - Every read of live `HEAD` in the transaction uses the recorded preparation base or the landed OID.
 - Recovery searches the target ref's reflog for its nonce instead of checking only the newest entry.
-- (Superseded on 2026-11-01: the settlement lock was removed and each new worktree is copied under its own claim, so
-  no forwarded command waits for a copy; see `package/git-policy/cli/doc/worktree-copy-claim.md`.)
+- (Superseded on 2026-11-01: the settlement lock was removed and the resident service makes every worktree copy, so
+  no forwarded command waits on a lock for a copy; see `package/git-policy/cli/doc/worktree-copy-service.md`.)
 - The worktree-copy settlement lock is held only by forwarded commands that,
   after alias resolution,
   create or move worktrees.

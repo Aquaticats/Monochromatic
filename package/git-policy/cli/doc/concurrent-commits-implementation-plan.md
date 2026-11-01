@@ -12,8 +12,8 @@ and "Final behavior versus this plan" lists every place where the implementation
 
 Later change (2026-11-01): the worktree-copy settlement lock and its `CLI_GIT_WORKTREE_COPY_LEASE` variable that this plan
 names were removed.
-Each new worktree is copied under its own claim instead, and nothing waits for a copy;
-`worktree-copy-claim.md` records what the lock protected and why the replacement holds.
+The resident service makes the copy instead, and nothing waits on a lock for it;
+`worktree-copy-service.md` records what the lock protected and why the replacement holds.
 The mentions of the settlement lock below describe the plan as it was written.
 
 - Accepted design:

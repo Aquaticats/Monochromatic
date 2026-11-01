@@ -148,12 +148,12 @@ Read-only commands,
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it.
-  Each new worktree is copied under its own claim, a file that the copying process keeps open,
-   so two commands never copy into one worktree and no command waits for a copy:
-   a command that meets a running copy leaves that worktree to it and says so,
-   and a copy that was killed is settled by the next command that finds its claim without a holder.
-  Overlapping `git worktree add` runs are told apart by the claims and by Git's own mark on a worktree it still creates;
-   `doc/worktree-copy-claim.md` has the design and its limits.
+  The copy is made by the resident commit service, the only process that runs copies,
+   so no lock, claim, or process-table check keeps two copies apart:
+   after Git returns the wrapper saves one request per new worktree and waits on its connection for the service's answer,
+   a killed wrapper leaves the copy to the service, and a killed service finishes it when it next starts.
+  Where no service can run, the copy fails loudly with status 2, says the request is saved and what to run;
+   `doc/worktree-copy-service.md` has the design, the review findings it answers, and its limits.
 - Signals.
   The wrapper catches `SIGINT`,
    `SIGTERM`,

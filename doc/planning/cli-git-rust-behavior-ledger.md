@@ -3596,12 +3596,12 @@ Native state is absent for every entry.
 - Status:
   replaced on 2026-11-01 (the owner banned locks, polling and owner records):
   no settlement lock, no lease variable and no wait;
-  each new worktree is copied under its own claim file that the copying process keeps open,
-  and a process that finds a claim asks the process table whether anything holds it
-  (`package/git-policy/cli/doc/worktree-copy-claim.md`).
+  the resident commit service is the only process that runs worktree copies,
+  so nothing keeps two copies apart and nothing proves a process dead
+  (`package/git-policy/cli/doc/worktree-copy-service.md`).
 - Rust owner:
-  `worktree_copy_claim.rs`,
-  with the recovery pass in `worktree_copy_recovery.rs`.
+  `service_copy.rs` (the drain and the loop) and `service_copy_client.rs` (the wrapper's side),
+  with the request in `worktree_copy_request.rs` and the recovery pass in `worktree_copy_recovery.rs`.
 - Consumer-level test:
   `binary_worktree_copy_tests::overlapping_creations_each_copy_their_own_worktree_once`
   starts two `git worktree add` commands that overlap inside their checkouts:

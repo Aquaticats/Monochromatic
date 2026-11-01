@@ -385,9 +385,9 @@ An applicable source is a forwarded invocation whose shared identity selects a l
 and whose subcommand,
 after ordinary Git alias resolution,
 creates or moves worktrees.
-No forwarded command holds a repository-wide lock for the copy:
-an applicable source recovers what no running copy holds, runs real Git and its hooks, and then copies into each new worktree
-under that worktree's own claim.
+No forwarded command holds a repository-wide lock for the copy, and no wrapper runs a copy itself:
+an applicable source runs real Git and its hooks, writes one durable copy request per new worktree it may fill,
+and has the resident commit service make the copy while it waits on its connection for the answer.
 Every other forwarded command,
 including every commit preparation,
 never waits for a copy,
@@ -401,12 +401,12 @@ Before forwarding an applicable source,
 cli-git captures the common Git directory and linked-worktree administrative identity set.
 An invocation targeting the main worktree bypasses administrative observation,
 journal recovery,
-claims,
+requests,
 and synchronization,
 even when real Git creates a linked worktree,
 with one exception:
 a command that creates or moves a worktree copies the configured `rulesFile` files of the `security/forbidden-strings`
-policy (each entry of an array) from the main checkout into the new worktree, under the claim and the journal.
+policy (each entry of an array) from the main checkout into the new worktree, through the service and its journal.
 After real Git and its hooks return for an applicable source,
 cli-git compares the administrative set again.
 Every new identity is a synchronization destination,
@@ -494,59 +494,52 @@ A trailing log fragment without a line terminator is an unfinished append;
 recovery ignores it and truncates it before appending.
 A completion phase makes stage removal and journal removal recoverable in either crash order.
 Staging takes minutes and gigabytes, and the journal is written only after it,
-so a claim names the stage first and is held for the whole copy of that destination.
-The claim is the file `<administrative name>.claim` beside the journals.
-It names the destination root and the stage container (not created yet),
-the PID namespace it was made in,
-and whether other processes of the account can read its creator's descriptors in the process table
-(a process that changed its credentials cannot).
-It records no process identifier and no owner.
-The creator writes the content to a private temporary file,
-synchronizes it,
-keeps that file open,
-and hard-links it to the claim name,
-so the name never exists without an open holder and never shows partial content.
-A link never replaces an existing name,
-so exactly one creator wins and the others do not wait.
-The winner keeps the file open until the copy ends and removes the claim last,
-after the journal and the stage,
-then marks the registration copied with `worktrees/<administrative name>/cli-git-copied`
-(Git deletes the marker with the registration),
-so a command that sees the worktree later does not copy it again;
-a recovery pass that ends a copy which reached its journal marks it too,
-and a copy that died before its journal leaves no marker, so a surviving command fills that worktree.
-Nothing waits and nothing polls.
-A command that finds a published claim asks the process table whether any process has that file open
-(`/proc/<pid>/fd`, compared by device and inode):
+so the stage's name is derived from the copy request, which is on disk before the stage exists.
+The resident service is the only process that runs copies, so no copy has to be kept apart from another by a lock, a claim,
+or a proof that some process is dead (`doc/worktree-copy-service.md`).
 
-- A holder means the copy is live.
-  A creating command leaves that worktree to it and writes one notice line naming the reason;
-  a recovery pass skips the claim.
-- No holder means the creator died, however it died.
-  The command opens the claim and scans again,
-  and only a process that finds no descriptor other than its own acts;
-  two processes that open together each see the other and neither acts,
-  and the next pass settles the claim.
-  A process that hides its own descriptors from other processes does not adopt claims.
-- A claim made in another PID namespace, or by a creator that hides its descriptors,
-  cannot be judged by the process table,
-  so it counts as held until its file is older than `FOREIGN_OWNER_PATIENCE` (one hour).
-- A process table that cannot be listed is no evidence, and the claim is left alone.
+A copy request is the file `requests/<identity>.json` under `<git-common-dir>/cli-git-worktree-copy/v1`.
+Its identity starts with the time it was written in hexadecimal, so requests sort in the order the worktrees were created.
+It names the administrative name of the new registration, the registration's identity, the destination root, the source
+root, the selection and the number of tries so far; it is written whole (a private temporary, synchronization, rename)
+after real Git returned, and it is removed only when the copy has ended.
+The registration's identity is a random token written once into `worktrees/<administrative name>/cli-git-registration`;
+Git deletes it with the directory when it removes or prunes the worktree, and a later worktree that reuses the name
+starts without one.
+The marker `worktrees/<administrative name>/cli-git-copied` holds the identity of the registration whose copy is over,
+so a marker says nothing about a later registration of the same name.
 
-A creating command recovers before real Git, and takes no lock:
-its pass settles every abandoned claim,
-adopts every pending journal that no claim names (an older release wrote those) with a claim of its own,
-and skips every claim a live process holds.
-It then reads the administrative set, runs real Git, and compares the set again.
-A new worktree that Git still marks locked with the text `initializing` belongs to the command creating it
-and is skipped, and so is one whose registration carries the copied marker.
-A creating command whose own linked source is still marked `initializing`
-(a filter or hook of an enclosing `git worktree add` that creates another worktree)
-forwards without observing, recovering or copying; the enclosing command copies.
-Every later linked-worktree or bare-repository invocation checks for pending journals and claims before forwarding;
-with nothing pending that costs two directory reads.
-An invocation that neither creates nor moves worktrees never waits for a copy:
-a claim a live process holds is skipped, and the invocation forwards without recovering that copy.
+After real Git returns, an applicable source compares the administrative set again.
+It may fill a new worktree that Git does not lock, and the one its command line asked `git worktree add` to create even
+when `--lock` locked it; a locked worktree it did not ask for is another command's while that command creates it, whatever
+language or `--reason` the lock text is in.
+It writes a request for each, sends the service one message naming them, and waits for the answers on the connection.
+A wrapper killed after it wrote the requests leaves the copy to the service;
+a service killed in the middle leaves requests and journals that the next message to it finishes.
+The service replies for each request with how it ended (copied, already copied, removed, set aside),
+a line when a copy starts, and notices;
+a copy that outlasts one second is reported as still running.
+A command that creates nothing sends the service a message that names no request when a request or a journal is pending,
+and waits for nothing.
+Where no service can run (no user service manager, no program next to the wrapper), the copy fails loudly:
+status `2`, the message says the worktree was created, that the copy is saved, and what to run;
+the request stays and the next command that finds a service finishes it.
+
+The service runs the requests of a repository on one thread, one at a time, in the order they were written,
+except that a worktree another request copies from is filled first.
+Before the requests it recovers every journal on disk, since no live copy can be writing one.
+For each request it checks by identity (name, token and pointer file agree) that the registration is the one the request
+was written for, removes the stage a cut-off run of the request left, stages, writes the journal naming the registration,
+checks the registration again, installs, writes the marker durably, and only then removes the journal and the stage and the
+request.
+A copy that fails stays as a request and runs again at the next message, up to three tries;
+then the request moves to `given-up` with a notice.
+A registration whose marker names its identity is not copied again, whoever asks.
+A creating command whose own source is a linked worktree that Git still marks `initializing` (a filter or hook of an
+enclosing `git worktree add` that creates another worktree) forwards without observing, requesting or copying; the
+enclosing command, whose new worktrees include the nested one, copies it from the real source.
+Every later linked-worktree or bare-repository invocation checks whether a request or a journal is pending before
+forwarding; with nothing pending that costs two directory reads.
 Recovery validates that journal paths remain canonical,
 the stage is a private owned directory beside the destination,
 and every intended entry exists in the private manifest.
@@ -571,24 +564,18 @@ Every pending transaction then reaches an end:
   and the recovering invocation writes the failure as a notice and continues.
 - Completed cleanup is resumed without reinstalling entries.
 
-Recovery of an abandoned claim removes the stage container the claim names when no pending journal names it:
-the claim is abandoned, so no live copy is between claiming and journaling,
-and a copy that died while staging (a signal, the out-of-memory killer, a power loss) left it.
-Recovery requires the claim to be a private file naming an absolute path whose last component starts with the reserved
-stage prefix, and the container to be a private directory owned by the user,
-removes it with its read-only subdirectories,
-writes one notice line naming it,
-and removes the claim.
-A claim whose container was never created is removed without a notice.
-A claim that does not parse, or names anything else, is refused and kept for inspection.
-A worktree that was removed while its copy was staged is not filled:
-the copy checks the registration after the claim and again after the stage is journaled,
-discards the stage and journal with one notice line when the worktree is gone,
-and never creates the destination root itself.
+Recovery removes the stage container a request's run left, when the request runs again, and a journal's stage with the
+journal;
+it requires a stage to be a private directory owned by the user, removes it with its read-only subdirectories, and never
+removes anything that is not a private stage.
+A worktree that was removed, or replaced by another registration of the same name or path, while its copy was staged is
+not filled: the service checks the registration by identity before staging and again after the stage is journaled,
+discards the stage and the journal with one notice line when it is gone, and never creates the destination root itself.
+A request file that does not parse is moved to `given-up` with a notice and does not stop the others.
 
 Malformed or unsafe journal,
 install-log,
-claim,
+request,
 or stage state fails closed without deleting the journal or a path outside the validated private stage.
 
 After all newly registered destinations settle successfully,
@@ -2727,7 +2714,7 @@ whose owner record also names the transaction ID.
 ### Locks
 
 Cli-git's own locks are rename-published owner-lock directories carrying process-birth identity.
-The worktree copy takes none: it is claimed per destination (see "Linked-worktree ignored-state synchronization").
+The worktree copy takes none: the resident service is its only writer (see "Linked-worktree ignored-state synchronization").
 A lock whose owner is dead,
 including PID reuse,
 is retired by the next acquirer.
