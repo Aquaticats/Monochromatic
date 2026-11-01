@@ -100,8 +100,10 @@ jobs:
             | curl "${curl_options[@]}" --config - --output "$body" --write-out '%{http_code}' \
               "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull")"
           if [ "$token_status" = 403 ]; then
-            # The registry grants no token for a package that does not exist yet.
-            absent "no token for the package, which means it does not exist yet"
+            # A 403 from the token endpoint means the registry grants this token nothing for the package: the package
+            # does not exist yet, or it exists and the workflow token has no access to it. Both go on to the build; in
+            # the second reading the push is refused, so no existing tag is replaced.
+            absent "HTTP 403 for the token: the package does not exist yet, or it exists and this token has no access to it; the build runs, and a push this token may not make is refused"
           fi
           if [ "$token_status" != 200 ]; then
             unknown "The token request answered HTTP $token_status"
