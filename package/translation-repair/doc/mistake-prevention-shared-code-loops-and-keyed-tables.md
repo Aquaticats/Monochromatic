@@ -3,7 +3,8 @@
 Rules for the shape of the code:
 one copy of shared code,
 loops that do not copy what they built,
-and tables keyed by text.
+tables keyed by text,
+and a static list beside a derived seating.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
 which lists every file of this record.
@@ -405,3 +406,49 @@ a class field,
 a parameter destructured from an object an alias types,
 a key typed by a template literal,
 and a cast of text to a table's literal keys.
+
+## A static list beside a derived seating
+
+What happened:
+the checker bench was derived from the reading of the meters since 2026-09-27
+(the best-ranked checkers a wet provider serves,
+padded to the bench's width),
+while the editor and refiner benches stayed the static lists in `run-config.ts`.
+Corpus pass XingZ6024 (2026-11-01) read four providers dry and stopped both attempts on
+`refiners 1 of 3 reachable, floor 2`,
+while Kimi-K3 and Qwen3.8-27B,
+both measured refiners and both served by the wet Synthetic,
+sat unused (ledger B1280).
+Every reader of those two benches (the floor,
+the stop line,
+the stage rosters,
+the consolidation polish,
+the re-seating hooks,
+the writing providers and the independence check) read the static list,
+and no test compared a bench with the reading,
+so nothing said that one role's seating followed the meters and the other's did not.
+
+The rule:
+when the seating of one role is derived from a reading,
+the seating of every role that stands under the same floor is derived from it too,
+and the static list fixes the bench's width and first choice and nothing else.
+A reader outside the derivation,
+the calibrations that measure the static list and the configuration load
+that names `RUN_MODELS.editorModelIds` or `RUN_MODELS.refinerModelIds` is a defect;
+the census is `rg 'RUN_MODELS\.(editor|refiner)ModelIds' package/translation-repair` over production source,
+read against that list of exceptions.
+A derivation takes its order from the one list that already holds it
+(the owner's role order,
+`alternateModelsFor`)
+and never copies it,
+so a second source of the same order cannot drift.
+
+What enforces it:
+`run-seats-writing-backfill.unit.test.ts` compares both benches of all 256 readings with a bench worked out by
+`writing-bench-expectation.test-fixture.ts` from the static bench,
+the role order and who serves what,
+so a derivation that stops following the reading,
+or a static list that gains a seat the order cannot reach,
+fails there;
+`pass-reseat-writing-bench.unit.test.ts` holds the lane and consolidation hooks to the derived bench.
+The census of direct readers is by habit and review.

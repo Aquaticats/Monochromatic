@@ -17,6 +17,12 @@ import {
 } from '@monochromatic-dev/translation-repair-assembly/ts';
 import type { TranslateModels, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import {
+  EDITOR_BACKFILL_ORDER,
+  REFINER_BACKFILL_ORDER,
+  type WritingBackfill,
+  writingBenchFor,
+} from './run-writing-backfill.ts';
+import {
   RUN_CHECKER_ORDER,
   RUN_DECISION_JUDGES,
   RUN_LATE_JUDGES,
@@ -81,7 +87,9 @@ import {
  the wide benches (owner, 2026-10-29, ledger B1030) and the late bench (owner,
  2026-10-22, ledger B815), and the checker order does not list it. What this
  set withholds is its translator, picture reader, consolidation writer and
- roster seats, which the owner's answers did not take away.
+ roster seats, which the owner's answers did not take away, and, since the
+ owner's answer of 2026-11-01 ("Backfill, and add sonnet"), its place among the
+ candidates that fill a dark editor or refiner seat (ledger B1283).
  */
 export const HYPER_SLOW_JUDGES: ReadonlySet<RosterModelId> = holdSet({ hold: 'hyper-slow', },);
 
@@ -129,6 +137,13 @@ export type JudgeSeats = {
    with them when fewer than its width are served (ledger B711).
    */
   readonly unserved: readonly RosterModelId[];
+
+  /**
+   Seats the editor and refiner benches took from the owner's role order because the static seats a wet provider
+   serves left places open (the owner's answer of 2026-11-01, "Backfill, and add sonnet"), named for the `JUDGE SEATS`
+   line and the stop line.
+   */
+  readonly backfilled: WritingBackfill;
 
   /**
    Critics and adjudication panel.
@@ -201,9 +216,11 @@ export type JudgeSeats = {
   readonly roster: readonly RosterModelId[];
 
   /**
-   Repair lane roles with the wide, select and checker seats applied, the
-   run's roster otherwise, so the refiners every run seats stay required and
-   the consolidation's naturalness roles never read as off (ledger T8).
+   Repair lane roles with the wide, select, checker, editor and refiner seats
+   applied (the editors and refiners as `run-writing-backfill.ts` derives
+   them), the run's roster otherwise, so the refiners every run seats stay
+   required and the consolidation's naturalness roles never read as off
+   (ledger T8).
    */
   readonly repairModels: RunRepairModels;
 
@@ -343,11 +360,46 @@ export function judgeSeatsFor(
     0,
     staticCheckers.length,
   );
+  /**
+   Whether the run's seating would take a model: served by a wet provider, and not withheld on the provider that would
+   serve it.
+
+   @param modelId - candidate under question
+
+   @returns True when the reading seats it
+   */
+  function writable(modelId: RosterModelId,): boolean {
+    return served(modelId,) && seated(modelId,);
+  }
+  /**
+   The editor bench: the static editors a wet provider serves, then the next models of the owner's role order that
+   one serves, then the static editors nobody serves, no wider than the static bench (the owner's answer of
+   2026-11-01, "Backfill, and add sonnet"; `run-writing-backfill.ts`).
+   */
+  const editors = writingBenchFor({
+    staticSeats: RUN_MODELS.editorModelIds,
+    backfillOrder: EDITOR_BACKFILL_ORDER,
+    served,
+    seatable: writable,
+    checkers,
+    selfCertificationPermitted: RUN_MODELS.checkerSelfCertificationPermitted,
+  },);
+  /**
+   The refiner bench, derived as the editor bench is.
+   */
+  const refiners = writingBenchFor({
+    staticSeats: RUN_MODELS.refinerModelIds,
+    backfillOrder: REFINER_BACKFILL_ORDER,
+    served,
+    seatable: writable,
+    checkers,
+    selfCertificationPermitted: RUN_MODELS.checkerSelfCertificationPermitted,
+  },);
   // THE DERIVED ROSTER MUST PASS WHAT THE STATIC ONE PASSES AT LOAD, or a
   // phase would start with a checker stage the contract refuses.
   assertCheckerIndependence({
-    editorModelIds: RUN_MODELS.editorModelIds,
-    refinerModelIds: RUN_MODELS.refinerModelIds,
+    editorModelIds: editors.bench,
+    refinerModelIds: refiners.bench,
     checkerModelIds: checkers,
     selfCertificationPermitted: RUN_MODELS.checkerSelfCertificationPermitted,
   },);
@@ -435,6 +487,10 @@ export function judgeSeatsFor(
     dry,
     withheld,
     unserved,
+    backfilled: {
+      editors: editors.backfilled,
+      refiners: refiners.backfilled,
+    },
     wideSeats,
     selectJudges,
     lateJudges,
@@ -447,6 +503,8 @@ export function judgeSeatsFor(
     roster,
     repairModels: {
       ...RUN_MODELS,
+      editorModelIds: editors.bench,
+      refinerModelIds: refiners.bench,
       criticModelIds: wideSeats,
       panelModelIds: wideSeats,
       judgeModelIds: selectJudges,

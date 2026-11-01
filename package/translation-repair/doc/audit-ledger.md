@@ -906,6 +906,22 @@ named for that subject and listed here.
   the nits (B1315),
   the whole suite at the head and the cache versions (B1316)
   and the slips with what stays open (B1317).
+- [Audit ledger: short writing benches backfill from the role order](audit-ledger-short-writing-benches-backfill-from-the-role-order.md):
+  The editor and refiner benches derived from the reading and filled from the owner's role order,
+  and Sonnet 5.5 as a refiner,
+  on the owner's answer of 2026-11-01 (B1280 to B1291):
+  the derivation (B1280),
+  the one role order (B1281),
+  the candidate that also checks (B1282),
+  the withheld candidate (B1283),
+  Sonnet as a refiner (B1284),
+  the readings that still stop (B1285),
+  the lines (B1286),
+  the readers of the static lists (B1287),
+  the cache versions (B1288),
+  what the package suites found (B1289),
+  the family of mistake (B1290)
+  and the slips with what stays open (B1291).
 - [Audit ledger: one stop delivered twice is one stop](audit-ledger-one-stop-delivered-twice-is-one-stop.md):
   The fixes of round w404 to what the re-check of round w400 found:
   the stop that systemd delivers twice,

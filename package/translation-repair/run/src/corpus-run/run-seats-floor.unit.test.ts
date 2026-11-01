@@ -55,6 +55,30 @@ const ALL_WET: BudgetView = {
 };
 
 /**
+ DeepSeek alone wet: the one wet provider that serves a writing seat of the static benches (DeepSeek V4.1 Flash) and no
+ model the role order could add, so the editors and the refiners stay under the floor after the backfill.
+ */
+const DEEPSEEK_ALONE: BudgetView = {
+  neuralwatt: true,
+  synthetic: true,
+  bedrock: true,
+  deepseek: false,
+  xiaomi: true,
+  anthropic: true,
+  hyper: true,
+  openrouter: true,
+};
+
+/**
+ The writing benches the lanes phase leans on, in the order its stop line names them.
+ */
+const LANES_WRITING_BENCHES = [
+  'editors',
+  'refiners',
+  'translators',
+] as const;
+
+/**
  The eighth hakureico pass: Bedrock alone wet.
  */
 const BEDROCK_ALONE: BudgetView = {
@@ -102,8 +126,10 @@ await describe({
           name: 'NAMES each writing bench below the pair a slate needs, with the reachable count against the '
             + 'floor, in the order the phase lists them: the eighth hakureico pass at the lanes, no editor, '
             + 'no refiner and one translator reachable on the roster of that day; since google.gemma-4-e2b '
-            + 'took the translator seat (2026-09-08) Bedrock alone reaches the pair and the lanes name only '
-            + 'the editors and refiners',
+            + 'took the translator seat (2026-09-08) Bedrock alone reaches the pair of translators, and since the '
+            + 'owner\'s answer of 2026-11-01 ("Backfill, and add sonnet") it reaches a pair of editors and of '
+            + 'refiners too, from the role order, so the lanes name nothing there; with DeepSeek alone wet the lanes '
+            + 'name the editors and the refiners',
           fn: async () => {
             const benches = benchesOf({ seats: judgeSeatsFor({ dry: BEDROCK_ALONE, },), },);
             /**
@@ -117,18 +143,39 @@ await describe({
               SEAT_HYPER_TEXT_BEDROCK,
               SEAT_BEDROCK_ONLY_TEXT,
             ],);
+            // THE STATIC BENCHES: no editor and no refiner of the lists is served by Bedrock.
             expect(reachableSeats({
               seats: RUN_MODELS.editorModelIds,
               dry: BEDROCK_ALONE,
             },),).toEqual([],);
+            expect(reachableSeats({
+              seats: RUN_MODELS.refinerModelIds,
+              dry: BEDROCK_ALONE,
+            },),).toEqual([],);
+            // THE DERIVED BENCHES: the role order gives each a pair of Bedrock-served seats.
+            for (const bench of [benches.editors, benches.refiners,]) {
+              expect(reachableSeats({ seats: bench, dry: BEDROCK_ALONE, },).length,).toBeGreaterThanOrEqual(WRITING_BENCH_FLOOR,);
+            }
             expect(unreachableWritingBenches({
               benches,
               names: phaseBenches({ phase: 'lanes', },),
               dry: BEDROCK_ALONE,
-            },),).toEqual([
-              `editors 0 of ${String(RUN_MODELS.editorModelIds.length,)} reachable, floor ${String(WRITING_BENCH_FLOOR,)}`,
-              `refiners 0 of ${String(RUN_MODELS.refinerModelIds.length,)} reachable, floor ${String(WRITING_BENCH_FLOOR,)}`,
-            ],);
+            },),).toEqual([],);
+            /**
+             The benches with DeepSeek alone wet, which the role order cannot lift to the floor.
+             */
+            const deepSeekBenches = benchesOf({ seats: judgeSeatsFor({ dry: DEEPSEEK_ALONE, },), },);
+            expect(unreachableWritingBenches({
+              benches: deepSeekBenches,
+              names: phaseBenches({ phase: 'lanes', },),
+              dry: DEEPSEEK_ALONE,
+            },),).toEqual(LANES_WRITING_BENCHES.map(function clauseOf(name,): string {
+              /**
+               Seats of the bench of that name.
+               */
+              const seats = deepSeekBenches[name];
+              return `${name} ${String(reachableSeats({ seats, dry: DEEPSEEK_ALONE, },).length,)} of ${String(seats.length,)} reachable, floor ${String(WRITING_BENCH_FLOOR,)}`;
+            },),);
             expect(unreachableWritingBenches({
               benches,
               names: phaseBenches({ phase: 'translate lane', },),

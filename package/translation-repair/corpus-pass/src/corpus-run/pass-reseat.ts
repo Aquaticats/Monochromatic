@@ -12,6 +12,7 @@ import {
   reseatHookFor,
 } from './pass-reseat-hook.ts';
 import {
+  backfillWordsOf,
   type JudgeSeats,
   reachableSeats,
   readJudgeSeats,
@@ -118,6 +119,13 @@ function repairSeatingOf(
    */
   const unserved = new Set(seats.unserved,);
   /**
+   Editors and refiners the chunk runs on, for the line.
+   */
+  const {
+    editorModelIds,
+    refinerModelIds,
+  } = seats.repairModels;
+  /**
    Checkers on the bench that no wet provider serves, for the line.
    */
   const padding = seats.repairModels
@@ -129,7 +137,8 @@ function repairSeatingOf(
     seating: { repairModels: seats.repairModels, },
     line: `chunk re-seated under a hold: checkers=${checkers} unserved-checkers=${
       (padding.length === 0) ? 'none' : padding.join(',',)
-    }`,
+    } editors=${editorModelIds.join(',',)} refiners=${refinerModelIds.join(',',)} `
+      + `backfilled-by-role-order=${backfillWordsOf({ backfilled: seats.backfilled, },)}`,
   };
 }
 

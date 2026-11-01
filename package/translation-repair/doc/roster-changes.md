@@ -24,6 +24,12 @@ and V4.1 Flash took the editor and refiner seats V4 Pro held,
 unmeasured in those roles until the next editor calibration.
 The roster is twelve models.
 
+Claude Sonnet 5.5 took the second refiner seat on 2026-11-01 at the owner's instruction ("Backfill,
+and add sonnet"),
+as it holds the second editor seat since 2026-10-22,
+unmeasured as a refiner until the next editor calibration seats it by name in its refiner chair.
+The same answer fills the dark seats of the editor and refiner benches from the owner's role order (ledger B1280).
+
 `deepseek-v4.1-flash` is routed off DeepInfra and Wafer since 2026-09-19
 (`ignoredEndpoints` on its card):
 on XingZ607 Morph answered its judge calls at 11 s median,

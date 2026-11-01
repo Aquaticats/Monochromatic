@@ -1,6 +1,13 @@
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
-import { WritingBenchUnreachableError, } from '@monochromatic-dev/translation-repair-run';
+import {
+  backfillWordsOf,
+  benchesOf,
+  judgeSeatsFor,
+  phaseBenches,
+  unreachableWritingBenches,
+  WritingBenchUnreachableError,
+} from '@monochromatic-dev/translation-repair-run';
 import type { ProviderRecord, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { metersAllWet, } from '@monochromatic-dev/translation-repair-provider/ts/meter-states.test-fixture.ts';
 import type {
@@ -138,21 +145,23 @@ export const UNASKED_CLIENT: ModelClient = {
 // The hook's own gate sees a hold, so it reads; by the time the reading asks
 // for the holds again the hold has ended, so it waits for nothing. The
 // dryness read stops the caller and then answers, as the run's budget view
-// does from a reading already taken: Synthetic, Hyper and OpenRouter dry,
-// Bedrock alone wet. So the reading finds the editors below their floor with
+// does from a reading already taken: every provider dry but DeepSeek, which serves
+// one seat of the static editors and refiners and none the role order would add
+// (Bedrock alone stood here until the owner's answer of 2026-11-01, "Backfill, and
+// add sonnet", which seats both Gemma sizes Bedrock serves). So the reading finds the editors below their floor with
 // nothing to wait for, writes its own line, and throws the refusal it marks
 // written, while the caller's signal has aborted.
 //
 // TEST SUPPORT, NOT PACKAGE SOURCE. The holds and the view are invented.
 
 /**
- Dryness the reading answers with: Bedrock alone wet.
+ Dryness the reading answers with: DeepSeek alone wet.
  */
-const BEDROCK_ALONE: BudgetView = {
+const DEEPSEEK_ALONE: BudgetView = {
   neuralwatt: true,
   synthetic: true,
-  bedrock: false,
-  deepseek: true,
+  bedrock: true,
+  deepseek: false,
   xiaomi: true,
   anthropic: true,
   hyper: true,
@@ -188,10 +197,41 @@ const NONE_HELD: ProviderRecord<number> = {
 };
 
 /**
- Line the reading writes as it stops the entry over {@link BEDROCK_ALONE}.
+ Line the reading writes as it stops the entry under one view.
+
+ @param dry - view the lanes are read under
+
+ @returns Line: every writing bench of the lanes under its floor, then the seats the role order gave
+
+ @example
+ ```ts
+ const line = stopLineOf({ dry: DEEPSEEK_ALONE, },);
+ ```
  */
-export const BEDROCK_ALONE_STOP_LINE: string = 'JUDGE SEATS phase=lanes writing bench unreachable: editors 0 of 4 reachable, '
-  + 'floor 2; refiners 0 of 3 reachable, floor 2; stopping the entry';
+function stopLineOf(
+  { dry, }: { readonly dry: BudgetView; },
+): string {
+  /**
+   Seats the view derives.
+   */
+  const seats = judgeSeatsFor({ dry, },);
+  /**
+   Each writing bench of the lanes under its floor.
+   */
+  const clauses = unreachableWritingBenches({
+    benches: benchesOf({ seats, },),
+    names: phaseBenches({ phase: 'lanes', },),
+    dry,
+  },);
+  return `JUDGE SEATS phase=lanes writing bench unreachable: ${clauses.join('; ',)}; `
+    + `backfilled by role order: ${backfillWordsOf({ backfilled: seats.backfilled, },)}; stopping the entry`;
+}
+
+/**
+ Line the reading writes as it stops the entry over {@link DEEPSEEK_ALONE}: every writing bench of the lanes under its
+ floor, as the benches the run derives from that view read, then the seats the role order gave.
+ */
+export const DEEPSEEK_ALONE_STOP_LINE: string = stopLineOf({ dry: DEEPSEEK_ALONE, },);
 
 /**
  Refuses to seat anything, since the reading this fixture scripts stops the
@@ -256,7 +296,7 @@ export function stopLandingSeatReading<SeatingT,>(
       },
       providerDryness: function drynessAsTheStopLands(): Promise<BudgetView> {
         steering.abort(reason,);
-        return Promise.resolve(BEDROCK_ALONE,);
+        return Promise.resolve(DEEPSEEK_ALONE,);
       },
     },
     signal: steering.signal,

@@ -61,13 +61,29 @@ which lists every file of these commitments.
   padded with ranked seats no provider serves only while fewer than three are served,
   so the bench keeps the floor the checker contract holds;
   both checker assertions run on the derived roster before each phase.
+  The editor and refiner benches are derived the same way since the owner's answer of 2026-11-01
+  ("Backfill,
+  and add sonnet",
+  ledger B1280):
+  the static editors and refiners a wet provider serves,
+  then the next models of the owner's role order (`alternateModelsFor`) that a wet provider serves
+  and the run does not withhold,
+  up to the static width,
+  then the static seats nobody serves
+  (`package/translation-repair/run/src/corpus-run/run-writing-backfill.ts`);
+  Sonnet 5.5 is the second static refiner as it is the second static editor,
+  and the floor of two reachable seats counts the derived bench
+  (`doc/decision/translation-repair-writing-bench-floor.md`).
   An unreadable view seats the full bench.
   The static benches in `run-config.ts` are the Synthetic-wet ones,
   seven wide seats and seven late judges;
   the `JUDGE SEATS` line names every provider's state,
   every bench size,
   the translator,
-  reader and roster counts,
+  reader,
+  roster,
+  editor and refiner counts,
+  the seats the editors and refiners took from the role order (`backfilled-by-role-order=`),
   and every withheld model.
   Decisions:
   `doc/decision/translation-repair-provider-aware-judge-seat.md`,

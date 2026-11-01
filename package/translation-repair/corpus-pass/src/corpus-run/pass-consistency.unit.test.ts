@@ -3743,8 +3743,8 @@ await describe({
             },).toEqual({
               errors: [
                 'error [runPassConsistency] JUDGE SEATS phase=page consistency writing bench unreachable: '
-                  + 'translators 0 of 8 reachable, floor 2; no provider has named a return the pass can wait for, so '
-                  + 'the phase goes on without its writers',
+                  + 'translators 0 of 8 reachable, floor 2; backfilled by role order: none; '
+                  + 'no provider has named a return the pass can wait for, so the phase goes on without its writers',
               ],
               stops: [],
               writerSheets: 0,

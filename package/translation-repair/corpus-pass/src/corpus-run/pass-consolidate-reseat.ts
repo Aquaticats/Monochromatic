@@ -9,6 +9,7 @@ import {
   reseatHookFor,
 } from './pass-reseat-hook.ts';
 import {
+  backfillWordsOf,
   type JudgeSeats,
   reachableSeats,
   type SeatReadingClient,
@@ -124,10 +125,18 @@ function consolidationSeatingOf(
   /**
    Naturalness gate the slice runs on, for the line: the reading re-seats it,
    while the polish itself is always configured, the run's roster seating its
-   refiners (`RunRepairModels`), so the line names the gate rather than a kind
-   that never varies.
+   refiners (`RunRepairModels`), so the line names the gate and the polish
+   refiners the reading derived, which vary with it since the owner's answer
+   of 2026-11-01 ("Backfill, and add sonnet"), and the seats they took from the
+   role order.
    */
   const polishGate = seats.lateJudges
+    .join(',',);
+  /**
+   Polish refiners the slice runs on, for the line.
+   */
+  const polishRefiners = seats.repairModels
+    .refinerModelIds
     .join(',',);
   return {
     seating: {
@@ -142,7 +151,8 @@ function consolidationSeatingOf(
         },),
       },
     },
-    line: `slice re-seated under a hold: writers=${writers} slateJudges=${judges} polishGate=${polishGate}`,
+    line: `slice re-seated under a hold: writers=${writers} slateJudges=${judges} polishGate=${polishGate} `
+      + `polishRefiners=${polishRefiners} backfilled-by-role-order=${backfillWordsOf({ backfilled: seats.backfilled, },)}`,
   };
 }
 

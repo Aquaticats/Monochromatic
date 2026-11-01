@@ -42,6 +42,8 @@ await describe({
         const lines: string[] = [];
         const { client, reads, } = clientBefore({
           msBeforeReturn: 48_000,
+          syntheticWet: false,
+          deepseekWet: true,
           spent: { ...SPENT_DAY, remainingWh: 400, keyBlockedUntil: '2026-10-23T05:00:00.000Z', },
         },);
         const refusal = await rejectionOf({
@@ -67,7 +69,7 @@ await describe({
         + '(scaled from seconds) is refused at once, as 60 ms is',
       fn: async () => {
         // A frozen monotonic clock: the distance stays 700 whatever the host does between the reading and the refusal.
-        const { client, reads, } = clientBefore({ msBeforeReturn: 700, now: () => 0, },);
+        const { client, reads, } = clientBefore({ msBeforeReturn: 700, syntheticWet: false, deepseekWet: true, now: () => 0, },);
         const refusal = await rejectionOf({
           promise: readPhaseSeats({
             client,

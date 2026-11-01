@@ -230,11 +230,13 @@ named for that subject and listed here.
   Rules for the shape of the code:
   one copy of shared code,
   loops that do not copy what they built,
-  and tables keyed by text.
+  tables keyed by text,
+  and a static list beside a derived seating.
   Sections:
   - [Copies of shared code](mistake-prevention-shared-code-loops-and-keyed-tables.md#copies-of-shared-code)
   - [Loops that copy what they built](mistake-prevention-shared-code-loops-and-keyed-tables.md#loops-that-copy-what-they-built)
   - [Tables keyed by text](mistake-prevention-shared-code-loops-and-keyed-tables.md#tables-keyed-by-text)
+  - [A static list beside a derived seating](mistake-prevention-shared-code-loops-and-keyed-tables.md#a-static-list-beside-a-derived-seating)
 - [Preventing mistakes: stored files and cached decisions](mistake-prevention-stored-files-and-cached-decisions.md):
   Rules for what one run stores and a later run reads back:
   caches and their versions,

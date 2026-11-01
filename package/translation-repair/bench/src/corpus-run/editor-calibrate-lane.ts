@@ -40,8 +40,10 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
  THE WRITERS ARE {@link RUN_WRITERS}, the roster less the models whose writing no calibration has measured
  (`writer-unmeasured`): such a model takes no chair, so Haiku 5.5, which the owner seated "wide" and not as an editor,
  spends none of the Claude key on edits and refinements here. THE NAMED ONES ARE THE RUN'S OWN LIST: Sonnet 5.5 is an editor on the
- owner's word and holds `judge-unmeasured`, which keeps it off every roster-derived bench, so without its name here the
- lane could never measure it (C4 of the review of the Claude route).
+ owner's word (2026-10-22) and a refiner on the owner's word of 2026-11-01 ("Backfill, and add sonnet"), and holds
+ `judge-unmeasured`, which keeps it off every roster-derived bench, so without its name here the lane could never
+ measure it in either chair (C4 of the review of the Claude route); the refiner chair measures it as a refiner for the
+ first time at the next `editor-calibrate`.
 
  @param bench - name of the chair, for the failure when a wire model is seated twice
 

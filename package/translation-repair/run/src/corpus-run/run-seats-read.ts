@@ -27,6 +27,7 @@ import {
   stateWordOf,
 } from './run-seats-states.ts';
 import { WritingBenchUnreachableError, } from './run-seats-floor.ts';
+import { backfillWordsOf, } from './run-writing-backfill.ts';
 import type { JudgeSeatPhase, } from './run-seats-wait.ts';
 
 export type {
@@ -139,6 +140,11 @@ export async function readPhaseSeats(
     roster,
     withheld,
     unserved,
+    backfilled,
+    repairModels: {
+      editorModelIds,
+      refinerModelIds,
+    },
   } = seats;
   /**
    What each meter said in the reading the dryness came from.
@@ -183,6 +189,10 @@ export async function readPhaseSeats(
       + `slate=${String(slateJudges.length,)} checkers=${String(checkers.length,)} `
       + `translators=${String(translators.length,)} readers=${String(readers.length,)} seeing=${String(readersSeeing.length,)} `
       + `writers=${String(writers.length,)} roster=${String(roster.length,)} `
+      // THE WRITING BENCHES ARE DERIVED FROM THE READING, so the line counts them and names the seats they took from the
+      // owner's role order (`run-writing-backfill.ts`), which a bench count alone would hide.
+      + `editors=${String(editorModelIds.length,)} refiners=${String(refinerModelIds.length,)} `
+      + `backfilled-by-role-order=${backfillWordsOf({ backfilled, },)} `
       + `withheld=${(withheld.length === 0) ? 'none' : withheld.join(',',)} `
       + `unserved=${(unserved.length === 0) ? 'none' : unserved.join(',',)} `
       + `threw-withheld=${(threwWithheld.length === 0) ? 'none' : threwWithheld.join(',',)} `

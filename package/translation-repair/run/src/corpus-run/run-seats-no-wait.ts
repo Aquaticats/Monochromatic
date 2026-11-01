@@ -14,6 +14,8 @@ import {
   unmetBenchNames,
 } from './run-seats-hold-need.ts';
 import { belowFloorWritingBenches, } from './run-seats-floor.ts';
+import { judgeSeatsFor, } from './run-seats.ts';
+import { backfillWordsOf, } from './run-writing-backfill.ts';
 import {
   withNeuralWattReturn,
   writtenRefusal,
@@ -160,8 +162,14 @@ export function seatWithoutWaiting(
     // writing a one-writer page. A PHASE THAT GOES ON WITHOUT ITS WRITERS says so once, naming the bench, and never
     // says the entry stops, since it does not.
     if (!(goesOn && repeated)) {
+      /**
+       Seats the reading took from the role order.
+       */
+      const { backfilled, } = judgeSeatsFor({ dry, },);
       l.error(
-        `JUDGE SEATS phase=${phase} writing bench unreachable: ${stated.join('; ',)}; ${
+        `JUDGE SEATS phase=${phase} writing bench unreachable: ${stated.join('; ',)}; backfilled by role order: ${
+          backfillWordsOf({ backfilled, },)
+        }; ${
           goesOn
             ? `${noWait}, so the phase goes on without its writers`
             : 'stopping the entry'
