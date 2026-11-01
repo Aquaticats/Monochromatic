@@ -277,12 +277,12 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
                     // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
-                    let reference: String = if request.reference == "HEAD" {
+                    let queue_reference: String = if request.reference == "HEAD" {
                         format!("HEAD@{}", request.repository.display())
                     } else {
                         request.reference.clone()
                     };
-                    let key = (request.common_dir.clone(), reference, request.lands_alone());
+                    let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
                     let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
                     match joins {
                         Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),

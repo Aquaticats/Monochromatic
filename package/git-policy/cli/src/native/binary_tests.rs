@@ -237,6 +237,19 @@ mod service_selection;
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
 
+/// The twin harness of the landing controls: native Git in one byte copy, the service in the other, every field compared.
+#[path = "binary_service_landing_support.rs"]
+mod service_landing_support;
+
+/// Selection command lines (`-i`, `-p`, `--interactive`, a pathspec file) and the dry run, compared with native Git.
+#[path = "binary_service_landing_selection_tests.rs"]
+mod service_landing_selection;
+
+/// States that used to be declined (a conclusion, a detached head, a branch not yet born, an unmerged index, nothing to
+///  commit, a rewrite, awkward change lists), compared with native Git.
+#[path = "binary_service_landing_state_tests.rs"]
+mod service_landing_state;
+
 /// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
 #[path = "binary_service_native_tests.rs"]
 mod service_native;

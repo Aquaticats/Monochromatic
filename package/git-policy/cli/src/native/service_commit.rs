@@ -5,48 +5,41 @@
 //!  The service is the only writer, so a commit takes no lock and polls nothing: preparation and policies run here,
 //!  outside the service's serialized step, and the service moves the branch once for a whole batch of commits
 //!  (`doc/planning/cli-git-resident-service.md`, "Where preparation and policies run").
-//!  It covers the commit lines `service_commit_args.rs` accepts (message and identity options, sign-off, trailers, a
-//!  reused or fixup message, `-a`, an index commit, and `--amend`); any other command line, a commit in a merge, on an
-//!  unborn branch or on a detached head, a policy that rewrites a file, and anything with nothing to commit return `None`
-//!  so the transaction handles them as before. Which route a commit takes is decided by `service_route.rs`.
+//!  Every command line lands through it. The lines `service_commit_args.rs` accepts are built here from the command line
+//!  (message and identity options, sign-off, trailers, a reused or fixup message, `-a`, an index commit, `--amend`); every
+//!  other line, and every commit that is not on an ordinary branch with an ordinary state, is built by real Git in a scratch
+//!  repository and landed as Git made it. Which route a commit takes is decided by `service_route.rs`; what is prepared is
+//!  `service_prepare.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const result = await tryServiceCommit(invocation, checks, request); // undefined when native git commit must run
+//! const result = await tryServiceCommit(invocation, checks, request); // undefined only when no service can be reached
 //! ```
 
-use super::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
-use super::capture_order::{CaptureIndexes, indexed_request};
-use super::commit_convergence::{CommitConvergenceInput, converge_commit_policies};
-use super::commit_facts::PrivateIndexFacts;
-use super::commit_index::{IndexSelection, initialize_commit_index, list_changed_index_paths, list_unmerged_index_paths};
-use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, base_object, decide_selection, failed, private_checks, staged_at_base};
-use super::lfs_pre_push::uses_lfs;
+use super::capture_order::indexed_request;
+use super::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
+use super::diagnostic_log::warn;
 use super::policy_checks::ShippedChecks;
-use super::policy_engine::{StageRequest, pass_exit_code};
-use super::policy_events::PolicyEvent;
-use super::private_index_stage::PrivateStage;
-use super::private_storage::{create_private_directory, remove_tree};
+use super::policy_engine::StageRequest;
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
-use super::diagnostic_log::warn;
-use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit};
-use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
-use super::service_message::{author_overrides, build_message, identity};
-use super::service_land::LANDING_ATTEMPTS;
-use super::service_messages::{ClientFailure, render};
-use super::service_protocol::{ALLOWED_MODES, Change, CommitRequest, MAX_CHANGES, is_object_name, is_plain_path};
+use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
+use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit};
 use super::service_handoff::ServiceHandoff;
+use super::service_land::LANDING_ATTEMPTS;
+use super::service_message::{author_overrides, build_message, identity};
+use super::service_messages::{ClientFailure, render};
+use super::service_native::{BuildInput, GitBuilt, build_with_git};
+use super::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
+use super::service_protocol::CommitRequest;
 use super::service_provision::provision;
 use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
-use super::config_snapshot::ConfigSnapshot;
-use super::transaction_git::{GitContext, run_git_checked};
-use super::transaction_journal::{Base, Conclusion, SymbolicHead, TransactionMode};
+use super::transaction_git::run_git_checked;
+use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
 /// What the service path returns: the transaction result for the lifecycle, and the handoff when the commit landed.
 pub struct ServiceCommit {
@@ -60,203 +53,29 @@ pub struct ServiceCommit {
 ///  plain failure. A build is one signature, so the bound keeps a busy branch from keeping a person's command running.
 pub const REBUILD_ATTEMPTS: usize = 5;
 
-/// A scratch directory for the private indexes, removed when it goes out of scope.
-struct Scratch(PathBuf);
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _removed = remove_tree(self.0.as_path());
-    }
+/// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
+fn branch_moved(ready: &Ready) -> TransactionStop {
+    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+    return TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }));
 }
 
-/// What a preparation came to.
-enum Prepared {
-    /// Native `git commit` must handle this command.
-    Decline,
-    /// The policies stopped the commit.
-    Blocked(TransactionResult),
-    /// The change is ready to send.
-    Ready(Box<Ready>),
-}
-
-struct Ready {
-    repository: PathBuf,
-    common_dir: PathBuf,
-    reference: String,
-    base: String,
-    changes: Vec<Change>,
-    events: Vec<PolicyEvent>,
-    uses_lfs: bool,
-    /// The commit's scratch directory, kept until the commit is landed because Git's scratch repository lives in it.
-    scratch: Scratch,
-    /// Whether the repository's configuration asks Git to build the commit (a template, a signature, a clean-up mode).
-    needs_native: bool,
-    /// What real Git needs to build the commit, or what the embedded route needs to make its tree.
-    inputs: NativeInputs,
-}
-
-/// What real Git needs from the preparation to build the commit in a scratch repository.
-struct NativeInputs {
-    capture: InvocationCapture,
-    arguments: Vec<OsString>,
-    pathspecs: Vec<String>,
-    mode: TransactionMode,
-    staged_all: bool,
-    commit_index: PathBuf,
-}
-
-/// The changes between the base and the private index: path, mode and object, deletions as no object.
-fn changes_of(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base: &str) -> Result<Option<Vec<Change>>, TransactionStop> {
-    let arguments: Vec<String> = ["diff-index", "--cached", "-r", "--raw", "-z", "--no-renames", "--no-abbrev", base].map(String::from).to_vec();
-    let output = run_git_checked(
-        context,
-        &indexed_request(cwd, &arguments, Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
-    )?;
-    let text: String = match String::from_utf8(output.stdout) {
-        Ok(text) => text,
-        Err(_) => return Ok(None),
-    };
-    let mut fields = text.split('\0').filter(|field| { return !field.is_empty(); });
-    let mut changes: Vec<Change> = Vec::new();
-    while let Some(header) = fields.next() {
-        let Some(path) = fields.next() else { return Ok(None) };
-        let parts: Vec<&str> = header.trim_start_matches(':').split(' ').collect();
-        let [_, new_mode, _, new_name, status] = parts.as_slice() else { return Ok(None) };
-        let deletion: bool = status.starts_with('D');
-        let mode: u32 = if deletion { ALLOWED_MODES[0] } else { u32::from_str_radix(new_mode, 8).unwrap_or(0) };
-        if !is_plain_path(path) || !ALLOWED_MODES.contains(&mode) || (!deletion && !is_object_name(new_name)) {
-            return Ok(None);
-        }
-        changes.push(Change { path: path.to_string(), mode, blob: if deletion { None } else { Some((*new_name).to_string()) } });
+/// The standard input of the command when a pathspec file is read from it, read once.
+fn standard_input_for(invocation: &CommitInvocation<'_>) -> Result<Option<Vec<u8>>, TransactionStop> {
+    let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
+    let Some(value) = invocation.region.pathspec_from_file else { return Ok(None) };
+    if super::command_options_query::value_bytes(after, value) != b"-" {
+        return Ok(None);
     }
-    return Ok(if changes.len() > MAX_CHANGES { None } else { Some(changes) });
-}
-
-/// Prepares the commit once against the branch as it is now.
-fn prepare<F: RepositoryFacts>(
-    invocation: &CommitInvocation<'_>,
-    checks: &mut ShippedChecks<F>,
-    request: &StageRequest,
-    scratch_name: &str,
-    allow_empty: bool,
-) -> Result<Prepared, TransactionStop> {
-    let context: &GitContext = invocation.context;
-    let cwd: &Path = invocation.cwd;
-    let layout = capture_invocation_layout(context, cwd, false)?;
-    if layout.conclusion != Conclusion::None {
-        return Ok(Prepared::Decline);
-    }
-    let selection = decide_selection(invocation.region, layout.conclusion);
-    let SymbolicHead::Branch(reference) = layout.symbolic_head.clone() else { return Ok(Prepared::Decline) };
-    // An index commit takes the whole index (`-a` first stages every tracked change); a commit of named paths takes only
-    //  those. A mix of the two, or anything that stages by hand, is the transaction's.
-    let named: bool = selection.mode == TransactionMode::ExplicitPath;
-    if selection.read_only || (selection.mode == TransactionMode::Index && selection.selects_paths) {
-        return Ok(Prepared::Decline);
-    }
-    let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
-    if !matches!(capture.base, Base::Commit(_)) {
-        return Ok(Prepared::Decline);
-    }
-    // Read from the snapshot the layout already holds, so the cheap declines above all come before anything starts Git for
-    //  the message or the identities, and before a service is provisioned.
-    let needs_native: bool = config_needs_native(capture.layout.config_snapshot.as_ref());
-    // An amend still replaces the last commit when no path changed (a new message, a new committer).
-    let amends: bool = invocation.region.amend;
-    let base: String = base_revision(&capture);
-    let scratch: Scratch = Scratch(capture.layout.git_dir.join(scratch_name));
-    create_private_directory(scratch.0.as_path()).map_err(|error| { return failed(format!("preparing the commit failed: {error}")); })?;
-    let indexes: CaptureIndexes = CaptureIndexes {
-        captured_index: scratch.0.join("captured.index"),
-        commit_index: scratch.0.join("commit.index"),
-        object_directory: capture.layout.object_directory.clone(),
-    };
-    let region_arguments: &[OsString] = &invocation.arguments[invocation.subcommand_index + 1..];
-    let pathspecs: Vec<OsString> = invocation.region.pathspecs.iter().map(|at| { return region_arguments[*at].clone(); }).collect();
-    let index_selection: IndexSelection<'_> = IndexSelection {
-        mode: selection.mode,
-        pathspecs: if named { pathspecs.as_slice() } else { &[] },
-        pathspec_file: None,
-        pathspec_file_nul: false,
-        stage_into_index: false,
-        stage_tracked_changes: selection.staged_all,
-        base_revision: base.as_str(),
-    };
-    initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
-        .map_err(|error| { return failed(error.0); })?;
-    if !list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?.is_empty() {
-        return Ok(Prepared::Decline);
-    }
-    let candidate_paths: Vec<Vec<u8>> =
-        list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
-    if candidate_paths.is_empty() && !allow_empty && !amends {
-        return Ok(Prepared::Decline);
-    }
-    let mut private: ShippedChecks<PrivateIndexFacts<&mut F>> = private_checks(
-        checks,
-        indexes.commit_index.as_path(),
-        indexes.object_directory.as_path(),
-        staged_at_base(base_object(&capture)?, candidate_paths.as_slice()),
-    );
-    let outcome = converge_commit_policies(CommitConvergenceInput {
-        request,
-        checks: &mut private,
-        stage: PrivateStage {
-            context,
-            cwd,
-            index: indexes.commit_index.as_path(),
-            object_directory: Some(indexes.object_directory.as_path()),
-        },
-    });
-    let code: i32 = pass_exit_code(outcome.pass.events.as_slice(), outcome.pass.end);
-    if code != 0 {
-        return Ok(Prepared::Blocked(TransactionResult { events: outcome.pass.events, exit_code: code, landed_oid: None, uses_lfs: false }));
-    }
-    if !outcome.changed_paths.is_empty() {
-        // A policy rewrote a file: the worktree copy of that rewrite is native work.
-        return Ok(Prepared::Decline);
-    }
-    let Some(changes) = changes_of(context, cwd, &indexes, base.as_str())? else { return Ok(Prepared::Decline) };
-    if changes.is_empty() && !allow_empty && !amends {
-        return Ok(Prepared::Decline);
-    }
-    return Ok(Prepared::Ready(Box::new(Ready {
-        repository: capture.layout.repository_root.clone(),
-        common_dir: capture.layout.common_dir.clone(),
-        reference,
-        base,
-        changes,
-        events: outcome.pass.events,
-        uses_lfs: capture.layout.config_snapshot.as_ref().is_none_or(uses_lfs),
-        needs_native,
-        inputs: NativeInputs {
-            arguments: outcome.pass.arguments.clone(),
-            pathspecs: pathspecs.iter().map(|token| { return token.to_string_lossy().into_owned(); }).collect(),
-            mode: selection.mode,
-            staged_all: selection.staged_all,
-            commit_index: indexes.commit_index.clone(),
-            capture,
-        },
-        scratch,
-    })));
-}
-
-/// Whether the repository's configuration makes native `git commit` do something the service does not: sign, apply a
-///  template or a clean-up mode, use another message encoding or another comment character, or change trailers.
-fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
-    const KEYS: [&str; 7] = ["commit.template", "commit.cleanup", "i18n.commitencoding", "core.commentchar", "core.commentstring", "commit.signoff", "commit.verbose"];
-    let Some(found) = snapshot else { return true };
-    return found.entries().iter().any(|entry| {
-        let value: String = entry.value.as_deref().map(|bytes| { return String::from_utf8_lossy(bytes).to_lowercase(); }).unwrap_or_default();
-        let signs: bool = entry.key == "commit.gpgsign" && !["false", "no", "off", "0"].contains(&value.as_str());
-        return signs || KEYS.contains(&entry.key.as_str()) || entry.key.starts_with("trailer.");
-    });
+    let mut bytes: Vec<u8> = Vec::new();
+    std::io::stdin().read_to_end(&mut bytes).map_err(|error| { return failed(format!("reading the pathspec file failed: {error}")); })?;
+    return Ok(Some(bytes));
 }
 
 /// What:
-///  Lands the commit through the service when the person opted in and the command line is one the service covers.
+///  Lands the commit through the service when the platform can reach one, for every command line.
 /// Why:
-///   Returns `None` for everything else, before anything was changed, so native `git commit` runs unchanged.
+///   Returns `None` only when no service can be reached on this machine, before anything was changed, so the earlier
+///  landing runs as it did; every other ending is the commit's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -281,26 +100,28 @@ pub fn try_service_commit<F: RepositoryFacts>(
         real_git: invocation.context.real_git.as_path(),
     });
     let Route::Service { address, provision: provisioning } = route else { return Ok(None) };
-    let region = invocation.region;
-    if region.include || region.interactive || region.patch || region.dry_run || region.pathspec_from_file.is_some() {
-        return Ok(None);
-    }
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
-    let allow_empty: bool = region.allow_empty;
+    let standard_input: Option<Vec<u8>> = standard_input_for(invocation)?;
     let mut provisioned: bool = false;
     // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
     let editor_possible: bool = opens_editor(after);
     let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     // The service builds the commits it can from the command line; real Git builds the rest in a scratch repository. Which
-    //  it is gets decided once the preparation has passed every cheap decline (head, configuration, index, policies), so a
+    //  it is gets decided once the preparation has passed every cheap decision (head, configuration, index, policies), so a
     //  commit the service never takes starts no Git for a message or an identity.
     let mut embedded: Option<Embedded> = None;
-    let mut decided: bool = false;    for attempt in 0..REBUILD_ATTEMPTS {
-        let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str(), allow_empty)? {
-            Prepared::Decline => return Ok(None),
-            Prepared::Blocked(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
+    let mut decided: bool = false;
+    for attempt in 0..REBUILD_ATTEMPTS {
+        let inputs: PrepareInputs<'_> = PrepareInputs {
+            scratch_name: scratch_name.as_str(),
+            allow_empty: invocation.region.allow_empty,
+            standard_input: standard_input.as_deref(),
+            first: attempt == 0,
+        };
+        let ready: Box<Ready> = match prepare(invocation, checks, request, &inputs)? {
+            Prepared::Ended(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
             Prepared::Ready(ready) => ready,
         };
         if !decided {
@@ -311,46 +132,50 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 embedded = embedded_commit(invocation, parsed)?;
             }
         }
-        let native: bool = embedded.is_none();
-        let inputs: &NativeInputs = &ready.inputs;
+        let native_inputs: &NativeInputs = &ready.inputs;
         // An amend the service builds is made from the commit `HEAD` named when the message was read; if the branch left it
         //  since, the amend is not made. Its tree is the private index's, and native Git refuses an amend that leaves the
-        //  commit empty against its first parent (a merge excepted) unless `--allow-empty` says it is meant.
+        //  commit empty against its first parent (a merge excepted) unless `--allow-empty` says it is meant, which Git then
+        //  says itself.
         let mut tree: Option<String> = None;
-        if let Some(source) = embedded.as_ref().and_then(|made| { return made.source.as_ref(); }) {
+        if !ready.needs_native
+            && let Some(source) = embedded.as_ref().and_then(|made| { return made.source.as_ref(); })
+        {
             if source.base != ready.base {
-                let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
+                return Err(branch_moved(&ready));
             }
             let written = run_git_checked(
                 invocation.context,
                 &indexed_request(
                     invocation.cwd,
                     &["write-tree"],
-                    Some(inputs.commit_index.as_path()),
-                    Some(inputs.capture.layout.object_directory.as_path()),
+                    Some(native_inputs.commit_index.as_path()),
+                    Some(native_inputs.capture.layout.object_directory.as_path()),
                 ),
             )?;
             let made: String = String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string();
-            let against: &str = source.parent_tree.as_deref().unwrap_or(inputs.capture.layout.empty_tree_oid.as_str());
-            if source.parents.len() < 2 && !allow_empty && made == against {
-                return Ok(None);
+            let against: &str = source.parent_tree.as_deref().unwrap_or(native_inputs.capture.layout.empty_tree_oid.as_str());
+            if source.parents.len() < 2 && !invocation.region.allow_empty && made == against {
+                embedded = None;
+            } else {
+                tree = Some(made);
             }
-            tree = Some(made);
         }
+        let native: bool = ready.needs_native || embedded.is_none();
         let mut typed: Option<String> = None;
-        let (sent, first_parent): (CommitRequest, String) = match embedded.as_ref() {
+        let (sent, first_parent): (CommitRequest, String) = match embedded.as_ref().filter(|_| { return !native; }) {
             None => {
                 let built: GitBuilt = build_with_git(&BuildInput {
                     context: invocation.context,
                     cwd: invocation.cwd,
-                    capture: &inputs.capture,
+                    capture: &native_inputs.capture,
                     scratch: ready.scratch.0.as_path(),
-                    commit_index: inputs.commit_index.as_path(),
-                    arguments: inputs.arguments.as_slice(),
-                    pathspecs: inputs.pathspecs.as_slice(),
-                    mode: inputs.mode,
-                    staged_all: inputs.staged_all,
+                    commit_index: native_inputs.commit_index.as_path(),
+                    arguments: native_inputs.arguments.as_slice(),
+                    pathspecs: native_inputs.pathspecs.as_slice(),
+                    mode: native_inputs.mode,
+                    staged_all: native_inputs.staged_all,
+                    selected_privately: native_inputs.selected_privately,
                     quiet: attempt > 0,
                 })?;
                 let parent: String = built.parents.first().cloned().unwrap_or_default();
@@ -361,7 +186,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     common_dir: ready.common_dir.clone(),
                     reference: ready.reference.clone(),
                     base: ready.base.clone(),
-                    changes: ready.changes.clone(),
+                    // The service names the index entries from the commit itself, so no list of changes travels.
+                    changes: Vec::new(),
                     // The commit is Git's whole: message, identities and tree are in it.
                     message: String::new(),
                     author: None,
@@ -369,7 +195,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     amend: invocation.region.amend,
                     tree: None,
                     commit: Some(built.commit),
-                    cleanup: None,
+                    cleanup: ready.cleanup.clone(),
                 };
                 (sent, parent)
             }
@@ -380,7 +206,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     common_dir: ready.common_dir.clone(),
                     reference: ready.reference.clone(),
                     base: ready.base.clone(),
-                    changes: ready.changes.clone(),
+                    changes: ready.changes.clone().unwrap_or_default(),
                     message: made.message.clone(),
                     author: Some(made.author.clone()),
                     committer: made.committer.clone(),
@@ -418,6 +244,15 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let branch: &str = ready.reference.trim_start_matches("refs/heads/");
                     let _printed = writeln!(std::io::stdout(), "[{branch} {short}] {subject}");
                 }
+                // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
+                install_added_worktree_files(
+                    invocation.context,
+                    invocation.cwd,
+                    ready.repository.as_path(),
+                    ready.worktree_records.as_slice(),
+                    Some(native_inputs.capture.layout.object_directory.as_path()),
+                )
+                .map_err(|error| { return TransactionStop::Message(error.0); })?;
                 let handoff: ServiceHandoff = ServiceHandoff {
                     config: config.clone(),
                     repository: ready.repository.clone(),
@@ -431,8 +266,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
             Ok(Submitted::PrepareAgain { .. }) => {
                 if native || sent.amend {
                     // An amend, and a commit Git built, are never sent for another tip; the service answers a moved branch as a failure.
-                    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                    return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
+                    return Err(branch_moved(&ready));
                 }
                 if attempt + 1 == LANDING_ATTEMPTS {
                     let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
@@ -441,8 +275,9 @@ pub fn try_service_commit<F: RepositoryFacts>(
             }
             Ok(Submitted::Moved) => {
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                if native && !sent.amend && !editor_possible {
-                    // Nobody typed anything: Git builds it again on the new tip (and signs it again), up to the bound.
+                // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
+                //  again on the new tip (and signs it again), up to the bound.
+                if native && !sent.amend && !editor_possible && !ready.interactive && !ready.fixed_parents {
                     if attempt + 1 == REBUILD_ATTEMPTS {
                         return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: REBUILD_ATTEMPTS })));
                     }
@@ -450,7 +285,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 }
                 if native && editor_possible && let Some(text) = typed.as_deref() {
                     // The person typed this message: keep it where they can reuse it.
-                    let file: PathBuf = inputs.capture.layout.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
+                    let file: PathBuf = native_inputs.capture.layout.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
                     match std::fs::write(&file, text) {
                         Ok(()) => {
                             let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
@@ -458,15 +293,13 @@ pub fn try_service_commit<F: RepositoryFacts>(
                         }
                         Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
                     }
-                    let again: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                    return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch: again })));
                 }
-                return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
+                return Err(branch_moved(&ready));
             }
             Err(failure) => return Err(TransactionStop::Message(render(&failure))),
         }
     }
-    return Ok(None);
+    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: REBUILD_ATTEMPTS })));
 }
 
 /// What the embedded route made of a command line: the message, the identities and, for an amend, the replaced commit.

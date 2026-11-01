@@ -136,8 +136,8 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         paths: list("paths")?,
         // Intents written before these fields existed name neither.
         derived: value("derived") == Some("1"),
-        cleanup: value("cleanup").and_then(|text| {
-            let mut parts = text.split('\t');
+        cleanup: value("cleanup").and_then(|entry| {
+            let mut parts = entry.split('\t');
             let (git_dir, scratch, reftable) = (parts.next()?, parts.next()?, parts.next()?);
             return Some(Cleanup { git_dir: PathBuf::from(git_dir), scratch: PathBuf::from(scratch), reftable: reftable == "1" });
         }),

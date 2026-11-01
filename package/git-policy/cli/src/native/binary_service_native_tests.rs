@@ -425,10 +425,10 @@ fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_type
     remove_settled(&fixture);
 }
 
-/// A policy that rewrites a file keeps the commit in the transaction, whose preparation installs the rewrite into the
-///  worktree: the service is not used, and the commit still lands with the editor's message.
+/// A policy that rewrites a file keeps its preparation in the wrapper, which installs the rewrite into the worktree after
+///  the landing: the service lands the commit, and it carries the editor's message.
 #[test]
-fn a_policy_that_rewrites_a_file_keeps_the_editor_commit_in_the_transaction() {
+fn a_policy_that_rewrites_a_file_lands_the_editor_commit_through_the_service_and_installs_the_rewrite() {
     let fixture: Fixture = fixture("service-native-rewrite");
     let (repo, _start_commit) = repository_with_programs(&fixture);
     let name: String = format!("native-rewrite-{}", std::process::id());
@@ -437,7 +437,8 @@ fn a_policy_that_rewrites_a_file_keeps_the_editor_commit_in_the_transaction() {
     let before: usize = finished(&fixture);
     let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-e", "-m", "seed", "--", "a.txt"]);
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(finished(&fixture), before, "the service was not used");
+    assert_eq!(finished(&fixture), before + 1, "the service landed it");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("worktree copy"), b"base\nno final newline\n", "the rewrite reached the worktree");
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "edited: seed");
     let _killed = service.kill();
     let _waited = service.wait();

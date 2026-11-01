@@ -57,16 +57,16 @@ pub enum FixupKind {
 }
 
 /// Short option letters that take no value and change nothing the service must do.
-const FLAG_LETTERS: [char; 5] = ['q', 'n', 'o', 'a', 's'];
+const FLAG_LETTERS: [char; 7] = ['q', 'n', 'o', 'a', 's', 'i', 'p'];
 
 /// Long options that take no value and change nothing the service must do.
-const FLAG_WORDS: [&str; 12] = [
+const FLAG_WORDS: [&str; 16] = [
     "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-edit", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author",
+    "--amend", "--reset-author", "--include", "--patch", "--interactive", "--pathspec-file-nul",
 ];
 
 /// Long options that take one value, with the field they fill.
-const VALUE_WORDS: [&str; 8] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup"];
+const VALUE_WORDS: [&str; 9] = ["--message", "--file", "--author", "--date", "--trailer", "--cleanup", "--reuse-message", "--fixup", "--pathspec-from-file"];
 
 /// The value of a long option given as `--name=value` or `--name value`; `index` moves past a separate value.
 fn long_value<'a>(token: &'a str, name: &str, arguments: &'a [OsString], index: &mut usize) -> Option<Option<&'a str>> {
@@ -121,6 +121,8 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
                         "--date" => parsed.date = Some(value.to_string()),
                         "--trailer" => parsed.trailers.push(value.to_string()),
                         "--reuse-message" => parsed.reuse = Some(value.to_string()),
+                        // The private index already holds the paths the file names; the message does not depend on them.
+                        "--pathspec-from-file" => {}
                         "--fixup" => {
                             // `amend:` and `reword:` open an editor or change parents; only a plain commit name is covered.
                             if value.contains(':') || value.is_empty() {
@@ -190,13 +192,13 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
 }
 
 /// Long options with no value that never decide whether an editor opens.
-const NEUTRAL_LONG: [&str; 13] = [
+const NEUTRAL_LONG: [&str; 15] = [
     "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
-    "--amend", "--reset-author", "--allow-empty-message", "--verbose",
+    "--amend", "--reset-author", "--allow-empty-message", "--verbose", "--include", "--pathspec-file-nul",
 ];
 
 /// Long options with a value that never decide whether an editor opens.
-const NEUTRAL_VALUE_LONG: [&str; 6] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template"];
+const NEUTRAL_VALUE_LONG: [&str; 7] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template", "--pathspec-from-file"];
 
 /// What:
 ///  Whether `git commit` with these arguments may open an editor.
@@ -270,7 +272,7 @@ pub fn opens_editor(arguments: &[OsString]) -> bool {
                         at = letters.len();
                     }
                     'S' => at = letters.len(),
-                    'q' | 'n' | 'o' | 'a' | 's' | 'v' => {}
+                    'q' | 'n' | 'o' | 'a' | 's' | 'v' | 'i' => {}
                     _ => return true,
                 }
             }

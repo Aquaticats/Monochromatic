@@ -188,6 +188,27 @@ fn the_editor_is_predicted_from_the_message_source_and_errs_towards_opening() {
     }
 }
 
+/// The options that choose what to commit (a selection, a pathspec file) do not change the message, so a line that also has
+///  a message is covered, and none of them makes the editor open.
+#[test]
+fn selection_options_are_covered_and_open_no_editor() {
+    let message = ServiceCommitArgs { messages: vec![String::from("s")], ..ServiceCommitArgs::default() };
+    for words in [
+        vec!["-i", "-m", "s", "--", "a.txt"],
+        vec!["--include", "-m", "s", "--", "a.txt"],
+        vec!["-p", "-m", "s"],
+        vec!["--patch", "-m", "s"],
+        vec!["--interactive", "-m", "s"],
+        vec!["-m", "s", "--pathspec-from-file=list.txt"],
+        vec!["-m", "s", "--pathspec-from-file", "list.txt", "--pathspec-file-nul"],
+    ] {
+        assert_eq!(parse_service_commit(&args(&words)), Some(message.clone()), "{words:?}");
+    }
+    for words in [vec!["-i", "-m", "s", "--", "a.txt"], vec!["-m", "s", "--pathspec-from-file", "list.txt", "--pathspec-file-nul"], vec!["-m", "s", "--include"]] {
+        assert!(!opens_editor(&args(&words)), "{words:?}");
+    }
+}
+
 /// `--reset-author` is covered only for an amend that names no author, no date and no reused commit.
 #[test]
 fn reset_author_is_covered_only_for_a_plain_amend() {

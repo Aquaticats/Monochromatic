@@ -31,6 +31,8 @@ const INDEX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 pub enum IndexPaths<'a> {
     /// The paths the request listed.
     Listed(&'a [String]),
+    /// Paths given as bytes, for a client that reconciles the index without a landing.
+    Named(&'a [Vec<u8>]),
     /// Every path that differs between the branch before the landing and the new commit.
     Derived {
         /// The branch before the landing; the all-zero name when the branch did not exist.
@@ -103,6 +105,14 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None)?
         }
+        IndexPaths::Named(names) => {
+            let joined: Vec<u8> = names.iter().flat_map(|name| { return name.iter().copied().chain(std::iter::once(0)); }).collect();
+            let input: Vec<u8> = pathspec_input(joined.as_slice());
+            if input.is_empty() {
+                return Ok(());
+            }
+            run(git, repository, &["reset", "-q", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input))?
+        }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
@@ -129,7 +139,7 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
 /// await updateIndex(git, repository, newCommit, paths)
 /// ```
 pub fn update_index(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>) -> Result<(), FailureCode> {
-    if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) {
+    if matches!(paths, IndexPaths::Listed(listed) if listed.is_empty()) || matches!(paths, IndexPaths::Named(named) if named.is_empty()) {
         return Ok(());
     }
     let mut last: FailureCode = FailureCode::Unavailable;
