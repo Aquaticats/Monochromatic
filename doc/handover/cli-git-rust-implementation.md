@@ -7207,3 +7207,23 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - If a later run ever throws in the last delta, the `.git/index.lock` it leaves is the script's own: check that no Git
   process holds it, remove it, and resume.
 - This handover commit is the first wrapped commit into the new tree (installed 0.5.6, production service).
+
+## 2026-11-01: owner decisions on the root-owned files and the old tree
+
+- OWNER: "I didn't decline to answer questions. The harness swallowed my answers." The two-question prompt about the
+  127 root-owned files and the old tree came back as a rejection; the answers were lost in the harness, not refused.
+- Root-owned files: the owner ran the "Copy as root (Recommended)" command, so that is the choice. My first command was
+  wrong: `xargs --arguments-file` does not exist (GNU xargs: `-a, --arg-file=FILE`); it failed before copying anything.
+  Corrected and proven on a throwaway (mode 600 kept, nested paths created):
+  `cd /var/home/user/Monochromatic.before-subvolume && sudo xargs --delimiter='\n'
+  --arg-file=/var/home/user/.migrate-Monochromatic.unreadable.txt cp --archive --reflink=always --parents
+  --target-directory=/var/home/user/Monochromatic` (one line). The owner runs it; then I check all 127 exist in the new
+  tree as `root:root` mode 600.
+- Old tree: OWNER chose "After your reboot (Recommended)": delete `/var/home/user/Monochromatic.before-subvolume` with
+  `--remove-old` only after the reboot into bazzite:testing, a passing `git status` and commit in the new tree, and the
+  127 files copied over.
+- Bound follow-ups READY (agent `af81acba1d21e2e98`, head `9b9ca4e58a` on `worktree-agent-af81acba1d21e2e98`): the commit
+  gate judges the maximum paired delta against 5,000 ms; single-sample positive control fails at 5213.2 ms; SPEC
+  "Benchmark method" corrected; oxlint clean on the touched files; `lint:types`, clippy and `test:unit` (41 PASS) clean;
+  `native:perf` on the release build: commit maxima 607.1, 217.7, 189.1, 317.8 ms, forwarded p95 at most 1.6 ms.
+  Queued: merge into the 0.5.7 line.
