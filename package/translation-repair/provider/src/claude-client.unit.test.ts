@@ -32,13 +32,17 @@ import {
   type TransportReply,
 } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
+  CLAUDE_API_VERSION,
   CLAUDE_MODELS,
   CLAUDE_PACE_WINDOW_MS,
   CLAUDE_REQUESTS_PER_MINUTE,
+  CLAUDE_VERSION_HEADER,
   ClaudeModelNotServedError,
   ClaudeSchemaKeywordError,
   createClaudeClient,
   createProviderBudgets,
+  RATE_LIMIT_HEADER_PREFIX,
+  RETRY_AFTER_HEADER,
   statedWaitMsOf,
 } from '../dist/final/node/index.mjs';
 import {
@@ -86,7 +90,7 @@ await describe({
         expect(exchange?.url,).toBe('https://api.anthropic.com/v1/messages',);
         expect(exchange?.method,).toBe('POST',);
         expect(exchange?.headers['x-api-key'],).toBe(CLAUDE_CAT_KEY,);
-        expect(exchange?.headers['anthropic-version'],).toBe('2023-06-01',);
+        expect(exchange?.headers[CLAUDE_VERSION_HEADER],).toBe(CLAUDE_API_VERSION,);
         expect(exchange?.headers.Authorization,).toBeUndefined();
         expect(exchange?.wireFormat,).toBe('anthropic',);
         expect(firstBodyOf({ exchanges, },).stream,).toBe(true,);
@@ -332,7 +336,7 @@ await describe({
         expect(limitLine,).toContain('anthropic-ratelimit-output-tokens-limit=400000',);
         expect(limitLine,).not.toContain(CLAUDE_CAT_KEY,);
         for (const exchange of exchanges)
-          expect(exchange.captureHeaders,).toEqual(['retry-after', 'anthropic-ratelimit-*',],);
+          expect(exchange.captureHeaders,).toEqual([RETRY_AFTER_HEADER, `${RATE_LIMIT_HEADER_PREFIX}*`,],);
       },
     },),
 

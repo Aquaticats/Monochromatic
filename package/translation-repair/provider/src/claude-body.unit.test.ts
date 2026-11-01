@@ -19,6 +19,7 @@ import {
 
 import {
   ANTHROPIC_SERVED_IDS,
+  CLAUDE_COMPLETION_CAP,
   type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
@@ -332,7 +333,7 @@ await describe({
         expect(capped.max_tokens as number,).toBeGreaterThan(1_000,);
         // Room for the thinking, which counts against it: the pooled p99 of 13,082 measured on other providers
         // is not enough.
-        expect(capped.max_tokens,).toBe(32_000,);
+        expect(capped.max_tokens,).toBe(CLAUDE_COMPLETION_CAP,);
         const lowered = await bodySentFor({ modelId: 'claude-haiku-5-5', extra: { maxTokens: 777, }, },);
         expect(lowered.max_tokens,).toBe(777,);
       },

@@ -31,6 +31,7 @@ import {
 import {
   createNeuralWattLedger,
   defaultNeuralWattLedgerPath,
+  NEURALWATT_ABANDONED_ESTIMATE,
   NEURALWATT_DAILY_WH,
   NEURALWATT_DAILY_WH_VAR,
   NEURALWATT_LEDGER_PATH_VAR,
@@ -38,6 +39,7 @@ import {
   neuralWattDailyWhFrom,
   NeuralWattLedgerShapeError,
   neuralWattLedgerPathFrom,
+  NEURALWATT_UNREPORTED_ESTIMATE,
 } from '../dist/final/node/index.mjs';
 import {
   handClock,
@@ -104,8 +106,8 @@ await describe({
           name: 'TAKES BOTH FROM THE ENVIRONMENT WHEN IT NAMES THEM and from the built-in otherwise, empty counting '
             + 'as absent',
           fn: async () => {
-            expect(neuralWattDailyWhFrom({ env: {}, },),).toBe(550,);
-            expect(neuralWattDailyWhFrom({ env: { [NEURALWATT_DAILY_WH_VAR]: '  ', }, },),).toBe(550,);
+            expect(neuralWattDailyWhFrom({ env: {}, },),).toBe(NEURALWATT_DAILY_WH,);
+            expect(neuralWattDailyWhFrom({ env: { [NEURALWATT_DAILY_WH_VAR]: '  ', }, },),).toBe(NEURALWATT_DAILY_WH,);
             expect(neuralWattDailyWhFrom({ env: { [NEURALWATT_DAILY_WH_VAR]: '120.5', }, },),).toBe(120.5,);
             expect(neuralWattDailyWhFrom({ env: { [NEURALWATT_DAILY_WH_VAR]: '0', }, },),).toBe(0,);
             expect(neuralWattLedgerPathFrom({ env: {}, home: '/home/whiskers', },),).toBe(
@@ -350,7 +352,7 @@ await describe({
               model: MODEL,
               wh: 0.5,
               promptTokens: 321,
-              estimated: 'unreported-estimate',
+              estimated: NEURALWATT_UNREPORTED_ESTIMATE,
             },);
             expect((await ledger.read({ day: DAY, },)).reckonedWh,).toBe(0.5,);
           },
@@ -375,7 +377,7 @@ await describe({
               model: MODEL,
               wh: 0.25,
               promptTokens: 50,
-              estimated: 'abandoned-estimate',
+              estimated: NEURALWATT_ABANDONED_ESTIMATE,
             },);
             expect(await ledger.read({ day: DAY, },),).toMatchObject({ spentWh: 0.25, reservedWh: 0.25, reckonedWh: 0.25, },);
             outcome.reservation.release();
