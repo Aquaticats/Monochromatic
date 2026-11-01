@@ -46,6 +46,10 @@ mod signal_descriptor;
 mod watcher_sentinel;
 /// Starts the sentinel outside the watcher's cgroup and confirms it runs.
 mod sentinel_launch;
+/// The marker a running sentinel leaves.
+mod sentinel_marker;
+/// The real steps of starting a sentinel.
+mod sentinel_system_steps;
 /// Commands with a time limit and a fixed search path.
 mod bounded_command;
 /// Whether the whole system is stopping.
@@ -120,6 +124,12 @@ mod watcher_sentinel_tests;
 /// Unit tests for the sentinel launch.
 #[cfg(test)]
 mod sentinel_launch_tests;
+/// Unit tests for the sentinel marker.
+#[cfg(test)]
+mod sentinel_marker_tests;
+/// Unit tests for the real steps of starting a sentinel.
+#[cfg(test)]
+mod sentinel_system_steps_tests;
 /// Unit tests for bounded commands.
 #[cfg(test)]
 mod bounded_command_tests;

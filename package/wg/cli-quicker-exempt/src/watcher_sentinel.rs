@@ -29,9 +29,9 @@ use crate::log_line::log_line;
 /// Failure delivery.
 use crate::runtime_report::RuntimeReporter;
 /// The marker of a running sentinel.
-use crate::sentinel_launch::write_marker;
+use crate::sentinel_marker::write_marker;
 /// Whether the whole system is stopping.
-use crate::system_state::{HostSystemState, SystemState, NOLOGIN_PATH};
+use crate::system_state::{HostSystemState, SystemState};
 /// The words of the policy.
 use crate::update_report::{policy_failure, POLICY_PROCESS_WATCH};
 /// Syscall failures.
@@ -219,7 +219,6 @@ pub fn run_sentinel_command(key: &str, pid: i32, start_time: u64, uid: u32, gid:
         log_line(&policy_failure(&format!("the sentinel could not leave its marker ({error}), so the start cannot confirm that it runs")));
     }
     let mut reporter = RuntimeReporter::new(uid, gid);
-    let system_state = HostSystemState { nologin: Path::new(NOLOGIN_PATH) };
-    run_sentinel(Path::new("/proc"), pid, start_time, STOP_GRACE, &KeyedState { key }, &system_state, &mut reporter)?;
+    run_sentinel(Path::new("/proc"), pid, start_time, STOP_GRACE, &KeyedState { key }, &HostSystemState, &mut reporter)?;
     return Ok(());
 }

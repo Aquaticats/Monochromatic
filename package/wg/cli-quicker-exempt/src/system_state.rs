@@ -7,10 +7,11 @@
 //! the tunnel stays up with no watcher,
 //! so the update traffic of later sessions is no longer exempted,
 //! and that death is reported.
-//! The system counts as stopping when `shutdown.target` is active or becoming active,
-//! or when `/run/nologin` exists,
-//! which `systemd-user-sessions stop` creates early in a shutdown and which `systemd-logind` creates
-//! shortly before a scheduled one.
+//! The system counts as stopping only when `shutdown.target` is active or becoming active.
+//! `/run/nologin` is deliberately not a signal:
+//! it also exists in the minutes before a scheduled shutdown,
+//! when a real death should still be reported,
+//! and a stale or administrator-made file would hide every death.
 //! A probe that cannot tell is treated as a system that keeps running,
 //! so a failing probe never hides a death.
 
@@ -18,14 +19,8 @@
 use crate::log_line::log_line;
 /// Commands with a time limit and a fixed search path.
 use crate::bounded_command::run_bounded;
-/// Paths of the marker files.
-use std::path::Path;
 /// The time limit.
 use std::time::Duration;
-
-/// The file that tells that no new logins are allowed,
-/// which exists while a system stops.
-pub const NOLOGIN_PATH: &str = "/run/nologin";
 
 /// Arguments of `systemctl` that print the state of `shutdown.target` alone and exit with zero for any state.
 const SHOW_ARGUMENTS: [&str; 4] = ["show", "--property=ActiveState", "--value", "shutdown.target"];
@@ -46,19 +41,13 @@ pub fn shutdown_target_means_stopping(printed: &str) -> bool {
 }
 
 /// The real host.
-pub struct HostSystemState<'a> {
-    /// The file whose presence means no new logins are allowed.
-    pub nologin: &'a Path,
-}
+pub struct HostSystemState;
 
 /// Reading the real host.
-impl SystemState for HostSystemState<'_> {
-    /// True when the no-login file exists or `shutdown.target` is active or activating.
+impl SystemState for HostSystemState {
+    /// True when `shutdown.target` is active or activating.
     fn is_stopping(&self) -> bool {
-        if self.nologin.exists() {
-            return true;
-        }
-        let arguments: Vec<String> = SHOW_ARGUMENTS.iter().map(ToString::to_string).collect();
+        let arguments: Vec<std::ffi::OsString> = SHOW_ARGUMENTS.iter().map(std::ffi::OsString::from).collect();
         return match run_bounded("systemctl", &arguments, PROBE_LIMIT) {
             Ok(output) if output.success => shutdown_target_means_stopping(&output.stdout),
             Ok(output) => {

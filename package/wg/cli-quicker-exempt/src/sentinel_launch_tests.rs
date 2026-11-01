@@ -6,23 +6,32 @@
 use crate::sentinel_launch::{
     confirm_running,
     launch_sentinel,
-    parse_marker,
-    read_marker_in,
+    path_breaks_env,
     sentinel_arguments,
     systemd_run_arguments,
     unit_name,
-    write_marker_in,
     Placement,
-    SentinelMarker,
     SentinelRequest,
     SentinelSteps,
 };
+/// The marker a sentinel leaves.
+use crate::sentinel_marker::SentinelMarker;
+/// Arguments that need not be text.
+use std::ffi::OsString;
+/// Building a path from bytes.
+use std::os::unix::ffi::OsStringExt;
 /// Shared recording between the test and the steps.
 use std::cell::{Cell, RefCell};
 /// Fixture paths.
 use std::path::Path;
 /// Waiting between checks.
 use std::time::Duration;
+
+/// The arguments as text for a recording,
+/// where bytes that are not text may be replaced.
+fn text(arguments: &[OsString]) -> String {
+    return arguments.iter().map(|argument| return argument.to_string_lossy().into_owned()).collect::<Vec<String>>().join(" ");
+}
 
 /// Steps that record what they were asked and answer from a script.
 struct FakeSteps {
@@ -32,6 +41,9 @@ struct FakeSteps {
     service_fails: bool,
     /// Whether starting detached fails.
     detached_fails: bool,
+    /// Why the unit cannot be shown to be stopped,
+    /// or nothing when stopping works.
+    stop_error: Option<String>,
     /// The marker successive reads answer while the sentinel started as a service,
     /// the last one repeating.
     service_markers: Vec<Option<SentinelMarker>>,
@@ -51,22 +63,26 @@ struct FakeSteps {
 /// The scripted steps.
 impl SentinelSteps for FakeSteps {
     /// Records the arguments and fails when told to.
-    fn start_as_service(&self, arguments: &[String]) -> Result<(), String> {
-        self.events.borrow_mut().push(format!("service {}", arguments.join(" ")));
+    fn start_as_service(&self, arguments: &[OsString]) -> Result<(), String> {
+        self.events.borrow_mut().push(format!("service {}", text(arguments)));
         if self.service_fails {
             return Err("systemd-run exit status: 1".to_string());
         }
         return Ok(());
     }
 
-    /// Records the unit that was stopped.
-    fn stop_service(&self, unit: &str) {
+    /// Records the unit that was stopped and answers as told.
+    fn stop_service(&self, unit: &str) -> Result<(), String> {
         self.events.borrow_mut().push(format!("stop {unit}"));
+        return match &self.stop_error {
+            Some(why) => Err(why.clone()),
+            None => Ok(()),
+        };
     }
 
     /// Records the program and arguments and fails when told to.
-    fn start_detached(&self, executable: &Path, arguments: &[String]) -> Result<(), String> {
-        self.events.borrow_mut().push(format!("detached {} {}", executable.display(), arguments.join(" ")));
+    fn start_detached(&self, executable: &Path, arguments: &[OsString]) -> Result<(), String> {
+        self.events.borrow_mut().push(format!("detached {} {}", executable.display(), text(arguments)));
         self.detached_started.set(true);
         self.reads.set(0);
         if self.detached_fails {
@@ -105,6 +121,7 @@ fn steps(service_fails: bool, detached_fails: bool, service_markers: Vec<Option<
         events: RefCell::new(Vec::new()),
         service_fails,
         detached_fails,
+        stop_error: None,
         service_markers,
         detached_markers,
         reads: Cell::new(0),
@@ -137,18 +154,18 @@ const EXECUTABLE: &str = "/usr/bin/wg-quicker-exempt";
 fn the_service_arguments_name_the_unit_the_oom_preference_the_trampoline_and_the_command() {
     let executable = Path::new(EXECUTABLE);
     let arguments = systemd_run_arguments(&request(executable));
-    assert!(arguments.contains(&"--collect".to_string()), "{arguments:?}");
-    assert!(arguments.contains(&"--no-ask-password".to_string()), "{arguments:?}");
-    assert!(arguments.contains(&"--unit=wg-quicker-exempt-sentinel-4242-9001".to_string()), "{arguments:?}");
-    assert!(arguments.contains(&"--property=ManagedOOMPreference=omit".to_string()), "{arguments:?}");
+    assert!(arguments.contains(&OsString::from("--collect")), "{arguments:?}");
+    assert!(arguments.contains(&OsString::from("--no-ask-password")), "{arguments:?}");
+    assert!(arguments.contains(&OsString::from("--unit=wg-quicker-exempt-sentinel-4242-9001")), "{arguments:?}");
+    assert!(arguments.contains(&OsString::from("--property=ManagedOOMPreference=omit")), "{arguments:?}");
     let separator = arguments.iter().position(|argument| return argument == "--").expect("a separator");
-    assert!(arguments[..separator].iter().all(|argument| return argument.starts_with("--")), "{arguments:?}");
+    assert!(arguments[..separator].iter().all(|argument| return argument.to_string_lossy().starts_with("--")), "{arguments:?}");
     assert_eq!(
         arguments[separator + 1..],
-        ["/usr/bin/env", "/usr/bin/wg-quicker-exempt", "__sentinel", "wgtest", "4242", "9001", "1000", "1001"]
+        ["/usr/bin/env", "/usr/bin/wg-quicker-exempt", "__sentinel", "wgtest", "4242", "9001", "1000", "1001"].map(OsString::from)
     );
     assert_eq!(unit_name(4242, 9001), "wg-quicker-exempt-sentinel-4242-9001");
-    assert_eq!(sentinel_arguments(&request(executable))[0], "__sentinel");
+    assert_eq!(sentinel_arguments(&request(executable))[0], OsString::from("__sentinel"));
 }
 
 /// A confirmed service start removes the old marker first and reports nothing.
@@ -246,52 +263,6 @@ fn a_marker_of_another_watcher_or_a_dead_process_does_not_confirm() {
     assert_eq!(late.reads.get(), 3);
 }
 
-/// The marker is written with the pid and start time of the running process,
-/// read back,
-/// and absent when missing or malformed.
-#[test]
-fn the_marker_round_trips_and_malformed_text_is_absent() {
-    let directory = crate::test_scratch::scratch_root().join(format!("wg-quicker-marker-{}", std::process::id()));
-    let _removed = std::fs::remove_dir_all(&directory);
-    std::fs::create_dir_all(&directory).expect("make the directory");
-    assert_eq!(read_marker_in(&directory), None);
-    write_marker_in(&directory, 4242).expect("write the marker");
-    let read = read_marker_in(&directory).expect("read the marker back");
-    assert_eq!(read.watcher_pid, 4242);
-    assert_eq!(u32::try_from(read.pid).expect("positive"), std::process::id());
-    assert!(read.start_time > 0);
-    assert_eq!(parse_marker("1 2 3\n"), Some(SentinelMarker { watcher_pid: 1, pid: 2, start_time: 3 }));
-    assert_eq!(parse_marker("1 2"), None);
-    assert_eq!(parse_marker("1 2 3 4"), None);
-    assert_eq!(parse_marker("a b c"), None);
-    assert_eq!(parse_marker(""), None);
-    std::fs::write(directory.join("sentinel"), "garbage").expect("write garbage");
-    assert_eq!(read_marker_in(&directory), None);
-}
-
-/// A link planted at the marker's name is replaced by the marker and never followed,
-/// and no temporary file is left behind.
-#[test]
-fn a_link_at_the_marker_name_is_replaced_and_not_followed() {
-    let directory = crate::test_scratch::scratch_root().join(format!("wg-quicker-marker-link-{}", std::process::id()));
-    let _removed = std::fs::remove_dir_all(&directory);
-    std::fs::create_dir_all(&directory).expect("make the directory");
-    let victim = directory.join("victim");
-    std::fs::write(&victim, "precious").expect("write the victim");
-    std::os::unix::fs::symlink(&victim, directory.join("sentinel")).expect("plant the link");
-    write_marker_in(&directory, 4242).expect("write the marker");
-    assert_eq!(std::fs::read_to_string(&victim).expect("read the victim"), "precious");
-    assert!(!std::fs::symlink_metadata(directory.join("sentinel")).expect("the marker exists").file_type().is_symlink());
-    assert_eq!(read_marker_in(&directory).expect("read the marker back").watcher_pid, 4242);
-    let leftovers: Vec<String> = std::fs::read_dir(&directory)
-        .expect("list the directory")
-        .flatten()
-        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
-        .filter(|name| return name.ends_with(".tmp"))
-        .collect();
-    assert!(leftovers.is_empty(), "{leftovers:?}");
-}
-
 /// The summary says where the sentinel runs and whether it confirmed.
 #[test]
 fn the_summary_says_where_the_sentinel_runs_and_whether_it_confirmed() {
@@ -304,4 +275,69 @@ fn the_summary_says_where_the_sentinel_runs_and_whether_it_confirmed() {
     assert!(beside.contains("has not confirmed"), "{beside}");
     let nowhere = launch_sentinel(&steps(true, true, vec![], vec![]), &request(executable)).summary();
     assert!(nowhere.contains("started nowhere"), "{nowhere}");
+}
+
+/// A program path with `=` in it would be read by `/usr/bin/env` as a variable assignment
+/// (`env: '__sentinel': No such file or directory`,
+/// exit 127),
+/// so it is refused as a service with a loud line and the sentinel starts beside the watcher,
+/// which does not go through `env`.
+#[test]
+fn a_program_path_with_an_equals_sign_is_refused_as_a_service_and_starts_beside_the_watcher() {
+    let executable = Path::new("/home/user/a=b/wg-quicker-exempt");
+    let fake = steps(false, false, vec![], vec![marker()]);
+    let outcome = launch_sentinel(&fake, &request(executable));
+    assert_eq!(outcome.placement, Some(Placement::BesideTheWatcher));
+    assert!(outcome.confirmed);
+    assert_eq!(outcome.reports.len(), 1, "{:?}", outcome.reports);
+    assert!(outcome.reports[0].contains("contains '='"), "{:?}", outcome.reports);
+    assert!(outcome.reports[0].contains("variable assignment"), "{:?}", outcome.reports);
+    assert!(outcome.reports[0].contains("/home/user/a=b/wg-quicker-exempt"), "{:?}", outcome.reports);
+    assert!(outcome.reports[0].contains("ends both without a report"), "{:?}", outcome.reports);
+    let events = fake.events.borrow();
+    assert!(!events.iter().any(|event| return event.starts_with("service") || event.starts_with("stop")), "{events:?}");
+    assert!(events.iter().any(|event| return event.starts_with("detached /home/user/a=b/wg-quicker-exempt __sentinel")), "{events:?}");
+}
+
+/// Only an `=` in the program path matters:
+/// the arguments after the program are not read by `env`.
+#[test]
+fn only_an_equals_sign_in_the_program_path_breaks_env() {
+    assert!(path_breaks_env(Path::new("/a=b/c")));
+    assert!(path_breaks_env(Path::new("/a/b=")));
+    assert!(path_breaks_env(Path::new(&OsString::from_vec(b"/opt/\xff=/c".to_vec()))));
+    assert!(!path_breaks_env(Path::new("/a/b/c")));
+    assert!(!path_breaks_env(Path::new("/a b/c")));
+    assert!(!path_breaks_env(Path::new(&OsString::from_vec(b"/opt/\xff/c".to_vec()))));
+}
+
+/// A program path whose bytes are not valid UTF-8 reaches `systemd-run` byte for byte,
+/// and is not replaced by the replacement character.
+#[test]
+fn a_program_path_that_is_not_text_reaches_systemd_run_unchanged() {
+    let bytes = OsString::from_vec(b"/opt/\xff\xfe/wg-quicker-exempt".to_vec());
+    assert!(bytes.to_str().is_none(), "the fixture is not valid UTF-8");
+    let arguments = systemd_run_arguments(&request(Path::new(&bytes)));
+    let separator = arguments.iter().position(|argument| return argument == "--").expect("a separator");
+    assert_eq!(arguments[separator + 1], OsString::from("/usr/bin/env"));
+    assert_eq!(arguments[separator + 2], bytes);
+}
+
+/// A unit that cannot be shown to be stopped is said to be possibly still running:
+/// two sentinels may run and one death may be reported twice,
+/// and the sentinel still starts beside the watcher.
+#[test]
+fn a_unit_that_cannot_be_shown_to_be_stopped_is_said_to_possibly_run_next_to_the_fallback() {
+    let executable = Path::new(EXECUTABLE);
+    let mut fake = steps(false, false, vec![None], vec![marker()]);
+    fake.stop_error = Some("the unit is active (systemctl stop exit status: 1)".to_string());
+    let outcome = launch_sentinel(&fake, &request(executable));
+    assert_eq!(outcome.placement, Some(Placement::BesideTheWatcher));
+    assert!(outcome.confirmed);
+    assert_eq!(outcome.reports.len(), 2, "{:?}", outcome.reports);
+    assert!(outcome.reports[1].contains("wg-quicker-exempt-sentinel-4242-9001 could not be shown to be stopped"), "{:?}", outcome.reports);
+    assert!(outcome.reports[1].contains("the unit is active (systemctl stop exit status: 1)"), "{:?}", outcome.reports);
+    assert!(outcome.reports[1].contains("two sentinels may run"), "{:?}", outcome.reports);
+    assert!(outcome.reports[1].contains("reported twice"), "{:?}", outcome.reports);
+    assert!(fake.events.borrow().iter().any(|event| return event.starts_with("detached")));
 }

@@ -354,6 +354,11 @@ and a unit name ending in `.service`,
 `.scope`,
 `.slice`,
 `.socket` or `.mount`).
+A cgroup name can contain spaces,
+so the lines that embed one put it between backticks (`quote_name`,
+with a backtick inside the name written as `\u{0060}`),
+and the cause replaces everything between the backticks;
+a name that is not between backticks is replaced word by word.
 So the same reason for another process id,
 count,
 duration or cgroup name is one cause,
@@ -480,6 +485,23 @@ or the manager accepts the unit and the sentinel never confirms (its program can
 the unit is stopped and the sentinel starts beside the watcher instead,
 `watch-start` prints a `POLICY NOT IN FORCE` line saying that a kill of the watcher's whole cgroup then ends both without a report,
 and the start goes on.
+After `systemctl stop` the unit's state is read whatever `stop` said
+(a unit that already ended and was collected is no longer loaded,
+which `stop` reports as a failure although nothing runs),
+and only `inactive` or `failed` counts as gone.
+If the unit cannot be shown to be gone,
+a second line says so:
+two sentinels may run,
+and one death of the watcher may be reported twice.
+`/usr/bin/env` reads a first argument that contains `=` as a variable assignment and has no option that prevents it
+(`env: '__sentinel': No such file or directory`,
+exit 127,
+reproduced),
+so a program path with `=` in it is not started as a service:
+a `POLICY NOT IN FORCE` line says why and the sentinel starts beside the watcher,
+which does not go through `env`.
+The program path is passed to `systemd-run` as the bytes it has,
+so a path that is not valid UTF-8 is not altered.
 `systemd-run` and `systemctl` run with a cleared environment and a fixed search path (`/usr/bin:/bin`),
 never the caller's.
 It waits on the watcher through a process file descriptor (`pidfd_open`),
@@ -504,19 +526,19 @@ or cannot be read)
 the sentinel first asks whether the whole system is stopping,
 and if it is,
 it logs one line and reports nothing.
-The system counts as stopping when `/run/nologin` exists
-(`systemd-user-sessions stop` creates it early in a shutdown,
-and `systemd-logind` creates it shortly before a scheduled one)
-or when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
+The system counts as stopping only when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
+`/run/nologin` is deliberately not a signal:
+`systemd-logind` also creates it in the minutes before a scheduled shutdown,
+when a real death should still be reported,
+and a stale or administrator-made file would hide every death.
 A logout while the system keeps running is still reported:
 the tunnel stays up with no watcher,
 so the update traffic of later sessions is no longer exempted,
 which is a real failure.
 A probe that cannot tell (`systemctl` fails or runs past five seconds) counts as a system that keeps running,
 so a failing probe never hides a death.
-The one case this can hide is a watcher that dies during the minutes between a scheduled shutdown being announced and the shutdown itself,
-because `/run/nologin` already exists then;
-the tunnel is about to go away anyway.
+The case this can hide is a watcher that dies after `shutdown.target` became active,
+which is already part of the shutdown.
 A sentinel that was started is not taken for running because its process was created.
 When it has loaded it writes a marker (the file `sentinel` in the state directory of the watcher)
 with the watcher's pid,

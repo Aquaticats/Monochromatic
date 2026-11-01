@@ -13,6 +13,9 @@
 //! after which the service runs in `unconfined_service_t`,
 //! which may.
 //! See `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
+//! `env` reads a first argument that contains `=` as a variable assignment and not as a program,
+//! and it has no option that prevents that,
+//! so a program path with `=` in it is refused as a service and the sentinel starts beside the watcher instead.
 //! A sentinel that was started is called running only after it left a marker that names the watcher
 //! while its own process still exists,
 //! because a unit the manager accepted can still fail to execute its program.
@@ -20,27 +23,22 @@
 //! or accepts it and nothing confirms,
 //! the unit is stopped and the sentinel starts beside the watcher,
 //! and the report says what that costs.
+//! If the unit cannot be shown to be gone,
+//! the report says that two sentinels may run
+//! and a death may be reported twice.
 
-/// Where the state of one watcher lives.
-use crate::application_watch_state::watch_state_directory;
-/// Commands with a time limit and a fixed search path.
-use crate::bounded_command::run_bounded;
-/// Process start times.
-use crate::process_info::read_start_time;
+/// The marker of a running sentinel.
+use crate::sentinel_marker::SentinelMarker;
 /// The words of a loud report.
 use crate::update_report::policy_failure;
 /// The hidden command that runs the sentinel.
 use crate::watcher_sentinel::SENTINEL_COMMAND;
-/// Writing a file without following a link.
-use std::io::Write;
-/// Creating a file with a mode.
-use std::os::unix::fs::OpenOptionsExt;
-/// Starting a detached process.
-use std::os::unix::process::CommandExt;
-/// Paths of the marker.
-use std::path::{Path, PathBuf};
-/// Starting commands.
-use std::process::{Command, Stdio};
+/// Arguments that need not be text.
+use std::ffi::OsString;
+/// The bytes of a path.
+use std::os::unix::ffi::OsStrExt;
+/// Paths of the program.
+use std::path::Path;
 /// Waiting between checks.
 use std::time::Duration;
 
@@ -48,65 +46,9 @@ use std::time::Duration;
 const CONFIRM_ATTEMPTS: u32 = 100;
 /// Time between two checks of the marker.
 const CONFIRM_DELAY: Duration = Duration::from_millis(20);
-/// File name of the marker inside the state directory of the watcher.
-const MARKER_NAME: &str = "sentinel";
-/// Time `systemd-run` and `systemctl` may take before they are ended.
-const SYSTEMD_COMMAND_LIMIT: Duration = Duration::from_secs(10);
 /// The first program of the service,
 /// which the system manager may execute where it may not execute the sentinel's program itself.
 const SERVICE_TRAMPOLINE: &str = "/usr/bin/env";
-
-/// What a running sentinel leaves for the process that started it.
-#[derive(Debug, Eq, PartialEq)]
-pub struct SentinelMarker {
-    /// Process identifier of the watcher the sentinel waits for.
-    pub watcher_pid: i32,
-    /// Process identifier of the sentinel.
-    pub pid: i32,
-    /// Start time of the sentinel process,
-    /// so a reused pid is not mistaken for it.
-    pub start_time: u64,
-}
-
-/// Parses the text of a marker file.
-pub fn parse_marker(text: &str) -> Option<SentinelMarker> {
-    let mut words = text.split_whitespace();
-    let watcher_pid = words.next()?.parse().ok()?;
-    let pid = words.next()?.parse().ok()?;
-    let start_time = words.next()?.parse().ok()?;
-    if words.next().is_some() {
-        return None;
-    }
-    return Some(SentinelMarker { watcher_pid, pid, start_time });
-}
-
-/// Writes the marker of the running sentinel into `directory`.
-/// The text goes to a new file that is renamed over the marker,
-/// so a link planted at the marker's name is replaced and never followed.
-pub fn write_marker_in(directory: &Path, watcher_pid: i32) -> std::io::Result<()> {
-    let own = i32::try_from(std::process::id()).map_err(std::io::Error::other)?;
-    let Some(start_time) = read_start_time(Path::new("/proc"), own) else {
-        return Err(std::io::Error::other("the sentinel process is not in procfs"));
-    };
-    let temporary = directory.join(format!("{MARKER_NAME}.{own}.tmp"));
-    let _removed = std::fs::remove_file(&temporary);
-    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
-    file.write_all(format!("{watcher_pid} {own} {start_time}\n").as_bytes())?;
-    file.sync_all()?;
-    return std::fs::rename(&temporary, directory.join(MARKER_NAME));
-}
-
-/// Reads the marker in `directory`,
-/// or nothing when there is none or it is malformed.
-pub fn read_marker_in(directory: &Path) -> Option<SentinelMarker> {
-    let text = std::fs::read_to_string(directory.join(MARKER_NAME)).ok()?;
-    return parse_marker(&text);
-}
-
-/// Writes the marker of the running sentinel for the watcher stored under `key`.
-pub fn write_marker(key: &str, watcher_pid: i32) -> std::io::Result<()> {
-    return write_marker_in(&watch_state_directory(key)?, watcher_pid);
-}
 
 /// The watcher the sentinel is started for.
 pub struct SentinelRequest<'a> {
@@ -166,12 +108,13 @@ impl LaunchOutcome {
 /// replaceable in tests.
 pub trait SentinelSteps {
     /// Starts the sentinel as a transient service with these `systemd-run` arguments.
-    fn start_as_service(&self, arguments: &[String]) -> Result<(), String>;
+    fn start_as_service(&self, arguments: &[OsString]) -> Result<(), String>;
     /// Stops the transient service with this unit name,
-    /// when it still exists.
-    fn stop_service(&self, unit: &str);
+    /// and checks that no process of it is left.
+    /// An error says why the unit cannot be shown to be gone.
+    fn stop_service(&self, unit: &str) -> Result<(), String>;
     /// Starts the sentinel as a detached process with these arguments after the program.
-    fn start_detached(&self, executable: &Path, arguments: &[String]) -> Result<(), String>;
+    fn start_detached(&self, executable: &Path, arguments: &[OsString]) -> Result<(), String>;
     /// Reads the marker of the sentinel of the watcher under `key`.
     fn read_marker(&self, key: &str) -> Option<SentinelMarker>;
     /// Removes a marker an earlier sentinel left.
@@ -187,24 +130,35 @@ pub fn unit_name(watcher_pid: i32, watcher_start_time: u64) -> String {
     return format!("wg-quicker-exempt-sentinel-{watcher_pid}-{watcher_start_time}");
 }
 
+/// Whether `/usr/bin/env` would read the program path as a variable assignment,
+/// which it does for any first argument that contains `=`.
+pub fn path_breaks_env(executable: &Path) -> bool {
+    return executable.as_os_str().as_bytes().contains(&b'=');
+}
+
 /// Arguments of the sentinel command after the program.
-pub fn sentinel_arguments(request: &SentinelRequest<'_>) -> Vec<String> {
-    return vec![
+pub fn sentinel_arguments(request: &SentinelRequest<'_>) -> Vec<OsString> {
+    return [
         SENTINEL_COMMAND.to_string(),
         request.key.to_string(),
         request.watcher_pid.to_string(),
         request.watcher_start_time.to_string(),
         request.uid.to_string(),
         request.gid.to_string(),
-    ];
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
 }
 
 /// Arguments of `systemd-run` that start the sentinel as its own collected service,
 /// outside the cgroup of the watcher,
 /// with `systemd-oomd` asked to omit it,
 /// and with the program behind `/usr/bin/env` so a host that confines the system manager still runs it.
-pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<String> {
-    let mut arguments: Vec<String> = vec![
+/// The program path is passed as the bytes it has,
+/// not as text that would replace bytes that are not valid UTF-8.
+pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<OsString> {
+    let mut arguments: Vec<OsString> = [
         "--quiet".to_string(),
         "--collect".to_string(),
         "--no-ask-password".to_string(),
@@ -213,8 +167,11 @@ pub fn systemd_run_arguments(request: &SentinelRequest<'_>) -> Vec<String> {
         "--property=ManagedOOMPreference=omit".to_string(),
         "--".to_string(),
         SERVICE_TRAMPOLINE.to_string(),
-        request.executable.display().to_string(),
-    ];
+    ]
+    .iter()
+    .map(OsString::from)
+    .collect();
+    arguments.push(request.executable.as_os_str().to_owned());
     arguments.extend(sentinel_arguments(request));
     return arguments;
 }
@@ -238,6 +195,10 @@ pub fn confirm_running(steps: &dyn SentinelSteps, key: &str, watcher_pid: i32) -
 fn confirm_wait_ms() -> u128 {
     return u128::from(CONFIRM_ATTEMPTS) * CONFIRM_DELAY.as_millis();
 }
+
+/// What a fallback to a sentinel beside the watcher costs,
+/// said at the end of every report that leads to one.
+const BESIDE_COST: &str = "so it starts beside the watcher: a kill of the watcher's whole cgroup, for example by systemd-oomd, then ends both without a report";
 
 /// Starts the sentinel beside the watcher and confirms it,
 /// adding the loud reports for what did not go as intended.
@@ -265,18 +226,29 @@ so if the watcher is killed or runs out of memory nothing may say so",
 /// confirms that it runs,
 /// and returns the loud reports for what did not go as intended.
 /// If the manager refuses the unit,
-/// or accepts it and the sentinel never confirms (its program may fail to execute after the start was accepted),
+/// the program path cannot go behind `env`,
+/// or the manager accepts the unit and the sentinel never confirms (its program may fail to execute after the start was accepted),
 /// the unit is stopped and the sentinel starts beside the watcher.
+/// If the unit cannot be shown to be gone,
+/// a second report says that two sentinels may run.
 /// The start of the watcher is not failed,
 /// because the watcher itself is running.
 pub fn launch_sentinel(steps: &dyn SentinelSteps, request: &SentinelRequest<'_>) -> LaunchOutcome {
     steps.remove_marker(request.key);
     let unit = unit_name(request.watcher_pid, request.watcher_start_time);
     let mut reports: Vec<String> = Vec::new();
+    if path_breaks_env(request.executable) {
+        reports.push(policy_failure(&format!(
+            "the sentinel that reports the watcher's own death could not start as its own service \
+(the program path {} contains '=', which /usr/bin/env would read as a variable assignment and not as a program), {BESIDE_COST}",
+            request.executable.display()
+        )));
+        let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
+        return LaunchOutcome { placement, confirmed, reports };
+    }
     if let Err(service_error) = steps.start_as_service(&systemd_run_arguments(request)) {
         reports.push(policy_failure(&format!(
-            "the sentinel that reports the watcher's own death could not start as its own service ({service_error}), \
-so it starts beside the watcher: a kill of the watcher's whole cgroup, for example by systemd-oomd, then ends both without a report"
+            "the sentinel that reports the watcher's own death could not start as its own service ({service_error}), {BESIDE_COST}"
         )));
         let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
         return LaunchOutcome { placement, confirmed, reports };
@@ -284,86 +256,17 @@ so it starts beside the watcher: a kill of the watcher's whole cgroup, for examp
     if confirm_running(steps, request.key, request.watcher_pid) {
         return LaunchOutcome { placement: Some(Placement::Service), confirmed: true, reports };
     }
-    steps.stop_service(&unit);
     reports.push(policy_failure(&format!(
         "the sentinel that reports the watcher's own death was accepted as a service but did not confirm that it runs within {} ms \
-(its program may have failed to execute; look at `journalctl --unit={unit}`), \
-so it starts beside the watcher: a kill of the watcher's whole cgroup, for example by systemd-oomd, then ends both without a report",
+(its program may have failed to execute; look at `journalctl --unit={unit}`), {BESIDE_COST}",
         confirm_wait_ms()
     )));
+    if let Err(stop_error) = steps.stop_service(&unit) {
+        reports.push(policy_failure(&format!(
+            "the unit {unit} could not be shown to be stopped ({stop_error}), so it may still run next to the sentinel that starts beside the watcher: \
+two sentinels may run, and one death of the watcher may be reported twice"
+        )));
+    }
     let (placement, confirmed) = start_beside_the_watcher(steps, request, &mut reports);
     return LaunchOutcome { placement, confirmed, reports };
-}
-
-/// The words of an input or output error.
-fn io_message(error: std::io::Error) -> String {
-    return error.to_string();
-}
-
-/// Starts a new session in the forked child so the sentinel is isolated from the invoking terminal.
-fn start_new_session() -> std::io::Result<()> {
-    // SAFETY: `setsid` is async-signal-safe and touches only the child's session state.
-    if unsafe { libc::setsid() } < 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-    return Ok(());
-}
-
-/// The real steps.
-pub struct SystemSteps;
-
-/// Starting real processes.
-impl SentinelSteps for SystemSteps {
-    /// Runs `systemd-run` with a cleared environment,
-    /// a fixed search path,
-    /// and a time limit.
-    fn start_as_service(&self, arguments: &[String]) -> Result<(), String> {
-        let output = run_bounded("systemd-run", arguments, SYSTEMD_COMMAND_LIMIT)?;
-        if output.success {
-            return Ok(());
-        }
-        return Err(format!("systemd-run {}: {} {}", output.status, output.stderr.trim(), output.stdout.trim()).trim_end().to_string());
-    }
-
-    /// Runs `systemctl stop` with the same limits and ignores a unit that is already gone.
-    fn stop_service(&self, unit: &str) {
-        let _stopped = run_bounded("systemctl", &["stop".to_string(), unit.to_string()], SYSTEMD_COMMAND_LIMIT);
-    }
-
-    /// Starts the program in a new session with no standard streams.
-    fn start_detached(&self, executable: &Path, arguments: &[String]) -> Result<(), String> {
-        let mut command = Command::new(executable);
-        command.args(arguments).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        // SAFETY: setsid is async-signal-safe and isolates the sentinel from the invoking terminal.
-        unsafe {
-            command.pre_exec(start_new_session);
-        }
-        return match command.spawn() {
-            Ok(_child) => Ok(()),
-            Err(error) => Err(io_message(error)),
-        };
-    }
-
-    /// Reads the marker file in the state directory.
-    fn read_marker(&self, key: &str) -> Option<SentinelMarker> {
-        let directory: PathBuf = watch_state_directory(key).ok()?;
-        return read_marker_in(&directory);
-    }
-
-    /// Removes the marker file.
-    fn remove_marker(&self, key: &str) {
-        if let Ok(directory) = watch_state_directory(key) {
-            let _removed = std::fs::remove_file(directory.join(MARKER_NAME));
-        }
-    }
-
-    /// Compares the start time of the process now.
-    fn is_alive(&self, pid: i32, start_time: u64) -> bool {
-        return read_start_time(Path::new("/proc"), pid) == Some(start_time);
-    }
-
-    /// Sleeps.
-    fn pause(&self, duration: Duration) {
-        std::thread::sleep(duration);
-    }
 }

@@ -33,7 +33,9 @@ use crate::user_account::lookup_user;
 use crate::log_line::{log_line, sanitize, write_unchecked};
 /// The sentinel of the watcher,
 /// started outside the watcher's cgroup.
-use crate::sentinel_launch::{launch_sentinel, SentinelRequest, SystemSteps};
+use crate::sentinel_launch::{launch_sentinel, SentinelRequest};
+/// The real steps of starting a sentinel.
+use crate::sentinel_system_steps::SystemSteps;
 /// The policy engine and its setup.
 use crate::update_routing::{RoutingSetup, UpdateRouting};
 /// The start notice and the marker of a loud report.

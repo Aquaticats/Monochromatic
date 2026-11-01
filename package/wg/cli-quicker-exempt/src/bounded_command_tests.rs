@@ -4,12 +4,16 @@
 
 /// The command under test.
 use crate::bounded_command::run_bounded;
+/// Arguments that need not be text.
+use std::ffi::OsString;
+/// Building an argument from bytes.
+use std::os::unix::ffi::OsStringExt;
 /// The time limit.
 use std::time::{Duration, Instant};
 
 /// Builds arguments from words.
-fn words(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| return (*item).to_string()).collect();
+fn words(items: &[&str]) -> Vec<OsString> {
+    return items.iter().map(OsString::from).collect();
 }
 
 /// What a command printed and how it ended are returned.
@@ -46,4 +50,13 @@ fn a_command_past_its_limit_is_ended() {
 fn a_missing_program_is_an_error() {
     let error = run_bounded("no-such-program-for-the-test", &[], Duration::from_secs(5)).expect_err("the program is missing");
     assert!(!error.is_empty());
+}
+
+/// An argument that is not valid UTF-8 reaches the command byte for byte.
+#[test]
+fn an_argument_that_is_not_text_reaches_the_command_unchanged() {
+    let mut arguments = words(&["-c", "printf %s \"$1\" | od -An -tx1 | tr -d ' \\n'", "sh"]);
+    arguments.push(OsString::from_vec(vec![0xff, 0xfe, b'=']));
+    let output = run_bounded("sh", &arguments, Duration::from_secs(10)).expect("the command ends in time");
+    assert_eq!(output.stdout.trim(), "fffe3d");
 }
