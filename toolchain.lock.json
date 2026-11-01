@@ -583,7 +583,7 @@
     },
     "cargo:monochromatic-lint": {
       "request": "cargo:monochromatic-lint@latest",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "route": "cargo-binstall",
       "bins": [
         "monochromatic-lint"
@@ -1479,5 +1479,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:165dbcb074b66a691dceb19ca98abda4946ebbfa3612b8babd2e879f27203f2d"
+  "digest": "sha256:e01dbefa5fcf2d86cc0c38770a7e7e7271e7dd74458c94376845df502438b5e3"
 }
