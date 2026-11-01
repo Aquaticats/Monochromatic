@@ -427,3 +427,32 @@ Guard tests are shown failing as the repository rules require (for example, remo
 - Not decided here and listed for the owner: whether `cli-git service install` (a user-run command that writes the unit
   files) is acceptable under the rule that the wrapper writes no scripts; unit files are configuration, not shell text.
 - The prototype's `flock` and its stale-socket probe are not carried over; the abstract socket and the manager replace them.
+
+## Acceptance test from issue 1770 (scoped commit with an unrelated tracked LFS asset)
+
+Issue 1770: a scoped explicit-path commit exits 128 in a 2 GiB, 2 CPU consumer container at an unrelated tracked LFS
+asset, with "Error cleaning Git LFS object: open <worktree>/.git/cli-git/shadow/<transaction>/lfs/tmp/<n>: no such
+file or directory"; the same commit succeeds through the host wrapper.
+
+Checked on this branch, with the real `git-lfs` from the toolchain:
+- `git-lfs` creates `lfs/` (with `objects` and `tmp`) on demand inside an existing git directory: `git lfs clean` against a
+  freshly created bare repository with no `lfs` entry exited 0 and left `lfs/objects` and `lfs/tmp`. So Git not creating
+  `lfs/tmp`, in `git init` or in `shadow_skeleton.rs`, is not the cause, and the in-process skeleton changed nothing for
+  this issue (it creates the same entries as `git init --bare --template=`, compared by a test).
+- Reproduction attempt: a repository with `*.bin` tracked through the LFS filter (64 MiB asset), the asset made stat-dirty
+  (same content, new modification time, so the clean filter has to run for it during the shadow commit), and a scoped
+  commit of another file, through the fixed wrapper and the installed wrapper, in a unit limited to 2 GiB of memory
+  (no swap) and 200% CPU. Both exited 0, the commit landed, the status was clean. Not reproduced.
+- Reading: an `open` that fails on `<shadow>/lfs/tmp/<n>` after `git-lfs` would have created `lfs/tmp` itself means the
+  shadow directory (its parent) was gone while `git-lfs` ran. That fits the shadow being removed under a live
+  transaction by recovery in another process, which is the same family as issues 1781 and 1784: a recovery that decides a
+  transaction owner is dead by process identity, here possibly between a container and the host sharing one worktree
+  (a service in one PID namespace sees clients of another as process id 0, measured above). It is a hypothesis; the
+  container was not available. The new design removes the whole class (no shadow directory, no owner record, no recovery
+  by process identity).
+
+Acceptance test for the service: a repository with a tracked LFS asset that the commit does not name, an explicit-path
+commit of another file, the asset stat-dirty, run with the real `git-lfs` on the client's PATH, inside a unit limited to
+2 GiB of memory and 2 CPUs, repeated with the client in a PID namespace (`unshare --user --pid`) and the service outside
+it. It must exit 0 with the commit landed, without the client printing any path under a temporary directory. The client
+runs the clean filter during preparation (in its own process, under its own limits), never the service.
