@@ -5,9 +5,14 @@ import {
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
-import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import { EXPECTED_CORES, } from './constants.ts';
 import type { Paths, } from './types.ts';
+
+// The recording logger lives in its own file to keep this one under the line limit; tests keep importing it here.
+export {
+  recordingLogger,
+  type RecordingLogger,
+} from './recording-logger.ts';
 
 /**
  Digits in a per-core energy label (`Ecore000`).
@@ -15,68 +20,12 @@ import type { Paths, } from './types.ts';
 const CORE_LABEL_DIGITS = 3;
 
 /**
- A logger that keeps every message per level, so tests can assert which event lines were logged.
+ One file name with its contents, as `Object.entries()` yields it.
  */
-export type RecordingLogger = Logger & Readonly<{
-  /**
-   Messages per level name.
-   */
-  messages: Readonly<Record<'debug' | 'error' | 'info' | 'warn', string[]>>;
-}>;
-
-/**
- Flush for the recording logger: there is nothing buffered to flush.
- */
-async function flushNothing(): Promise<void> {
-  await Promise.resolve();
-}
-
-/**
- Creates a logger that records instead of printing.
-
- @returns the recording logger
-
- @example
- ```ts
- const l = recordingLogger();
- l.warn('ALERT x',);
- l.messages.warn; // ['ALERT x']
- ```
- */
-export function recordingLogger(): RecordingLogger {
-  /**
-   Recorded messages per level.
-   */
-  const messages: Record<'debug' | 'error' | 'info' | 'warn', string[]> = {
-    debug: [],
-    error: [],
-    info: [],
-    warn: [],
-  };
-  /**
-   Builds a method that records into one level.
-
-   @param level - level to record into
-
-   @returns the logging method
-   */
-  function recorder(level: 'debug' | 'error' | 'info' | 'warn',): (message: string,) => void {
-    return function record(message: string,): void {
-      messages[level]
-        .push(message,);
-    };
-  }
-  return {
-    trace: recorder('debug',),
-    debug: recorder('debug',),
-    info: recorder('info',),
-    warn: recorder('warn',),
-    error: recorder('error',),
-    fatal: recorder('error',),
-    flush: flushNothing,
-    messages,
-  };
-}
+type FileEntry = readonly [
+  string,
+  string
+];
 
 /**
  Writes the files of one hwmon entry.
@@ -97,7 +46,7 @@ async function writeEntry({
     { recursive: true, },
   );
   await Promise.all(Object.entries(files,)
-    .map(async function writeOne([name, text,],) {
+    .map(async function writeOne([name, text,]: FileEntry,) {
       await writeFile(
         join(
           dir,
@@ -109,8 +58,9 @@ async function writeEntry({
 }
 
 /**
- Creates a disposable host: a hwmon tree resembling the 7950X machine, proc files, a cap file, a cgroup `cpu.max`,
- and a sample directory, so tests never touch the real system.
+ Creates a disposable host: a hwmon tree resembling the 7950X machine, proc files, a cap file, a cgroup `cpu.max`
+ with both weight files (`io.weight` and `io.bfq.weight`, each at the kernel default of 100), and a sample directory,
+ so tests never touch the real system. Tests of a kernel that offers one weight file only remove the other.
 
  @param threads - text written to the cap file
  
@@ -335,6 +285,14 @@ export async function makeHost({
   await writeFile(
     join(
       root,
+      'cgroup',
+      'io.bfq.weight',
+    ),
+    'default 100\n',
+  );
+  await writeFile(
+    join(
+      root,
       'threads',
     ),
     `${threads}\n`,
@@ -355,6 +313,11 @@ export async function makeHost({
         root,
         'cgroup',
         'io.weight',
+      ),
+      ioBfqWeightFile: join(
+        root,
+        'cgroup',
+        'io.bfq.weight',
       ),
       hwmonRoot: join(
         root,

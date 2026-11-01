@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   describe,
@@ -124,6 +124,7 @@ await describe({
         expect(state.iteration,).toBe(5,);
         expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
         expect(await readFile(join(root, 'cgroup', 'io.weight',), 'utf8',),).toBe('default 10',);
+        expect(await readFile(join(root, 'cgroup', 'io.bfq.weight',), 'utf8',),).toBe('default 10',);
         expect(l.messages.warn,).toEqual([],);
         expect(l.messages.error,).toEqual([],);
         /**
@@ -132,6 +133,46 @@ await describe({
         const files = await readdir(inputs.paths.sampleDir,);
         expect(files,).toHaveLength(1,);
         expect((await readFile(join(inputs.paths.sampleDir, files[0] ?? '',), 'utf8',)).trimEnd().split('\n',),).toHaveLength(2,);
+      },
+    },),
+    it({
+      name: 'a cgroup without any weight file logs IO-WEIGHT-UNAVAILABLE but the pass still applies the cap and advances',
+      fn: async function noWeightFiles() {
+        /**
+         Inputs for a host whose cgroup directory has no weight file.
+         */
+        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await rm(join(root, 'cgroup', 'io.weight',),);
+        await rm(join(root, 'cgroup', 'io.bfq.weight',),);
+        /**
+         State after one pass.
+         */
+        const state = await runPass({ state: FRESH, inputs, now: INTERVAL_MS, },);
+        expect(state.iteration,).toBe(1,);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
+        expect(l.messages.warn,).toHaveLength(1,);
+        expect(l.messages.warn[0],).toContain('IO-WEIGHT-UNAVAILABLE',);
+        expect(l.messages.error,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'a weight file that fails logs IO-WEIGHT-FAILED but the pass still applies the cap and the other weight',
+      fn: async function failingWeightFile() {
+        /**
+         Inputs for a host whose io.weight cannot be read as a file.
+         */
+        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await rm(join(root, 'cgroup', 'io.weight',),);
+        await mkdir(join(root, 'cgroup', 'io.weight',),);
+        /**
+         State after one pass.
+         */
+        const state = await runPass({ state: FRESH, inputs, now: INTERVAL_MS, },);
+        expect(state.iteration,).toBe(1,);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
+        expect(await readFile(join(root, 'cgroup', 'io.bfq.weight',), 'utf8',),).toBe('default 10',);
+        expect(l.messages.error,).toHaveLength(1,);
+        expect(l.messages.error[0],).toContain('IO-WEIGHT-FAILED',);
       },
     },),
     it({
