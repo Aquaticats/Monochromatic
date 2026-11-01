@@ -354,12 +354,36 @@ pub struct RecoveryReport {
 /// await recover(context)
 /// ```
 pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
+    return recover_matching(context, None);
+}
+
+/// What:
+///  `recover`, for the batches of one repository only.
+/// Why:
+///   Each repository lands on its own thread, so a thread settles the open batches of its repository and leaves the others to
+///  the thread that owns them; two threads never finish the same batch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recoverFor(context, commonDir)
+/// ```
+pub fn recover_for(context: &LandContext, common_dir: &Path) -> Vec<RecoveryReport> {
+    return recover_matching(context, Some(common_dir));
+}
+
+fn recover_matching(context: &LandContext, only: Option<&Path>) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
         let Some(intent) = parsed else {
-            let _removed = std::fs::remove_file(&path);
+            // A record that cannot be read belongs to no repository: the run that starts the service removes it.
+            if only.is_none() {
+                let _removed = std::fs::remove_file(&path);
+            }
             continue;
         };
+        if only.is_some_and(|common_dir| { return intent.common_dir != common_dir; }) {
+            continue;
+        }
         let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
         let current: String = checked(&git, intent.repository.as_path(), &["rev-parse", "--verify", intent.reference.as_str()], None).unwrap_or_default();
         let ancestor: bool = run(&git, intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current.as_str()], None)
