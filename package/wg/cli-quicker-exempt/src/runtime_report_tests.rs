@@ -5,14 +5,16 @@
 //! and that the map of remembered kinds stays bounded.
 
 /// Reporter under test.
-use crate::desktop_notification::{notification_arguments, parse_notification_id, NOTIFICATION_EXPIRY_MS};
+use crate::desktop_notification::{notification_arguments, parse_notification_id, report_identity, NOTIFICATION_EXPIRY_MS};
 /// Reporter under test.
 use crate::runtime_report::{
     ReportChannel,
     RuntimeReporter,
     JOURNAL_INTERVAL,
     JOURNAL_PRIORITY,
+    held_suffix,
     normalized_cause,
+    without_held_suffix,
     JournalChannel,
     LogChannel,
     MAX_CAUSES_PER_KIND,
@@ -319,4 +321,20 @@ fn the_notification_id_is_read_from_the_client_output() {
 fn journal_lines_are_sent_at_error_level() {
     assert_eq!(JOURNAL_PRIORITY, libc::LOG_ERR);
     assert_ne!(JOURNAL_PRIORITY, libc::LOG_WARNING);
+}
+
+/// A repeat that carries the note of held-back repeats has the same identity as the first report of its cause,
+/// so a notification replaces its own earlier notification and not a second one beside it.
+#[test]
+fn a_line_with_the_held_repeats_note_has_the_identity_of_its_cause() {
+    let first = report_identity("move skipped", "POLICY NOT IN FORCE: pid 1 runs in a login session scope");
+    let repeat = format!("POLICY NOT IN FORCE: pid 2 runs in a login session scope{}", held_suffix(3));
+    assert_eq!(first, report_identity("move skipped", &repeat));
+    assert_ne!(first, report_identity("move skipped", "POLICY NOT IN FORCE: pid 1 runs in another pid namespace"));
+    assert_ne!(first, report_identity("move failed", "POLICY NOT IN FORCE: pid 1 runs in a login session scope"));
+    assert_eq!(without_held_suffix("x (repeated 12 more time(s) since the last report)"), "x");
+    assert_eq!(without_held_suffix("x (repeated many more time(s) since the last report)"), "x (repeated many more time(s) since the last report)");
+    assert_eq!(without_held_suffix("x (repeated  more time(s) since the last report)"), "x (repeated  more time(s) since the last report)");
+    assert_eq!(without_held_suffix("x"), "x");
+    assert_eq!(held_suffix(3), " (repeated 3 more time(s) since the last report)");
 }

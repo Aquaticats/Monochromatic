@@ -55,6 +55,37 @@ pub const MAX_EXTRA_CAUSES_PER_INTERVAL: usize = 32;
 /// Characters of a line that make up its normalized cause.
 const MAX_CAUSE_CHARS: usize = 200;
 
+/// Start of the note appended to a delivery that follows held-back repeats.
+const HELD_SUFFIX_HEAD: &str = " (repeated ";
+/// End of the note appended to a delivery that follows held-back repeats.
+const HELD_SUFFIX_TAIL: &str = " more time(s) since the last report)";
+
+/// The note appended to a delivery after `held` repeats were held back,
+/// so no occurrence is lost from the count.
+pub fn held_suffix(held: u32) -> String {
+    return format!("{HELD_SUFFIX_HEAD}{held}{HELD_SUFFIX_TAIL}");
+}
+
+/// Whether a character is an ASCII digit.
+fn is_digit(character: char) -> bool {
+    return character.is_ascii_digit();
+}
+
+/// The line without the note of held-back repeats,
+/// when it ends with one,
+/// so a line and its repeat with a count appended have the same cause.
+pub fn without_held_suffix(line: &str) -> &str {
+    if let Some(body) = line.strip_suffix(HELD_SUFFIX_TAIL)
+        && let Some(index) = body.rfind(HELD_SUFFIX_HEAD)
+    {
+        let count = &body[index + HELD_SUFFIX_HEAD.len()..];
+        if !count.is_empty() && count.chars().all(is_digit) {
+            return &line[..index];
+        }
+    }
+    return line;
+}
+
 /// The cause of a failure line with its numbers made alike,
 /// so the same reason for another process id,
 /// count or duration is the same cause,
@@ -274,7 +305,7 @@ impl Tier {
         if held == 0 {
             return self.channel.deliver(kind, line);
         }
-        return self.channel.deliver(kind, &format!("{line} (repeated {held} more time(s) since the last report)"));
+        return self.channel.deliver(kind, &format!("{line}{}", held_suffix(held)));
     }
 }
 

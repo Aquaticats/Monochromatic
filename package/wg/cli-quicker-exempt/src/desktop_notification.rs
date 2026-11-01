@@ -10,7 +10,7 @@ use crate::log_line::{escape_markup, log_line, sanitize};
 /// The channel trait,
 /// the cause normalizer
 /// and the bounds shared with the reporter.
-use crate::runtime_report::{normalized_cause, ReportChannel, MAX_CAUSES_PER_KIND, MAX_REMEMBERED_KINDS};
+use crate::runtime_report::{normalized_cause, without_held_suffix, ReportChannel, MAX_CAUSES_PER_KIND, MAX_REMEMBERED_KINDS};
 /// The client run as the watched user.
 use crate::user_client::UserClient;
 /// Replacement ids of the notifications shown.
@@ -71,8 +71,10 @@ pub fn parse_notification_id(output: &str) -> Option<u32> {
 /// the failure kind and the normalized cause,
 /// so two distinct causes of one kind are two notifications,
 /// and a repeat of one cause replaces its earlier notification.
-fn report_identity(kind: &str, line: &str) -> String {
-    return format!("{kind}\u{0}{}", normalized_cause(line));
+/// A line that follows held-back repeats carries a note with their count,
+/// which is not part of its cause.
+pub fn report_identity(kind: &str, line: &str) -> String {
+    return format!("{kind}\u{0}{}", normalized_cause(without_held_suffix(line)));
 }
 
 /// One notification waiting for the worker.

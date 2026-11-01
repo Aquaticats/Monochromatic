@@ -361,7 +361,9 @@ and the next delivery of that kind says "repeated N more time(s) since the last 
 so no occurrence is lost from the count;
 the identity of a held-back cause beyond the cap is not kept.
 A notification replaces the earlier one only of the same kind and cause,
-so distinct causes stay on the desktop side by side.
+so distinct causes stay on the desktop side by side;
+the note that counts held-back repeats is not part of the cause,
+so a repeat that carries it still replaces its first notification.
 
 While the watcher starts,
 the log file takes every report without the limit,
