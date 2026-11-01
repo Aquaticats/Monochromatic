@@ -2353,6 +2353,20 @@ Wave-4 sixty-ninth checkpoint (2026-11-01, three pnpm shims closed):
   node-domexception shim 001 rr-pnd-001, ungap shim 001 rr-pus-001,
   stub-silent 001 rr-pss-001, and stub-throwing 001 rr-pst-001.
 
+Wave-4 seventieth checkpoint (2026-11-01, node-domexception shim closed):
+
+- `w5-pnpm-shim-node-domexception` is COMPLETE: 5 rows, 5 of 5 clean; all 8
+  files reviewed, the two licenses shared verbatim. The inert-consumer claim and
+  the constructor typing mismatch are filed. Next id 006; the lane is released.
+- The pnpm family now has readable-stream, proper-lockfile, katex and
+  node-domexception complete; ungap-structured-clone, stub-silent and
+  stub-throwing are running.
+- The freed slot opens `package/music-player/truepeak-core.bench` (35 files,
+  `w5-truepeak-core-bench`, id 001, base rr-tpb-001, 50-turn cap).
+- Live lanes: planning 061 rr-dp-007, troubleshooting 137 rr-ts-387,
+  ungap shim 001 rr-pus-001, stub-silent 001 rr-pss-001, stub-throwing 001
+  rr-pst-001, and truepeak bench 001 rr-tpb-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
