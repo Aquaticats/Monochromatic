@@ -95,7 +95,11 @@ fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> {
         let request = ctx.request("cargo", &["uninstall", "--root", &cargo_home, "--bin", &plan.bin, &install.crate_name]);
         let outcome = ctx.run(&request);
         if !outcome.succeeded() {
-            return Err(format!("`{}` failed, so the copy stays: {}", request.line(), outcome.failure_text()));
+            return Err(format!(
+                "`{}` failed, so the copy stays (its links already moved); fix what cargo reports and run `mpm-shadow install` again: {}",
+                request.line(),
+                outcome.failure_text()
+            ));
         }
         record_note = format!("`cargo uninstall` removed it from cargo's record of {} {}", install.crate_name, install.version);
     }

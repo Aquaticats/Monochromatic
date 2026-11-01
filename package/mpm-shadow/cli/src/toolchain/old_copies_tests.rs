@@ -274,6 +274,24 @@ fn with_no_finished_managed_copy_the_old_one_and_every_link_to_it_stay_as_they_a
 }
 
 #[test]
+fn an_unfinished_managed_install_behind_current_is_not_a_managed_copy() {
+    let scene = Scene::new();
+    scene.write_old_copy();
+    make_link(&scene.local_git(), &scene.old_copy());
+    // An executable at the right path, but cargo never recorded the install: possibly a truncated one.
+    let unfinished = version_directory(&scene.rig.scope.toolchain_root, GIT_CRATE, "0.4.5");
+    write_executable(&unfinished.join("bin").join(GIT_BIN));
+    symlink("0.4.5", current_link(&scene.rig.scope.toolchain_root, GIT_CRATE)).expect("point current at it");
+    scene.list_worktrees(&[&scene.rig.scope.root]);
+    let plans = plan_old_copies(&scene.context(), &[]);
+    assert!(plans.plans[0].kept.as_deref().unwrap_or("").contains("only working copy"), "{plans:?}");
+    assert!(plans.plans[0].repoints.is_empty(), "{plans:?}");
+    let outcome = apply_old_copies(&scene.context(), &plans);
+    assert_eq!(fs::read_link(scene.local_git()).expect("a link"), scene.old_copy());
+    assert!(scene.old_copy().exists() && outcome.failed.is_empty(), "{outcome:?}");
+}
+
+#[test]
 fn a_tool_whose_install_failed_in_this_run_keeps_its_old_copy_even_when_an_older_managed_one_exists() {
     let scene = Scene::new();
     scene.write_old_copy();
@@ -434,6 +452,33 @@ fn the_git_wrapper_is_replaced_end_to_end_links_first_and_the_copy_and_its_recor
     .expect("synced again");
     assert!(again.old_copies.is_empty() && again.warnings.is_empty() && again.failed.is_empty(), "{again:?}");
     assert_eq!(scene.uninstalls(), 1, "no second uninstall");
+}
+
+#[test]
+fn a_failed_install_of_a_newer_version_leaves_the_old_copy_and_its_links_even_beside_an_older_managed_copy() {
+    let scene = Scene::new();
+    scene.cargo_uninstalls();
+    scene.write_old_copy();
+    scene.write_record("0.4.5");
+    scene.install_managed("0.4.1");
+    make_link(&scene.local_git(), &scene.old_copy());
+    scene.list_worktrees(&[&scene.rig.scope.root]);
+    scene.rig.runner.fail("cargo binstall", "error: could not fetch the crate");
+    let report = run_sync_with(
+        &scene.rig.scope,
+        &scene.rig.env,
+        &scene.rig.runner,
+        &scene.rig.http,
+        &scene.rig.host,
+        LockPolicy::Frozen(FrozenReason::Flag),
+    )
+    .expect("synced");
+    assert_eq!(report.failed.len(), 1, "the install failed and nothing else did: {report:?}");
+    assert!(report.old_copies.is_empty(), "no link moved and no copy went: {report:?}");
+    assert!(scene.old_copy().exists(), "this may be the only copy newer than the managed 0.4.1");
+    assert_eq!(fs::read_link(scene.local_git()).expect("a link"), scene.old_copy());
+    assert!(report.warnings.iter().any(|warning| return warning.contains("failed in this run")), "{report:?}");
+    assert_eq!(scene.uninstalls(), 0);
 }
 
 #[test]
