@@ -435,8 +435,118 @@ function preReleaseOf(version: string,): readonly string[] {
 }
 
 /**
- Orders two versions as `mpm-shadow` does (`version.rs`, `compare_versions`): by the numeric core as numbers
- (`0.2.10` is newer than `0.2.9`), then a release before its own pre-release, then pre-releases as text.
+ Whether a pre-release identifier is made of ASCII digits only.
+
+ @param identifier - One dot-separated pre-release identifier
+
+ @returns True for a non-empty run of digits
+
+ @example
+ ```ts
+ isNumericIdentifier('10',); // true
+ ```
+ */
+function isNumericIdentifier(identifier: string,): boolean {
+  return (identifier !== '')
+    && Array.from(identifier,)
+      .every(function isDigit(character,) {
+        return (character >= '0') && (character <= '9');
+      },);
+}
+
+/**
+ Orders two pre-release identifiers by SemVer 2.0.0: two numeric ones as numbers, a numeric one below an alphanumeric one, two
+ alphanumeric ones by ASCII (UTF-16 code unit) order.
+
+ @param left - Identifier from the first version
+
+ @param right - Identifier from the second version
+
+ @returns A negative number, 0, or a positive number
+
+ @example
+ ```ts
+ compareIdentifiers({ left: '2', right: '10', },); // negative
+ ```
+ */
+function compareIdentifiers(
+  {
+    left,
+    right,
+  }: {
+    readonly left: string;
+    readonly right: string;
+  },
+): number {
+  if (isNumericIdentifier(left,) && isNumericIdentifier(right,))
+    return Number(left,) - Number(right,);
+  if (isNumericIdentifier(left,))
+    return -1;
+  if (isNumericIdentifier(right,))
+    return 1;
+  if (left === right)
+    return 0;
+  return left < right ? -1 : 1;
+}
+
+/**
+ Orders two pre-release texts by SemVer 2.0.0 (`rc.2` is below `rc.10`, `alpha` below `alpha.1`): identifier by identifier, and when
+ all shared ones are equal the text with more identifiers is newer.
+
+ @param left - Pre-release text of the first version
+
+ @param right - Pre-release text of the second version
+
+ @returns A negative number, 0, or a positive number
+
+ @example
+ ```ts
+ comparePreRelease({ left: 'rc.2', right: 'rc.10', },); // negative
+ ```
+ */
+function comparePreRelease(
+  {
+    left,
+    right,
+  }: {
+    readonly left: string;
+    readonly right: string;
+  },
+): number {
+  /**
+   The dot-separated identifiers of the first text.
+   */
+  const leftIdentifiers = left.split('.',);
+  /**
+   The dot-separated identifiers of the second text.
+   */
+  const rightIdentifiers = right.split('.',);
+  /**
+   The first identifier pair that differs, if any.
+   */
+  const firstDifference = leftIdentifiers.map(function compareAt(
+    identifier,
+    index,
+  ) {
+    return index < rightIdentifiers.length
+      ? compareIdentifiers({
+        left: identifier,
+        right: rightIdentifiers[index] ?? '',
+      },)
+      : 0;
+  },)
+    .find(function differs(delta,) {
+      return delta !== 0;
+    },);
+  return firstDifference ?? (leftIdentifiers.length - rightIdentifiers.length);
+}
+
+/**
+ Orders two versions: by the numeric core as numbers (`0.2.10` is newer than `0.2.9`), then a release above its own
+ pre-release, as `mpm-shadow` does (`version.rs`, `compare_versions`), and then pre-release texts by SemVer 2.0.0 precedence
+ (`rc.2` below `rc.10`), where `mpm-shadow` compares them as plain text. The repository has SemVer comparisons in
+ `package/config/pnpr/src/version-order.ts` and `package/dependency-catalog/core-rust/src/semver.ts`; this module cannot import a
+ workspace package because it must run before `pnpm install`, so it carries the same rule.
 
  @param left - First version
 
@@ -487,7 +597,10 @@ export function compareVersions(
     return 1;
   if (rightPre === undefined)
     return -1;
-  return leftPre.localeCompare(rightPre,);
+  return comparePreRelease({
+    left: leftPre,
+    right: rightPre,
+  },);
 }
 
 /**

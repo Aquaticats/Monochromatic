@@ -547,6 +547,37 @@ await describe({
       ],
     },),
     describe({
+      name: 'compareVersions on pre-releases',
+      children: [
+        it({
+          name: 'follows the SemVer 2.0.0 precedence chain, numeric identifiers as numbers: rc.2 is below rc.10',
+          fn: async () => {
+            const chain = [
+              '1.0.0-alpha',
+              '1.0.0-alpha.1',
+              '1.0.0-alpha.beta',
+              '1.0.0-beta',
+              '1.0.0-beta.2',
+              '1.0.0-beta.11',
+              '1.0.0-rc.1',
+              '1.0.0',
+            ];
+            const pairs = chain.slice(1,).map(function pairWithPrevious(version, index,) {
+              return { older: chain[index] ?? '', newer: version, };
+            },);
+            for (const { older, newer, } of pairs) {
+              expect(compareVersions({ left: older, right: newer, },),).toBeLessThan(0,);
+              expect(compareVersions({ left: newer, right: older, },),).toBeGreaterThan(0,);
+            }
+            expect(compareVersions({ left: '0.2.2-rc.2', right: '0.2.2-rc.10', },),).toBeLessThan(0,);
+            expect(compareVersions({ left: '0.2.2-rc.10', right: '0.2.2-rc.10', },),).toBe(0,);
+            expect(compareVersions({ left: '0.2.2-Beta', right: '0.2.2-alpha', },),).toBeLessThan(0,);
+            expect(compareVersions({ left: '0.2.2-1', right: '0.2.2-a', },),).toBeLessThan(0,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: toolchainRootOf.name,
       children: [
         it({
