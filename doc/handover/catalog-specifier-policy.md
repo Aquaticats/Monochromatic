@@ -627,10 +627,38 @@ path stays underspecified. The observed git breakage is integration risk, not ev
 It asks for stronger warnings on two choices that went against my rankings: the `ignore` enumeration (a scope choice, not just a
 faster walk) and wrapper-first delivery (its marginal value dropped once the commit policy and CI existed).
 
+## Confirmation and the review-driven decisions (user answers, 2026-11-01)
+
+The user confirmed the shared understanding and the order below, after the third review was folded in.
+
+- CI bootstrap: the user chose "Install a pinned release from the lock", against my ranking (build from committed sources first).
+  Consequence, stated plainly: the CI workflow can land only after the cli-git release that contains the policy is named in
+  `toolchain.lock.json` (a `toolchain:update`, which moves every floating tool and needs the user's decision each time) and the
+  runner installs it from the lock into an isolated directory before the check; a stale lock turns CI red for infrastructure reasons.
+  The review also asked CI to force the policy at `error` or verify it is error-enabled; not yet designed (see not measured below).
+- Other manifest formats: the policy also rejects tracked `package.json5`, `package.yaml` and `package.yml` (the recommended option).
+- Wrapper timing: after the commit policy and CI (recommended); the wrapper stays wanted.
+- Adopted items were not objected to: `zod` catalog entry `>=4.6.7`; wrapper scan errors are advisory and pnpm still runs; the
+  wrapper never parses `--dir` or `-C`; the wrapper is a separate advisory check; CI promises detection, not prevention; the
+  library's byte-to-findings contract is written before code.
+- Order confirmed: `zod` fix, library contract and crate, cli-git policy built but not activated, CI bootstrap, activate the `error`
+  policy and CI, then the wrapper.
+
+## Progress log
+
+- 2026-11-01, step 1 done: `zod` moved into the `pnpm-workspace.yaml` catalog as `'zod': '>=4.6.7'` and `cost-dismissal` switched to
+  `"zod": "catalog:"`.
+  Measured: `pnpm install --lockfile-only` (also with `--config.optimistic-repeat-install=false`) left `pnpm-lock.yaml` byte-identical,
+  because the `overrides` entry `zod: '>=4.6.6'` replaces the specifier that the lockfile records, and
+  `pnpm install --frozen-lockfile --lockfile-only` printed no error (its exit status was masked by a pipe to `tail`, so the absence
+  of an error line is the evidence, not a status).
+  The policy scan (`~/temp/agent/scan-specifiers.ts`) now finds 257 manifests and zero violations.
+  Not run: a full `pnpm install` into `node_modules` and any test of `cost-dismissal`.
+
 ## Open items
 
-- The user has not confirmed that the shared understanding is complete. The third review (rule `RRG`) is folded in above, so the
-  confirmation question may now be asked, together with the decisions below that the review made necessary.
+- Nothing below was asked after the confirmation; the earlier list is kept for the record.
+- The third review (rule `RRG`) is folded in above.
 - Decisions the third review needs from the user: the CI bootstrap model (install a pinned native release, or build from committed
   sources); whether CI guarantees detection only or prevention through a required PR check (branch protection is the owner's
   setting); whether the policy also rejects tracked `package.json5` and `package.yaml` files; whether the wrapper ships after the
