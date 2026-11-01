@@ -795,19 +795,25 @@ Every such start, forwarded commands as well as the wrapper's own children (quer
 the auto-push, the reconcile and integration pushes, maintenance), carries
 `-c core.hooksPath=/dev/null/cli-git-no-hooks` after the caller's global options and before the subcommand.
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
-The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows except `pre-push`, so a hook
+The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows, `pre-push` included, so a hook
 defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
-The wrapper injects no hook of its own, so `pre-push` is switched off like every other event.
+It also carries `-c core.fsmonitor=false`: a `core.fsmonitor` that names a program is the hook `fsmonitor-watchman`,
+Git starts it without consulting the hooks path or any event switch (measured on Git 2.56.0), and the built-in monitor
+daemon is switched off with it.
+The wrapper injects no hook of its own, so no event is an exception.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
   The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
 - It follows every global option of the caller and precedes the subcommand, so no `-c core.hooksPath=<directory>`,
   `-c hook.<event>.enabled=true` or `--config-env` of the caller can bring a hook back, and the native commit repeats
   the options after the caller's (see "External hooks").
-  The push probe is the exception: its arguments carry their own hooks directory for the wrapper's recording hook.
-- `git config` starts go without it, because they report what the repository configures and the wrapper reads
-  `core.hooksPath` that way (the commit warning, `doctor`); a command reached through an alias of `config` is not
-  recognized and gets the option.
+- A command that reaches Git through an alias gets Git's own expansion from the wrapper (resolved from the alias
+  values it already reads for classification), so the options follow the `-c` options an alias value may carry;
+  put before the alias word they would lose to them (measured on Git 2.56.0).
+  A shell alias (`!...`) is run by Git's shell, and a `git` it starts through `PATH` is the wrapper again.
+- `git config` starts that only report or change configuration go without the options, because they report what the
+  repository configures and the wrapper reads `core.hooksPath` that way (the commit warning, `doctor`).
+  `git config --edit` (or `-e`) starts an editor, and a Git the editor starts inherits the options, so it gets them.
 - A child of Git inherits the settings through `GIT_CONFIG_PARAMETERS`, so a program Git starts (a filter, an editor) that
   starts `/usr/bin/git` runs it with hooks off as well; a local-path remote's `receive-pack` does not inherit it (measured by
   `a_local_remotes_server_side_hook_still_runs`), so server-side hooks of such a remote still run.
@@ -1741,8 +1747,7 @@ The shadow `config` has this layout:
   (`run_auto_maintenance` in Git's `builtin/commit.c`)
   never runs in the shadow.
 - `hook.post-commit.enabled` follows the include,
-  so the native commit never runs `post-commit` in the shadow;
-  the wrapper runs it after landing.
+  so the native commit never runs `post-commit` in the shadow, and nothing runs it after landing.
   It is a file value, not a `-c` option, so no hook inherits it through `GIT_CONFIG_PARAMETERS`.
 
 Cli-git writes the file itself,
@@ -1841,6 +1846,8 @@ and the executable does not read the name it was started under.
   real config defines, and the native commit repeats the hooks-off hooks path after the caller's global options.
 - The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
   commit ...` with no `--work-tree`: the shadow's `config` names the work tree.
+  A caller's `-c core.worktree` cannot redirect it: with an explicit `--git-dir`, Git reads the work tree from the git
+  directory's own config file only (measured on Git 2.56.0), and the wrapper removes `GIT_WORK_TREE` from the environment.
 - A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
   each commit, decided from the configuration snapshot the commit already holds: it names the `hook.<name>` keys, their
   events and the ways forward (remove the keys, or express what the hook checked as a cli-git policy under `policies`
@@ -1850,8 +1857,10 @@ and the executable does not read the name it was started under.
   A forwarded command other than a commit or a push prints no warning, because it reads no configuration snapshot.
 - `hooks.concurrentCommits` is retired: an older file that sets it loads, the value is ignored, and doctor says so.
 
-The wrapper executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`, not the
-git directory, not the environment.
+The wrapper itself executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`,
+not the git directory, not the environment.
+The programs Git starts for its own features (filters, editors, signing programs, credential helpers) are Git's, not the
+wrapper's, and stay; a program that is a hook (every hook event, and the program `core.fsmonitor` names) is switched off.
 `cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
 (`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
 What a hook checked belongs in a cli-git policy.
@@ -2687,7 +2696,7 @@ A wait whose holder is known when it begins prints its first notice at once and 
 A notice names what is waited for, the holder's process when it can be read,
 the time waited and the bound with the variable that changes it.
 
-- Owner locks (landing, hook, capture, registry): `still waiting for process N to release <subject> (<path>)
+- Owner locks (landing, capture, registry): `still waiting for process N to release <subject> (<path>)
   after S seconds; giving up after L seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place`;
   the first notice adds a hint.
   The line names "another cli-git process" when the record cannot be read.
@@ -3261,7 +3270,6 @@ and configuration:
   when its replay conflicts,
   when the holder is killed,
   and when the holder is a zombie;
-- two preparations serialize their hooks by default and overlap with `hooks.concurrentCommits: true`;
 - concurrency config defaults,
   each valid value,
   zero,
@@ -3654,7 +3662,6 @@ Measure these scenarios separately:
   and 8 with disjoint paths;
 - same-file non-overlapping replays;
 - conflicting pairs;
-- a slow hook with `hooks.concurrentCommits` set to `false` and to `true`;
 - a sweep of `landing.reserveAfterLostRaces` that confirms or replaces the default.
 
 The sweep decides the default by the owner's rule,

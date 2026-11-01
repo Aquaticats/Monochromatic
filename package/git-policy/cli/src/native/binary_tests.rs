@@ -169,6 +169,10 @@ mod lfs_server;
 #[path = "binary_hooks_off_tests.rs"]
 mod hooks_off;
 
+/// A configuration cannot make a Git the wrapper started run a hook through an alias, a monitor program or an editor.
+#[path = "binary_hooks_off_escape_tests.rs"]
+mod hooks_off_escape;
+
 /// The notices of a commit that waits: what it waits for, who holds it, the repeat, and the bound.
 #[path = "binary_wait_notice_tests.rs"]
 mod wait_notice;

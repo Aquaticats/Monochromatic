@@ -79,7 +79,11 @@ fn read_only_commands_start_at_most_the_location_query() {
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
     // The hooks-off options the wrapper puts in front of the subcommand are not part of the count's question, so the
     //  log leaves them out when nothing precedes them; a global option the wrapper adds itself precedes them.
-    let mut hooks_off: String = format!("-c core.hooksPath={} ", git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY);
+    let mut hooks_off: String = format!(
+        "-c core.hooksPath={} -c {} ",
+        git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY,
+        git_policy_cli::hooks_off::FSMONITOR_OFF
+    );
     for event in git_policy_cli::hooks_off::switched_off_events() {
         hooks_off.push_str(format!("-c hook.{event}.enabled=false ").as_str());
     }
