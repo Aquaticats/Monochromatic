@@ -15,7 +15,7 @@ import { rejectionReachedPerson, } from './push-rejection-fixture.ts';
 /**
  Notice the service leaves for a refused push, as a later wrapped command shows it.
  */
-const NOTICE = 'The backup push of branch main failed for your commit abcdef0.\n'
+const NOTICE = 'The backup push of branch main failed for commit abcdef0.\n'
   + ' ! [rejected] main -> main (non-fast-forward)\nauto-push to origin failed\n';
 
 /**

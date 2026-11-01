@@ -25,7 +25,7 @@ use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
-use super::landed_summary::{short_name, subject_of, summary_line};
+use super::landed_summary::{change_summary, short_name, subject_of, summary_line};
 use super::service_commit_args::{ServiceCommitArgs, asks_for_quiet, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
 use super::service_land::LANDING_ATTEMPTS;
@@ -273,6 +273,13 @@ pub fn try_service_commit<F: RepositoryFacts>(
                         commit.as_str(),
                     );
                     print_summary(summary_line(ready.reference.as_str(), first_parent.as_str(), name.as_str(), subject_of(message).as_str()).as_str());
+                    if embedded_made.is_none() {
+                        // Git's own build printed what changed; it was told to be quiet, so the same lines are asked once.
+                        let changes: String = change_summary(invocation.context, invocation.cwd, first_parent.as_str(), commit.as_str());
+                        if !changes.is_empty() {
+                            print_summary(changes.as_str());
+                        }
+                    }
                 }
                 // The corrections a policy made reach the worktree once the commit has landed, as the earlier landing did.
                 install_added_worktree_files(

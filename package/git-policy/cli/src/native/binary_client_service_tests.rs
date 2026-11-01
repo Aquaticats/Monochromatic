@@ -118,6 +118,8 @@ fn a_commit_git_builds_prints_one_summary_line_and_quiet_prints_none() {
     assert_eq!(lines.len(), 1, "{:?}", String::from_utf8_lossy(&built.stdout));
     assert_eq!(lines[0].1, git_short_head(&fixture, &repo));
     assert!(lines[0].0.ends_with("built by git"), "{}", lines[0].0);
+    // Git's own summary of a commit it builds also tells what changed, as native `git commit` prints it.
+    assert!(String::from_utf8_lossy(&built.stdout).contains(" 1 file changed, 1 insertion(+)"), "{:?}", String::from_utf8_lossy(&built.stdout));
     for options in [&["--quiet"][..], &["-q"], &["-qn"]] {
         std::fs::write(repo.join("a.txt"), format!("quiet {options:?}\n")).expect("edit");
         let mut arguments: Vec<&str> = vec!["commit"];
