@@ -1042,6 +1042,29 @@ each finished branch is reviewed and merged into `main`):
   NotFound as done,
   prune and the global forward,
   a stale `current` in the winning root.
+- Switch fixes reported 2026-11-01,
+  tip `3adda252e7` (`5adc06997f` code and tests,
+  `3adda252e7` docs):
+  "At least the lock's version" in the candidate judgement;
+  a wrong cached copy is replaced and re-checked (mutation-checked test);
+  the bootstrap cache is gone,
+  and a fetched mpm-shadow installs into `<data home>/monochromatic-dev/toolchain/mpm-shadow/<version>/`
+  the way mpm-shadow's archive route does;
+  one-line failures,
+  dead-process leftovers cleaned,
+  a 10 s `--version` timeout,
+  Node 24 stated.
+  `Local file drift` verified on an export (`write`,
+  then `check --outputs local` and `check`,
+  exit 0).
+  The live rule `/etc/opensnitchd/rules/000-allow-monochromatic-toolchain-install-roots.json` allows
+  `process.path` matching `^(?:/home/user/\.local/share/monochromatic-dev|/var/home/user/\.local/share/monochromatic-dev)/toolchain(?:-global)?/`,
+  so the new location is covered without the toolchain adapting to the firewall.
+  The switch lock is behind `main` on `cargo:monochromatic-git-policy-cli` (0.4.5 vs 0.4.6) and `rust`
+  (`nightly-2026-10-31` vs `nightly-2026-11-01`);
+  the final regeneration moves both,
+  plus mpm-shadow to 0.2.2.
+  Delta re-check of `254c474ccb..3adda252e7` running.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
