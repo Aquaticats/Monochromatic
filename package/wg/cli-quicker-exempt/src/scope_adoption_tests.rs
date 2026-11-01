@@ -6,7 +6,7 @@
 //! and the real manager in an ignored test.
 
 /// The limits a scope carries.
-use crate::inherited_limits::InheritedLimits;
+use crate::inherited_limits::{DeviceLimits, InheritedLimits};
 /// Adoption under test.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter, BusctlAdopter, Joined, LimitRequest};
 /// The arguments under test.
@@ -105,7 +105,7 @@ fn the_limit_change_sends_every_limit_with_unlimited_for_the_absent_ones() {
     let arguments = set_properties_arguments(SCOPE, &InheritedLimits { cpu_quota_per_sec_usec: Some(250_000), ..InheritedLimits::default() });
     assert_eq!(arguments[5], "SetUnitProperties");
     assert_eq!(arguments[6], "sba(sv)");
-    assert_eq!(arguments[7..10], [SCOPE, "true", "6"]);
+    assert_eq!(arguments[7..10], [SCOPE, "true", "10"]);
     let unlimited = u64::MAX.to_string();
     for (name, value) in [
         ("CPUQuotaPerSecUSec", "250000"),
@@ -117,6 +117,30 @@ fn the_limit_change_sends_every_limit_with_unlimited_for_the_absent_ones() {
     ] {
         assert!(arguments.windows(3).any(|window| return window == [name, "t", value]), "{name}");
     }
+}
+
+/// The limits `io.max` sets per device are sent as arrays of device path and number,
+/// with the property count covering each non-empty kind on a new scope,
+/// and all four kinds on a live scope,
+/// an empty one clearing that kind.
+#[test]
+fn per_device_limits_are_sent_as_arrays_of_device_paths_and_numbers() {
+    let mut limits = InheritedLimits::default();
+    limits.io_devices.insert("259:0".to_string(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
+    limits.io_devices.insert("8:0".to_string(), DeviceLimits { read_bandwidth: Some(2_097_152), ..DeviceLimits::default() });
+    let created = create_arguments(SCOPE, SLICE, &[10], &limits);
+    assert_eq!(created[9], "7", "five fixed properties and two kinds of device limit");
+    let read_at = created.iter().position(|argument| return argument == "IOReadBandwidthMax").expect("the read bandwidth property");
+    assert_eq!(created[read_at..read_at + 7], ["IOReadBandwidthMax", "a(st)", "2", "/dev/block/259:0", "1048576", "/dev/block/8:0", "2097152"]);
+    let iops_at = created.iter().position(|argument| return argument == "IOWriteIOPSMax").expect("the write iops property");
+    assert_eq!(created[iops_at..iops_at + 5], ["IOWriteIOPSMax", "a(st)", "1", "/dev/block/259:0", "500"]);
+    assert!(!created.iter().any(|argument| return argument == "IOWriteBandwidthMax" || argument == "IOReadIOPSMax"), "a kind no device has is left out of a new scope");
+    let live = set_properties_arguments(SCOPE, &limits);
+    assert_eq!(live[9], "10");
+    let live_at = live.iter().position(|argument| return argument == "IOWriteBandwidthMax").expect("the write bandwidth property");
+    assert_eq!(live[live_at..live_at + 3], ["IOWriteBandwidthMax", "a(st)", "0"], "an empty array clears the kind on a live scope");
+    let cleared = set_properties_arguments(SCOPE, &InheritedLimits::default());
+    assert_eq!(cleared.iter().filter(|argument| return argument.as_str() == "a(st)").count(), 4);
 }
 
 /// Stopping names the unit and replaces a queued job.
@@ -489,6 +513,25 @@ fn an_existing_slice_is_not_requested_again() {
     assert!(place.adopter.ensure_slice(uid, gid, SLICE, &directory.join("absent")).is_err());
 }
 
+/// The `major:minor` of the first whole block device of this machine,
+/// the spelling `io.max` uses,
+/// or `None` when it has none to limit.
+fn a_whole_block_device() -> Option<String> {
+    let mut names: Vec<String> = std::fs::read_dir("/dev/block").ok()?.flatten().filter_map(device_name).collect();
+    names.sort();
+    return names.into_iter().find(is_whole_device);
+}
+
+/// The file name of a directory entry as text.
+fn device_name(entry: std::fs::DirEntry) -> Option<String> {
+    return entry.file_name().into_string().ok();
+}
+
+/// Reports whether a `major:minor` names a disk and not one of its partitions.
+fn is_whole_device(name: &String) -> bool {
+    return !Path::new("/sys/dev/block").join(name).join("partition").exists();
+}
+
 /// Creates a scope for a real sleeping child in a throwaway slice of the user's own manager,
 /// attaches a second child to it,
 /// gives it new limits,
@@ -505,16 +548,22 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     let scope = format!("wg-quicker-update-wgtest-{first_pid}.scope");
     let (uid, gid) = own_ids();
     let adopter = BusctlAdopter::new();
-    let limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), io_weight: Some(10), ..InheritedLimits::default() };
+    let mut limits = InheritedLimits { memory_max: Some(1_073_741_824), cpu_quota_per_sec_usec: Some(2_000_000), tasks_max: Some(64), io_weight: Some(10), ..InheritedLimits::default() };
+    let device = a_whole_block_device();
+    if let Some(name) = &device {
+        limits.io_devices.insert(name.clone(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
+    }
     let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
     let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
     let directory = scope_cgroup_directory(Path::new("/sys/fs/cgroup"), uid, slice, &scope);
     let read = |name: &str| return std::fs::read_to_string(directory.join(name)).unwrap_or_default().trim().replace('\n', " | ");
     let (created_cpu, created_memory, created_tasks, created_weight, created_bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));
+    let created_io_max = read("io.max");
     let relaxed = InheritedLimits { cpu_quota_per_sec_usec: Some(500_000), ..InheritedLimits::default() };
     let applied = adopter.apply_limits(&LimitRequest { uid, gid, slice, scope_name: &scope, limits: &relaxed });
     let members = read("cgroup.procs");
     let (cpu, memory, tasks, weight, bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));
+    let io_max = read("io.max");
     let _killed = first.kill();
     let _killed_second = second.kill();
     let _reaped = first.wait();
@@ -529,6 +578,11 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     println!("after the change: members {members}; cpu.max {cpu}; memory.max {memory}; pids.max {tasks}; io.weight {weight}; io.bfq.weight {bfq}");
     assert!(created_cpu.starts_with("200000 ") && created_memory == "1073741824" && created_tasks == "64", "{created_cpu} {created_memory} {created_tasks}");
     assert!(created_weight == "default 10" && created_bfq == "default 10", "{created_weight} {created_bfq}");
+    println!("device {device:?}: io.max at creation {created_io_max:?}, after the change {io_max:?}");
+    if let Some(name) = &device {
+        assert_eq!(created_io_max, format!("{name} rbps=1048576 wbps=max riops=max wiops=500"));
+    }
+    assert_eq!(io_max, "", "the per-device limits were cleared when the origin had none");
     assert!(members.contains(&first_pid.to_string()) && members.contains(&second_pid.to_string()), "{members}");
     assert!(cpu.starts_with("50000 "), "{cpu}");
     assert_eq!(memory, "max");

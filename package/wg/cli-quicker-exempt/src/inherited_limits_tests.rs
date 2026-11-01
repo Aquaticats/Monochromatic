@@ -3,7 +3,7 @@
 //! and rendered as unit properties.
 
 /// Reading and rendering under test.
-use crate::inherited_limits::{parse_cpu_max, parse_io_weight, parse_limit, read_inherited_limits, InheritedLimits};
+use crate::inherited_limits::{parse_cpu_max, parse_io_max, parse_io_weight, parse_limit, read_inherited_limits, DeviceLimits, InheritedLimits};
 /// Fixture paths.
 use std::path::{Path, PathBuf};
 
@@ -159,4 +159,49 @@ fn all_properties_name_every_limit() {
     let some = InheritedLimits { memory_max: Some(7), io_weight: Some(10), ..InheritedLimits::default() }.all_properties();
     assert_eq!(some[1], ("MemoryMax", 7));
     assert_eq!(some[5], ("IOWeight", 10));
+}
+
+/// `io.max` lines name a device and its four limits,
+/// `max` is no limit,
+/// a device with nothing finite is not listed,
+/// a key this parser does not know is skipped,
+/// and a line that cannot be understood is an error.
+#[test]
+fn io_max_lines_parse_per_device() {
+    let parsed = parse_io_max("259:0 rbps=1048576 wbps=max riops=max wiops=500\n8:0 rbps=max wbps=max riops=max wiops=max\n8:16 rbps=10 future=7\n").expect("parses");
+    assert_eq!(parsed.len(), 2, "{parsed:?}");
+    assert_eq!(parsed["259:0"], DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
+    assert_eq!(parsed["8:16"], DeviceLimits { read_bandwidth: Some(10), ..DeviceLimits::default() });
+    assert!(parse_io_max("").expect("empty").is_empty());
+    for garbled in ["sda rbps=1\n", "8:0 rbps\n", "8:0 rbps=fast\n", ":0 rbps=1\n"] {
+        assert!(parse_io_max(garbled).is_err(), "{garbled:?}");
+    }
+}
+
+/// The per-device limits of the origin reach the scope,
+/// keyed by device,
+/// the smallest value of each kind on the way up wins,
+/// and a missing file is no limit.
+#[test]
+fn the_per_device_limits_of_the_origin_are_carried() {
+    let root = tree("io-max");
+    let outer = format!("{APP_SLICE}/app-build.slice");
+    let origin = format!("{outer}/app-build-1.scope");
+    set(&root, &outer, &[("io.max", "259:0 rbps=2000000 wbps=max riops=max wiops=max")]);
+    set(&root, &origin, &[("io.max", "259:0 rbps=3000000 wbps=500000 riops=max wiops=max\n8:0 rbps=max wbps=max riops=100 wiops=max")]);
+    let limits = read_inherited_limits(&root, &origin, DESTINATION).expect("readable");
+    assert_eq!(limits.io_devices["259:0"], DeviceLimits { read_bandwidth: Some(2_000_000), write_bandwidth: Some(500_000), ..DeviceLimits::default() });
+    assert_eq!(limits.io_devices["8:0"], DeviceLimits { read_iops: Some(100), ..DeviceLimits::default() });
+    let properties = limits.device_properties();
+    assert_eq!(properties[0], ("IOReadBandwidthMax", vec![("/dev/block/259:0".to_string(), 2_000_000)]));
+    assert_eq!(properties[1], ("IOWriteBandwidthMax", vec![("/dev/block/259:0".to_string(), 500_000)]));
+    assert_eq!(properties[2], ("IOReadIOPSMax", vec![("/dev/block/8:0".to_string(), 100)]));
+    assert_eq!(properties[3], ("IOWriteIOPSMax", Vec::new()));
+    let plain = tree("io-max-plain");
+    set(&plain, &origin, &[("cpu.max", "max 100000")]);
+    assert!(read_inherited_limits(&plain, &origin, DESTINATION).expect("readable").io_devices.is_empty());
+    let garbled = tree("io-max-garbled");
+    set(&garbled, &origin, &[("io.max", "8:0 rbps=fast")]);
+    let error = read_inherited_limits(&garbled, &origin, DESTINATION).expect_err("a garbled file");
+    assert!(error.to_string().contains("io.max"), "{error}");
 }

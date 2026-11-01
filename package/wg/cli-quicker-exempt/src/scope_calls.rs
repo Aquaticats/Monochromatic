@@ -32,6 +32,21 @@ fn push_number(arguments: &mut Vec<String>, name: &str, value: u64) {
     arguments.push(value.to_string());
 }
 
+/// Appends one per-device property:
+/// the name,
+/// the type `a(st)`,
+/// the number of entries,
+/// and each entry as a device path and a number.
+fn push_device_array(arguments: &mut Vec<String>, name: &str, entries: &[(String, u64)]) {
+    arguments.push(name.to_string());
+    arguments.push("a(st)".to_string());
+    arguments.push(entries.len().to_string());
+    for (path, value) in entries {
+        arguments.push(path.clone());
+        arguments.push(value.to_string());
+    }
+}
+
 /// Builds the arguments for `StartTransientUnit` of a slice.
 pub fn ensure_slice_arguments(slice: &str) -> Vec<String> {
     let mut arguments = manager_call("StartTransientUnit", "ssa(sv)a(sa(sv))");
@@ -53,10 +68,16 @@ pub fn ensure_slice_arguments(slice: &str) -> Vec<String> {
 /// so a scope that failed to start leaves no unit behind.
 pub fn create_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &InheritedLimits) -> Vec<String> {
     let limit_properties = limits.properties();
+    let mut device_properties: Vec<(&'static str, Vec<(String, u64)>)> = Vec::new();
+    for (name, entries) in limits.device_properties() {
+        if !entries.is_empty() {
+            device_properties.push((name, entries));
+        }
+    }
     let mut arguments = manager_call("StartTransientUnit", "ssa(sv)a(sa(sv))");
     arguments.push(scope_name.to_string());
     arguments.push("fail".to_string());
-    arguments.push((5 + limit_properties.len()).to_string());
+    arguments.push((5 + limit_properties.len() + device_properties.len()).to_string());
     arguments.extend(["Slice", "s"].map(str::to_string));
     arguments.push(slice.to_string());
     arguments.extend(["PIDs", "au"].map(str::to_string));
@@ -68,6 +89,9 @@ pub fn create_arguments(scope_name: &str, slice: &str, pids: &[i32], limits: &In
     arguments.extend(["CollectMode", "s", "inactive-or-failed"].map(str::to_string));
     for (name, value) in limit_properties {
         push_number(&mut arguments, name, value);
+    }
+    for (name, entries) in &device_properties {
+        push_device_array(&mut arguments, name, entries);
     }
     arguments.push("0".to_string());
     return arguments;
@@ -90,16 +114,21 @@ pub fn attach_arguments(scope_name: &str, pids: &[i32]) -> Vec<String> {
 /// Builds the arguments for `SetUnitProperties` with `runtime` set,
 /// so the live scope gets every limit again:
 /// a limit the origin no longer sets goes back to unlimited,
-/// and the I/O weight back to the kernel default,
+/// the I/O weight back to the kernel default,
+/// and a kind of per-device limit that no device has any more is sent as an empty array,
 /// because leaving a property out would keep the old value.
 pub fn set_properties_arguments(scope_name: &str, limits: &InheritedLimits) -> Vec<String> {
     let properties = limits.all_properties();
+    let device_properties = limits.device_properties();
     let mut arguments = manager_call("SetUnitProperties", "sba(sv)");
     arguments.push(scope_name.to_string());
     arguments.push("true".to_string());
-    arguments.push(properties.len().to_string());
+    arguments.push((properties.len() + device_properties.len()).to_string());
     for (name, value) in properties {
         push_number(&mut arguments, name, value);
+    }
+    for (name, entries) in &device_properties {
+        push_device_array(&mut arguments, name, entries);
     }
     return arguments;
 }

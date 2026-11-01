@@ -390,7 +390,21 @@ The limits are `cpu.max` as `CPUQuotaPerSecUSec`,
 `memory.high` as `MemoryHigh`,
 `memory.swap.max` as `MemorySwapMax`,
 `pids.max` as `TasksMax`,
-and the `default` line of `io.weight` as `IOWeight`.
+the `default` line of `io.weight` as `IOWeight`,
+and the per-device limits of `io.max` (`rbps`,
+`wbps`,
+`riops` and `wiops`)
+as `IOReadBandwidthMax`,
+`IOWriteBandwidthMax`,
+`IOReadIOPSMax` and `IOWriteIOPSMax`,
+keyed by device.
+The manager takes a device as a path,
+so the `major:minor` of the file is sent as `/dev/block/<major>:<minor>`,
+a symbolic link that udev keeps for every block device and the manager resolves to the device;
+a device that is gone when the limit is applied is skipped by the manager.
+A throwaway scope showed the kernel's `io.max` of the scope holding the line the properties describe,
+and an empty array cleared it.
+Of the origin's cgroups the smallest finite value of each kind and device is used.
 The manager writes `IOWeight` to `io.weight` and to `io.bfq.weight`
 (`set_io_weight` in `src/core/cgroup.c`,
 lines 1443 to 1452),
