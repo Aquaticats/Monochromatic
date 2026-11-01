@@ -328,6 +328,7 @@ export async function observeRun({
         repository,
         attempt,
         attempts: snapshot.attempts,
+        auxiliaries: snapshot.auxiliaries,
         history,
         checks,
         records,

@@ -32,6 +32,7 @@ import {
 } from './jsonl-event-fixture.ts';
 import {
   type AttemptRecord,
+  type AuxiliaryRecord,
   type CapturedPath,
   contentOf,
 } from './ledger-fixture.ts';
@@ -94,6 +95,11 @@ const PUSH_FAILED_NOTE = 'auto-push to origin failed';
 const RECONCILE_FAILED_LINE = 'auto-push: not published:';
 
 /**
+ Characters of a commit ID the push failure notice shows (`SHORT_COMMIT` in `src/native/push_failure_notice.rs`).
+ */
+const SHORT_COMMIT_LENGTH = 7;
+
+/**
  Whether an attempt's stderr shows Git's non-fast-forward refusal together with one of the two ways the wrapper says
  the commit was not published.
 
@@ -109,6 +115,76 @@ function surfacesPushRejection(stderr: string,): boolean {
     ].some(function mentioned(note,) {
       return stderr.includes(note,);
     },);
+}
+
+/**
+ Whether the rejection of an attempt's push was surfaced to the person:
+ on the attempt's own stderr,
+ or, because the service pushes after the commit returned,
+ on the stderr of a later wrapped command in the same repository
+ that names one of the attempt's commits.
+ The notice names the commit by its first seven characters (`push_failure_text` in `src/native/push_failure_notice.rs`),
+ so a notice about another commit does not count.
+
+ @param attempt - attempt whose commit landed
+
+ @param attempts - every recorded attempt
+
+ @param auxiliaries - every recorded non-commit command
+
+ @param commits - object IDs of the commits carrying the attempt's token
+
+ @returns whether the rejection was surfaced
+
+ @example
+ ```ts
+ rejectionReachedPerson({ attempt, attempts, auxiliaries, commits: ['a1b2c3d4'] });
+ ```
+ */
+export function rejectionReachedPerson({
+  attempt,
+  attempts,
+  auxiliaries,
+  commits,
+}: Readonly<{
+  attempt: AttemptRecord;
+  attempts: readonly AttemptRecord[];
+  auxiliaries: readonly AuxiliaryRecord[];
+  commits: readonly string[];
+}>,): boolean {
+  if (surfacesPushRejection(attempt.outcome
+    .stderr,))
+    return true;
+  /**
+   Stderr of every wrapped command that started after the attempt.
+   */
+  const later: readonly string[] = [
+    ...attempts
+      .filter(function startedLater(other,) {
+        return (other.startedAt > attempt.startedAt) && (other.mode !== 'foreign');
+      },)
+      .map(function stderrOf(other,) {
+        return other.outcome
+          .stderr;
+      },),
+    ...auxiliaries
+      .filter(function wrapped(auxiliary,) {
+        return auxiliary.wrapper;
+      },)
+      .map(function stderrOf(auxiliary,) {
+        return auxiliary.outcome
+          .stderr;
+      },),
+  ];
+  return later.some(function namesTheCommit(stderr,) {
+    return surfacesPushRejection(stderr,)
+      && commits.some(function shown(oid,) {
+        return stderr.includes(oid.slice(
+          0,
+          SHORT_COMMIT_LENGTH,
+        ),);
+      },);
+  },);
 }
 
 //endregion Types
@@ -399,10 +475,12 @@ export async function observeAttempt({
   records,
   amendedPublished,
   attempts,
+  auxiliaries,
 }: Readonly<{
   repository: ScenarioRepository;
   attempt: AttemptRecord;
   attempts: readonly AttemptRecord[];
+  auxiliaries: readonly AuxiliaryRecord[];
   history: readonly HistoryCommit[];
   checks: HookChecks;
   records: ReadonlyMap<string, number>;
@@ -533,8 +611,14 @@ export async function observeAttempt({
       ],
     ...(landedEventOid === undefined ? {} : { landedEventOid, }),
     requiresRemote: attempt.requiresRemote,
-    pushRejectionSurfaced: surfacesPushRejection(attempt.outcome
-      .stderr,),
+    pushRejectionSurfaced: rejectionReachedPerson({
+      attempt,
+      attempts,
+      auxiliaries,
+      commits: carrying.map(function oidOf(commit,) {
+        return commit.oid;
+      },),
+    },),
   };
 }
 

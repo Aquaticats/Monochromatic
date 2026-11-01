@@ -944,7 +944,11 @@ remaining failure asserts machinery that part 2 deletes:
 - `budget` (5): process and sync budgets of the earlier transaction; the service route needs its own.
 - `merge_isolation` (1): a commit waiting for a running merge under the landing lock.
 - `index_pack_fsync` (2): the migration `index-pack` of the earlier landing, which no longer exists. The service writes
-  objects with the person's own `core.fsync`; whether it should override it as the migration did is a decision for the owner.
+  objects with the person's own `core.fsync`. The coordinator decided the service respects that setting, as it leaves
+  `core.fsmonitor` as configured, so both controls (`only_the_migration_index_pack_gets_the_fsync_override` and
+  `the_fsync_override_beats_a_users_core_fsync`, in `binary_index_pack_fsync_tests.rs`) were retired with the 0.5.5
+  integration. The earlier landing's override stays in the code until the machinery part 2 deletes it, and has no control
+  of its own in the meantime; the process and sync counts of `binary_budget_tests.rs` still cover its default configuration.
 
 The push tests were restated, not retired: the push runs after the command returned, in the service's environment. The
 harness waits for the work records to settle, gives the fixture service the variables a control sets for the push, and

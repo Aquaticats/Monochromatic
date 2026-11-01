@@ -910,7 +910,7 @@ Before the compare-and-swap, a commit's new objects reach the real object store 
 `git index-pack --stdin --keep=...` (see "Object migration" in `SPEC.md`).
 That one child runs with `-c core.fsync=-pack,-pack-metadata`, which takes the pack and its index and reverse index out
 of the files Git flushes: the child makes no `fsync` call, where it made three by default
-(`src/native/binary_budget_tests.rs`, `src/native/binary_index_pack_fsync_tests.rs`).
+(`src/native/binary_budget_tests.rs`; the service route does not override your `core.fsync`).
 The setting comes after the invocation's own `-c` options on that child's command line, so it replaces a `core.fsync`
 you configured, for the migration `index-pack` only; every other Git child of the wrapper keeps your configuration.
 
