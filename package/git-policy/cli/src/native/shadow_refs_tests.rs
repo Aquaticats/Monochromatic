@@ -1,6 +1,7 @@
 //! Controls for the shadow ref store, on both ref backends.
 
 use super::*;
+use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
@@ -94,6 +95,29 @@ fn files_shadow_snapshots_refs_and_points_head_at_the_branch() {
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/heads/main"]), head);
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/tags/v1"]), head);
     assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "refs/heads/alias"]), "refs/heads/main");
+    remove(root.as_path());
+}
+
+/// The files snapshot is published whole and made no file sync: the shadow is thrown away, and nothing reads its refs
+///  after a crash.
+#[test]
+fn the_files_snapshot_is_not_synced() {
+    let root: PathBuf = fixture("shadow-refs-files-sync");
+    let (repo, head) = decorated_repository(root.as_path());
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    take_file_syncs();
+    write_shadow_refs(
+        &git_context(),
+        repo.as_path(),
+        shadow.as_path(),
+        RefFormat::Files,
+        "refs/heads/main",
+        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &Base::Commit(head),
+    )
+    .expect("refs");
+    assert!(shadow.join("packed-refs").is_file());
+    assert_eq!(take_file_syncs(), Vec::<PathBuf>::new());
     remove(root.as_path());
 }
 

@@ -18,8 +18,8 @@
 /// One shadow Git start, one real Git start, and their failure text.
 use super::shadow_git::shadow_request;
 use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
-/// Private file writes for the snapshot.
-use super::private_storage::write_private_file;
+/// Private file writes for the snapshot, published whole and not synced.
+use super::private_storage::write_private_file_unsynced;
 /// Journal enums: the ref backend, the base and the symbolic `HEAD` at invocation.
 use super::transaction_journal::{Base, RefFormat, SymbolicHead};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -172,7 +172,9 @@ pub fn write_shadow_refs(
     let refs: Vec<RefSnapshotEntry> = list_real_refs(context, cwd)?;
     match ref_format {
         RefFormat::Files => {
-            write_private_file(
+            // Unsynced: nothing reads the throwaway shadow's refs after a crash on the files backend, so a torn or lost
+            // `packed-refs` changes no recovery outcome (`binary_recovery_tearing_shadow_tests.rs`).
+            write_private_file_unsynced(
                 PathBuf::from(shadow).join("packed-refs").as_path(),
                 format_packed_refs(&refs, target_ref).as_bytes(),
             )

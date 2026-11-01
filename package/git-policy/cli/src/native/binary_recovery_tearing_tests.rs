@@ -21,6 +21,10 @@
 #[path = "binary_recovery_tearing_expected.rs"]
 mod expected;
 
+/// The shadow repository's `packed-refs` damaged at every phase.
+#[path = "binary_recovery_tearing_shadow_tests.rs"]
+mod shadow_refs;
+
 use super::commit::{git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
 use super::support::{Fixture, bounded_for, direct, fixture, git, repository, wrapper_first_path};
 use git_policy_cli::transaction_registry::is_transaction_id;
