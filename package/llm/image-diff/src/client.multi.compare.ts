@@ -30,7 +30,7 @@ const l = tagged({ tag: 'image-diff', },);
 /**
  All available provider names, used when dispatching to all providers.
  */
-const ALL_PROVIDERS: readonly Provider[] = [
+export const ALL_PROVIDERS: readonly Provider[] = [
   'voyage',
   'gemini',
 ];
