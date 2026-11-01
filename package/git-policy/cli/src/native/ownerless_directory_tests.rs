@@ -12,7 +12,7 @@ fn nobody(_directory: &Path) -> UseScan {
 
 /// A scan that finds one process.
 fn one_user(_directory: &Path) -> UseScan {
-    return UseScan { users: vec![ProcessUser { pid: 4242, command: Some(String::from("hook")) }], unreadable: Vec::new() };
+    return UseScan { users: vec![ProcessUser { pid: 4242, command: Some(String::from("hook")) }], ..UseScan::default() };
 }
 
 /// Date a path.

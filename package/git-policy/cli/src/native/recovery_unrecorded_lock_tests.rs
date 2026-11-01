@@ -29,12 +29,17 @@ fn nobody(_target: &UseTarget<'_>) -> UseScan {
 
 /// A scan that finds a process holding the lock open.
 fn a_holder(_target: &UseTarget<'_>) -> UseScan {
-    return UseScan { users: vec![ProcessUser { pid: 77, command: Some(String::from("git")) }], unreadable: Vec::new() };
+    return UseScan { users: vec![ProcessUser { pid: 77, command: Some(String::from("git")) }], ..UseScan::default() };
 }
 
 /// A scan that could not read a process of this account.
 fn a_blind_scan(_target: &UseTarget<'_>) -> UseScan {
-    return UseScan { users: Vec::new(), unreadable: vec![String::from("PID 9 fd 3: Permission denied")] };
+    return UseScan { unreadable: vec![String::from("PID 9 fd 3: Permission denied")], ..UseScan::default() };
+}
+
+/// A scan that had no process table at all, as on a system without `/proc`.
+fn no_process_table(_target: &UseTarget<'_>) -> UseScan {
+    return UseScan { unavailable: Some(String::from("/proc: No such file or directory")), ..UseScan::default() };
 }
 
 /// Date a path.
@@ -115,9 +120,10 @@ fn an_absent_lock_is_absent() {
 #[test]
 fn a_missing_proof_keeps_the_lock_and_names_the_proof() {
     let lock = |scene: &Scene| { return real_lock_path(scene.index.as_path()); };
-    let cases: [(&str, &str, fn(&Scene), fn(i64) -> ProcessStart, fn(&UseTarget<'_>) -> UseScan); 7] = [
+    let cases: [(&str, &str, fn(&Scene), fn(i64) -> ProcessStart, fn(&UseTarget<'_>) -> UseScan); 8] = [
         ("a reused number", "may have been reused", |_| {}, running, nobody),
         ("a holder", "process 77 holds it open", |_| {}, missing, a_holder),
+        ("no process table", "process table could not be read", |_| {}, missing, no_process_table),
         ("a PID file of another owner", "no PID file names the dead owner", |scene| {
             std::fs::write(lock_pid_path(scene.index.as_path()), "pid 99\n").expect("other owner");
             date(lock_pid_path(scene.index.as_path()).as_path(), 300);

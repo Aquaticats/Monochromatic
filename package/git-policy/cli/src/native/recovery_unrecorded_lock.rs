@@ -233,6 +233,10 @@ fn missing_proof(
     if let Some(user) = found.users.first() {
         return Ok(Some(format!("process {} holds it open", user.pid)));
     }
+    // Without a process table nothing was scanned, which is no evidence that nobody holds the lock.
+    if let Some(reason) = &found.unavailable {
+        return Ok(Some(format!("the process table could not be read ({reason})")));
+    }
     // A process of this account whose descriptors cannot be read (`systemd --user` is one: it holds capabilities, which
     // makes it non-dumpable) does not keep the lock: the proofs above show who created it, and neither Git nor a
     // wrapper hands a lock to another process, so the scan only adds a veto for a holder it can see.

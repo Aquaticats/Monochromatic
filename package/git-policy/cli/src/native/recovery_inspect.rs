@@ -4,8 +4,8 @@
 //! Why:
 //!  Live owners are skipped,
 //!  dead owners recovered,
-//!  and a published directory without a valid
-//!      owner record fails closed;
+//!  a published directory with a malformed owner record fails closed,
+//!  and one without an owner record is recovered once abandoned (`ownerless_directory.rs`) and fails closed before;
 //!  recovery runs oldest first because a later transaction was
 //!      prepared against the state an earlier one left
 //!      (`src/policy-engine/commit-transaction-recovery-inspect.ts`,

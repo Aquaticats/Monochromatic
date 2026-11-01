@@ -77,6 +77,6 @@ fn the_scanning_process_is_not_reported() {
 fn an_unreadable_process_table_is_reported() {
     let scan: UseScan = processes_using_through(Path::new("/nonexistent-proc-root"), &UseTarget::Inside(Path::new("/")), 1);
     assert!(scan.users.is_empty());
-    assert_eq!(scan.unreadable.len(), 1, "{scan:?}");
-    assert!(scan.unreadable[0].contains("/nonexistent-proc-root"), "{scan:?}");
+    assert!(scan.unreadable.is_empty(), "{scan:?}");
+    assert!(scan.unavailable.as_deref().is_some_and(|reason| { return reason.contains("/nonexistent-proc-root"); }), "{scan:?}");
 }

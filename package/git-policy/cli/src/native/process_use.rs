@@ -56,11 +56,12 @@ pub struct ProcessUser {
 /// What:
 ///  The processes found using a target and the reasons the scan could not see everything.
 /// Why:
-///   A caller that needs a complete scan refuses when `unreadable` is not empty.
+///   A caller that cannot rely on a scan with no process table refuses when `unavailable` is set;
+///  `unreadable` lists single processes the scan could not see into, which a caller may or may not tolerate.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type UseScan = { users: ProcessUser[]; unreadable: string[] };
+/// type UseScan = { users: ProcessUser[]; unreadable: string[]; unavailable?: string };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct UseScan {
@@ -68,6 +69,8 @@ pub struct UseScan {
     pub users: Vec<ProcessUser>,
     /// Reasons some process of the scanning account could not be read.
     pub unreadable: Vec<String>,
+    /// Why the process table itself could not be listed, so that no process was scanned.
+    pub unavailable: Option<String>,
 }
 
 /// What:
@@ -236,7 +239,7 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,
         Err(error) => {
-            scan.unreadable.push(format!("{}: {error}", proc_root.display()));
+            scan.unavailable = Some(format!("{}: {error}", proc_root.display()));
             return scan;
         }
     };
