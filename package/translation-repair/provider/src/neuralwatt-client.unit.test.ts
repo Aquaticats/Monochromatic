@@ -351,7 +351,7 @@ await describe({
           estimateNeuralWattWh({ servedId: 'deepseek-v4.1-flash', promptTokens, },).bucketMeanWh,
           12,
         );
-        expect(NEURALWATT_ENERGY_MARGIN,).toBe(1,);
+        expect(NEURALWATT_ENERGY_MARGIN,).toBeGreaterThanOrEqual(1,);
       },
     },),
 

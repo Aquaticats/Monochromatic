@@ -106,21 +106,21 @@ fn combining_only_query_has_no_terms() {
 // Why:      An exact name is the strongest match, and it must sort before a prefix (D61's accepted `Cam`).
 #[test]
 fn whole_name_is_tier_zero() {
-    assert_eq!(tier("cam", &["cam"]), Some(0));
+    assert_eq!(tier("cam", &["cam"]), Some(TIER_WHOLE_NAME));
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      D61 places the `Camellia` prefix folder after the exact `Cam` track.
 #[test]
 fn prefix_name_is_tier_one() {
-    assert_eq!(tier("camellia", &["cam"]), Some(1));
+    assert_eq!(tier("camellia", &["cam"]), Some(TIER_NAME_PREFIX));
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      D60's accepted example `Live at Camellia` matches `cam` at a later word start.
 #[test]
 fn later_word_is_tier_two() {
-    assert_eq!(tier("live at camellia", &["cam"]), Some(2));
+    assert_eq!(tier("live at camellia", &["cam"]), Some(TIER_WORD_START));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -135,13 +135,13 @@ fn no_match_inside_a_word() {
 // Why:      The word-start rule covers a space, `-`, `_`, `.`, `(`, `[`, and `/`, and each must count.
 #[test]
 fn word_starts_after_each_separator() {
-    assert_eq!(tier("a cam", &["cam"]), Some(2));
-    assert_eq!(tier("a-cam", &["cam"]), Some(2));
-    assert_eq!(tier("a_cam", &["cam"]), Some(2));
-    assert_eq!(tier("a.cam", &["cam"]), Some(2));
-    assert_eq!(tier("a(cam", &["cam"]), Some(2));
-    assert_eq!(tier("a[cam", &["cam"]), Some(2));
-    assert_eq!(tier("a/cam", &["cam"]), Some(2));
+    assert_eq!(tier("a cam", &["cam"]), Some(TIER_WORD_START));
+    assert_eq!(tier("a-cam", &["cam"]), Some(TIER_WORD_START));
+    assert_eq!(tier("a_cam", &["cam"]), Some(TIER_WORD_START));
+    assert_eq!(tier("a.cam", &["cam"]), Some(TIER_WORD_START));
+    assert_eq!(tier("a(cam", &["cam"]), Some(TIER_WORD_START));
+    assert_eq!(tier("a[cam", &["cam"]), Some(TIER_WORD_START));
+    assert_eq!(tier("a/cam", &["cam"]), Some(TIER_WORD_START));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -155,14 +155,14 @@ fn every_term_must_match() {
 // Why:      `live cam` must find `Camellia Live`, because each term starts some word of the name.
 #[test]
 fn terms_may_match_in_any_word_order() {
-    assert_eq!(tier("camellia live", &["live", "cam"]), Some(2));
+    assert_eq!(tier("camellia live", &["live", "cam"]), Some(TIER_WORD_START));
 }
 
 // What:     `#[test]` marks the next function as a test case.
 // Why:      With several terms, tier one needs the name to start with the first term while every term still matches.
 #[test]
 fn first_term_at_start_is_tier_one() {
-    assert_eq!(tier("live camellia", &["live", "cam"]), Some(1));
+    assert_eq!(tier("live camellia", &["live", "cam"]), Some(TIER_NAME_PREFIX));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -176,7 +176,7 @@ fn empty_terms_never_match() {
 // Why:      A stray space in a file name must not turn an exact or prefix match into a later-word match.
 #[test]
 fn surrounding_spaces_do_not_demote_tier() {
-    assert_eq!(tier(" cam ", &["cam"]), Some(0));
+    assert_eq!(tier(" cam ", &["cam"]), Some(TIER_WHOLE_NAME));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -271,7 +271,7 @@ fn query_does_not_split_on_information_separator() {
 // Why:      Names are trimmed with Kotlin's whitespace set, so an information separator around a name does not demote it.
 #[test]
 fn surrounding_information_separators_are_trimmed() {
-    assert_eq!(tier("\u{1C}cam\u{1F}", &["cam"]), Some(0));
+    assert_eq!(tier("\u{1C}cam\u{1F}", &["cam"]), Some(TIER_WHOLE_NAME));
 }
 
 // What:     `#[test]` marks the next function as a test case.

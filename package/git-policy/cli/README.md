@@ -8,6 +8,8 @@ and checks the commands and the commits that pass through it against policies th
 The executable is `cli-git-native`.
 The library inside the crate is named `git_policy_cli`.
 
+How the owner wants this package designed and judged is in [DESIGN.md](DESIGN.md).
+
 ## What it does
 
 Every Git command goes through the wrapper first.

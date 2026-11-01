@@ -29,6 +29,7 @@ import {
   replaceOnce,
 } from './fork-build.ts';
 import {
+  BOUNDED_SEED,
   FuzzPlanError,
   fuzzRunPlan,
 } from './fuzz-budget.ts';
@@ -213,7 +214,7 @@ await describe({
     it({
       name: 'fuzzRunPlan is bounded by default, follows campaign variables, and rejects malformed ones',
       fn: async () => {
-        expect(fuzzRunPlan().params.seed,).toBe(20_260_923,);
+        expect(fuzzRunPlan().params.seed,).toBe(BOUNDED_SEED,);
         {
           using _campaign = campaignEnv({ numRuns: '7', seed: '11', },);
           expect(fuzzRunPlan().params,).toEqual({ numRuns: 7, seed: 11, },);
@@ -222,7 +223,7 @@ await describe({
           using _malformed = campaignEnv({ numRuns: '7', seed: 'eleven', },);
           expect(() => fuzzRunPlan(),).toThrow(FuzzPlanError,);
         }
-        expect(fuzzRunPlan().params.seed,).toBe(20_260_923,);
+        expect(fuzzRunPlan().params.seed,).toBe(BOUNDED_SEED,);
       },
     },),
   ],

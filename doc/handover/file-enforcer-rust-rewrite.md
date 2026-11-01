@@ -1385,7 +1385,99 @@ each finished branch is reviewed and merged into `main`):
   build both packages,
   `down` then `up` with the new build,
   then clean up the old scopes with `systemctl --user reset-failed` and `systemctl --user stop` of empty ones.
-- #2576:
+- systemd stuck-scope doc merged:
+  `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`
+  (reproduced with systemd 262.1 as PID 1 on kernel 7.2.11 in a rootless container;
+  prototype fix `unit_cgroup_catchup(u)` in `scope_enter_running`, 28 of 256 stuck before and 0 of 192 after;
+  not filed, because systemd's `CONTRIBUTING.md` requires issues written by the reporter).
+  Corrections it made:
+  a pid gone at call time fails the call ("No such process") and creates no unit;
+  "No PIDs left" comes from a gated start;
+  the kernel tag `v7.2.11` object `8316c24e` is not the commit (`a2de78ee6e`).
+- The `mvm` MCP servers are stale:
+  three processes started 2026-10-30 21:22 to 21:23 load the old build,
+  whose lazy `libvirt-C2IRPclg.mjs` chunk the 2026-10-31 03:45 rebuild replaced with `libvirt-B8wDpRpJ.mjs`,
+  so their libvirt calls fail.
+  A reconnect (`/mcp`) loads the current build.
+  Design note,
+  not acted on:
+  a rebuild with hashed lazy chunks can break any long-running server started from `dist`.
+- CI crate releases landed as `bae8ccba5b`
+  ("merge: land the crate-release CLI redesign from worktree-agent-ae9152410c9c52921").
+  The merge conflicted with `3f0bff8248` (#3371, test expectations from named constants)
+  in `cli.unit.test.ts` and `release-steps.unit.test.ts`:
+  kept the branch's lock step (`cargo update --workspace` in the lock directory) written with main's constants,
+  and dropped the `taskRunnerProgram` import the branch removed.
+  Checked before committing:
+  `lint:types` clean,
+  `lint:oxlint` 0 warnings and 0 errors,
+  `test:unit` 76 PASS lines including the three resolved tests.
+  This session's commit was refused (`commit-only/pathspec-required`;
+  the wrapper suggests `--no-only` for a whole-index commit),
+  and another session's commit landed the staged merge with its own message
+  (verified:
+  my resolution,
+  the branch's 52 files,
+  on origin).
+  Lesson for the next merge in the shared checkout:
+  commit it with `git commit --no-only` at once,
+  because a staged merge is swept into the next session's commit.
+  Note:
+  `mise run a b c` runs only `a` and passes `b c` to it as arguments;
+  run each task separately.
+- forbidden-strings 0.6.1 from CI:
+  dry run `41287463221` succeeded (release success, publish skipped);
+  real run `41303293802` failed at "Push the bump to main as a signed commit":
+  "PUSH REFUSED: Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not."
+  The guard worked (nothing pushed or published),
+  but `main` moves every few minutes and a release takes about half an hour,
+  so a plain re-dispatch usually loses the race.
+  Sent back to the release agent:
+  on a refusal,
+  compare the new head with the base over every path the release depends on
+  (commit files,
+  crate and lock directories,
+  the path-dependency closure from `cargo metadata`),
+  rebuild on the new head when none changed,
+  refuse loudly when one did.
+  Re-dispatch 0.6.1 after that merges.
+- wg re-review (`15db705ec1..f7217a7b5b`):
+  no blockers;
+  two should-fix items sent back:
+  the block replace must be one atomic `nft -f` transaction
+  (a retried `down` leaves a gap with no block today),
+  and a block that fails to lift must be reported
+  (`removeTrafficBlock` never throws).
+  Owner 2026-11-01:
+  "`down` doesn't have to block all traffic during `down`. It can avoid blocking already-clearnet ones."
+  Sent to the wg agent:
+  the block table accepts traffic the routing already sends to clearnet
+  (matched the way the policy rules match it),
+  during `down` and in a leftover block.
+  Cautions for the apply:
+  run `down` from the owner's local terminal,
+  since the block still drops tunnel-bound output during removal;
+  the first `up` sweeps about 6500 old units
+  (3169 active and 3291 failed at the review),
+  so the user manager stays busy for a while.
+- #2576 decided 2026-11-01 in the question tool:
+  "llama.cpp + GGUF (Recommended)" and "Documented command (Recommended)".
+  The research note is merged (`doc/research/xiaomi-ocr-without-python.md`).
+  An agent is verifying the CPU build in a capped container,
+  then adding the global plan entry (`llama-cpu-cli`),
+  pinning the weights and documenting the command line.
+  The owner's request:
+  "gh issue #2576. But prioritize cutover first."
+- wg review fixes returned (`15db705ec1..f7217a7b5b`, six commits),
+  under re-review.
+  The live apply order changed:
+  the old-scope sweep is built into the watcher's start,
+  so the order is build both packages,
+  `down` with the new build,
+  `up`,
+  then read the watcher's "swept the scopes of the earlier design" line.
+  Old-style scope count rising about 30 a minute (5289 at the agent's last read).
+- #2576 earlier:
   the owner asked "What is going on? Why are we writing any Python?"
   after the dependency questions;
   their answers so far (torchvision kept, `uv_build`, `argparse`) assume the wrapper,

@@ -18,6 +18,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  ID_COLUMN_WIDTH,
+  MS_PER_SECOND,
   type Outcome,
   summaryLine,
   tableLines,
@@ -54,9 +56,9 @@ await describe({
       name: 'writes the status word, the padded id and the title',
       fn: async ({ expect, }) => {
         expect(tableLines(OUTCOMES,),).toEqual([
-          `PASS  ${'a/pass'.padEnd(34,)} passes`,
-          `FAIL  ${'b/fail'.padEnd(34,)} fails`,
-          `SKIP  ${'c/skip'.padEnd(34,)} is skipped`,
+          `PASS  ${'a/pass'.padEnd(ID_COLUMN_WIDTH,)} passes`,
+          `FAIL  ${'b/fail'.padEnd(ID_COLUMN_WIDTH,)} fails`,
+          `SKIP  ${'c/skip'.padEnd(ID_COLUMN_WIDTH,)} is skipped`,
         ],);
       },
     },),
@@ -84,10 +86,19 @@ await describe({
       name: 'writes the summary file with the counts and the outcomes, and returns the totals',
       fn: async ({ expect, }) => {
         const out = await mkdtemp(join(scratchRoot(), 'e2e-report-',),);
-        const totals = await writeReport({ outcomes: OUTCOMES, startedAt: 1_000, finishedAt: 3_500, outputRoot: join(out, 'nested',), },);
+        const startedAt = 1_000;
+        const finishedAt = 3_500;
+        const totals = await writeReport({ outcomes: OUTCOMES, startedAt, finishedAt, outputRoot: join(out, 'nested',), },);
         expect(totals,).toEqual({ passed: 1, failed: 1, skipped: 1, },);
         const summary: unknown = JSON.parse(await readFile(join(out, 'nested', 'e2e-summary.json',), 'utf8',),);
-        expect(summary,).toEqual({ startedAt: 1_000, seconds: 2.5, passed: 1, failed: 1, skipped: 1, outcomes: OUTCOMES, },);
+        expect(summary,).toEqual({
+          startedAt,
+          seconds: (finishedAt - startedAt) / MS_PER_SECOND,
+          passed: 1,
+          failed: 1,
+          skipped: 1,
+          outcomes: OUTCOMES,
+        },);
         await rm(out, { recursive: true, force: true, },);
       },
     },),

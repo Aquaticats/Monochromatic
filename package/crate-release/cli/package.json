@@ -1,11 +1,14 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/crate-release-cli",
-  "description": "Product-neutral release helpers for Rust crates published to crates.io with GitHub release assets: one command bumps versions, checks and commits a release; the other waits for the publish workflow and verifies the result.",
+  "description": "Product-neutral release helpers for Rust crates published to crates.io with GitHub release assets: one command bumps versions, checks and commits a release (the release workflow runs it on a GitHub runner); one pushes the signed bump commit from the runner; one starts that workflow; two wait for the workflows and verify the result.",
   "type": "module",
   "private": true,
   "bin": {
     "crate-release": "bin/release.ts",
+    "crate-release-push": "bin/push-release.ts",
+    "crate-release-dispatch": "bin/dispatch-release.ts",
+    "crate-release-await": "bin/await-release.ts",
     "crate-release-wait": "bin/wait-publish.ts"
   },
   "exports": {
@@ -15,6 +18,7 @@
   "files": [
     "bin",
     "src",
+    "releasable-crates.json",
     "LICENSES"
   ],
   "dependencies": {

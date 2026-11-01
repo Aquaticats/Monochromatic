@@ -17,7 +17,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { firstNestingExcess, } from '../dist/final/node/index.mjs';
+import {
+  DELIMITER_BOUND,
+  firstNestingExcess,
+  NESTING_BOUND,
+} from '../dist/final/node/index.mjs';
 
 //region Nesting bound line endings tests
 
@@ -36,7 +40,7 @@ await describe({
         expect(firstNestingExcess({ body: `cat\r${'>'.repeat(257,)} mew`, grammar: 'markdown', },),).toEqual({
           kind: 'beyond',
           measure: 'container markers',
-          bound: 256,
+          bound: NESTING_BOUND,
           line: 2,
           column: 257,
         },);
@@ -54,7 +58,7 @@ await describe({
         expect(firstNestingExcess({ body: `${fenced}${'['.repeat(257,)}\n`, grammar: 'markdown', },),).toEqual({
           kind: 'beyond',
           measure: 'brackets',
-          bound: 256,
+          bound: NESTING_BOUND,
           line: 4,
           column: 257,
         },);
@@ -66,7 +70,7 @@ await describe({
         expect(firstNestingExcess({ body: `cat\r\n${'['.repeat(257,)}`, grammar: 'markdown', },),).toEqual({
           kind: 'beyond',
           measure: 'brackets',
-          bound: 256,
+          bound: NESTING_BOUND,
           line: 2,
           column: 257,
         },);

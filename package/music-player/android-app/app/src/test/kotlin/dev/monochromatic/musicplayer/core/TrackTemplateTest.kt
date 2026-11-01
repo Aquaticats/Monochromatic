@@ -298,7 +298,7 @@ class TrackTemplateTest {
         assertEquals(trackTemplateFields, TemplateKind.TRACK_ROWS.fields)
         assertEquals(playingTemplateFields, TemplateKind.PLAYING_TRACK.fields)
         assertEquals(
-            listOf("title", "file", "ext", "folder", "path", "len", "peak", "track", "total"),
+            trackTemplateFields.map { field -> field.mode } + listOf("track", "total"),
             playingTemplateFields.map { field -> field.mode },
         )
         assertShows(

@@ -82,7 +82,7 @@ const SRGB_GAMMA_GAIN = 1.055;
 /**
  RGB channel maximum used for clamping and scaling.
  */
-const RGB_MAX = 255;
+export const RGB_MAX = 255;
 
 //endregion Constants
 

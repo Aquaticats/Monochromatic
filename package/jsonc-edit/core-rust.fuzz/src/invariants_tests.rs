@@ -32,6 +32,7 @@ use std::panic::{catch_unwind, set_hook, take_hook};
 /// ```ts
 /// import { assertCanonicalStability, ... } from './invariants';
 /// ```
+use crate::invariants::ACCEPTED_DEPTH;
 use crate::invariants::{
     assert_canonical_stability, assert_comments_preserved, assert_depth_bound, assert_trees_equal,
     collect_comments, depth_of,
@@ -112,18 +113,18 @@ fn dropped_comment_fails_the_preservation_check() {
 ///  and the bound must reject one past the limit.
 #[test]
 fn depth_bound_accepts_the_limit_and_rejects_one_past_it() {
-    let accepted = parse(&format!("{}0{}", "[".repeat(512), "]".repeat(512)));
-    assert_eq!(depth_of(&accepted), 512, "accepted document measured at the wrong depth");
-    assert!(!panics(|| return assert_depth_bound(&accepted)), "depth 512 must satisfy the bound");
+    let accepted = parse(&format!("{}0{}", "[".repeat(ACCEPTED_DEPTH), "]".repeat(ACCEPTED_DEPTH)));
+    assert_eq!(depth_of(&accepted), ACCEPTED_DEPTH, "accepted document measured at the wrong depth");
+    assert!(!panics(|| return assert_depth_bound(&accepted)), "depth {} must satisfy the bound", ACCEPTED_DEPTH);
 
     // A tree this deep cannot come from the parser, which refuses it, so it is built by hand to
     // prove the check itself fails rather than trusting the parser to have caught it first.
     let mut too_deep = JsoncValue { kind: JsoncKind::Array { elements: Vec::new() }, comment: None };
-    for _ in 0..512 {
+    for _ in 0..ACCEPTED_DEPTH {
         too_deep = JsoncValue { kind: JsoncKind::Array { elements: vec![too_deep] }, comment: None };
     }
-    assert_eq!(depth_of(&too_deep), 513, "hand-built tree measured at the wrong depth");
-    assert!(panics(|| return assert_depth_bound(&too_deep)), "depth 513 must violate the bound");
+    assert_eq!(depth_of(&too_deep), ACCEPTED_DEPTH + 1, "hand-built tree measured at the wrong depth");
+    assert!(panics(|| return assert_depth_bound(&too_deep)), "depth {} must violate the bound", ACCEPTED_DEPTH + 1);
 }
 
 /// Two parses of the same text must compare equal,

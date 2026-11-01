@@ -56,11 +56,22 @@ fn clean(scene: &Scene, format: RefFormat) -> Result<(), RecoveryError> {
 /// The name lists are the incumbent's.
 #[test]
 fn names_match_the_incumbent() {
-    // Every pseudoref the reftable backend keeps in its store must be copied as a conclusion state file.
+    // The state files are exactly the entries landing removes, plus the rerere cache copied back after landing:
+    // every name the table owns is covered by this property, and the table carries no extra name.
+    let mut expected: Vec<&str> = REMOVED_CONCLUSION_FILES.to_vec();
+    expected.push(MERGE_RR_FILENAME);
+    expected.sort_unstable();
+    let mut actual: Vec<&str> = CONCLUSION_STATE_FILES.to_vec();
+    actual.sort_unstable();
+    assert_eq!(
+        actual, expected,
+        "the state files are the removed conclusion files plus the rerere cache"
+    );
+    // Every pseudoref the reftable backend keeps in its store is one of the entries landing removes.
     for name in STORE_HELD_PSEUDOREFS {
         assert!(
-            CONCLUSION_STATE_FILES.contains(&name),
-            "{name} must be a conclusion state file"
+            REMOVED_CONCLUSION_FILES.contains(&name),
+            "{name} must be a conclusion entry landing removes"
         );
     }
     assert!(is_store_held(RefFormat::Reftable, "AUTO_MERGE"));

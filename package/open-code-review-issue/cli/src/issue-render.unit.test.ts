@@ -8,6 +8,8 @@ import {
   capIssueTitle,
   renderIssue,
   renderIssueTitle,
+  TITLE_ELLIPSIS_BYTES,
+  TITLE_MAX_BYTES,
   type NormalizedFinding,
 } from '../dist/final/node/index.mjs';
 
@@ -105,9 +107,10 @@ await describe({
         );
 
         /**
-         ASCII count that leaves exactly four bytes for final emoji.
+         ASCII count that leaves four bytes for the final emoji inside the
+         complete-title cap, one byte under the prefix budget.
          */
-        const exactPrefixLength = 252;
+        const exactPrefixLength = TITLE_MAX_BYTES - TITLE_ELLIPSIS_BYTES - 1;
         /**
          Complete title at exact byte boundary.
          */
@@ -117,12 +120,12 @@ await describe({
         /**
          ASCII count that forces emoji removal and ellipsis suffix.
          */
-        const overPrefixLength = 253;
+        const overPrefixLength = TITLE_MAX_BYTES - TITLE_ELLIPSIS_BYTES;
         /**
          Deterministically truncated overlength title.
          */
         const capped = capIssueTitle(`${'x'.repeat(overPrefixLength,)}😀`,);
-        expect(new TextEncoder().encode(capped,)).toHaveLength(256,);
+        expect(new TextEncoder().encode(capped,)).toHaveLength(TITLE_MAX_BYTES,);
         expect(capped.endsWith('…',),).toBe(true,);
         expect(capped.slice(0, -1,),).toBe('x'.repeat(overPrefixLength,),);
       },

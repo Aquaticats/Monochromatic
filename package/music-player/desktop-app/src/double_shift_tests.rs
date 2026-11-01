@@ -31,8 +31,22 @@ fn two_fast_taps_complete_a_double_tap() {
 
 #[test]
 fn two_taps_inside_the_window_edge_complete_and_just_past_it_do_not() {
-    assert_eq!(run(&[(0, DOWN), (50, ShiftInput::ShiftUp), (300, DOWN), (400, ShiftInput::ShiftUp)]), vec![400]);
-    assert!(run(&[(0, DOWN), (50, ShiftInput::ShiftUp), (300, DOWN), (401, ShiftInput::ShiftUp)]).is_empty());
+    assert_eq!(
+        run(&[
+            (0, DOWN),
+            (50, ShiftInput::ShiftUp),
+            (DOUBLE_SHIFT_WINDOW_MS - 100, DOWN),
+            (DOUBLE_SHIFT_WINDOW_MS, ShiftInput::ShiftUp),
+        ]),
+        vec![DOUBLE_SHIFT_WINDOW_MS]
+    );
+    assert!(run(&[
+        (0, DOWN),
+        (50, ShiftInput::ShiftUp),
+        (DOUBLE_SHIFT_WINDOW_MS - 100, DOWN),
+        (DOUBLE_SHIFT_WINDOW_MS + 1, ShiftInput::ShiftUp),
+    ])
+    .is_empty());
 }
 
 #[test]

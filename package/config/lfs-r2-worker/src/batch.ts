@@ -20,12 +20,12 @@ import type { WorkerEnv, } from './store.ts';
 /**
  HTTP status for a syntactically invalid batch request.
  */
-const BAD_REQUEST = 400;
+export const BAD_REQUEST = 400;
 
 /**
  HTTP status for an upload attempted without the write token.
  */
-const UNAUTHORIZED = 401;
+export const UNAUTHORIZED = 401;
 
 /**
  Per-object error code for an object absent from the store.

@@ -24,22 +24,22 @@ export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 /**
  HTTP status for a conditional request whose validator still matches.
  */
-const NOT_MODIFIED = 304;
+export const NOT_MODIFIED = 304;
 
 /**
  HTTP status for a write whose body is missing.
  */
-const BAD_REQUEST = 400;
+export const BAD_REQUEST = 400;
 
 /**
  HTTP status for a write without the upload token.
  */
-const UNAUTHORIZED = 401;
+export const UNAUTHORIZED = 401;
 
 /**
  HTTP status for an absent object.
  */
-const NOT_FOUND = 404;
+export const NOT_FOUND = 404;
 
 /**
  Strong entity tag for an object: its oid in double quotes.

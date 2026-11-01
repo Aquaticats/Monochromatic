@@ -265,6 +265,7 @@ function countCodePoints(value: string,): number {
 
 export {
   composeDeepseekQuery,
+  DEEPSEEK_QUERY_MAX_CODE_POINTS,
   countCodePoints,
   normalizeIncludeDomains,
 };

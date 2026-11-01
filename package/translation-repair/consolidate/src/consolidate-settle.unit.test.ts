@@ -34,6 +34,7 @@ import {
   createSyntheticClient,
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
+import { REFINE_RESPONSE_FORMAT, } from '@monochromatic-dev/translation-repair-repair';
 import {
   buildTranslateCandidates,
   describeSlate,
@@ -42,6 +43,7 @@ import {
   TRANSLATE_LINE_STRUCTURE_CRITERION,
 } from '@monochromatic-dev/translation-repair-translate-floor';
 import {
+  CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT,
   FLAWED_STANDING_GATE_SHIPS_PROPOSAL_FINDING,
   INELIGIBLE_STANDING_WITHHELD_FINDING,
   type ProposalValidity,
@@ -873,8 +875,8 @@ await describe({
         expect(settled.text,).toBe(WRAPPED_POLISHED_STANDING,);
         expect(settled.polish?.kind,).toBe('settled',);
         expect(settled.polish?.kind === 'settled' ? settled.polish.changed : false,).toBe(true,);
-        expect(servedSchemas,).toContain('refine_report',);
-        expect(servedSchemas,).toContain('consolidation_polish_gate',);
+        expect(servedSchemas,).toContain(REFINE_RESPONSE_FORMAT.json_schema.name,);
+        expect(servedSchemas,).toContain(CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
 
@@ -918,8 +920,8 @@ await describe({
           kind: 'not-run',
           reason: 'unsafe-baseline',
         },);
-        expect(servedSchemas,).not.toContain('refine_report',);
-        expect(servedSchemas,).not.toContain('consolidation_polish_gate',);
+        expect(servedSchemas,).not.toContain(REFINE_RESPONSE_FORMAT.json_schema.name,);
+        expect(servedSchemas,).not.toContain(CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT.json_schema.name,);
       },
     },),
 

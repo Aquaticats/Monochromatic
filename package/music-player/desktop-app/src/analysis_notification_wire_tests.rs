@@ -43,7 +43,7 @@ fn job_request_hints_name_the_app_and_make_the_job_transient() {
 fn only_the_first_job_update_carries_the_title() {
     let shown = view(33, "412 of 1,218", false);
     let first = job_update_properties(&shown, true);
-    assert_eq!(first.get("title"), Some(&Value::from("Analyzing true peak")));
+    assert_eq!(first.get("title"), Some(&Value::from(TITLE)));
     let later = job_update_properties(&shown, false);
     assert!(!later.contains_key("title"));
 }
@@ -72,11 +72,11 @@ fn the_job_capability_is_suspendable_and_never_killable() {
 // Why: 0 removes a transient job quietly, 1 is a stop, and 2 shows the message.
 #[test]
 fn outcomes_map_to_terminate_codes() {
-    assert_eq!(terminate_arguments(&Outcome::Finished), (0, String::new()));
-    assert_eq!(terminate_arguments(&Outcome::Stopped), (1, String::new()));
+    assert_eq!(terminate_arguments(&Outcome::Finished), (JOB_ERROR_NONE, String::new()));
+    assert_eq!(terminate_arguments(&Outcome::Stopped), (JOB_ERROR_KILLED, String::new()));
     assert_eq!(
         terminate_arguments(&Outcome::Failed("disk unreadable".to_string())),
-        (2, "disk unreadable".to_string())
+        (JOB_ERROR_USER, "disk unreadable".to_string())
     );
 }
 
@@ -100,8 +100,8 @@ fn notification_hints_are_the_decided_set() {
 // Why: a button that does nothing must not be offered, and the label must say what a press does.
 #[test]
 fn notification_actions_follow_the_pause_state() {
-    assert_eq!(notification_actions(true, &view(1, "t", false)), vec!["pause", "Pause"]);
-    assert_eq!(notification_actions(true, &view(1, "t", true)), vec!["resume", "Resume"]);
+    assert_eq!(notification_actions(true, &view(1, "t", false)), vec![ACTION_PAUSE, "Pause"]);
+    assert_eq!(notification_actions(true, &view(1, "t", true)), vec![ACTION_RESUME, "Resume"]);
     assert!(notification_actions(false, &view(1, "t", false)).is_empty());
 }
 

@@ -14,12 +14,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run';
-import { withEntryBound, } from '../../dist/final/node/index.mjs';
+import { PASS_MS_PER_MINUTE, withEntryBound, } from '../../dist/final/node/index.mjs';
 
 /**
  Hours of an entry's cap, in milliseconds, so the cases read as the pass sees them.
  */
-const HOUR_MS = 3_600_000;
+const HOUR_MS = 60 * PASS_MS_PER_MINUTE;
 
 /**
  A client that carries only the bound a case gives it.
@@ -49,13 +49,13 @@ await describe({
         const entry = withEntryBound({
           client: clientWithBound({ passLeftMs: 60 * HOUR_MS, },),
           hardCapMs: 7 * HOUR_MS,
-          startedAt: clock.now - (400 * 60_000),
+          startedAt: clock.now - (400 * PASS_MS_PER_MINUTE),
           now: () => clock.now,
         },);
-        expect(entry.passLeftMs?.(),).toBe(20 * 60_000,);
+        expect(entry.passLeftMs?.(),).toBe(20 * PASS_MS_PER_MINUTE,);
         expect(entry.passBoundOwner?.(),).toBe('entry',);
-        clock.now += 5 * 60_000;
-        expect(entry.passLeftMs?.(),).toBe(15 * 60_000,);
+        clock.now += 5 * PASS_MS_PER_MINUTE;
+        expect(entry.passLeftMs?.(),).toBe(15 * PASS_MS_PER_MINUTE,);
       },
     },),
 
@@ -63,12 +63,12 @@ await describe({
       name: 'TAKES THE PASS\'S BOUND WHEN IT IS THE SMALLER: an entry just begun under a pass with 10 min left',
       fn: async () => {
         const entry = withEntryBound({
-          client: clientWithBound({ passLeftMs: 10 * 60_000, },),
+          client: clientWithBound({ passLeftMs: 10 * PASS_MS_PER_MINUTE, },),
           hardCapMs: 7 * HOUR_MS,
           startedAt: 5_000,
           now: () => 5_000,
         },);
-        expect(entry.passLeftMs?.(),).toBe(10 * 60_000,);
+        expect(entry.passLeftMs?.(),).toBe(10 * PASS_MS_PER_MINUTE,);
         expect(entry.passBoundOwner?.(),).toBe('pass',);
       },
     },),

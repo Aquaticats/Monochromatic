@@ -38,6 +38,10 @@ use std::collections::BTreeMap;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
+/// The rerere resolution cache Git rewrites during a conflicted merge,
+///  copied back after landing.
+pub const MERGE_RR_FILENAME: &str = "MERGE_RR";
+
 /// Conclusion state files copied into the shadow at preparation.
 pub const CONCLUSION_STATE_FILES: [&str; 8] = [
     "MERGE_HEAD",
@@ -47,7 +51,7 @@ pub const CONCLUSION_STATE_FILES: [&str; 8] = [
     "AUTO_MERGE",
     "CHERRY_PICK_HEAD",
     "REVERT_HEAD",
-    "MERGE_RR",
+    MERGE_RR_FILENAME,
 ];
 
 /// Conclusion state directory copied into the shadow at preparation.
@@ -294,12 +298,12 @@ pub fn reproduce_conclusion_cleanup(
             );
         }
     }
-    if let Some(merge_rr) = read_optional(shadow.join("MERGE_RR").as_path())? {
-        let temporary: PathBuf = git_dir.join(format!("MERGE_RR.cli-git-{}", std::process::id()));
+    if let Some(merge_rr) = read_optional(shadow.join(MERGE_RR_FILENAME).as_path())? {
+        let temporary: PathBuf = git_dir.join(format!("{MERGE_RR_FILENAME}.cli-git-{}", std::process::id()));
         if let Err(error) = std::fs::write(&temporary, merge_rr.as_slice()) {
             return Err(io_failure("writing", temporary.as_path(), &error));
         }
-        let destination: PathBuf = git_dir.join("MERGE_RR");
+        let destination: PathBuf = git_dir.join(MERGE_RR_FILENAME);
         if let Err(error) = std::fs::rename(&temporary, &destination) {
             return Err(io_failure("replacing", destination.as_path(), &error));
         }

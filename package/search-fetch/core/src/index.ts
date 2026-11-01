@@ -19,6 +19,7 @@ export {
 } from './config-paths.ts';
 export {
   createExaClient,
+  EXA_SEARCH_NUM_RESULTS,
   exaForwardableBlocklist,
 } from './exa-client.ts';
 export {
@@ -32,6 +33,8 @@ export {
 export {
   createSearchFetchClient,
 } from './search-fetch-client.ts';
+export { DEEPSEEK_REQUEST_TIMEOUT_MS, } from './deepseek-http.ts';
+export { DEEPSEEK_QUERY_MAX_CODE_POINTS, } from './deepseek-query.ts';
 export {
   WholeCallDeadlineError,
   WHOLE_CALL_DEADLINE_MILLISECONDS,

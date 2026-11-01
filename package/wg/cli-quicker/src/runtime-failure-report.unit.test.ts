@@ -290,12 +290,13 @@ await describe({
         /**
          First distinct causes of one kind, one per slot the limit delivers.
          */
-        const causes = ['alpha', 'beta', 'gamma', 'delta',];
+        const causes = Array.from({ length: MAX_CAUSES_PER_KIND, }, function causeAt(_unused, index,) {
+          return `cause ${String(index,)}`;
+        },);
         for (const cause of causes)
           expect(limit({ key: 'skipped', cause, now: 0, },),).toEqual({ deliver: true, held: 0, },);
-        expect(causes,).toHaveLength(MAX_CAUSES_PER_KIND,);
         expect(limit({ key: 'skipped', cause: 'epsilon', now: 1, },),).toEqual({ deliver: false, },);
-        expect(limit({ key: 'skipped', cause: 'alpha', now: 2, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'skipped', cause: causes[0] ?? '', now: 2, },),).toEqual({ deliver: false, },);
         expect(limit({ key: 'skipped', cause: 'zeta', now: 3, },),).toEqual({ deliver: false, },);
         expect(limit({ key: 'skipped', cause: 'epsilon', now: 60_000, },),).toEqual({ deliver: true, held: 3, },);
       },

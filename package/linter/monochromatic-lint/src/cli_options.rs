@@ -26,6 +26,10 @@ use std::num::NonZeroUsize;
 /// Import native path storage and a strictly positive worker-count type.
 use std::path::PathBuf;
 
+/// One-line user-facing summary of the command,
+///  shared by the parser declaration and its output controls.
+pub const ABOUT: &str = "Lint Rust, Markdown and MDX with repository-owned policies.";
+
 /// What:
 ///  Parsed command options,
 ///  with absence retained for discovery and default selection.
@@ -41,7 +45,7 @@ use std::path::PathBuf;
 #[command(
     name = "monochromatic-lint",
     version,
-    about = "Lint Rust, Markdown and MDX with repository-owned policies.",
+    about = ABOUT,
     // Without this, the parser would print this struct's source documentation as the long help text.
     long_about = None
 )]

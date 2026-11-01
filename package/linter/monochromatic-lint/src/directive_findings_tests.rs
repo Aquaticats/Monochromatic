@@ -31,19 +31,27 @@ fn with_reporter<Check: FnOnce(&Reporter<'_>, CommentSite)>(check: Check) {
     check(&reporter, site);
 }
 
-/// The codes are distinct stable identifiers in the `directive/` namespace.
+/// The codes are the documented stable output identifiers:
+///  `package/linter/monochromatic-lint/README.md` lists each one,
+///  so these literals are the specification of the published JSONL contract,
+///  not a copy of an incidental default.
 #[test]
 fn codes_are_stable() {
-    let codes: [&str; 5] = [
-        MISSING_JUSTIFICATION,
-        UNKNOWN_RULE,
-        NON_SUPPRESSIBLE,
-        MALFORMED,
-        UNUSED,
+    let documented: [(&str, &str); 5] = [
+        (MISSING_JUSTIFICATION, "directive/missing-justification"),
+        (UNKNOWN_RULE, "directive/unknown-rule"),
+        (NON_SUPPRESSIBLE, "directive/non-suppressible"),
+        (MALFORMED, "directive/malformed"),
+        (UNUSED, "directive/unused"),
     ];
-    for (index, code) in codes.iter().enumerate() {
-        assert!(code.starts_with("directive/"), "{code}");
-        assert!(!codes[..index].contains(code), "{code} repeats");
+    for (index, (code, documented_code)) in documented.iter().enumerate() {
+        assert_eq!(code, documented_code);
+        assert!(
+            !documented[..index]
+                .iter()
+                .any(|earlier| return earlier.0 == *code),
+            "{code} repeats"
+        );
     }
 }
 

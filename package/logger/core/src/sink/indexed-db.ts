@@ -37,7 +37,7 @@ const BATCH_STORE = 'batch';
  would need a cross-session tally re-summed at startup; the bound is
  approximate by design.
  */
-const MAX_STORED_BATCHES = 2_048;
+export const MAX_STORED_BATCHES = 2_048;
 
 /**
  Opens (creating on first use) the logger's IndexedDB database with the

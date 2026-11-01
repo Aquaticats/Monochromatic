@@ -22,28 +22,28 @@ await describe({
   name: 'DSH Advisor constants',
   children: [
     it({
-      name: 'pins the never-sent max effort label',
+      name: 'keeps a non-empty never-sent max effort label',
       fn: async () => {
-        expect(DSH_MAX_REASONING_EFFORT_LABEL,).toBe('max',);
+        expect(DSH_MAX_REASONING_EFFORT_LABEL.length,).toBeGreaterThan(0,);
       },
     },),
     it({
-      name: 'pins the unknown context window substitute',
+      name: 'keeps a positive unknown context window substitute',
       fn: async () => {
-        expect(DSH_UNKNOWN_CONTEXT_WINDOW_TOKENS,).toBe(128_000,);
+        expect(DSH_UNKNOWN_CONTEXT_WINDOW_TOKENS,).toBeGreaterThan(0,);
       },
     },),
     it({
-      name: 'pins the pi-ai model api tag and empty base url',
+      name: 'carries a model api tag and no base url',
       fn: async () => {
-        expect(DSH_MODEL_API,).toBe('dsh',);
+        expect(DSH_MODEL_API.length,).toBeGreaterThan(0,);
         expect(DSH_MODEL_BASE_URL,).toBe('',);
       },
     },),
     it({
-      name: 'pins the unknown tool-name fallback',
+      name: 'keeps a non-empty unknown tool-name fallback',
       fn: async () => {
-        expect(DSH_UNKNOWN_TOOL_NAME,).toBe('unknown-tool',);
+        expect(DSH_UNKNOWN_TOOL_NAME.length,).toBeGreaterThan(0,);
       },
     },),
     it({

@@ -20,6 +20,7 @@
 /// ```ts
 /// import { parseJsonc, parseJsoncWithSpans, jsoncPositionAt } from './index';
 /// ```
+use crate::parse::MAX_CONTAINERS;
 use crate::span::SpanRecorder;
 use crate::value::{JsoncKind, JsoncValue};
 use crate::{JsoncSpans, jsonc_position_at, parse_jsonc, parse_jsonc_with_spans};
@@ -146,12 +147,12 @@ fn spans_nest_and_run_in_document_order() {
 /// Check the nesting limit is unchanged and a document at the limit still reports its spans.
 #[test]
 fn the_nesting_limit_and_spans_coexist() {
-    let at_limit = format!("{}{}", "[".repeat(512), "]".repeat(512));
+    let at_limit = format!("{}{}", "[".repeat(MAX_CONTAINERS), "]".repeat(MAX_CONTAINERS));
     let spanned = parse_jsonc_with_spans(&at_limit).expect("512 containers are accepted");
-    assert_eq!(spanned.spans.values.len(), 512);
+    assert_eq!(spanned.spans.values.len(), MAX_CONTAINERS);
     assert_eq!(spanned.spans.values[0].end.offset, 1024);
     assert_eq!(spanned.spans.values[511].start.offset, 511);
-    let over = format!("{}{}", "[".repeat(513), "]".repeat(513));
+    let over = format!("{}{}", "[".repeat(MAX_CONTAINERS + 1), "]".repeat(MAX_CONTAINERS + 1));
     assert_eq!(parse_jsonc_with_spans(&over).map(|parsed| return parsed.value), parse_jsonc(&over));
     assert!(parse_jsonc_with_spans(&over).is_err());
 }

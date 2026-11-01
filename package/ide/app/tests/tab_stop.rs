@@ -30,40 +30,48 @@ use ide_app::{
 /// ```
 const SPACE: f32 = 9.0;
 
-/// Stops lie two space advances apart,
-///  matching the reference's `tab-size: 2`.
+/// Stops lie one tab size apart,
+///  matching the reference's `tab-size`.
 #[test]
 fn stops_are_two_space_advances_apart() {
-    assert_eq!(TAB_SPACES, 2.0);
-    assert_eq!(tab_advance(0.0, SPACE), 18.0, "a leading tab");
-    assert_eq!(tab_advance(9.0, SPACE), 9.0, "after one Latin letter");
-    assert_eq!(tab_advance(18.0, SPACE), 18.0, "exactly on a stop");
-    assert_eq!(tab_advance(27.0, SPACE), 9.0);
+    let stop = SPACE * TAB_SPACES;
+    assert_eq!(tab_advance(0.0, SPACE), stop, "a leading tab");
+    assert_eq!(
+        tab_advance(SPACE, SPACE),
+        stop - SPACE,
+        "after one Latin letter"
+    );
+    assert_eq!(tab_advance(stop, SPACE), stop, "exactly on a stop");
+    assert_eq!(tab_advance(stop + SPACE, SPACE), stop - SPACE);
 }
 
 /// A tab that would be narrower than half a space runs on to the following stop.
 #[test]
 fn tab_narrower_than_half_a_space_uses_the_following_stop() {
-    // A 15 px CJK glyph ends 3 px before the stop at 18 px; 3 px is less than half of 9 px.
+    let stop = SPACE * TAB_SPACES;
+    // A CJK glyph ending a third of a space before the stop runs on to the following one.
+    let glyph_end = stop - SPACE / 3.0;
     assert_eq!(
-        tab_advance(15.0, SPACE),
-        21.0,
+        tab_advance(glyph_end, SPACE),
+        2.0 * stop - glyph_end,
         "a sliver tab was kept instead of the next stop"
     );
+    let half = stop - SPACE / 2.0;
     assert_eq!(
-        tab_advance(13.5, SPACE),
-        4.5,
+        tab_advance(half, SPACE),
+        SPACE / 2.0,
         "exactly half a space is wide enough"
     );
-    let sliver = tab_advance(13.6, SPACE);
+    let sliver_end = half + 0.1;
+    let sliver = tab_advance(sliver_end, SPACE);
     assert!(
-        (sliver - 22.4).abs() < 0.001,
+        (sliver - (2.0 * stop - sliver_end)).abs() < 0.001,
         "a 4.4 px sliver must run on to the following stop, got {sliver}"
     );
     // Rounding noise just before a stop must not produce a zero-width tab.
-    let nearly = tab_advance(17.999_998, SPACE);
+    let nearly = tab_advance(stop - 0.000_002, SPACE);
     assert!(
-        (nearly - 18.0).abs() < 0.001,
+        (nearly - stop).abs() < 0.001,
         "noise before a stop gave {nearly}"
     );
 }
@@ -74,10 +82,15 @@ fn tab_narrower_than_half_a_space_uses_the_following_stop() {
 ///  mixed-script prefixes share stops.
 #[test]
 fn different_prefix_widths_reach_the_same_stop() {
-    // Two Latin letters (18 px), one 15 px CJK glyph, and a 15 px glyph plus a Latin letter (24 px).
-    for prefix in [18.0_f32, 15.0, 24.0] {
+    let stop = SPACE * TAB_SPACES;
+    // Prefixes on the stop, a third of a space before it, and two thirds of a space after it.
+    for prefix in [stop, stop - SPACE / 3.0, stop + SPACE * 2.0 / 3.0] {
         let end = prefix + tab_advance(prefix, SPACE);
-        assert_eq!(end, 36.0, "a tab after a {prefix} px prefix ended at {end}");
+        assert_eq!(
+            end,
+            2.0 * stop,
+            "a tab after a {prefix} px prefix ended at {end}"
+        );
     }
 }
 

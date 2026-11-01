@@ -101,3 +101,11 @@ export function dosDateTime(date: Date,): DosDateTime {
     time: dosTime,
   };
 }
+
+export {
+  DOS_DATE_MONTH_SHIFT,
+  DOS_DATE_YEAR_SHIFT,
+  DOS_EPOCH_YEAR,
+  DOS_TIME_HOUR_SHIFT,
+  DOS_TIME_MINUTE_SHIFT,
+};

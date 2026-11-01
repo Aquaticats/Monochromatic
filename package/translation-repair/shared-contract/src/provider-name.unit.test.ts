@@ -70,16 +70,9 @@ await describe({
                 asked.push(provider,);
                 return asked.length;
               },
-            },),).toEqual({
-              neuralwatt: 1,
-              synthetic: 2,
-              bedrock: 3,
-              deepseek: 4,
-              xiaomi: 5,
-              anthropic: 6,
-              hyper: 7,
-              openrouter: 8,
-            },);
+            },),).toEqual(Object.fromEntries(PROVIDER_ORDER.map(function entryAt(provider, index,): [string, number] {
+              return [provider, index + 1,];
+            },),),);
             expect(asked,).toEqual(PROVIDER_ORDER,);
           },
         },),
@@ -93,78 +86,10 @@ await describe({
         it({
           name: 'NAMES the others in spending order, whichever one is left out',
           fn: async () => {
-            expect(otherProviders({ provider: 'hyper', },),).toEqual([
-              'neuralwatt',
-              'synthetic',
-              'bedrock',
-              'deepseek',
-              'xiaomi',
-              'anthropic',
-              'openrouter',
-            ],);
-            expect(otherProviders({ provider: 'synthetic', },),).toEqual([
-              'neuralwatt',
-              'bedrock',
-              'deepseek',
-              'xiaomi',
-              'anthropic',
-              'hyper',
-              'openrouter',
-            ],);
-            expect(otherProviders({ provider: 'bedrock', },),).toEqual([
-              'neuralwatt',
-              'synthetic',
-              'deepseek',
-              'xiaomi',
-              'anthropic',
-              'hyper',
-              'openrouter',
-            ],);
-            expect(otherProviders({ provider: 'deepseek', },),).toEqual([
-              'neuralwatt',
-              'synthetic',
-              'bedrock',
-              'xiaomi',
-              'anthropic',
-              'hyper',
-              'openrouter',
-            ],);
-            expect(otherProviders({ provider: 'xiaomi', },),).toEqual([
-              'neuralwatt',
-              'synthetic',
-              'bedrock',
-              'deepseek',
-              'anthropic',
-              'hyper',
-              'openrouter',
-            ],);
-            expect(otherProviders({ provider: 'openrouter', },),).toEqual([
-              'neuralwatt',
-              'synthetic',
-              'bedrock',
-              'deepseek',
-              'xiaomi',
-              'anthropic',
-              'hyper',
-            ],);
-            expect(otherProviders({ provider: 'anthropic', },),).toEqual([
-              'neuralwatt',
-              'synthetic',
-              'bedrock',
-              'deepseek',
-              'xiaomi',
-              'hyper',
-              'openrouter',
-            ],);
-            expect(otherProviders({ provider: 'neuralwatt', },),).toEqual([
-              'synthetic',
-              'bedrock',
-              'deepseek',
-              'xiaomi',
-              'anthropic',
-              'hyper',
-              'openrouter',
-            ],);
+            for (const provider of PROVIDER_ORDER)
+              expect(otherProviders({ provider, },),).toEqual(PROVIDER_ORDER.filter(function isOther(candidate,): boolean {
+                return candidate !== provider;
+              },),);
           },
         },),
       ],

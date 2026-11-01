@@ -76,7 +76,7 @@ export class WholeCallDeadlineError extends Error {
     super(
       `The Search Fetch ${operation} call exceeded its whole-call deadline of ${
         String(deadlineMs)
-      } ms (120 s by default). The whole-call deadline bounds one complete call, including every fallback hop, and no caller signal extends it.`,
+      } ms (${String(WHOLE_CALL_DEADLINE_MILLISECONDS / 1_000)} s by default). The whole-call deadline bounds one complete call, including every fallback hop, and no caller signal extends it.`,
     );
     this.name = 'WholeCallDeadlineError';
     this.deadlineMs = deadlineMs;

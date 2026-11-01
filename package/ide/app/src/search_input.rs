@@ -3,6 +3,9 @@
 /// Injected elapsed time keeps double-Shift tests independent of wall-clock adjustments and sleep timing.
 use std::time::Duration;
 
+/// The longest gap between two uninterrupted Shift releases that still forms one opening gesture.
+pub const DOUBLE_SHIFT_GAP: Duration = Duration::from_millis(400);
+
 /// What:
 ///  Rust's Unicode whitespace predicate includes NEXT LINE and excludes the byte-order mark.
 /// Why:
@@ -72,12 +75,12 @@ impl DoubleShift {
         if !is_shift {
             return false;
         }
-        // Timely means a previous release exists and the gap since it is under 400 milliseconds.
+        // Timely means a previous release exists and the gap since it is under the gesture gap.
         let mut timely = false;
         if let Some(last) = self.last_release
             && let Some(gap) = elapsed.checked_sub(last)
         {
-            timely = gap < Duration::from_millis(400);
+            timely = gap < DOUBLE_SHIFT_GAP;
         }
         if !self.intervening_key && timely {
             self.last_release = None;
