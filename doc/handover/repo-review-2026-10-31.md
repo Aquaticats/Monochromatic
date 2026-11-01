@@ -1349,6 +1349,98 @@ recording):
   `w4-fm-variant-qt` (turn 24, config family), `w4-desktop-app` (turn 44, matcher
   remainder plus matcher.fuzz).
 
+Wave-4 thirty-third checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Lane milestone: `w4-fe-core-tests` package complete. Its turn-64 completion claim
+  was false and stands retracted: the ledger claimed 178 of 178 but covered 170;
+  eight files were never read. The child amended its ledger (the false line struck,
+  coverage restated 170 of 178, the `w4-tr-archive-001` cross-check reopened) and
+  turn 65 read the eight in full: naturalness-quorum-roundtrip.unit.test.ts (255),
+  parse-mdx-exhaustion-sites.unit.test.ts (587),
+  system-prompt-invariance.unit.test.ts (387) and the five system-prompt stage
+  fixtures. My reconciliation: package git ls-files is 178, exactly 170 under src/
+  plus 8 root configs the ledger covers in its earlier root-configs section; 160
+  (turn 63) plus 10 (turn 64) plus 8 (turn 65) is 178. The cross-check closed by my
+  spot: the roundtrip file holds an import plus exactly two
+  confirmAbsoluteNaturalness call sites, lines 125 and 148, both loseOnChallenge
+  true, so the rejecting-discovery arm stays undriven and `w4-tr-archive-001`
+  stands. Findings file 14 of 14 by my run; id `w4-tr-artifact-015` unused; base
+  rr-tra-224. Lane released.
+- `w4-cc-statusline` turn 54 verified, 9 of 9 by my run, family file
+  findings/w4-misc-cli.jsonl, rows `w4-misc-cli-001` to `-009`. My spots: blocker
+  002 (bug) the fixtures-missing gate, tracked src/fixture against the gate's
+  src/fixtures at src/index.cjs:68; the lockSync option discard at src/index.cjs:87
+  to 88 against the pi-sdk-staging.md:7184 contract; mise test:unit zero with the
+  2-hit katex control; zero scheme warn hits with the INJECTED_LANGUAGE_FRAGMENT
+  control. Turn 55 sent: file the seven spillover rows (const/core,
+  figma/to-penpot, hall-monitor/daemon, llm/llm-type, numeric-format/core,
+  page-weight/cli, test-harness/core-matrix; zero test:unit each, 25 unit test
+  files total) in the 005/009 family shape, then the package/test-fixture source
+  files, 214 generated .tomls excluded; id `w4-misc-cli-010`, base rr-gp-320.
+- `w4-android-app` turns 51 to 53 verified; turn 53 is 55 of 55 by my run. Row
+  `w4-git-policy-b-055` (nit, enhancement, RG2 family): list_shared_paths rescans
+  the whole prepared listing per landed path, mine.iter().find inside the landed
+  filter_map at replay_shared_paths.rs:230; my spot reproduces the nested find and
+  the prior-hit count (b-047 plus the new row, zero in the head reviewer file). The
+  gap file replay_reverse_apply_test_support.rs was covered outside the brief list
+  (my git ls-files confirms it tracked); positions 451 to 455 closed; the old_start
+  line adjudicated clean. Probe methodology now standing: behavior probes call
+  /usr/bin/git directly because plain git on PATH is the repo shadow. Turn 54
+  sent: position 456, expected replay_shared_paths_tests.rs, 130 positions remain,
+  id `w4-git-policy-b-056`, base rr-gpb-059, carried leads: transaction_owner.rs
+  parse_merge_intent, worktree_completion.rs:13, transaction_registry.rs,
+  transaction_git.rs (the open half of b-036), the read_replayed_index
+  AlreadyExists tolerance arm (caller commit_revalidation.rs:187).
+- `w4-desktop-app` turn 44 verified, 25 of 25 by my run; matcher and matcher.fuzz
+  closed, 8 of 16 subpackages. Blocker `w4-upstream-fork-018` reproduced by my own
+  probe run: caseA (allPatterns with two inputs against negations) gives fork false
+  against upstream true, caseB and the positive control agreeing; the catalog pins
+  matcher at >=7.0.0 (pnpm-workspace.yaml:155) so the bare import at
+  differential.property.unit.test.ts:24 can never reach the 6.1.0 the package
+  claims; the fork branch sits at matcher.ts:159. Row 022 confirmed: the baseline
+  pins matcher.ts at 6 against the every-function README claim at line 74,
+  matchesNothing absent from the driver while present in the fork. Turn 45 sent:
+  quick-lru (28 tracked files) then quick-lru.fuzz, id `w4-upstream-fork-026`,
+  base rr-desktop-073.
+- `w4-fm-variant-qt` turn 24 rows verified and recorded here: 001 the owner
+  misspelling (7 manifests use the s-less form while origin and pnpr name
+  Aquaticats, the canonical spelling), 002 the cosign README .gitignore claim
+  against root .gitignore:12, 003 the dprint typescript plugin disabled, 004 the
+  pnp.example packages/ layout. Turn 25 verified, 7 of 7 by my run, all three new
+  rows spot confirmed: 005 (warning, bug) the s-less ghcr.io/aquaticat/pnpr base at
+  Containerfile:12 with the fork named Aquaticat at :5 and README.md:46, against
+  the with-s forms at config.yaml:22 (repo:Aquaticats) and playwright-image.yml:35
+  (ghcr.io/aquaticats/monochromatic-playwright); 006 the bare exclude entries at
+  tsconfig.options.json:10 to 13 anchoring under package/config/typescript against
+  the working anchored duplicate at :14; 007 the bare fetch at lfs-r2-worker
+  mise.toml:99 gathered by Promise.all at :108, counted AbortSignal absence with
+  the 2-hit tools.ts control. Probed dead and not filed: rg-without-path, bun
+  externals, task.ts/mise.toml duality. Turn 26 sent: the five remaining READMEs
+  (oxlint, pnpr, rolldown, tofu, typescript), then the 73 config src .ts files with
+  restriction.ts cross-referencing `w4-config-001`, plus one cross-family row for
+  vm-builder sign-and-push.ts:31 (the same s-less namespace, no other lane owns
+  the package); id `w4-config-008`, base rr-fmv-49.
+- `w4-mp-design` turn 48 verified, 20 of 20 by my run: src/runtime 10,
+  src/shaped_text 6, src/tile_scene 6 and the four parent modules read in full.
+  Row `w4-ide-app-020` (nit, documentation, certain): the embedded.rs find() What
+  doc names binary_search_by with the .ok() narrowing while the body is a manual
+  halving loop (my spot: the doc hit at line 103 is the only binary_search_by
+  match, control cmp(path) hits lines 126 and 137). Cross-checks resolved live
+  (build.rs embed, fnv1a, the six turn-13 subtrees unchanged since 2026-10-31 with
+  the 2-commit control). Turn 49 sent: the 76-file reconciliation set, src/language
+  53, src/bin 14, src/minimap 8, search_worker/request.rs; id `w4-ide-app-021`,
+  base rr-ide-609.
+- Queue after the misc CLI set: item 7 docs (audit q to z from position 20,
+  troubleshooting about 650, decision about 190, planning tails). Batch-4 pipeline
+  when wave 4 completes: verify, dedupe (paginate issues-all past the 3000 cap),
+  draft, classify, intra-dupes, clean, file via file-issues.ts; bases:
+  findings-list-b3v2.txt plus the w4 wave files and pkg-observable.
+- In flight: `w4-cc-statusline` (turn 55, the seven spillover rows),
+  `w4-android-app` (turn 54, position 456), `w4-desktop-app` (turn 45, quick-lru),
+  `w4-fm-variant-qt` (turn 26, config READMEs and src), `w4-mp-design` (turn 49,
+  the language set). `w4-fe-core-tests` complete and released.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
