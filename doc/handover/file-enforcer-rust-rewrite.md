@@ -744,6 +744,10 @@ each finished branch is reviewed and merged into `main`):
   user:
   "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
   Last estimate given:
+  3 to 4.5 hours when the owner asked again after the image-size answer (about 40% confidence;
+  each separate review has found something to fix,
+  so the date keeps slipping);
+  before that,
   3 to 5 hours from the owner's Playwright answers at about 40% confidence,
   later than the earlier 2.5 to 5.5 hours because the wg blocker,
   the mpm-shadow 0.2.1 release and the Playwright image publishing joined the path;
