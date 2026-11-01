@@ -502,3 +502,104 @@ fn a_detached_head_is_moved_by_a_compare_that_does_not_follow_a_branch() {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), base);
     remove(world.root.as_path());
 }
+
+/// What a landing leaves of the index lock, and of the branch and the index, after it refused: nothing at all.
+fn assert_nothing_changed(world: &World, branch: &str, expected_tip: &str, index_before: &[u8], what: &str) {
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", branch]), expected_tip, "{what}: the branch did not move");
+    assert_eq!(std::fs::read(world.repo.join(".git/index")).expect("index"), index_before, "{what}: the index is as it was");
+    assert!(!world.repo.join(".git/index.lock").exists(), "{what}: no index lock is left");
+}
+
+/// A commit prepared on a branch is not landed once the worktree's head names another branch: the branch, the index and the
+///  other branch stay as they are, and every request of the batch is told the branch moved.
+#[test]
+fn a_commit_is_not_landed_once_the_worktree_switched_to_another_branch() {
+    let world: World = world("service-land-switched");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "--create", "side"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=side work"]);
+    let side_tip: String = git_text(world.repo.as_path(), &["rev-parse", "side"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let batch: Vec<CommitRequest> = ["one", "two"].iter().map(|id| { return request(&world, id, format!("{id}.txt").as_str(), "x\n"); }).collect();
+    git(world.repo.as_path(), &["switch", "--quiet", "--force", "side"]);
+    let index_before: Vec<u8> = std::fs::read(world.repo.join(".git/index")).expect("index");
+    let outcomes = land_batch(&world.context, 1, &batch).expect("answered");
+    assert_eq!(outcomes, vec![Outcome::BranchMoved, Outcome::BranchMoved], "each request is answered");
+    assert_nothing_changed(&world, "main", base.as_str(), index_before.as_slice(), "main");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "side"]), side_tip, "the branch switched to did not move");
+    assert_eq!(git_text(world.repo.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/side");
+    remove(world.root.as_path());
+}
+
+/// A worktree whose head went back to the branch lands the commit: the check refuses a switch, not a branch.
+#[test]
+fn a_commit_lands_when_the_worktree_is_on_its_branch() {
+    let world: World = world("service-land-on-branch");
+    git(world.repo.as_path(), &["branch", "side"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "side"]);
+    git(world.repo.as_path(), &["switch", "--quiet", "main"]);
+    let sent: CommitRequest = request(&world, "back", "back.txt", "x\n");
+    let outcomes = land_batch(&world.context, 1, &[sent]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    remove(world.root.as_path());
+}
+
+/// A linked worktree keeps its head in its own Git directory: a switch there is found, and a worktree still on its branch lands.
+#[test]
+fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
+    let world: World = world("service-land-linked");
+    let linked: PathBuf = world.root.join("linked");
+    git(world.repo.as_path(), &["worktree", "add", "--quiet", "-b", "wt", linked.to_str().expect("UTF-8")]);
+    git(world.repo.as_path(), &["branch", "other"]);
+    let git_dir: PathBuf = world.repo.join(".git/worktrees/linked");
+    let linked_request = |id: &str| -> CommitRequest {
+        std::fs::write(linked.join(format!("{id}.txt")), "x\n").expect("write");
+        let blob: String = git_text(linked.as_path(), &["hash-object", "-w", "--", format!("{id}.txt").as_str()]);
+        return CommitRequest {
+            repository: linked.clone(),
+            reference: String::from("refs/heads/wt"),
+            base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
+            changes: vec![Change { path: format!("{id}.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+            index: git_dir.join("index"),
+            ..request(&world, id, "unused.txt", "x\n")
+        };
+    };
+    let on_branch: CommitRequest = linked_request("kept");
+    let outcomes = land_batch(&world.context, 1, &[on_branch]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    let switched: CommitRequest = linked_request("lost");
+    let wt_tip: String = git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]);
+    git(linked.as_path(), &["switch", "--quiet", "--force", "other"]);
+    let outcomes = land_batch(&world.context, 2, &[switched]).expect("answered");
+    assert_eq!(outcomes, vec![Outcome::BranchMoved]);
+    assert_eq!(git_text(linked.as_path(), &["rev-parse", "refs/heads/wt"]), wt_tip, "the linked worktree's branch did not move");
+    remove(world.root.as_path());
+}
+
+/// A repository that keeps its references in reftable tables has only a placeholder in `HEAD`, and the switch is found anyway.
+#[test]
+fn a_switch_is_found_in_a_reftable_repository() {
+    let root: PathBuf = fixture("service-land-reftable");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(&repo).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main", "--ref-format=reftable"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir(&journal).expect("journal");
+    let world: World = World {
+        root: root.clone(),
+        repo: repo.clone(),
+        context: LandContext { git: git_context(), journal, on_objects_written: None, index_wait: std::time::Duration::from_secs(5) },
+    };
+    git(repo.as_path(), &["branch", "side"]);
+    let on_branch: CommitRequest = request(&world, "kept", "kept.txt", "x\n");
+    let outcomes = land_batch(&world.context, 1, &[on_branch]).expect("landed");
+    assert!(matches!(outcomes[0], Outcome::Landed { .. }), "{:?}", outcomes[0]);
+    let switched: CommitRequest = request(&world, "lost", "lost.txt", "x\n");
+    let tip: String = git_text(repo.as_path(), &["rev-parse", "main"]);
+    git(repo.as_path(), &["switch", "--quiet", "--force", "side"]);
+    let outcomes = land_batch(&world.context, 2, &[switched]).expect("answered");
+    assert_eq!(outcomes, vec![Outcome::BranchMoved]);
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "main"]), tip, "the branch did not move");
+    remove(root.as_path());
+}
