@@ -41,6 +41,7 @@ import {
   MEOW_FORMAT,
 } from '@monochromatic-dev/translation-repair-provider/ts/stage-trivial-reply.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
+import { SYNTHETIC_WET_ONLY, } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 
 //region Quorum claims tests
 
@@ -125,6 +126,10 @@ async function gatherWithRunaways(
    answered.
    */
   const client: ModelClient = {
+    // THE RUN'S VIEW OF THE METERS, with Synthetic serving (ledger B1372): the second runaway seat is Qwen3.8-27B, which
+    // the roster role withholds from its own-model ask where no reading can be trusted, so a client with none would lose
+    // the seat and this case would test the hold and not the claims.
+    providerDryness: async () => SYNTHETIC_WET_ONLY,
     chatText: async () => {
       throw new Error('chatText unused',);
     },
