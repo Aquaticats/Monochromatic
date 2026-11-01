@@ -16,8 +16,11 @@
 use super::commit::{await_marker, remove_settled, wrapped_commit};
 use super::fault::{staged_repository, verify_recovery};
 use super::support::{Fixture, fixture, stalling_editor};
+use std::os::fd::AsRawFd;
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 /// The environment variable that arms a phase marker (`transaction_phase.rs`).
@@ -40,11 +43,41 @@ fn send(target: i32, signal: i32) {
     assert_eq!(status, 0, "kill({target}, {signal}) failed: {}", std::io::Error::last_os_error());
 }
 
+/// The longest the announcement of the editor is waited for, in milliseconds; a hang guard, never part of a verdict.
+const ANNOUNCEMENT_BOUND_MILLISECONDS: libc::c_int = 90_000;
+
+/// Make the named pipe the editor announces itself through and open its read end without blocking.
+///  The editor's own open for writing then never waits for a reader, and the read end is held from before the commit
+///  starts, so the announcement reaches the test at the instant the editor makes it.
+fn announcement_pipe(path: &Path) -> std::fs::File {
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a path has no NUL");
+    // SAFETY: `mkfifo` reads the NUL-terminated name this function owns and touches no memory of this process.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "mkfifo failed: {}", std::io::Error::last_os_error());
+    return std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path)
+        .expect("the read end of the announcement pipe opens");
+}
+
+/// Block until the editor has opened the announcement pipe for writing, without sleeping or polling on a timer.
+///  The wait ends on the pipe's own readiness, so the signal that follows leaves within microseconds of the
+///  announcement whatever the load: the worst moment for an editor that is still starting.
+fn await_announcement(pipe: &std::fs::File, path: &Path) {
+    let mut watched: libc::pollfd = libc::pollfd { fd: pipe.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+    // SAFETY: `poll` reads and writes the one `pollfd` this function owns, whose count is 1.
+    let ready: libc::c_int = unsafe { libc::poll(&raw mut watched, 1, ANNOUNCEMENT_BOUND_MILLISECONDS) };
+    assert!(ready > 0, "the editor never announced itself on {}", path.display());
+}
+
 /// Send `signal` to a wrapper whose commit sits in the editor and check that the commit ends with `128 + signal` and
-///  the repository recovers.
+///  the repository recovers. The signal leaves at the instant the editor announces itself, the moment at which an
+///  editor that is still starting is most likely to swallow it.
 fn signal_during_the_editor(name: &str, signal: i32) {
     let fixture: Fixture = fixture(name);
     let started: PathBuf = fixture.root.join("editor-started");
+    let announcement: std::fs::File = announcement_pipe(started.as_path());
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let editor: PathBuf = stalling_editor(&fixture, started.as_path());
     let child: Child = wrapped_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--", "a.txt"])
@@ -53,7 +86,7 @@ fn signal_during_the_editor(name: &str, signal: i32) {
         .stderr(Stdio::piped())
         .spawn()
         .expect("the commit starts");
-    await_marker(started.as_path());
+    await_announcement(&announcement, started.as_path());
     send(i32::try_from(child.id()).expect("a process ID fits"), signal);
     let finished = child.wait_with_output().expect("the commit ends");
     assert_eq!(
