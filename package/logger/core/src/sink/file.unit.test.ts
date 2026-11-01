@@ -24,6 +24,7 @@ import {
   _findNodeModulesUp as findNodeModulesUp,
   _NO_NODE_MODULES_FOUND as NO_NODE_MODULES_FOUND,
   createFileSink,
+  DAY_KEY_LENGTH,
   DEFAULT_LOG_MAX_BYTES,
   DEFAULT_LOG_MAX_FILES,
   NO_LOG_RETENTION_SWEEP,
@@ -335,7 +336,7 @@ await describe({
           dayName,
           logEntry,
         ] = entries;
-        expect(dayName ?? '',).toHaveLength(10,);
+        expect(dayName ?? '',).toHaveLength(DAY_KEY_LENGTH,);
         expect((logEntry ?? '').startsWith(`${dayName ?? ''}/${dayName ?? ''}T`,),).toBe(true,);
         expect((logEntry ?? '').endsWith('.log.jsonl',),).toBe(true,);
         const files = await logFiles(destination.path,);
