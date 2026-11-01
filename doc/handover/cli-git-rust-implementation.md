@@ -6604,3 +6604,10 @@ This block supersedes "State at 2026-10-29 (night, later)".
   as the single-writer proof, with retirement waiting for the old writer; durable given-up records).
 - Next: the agent reports READY with a per-finding list, then a third cross-vendor review, then the v5 to v6 protocol
   reconciliation on top of 0.5.5, gate, release 0.5.6.
+- Started meanwhile: task #23, the scanner's Windows pathname mutation rerun (as-is, then with a Defender exclusion),
+  agent `a92388609a6b4950a`; it writes to `doc/handover/scanner-native-verification.md`.
+- QUEUED after 0.5.5 lands: task #30, `native:clippy:windows` (it exited 101 on `auto_push_single_flight.rs` and
+  `manual_push_probe.rs` using `std::os::unix` without a `cfg`; the service modules likely add more). It waits because
+  it touches the same service files as the e2e fix agent.
+- Cleanup done: `~/temp/agent/hotfix/measure` was 143 MB, not 2 GB; its build copies are removed, logs and
+  `measure.ts` kept.
