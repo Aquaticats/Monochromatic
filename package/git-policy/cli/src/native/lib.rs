@@ -1233,6 +1233,9 @@ pub mod service_message;
 /// What an amend takes from the commit it replaces: parents, message and author.
 pub mod service_amend;
 
+/// The commits real Git builds for the service: an editor, a signature, and what the service does not embed.
+pub mod service_native;
+
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 

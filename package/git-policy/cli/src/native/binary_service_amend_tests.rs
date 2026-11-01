@@ -198,10 +198,10 @@ fn amends_through_the_service_equal_the_native_amend() {
     remove_settled(&fixture);
 }
 
-/// An amend whose message would need an editor is not covered, and a repository setting the service would ignore keeps the
-///  amend native; both are committed by the transaction and the service is not used.
+/// An amend in a repository whose configuration the service would ignore (here a clean-up mode) is built by real Git and
+///  landed by the service, and the setting holds.
 #[test]
-fn an_amend_the_service_does_not_cover_stays_native() {
+fn an_amend_with_a_configuration_the_service_would_ignore_has_git_build_it() {
     let fixture: Fixture = fixture("service-amend-declined");
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     write(&repo, "a.txt", "base\n");
@@ -215,7 +215,7 @@ fn an_amend_the_service_does_not_cover_stays_native() {
     let before: usize = finished(&fixture);
     let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--amend", "-m", "kept   \n\n\n", "--", "a.txt"]);
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(finished(&fixture), before, "the service was not used");
+    assert_eq!(finished(&fixture), before + 1, "Git built it and the service landed it");
     assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%B"]), "kept   \n\n\n\n", "the setting held");
     let _killed = service.kill();
     let _waited = service.wait();

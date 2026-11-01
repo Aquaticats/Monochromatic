@@ -237,6 +237,10 @@ mod service_selection;
 #[path = "binary_service_amend_tests.rs"]
 mod service_amend;
 
+/// Commits real Git builds for the service (an editor, a signature), compared with the transaction's commit.
+#[path = "binary_service_native_tests.rs"]
+mod service_native;
+
 /// The route of a commit and the wrapper's own provisioning of socket activation, against a stand-in session bus.
 #[path = "binary_service_provision_tests.rs"]
 mod service_provision;

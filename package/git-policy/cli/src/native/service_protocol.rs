@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
@@ -81,6 +81,17 @@ pub struct CommitRequest {
     /// The tree of an amend, which the client wrote into the repository's object store; nothing for any other request,
     ///  whose tree the service makes from the base and the changes.
     pub tree: Option<String>,
+    /// A commit Git built in a scratch repository (an editor, a signature), already in the repository's object store. The
+    ///  service lands it as it is, only while the branch tip is still the base, and ignores the message, the identities
+    ///  and the tree of the request.
+    pub commit: Option<String>,
+}
+
+impl CommitRequest {
+    /// Whether the request lands alone and only while the branch tip equals its base: an amend, or a commit built elsewhere.
+    pub fn lands_alone(&self) -> bool {
+        return self.amend || self.commit.is_some();
+    }
 }
 
 /// The closed list of reasons the service gives for not landing a request.
@@ -234,6 +245,7 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("committer", Value::from(request.committer.as_str())),
             ("amend", Value::from(request.amend)),
             ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
+            ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
         ]),
     };
 }
@@ -293,6 +305,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         committer: field(&value, "committer")?.to_string(),
         amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
+        commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
     };
     let well_formed: bool = !request.id.is_empty()
         && request.id.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; })
@@ -303,9 +316,11 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && request.common_dir.is_absolute()
         && !request.committer.contains(['\0', '\n'])
         && request.author.as_deref().is_none_or(|author| { return !author.contains(['\0', '\n']); })
-        // An amend names the tree it makes; any other request has none, so the two cannot be mixed up.
-        && request.amend == request.tree.is_some()
-        && request.tree.as_deref().is_none_or(is_object_name);
+        // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request
+        //  names neither, so the three cannot be mixed up.
+        && (request.amend && request.commit.is_none()) == request.tree.is_some()
+        && request.tree.as_deref().is_none_or(is_object_name)
+        && request.commit.as_deref().is_none_or(is_object_name);
     if !well_formed {
         return Err(String::from("request is not acceptable"));
     }

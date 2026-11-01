@@ -146,9 +146,9 @@ pub fn render(failure: &ClientFailure) -> String {
              pause. {NOTHING_CHANGED}"
         ),
         ClientFailure::BranchMoved { branch } => format!(
-            "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one cannot \
-             be made again on a different last commit, so it was not made. Run the commit again to replace the last commit \
-             as the branch is now. {NOTHING_CHANGED}"
+            "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one, or one \
+             that was written or signed by hand, cannot be moved onto a different last commit, so it was not made. Run the \
+             commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
         ),
         ClientFailure::WaitedTooLong { minutes } => format!(
             "This commit waited {minutes} minutes behind other commits and was not made. Run it again later, or raise \

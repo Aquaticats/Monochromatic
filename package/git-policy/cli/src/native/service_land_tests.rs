@@ -43,6 +43,7 @@ fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest 
         committer: String::from(COMMITTER),
         amend: false,
         tree: None,
+        commit: None,
     };
 }
 
@@ -256,6 +257,75 @@ fn an_amend_in_a_batch_with_others_is_refused() {
     let plain: CommitRequest = request(&world, "plain", "plain.txt", "p\n");
     let amend: CommitRequest = amend_request(&world, "amend", "amend.txt", "a\n");
     assert_eq!(land_batch(&world.context, 1, &[plain, amend]), Err(FailureCode::Rejected));
+    remove(world.root.as_path());
+}
+
+/// A request carrying a commit Git built: `commit-tree` makes it on `parents` with the tip's tree plus `path`, and the
+///  request names it whole.
+fn built_request(world: &World, id: &str, path: &str, parents: &[&str]) -> CommitRequest {
+    let mut built: CommitRequest = request(world, id, path, format!("{id}\n").as_str());
+    git(world.repo.as_path(), &["add", "--", path]);
+    let tree: String = git_text(world.repo.as_path(), &["write-tree"]);
+    git(world.repo.as_path(), &["reset", "--quiet"]);
+    let mut arguments: Vec<String> = vec![String::from("commit-tree"), tree, String::from("-m"), format!("typed {id}")];
+    for parent in parents {
+        arguments.push(String::from("-p"));
+        arguments.push((*parent).to_string());
+    }
+    let words: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    built.commit = Some(git_text(world.repo.as_path(), words.as_slice()));
+    return built;
+}
+
+/// A commit Git built lands as it is while the branch is at its base: the branch points at that very commit, nothing else
+///  is made, and the index shows nothing staged.
+#[test]
+fn a_commit_git_built_lands_as_it_is_while_the_branch_is_at_its_base() {
+    let world: World = world("service-land-built");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    let commit: String = built.commit.clone().unwrap_or_default();
+    let outcomes = land_batch(&world.context, 1, &[built]).expect("landed");
+    assert_eq!(outcomes, vec![Outcome::Landed { commit: commit.clone() }]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), commit);
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "");
+    assert!(batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION).exists(), "journaled and finished");
+    remove(world.root.as_path());
+}
+
+/// A commit Git built is never moved onto another tip: with the branch away from its base it is not landed, and the branch stays.
+#[test]
+fn a_commit_git_built_is_not_landed_when_the_branch_is_not_at_its_base() {
+    let world: World = world("service-land-built-moved");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let built: CommitRequest = built_request(&world, "typed", "typed.txt", &[base.as_str()]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=moved by someone"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    assert_eq!(land_batch(&world.context, 1, &[built]).expect("answered"), vec![Outcome::BranchMoved]);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), moved);
+    remove(world.root.as_path());
+}
+
+/// The service lands only what the request's rule allows: a commit made on other parents, a name that is not a commit, a
+///  name that is not in the store, and an amend whose parents are not the replaced commit's are all refused untouched.
+#[test]
+fn a_commit_git_built_is_checked_before_the_branch_moves() {
+    let world: World = world("service-land-built-checked");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=second"]);
+    let second: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let mut on_other_parents: CommitRequest = built_request(&world, "other", "other.txt", &[base.as_str()]);
+    on_other_parents.base = second.clone();
+    let mut not_a_commit: CommitRequest = built_request(&world, "tree", "tree.txt", &[second.as_str()]);
+    not_a_commit.commit = Some(git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]));
+    let mut absent: CommitRequest = built_request(&world, "absent", "absent.txt", &[second.as_str()]);
+    absent.commit = Some("1".repeat(40));
+    let mut wrong_amend: CommitRequest = built_request(&world, "amend", "amend.txt", &[second.as_str()]);
+    wrong_amend.amend = true;
+    for (label, refused) in [("other parents", on_other_parents), ("a tree", not_a_commit), ("an absent name", absent), ("an amend on the base itself", wrong_amend)] {
+        assert_eq!(land_batch(&world.context, 1, &[refused]), Err(FailureCode::Rejected), "{label}");
+        assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), second, "{label}: the branch did not move");
+    }
     remove(world.root.as_path());
 }
 

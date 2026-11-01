@@ -20,6 +20,7 @@ fn request() -> CommitRequest {
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
         amend: false,
         tree: None,
+        commit: None,
     };
 }
 
@@ -106,6 +107,26 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
+}
+
+/// A commit built elsewhere is named whole, alone or with an amend, never together with a tree; a name that is no object is refused.
+#[test]
+fn a_prebuilt_commit_is_named_whole_and_never_with_a_tree() {
+    let mut plain: CommitRequest = request();
+    plain.commit = Some(String::from(BLOB));
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(plain.clone())));
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(plain.clone()))));
+    assert!(plain.lands_alone());
+    let mut amend: CommitRequest = plain.clone();
+    amend.amend = true;
+    assert_eq!(decode_client(encode_client(&ClientMessage::Commit(Box::new(amend.clone()))).as_str()), Ok(ClientMessage::Commit(Box::new(amend))));
+    let mut with_tree: CommitRequest = plain.clone();
+    with_tree.tree = Some(String::from(BLOB));
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(with_tree))).as_str()).is_err(), "a tree beside a prebuilt commit");
+    let mut bad: CommitRequest = plain;
+    bad.commit = Some(String::from("not-an-object"));
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "a commit that is no object name");
+    assert!(!request().lands_alone());
 }
 
 /// An amend names its tree and nothing else does: the two fields survive encoding together, and a request that has one
