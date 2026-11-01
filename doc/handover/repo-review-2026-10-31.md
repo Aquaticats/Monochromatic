@@ -1252,6 +1252,103 @@ recording):
   repair slice 4, rows 181 onward), `w4-desktop-app` (upstream-fork,
   make-asynchronous.fuzz).
 
+Wave-4 thirty-second checkpoint (2026-11-01, all rows verified against the tree before
+recording):
+
+- Campaign milestone: the `w4-fm-variant-qt` corpus-repair campaign is complete, 259 of
+  259 rows across four slices. My line counts of the slice logs: slice 1 60 lines,
+  slice 2 61, slice 3 60, slice 4 79 (slice 4 carries 76 unique ids; the logs are the
+  audit record). Slice 4: 33 stale-evidence, 28 schema-restore, 18 repair.
+- My verifier re-run reproduced all 18 repaired files exactly: w2-async-b1 106/106,
+  part2 3/3, part3 3/3, part4 3/3, part5 6/6, part6 6/6, part8 7/7, part9 5/5, part10
+  5/5, part11 8/8, w2-dom-a-append1 7/7, append4 4/4, append4-final 4/4,
+  logger-tests-new 4/4, planning-staging 3/3, w4-ahs-tail 10/10, w4-cc-statusline
+  15/15, w4-wg-quicker-exempt 6/6. root-configs.jsonl untouched: 159 rows, 36 ok, the
+  stale rows staying BAD deliberately (the slice logs are the record). The fm final
+  report's adjudications stand (ahs010, wg006, w2-async-b1-027, the quartet); my
+  ahs010 spot on the correct file,
+  package/agent-harness-shared/usage-projection/src/format.unit.test.ts, reproduces
+  the 5m band at lines 120 to 128 plus the counted absence of whole-hour and
+  whole-day assertions (the 5m, 2h30m, 3d2h control band at 3 hits).
+- Lane milestone: `w4-cc-statusline` head slice complete (turn 53): positions 1 to 299
+  plus the unlisted gap file filesystem_identity_darwin_tests.rs; 19 pre-covered
+  subjects read in full without re-filing; 79 rows, `w4-git-policy-001` to `-079`,
+  79 of 79 by my run. Turn 53 row: `w4-git-policy-079` (nit, documentation)
+  lfs_pre_push.rs:34 and :123 present hook.<name>.enabled=false as the switch that
+  disables the injected LFS hook; git 2.56.0 githooks(5) documents no such key (my
+  spot: both quotes reproduce, enabled=false count 2 in the file; same mechanism as
+  partner row `w4-git-policy-b-006`). Turn 52 rows verified: 075 and 077 the stale
+  commit-transaction-workspace.ts and src/index-lock/landing-location.ts citations
+  (counted absences, single-hit controls, cutover delete commit 642b6d72cb); 076
+  (nit, enhancement) the paths_changed_outside linear contains scans at
+  landing_invariant.rs:59 to 60 (RG2 family); 078 (warning, bug) parse_layout
+  String::from_utf8_lossy at landing_location.rs:80 against os_from_path_bytes at
+  path_bytes.rs:31 (byte-preservation class of rows 014 and 072). Adjudications
+  accepted: the run_with_program code-zero-to-one mapping and the JS-number parity
+  with its NaN branches pinned. cc re-tasked (turn 54) to the misc CLI set with a
+  fresh family file findings/w4-misc-cli.jsonl from `w4-misc-cli-001`, base rr-gp-319.
+- `w4-android-app` rows `w4-git-policy-b-046` to `-048` verified, 48 of 48 by my run:
+  b-046 (nit, documentation) the ref_files.rs:6 branch-check doc claim against the
+  child's git 2.56.0 probe; b-047 the Latin-1 decode duplicated inline at
+  replay_capture_history.rs:93 and replay_shared_paths.rs:185 against the documented
+  helper at capture_order.rs:257; b-048 the per-candidate whole-history rescan at
+  replay_capture_history.rs:163 and replay_capture_order.rs:179 to 182 (RG2 family).
+  My spots reproduce all three. Positions 428 to 437 covered. Turn 51 sent: position
+  438 replay_commit_tests.rs (347 lines), 148 positions remain, next id
+  `w4-git-policy-b-049`, base rr-gpb-056, carried leads: the decide_shared_paths
+  empty-candidates early return (expected home replay_commit_tests.rs),
+  transaction_owner.rs parse_merge_intent, worktree_completion.rs:13,
+  transaction_registry.rs, transaction_git.rs (the open half of b-036).
+- `w4-desktop-app` turn 43 verified, 17 of 17 by my run; make-asynchronous.fuzz closed
+  (15 reviewable files). Rows `w4-upstream-fork-011` to `-017`: 011 the checkBaseline
+  Record-literal example against the ReadonlyMap signature (coverage-report.ts:253
+  and :260, row-007 family); 012 (warning, bug) the coverage gate claims every
+  function is reached while isMessageEvent never executes under the Node-only driver
+  (my spot: zero isMessageEvent or isWorkerReply hits in coverage-driver.ts, the
+  line-2 doc-phrase control, worker-lifecycle.ts:248 and :290, the baseline pinning
+  worker-lifecycle.ts at 13); 013 the empty FUZZ_RUNS value yielding zero runs
+  (fuzz-budget.ts:19 and :21; my template count: 8 sidecars share the fuzz-budget
+  file); 014 the dangling oracle-comparison pointer at spec-fixtures.ts:126 to 127;
+  015 the unused caught-value-core devDependency (git grep single hit, the manifest
+  line itself); 016 the positional TSDoc examples on the fork's object-shaped APIs
+  (index.ts:54 and :120, errors.ts:24 and :71, case-fold.ts:239); 017 the foldSlowPath
+  u-flag lone-halves claim against the installed matcher 7.0.0, which uses the v
+  flag (my spot: the oracle index.js at lines 120 and 121 with /gv). Turn 44 sent:
+  the matcher remainder (8 test files, README, mise.toml, the rolldown config,
+  tsconfig) plus matcher.fuzz with the 6.1.0-versus-7.0.0 oracle lead; next id
+  `w4-upstream-fork-018`, base rr-desktop-072.
+- `w4-mp-design` src-root set complete (its turn 46): 15 of 15 *_tests.rs files across
+  its turns 45 and 46, all clean, no new rows; 19 of 19 by my run. Its ledger
+  correction verified by my spot: src/wrap_tests.rs is wired from wrap.rs:297 through
+  #[path], not from native.rs:434, which declares the native-slice integration
+  module. Turn 47 sent: the ide/app src subdirectories in order ui, change_watch,
+  runtime, shaped_text, tile_scene (recorded counts 11, 13, 10, 6, 6 files), the
+  design/ vendored tree later; next id `w4-ide-app-020`, base rr-ide-607.
+- `w4-fe-core-tests` turn 61 verified, 12 of 12 by my run, no new rows; 142 of 178
+  covered. Cross-checks verified by my spot: the assertSlicesOrdered repeat arm at
+  artifact-two-lane-read.unit.test.ts lines 1011 to 1013 and the permuted arm at
+  1078 to 1080; that file holds zero consistency mentions by counted grep while 22
+  sibling test files match (my re-run of the count). assertSlicesOrdered closed and
+  pinned. Still open, leaning unpinned tree-wide: the parseConsistency refusal arms
+  (read-consistency.ts lines 287 to 294 and 296 to 301), the parseSoleLaneSlice
+  usable arm plus benchBelowFloor-on-sole-lane, and the polish arm (polishRequired in
+  no test), to file or clear after the remaining fixtures. Turn 62 sent: the
+  settled-archive, consistency-group, consistency-refusal and score-probe fixtures,
+  then the non-corpus-run tail (31 files; the 36-versus-35 count reconciliation
+  open); next id `w4-tr-artifact-013`, base rr-tra-220.
+- `w4-fm-variant-qt` re-tasked (turn 24): the config family, package/config, 129
+  tracked files across nine packages (my git ls-files count; the initial brief's
+  roughly-9 figure was the package count, corrected mid-turn), findings/w4-config.jsonl
+  from `w4-config-001`, base rr-fmv-47, with the Aquicat misspelling lead (Aquicat
+  and Aquicalat the misspellings to search) and the concurrent-session cautions for
+  pnpr/config.yaml and pnpr/src/scratch-parent.ts (read-only, quotes re-verified
+  live at append).
+- In flight: `w4-cc-statusline` (misc CLI set, turn 54), `w4-android-app` (turn 51,
+  replay_commit_tests.rs position 438), `w4-mp-design` (turn 47, the ui subdir),
+  `w4-fe-core-tests` (turn 62, the settled-archive and consistency fixtures),
+  `w4-fm-variant-qt` (turn 24, config family), `w4-desktop-app` (turn 44, matcher
+  remainder plus matcher.fuzz).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
