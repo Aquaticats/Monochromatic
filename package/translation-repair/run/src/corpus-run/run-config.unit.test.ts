@@ -63,7 +63,9 @@ import {
   SEAT_HYPER_VISION,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+  SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
+import { readingWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { withFreshRunSeats, } from '@monochromatic-dev/translation-repair-stage/ts/corpus-run/fresh-run-seats.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';
@@ -328,6 +330,12 @@ const MESSAGES = [
  2026-09-24 and which the run client refuses (ledger P4).
  */
 const SHARED_SEAT = SEAT_SYNTHETIC_VISION_NO_OPENROUTER;
+
+/**
+ Seat the first provider serves that is not the model the reading decides about, for the case that re-asks a runaway
+ editor of the model only the reading leaves in.
+ */
+const RUNAWAY_EDITOR_SEAT = SEAT_SYNTHETIC_VISION_WITHHELD;
 
 /**
  Seat the owner culled from every role, which every provider still serves.
@@ -958,6 +966,83 @@ await describe({
             const closed = await callsForOthers({ failedAsks: SEAT_WITHHOLD_ASKS, },);
             expect(open > closed,).toBe(true,);
             expect(closed,).toBe(0,);
+          },
+        },),
+
+        it({
+          name: 'HANDS THE RUN\'S READING OF THE METERS TO THE RE-ASK OF A RUNAWAY EDITOR (ledger B1330, B1345): a '
+            + 'model the run withholds from the role only while Hyper would serve it stays an alternate while '
+            + 'Synthetic serves it, which only the reading shows, so the re-ask asks the model the reading leaves in '
+            + 'and not the one the rule that ignores the reading leaves in',
+          fn: async () => {
+            using _fresh = withFreshRunSeats();
+            /**
+             The reading the run takes under the first provider's key alone, whose meter cannot be read and so counts as
+             spendable: every provider without a key is dry, so the first provider is the one that serves each model it
+             serves.
+             */
+            const wetSyntheticOnly = readingWith({ wet: ['synthetic',], },);
+            /**
+             Alternates of the runaway editor when the reading is applied.
+             */
+            const inReading = alternateModelsFor({
+              modelId: RUNAWAY_EDITOR_SEAT,
+              role: 'editor',
+              bench: [RUNAWAY_EDITOR_SEAT,],
+              routeTimeHolds: { applied: 'in-reading', dry: wetSyntheticOnly, },
+            },).alternates;
+            /**
+             Alternates of the runaway editor when the reading is ignored, which is what a client that hands no reading
+             down gets.
+             */
+            const ignoringReading = alternateModelsFor({
+              modelId: RUNAWAY_EDITOR_SEAT,
+              role: 'editor',
+              bench: [RUNAWAY_EDITOR_SEAT,],
+            },).alternates;
+            /**
+             The model only the reading leaves in, which the re-ask can ask only through the seam.
+             */
+            const [onlyInReading,] = inReading.filter(function leftOutByIgnoring(modelId,): boolean {
+              return !ignoringReading.includes(modelId,);
+            },);
+            // THE PROBE CAN SEE THE SEAM: the two rules name different alternates, or the case would pass with the seam
+            // removed.
+            expect(onlyInReading,).not.toBeUndefined();
+            /**
+             The role and bench of the runaway's seat, the bench holding every alternate the order tries before that model
+             so that the re-ask meets it first.
+             */
+            const reaskSeat = {
+              role: 'editor',
+              bench: [RUNAWAY_EDITOR_SEAT, ...inReading.slice(0, inReading.indexOf(onlyInReading ?? RUNAWAY_EDITOR_SEAT,),),],
+              reask: 'other-model',
+            } as const;
+
+            /**
+             Models every exchange was labelled with, in order.
+             */
+            const labels: string[] = [];
+            await runClientFrom({
+              maxHoldMs: TEST_MAX_HOLD_MS,
+              env: { [API_KEY_VAR]: 'whiskers-not-a-real-key', },
+              transport: async (exchange,) => {
+                labels.push(exchange.label,);
+                return isFirstProviderChat(exchange.url,)
+                  ? { status: ANSWERED, bodyText: 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n', }
+                  : { status: REFUSED_OUTRIGHT, bodyText: '{}', };
+              },
+            },).chatJson({
+              modelId: RUNAWAY_EDITOR_SEAT,
+              messages: MESSAGES,
+              signal: new AbortController().signal,
+              responseFormat: { type: 'json_schema', json_schema: { name: 'purr', schema: { type: 'object', }, }, },
+              validate: function isPurr(value: unknown,): value is { readonly purr: string; } {
+                return ((typeof value) === 'object') && (value !== null) && ('purr' in value);
+              },
+              reaskSeat,
+            },);
+            expect(labels.includes(onlyInReading ?? '',),).toBe(true,);
           },
         },),
 
