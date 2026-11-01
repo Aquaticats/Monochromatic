@@ -2512,6 +2512,21 @@ Wave-4 eighty-first checkpoint (2026-11-01, android slice 3):
   the slice-3 remainder rr-maa-006, and the desktop-app slice-1 remainder
   rr-mda-002.
 
+Wave-4 eighty-second checkpoint (2026-11-01, troubleshooting at 159):
+
+- `w2-logger-src` is 159 of 159 clean after rows 152 to 160. Row 160 was
+  spot-read: 34 issue and pull links across 29 records use the pre-rename
+  `Aquaticat` owner and return 404, while correct-owner and run/root controls
+  return 200. Next id 161, resume after
+  `git-plumbing-commit-auto-maintenance.md`, base rr-ts-390.
+- Process note: a concurrent lane overwrote the shared scratchpad `append.mjs`
+  mid-run. The troubleshooting lane switched to lane-prefixed private scripts
+  and re-ran one failed append; no repository file changed and no row was lost.
+  Future briefs must use lane-prefixed private scripts, never the shared helper.
+- Live lanes: planning 070 rr-dp-009, the android-app slice-1/2/3 remainders
+  (rr-maa-004/005/006), the desktop-app slice-1 remainder rr-mda-002, and
+  troubleshooting 161 rr-ts-390.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
