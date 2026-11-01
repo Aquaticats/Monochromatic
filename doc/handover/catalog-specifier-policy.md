@@ -693,6 +693,21 @@ The user confirmed the shared understanding and the order below, after the third
   agent cannot create one, and a stored token answered 403 in earlier sessions), then Trusted Publishing is created by API as for the
   other crates. That is the current blocker for step 2's publication.
 
+- 2026-11-01, step 2 published: `monochromatic-catalog-specifier` 0.1.0 was published to crates.io with the owner's bootstrap token,
+  after the user answered that the token was logged in.
+  `cargo package` packaged 15 files (115.7 KiB, 34.0 KiB compressed) and verified by compile; `cargo publish --dry-run` passed with no
+  403; the real `cargo publish` uploaded and waited for availability.
+  Registry check: `max_stable_version` `0.1.0`, one version, not yanked, keywords and categories present.
+  Consumer check: a disposable crate (`~/temp/agent/cs-consumer`) depending on `=0.1.0` from the registry compiled, and its
+  assertions passed (a clean manifest gave no findings; `"zod": "^4.6.7"` gave one, with the remedy text).
+  Trusted Publishing was created through the crates.io API with the token's `trusted-publishing` scope, printing statuses only:
+  config `30143`, owner `Aquaticats` (id 343218767), repository `Monochromatic`, workflow `cargo-publish.yml`, no environment; the
+  listing shows exactly one row.
+  Not exercised: a Trusted Publishing run from CI (a dispatch with dry-run off would authenticate and skip the upload).
+  Owner action remaining: revoke the token `monochromatic-catalog-specifier-bootstrap` at https://crates.io/settings/tokens; the
+  agent then runs `cargo logout`.
+  `monochromatic-7a` was told the crate is published and given the API, the pin form and the remaining policy work.
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
