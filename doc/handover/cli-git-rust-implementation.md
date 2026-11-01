@@ -4994,3 +4994,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Proposed `AGENTS.md` rule (not yet written; needs a fresh unique code checked against both forbidden-strings
   appendixes): the git-policy wrapper never starts itself and never writes shell text or scripts; explanations come from
   the parent process that owns the child. The user decides whether it is added.
+- Decision (user, answer "B: Package docs only"): the no-self-invocation and no-shell rule is not added to `AGENTS.md`. It
+  lives in `package/git-policy/cli` `SPEC.md`, `README.md`, `doc/planning/cli-git-no-self-invocation.md`, and is enforced
+  mechanically by the clippy `disallowed-methods` ban on `current_exe` and the source-scan test (which must also reject
+  generated shell text and any hook or entry that names the wrapper). Subagent briefs for wrapper work must quote the rule.
