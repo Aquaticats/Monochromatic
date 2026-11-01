@@ -230,8 +230,8 @@ fn a_search_that_reaches_its_cap_says_so_and_one_that_finds_a_release_does_not()
     let short_declaration = prefixed(&mut short);
     short.http.serve(&page_url(1), full_page_of_other_releases().as_bytes());
     short.http.serve(&page_url(2), format!("[{}]", listed("other-v1.0.0", false, false)).as_bytes());
-    let error = resolve_github(&short.context(), &short_declaration, "o/r", None).expect_err("none");
-    assert!(!error.message().contains("cap"), "{error:?}");
+    let short_error = resolve_github(&short.context(), &short_declaration, "o/r", None).expect_err("none");
+    assert!(!short_error.message().contains("cap"), "{short_error:?}");
 }
 
 #[test]
