@@ -213,7 +213,9 @@ Then provision the toolchain,
 converging every tool to the versions `toolchain.lock.json` records
 (that installs Node and `file-enforcer` too).
 The first run is by the binary's path,
-because the `toolchain:*` tasks need Node and this install is what provides it:
+because the `toolchain:*` tasks need Node 24 or newer
+(the entry uses `import.meta.main` and `Error.isError`),
+and this install is what provides it (the Node that the lock names is newer than that):
 
 ```sh
 "${HOME}/.local/bin/mpm-shadow" install
@@ -227,13 +229,17 @@ use the task:
 mise run toolchain:install
 ```
 
-Every `toolchain:*` task runs the `mpm-shadow` version that `toolchain.lock.json` names,
-never the one on `PATH`:
-when `.cache/toolchain-bin/mpm-shadow` is another version,
-the task downloads the lock's archive,
-checks its SHA-256 against the lock,
-keeps it under `.cache/mpm-shadow-bootstrap/<version>/`,
-and runs that copy.
+Every `toolchain:*` task runs an `mpm-shadow` at least at the version that `toolchain.lock.json` names,
+and never the one on `PATH`:
+it runs the newest installed copy
+(`.cache/toolchain-bin/mpm-shadow`,
+or a finished version folder under the toolchain root's `mpm-shadow` folder)
+whose version is at or above the lock's,
+and says `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` when that copy is newer.
+Only when there is none does the task download the lock's archive,
+check its SHA-256 against the lock,
+and install it into the toolchain root as `mpm-shadow install` would.
+A copy older than the lock never runs.
 So a checkout whose `mpm-shadow` is older than the lock needs no extra step
 (an old copy would stop on `tools.mpm-shadow.options.tagPrefix is not a known field`,
 see `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`).

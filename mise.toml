@@ -482,12 +482,13 @@ const runPlaywright = (config, extraFlags = []) => {
 }
 """
 
-# Shared runner of the toolchain:* tasks. Each of them runs `mpm-shadow` at the version toolchain.lock.json names,
-# never the one PATH offers: an older copy exits 2 on a plan field it does not know (for example
-# tools.mpm-shadow.options.tagPrefix), even after the lock names a newer one. The entry
-# package/monorepo-task/core-exec/src/mpm-shadow.ts finds the locked copy (.cache/toolchain-bin, then
-# .cache/mpm-shadow-bootstrap) or downloads the lock's archive and checks its SHA-256 against the lock, as
-# .github/actions/repo-tools-setup does in CI. Like run_playwright, the interpolating task must put
+# Shared runner of the toolchain:* tasks. Each of them runs `mpm-shadow` at least at the version toolchain.lock.json
+# names, never an older copy and never whatever PATH offers: an older copy exits 2 on a plan field it does not know
+# (for example tools.mpm-shadow.options.tagPrefix), even after the lock names a newer one. The entry
+# package/monorepo-task/core-exec/src/mpm-shadow.ts runs the newest installed copy (.cache/toolchain-bin, or a finished
+# version folder of the toolchain root) that is at or above the lock's version, with a note when it is newer, and only
+# when there is none downloads the lock's archive, checks its SHA-256 against the lock and installs it into the
+# toolchain root, as .github/actions/repo-tools-setup does in CI. Like run_playwright, the interpolating task must put
 # {{vars.dispatch_workspace_node}} and {{vars.parse_usage_args}} BEFORE {{vars.run_mpm_shadow}}; extra arguments
 # after `--` are appended to the verb. The program's own exit status becomes the task's.
 run_mpm_shadow = """
@@ -641,7 +642,7 @@ run = "slopo embed"
 run = "slopo analyze"
 
 [tasks."toolchain:install"]
-description = "Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI), running the mpm-shadow version the lock names"
+description = "Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI), running an mpm-shadow at least at the version the lock names"
 shell = "node --input-type=module-typescript -e"
 usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
 run = """
@@ -652,7 +653,7 @@ runMpmShadow(['install'])
 """
 
 [tasks."toolchain:list"]
-description = "Print observed versus locked tool versions and exit non-zero on drift (the lock's mpm-shadow)"
+description = "Print observed versus locked tool versions and exit non-zero on drift (an mpm-shadow at least at the lock's version)"
 shell = "node --input-type=module-typescript -e"
 usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
 run = """
@@ -663,7 +664,7 @@ runMpmShadow(['list'])
 """
 
 [tasks."toolchain:update"]
-description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model), running the mpm-shadow version the lock names"
+description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model), running an mpm-shadow at least at the version the lock names"
 shell = "node --input-type=module-typescript -e"
 usage = 'arg "[args]" var=#true help="Arguments appended to the mpm-shadow command"'
 run = """

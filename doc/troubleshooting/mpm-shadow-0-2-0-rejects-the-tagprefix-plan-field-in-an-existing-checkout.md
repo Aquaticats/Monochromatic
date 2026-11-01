@@ -1,10 +1,12 @@
-# An existing checkout runs `mpm-shadow` 0.2.0, which exits 2 on `tools.mpm-shadow.options.tagPrefix is not a known field`
+# `mpm-shadow` 0.2.0 exits 2 on `tools.mpm-shadow.options.tagPrefix is not a known field` in an existing checkout
 
 ## Symptom
 
 Observed 2026-10-31 in a disposable repository root that reproduces an existing checkout:
 `toolchain.plan.jsonc` has the `mpm-shadow` entry with `options.tagPrefix`,
-and both `mpm-shadow` on `PATH` and `.cache/toolchain-bin/mpm-shadow` (a link to `~/.cargo/bin/mpm-shadow`) are the released 0.2.0.
+and both `mpm-shadow` on `PATH`
+and `.cache/toolchain-bin/mpm-shadow` (a link to `~/.cargo/bin/mpm-shadow`)
+are the released 0.2.0.
 Any command that reads the plan prints this and exits 2,
 even after `toolchain.lock.json` names a newer `mpm-shadow`:
 
@@ -56,10 +58,13 @@ exit 2 (also through the link).
 
 With the fix in place,
 `mise run toolchain:lock:check` in the same root printed
-`[toolchain] toolchain.lock.json names mpm-shadow 0.2.1 (.cache/toolchain-bin/mpm-shadow is mpm-shadow 0.2.0; not used); fetching its archive for linux-x64`,
+`[toolchain] toolchain.lock.json names mpm-shadow 0.2.1 and no installed copy is at that version or above (<root>/.cache/toolchain-bin/mpm-shadow is mpm-shadow 0.2.0, older than the lock's 0.2.1, and never runs); fetching its archive for linux-x64`,
 then `fetched and verified mpm-shadow 0.2.1 (SHA-256 ...)`,
 then the 0.2.1 program's `toolchain lock is current: 64 tools, digest verified (...)`,
 exit 0.
+The fetched copy sat in `<data home>/monochromatic-dev/toolchain/mpm-shadow/0.2.1/` with a `current` link to `0.2.1`,
+and the 0.2.1 `toolchain:list` that followed reported 63 of 64 tools drifted in the empty home,
+so it counted the fetched `mpm-shadow` as installed.
 A second run fetched nothing.
 The stand-in for the release archive was served from a local address,
 with its real SHA-256 in the lock.
@@ -68,11 +73,17 @@ with its real SHA-256 in the lock.
 
 The root `toolchain:*` tasks of `mise.toml` no longer run `mpm-shadow` from `PATH`.
 They run `package/monorepo-task/core-exec/src/mpm-shadow.ts`,
-which uses the copy whose `--version` equals the version `toolchain.lock.json` records
-(`.cache/toolchain-bin/mpm-shadow`,
-then `.cache/mpm-shadow-bootstrap/<version>/mpm-shadow`),
-or downloads the lock's archive for the platform and checks its SHA-256 against the lock first.
-`mise run toolchain:install` is therefore the whole recovery on an existing checkout that has Node.
+which follows the owner's rule "At least the lock's version":
+it runs the newest installed copy of this repository's `mpm-shadow`
+(`.cache/toolchain-bin/mpm-shadow` or a finished version folder of the toolchain root)
+whose version is at or above the version `toolchain.lock.json` records,
+with a note naming `mise run toolchain:update mpm-shadow` when that copy is newer than the lock,
+and a copy older than the lock never runs.
+Only when no copy is at or above the lock's version does it download the lock's archive for the platform,
+check its SHA-256 against the lock,
+and install it where `mpm-shadow install` puts an archive-route tool,
+`<toolchain root>/mpm-shadow/<version>/` with the completion marker and the `current` link.
+`mise run toolchain:install` is therefore the whole recovery on an existing checkout that has Node 24 or newer.
 Without the task,
 fetch the archive the lock names (see the README section "Clone and bootstrap")
 and run that binary by its path for the first `install`;

@@ -220,23 +220,46 @@ task-playwright-image
 
 ### task-mpm-shadow
 
-Runs `mpm-shadow` at the version `toolchain.lock.json` names;
+Runs `mpm-shadow` at least at the version `toolchain.lock.json` names;
 it is what the root `toolchain:*` tasks run.
 The command finds the repository root (the folder with the lock,
 searched upward from the current directory)
-and looks for a copy whose `--version` equals the lock's version for the `mpm-shadow` tool:
-first `.cache/toolchain-bin/mpm-shadow`,
-then `.cache/mpm-shadow-bootstrap/<version>/mpm-shadow`.
-When neither is that version it downloads the lock's archive for the platform,
-checks the SHA-256 recorded beside it,
-unpacks it into the second location,
-and refuses an archive whose program prints another version.
+and runs the newest installed copy of this repository's `mpm-shadow` whose `--version` is at or above the lock's version
+for the `mpm-shadow` tool,
+looking at `.cache/toolchain-bin/mpm-shadow` and at every finished version folder of
+`<data home>/monochromatic-dev/toolchain/mpm-shadow/` (a folder with the `.mpm-shadow-installed` marker and the program),
+and saying `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` on standard error when that copy is newer.
+A copy older than the lock never runs.
+Only when no copy is at or above the lock's version does it download the lock's archive for the platform,
+check the SHA-256 recorded beside it,
+unpack it into a hidden staging folder,
+require a program that prints the locked version,
+write the marker last,
+rename the folder to `<version>`,
+point `current` at the newest finished version and remove the older version folders,
+which is how `mpm-shadow install` lays out an archive-route tool that this repository publishes
+(a folder at the version's name that is not finished,
+or whose program prints another version,
+is replaced;
+staging folders and downloads that a killed task left are removed).
 It then runs that copy with the arguments given and exits with its status;
 the `mpm-shadow` on `PATH` is never run,
-except on a platform for which the lock has no archive row,
+except on a platform for which the lock has no archive row and no installed copy,
 where a note on standard error says so.
+A failure the command reports itself (an unreadable lock,
+a failed download or checksum,
+a copy that does not run)
+prints one line and exits 1,
+and asking a copy for its version gives up after 10 seconds.
+The command needs Node 24 or newer
+(`import.meta.main` and `Error.isError`;
+type stripping must be on by default,
+which it is from Node 22.18 and 24.3);
+`fetch` in Node ignores `HTTP_PROXY` and `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is set
+(measured with Node 26.13.0),
+so a machine behind a proxy sets that variable for the task.
 Notes go to standard error so that standard output stays the program's (`bin --json` is read by other programs).
-The three modules behind it import only `node:` modules,
+The modules behind it import only `node:` modules,
 so the command runs from source on a checkout without `node_modules`;
 `.github/actions/repo-tools-setup/action.yml` does the same in shell for CI.
 
