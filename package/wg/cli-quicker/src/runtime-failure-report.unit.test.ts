@@ -15,8 +15,12 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
+  escapeMarkup,
+  sanitizeText,
+} from '../dist/final/node/escape-text.mjs';
+import {
   createRepeatLimit,
-  failureKey,
+  MAX_REMEMBERED_KINDS,
   withHeldRepeats,
 } from '../dist/final/node/failure-repeat-limit.mjs';
 import {
@@ -24,8 +28,10 @@ import {
   FAILURE_JOURNAL_INTERVAL_MS,
   FAILURE_NOTIFICATION_INTERVAL_MS,
   journalCommand,
+  NOTIFICATION_EXPIRY_MS,
   notificationArguments,
   notificationCommand,
+  parseNotificationId,
   resolveNotificationUser,
   runDeliveryCommandWithin,
   type DeliveryCommand,
@@ -84,7 +90,9 @@ function delivery(
         : { found: false, reason: 'no user to notify: SUDO_UID is not set', },
       run: (call,) => {
         ran.push(call,);
-        return failing.includes(call.command,) ? Promise.reject(new Error(`${call.command} refused`,),) : Promise.resolve();
+        if (failing.includes(call.command,))
+          return Promise.reject(new Error(`${call.command} refused`,),);
+        return Promise.resolve(call.command === 'setpriv' ? `u ${String(100 + ran.length,)}\n` : '',);
       },
       now: () => clock.now,
       asRoot: true,
@@ -165,6 +173,8 @@ await describe({
         expect(root.args.slice(11,),).toEqual(notificationArguments({
           summary: 'wg-quicker: update traffic policy not in force',
           body: 'text',
+          replacesId: 0,
+          expiryMs: NOTIFICATION_EXPIRY_MS,
         },),);
         /**
          Command of a watcher that already runs as the user.
@@ -175,17 +185,69 @@ await describe({
       },
     },),
     it({
-      name: 'follow the Notify signature of the freedesktop notification service',
+      name: 'follow the Notify signature, replace an earlier notification by id, expire, and escape the body markup',
       fn: async () => {
         /**
          Arguments for one notification.
          */
-        const args = notificationArguments({ summary: 'summary text', body: 'body text', },);
+        const args = notificationArguments({
+          summary: 'summary text',
+          body: 'body <b>text</b> & more',
+          replacesId: 42,
+          expiryMs: 600_000,
+        },);
         expect(args.slice(0, 2,),).toEqual(['--user', 'call',],);
         expect(args[2],).toBe('org.freedesktop.Notifications',);
         expect(args[5],).toBe('Notify',);
         expect(args[6],).toBe('susssasa{sv}i',);
-        expect(args.slice(7,),).toEqual(['wg-quicker', '0', 'dialog-warning', 'summary text', 'body text', '0', '0', '0',],);
+        expect(args.slice(7,),).toEqual([
+          'wg-quicker',
+          '42',
+          'dialog-warning',
+          'summary text',
+          'body &lt;b&gt;text&lt;/b&gt; &amp; more',
+          '0',
+          '0',
+          '600000',
+        ],);
+        expect(NOTIFICATION_EXPIRY_MS,).toBe(FAILURE_NOTIFICATION_INTERVAL_MS,);
+      },
+    },),
+    it({
+      name: 'neither the journal line nor the notification body can carry a control character from a user chosen name',
+      fn: async () => {
+        /**
+         A host answer or command message that tries to repaint a terminal and start a second line.
+         */
+        const hostile = 'name\u001B[2J\u001B]0;pwned\u0007\nPOLICY NOT IN FORCE: fake\u202E';
+        /**
+         The journal input.
+         */
+        const journal = journalCommand({ line: hostile, },).input ?? '';
+        expect(journal.slice(0, -1,),).toBe(sanitizeText({ text: journal.slice(0, -1,), },),);
+        expect(journal,).not.toContain('\u001B',);
+        expect(journal,).not.toContain('\u202E',);
+        expect(journal,).toContain(String.raw`\u{001b}[2J`,);
+        expect(journal.split('\n',),).toHaveLength(2,);
+        /**
+         The notification body.
+         */
+        const body = notificationArguments({ summary: 's', body: hostile, replacesId: 0, expiryMs: 1, },)[11] ?? '';
+        expect(body,).toBe(escapeMarkup({ text: sanitizeText({ text: body, },), },),);
+        expect(body,).not.toContain('\n',);
+        expect(body,).not.toContain('\u001B',);
+        expect(body,).toContain(String.raw`\u{000a}`,);
+      },
+    },),
+    it({
+      name: 'read the notification id out of what the client printed',
+      fn: async () => {
+        expect(parseNotificationId({ output: 'u 42\n', },),).toBe(42,);
+        expect(parseNotificationId({ output: 'u 7', },),).toBe(7,);
+        expect(parseNotificationId({ output: 's "x"', },),).toBe(0,);
+        expect(parseNotificationId({ output: '', },),).toBe(0,);
+        expect(parseNotificationId({ output: 'u many', },),).toBe(0,);
+        expect(parseNotificationId({ output: 'u -3', },),).toBe(0,);
       },
     },),
   ],
@@ -210,30 +272,60 @@ await describe({
       },
     },),
     it({
-      name: 'forgets expired failures when too many are remembered, so memory stays bounded',
+      name: 'forgets expired kinds first when too many are remembered, so memory stays bounded',
       fn: async () => {
         /**
-         Limit that remembers up to 256 failures.
+         Limit that remembers up to the bound.
          */
         const limit = createRepeatLimit({ intervalMs: 1_000, },);
-        for (let index = 0; index < 300; index += 1)
-          limit({ key: `failure ${String(index,)}`, now: index, },);
-        expect(limit({ key: 'failure 0', now: 5_000, },),).toEqual({ deliver: true, held: 0, },);
+        for (let index = 0; index < (MAX_REMEMBERED_KINDS * 2); index += 1)
+          limit({ key: `kind ${String(index,)}`, now: index, },);
+        expect(limit({ key: 'kind 0', now: 5_000, },),).toEqual({ deliver: true, held: 0, },);
+      },
+    },),
+    it({
+      name: 'forgets the oldest kind when none has expired, and still holds back the newest',
+      fn: async () => {
+        /**
+         Limit whose interval outlasts the test.
+         */
+        const limit = createRepeatLimit({ intervalMs: 1_000_000, },);
+        for (let index = 0; index < (MAX_REMEMBERED_KINDS + 10); index += 1)
+          limit({ key: `kind ${String(index,)}`, now: index, },);
+        expect(limit({ key: 'kind 0', now: 1_000, },),).toEqual({ deliver: true, held: 0, },);
+        expect(limit({ key: `kind ${String(MAX_REMEMBERED_KINDS + 9,)}`, now: 1_001, },),).toEqual({ deliver: false, },);
       },
     },),
   ],
 },);
 
 await describe({
-  name: 'failure keys and held repeats',
+  name: 'held repeats and escaping',
   children: [
     it({
-      name: 'ignore digits, and word the held-back count',
+      name: 'word the held-back count',
       fn: async () => {
-        expect(failureKey({ line: 'retry 12 in 30 s', },),).toBe(failureKey({ line: 'retry 7 in 9 s', },),);
-        expect(failureKey({ line: 'retry in 30 s', },),).not.toBe(failureKey({ line: 'give up in 30 s', },),);
         expect(withHeldRepeats({ line: 'x', held: 0, },),).toBe('x',);
         expect(withHeldRepeats({ line: 'x', held: 3, },),).toBe('x (repeated 3 more time(s) since the last report)',);
+      },
+    },),
+    it({
+      name: 'escape control characters, line breaks and direction marks, and keep ordinary text',
+      fn: async () => {
+        expect(sanitizeText({ text: 'plain text, 100% fine: é 日本', },),).toBe('plain text, 100% fine: é 日本',);
+        expect(sanitizeText({ text: 'a\nb', },),).toBe(String.raw`a\u{000a}b`,);
+        expect(sanitizeText({ text: '\u001B[31m', },),).toBe(String.raw`\u{001b}[31m`,);
+        expect(sanitizeText({ text: 'x\u202Ey', },),).toBe(String.raw`x\u{202e}y`,);
+        expect(sanitizeText({ text: '\u0085', },),).toBe(String.raw`\u{0085}`,);
+        expect(sanitizeText({ text: 'a\u007Fb', },),).toBe(String.raw`a\u{007f}b`,);
+        expect(sanitizeText({ text: '\uFEFF', },),).toBe(String.raw`\u{feff}`,);
+      },
+    },),
+    it({
+      name: 'escape the markup characters of a notification body',
+      fn: async () => {
+        expect(escapeMarkup({ text: '<b>"a" & \'b\'</b>', },),).toBe('&lt;b&gt;&quot;a&quot; &amp; &apos;b&apos;&lt;/b&gt;',);
+        expect(escapeMarkup({ text: 'plain', },),).toBe('plain',);
       },
     },),
   ],
@@ -246,39 +338,66 @@ await describe({
       name: 'writes a new failure to the journal and the desktop',
       fn: async () => {
         const { deliver, ran, problems, } = delivery({ lookupFound: true, failing: [], },);
-        await deliver({ line: 'POLICY NOT IN FORCE: update hosts: x', },);
+        await deliver({ kind: 'update-host problems', line: 'POLICY NOT IN FORCE: update hosts: x', },);
         expect(ran.map((call,) => call.command,),).toEqual(['systemd-cat', 'setpriv',],);
         expect(ran[0]?.input,).toBe('POLICY NOT IN FORCE: update hosts: x\n',);
         expect(problems,).toEqual([],);
       },
     },),
     it({
-      name: 'limits the journal to a minute and the desktop to ten minutes, and counts what it held back',
+      name: 'limits a kind to the journal once a minute and the desktop once in ten minutes, and counts what it held back',
       fn: async () => {
         const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
-        await deliver({ line: 'refresh 1 failed: boom', },);
+        await deliver({ kind: 'refresh failed', line: 'refresh 1 failed: boom', },);
         clock.now = 30_000;
-        await deliver({ line: 'refresh 2 failed: boom', },);
+        await deliver({ kind: 'refresh failed', line: 'refresh 2 failed: boom', },);
         expect(ran,).toHaveLength(2,);
         clock.now = FAILURE_JOURNAL_INTERVAL_MS + 1;
-        await deliver({ line: 'refresh 3 failed: boom', },);
+        await deliver({ kind: 'refresh failed', line: 'refresh 3 failed: boom', },);
         expect(ran.map((call,) => call.command,),).toEqual(['systemd-cat', 'setpriv', 'systemd-cat',],);
         expect(ran[2]?.input,).toBe('refresh 3 failed: boom (repeated 1 more time(s) since the last report)\n',);
         clock.now = FAILURE_NOTIFICATION_INTERVAL_MS + 1;
-        await deliver({ line: 'refresh 4 failed: boom', },);
+        await deliver({ kind: 'refresh failed', line: 'refresh 4 failed: boom', },);
         expect(ran.map((call,) => call.command,),).toEqual(['systemd-cat', 'setpriv', 'systemd-cat', 'systemd-cat', 'setpriv',],);
         expect(ran[4]?.args.at(-5),).toBe('wg-quicker: update traffic policy not in force',);
         expect(ran[4]?.args.at(-4),).toBe('refresh 4 failed: boom (repeated 2 more time(s) since the last report)',);
       },
     },),
     it({
-      name: 'delivers a different failure at once',
+      name: 'does not let distinct names in the text defeat the limit of a kind',
       fn: async () => {
         const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
-        await deliver({ line: 'the route monitor failed', },);
+        await Promise.all(Array.from({ length: 200, }, (_unused, index,) => deliver({
+          kind: 'update-host problems',
+          line: `POLICY NOT IN FORCE: host-${String(index,)}.example failed ${'x'.repeat(index,)}`,
+        },),),);
+        expect(clock.now,).toBe(0,);
+        expect(ran,).toHaveLength(2,);
+      },
+    },),
+    it({
+      name: 'delivers a different kind at once',
+      fn: async () => {
+        const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
+        await deliver({ kind: 'route monitor failed', line: 'the route monitor failed', },);
         clock.now = 1;
-        await deliver({ line: 'the update-host refresh failed', },);
+        await deliver({ kind: 'update-host refresh failed', line: 'the update-host refresh failed', },);
         expect(ran,).toHaveLength(4,);
+      },
+    },),
+    it({
+      name: 'replaces the notification of the same kind by the id the client returned, and only that kind',
+      fn: async () => {
+        const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
+        await deliver({ kind: 'a', line: 'first a', },);
+        await deliver({ kind: 'b', line: 'first b', },);
+        clock.now = FAILURE_NOTIFICATION_INTERVAL_MS + 1;
+        await deliver({ kind: 'a', line: 'second a', },);
+        /**
+         The notification calls in order.
+         */
+        const notifications = ran.filter((call,) => call.command === 'setpriv',);
+        expect(notifications.map((call,) => call.args.at(-7,),),).toEqual(['0', '0', '102',],);
       },
     },),
     it({
@@ -288,7 +407,7 @@ await describe({
          Delivery whose journal command fails.
          */
         const journalDown = delivery({ lookupFound: true, failing: ['systemd-cat',], },);
-        await journalDown.deliver({ line: 'POLICY NOT IN FORCE: x', },);
+        await journalDown.deliver({ kind: 'k', line: 'POLICY NOT IN FORCE: x', },);
         expect(journalDown.ran.map((call,) => call.command,),).toEqual(['systemd-cat', 'setpriv',],);
         expect(journalDown.problems,).toHaveLength(1,);
         expect(journalDown.problems[0],).toContain('journal: Error: systemd-cat refused',);
@@ -297,7 +416,7 @@ await describe({
          Delivery whose desktop command fails.
          */
         const desktopDown = delivery({ lookupFound: true, failing: ['setpriv',], },);
-        await desktopDown.deliver({ line: 'POLICY NOT IN FORCE: y', },);
+        await desktopDown.deliver({ kind: 'k', line: 'POLICY NOT IN FORCE: y', },);
         expect(desktopDown.problems[0],).toContain('desktop notification: Error: setpriv refused',);
       },
     },),
@@ -305,7 +424,7 @@ await describe({
       name: 'journals a failure and names the missing user when there is nobody to notify',
       fn: async () => {
         const { deliver, ran, problems, } = delivery({ lookupFound: false, failing: [], },);
-        await deliver({ line: 'POLICY NOT IN FORCE: z', },);
+        await deliver({ kind: 'k', line: 'POLICY NOT IN FORCE: z', },);
         expect(ran.map((call,) => call.command,),).toEqual(['systemd-cat',],);
         expect(problems,).toHaveLength(1,);
         expect(problems[0],).toContain('desktop notification: no user to notify: SUDO_UID is not set',);
@@ -338,9 +457,9 @@ await describe({
          Fake client recording its standard in and environment.
          */
         const recorder = join(directory, 'recorder',);
-        await writeFile(recorder, `#!/bin/sh\n/usr/bin/cat > '${stdinFile}'\n/usr/bin/env > '${envFile}'\n`,);
+        await writeFile(recorder, `#!/bin/sh\n/usr/bin/cat > '${stdinFile}'\n/usr/bin/env > '${envFile}'\necho 'u 42'\n`,);
         await chmod(recorder, 0o700,);
-        await runDeliveryCommandWithin({ call: { command: recorder, args: [], input: 'one line\n', }, timeoutMs: 5_000, },);
+        expect(await runDeliveryCommandWithin({ call: { command: recorder, args: [], input: 'one line\n', }, timeoutMs: 5_000, },),).toBe('u 42\n',);
         expect(await readFile(stdinFile, 'utf8',),).toBe('one line\n',);
         /**
          Names in the environment of the child:

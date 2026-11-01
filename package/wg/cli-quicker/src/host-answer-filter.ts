@@ -104,6 +104,7 @@ function mergeHosts({
  An address gets a rule only when it is a well-formed public unicast address,
  is not one the tunnel itself depends on,
  and fits inside the per-host and total caps.
+ The per-host cap counts only addresses that passed every check.
  Each refusal and each cut is named in the failures,
  so a cut can never pass unnoticed.
 
@@ -142,18 +143,18 @@ export function filterHostAnswers(
   } of answers) {
     if (result.failure !== undefined)
       failures.push(result.failure,);
-    if (result.addresses
-      .length
-      > MAX_ADDRESSES_PER_HOST)
-      failures.push(
-        `${host} answered ${String(result.addresses
-          .length,)} addresses; only the first ${String(MAX_ADDRESSES_PER_HOST,)} get rules`,
-      );
-    for (const item of result.addresses
-      .slice(
-      0,
-      MAX_ADDRESSES_PER_HOST,
-      )) {
+    /**
+     Addresses of this host that passed every check,
+     counted toward the per-host cap.
+     Refused and malformed answers do not use up the cap,
+     so a resolver cannot hide the real addresses behind unusable ones.
+     */
+    const usable = new Set<string>();
+    /**
+     Usable addresses of this host beyond the cap.
+     */
+    const cut = { count: 0, };
+    for (const item of result.addresses) {
       /**
        Normalized address text.
        */
@@ -187,6 +188,14 @@ export function filterHostAnswers(
         failures.push(`refused ${address} for ${host}: the tunnel depends on that address as a DNS server or a peer endpoint`,);
         continue;
       }
+      if (usable.has(key,))
+        continue;
+      if (usable.size >= MAX_ADDRESSES_PER_HOST) {
+        usable.add(key,);
+        cut.count += 1;
+        continue;
+      }
+      usable.add(key,);
       /**
        Earlier answer for the same address.
        */
@@ -206,6 +215,10 @@ export function filterHostAnswers(
         },
       );
     }
+    if (cut.count > 0)
+      failures.push(
+        `${host} answered ${String(usable.size,)} usable addresses; only the first ${String(MAX_ADDRESSES_PER_HOST,)} get rules`,
+      );
   }
   /**
    Rules in answer order.

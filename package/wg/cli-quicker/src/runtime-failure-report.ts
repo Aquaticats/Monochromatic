@@ -5,8 +5,11 @@ import { text, } from 'node:stream/consumers';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
+  escapeMarkup,
+  sanitizeText,
+} from './escape-text.ts';
+import {
   createRepeatLimit,
-  failureKey,
   withHeldRepeats,
 } from './failure-repeat-limit.ts';
 
@@ -16,15 +19,26 @@ import {
 const l = tagged({ tag: 'runtime-failure-report', },);
 
 /**
- One notification per distinct failure per this many milliseconds.
+ One notification per failure kind per this many milliseconds.
  */
 export const FAILURE_NOTIFICATION_INTERVAL_MS = 600_000;
 
 /**
- One journal line per distinct failure per this many milliseconds,
+ Milliseconds a notification stays on the desktop,
+ as long as the interval after which the same kind is sent again.
+ */
+export const NOTIFICATION_EXPIRY_MS = 600_000;
+
+/**
+ One journal line per failure kind per this many milliseconds,
  so a failure that repeats many times a second cannot flood the journal.
  */
 export const FAILURE_JOURNAL_INTERVAL_MS = 60_000;
+
+/**
+ Notification ids remembered for replacement before the memory is cleared.
+ */
+const MAX_SHOWN_KINDS = 64;
 
 /**
  Milliseconds a delivery command may run before it is killed.
@@ -77,9 +91,10 @@ export type DeliveryCommand = {
 
 /**
  Runs one delivery command,
- rejecting when it fails or runs too long.
+ rejecting when it fails or runs too long,
+ and resolves to what it printed.
  */
-export type DeliveryRunner = (call: DeliveryCommand,) => Promise<void>;
+export type DeliveryRunner = (call: DeliveryCommand,) => Promise<string>;
 
 /**
  The user whose desktop receives notifications.
@@ -127,8 +142,13 @@ export type SudoEnvironment = {
 
 /**
  Delivers one loud failure line to a person.
+ The kind, not the text, decides what counts as a repeat,
+ because the text embeds names a user chose and distinct names would defeat a text key.
  */
-export type FailureDelivery = (call: { readonly line: string; },) => Promise<void>;
+export type FailureDelivery = (call: {
+  readonly kind: string;
+  readonly line: string
+},) => Promise<void>;
 
 /**
  Reports whether text holds a character that is not an ASCII decimal digit.
@@ -272,7 +292,7 @@ export function journalCommand({ line, }: { readonly line: string; },): Delivery
       `--identifier=${JOURNAL_IDENTIFIER}`,
       `--priority=${JOURNAL_PRIORITY}`,
     ],
-    input: `${line}\n`,
+    input: `${sanitizeText({ text: line, },)}\n`,
   };
 }
 
@@ -282,22 +302,32 @@ export function journalCommand({ line, }: { readonly line: string; },): Delivery
 
  @param summary - Notification title.
 
- @param body - Notification text.
+ @param body - Notification text,
+ escaped for the markup of the notification service.
+
+ @param replacesId - Id of the notification this one replaces,
+ zero for none.
+
+ @param expiryMs - Milliseconds the notification stays.
 
  @returns Arguments after `busctl`.
 
  @example
  ```ts
- notificationArguments({ summary: 'title', body: 'text' });
+ notificationArguments({ summary: 'title', body: 'text', replacesId: 0, expiryMs: 600000 });
  ```
  */
 export function notificationArguments(
   {
     summary,
     body,
+    replacesId,
+    expiryMs,
   }: {
     readonly summary: string;
     readonly body: string;
+    readonly replacesId: number;
+    readonly expiryMs: number;
   },
 ): readonly string[] {
   return [
@@ -309,13 +339,13 @@ export function notificationArguments(
     'Notify',
     'susssasa{sv}i',
     'wg-quicker',
-    '0',
+    String(replacesId,),
     'dialog-warning',
     summary,
-    body,
+    escapeMarkup({ text: sanitizeText({ text: body, },), },),
     '0',
     '0',
-    '0',
+    String(expiryMs,),
   ];
 }
 
@@ -333,6 +363,8 @@ export function notificationArguments(
 
  @param asRoot - Whether the watcher runs as root.
 
+ @param replacesId - Id of the notification this one replaces.
+
  @returns The command.
 
  @example
@@ -345,10 +377,12 @@ export function notificationCommand(
     user,
     line,
     asRoot,
+    replacesId = 0,
   }: {
     readonly user: NotificationUser;
     readonly line: string;
     readonly asRoot: boolean;
+    readonly replacesId?: number;
   },
 ): DeliveryCommand {
   /**
@@ -363,6 +397,8 @@ export function notificationCommand(
     ...notificationArguments({
       summary: NOTIFICATION_SUMMARY,
       body: line,
+      replacesId,
+      expiryMs: NOTIFICATION_EXPIRY_MS,
     },),
   ];
   if (!asRoot)
@@ -391,6 +427,8 @@ export function notificationCommand(
 
  @param timeoutMs - Milliseconds before the command is killed.
 
+ @returns What the command printed.
+
  @throws When the command cannot start,
  exits nonzero,
  or runs past the timeout and is killed.
@@ -408,7 +446,7 @@ export async function runDeliveryCommandWithin(
     readonly call: DeliveryCommand;
     readonly timeoutMs: number;
   },
-): Promise<void> {
+): Promise<string> {
   /**
    Running command with a cleared environment,
    killed when it outlives the timeout.
@@ -421,7 +459,7 @@ export async function runDeliveryCommandWithin(
       killSignal: 'SIGKILL',
       stdio: [
         'pipe',
-        'ignore',
+        'pipe',
         'pipe',
       ],
       timeout: timeoutMs,
@@ -440,8 +478,9 @@ export async function runDeliveryCommandWithin(
    Diagnostics of the child,
    read while waiting for it to close.
    */
-  const [diagnostic,] = await Promise.all([
+  const [diagnostic, printed,] = await Promise.all([
     text(child.stderr,),
+    text(child.stdout,),
     once(
       child,
       'close',
@@ -453,12 +492,15 @@ export async function runDeliveryCommandWithin(
         ? `${call.command} exited ${String(child.exitCode,)}: ${diagnostic.trim()}`
         : `${call.command} was killed by ${child.signalCode} after ${String(timeoutMs,)} ms: ${diagnostic.trim()}`,
     );
+  return printed;
 }
 
 /**
  Runs one delivery command with the production timeout.
 
  @param call - The command.
+
+ @returns What the command printed.
 
  @throws When the command cannot start,
  exits nonzero,
@@ -469,11 +511,38 @@ export async function runDeliveryCommandWithin(
  await runDeliveryCommand({ command: 'true', args: [] });
  ```
  */
-export function runDeliveryCommand(call: DeliveryCommand,): Promise<void> {
+export function runDeliveryCommand(call: DeliveryCommand,): Promise<string> {
   return runDeliveryCommandWithin({
     call,
     timeoutMs: COMMAND_TIMEOUT_MS,
   },);
+}
+
+/**
+ Reads the notification id out of what `busctl` printed for `Notify`,
+ which looks like `u 42`.
+
+ @param output - What the client printed.
+
+ @returns The id,
+ or zero when the output has none.
+
+ @example
+ ```ts
+ parseNotificationId({ output: 'u 42\n' }); // 42
+ ```
+ */
+export function parseNotificationId({ output, }: { readonly output: string; },): number {
+  /**
+   Words of the output.
+   */
+  const [type, value,] = output.trim()
+    .split(' ',);
+  if ((type !== 'u') || (value === undefined)
+    || hasNonDigit({ value, },)
+    || (value === ''))
+    return 0;
+  return Math.trunc(Number(value,),);
 }
 
 /**
@@ -533,15 +602,19 @@ export function createFailureDelivery(
     tag: createFailureDelivery.name,
     l,
   },);
-  return async function deliver({ line, },): Promise<void> {
+  /**
+   Id of the notification last shown for each kind,
+   so the next one of the kind replaces it.
+   */
+  const shown = new Map<string, number>();
+  return async function deliver({
+    kind,
+    line,
+  },): Promise<void> {
     /**
      Channels that failed for this line.
      */
     const failed: string[] = [];
-    /**
-     Identity of this failure for the repeat limits.
-     */
-    const key = failureKey({ line, },);
     /**
      Current time.
      */
@@ -550,7 +623,7 @@ export function createFailureDelivery(
      Decision for the journal.
      */
     const journal = journalLimit({
-      key,
+      key: kind,
       now: current,
     },);
     if (journal.deliver)
@@ -567,20 +640,31 @@ export function createFailureDelivery(
      Decision for the desktop.
      */
     const desktop = desktopLimit({
-      key,
+      key: kind,
       now: current,
     },);
     if (desktop.deliver) {
       if (lookup.found)
         try {
-          await run(notificationCommand({
+          /**
+           What the notification client printed:
+           the id of the notification now on the desktop.
+           */
+          const printed = await run(notificationCommand({
             user: lookup.user,
             line: withHeldRepeats({
               line,
               held: desktop.held,
             },),
             asRoot,
+            replacesId: shown.get(kind,) ?? 0,
           },),);
+          if (shown.size >= MAX_SHOWN_KINDS)
+            shown.clear();
+          shown.set(
+            kind,
+            parseNotificationId({ output: printed, },),
+          );
         }
         catch (error) {
           failed.push(`desktop notification: ${String(error,)}`,);
@@ -592,7 +676,7 @@ export function createFailureDelivery(
       /**
        Words naming the channel that failed and the report it could not carry.
        */
-      const message = `a failure report channel failed, so a person may not see the report: ${problem}; report was: ${line}`;
+      const message = sanitizeText({ text: `a failure report channel failed, so a person may not see the report: ${problem}; report was: ${line}`, },);
       fl.error(message,);
       reportChannelFailure?.(message,);
     }

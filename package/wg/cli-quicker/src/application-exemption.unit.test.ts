@@ -137,6 +137,11 @@ await describe({
         ],);
         expect(startupFailureLines({ stderr: '', },),).toEqual([],);
         expect(startupFailureLines({ stderr: 'moved pid 5\n', },),).toEqual([],);
+        /**
+         A loud line that embeds a name with an escape sequence and a direction mark.
+         */
+        const hostile = startupFailureLines({ stderr: 'wg-quicker-exempt: POLICY NOT IN FORCE: x \u001B[2J\u001B]0;pwned\u0007 \u202E done\n', },);
+        expect(hostile,).toEqual([String.raw`wg-quicker-exempt: POLICY NOT IN FORCE: x \u{001b}[2J\u{001b}]0;pwned\u{0007} \u{202e} done`,],);
       },
     },),
   ],

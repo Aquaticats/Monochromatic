@@ -29,6 +29,10 @@ import { readBypassStatePath, } from './tunnel-bypass-state.ts';
 import { registerBypassWatcher, } from './tunnel-bypass-watch-service.ts';
 import { synchronizeBypassRoutes, } from './tunnel-bypass-route.ts';
 import type { BypassState, } from './tunnel-bypass-types.ts';
+import {
+  KIND_ROUTE_MONITOR_FAILED,
+  KIND_ROUTE_WATCHER_STOPPED,
+} from './update-policy-notice.ts';
 
 /**
  Delay before replacing an unexpectedly exited route monitor.
@@ -247,7 +251,10 @@ async function runMonitorSessionOrReport(
   }
   catch (error) {
     fl.error(`route monitor will restart after failure: ${String(error,)}`,);
-    await deliver({ line: monitorFailureReport({ error, },), },);
+    await deliver({
+      kind: KIND_ROUTE_MONITOR_FAILED,
+      line: monitorFailureReport({ error, },),
+    },);
   }
 }
 
@@ -385,6 +392,9 @@ try {
 }
 catch (error) {
   l.error(`route watcher stopped: ${String(error,)}`,);
-  await deliver({ line: watcherStoppedReport({ error, },), },);
+  await deliver({
+    kind: KIND_ROUTE_WATCHER_STOPPED,
+    line: watcherStoppedReport({ error, },),
+  },);
   throw error;
 }

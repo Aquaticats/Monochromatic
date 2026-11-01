@@ -19,6 +19,8 @@ import { createTunnelHostLookup, } from './tunnel-dns-lookup.ts';
 import type { FailureDelivery, } from './runtime-failure-report.ts';
 import { UPDATE_HOSTS, } from './update-hosts.data.ts';
 import {
+  KIND_UPDATE_HOST_PROBLEMS,
+  KIND_UPDATE_HOST_REFRESH_FAILED,
   POLICY_UPDATE_HOSTS,
   policyNotInForce,
 } from './update-policy-notice.ts';
@@ -79,8 +81,16 @@ export async function reportHostSync(
     return;
   }
   fl.error(loud,);
-  await deliver?.({ line: loud, },);
+  await deliver?.({
+    kind: KIND_UPDATE_HOST_PROBLEMS,
+    line: loud,
+  },);
 }
+
+/**
+ Most problems named in the text of one report.
+ */
+export const MAX_LISTED_FAILURES = 10;
 
 /**
  Builds the loud report for a refresh with problems.
@@ -100,12 +110,28 @@ export function hostSyncFailureText({ report, }: { readonly report: HostSyncRepo
     .length
     === 0)
     return '';
+  /**
+   Problems named in the report.
+   The rest are counted,
+   because an answer with thousands of refused addresses must not make a line of thousands of problems.
+   */
+  const listed = report.failures
+    .slice(
+    0,
+    MAX_LISTED_FAILURES,
+    );
+  /**
+   Problems left out of the list.
+   */
+  const unlisted = report.failures
+    .length
+    - listed.length;
   return policyNotInForce({
     policy: POLICY_UPDATE_HOSTS,
     detail: `${String(report.failures
       .length,)} problem(s); traffic to the affected hosts uses the tunnel until the next refresh `
-      + `in ${String(report.nextRefreshSeconds,)} s: ${report.failures
-        .join('; ',)}`,
+      + `in ${String(report.nextRefreshSeconds,)} s: ${listed
+        .join('; ',)}${unlisted > 0 ? `; and ${String(unlisted,)} more` : ''}`,
   },);
 }
 
@@ -282,7 +308,10 @@ export async function refreshOrReport(
       detail: `the refresh failed: ${String(error,)}; no update-host rule was added or changed by this attempt`,
     },);
     fl.error(loud,);
-    await deliver?.({ line: loud, },);
+    await deliver?.({
+      kind: KIND_UPDATE_HOST_REFRESH_FAILED,
+      line: loud,
+    },);
     return FAILED_REFRESH_RETRY_SECONDS;
   }
 }

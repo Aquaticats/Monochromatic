@@ -1,3 +1,30 @@
+import { sanitizeText, } from './escape-text.ts';
+
+/**
+ Failure kind of a refresh of the update-host rules that had problems.
+ */
+export const KIND_UPDATE_HOST_PROBLEMS = 'update-host problems';
+
+/**
+ Failure kind of a refresh of the update-host rules that failed outright.
+ */
+export const KIND_UPDATE_HOST_REFRESH_FAILED = 'update-host refresh failed';
+
+/**
+ Failure kind of a route monitor that failed and will be replaced.
+ */
+export const KIND_ROUTE_MONITOR_FAILED = 'route monitor failed';
+
+/**
+ Failure kind of a route watcher that stopped for good.
+ */
+export const KIND_ROUTE_WATCHER_STOPPED = 'route watcher stopped';
+
+/**
+ Failure kind of a route watcher that died without being stopped.
+ */
+export const KIND_ROUTE_WATCHER_DIED = 'route watcher died';
+
 /**
  Words that mark every loud report of a policy that is not in force,
  in this package and in `wg-quicker-exempt`.
@@ -57,7 +84,7 @@ export function updatePolicyNotice({ hosts, }: { readonly hosts: readonly string
     '  2. Everything the toolchain installed, not only its updates: every process whose executable is under the toolchain',
     '     and toolchain-global directories of the monochromatic-dev data directory, together with every process it starts.',
     '     That is every script and dev server run by the toolchain\'s node, every build by its compilers,',
-    '     and everything they fetch. The installed tools include node, bun, pnpm, uv, zig, cmake, rust, caddy, sops and age.',
+    '     and everything they fetch. The start notice of wg-quicker-exempt lists the tools installed on this machine now.',
     '  3. Update hosts, for every program including browsers, as whole addresses:',
     `     ${hosts.join(', ',)}.`,
     '     A rule carries an address and not a site, so a shared CDN address sends every other site on it outside the tunnel too.',
@@ -69,6 +96,7 @@ export function updatePolicyNotice({ hosts, }: { readonly hosts: readonly string
     'together with its command-line words, the tail of a toolchain script path, any executable named mpm,',
     'and any executable under the install roots, which are inside a home directory the user can write.',
     'Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.',
+    'A root that is a link counts as the directory it points to.',
     'Not covered: processes in another pid namespace (containers and sandboxes), and processes the user\'s service manager',
     'cannot move (login sessions and the main process of a service); the watcher reports each one when it matches.',
     'Why: the repository keeps toolchain updates on the physical network so they are fast and do not depend on a tunnel exit.',
@@ -178,6 +206,8 @@ export function watcherMissingAtStopReport({ searched, }: { readonly searched: r
  @param policy - Policy name.
 
  @param detail - What failed and what that leaves unenforced.
+ Names a user chose, such as a host answer or a command message, are escaped here,
+ because the line reaches a log, the journal and a terminal.
 
  @returns Single-line report.
 
@@ -195,7 +225,7 @@ export function policyNotInForce(
     readonly detail: string;
   },
 ): string {
-  return `${POLICY_NOT_IN_FORCE_MARKER}: ${policy}: ${detail}`;
+  return `${POLICY_NOT_IN_FORCE_MARKER}: ${policy}: ${sanitizeText({ text: detail, },)}`;
 }
 
 /**

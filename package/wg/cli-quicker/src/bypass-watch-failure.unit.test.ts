@@ -77,9 +77,9 @@ await describe({
           environment: { SUDO_UID: '1000', SUDO_GID: '1001', },
           run: (call,) => {
             withUser.push(call,);
-            return Promise.resolve();
+            return Promise.resolve('',);
           },
-        },)({ line: 'POLICY NOT IN FORCE: x', },);
+        },)({ kind: 'k', line: 'POLICY NOT IN FORCE: x', },);
         expect(withUser.map((call,) => call.command,).includes('systemd-cat',),).toBe(true,);
         expect(withUser.length,).toBeGreaterThanOrEqual(2,);
         /**
@@ -90,9 +90,9 @@ await describe({
           environment: {},
           run: (call,) => {
             withoutUser.push(call,);
-            return Promise.resolve();
+            return Promise.resolve('',);
           },
-        },)({ line: 'POLICY NOT IN FORCE: x', },);
+        },)({ kind: 'k', line: 'POLICY NOT IN FORCE: x', },);
         expect(withoutUser.map((call,) => call.command,),).toEqual(['systemd-cat',],);
       },
     },),
@@ -110,10 +110,15 @@ await describe({
          */
         const delivered: string[] = [];
         /**
-         Delivery that records the line.
+         Kinds delivered.
          */
-        const deliver = (call: { readonly line: string; },) => {
+        const kinds: string[] = [];
+        /**
+         Delivery that records the kind and the line.
+         */
+        const deliver = (call: { readonly kind: string; readonly line: string; },) => {
           delivered.push(call.line,);
+          kinds.push(call.kind,);
           return Promise.resolve();
         };
         await refreshOrReport({
@@ -127,6 +132,7 @@ await describe({
         expect(delivered,).toHaveLength(1,);
         expect(delivered[0],).toContain('POLICY NOT IN FORCE: update hosts',);
         expect(delivered[0],).toContain('resolvectl is unavailable',);
+        expect(kinds[0],).toBe('update-host refresh failed',);
         await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),
@@ -137,7 +143,24 @@ await describe({
         },);
         expect(delivered,).toHaveLength(2,);
         expect(delivered[1],).toContain('sets no DNS server',);
+        expect(kinds[1],).toBe('update-host problems',);
         expect(hostSyncFailureText({ report: { added: 0, removed: 0, failures: [], nextRefreshSeconds: 30, }, },),).toBe('',);
+        /**
+         Text for a refresh with far more problems than the cap names.
+         */
+        const long = hostSyncFailureText({
+          report: {
+            added: 0,
+            removed: 0,
+            failures: Array.from({ length: 500, }, (_unused, index,) => `problem number ${String(index,)}`,),
+            nextRefreshSeconds: 30,
+          },
+        },);
+        expect(long,).toContain('500 problem(s)',);
+        expect(long,).toContain('problem number 9',);
+        expect(long,).not.toContain('problem number 10;',);
+        expect(long,).toContain('and 490 more',);
+        expect(long.length,).toBeLessThan(1_000,);
         await refreshOrReport({
           state: STATE,
           absentCounts: new Map(),

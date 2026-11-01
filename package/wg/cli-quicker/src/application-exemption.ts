@@ -1,6 +1,7 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
+import { sanitizeText, } from './escape-text.ts';
 import { BypassRouteError, } from './errors.ts';
 import {
   run,
@@ -177,7 +178,8 @@ export function applicationWatchStopArgs(
 
  @param stderr - Standard error of the watcher start command.
 
- @returns The lines that name a policy not in force.
+ @returns The lines that name a policy not in force,
+ escaped, because they embed names a user chose and reach a terminal.
 
  @example
  ```ts
@@ -188,6 +190,9 @@ export function startupFailureLines({ stderr, }: { readonly stderr: string; },):
   return stderr.split('\n',)
     .filter(function isLoud(line,): boolean {
       return line.includes(POLICY_NOT_IN_FORCE_MARKER,);
+    },)
+    .map(function escapeLine(line,): string {
+      return sanitizeText({ text: line, },);
     },);
 }
 

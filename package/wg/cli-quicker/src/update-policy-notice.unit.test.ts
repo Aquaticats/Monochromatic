@@ -126,7 +126,8 @@ await describe({
           const phrase of [
             'Everything the toolchain installed, not only its updates',
             'every script and dev server run by the toolchain\'s node',
-            'node, bun, pnpm, uv, zig, cmake, rust, caddy, sops and age',
+            'lists the tools installed on this machine now',
+            'A root that is a link counts as the directory it points to',
           ]
         )
           expect(notice,).toContain(phrase,);
@@ -351,6 +352,21 @@ await describe({
         expect(report,).toContain('cannot stop a watcher an earlier run may have started',);
         expect(report,).toContain('watch-stop <interface>',);
         expect(watcherMissingAtStopReport({ searched: [], },),).toContain('searched: no location',);
+      },
+    },),
+    it({
+      name: 'escapes the detail of a loud report, so a name a user chose cannot start a second line or repaint a terminal',
+      fn: async () => {
+        /**
+         Report whose detail carries a line break, an escape sequence and a direction mark.
+         */
+        const report = policyNotInForce({
+          policy: POLICY_UPDATE_HOSTS,
+          detail: 'host\nPOLICY NOT IN FORCE: fake \u001B[2J\u202E',
+        },);
+        expect(report.split('\n',),).toHaveLength(1,);
+        expect(report,).toContain(String.raw`\u{000a}POLICY NOT IN FORCE: fake \u{001b}[2J\u{202e}`,);
+        expect(report.startsWith(`${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_UPDATE_HOSTS}: `,),).toBe(true,);
       },
     },),
     it({

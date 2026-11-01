@@ -1,32 +1,9 @@
 /**
- Most distinct failures remembered for the rate limit before expired ones are dropped.
+ Most failure kinds remembered by one limit.
+ When it is full the expired kinds go first and then the oldest,
+ so the map never grows past this number.
  */
-const MAX_REMEMBERED_FAILURES = 256;
-
-/**
- The identity of a failure for the rate limit:
- the line without its digits,
- so counts and durations do not make a repeat look new.
-
- @param line - The failure line.
-
- @returns The key.
-
- @example
- ```ts
- failureKey({ line: 'retry in 30 s' }); // 'retry in  s'
- ```
- */
-export function failureKey({ line, }: { readonly line: string; },): string {
-  /**
-   Characters of the line that are not digits.
-   */
-  let key = '';
-  for (const character of line)
-    if ((character < '0') || (character > '9'))
-      key += character;
-  return key;
-}
+export const MAX_REMEMBERED_KINDS = 64;
 
 /**
  Decision of a repeat limit for one failure.
@@ -46,6 +23,51 @@ export type RepeatLimit = (call: {
   readonly key: string;
   readonly now: number
 },) => RepeatDecision;
+
+/**
+ Makes room for one more kind:
+ drops the kinds whose interval is over,
+ and the oldest one when none is.
+ Insertion order is delivery order, because a kind is re-inserted at every delivery.
+
+ @param remembered - The remembered kinds.
+
+ @param now - Current time in milliseconds.
+
+ @param intervalMs - The interval of the limit.
+
+ @example
+ ```ts
+ forgetOldest({ remembered: new Map(), now: 0, intervalMs: 1000 });
+ ```
+ */
+function forgetOldest(
+  {
+    remembered,
+    now,
+    intervalMs,
+  }: {
+    readonly remembered: Map<string, {
+      at: number;
+      held: number
+    }>;
+    readonly now: number;
+    readonly intervalMs: number;
+  },
+): void {
+  for (const [kind, entry,] of remembered)
+    if ((now - entry.at) >= intervalMs)
+      remembered.delete(kind,);
+  if (remembered.size < MAX_REMEMBERED_KINDS)
+    return;
+  /**
+   Kind delivered longest ago.
+   */
+  const oldest = remembered.keys()
+    .next();
+  if (oldest.done !== true)
+    remembered.delete(oldest.value,);
+}
 
 /**
  Creates the repeat limit of one channel.
@@ -80,10 +102,13 @@ export function createRepeatLimit({ intervalMs, }: { readonly intervalMs: number
       earlier.held += 1;
       return { deliver: false, };
     }
-    if (remembered.size >= MAX_REMEMBERED_FAILURES)
-      for (const [text, entry,] of remembered)
-        if ((now - entry.at) >= intervalMs)
-          remembered.delete(text,);
+    remembered.delete(key,);
+    if (remembered.size >= MAX_REMEMBERED_KINDS)
+      forgetOldest({
+        remembered,
+        now,
+        intervalMs,
+      },);
     remembered.set(
       key,
       {

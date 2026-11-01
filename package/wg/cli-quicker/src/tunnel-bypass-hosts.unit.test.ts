@@ -177,6 +177,10 @@ await describe({
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
         for (const text of ['2003::1', '2001:db9::1', '64:ff9c::1', '100:0:0:1::1',])
           expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
+        for (const text of ['fec0::1', '64:ff9b:1::1', '3fff::1', '3fff:fff:ffff::1', '2001::1', '2001:0:4136:e378::1', '5f00::1',])
+          expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(false,);
+        for (const text of ['2001:4860:4860::8888', '2001:1::1', '2001:4:112::1', '3ffe::1', '4000::1', '5e00::1', '2606:4700:4700::1111',])
+          expect(isPublicAddress({ family: '-6', address: normalizeAddress({ family: '-6', text, },), },),).toBe(true,);
       },
     },),
   ],

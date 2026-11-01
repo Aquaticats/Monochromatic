@@ -180,8 +180,32 @@ await describe({
         },);
         expect(filtered.wanted,).toHaveLength(MAX_ADDRESSES_PER_HOST,);
         expect(filtered.failures,).toEqual([
-          `big.example answered ${String(MAX_ADDRESSES_PER_HOST + 6,)} addresses; only the first ${String(MAX_ADDRESSES_PER_HOST,)} get rules`,
+          `big.example answered ${String(MAX_ADDRESSES_PER_HOST + 6,)} usable addresses; only the first ${String(MAX_ADDRESSES_PER_HOST,)} get rules`,
         ],);
+      },
+    },),
+    it({
+      name: 'counts only usable addresses toward the per-host cap, so unusable ones cannot hide the real ones',
+      fn: async () => {
+        /**
+         A host that lists more loopback answers than the cap before three real addresses.
+         */
+        const filtered = filterHostAnswers({
+          answers: [{
+            host: 'tricky.example',
+            result: {
+              addresses: [
+                ...Array.from({ length: MAX_ADDRESSES_PER_HOST + 20, }, (_unused, index,) => ({ family: '-4' as const, address: `127.0.0.${String(index % 200,)}`, ttlSeconds: 60, }),),
+                { family: '-4' as const, address: '140.82.112.3', ttlSeconds: 60, },
+                { family: '-4' as const, address: '140.82.112.4', ttlSeconds: 60, },
+                { family: '-4' as const, address: '140.82.112.5', ttlSeconds: 60, },
+              ],
+            },
+          },],
+          protectedKeys: new Set(),
+        },);
+        expect(filtered.wanted.map((item,) => item.rule.address,),).toEqual(['140.82.112.3', '140.82.112.4', '140.82.112.5',],);
+        expect(filtered.failures.every((failure,) => failure.startsWith('refused non-public answer',),),).toBe(true,);
       },
     },),
     it({
