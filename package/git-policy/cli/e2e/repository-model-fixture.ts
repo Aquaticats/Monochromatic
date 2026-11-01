@@ -5,7 +5,7 @@
  */
 
 import type { HookEvent, } from './hook-program-fixture.ts';
-import type { ScenarioService, } from './service-fixture.ts';
+import type { ScenarioService, } from './service-model-fixture.ts';
 
 //region Types
 

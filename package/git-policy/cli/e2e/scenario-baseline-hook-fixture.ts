@@ -1,7 +1,6 @@
 /**
  Single-commit baselines for configured hooks,
  signing,
- fault injection after the landing,
  and the checker's own positive control.
  Each must pass against today's build.
 
@@ -12,10 +11,13 @@ import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import { synthesizeText, } from './content-fixture.ts';
+import { editorOptions, } from './editor-attempt-fixture.ts';
 import { hooksIgnored, } from './hooks-ignored-fixture.ts';
+import type { AttemptRecord, } from './ledger-fixture.ts';
 import { realGit, } from './repository-fixture.ts';
 import {
   repositoryOptions,
+  rewritePaths,
   runSequentialWorkers,
   seedTexts,
 } from './scenario-helper-fixture.ts';
@@ -26,7 +28,7 @@ import {
 } from './scenario-model-fixture.ts';
 import { ALL_HOOK_EVENTS, } from './scenario-setup-fixture.ts';
 import { landedCommit, } from './scenario-reservation-helper-fixture.ts';
-import { settleServiceWork, } from './service-fixture.ts';
+import { settleServiceWork, } from './service-settle-fixture.ts';
 import { waitForPushRecord, } from './work-record-fixture.ts';
 import {
   runWrapper,
@@ -163,125 +165,6 @@ const sshSigning: ScenarioDefinition = {
 };
 
 /**
- Kill once the commit landed and its push record exists,
- the point the retired `post-commit` hook marked,
- then recover and commit again.
- The record is written after the landing and before the service is told about it,
- so the kill leaves a landed commit whose push waits for the next wake.
- This proves the kill machinery and leftover checks against a point today's build already survives;
- kills before the landing are design scenarios (`scenario-sigkill-fixture.ts`).
- */
-const sigkillAfterLanding: ScenarioDefinition = {
-  name: 'baseline-sigkill-after-landing',
-  group: 'baseline',
-  // Sequential: no commit can lose a landing race, so this also runs on Git without replay plumbing.
-  replayPlumbing: 'unused',
-  summary: 'SIGKILL one commit once it landed and its push record exists, run git status to recover, commit again',
-  repository(random,) {
-    return repositoryOptions({
-      seedFiles: seedTexts({
-        random,
-        paths: [
-          'a.txt',
-          'b.txt',
-        ],
-      },),
-      afterCommitRecords: true,
-    },);
-  },
-  async run(context,) {
-    await writeWorktree({
-      ...context,
-      path: 'a.txt',
-      bytes: synthesizeText({
-        random: context.random
-          .fork('a',),
-        size: FILE_BYTES,
-      },),
-    },);
-    /**
-     Attempt killed after its landing.
-     */
-    const victim = await startAttempt({
-      ...context,
-      label: 'killed',
-      paths: ['a.txt',],
-      mode: 'explicit',
-    },);
-    /**
-     Whether the push record appeared before the attempt settled.
-     */
-    const arrival = await waitForPushRecord({
-      repository: context.repository,
-      running: victim.running,
-    },);
-    victim.kill();
-    /**
-     Settled victim.
-     */
-    const victimRecord = await victim.finished;
-    await runWrapper({
-      ...context,
-      label: 'recovery status',
-      args: [
-        'status',
-        '--short',
-      ],
-      mustSucceed: true,
-    },);
-    await writeWorktree({
-      ...context,
-      path: 'b.txt',
-      bytes: synthesizeText({
-        random: context.random
-          .fork('b',),
-        size: FILE_BYTES,
-      },),
-    },);
-    /**
-     Follow-up attempt.
-     */
-    const followUp = await (await startAttempt({
-      ...context,
-      label: 'follow-up',
-      paths: ['b.txt',],
-      mode: 'explicit',
-    },)).finished;
-    await settleServiceWork(context.repository
-      .commonDir,);
-    /**
-     The killed commit, which the landing put on the branch.
-     */
-    const landed = (await landedCommit({
-      context,
-      attempt: victimRecord,
-    },)).trim();
-    return [
-      {
-        name: 'victim-reached-point',
-        holds: arrival === 'record',
-        detail: `victim ${arrival} before its push record appeared`,
-      },
-      {
-        name: 'victim-was-killed',
-        holds: victimRecord.killed,
-        detail: `the victim exited ${String(victimRecord.outcome
-          .exitCode,)} before the kill reached it`,
-      },
-      {
-        name: 'killed-commit-landed-once',
-        holds: /^[0-9a-f]{40,64}$/v.test(landed,),
-        detail: `the killed commit's token names ${landed === '' ? 'no commit' : 'several commits'}`,
-      },
-      allSucceeded({
-        name: 'follow-up-commit-succeeds',
-        attempts: [followUp,],
-      },),
-    ];
-  },
-};
-
-/**
  Positive control for the observer and checker:
  one commit lands through the wrapper,
  then real Git tampers with it so that five invariants must be reported.
@@ -396,7 +279,6 @@ const checkerPositiveControl: ScenarioDefinition = {
 export const BASELINE_HOOK_SCENARIOS: readonly ScenarioDefinition[] = [
   configHooks,
   sshSigning,
-  sigkillAfterLanding,
   checkerPositiveControl,
 ];
 

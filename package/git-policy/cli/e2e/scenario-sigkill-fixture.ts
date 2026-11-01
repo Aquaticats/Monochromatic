@@ -112,6 +112,8 @@ async function reachPoint({
 }>> {
   /**
    Starts the bystander, a plain explicit-path commit of its own file.
+
+   @returns the started bystander
    */
   async function startBystander(): Promise<StartedAttempt> {
     return await startAttempt({

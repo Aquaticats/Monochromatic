@@ -48,7 +48,7 @@ import {
   realGit,
   type ScenarioRepository,
 } from './repository-fixture.ts';
-import { settleServiceWork, } from './service-fixture.ts';
+import { settleServiceWork, } from './service-settle-fixture.ts';
 import { readWorktree, } from './worker-fixture.ts';
 
 //region Repository state

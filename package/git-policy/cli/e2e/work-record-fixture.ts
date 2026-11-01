@@ -74,7 +74,8 @@ export async function pushRecordNames({
     }
     catch (error: unknown) {
       // The work directory appears with the first landing.
-      if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+      if (Error.isError(error,) && ('code' in error)
+        && (error.code === 'ENOENT'))
         return [];
       throw error;
     }

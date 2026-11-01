@@ -27,7 +27,7 @@ import {
   createSeededRepository,
   installExtras,
 } from './repository-setup-fixture.ts';
-import type { ScenarioService, } from './service-fixture.ts';
+import type { ScenarioService, } from './service-model-fixture.ts';
 import {
   WRAPPER_BINS,
   WRAPPER_KIND,

@@ -312,7 +312,8 @@ async function readNames(directory: string,): Promise<readonly string[]> {
     return await readdir(directory,);
   }
   catch (error: unknown) {
-    if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT'))
       return [];
     throw error;
   }

@@ -9,37 +9,20 @@
  @module
  */
 
-import {
-  type ChildProcess,
-  spawn,
-} from 'node:child_process';
+import type { ChildProcess, } from 'node:child_process';
 import { once, } from 'node:events';
 import {
   mkdir,
-  readdir,
   rm,
 } from 'node:fs/promises';
-import { connect, } from 'node:net';
 import { join, } from 'node:path';
 import { setInterval as ticks, } from 'node:timers/promises';
 
+import { listening, } from './service-connection-fixture.ts';
+import { spawnService, } from './service-launch-fixture.ts';
+import type { ScenarioService, } from './service-model-fixture.ts';
+
 //region Constants
-
-/**
- The service program, installed beside the wrapper by the image build.
- */
-const SERVICE_PROGRAM = '/opt/native/cli-git-service';
-
-/**
- The Git the service runs, which the image keeps off the default path.
- */
-const SERVICE_GIT = '/opt/git/2.55.0/bin/git';
-
-/**
- Environment variable that arms one fault point of the service
- (`src/native/service_fault.rs`, compiled into the release executable).
- */
-const FAULT_VARIABLE = 'CLI_GIT_TEST_ONLY_SERVICE_FAULT';
 
 /**
  How long the suite waits for the service to listen, in milliseconds.
@@ -56,125 +39,7 @@ const STOP_DEADLINE_MILLISECONDS = 5_000;
  */
 const POLL_MILLISECONDS = 10;
 
-/**
- How long the observation waits for the service to finish a repository's after-commit work, in milliseconds.
- */
-const SETTLE_DEADLINE_MILLISECONDS = 30_000;
-
-/**
- Error codes that say a path holds nothing: no socket file, or a socket file nothing listens on.
- */
-const ABSENT_CODES: ReadonlySet<unknown> = new Set([
-  'ENOENT',
-  'ECONNREFUSED',
-]);
-
 //endregion Constants
-
-//region Types
-
-/**
- One scenario's commit service and what a scenario may do to it.
- */
-export type ScenarioService = Readonly<{
-  /**
-   Runtime directory the wrappers of the scenario find the service in (`XDG_RUNTIME_DIR`).
-   */
-  runtime: string;
-  /**
-   Process ID of the running service.
-   */
-  pid: () => number;
-  /**
-   Whether the service process has ended.
-   */
-  hasExited: () => boolean;
-  /**
-   Settles when the current service process ends, however it ended.
-   */
-  exited: () => Promise<void>;
-  /**
-   Everything every service process of the scenario wrote to its standard error, oldest first.
-   */
-  log: () => string;
-  /**
-   Freezes the service with `SIGSTOP`.
-   A client that connects meanwhile is accepted by the kernel but receives nothing, so its prepared commit waits.
-   */
-  stall: () => void;
-  /**
-   Lets a frozen service run again.
-   */
-  resume: () => void;
-  /**
-   Kills the service with `SIGKILL` and waits until it is gone.
-   */
-  kill: () => Promise<void>;
-  /**
-   Starts a service after the previous one ended, the way the service manager restarts a crashed unit:
-   the stale socket file is removed first, because the service itself does not replace one.
-   The new process is clean unless a fault point arms it.
-   */
-  restart: (fault?: string) => Promise<void>;
-  /**
-   Waits until the current service ends, then restarts it after a short outage.
-   */
-  restartAfterExit: () => Promise<void>;
-  /**
-   Restarts the service when it has ended, so the observation finds one to finish the after-commit work.
-   */
-  ensureRunning: () => Promise<void>;
-}>;
-
-//endregion Types
-
-//region Connection
-
-/**
- Whether a failure says only that the path holds nothing.
-
- @param error - value a connection or a directory read threw
-
- @returns true for a missing path or a refused connection
- */
-function isAbsent(error: unknown,): boolean {
-  return ((typeof error) === 'object')
-    && (error !== null)
-    && ('code' in error)
-    && ABSENT_CODES.has(error.code,);
-}
-
-/**
- Whether something accepts connections on a socket path.
-
- @param socket - path of the unix socket
-
- @returns true when a connection was made
-
- @throws the connection's failure when it is not a refusal
- */
-async function listening(socket: string,): Promise<boolean> {
-  /**
-   The connection attempt.
-   */
-  const attempt = connect(socket,);
-  try {
-    await once(
-      attempt,
-      'connect',
-    );
-  }
-  catch (error) {
-    attempt.destroy();
-    if (isAbsent(error,))
-      return false;
-    throw error;
-  }
-  attempt.destroy();
-  return true;
-}
-
-//endregion Connection
 
 //region Service
 
@@ -237,25 +102,70 @@ export async function startScenarioService({
     'journal',
   );
   /**
-   Mutable holder of the current process and its log.
+   Mutable state of the scenario's service processes: the current process, the standard error of every process so far,
+   when the current process ends, and whether the scenario ended, after which nothing may start a service.
    */
   const current: {
-    child: ChildProcess | undefined;
+    child?: ChildProcess;
     log: string;
     ended: Promise<void>;
     disposed: boolean;
   } = {
-    child: undefined,
     log: '',
     ended: Promise.resolve(),
     disposed: false,
   };
   /**
+   Whether the current process has ended.
+
+   @returns true when it exited or was killed by a signal, or none was started
+   */
+  function hasExited(): boolean {
+    /**
+     The current process.
+     */
+    const running = current.child;
+    if (running === undefined)
+      return true;
+    /**
+     How the process ended, if it did.
+     */
+    const {
+      exitCode,
+      signalCode,
+    } = running;
+    return (exitCode !== null) || (signalCode !== null);
+  }
+  /**
+   Process ID of the current process.
+
+   @returns the process ID
+
+   @throws Error when no service was started
+   */
+  function pid(): number {
+    /**
+     The current process.
+     */
+    const running = current.child;
+    if (running === undefined)
+      throw new Error('the scenario has no running commit service',);
+    /**
+     The process's ID, absent when it did not start.
+     */
+    const { pid: processId, } = running;
+    if (processId === undefined)
+      throw new Error('the commit service process has no process ID',);
+    return processId;
+  }
+  /**
    Starts one service process and waits until it listens.
 
    @param armed - fault point to arm, none for a clean service
+
+   @throws Error when the service does not listen within the deadline
    */
-  async function launch(armed: string | undefined,): Promise<void> {
+  async function launch(armed?: string,): Promise<void> {
     await mkdir(
       socketDirectory,
       { recursive: true, },
@@ -267,46 +177,28 @@ export async function startScenarioService({
     /**
      The new service process.
      */
-    const child = spawn(
-      SERVICE_PROGRAM,
-      [
-        '--journal',
-        journal,
-        '--git',
-        SERVICE_GIT,
-        '--path',
-        socket,
-      ],
-      {
-        stdio: [
-          'ignore',
-          'ignore',
-          'pipe',
-        ],
-        env: armed === undefined ? process.env : {
-          ...process.env,
-          [FAULT_VARIABLE]: armed,
-        },
+    const started = spawnService({
+      socket,
+      journal,
+      ...armed === undefined ? {} : { fault: armed, },
+    },);
+    current.child = started;
+    current.log += `--- service process ${String(started.pid,)} ---\n`;
+    started.stderr
+      ?.setEncoding('utf8',);
+    started.stderr
+      ?.on(
+      'data',
+      function remember(text: string,) {
+        current.log += text;
       },
-    );
-    current.child = child;
-    current.log += `--- service process ${String(child.pid,)} ---\n`;
-    child.stderr
-      .setEncoding('utf8',);
-    child.stderr
-      .on(
-        'data',
-        function remember(text: string,) {
-          current.log += text;
-        },
       );
-    current.ended = once(
-      child,
-      'exit',
-    )
-      .then(function ignoreExit() {
-        return undefined;
-      },);
+    current.ended = (async function waitForExit(): Promise<void> {
+      await once(
+        started,
+        'exit',
+      );
+    })();
     /**
      When the wait for the service ends.
      */
@@ -314,30 +206,9 @@ export async function startScenarioService({
     for await (const _tick of ticks(POLL_MILLISECONDS,)) {
       if (await listening(socket,))
         return;
-      if ((Date.now() >= deadline) || hasExited()) {
+      if ((Date.now() >= deadline) || hasExited())
         throw new Error(`the commit service did not listen at ${socket}: ${current.log}`,);
-      }
     }
-  }
-  /**
-   Whether the current process has ended.
-
-   @returns true when it exited or was killed by a signal
-   */
-  function hasExited(): boolean {
-    return (current.child === undefined) || (current.child.exitCode !== null) || (current.child.signalCode !== null);
-  }
-  /**
-   Process ID of the current process.
-
-   @returns the process ID
-
-   @throws Error when no service was started
-   */
-  function pid(): number {
-    if (current.child?.pid === undefined)
-      throw new Error('the scenario has no running commit service',);
-    return current.child.pid;
   }
   /**
    Ends the current process: `SIGCONT` so a frozen one can hear `SIGTERM`, then `SIGKILL` after the deadline.
@@ -346,17 +217,17 @@ export async function startScenarioService({
     if (hasExited())
       return;
     /**
-     Process being stopped.
+     The process being stopped.
      */
-    const child = current.child;
-    child?.kill('SIGCONT',);
-    child?.kill('SIGTERM',);
+    const stopping = current.child;
+    stopping?.kill('SIGCONT',);
+    stopping?.kill('SIGTERM',);
     /**
      Forced end after the deadline.
      */
     const forced = setTimeout(
       function force() {
-        child?.kill('SIGKILL',);
+        stopping?.kill('SIGKILL',);
       },
       STOP_DEADLINE_MILLISECONDS,
     );
@@ -368,9 +239,6 @@ export async function startScenarioService({
     runtime,
     pid,
     hasExited,
-    exited() {
-      return current.ended;
-    },
     log() {
       return current.log;
     },
@@ -389,7 +257,11 @@ export async function startScenarioService({
     async kill() {
       if (hasExited())
         return;
-      current.child?.kill('SIGKILL',);
+      /**
+       The process being killed.
+       */
+      const killed = current.child;
+      killed?.kill('SIGKILL',);
       await current.ended;
     },
     async restart(armed,) {
@@ -400,11 +272,11 @@ export async function startScenarioService({
       await current.ended;
       // A scenario that ends while it waits must not leave a service running behind it.
       if (!current.disposed)
-        await launch(undefined,);
+        await launch();
     },
     async ensureRunning() {
       if (hasExited())
-        await launch(undefined,);
+        await launch();
     },
     async [Symbol.asyncDispose]() {
       current.disposed = true;
@@ -414,92 +286,3 @@ export async function startScenarioService({
 }
 
 //endregion Service
-
-//region Settlement
-
-/**
- Names in a directory, none when the directory does not exist.
-
- @param directory - directory to list
-
- @returns the entry names
-
- @throws the read's failure when it is not a missing directory
- */
-async function namesIn(directory: string,): Promise<readonly string[]> {
-  try {
-    return await readdir(directory,);
-  }
-  catch (error) {
-    // A repository the service never saw has no work directory; any other failure is real.
-    if (isAbsent(error,))
-      return [];
-    throw error;
-  }
-}
-
-/**
- Waits until the service has finished the after-commit work of one repository.
-
- A commit the service lands returns before its push: the wrapper writes a push record and a maintenance record, and the
- service runs them on its own thread. The remote therefore reaches the landed commit some time after the exit, so the
- observation that compares the remote with the local branch waits here first. A record that failed counts as finished,
- so the remote check reports the missing push instead of this wait hiding it.
-
- @param commonDir - the repository's common Git directory
-
- @returns the records still pending or claimed after the deadline, as `<state>/<name>`;
- empty when the service finished everything.
- A claim a killed service held stays claimed until its lease runs out, so the wait reports it instead of failing.
-
- @example
- ```ts
- const unsettled = await settleServiceWork(repository.commonDir);
- ```
- */
-export async function settleServiceWork(commonDir: string,): Promise<readonly string[]> {
-  /**
-   Directory of the repository's after-commit records.
-   */
-  const workDirectory = join(
-    commonDir,
-    'cli-git',
-    'work',
-  );
-  /**
-   When the wait for the records ends.
-   */
-  const deadline = Date.now() + SETTLE_DEADLINE_MILLISECONDS;
-  for await (const _tick of ticks(POLL_MILLISECONDS,)) {
-    /**
-     Records waiting for the service and records it is working on.
-     */
-    const [
-      pending,
-      claimed,
-    ] = await Promise.all([
-      namesIn(join(
-        workDirectory,
-        'pending',
-      ),),
-      namesIn(join(
-        workDirectory,
-        'claimed',
-      ),),
-    ],);
-    if ((pending.length + claimed.length) === 0)
-      return [];
-    if (Date.now() >= deadline)
-      return [
-        ...pending.map(function pendingName(name,) {
-          return `pending/${name}`;
-        },),
-        ...claimed.map(function claimedName(name,) {
-          return `claimed/${name}`;
-        },),
-      ];
-  }
-  return [];
-}
-
-//endregion Settlement

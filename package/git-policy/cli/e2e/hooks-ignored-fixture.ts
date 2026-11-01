@@ -27,6 +27,11 @@ import type {
  */
 export const EXTERNAL_HOOKS_CODE = 'external-hooks-unsupported';
 
+/**
+ Characters of a log that a failure detail quotes.
+ */
+const STDERR_EXCERPT_CHARACTERS = 400;
+
 //endregion Constants
 
 //region Expectations
@@ -87,13 +92,28 @@ export async function hooksIgnored({
   const silent = attempts.filter(function unwarned(attempt,) {
     return !warnsAboutHooks(attempt,);
   },);
+  /**
+   Start of the first silent attempt's standard error, which says what it printed instead.
+   */
+  const printed = (silent[0]
+    ?.outcome
+    .stderr
+    ?? '').slice(
+    0,
+    STDERR_EXCERPT_CHARACTERS,
+    );
+  /**
+   Start of the hook program's log, which says what ran.
+   */
+  const ranExcerpt = ran.slice(
+    0,
+    STDERR_EXCERPT_CHARACTERS,
+  );
   return [
     {
       name: 'configured-hooks-not-run',
       holds: ran === '',
-      detail: `the configured hook program ran: ${ran.split('\n',)
-        .slice(0, 2,)
-        .join(' | ',)}`,
+      detail: `the configured hook program ran: ${ranExcerpt}`,
     },
     {
       name: 'configured-hooks-warned',
@@ -101,9 +121,7 @@ export async function hooksIgnored({
       detail: `${silent.map(function label(attempt,) {
         return attempt.label;
       },)
-        .join(', ',)} gave no ${EXTERNAL_HOOKS_CODE} warning; first stderr: ${silent[0]?.outcome
-        .stderr
-        .slice(0, 400,) ?? ''}`,
+        .join(', ',)} gave no ${EXTERNAL_HOOKS_CODE} warning; the first printed: ${printed}`,
     },
   ];
 }

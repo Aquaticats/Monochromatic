@@ -78,26 +78,28 @@ export async function holdsSocket(pid: number,): Promise<boolean> {
       return !STANDARD_DESCRIPTORS.has(descriptor,);
     },)
       .map(async function target(descriptor,) {
-      try {
-        return await readlink(join(
-          directory,
-          descriptor,
-        ),);
-      }
-      catch (error: unknown) {
+        try {
+          return await readlink(join(
+            directory,
+            descriptor,
+          ),);
+        }
+        catch (error: unknown) {
         // A descriptor closed between the listing and the read.
-        if (Error.isError(error,) && ('code' in error) && (error.code === 'ENOENT'))
-          return '';
-        throw error;
-      }
-    },),);
+          if (Error.isError(error,) && ('code' in error)
+            && (error.code === 'ENOENT'))
+            return '';
+          throw error;
+        }
+      },),);
     return links.some(function isSocket(link,) {
       return link.startsWith(SOCKET_LINK_PREFIX,);
     },);
   }
   catch (error: unknown) {
     // The process ended: it holds nothing.
-    if (Error.isError(error,) && ('code' in error) && ((error.code === 'ENOENT') || (error.code === 'ESRCH')))
+    if (Error.isError(error,) && ('code' in error)
+      && ((error.code === 'ENOENT') || (error.code === 'ESRCH')))
       return false;
     throw error;
   }
