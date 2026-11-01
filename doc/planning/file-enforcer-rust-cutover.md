@@ -1417,11 +1417,11 @@ Results:
   the `go-install` of `crush`,
   and the `git` postinstall link.
 
-#### Real run, 2026-11-01 (in progress)
+#### Real run, 2026-11-01
 
 The coordinator converted the owner's real plan under the owner's delegation of 2026-10-31
 ("Use your own judgement. I trust you'll do this step good enough autonomously.").
-This note is written before the install and is completed after it.
+The install ran the same day, 00:54 to about 01:19 (local time); the results follow the adaptations.
 
 - Inputs:
   the sha256 of all five real files equals the rehearsal copies taken 2026-10-31 00:39,
@@ -1458,13 +1458,89 @@ This note is written before the install and is completed after it.
   and the procedure's step 6 ("the old lock is replaced") was wrong.
   The old lock has to be moved aside after the backup (the `.pre-cutover` copy, sha256 verified equal) exists,
   and then the first `install --global` finds no lock and resolves and writes the whole one.
-  The move was attempted at the point the install was due and refused by the session's permission classifier
-  (reason given: irreversible local destruction, for both `rm` and `mv`),
-  so the install has not run.
-  State at the pause:
-  the five originals are untouched,
-  the five backups and the new plan are beside them,
-  and nothing under `~/.local/share/monochromatic-dev` changed.
+  The agent's `rm` and then `mv` of that lock were refused by the session's permission classifier
+  (reason given: irreversible local destruction),
+  and the owner made the move themselves:
+  `toolchain.lock.json.old-format` (49184 bytes, the same bytes as the `.pre-cutover` copy) stays beside the new lock.
+  The install then needed no `update --global` first.
+- Owner answers recorded here:
+  `depot` is dropped from the global plan ("Drop it", 2026-11-01),
+  and the `yt-dlp` reroute stays ("Keep PyPI", 2026-11-01),
+  so `pipx:yt-dlp@latest` on the `mpm-uvx` route is settled, not veto-open.
+- Install:
+  `mise run toolchain:install:global` from the main checkout, as the transient unit `global-toolchain-install`
+  (`MemoryMax=32G`, `CPUQuota=2400%`, `RuntimeMaxSec=10800`, since collected), exit 0.
+  No GitHub token reached any environment: `GITHUB_TOKEN` and `GH_TOKEN` were unset in the shell and the user manager,
+  and the unit's `GH_CONFIG_DIR` pointed at an empty directory, because `mpm-shadow` otherwise reads `gh auth token`
+  (`package/mpm-shadow/cli/src/toolchain/context.rs`) and passes the token to its child processes.
+  The run was unauthenticated and did not hit the API limit (56 of 60 requests were left before it).
+  With no lock, `install` resolved all 59 rows (printing `locked <id> <version>` for each), then installed:
+  `toolchain install: 11 installed, 48 unchanged, 0 failed`.
+  The lock was written about 12 minutes after the unit started (the lookups run one after another),
+  and the `slint-lsp` build from its pinned revision ran after that.
+  The unit used 15 minutes 34 seconds of CPU and peaked at 9 GB of memory.
+- Versions that moved against the old lock (a `latest` entry resolved afresh):
+  `cargo-binstall` 1.26.1 to 1.26.2,
+  `cargo:monochromatic-git-policy-cli` 0.4.4 to 0.4.6,
+  `github:lemonade-sdk/llamacpp-rocm` b1359 to b1360,
+  `github:openinterpreter/openinterpreter` 0.0.56 to 0.0.57,
+  and `rust` `nightly-2026-10-31` to `nightly-2026-11-01`.
+  The `slint` revision is unchanged (the `ref:` prefix was only spelling).
+  `yt-dlp` stays at 2026.10.26.
+  `bin`, `mpm`, `bun` and the other pinned entries did not move.
+- `mise run toolchain:list:global`: `toolchain list: 59 tools in sync with toolchain.lock.json`, exit 0,
+  before and after the removals below.
+  `mpm-shadow install --lockfile-only --frozen-lockfile --global`:
+  `toolchain lock is current: 59 tools, digest verified`.
+- User-boundary checks, run through `~/.local/share/monochromatic-dev/toolchain-global/exposure/<tool>`,
+  because the repository scope's `.cache/toolchain-bin` precedes the global exposure directory on `PATH`
+  (so `command -v rg`, `uv`, `pnpm`, `bun` and `hyperfine` print repository-scope copies):
+  `rg` 15.2.0,
+  `gh` 2.103.3,
+  `uv` 0.13.6,
+  `pnpm` 12.16.1,
+  `starship` 1.27.0,
+  `bun` 1.3.14,
+  `typst` 0.15.1,
+  `deno` 2.9.8,
+  `yt-dlp` 2026.10.26 (from the `uv tool` directory, the PyPI install),
+  `tree-sitter` 0.27.1,
+  `cargo-binstall` 1.26.2 (`-V`),
+  `fd` 10.5.0 and `coreutils` 0.12.0 (each from its own `toolchain-global/cargo/<crate>/<version>` root),
+  `codex` 0.166.0, `ccusage` 20.0.46 and `agent-browser` 0.41.0 (the `mpm-pnpm` route),
+  `go` 1.27.3 (`go version`),
+  `aws` 2.39.3,
+  `node` v26.13.0,
+  `interpreter` 0.0.57,
+  `llama-server` from the `b1360` directory (it reports `0.8.0-dev (build 12020)`),
+  `crush` v0.99.0
+  and `slint-lsp` built from the pinned revision.
+  `--version` failed only where the program has a different flag:
+  `go`, `cargo-binstall` and `cargo-bloat` (a cargo subcommand), each re-run correctly and passing.
+- `git`:
+  `~/.local/bin/git` now links to `toolchain-global/launchers/cli-git-native`, set by the install
+  (before: the repository root's `toolchain/cargo/monochromatic-git-policy-cli/current/bin/cli-git-native`);
+  `git --version` prints `git version 2.56.0` with `monochromatic-git-policy-cli 0.4.6, shadowing git at /usr/bin/git`.
+- `depot`, removed after the checks passed because the owner dropped it:
+  the install does not prune a tool that left the plan, so the old copy was still in place.
+  `bin remove` took out `~/.local/share/monochromatic-dev/toolchain-global/bin/depot` (v2.103.5, 74842274 bytes)
+  and its entry in `bin.config.json`,
+  and `rm` took out the dangling link `~/.local/share/monochromatic-dev/toolchain-global/exposure/depot`.
+  A `depot` shim from 2026-10-15 remains at `~/.local/share/mise/shims/depot`
+  (it is not from this install; `mise which depot` reports it inactive), left for the owner to remove.
+- Removed after the checks:
+  `plan.tools.data.ts`,
+  `plan.artifacts.data.ts`,
+  `mpm.packages.toml`
+  and `mpm.managers.toml` from `~/.config/monochromatic-dev/toolchain/`,
+  after `rg` found no other reference to them in `~/.config`, `~/.bashrc` or `~/.profile`
+  (only the new plan's header comment).
+  Kept: the five `.pre-cutover` backups and `toolchain.lock.json.old-format`.
+- The procedure's install-side behaviors that the rehearsal could not exercise now ran:
+  the `mpm-uvx` install of `yt-dlp`,
+  the `cargo-git` build of `slint-lsp`,
+  and the `git` postinstall link.
+  The `go-install` of `crush` and the unpack of `tree-sitter` were already in place and counted as unchanged.
 
 ### Global plan backup and conversion procedure
 
