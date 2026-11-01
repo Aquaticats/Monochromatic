@@ -4893,3 +4893,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - `m046` mutation rerun (units `cli-git-mutpar-m046-real-index-lock`, `...-private-storage`, `...-process-tree`) is still
   running; the first launch failed in seconds because I passed `src/native/` prefixed paths (the task adds the prefix:
   pass bare file names).
+
+## File-enforcer cutover landed (`d2036021e2`)
+
+- `monochromatic-6e` merged the Rust file-enforcer and mpm-shadow cutover into main (`d2036021e2`): the lock pins wrapper
+  0.4.6, mpm-shadow 0.2.2 and `nightly-2026-11-01`; `package/file-enforcer/core`, `file-enforcer.config.ts`,
+  `mpm.managers.toml`, `mpm.packages.toml` and `plan.tools.data.ts` are deleted; the plan is `toolchain.plan.jsonc`.
+- For the next wrapper release the lock steps change: use `mise run toolchain:update` (report-only variant exists) and
+  `mise run toolchain:install`; `toolchain:sync` is gone, and mpm-shadow installs the wrapper version-keyed under
+  `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/<version>` with a `current` link. The
+  lock diff is now `toolchain.lock.json` (re-check which generated files the update writes before committing, naming each
+  by pathspec). The shared-install downgrade hazard is closed by the newest-copy-wins rule.
+- Verified on main after the cutover: `git --version` prints the 0.4.6 banner.
+- Open question sent to `monochromatic-6e`: `FORBIDDEN_STRINGS_RULES` (required `forbidden-strings.append.txt` plus
+  optional `forbidden-strings.append.local.txt?`) is no longer set in `mise.toml`; the wrapper's own scan is unaffected
+  because `cli-git.config.jsonc` `rulesFile` still lists both files.
