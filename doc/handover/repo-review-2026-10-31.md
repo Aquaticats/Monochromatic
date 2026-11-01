@@ -1999,6 +1999,19 @@ other five lanes keep running):
   line 73, corpus-pass on its remaining modules, run on its package, slice-cache
   on its remaining tests.
 
+Wave-4 fifty-third checkpoint (2026-11-01, troubleshooting round 4 verified and relaunched; the
+other five lanes keep running):
+
+- doc/troubleshooting round 4: worklist lines 73 to 76, rows
+  `w2-logger-src-092` to `-098`. My spots: the catalog-tighten doc pins pnpm to a
+  mise.toml comment while the channel is toolchain.lock, and the charm-hyper
+  price record gives HYPER_PRICE_READ_ON as both 2026-09-11 and 2026-10-11. The
+  ledger is 97 of 97 clean; row 35 stays parked. Next: worklist line 77, id
+  w2-logger-src-099, base rr-ts-381.
+- Active: cc-docs at position 423, fm-decision at position 49, corpus-pass on its
+  remaining modules, run on its package, slice-cache on its remaining tests,
+  troubleshooting at line 77.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
