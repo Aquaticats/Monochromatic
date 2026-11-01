@@ -126,6 +126,7 @@ type Sent = {
  @param reading - which providers have budget when the router chooses
  @param sent - requests the callers were sent, filled as they arrive
  @param dryness - older reading of the meters, which the client reports to a re-ask, when it reports one
+ @param lostFirstAsk - seats whose first ask fails in transport once, so a gather has a voice to ask again
 
  @returns Client the stage can take
 
@@ -139,12 +140,18 @@ function routerClient(
     reading,
     sent,
     dryness,
+    lostFirstAsk = [],
   }: {
     readonly reading: DrynessReading;
     readonly sent: Sent[];
     readonly dryness?: DrynessReading;
+    readonly lostFirstAsk?: readonly RosterModelId[];
   },
 ): ModelClient {
+  /**
+   Seats whose first ask has been lost already.
+   */
+  const lost = new Set<RosterModelId>();
   /**
    Builds one provider's caller.
 
@@ -156,6 +163,10 @@ function routerClient(
     return {
       chatText: function chatText(request: ChatTextRequest,): Promise<{ readonly text: string; }> {
         sent.push({ provider, modelId: request.modelId, },);
+        if (lostFirstAsk.includes(request.modelId,) && (!lost.has(request.modelId,))) {
+          lost.add(request.modelId,);
+          return Promise.reject(new Error(`connection reset while ${request.modelId} was answering`,),);
+        }
         return Promise.resolve({ text: JSON.stringify({ meow: request.modelId, },), },);
       },
     };
@@ -423,13 +434,111 @@ await describe({
         expect(lines.some(function saysItCannotTakeIt(line,): boolean {
           return line.includes(`${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} cannot take the re-ask`,);
         },),).toBe(true,);
+        // THE SUCCESSOR IS THE SECOND MODEL OF THE ORDER THE OLDER READING GAVE (ledger B1381), derived from that order
+        // and not written down: the seat is answered by that model, which is the only one the callers were sent, so an
+        // own-model fall back, or a skip to a later alternate, fails here.
+        /**
+         The model the order names after the held one.
+         */
+        const successor = nonNullishOrThrow(alternates[1],);
         expect(recovered.map(function summarized(outcome,) {
           return {
             modelId: outcome.modelId,
             heard: outcome.voice.heard,
-            answeredByTheHeldModel: outcome.voice.heard && (outcome.voice.answeredBy === SEAT_SYNTHETIC_VISION_NO_OPENROUTER),
+            answeredBy: outcome.voice.heard ? outcome.voice.answeredBy : undefined,
           };
-        },),).toEqual([{ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, heard: true, answeredByTheHeldModel: false, },],);
+        },),).toEqual([{ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, heard: true, answeredBy: successor, },],);
+        expect(sent.map(function modelOf(request,): RosterModelId {
+          return request.modelId;
+        },),).toEqual([successor,],);
+      },
+    },),
+
+    it({
+      name: 'REFUSES THE RE-ASK OF AN UNREADABLE HELD SEAT THAT DID NOT RUN AWAY (ledger B1374): the recovery round\'s '
+        + 'other branch asks the seat\'s own model nudged through the same round, the router refuses it where it would '
+        + 'choose Hyper, and the outcome is one unreachable seat that reaches no provider',
+      fn: async () => {
+        const sent: Sent[] = [];
+        const recovered = await runRecoveryRound<MeowReply>({
+          roundRequest: {
+            client: routerClient({ reading: HYPER_WET_ONLY, sent, },),
+            messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
+            signal: SIGNAL,
+            exchangeTimeoutMs: HANG_STOP_MS,
+            responseFormat: MEOW_FORMAT,
+            validate: isMeowReply,
+            stage: 'gate',
+            l: levelCapturingLogger({ lines: [], },),
+            graceMs: HANG_STOP_MS,
+            reaskSeat: editorSeat({ bench: [], },),
+          },
+          unreadable: [SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
+          causeOf: new Map<RosterModelId, UnreadableCause>([[SEAT_SYNTHETIC_VISION_NO_OPENROUTER, 'cut-short',],],),
+        },);
+        expect(sent,).toEqual([],);
+        expect(recovered.map(function summarized(outcome,) {
+          return { modelId: outcome.modelId, voice: outcome.voice, };
+        },),).toEqual([
+          {
+            modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            voice: { heard: false, answered: false, unreachable: true, },
+          },
+        ],);
+      },
+    },),
+
+    it({
+      name: 'DOES NOT ASK THE HELD SEAT IN A RETRY ROUND (ledger B1382): two reachable seats lose their first ask in '
+        + 'transport, the gather runs a retry round for them, and the held seat, refused once in the first round, is '
+        + 'not among the seats asked again',
+      fn: async () => {
+        /**
+         The bench: the held model and four seats Hyper serves with no hold against the editor role.
+         */
+        const modelIds: readonly RosterModelId[] = [
+          SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          SEAT_SYNTHETIC_VISION_WITHHELD,
+          SEAT_HYPER_ONLY,
+          SEAT_HYPER_VISION,
+          SEAT_HYPER_TEXT_BEDROCK,
+        ];
+        /**
+         The two seats whose first ask is lost, which leaves two voices of the three the bench needs.
+         */
+        const lostFirstAsk: readonly RosterModelId[] = [SEAT_HYPER_ONLY, SEAT_HYPER_VISION,];
+        const sent: Sent[] = [];
+        const tally = createSeatTally();
+        const gather = await gatherStageVoices<MeowReply>({
+          client: seatTallyClient({
+            inner: routerClient({ reading: HYPER_WET_ONLY, sent, lostFirstAsk, },),
+            tally,
+            minAsks: SEAT_WITHHOLD_ASKS,
+          },),
+          modelIds,
+          messages: [{ role: 'user', content: 'Where does the cat sleep?', },],
+          signal: SIGNAL,
+          exchangeTimeoutMs: HANG_STOP_MS,
+          responseFormat: MEOW_FORMAT,
+          validate: isMeowReply,
+          stage: 'critic',
+          l,
+          graceMs: HANG_STOP_MS,
+          fanOut: 'whole-bench',
+          seatTally: tally,
+          role: SEAT_ROLE,
+          reask: 'other-model',
+        },);
+        // THE RETRY ROUND RAN: each lost seat was sent twice, which is what puts the held seat's refusal to the test.
+        for (const lost of lostFirstAsk) {
+          expect(sent.filter(function isSeat(request,): boolean {
+            return request.modelId === lost;
+          },).length,).toBe(2,);
+        }
+        expect(countOf({ counts: tally.counts(), modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER, },).unreachable,).toBe(1,);
+        expect([...gather.unreachable,],).toEqual([SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
+        expect(gather.quorumMet,).toBe(true,);
+        expect(gather.voices.length,).toBe(modelIds.length - 1,);
       },
     },),
   ],
