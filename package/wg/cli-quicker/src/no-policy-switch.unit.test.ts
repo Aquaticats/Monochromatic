@@ -476,11 +476,14 @@ await describe({
         /**
          Files that touch PATH:
          the TypeScript resolver reads it,
-         and the Rust client sets it for a child it starts with a cleared environment.
+         and two Rust files set a fixed search path for a child they start with a cleared environment:
+         the client that runs `busctl` as the watched user,
+         and the launch that runs `systemd-run` for the sentinel.
+         Neither reads the caller's value.
          */
         const pathFiles = [...new Set(found.get('PATH',),),].toSorted((left, right,) => left.localeCompare(right,),);
         expect(pathFiles.filter((file,) => file.endsWith('.ts',),),).toEqual(['application-exemption-command.ts',],);
-        expect(pathFiles.filter((file,) => file.endsWith('.rs',),),).toEqual(['user_client.rs',],);
+        expect(pathFiles.filter((file,) => file.endsWith('.rs',),),).toEqual(['sentinel_launch.rs', 'user_client.rs',],);
       },
     },),
     it({
