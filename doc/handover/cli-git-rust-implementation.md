@@ -6253,3 +6253,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Merged onto `integ-20261101` (fast-forwarded to main first) as `f1db4e7d2c`; gate 14 runs there (unit
   `gpc-main-gate14`). Next: merge to main, then `native:release -- 0.5.1 0.5.2 "<note>"`. Hold every merge touching the
   wrapper or its path crates until the bump commit is on main. Then 6e bumps the lock and I verify a real push.
+- Gate 14 GREEN on `f1db4e7d2c` (hotfix on the integration branch): 3072 of 3072 passed, 8 skipped. Merged into main as
+  `7a24a8d9dc`, pushed (checked script; no LFS-tracked path). 0.5.2 dispatched from main: run `41323353595`, followed
+  by `native:release:wait` (log `~/temp/agent/release-052-wait.log`). HOLD every merge touching the wrapper or its path
+  crates until the bump commit is on main. After PUBLISHED: message `monochromatic-6e` for the lock bump, then verify a
+  real push through 0.5.2 (no git-lfs start for a push without new pointers).
