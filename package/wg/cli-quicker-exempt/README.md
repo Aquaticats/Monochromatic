@@ -236,6 +236,18 @@ which `cn_proc_mcast_ctl` and `cn_filter` of Linux v7.2.11 (`drivers/connector/c
 a kernel that ignores the form keeps the subscription the first message made.
 An ignored test subscribes both ways and shows the difference.
 The receive buffer is asked to hold 4 MiB.
+When the watcher stops it tells the kernel to ignore the socket (`PROC_CN_MCAST_IGNORE`):
+the kernel changes its listener count only on listen and ignore,
+and closing a socket leaves the count raised
+(`drivers/connector/cn_proc.c` lines 450 and 454,
+`connector.c` lines 185 to 190,
+Linux v7.2.11),
+so each restart used to leave one more listener counted,
+and while the count is above zero the kernel builds and broadcasts an event for every fork,
+exec and exit.
+A watcher that is killed cannot do this;
+the next one starts counting from the count it finds.
+An ignored test shows the delivery ending.
 Delivery is lossy when the watcher falls behind:
 an overrun is reported at once,
 and every process is rescanned no sooner than one second after the previous scan,

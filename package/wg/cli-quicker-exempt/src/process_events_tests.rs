@@ -4,6 +4,8 @@
 /// Parser and subscription under test.
 use crate::process_events::{
     build_exec_filter_message,
+    build_ignore_message,
+    unsubscribe,
     build_listen_message,
     enlarge_receive_buffer,
     subscribe_to_everything,
@@ -100,6 +102,16 @@ fn the_exec_filter_message_carries_a_proc_input() {
     assert_eq!(message[4..32], build_listen_message(99)[4..32]);
 }
 
+/// The ignore message has the layout of the listen message with the ignore operation.
+#[test]
+fn the_ignore_message_carries_the_ignore_operation() {
+    let message = build_ignore_message(99);
+    assert_eq!(message.len(), 40);
+    assert_eq!(message[..32], build_listen_message(99)[..32]);
+    assert_eq!(u32::from_ne_bytes(message[36..40].try_into().expect("operation")), 2);
+    assert_eq!(u16::from_ne_bytes(message[32..34].try_into().expect("payload length")), 4);
+}
+
 /// The receive buffer request is honored up to the limit of the host without privilege,
 /// and the socket reports at least that much.
 #[test]
@@ -168,6 +180,24 @@ fn a_filtered_subscription_receives_exec_events_only() {
     assert!(exec > 0, "the filtered socket saw no exec event");
     println!("events in one 0.5 s window: unfiltered exec {exec_all}, fork {fork_all}, exit {exit_all}; filtered exec {exec}");
     assert_eq!((fork, exit), (0, 0), "the filtered socket saw fork {fork} and exit {exit} events");
+}
+
+/// After the subscription is ended the kernel delivers nothing more to the socket.
+/// The first child shows the subscription works,
+/// so a socket that never received anything cannot pass.
+/// It needs the kernel connector,
+/// which this kernel allows without privilege and a container may not.
+#[test]
+#[ignore = "needs the kernel process-event connector"]
+fn ending_the_subscription_ends_the_delivery() {
+    let socket = crate::process_events::subscribe().expect("subscribe to exec events");
+    let (before, _fork, _exit) = event_kinds_during_a_child(&socket);
+    assert!(before > 0, "the subscription delivered no exec event before it was ended");
+    unsubscribe(&socket).expect("end the subscription");
+    // Events queued before the ignore are drained, then a new child must not be reported.
+    let _queued = event_kinds_during_a_child(&socket);
+    let (after, fork, exit) = event_kinds_during_a_child(&socket);
+    assert_eq!((after, fork, exit), (0, 0, 0), "the socket still received events after the subscription was ended");
 }
 
 /// Scripted receive results in order,

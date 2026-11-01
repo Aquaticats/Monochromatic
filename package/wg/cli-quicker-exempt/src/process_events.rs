@@ -35,6 +35,8 @@ const CN_IDX_PROC: u32 = 1;
 const CN_VAL_PROC: u32 = 1;
 /// `PROC_CN_MCAST_LISTEN` from `linux/cn_proc.h`.
 const PROC_CN_MCAST_LISTEN: u32 = 1;
+/// `PROC_CN_MCAST_IGNORE` from `linux/cn_proc.h`.
+const PROC_CN_MCAST_IGNORE: u32 = 2;
 /// `PROC_EVENT_EXEC` from `linux/cn_proc.h`.
 const PROC_EVENT_EXEC: u32 = 2;
 /// `sizeof(struct proc_input)`:
@@ -105,6 +107,24 @@ pub fn build_exec_filter_message(port_id: u32) -> Vec<u8> {
     payload.extend_from_slice(&PROC_CN_MCAST_LISTEN.to_ne_bytes());
     payload.extend_from_slice(&PROC_EVENT_EXEC.to_ne_bytes());
     return build_control_message(port_id, &payload);
+}
+
+/// Builds the datagram that ends the socket's subscription.
+pub fn build_ignore_message(port_id: u32) -> Vec<u8> {
+    return build_control_message(port_id, &PROC_CN_MCAST_IGNORE.to_ne_bytes());
+}
+
+/// Ends the socket's subscription to process events.
+/// The kernel counts listeners only through the listen and ignore operations
+/// (`proc_event_num_listeners` changes at `cn_proc_mcast_ctl` lines 450 and 454 of `drivers/connector/cn_proc.c` in Linux v7.2.11),
+/// and closing the socket frees its state without touching the count (`cn_release` in `connector.c`,
+/// lines 185 to 190),
+/// so a watcher that exited without this left the count one higher,
+/// and while it is above zero the kernel builds and broadcasts an event for every fork,
+/// exec and exit on the host that nobody reads.
+/// After the ignore the kernel's filter drops everything for this socket.
+pub fn unsubscribe(socket: &OwnedFd) -> io::Result<()> {
+    return send_control(socket, &build_ignore_message(std::process::id()));
 }
 
 /// Builds one control datagram of the process connector around `payload`.

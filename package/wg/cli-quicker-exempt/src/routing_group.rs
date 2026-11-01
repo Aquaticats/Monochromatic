@@ -9,7 +9,7 @@
 /// and the facts about one process.
 use crate::process_info::{list_pids, read_cgroup_pids, read_process, ProcessInfo};
 /// The setup the engine was built with.
-use crate::update_routing::RoutingSetup;
+use super::RoutingSetup;
 
 /// Reports whether a collected group already holds `pid`.
 fn contains_pid(group: &[(i32, u64)], pid: i32) -> bool {

@@ -17,7 +17,10 @@ use crate::inherited_limits::read_inherited_limits;
 /// Process facts.
 use crate::process_info::{list_pids, read_own_pid_namespace, read_process, read_start_time};
 /// Collecting and checking the group of a matched process.
-use crate::routing_group::{collect_group, recheck_group};
+#[path = "routing_group.rs"]
+mod routing_group;
+/// The functions of that module the engine calls.
+use routing_group::{collect_group, recheck_group};
 /// The seam to the service manager.
 use crate::scope_adoption::{AdoptError, AdoptRequest, Adopter};
 /// The scope of each origin.

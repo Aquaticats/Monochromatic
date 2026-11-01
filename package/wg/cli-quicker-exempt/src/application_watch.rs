@@ -3,7 +3,7 @@
 /// Target discovery across named app-slice services and executable-owned processes.
 use crate::application_targets::{scan_application_targets, ScanRoots};
 /// Process events and the update traffic policy.
-use crate::process_events::{drain_exec_events, subscribe};
+use crate::process_events::{drain_exec_events, subscribe, unsubscribe};
 /// Delivery of failures after startup.
 use crate::runtime_report::RuntimeReporter;
 /// The one-time sweep of the scopes of the earlier design.
@@ -11,7 +11,7 @@ use crate::leftover_sweep::{spawn_sweep, SweepSetup};
 /// Non-panicking bounded log.
 use crate::log_line::{log_line, sanitize};
 /// Shutdown signal descriptors.
-use crate::signal_descriptor::{consume_signal, create_signal_fd, owned_descriptor, SignalPending};
+use crate::signal_descriptor::{consume_signal, create_signal_fd, SignalPending};
 /// Policy engine and its seams.
 use crate::routing_support::{StopCheck, SystemClock};
 /// Policy engine.
@@ -20,16 +20,15 @@ use crate::update_routing::UpdateRouting;
 use crate::update_report::{describe_outcome, policy_failure, Outcome, POLICY_PROCESS_WATCH};
 /// Timing of the process scan.
 use std::time::{Duration, Instant};
-/// Unpinned marker links owned by watcher lifetime.
-use crate::bpf::{attach_marker_unpinned, MarkerLinks};
+/// The directory notification and the marker links retained for each target.
+#[path = "watch_support.rs"]
+mod watch_support;
+/// The items of that module the watcher uses.
+use watch_support::{attach_target, attachment_directory_exists, create_inotify, drain_inotify, is_attached, ActiveAttachment};
 /// Polling and syscall failures.
 use std::io;
 /// Raw and owned descriptor support.
 use std::os::fd::{AsRawFd, OwnedFd};
-/// Raw Unix path bytes for inotify watch registration.
-use std::os::unix::ffi::OsStrExt;
-/// Target paths.
-use std::path::{Path, PathBuf};
 
 /// Who the failure reporter notifies.
 pub struct ReporterIdentity {
@@ -41,17 +40,6 @@ pub struct ReporterIdentity {
 
 /// Periodic process rescan closes browser moves into already-existing cgroups.
 const RESCAN_INTERVAL_MS: libc::c_int = 250;
-/// Buffer size for draining cgroup directory inotify records.
-const INOTIFY_BUFFER_SIZE: usize = 16_384;
-
-/// One cgroup and four link descriptors retained by watcher.
-struct ActiveAttachment {
-    /// Cgroup identity used for reconciliation.
-    path: PathBuf,
-    /// Four links whose descriptors keep marker active.
-    _links: MarkerLinks,
-}
-
 /// Prepared watcher owns event descriptors and active target links.
 pub struct ApplicationWatch<'a> {
     /// Target scanner roots.
@@ -102,56 +90,6 @@ pub fn rescan_due(overrun_pending: bool, since_last_scan: Duration) -> bool {
     return since_last_scan >= FULL_SCAN_INTERVAL || (overrun_pending && since_last_scan >= OVERRUN_RESCAN_SPACING);
 }
 
-/// Reports the `app.slice` path error for an embedded NUL byte.
-fn app_slice_contains_nul(_error: std::ffi::NulError) -> io::Error {
-    return io::Error::new(io::ErrorKind::InvalidInput, "app.slice path contains NUL");
-}
-
-/// Reports whether an attachment's cgroup directory still exists.
-fn attachment_directory_exists(attachment: &ActiveAttachment) -> bool {
-    return attachment.path.is_dir();
-}
-
-/// Reports whether `target` already has an attachment.
-fn is_attached(active: &[ActiveAttachment], target: &Path) -> bool {
-    for attachment in active {
-        if attachment.path == target {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// Creates inotify descriptor and installs watch before first target scan.
-fn create_inotify(app_slice: &Path) -> io::Result<OwnedFd> {
-    // SAFETY: init returns newly owned descriptor on success.
-    let inotify = owned_descriptor(unsafe {
-        libc::inotify_init1(libc::IN_CLOEXEC | libc::IN_NONBLOCK)
-    })?;
-    let path = std::ffi::CString::new(app_slice.as_os_str().as_bytes()).map_err(app_slice_contains_nul)?;
-    let mask = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM;
-    // SAFETY: descriptor is inotify instance and path remains NUL-terminated through call.
-    let watch = unsafe { libc::inotify_add_watch(inotify.as_raw_fd(), path.as_ptr(), mask) };
-    if watch < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    return Ok(inotify);
-}
-
-/// Opens cgroup and transactionally creates four links when target still exists.
-fn attach_target(path: &Path, mark: u32) -> io::Result<Option<ActiveAttachment>> {
-    let cgroup = match std::fs::File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let links = attach_marker_unpinned(cgroup.as_raw_fd(), mark)?;
-    return Ok(Some(ActiveAttachment {
-        path: path.to_path_buf(),
-        _links: links,
-    }));
-}
-
 /// Reconciles discovered targets and retains attached cgroups until directory removal.
 fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
     watch.active.retain(attachment_directory_exists);
@@ -165,32 +103,6 @@ fn reconcile(watch: &mut ApplicationWatch<'_>) -> io::Result<()> {
         }
     }
     return Ok(());
-}
-
-/// Drains every pending inotify record so next scan follows all coalesced changes.
-fn drain_inotify(inotify: &OwnedFd) -> io::Result<()> {
-    let mut buffer = [0_u8; INOTIFY_BUFFER_SIZE];
-    loop {
-        // SAFETY: buffer is writable and descriptor is nonblocking inotify stream.
-        let count = unsafe {
-            libc::read(
-                inotify.as_raw_fd(),
-                buffer.as_mut_ptr().cast(),
-                buffer.len(),
-            )
-        };
-        if count > 0 {
-            continue;
-        }
-        if count == 0 {
-            return Ok(());
-        }
-        let error = io::Error::last_os_error();
-        if error.kind() == io::ErrorKind::WouldBlock {
-            return Ok(());
-        }
-        return Err(error);
-    }
 }
 
 /// Installs watch before scan,
@@ -269,6 +181,27 @@ fn report_outcomes(reporter: &mut RuntimeReporter, outcomes: &[Outcome]) {
     }
 }
 
+/// Reporting for tests.
+#[cfg(test)]
+impl ApplicationWatch<'_> {
+    /// Reports whether the watcher still holds its process-event subscription.
+    pub fn has_process_events(&self) -> bool {
+        return self.events.is_some();
+    }
+}
+
+/// Ends the subscription to process events and drops the socket,
+/// and says so when the kernel could not be told.
+/// The kernel keeps counting a listener until it is told to ignore,
+/// whatever becomes of the socket.
+fn stop_process_events(watch: &mut ApplicationWatch<'_>) {
+    if let Some(socket) = watch.events.take()
+        && let Err(error) = unsubscribe(&socket)
+    {
+        log_line(&format!("the process-event subscription could not be ended: {error}"));
+    }
+}
+
 /// Applies the exec events the kernel queued,
 /// and falls back to a full scan after an overrun,
 /// no sooner than the overrun spacing after the last one,
@@ -295,7 +228,7 @@ fn handle_process_events(watch: &mut ApplicationWatch<'_>) {
             }
         }
         Some(Err(error)) => {
-            watch.events = None;
+            stop_process_events(watch);
             watch.reporter.report_failure(
                 "process events unreadable",
                 &policy_failure(&format!(
@@ -323,6 +256,7 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
         spawn_sweep(setup);
     }
     let result = poll_until_stopped(watch);
+    stop_process_events(watch);
     if let Err(error) = &result {
         watch.reporter.report_failure(
             "watcher stopped",
