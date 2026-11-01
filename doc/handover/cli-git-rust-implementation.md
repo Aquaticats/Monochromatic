@@ -5056,3 +5056,24 @@ This block supersedes "State at 2026-10-29 (night, later)".
   odd and non-UTF-8 paths, corrupt object), guard tests shown failing, budget counts lowered deliberately, no new
   dependency without justification. The full brief is in the session transcript of the 2026-11-01 work; relaunch it when a
   slot frees (the owner can raise `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`).
+
+### Why the gate's tests are slow (measured) and the queued fix
+
+- User question: "Why is the test so slow?" Measured with `~/temp/agent/gate-durations.ts` on the running gate (`rel-gate2.log`)
+  against the two earlier gates: the same 681 tests took 347 s now against 80 s (`surv-gate.log`) and 93 s (`conv-gate.log`),
+  a ratio of 4.34 and 3.75, at a host load of about 100 (28 CPUs; mostly other sessions' `translation-repair` node work) against
+  40 to 60 earlier. The gate's own image build took about 16 of 18 minutes in the first gate (see the earlier section).
+- The slowdown is concentrated in tests that start many real Git processes one after another: `command_branch_create::git_tests::
+  paired_branch_options_match_git` 43.6 s (0.5 s earlier), `single_branch_options_match_git` 34.2 s (0.5 s),
+  `auto_push_reconcile::tests::a_busy_remote_is_merged_into_until_it_settles` 39.9 s (1.2 s), `a_failing_signer_publishes_nothing`
+  34.2 s (0.4 s), `candidate_prediction` tests 14 s (0.1 s), `command_add::tests::table_and_bulk_spellings_match_git` 9.5 s (0.0 s).
+  `auto_push::concurrency_tests::takes_over_from_a_pusher_killed_mid_push` is 30.4 s in both gates, so it is a fixed wait, not load.
+- Cause: each case runs `git branch <args>` and then a restore against one shared repository, serially (about 560 cases, one to
+  two Git starts each), and at this load a Git start costs tens of milliseconds. The remedy used before for the same pattern
+  (`replay_reverse_apply`: one `git init`, one `fast-import`, scoped worker threads, 114 starts instead of 1221) applies.
+- QUEUED fix (no slot free; launch when one frees): run the independent cases on scoped worker threads that each own a copy of
+  the fixture (a shared helper in a new test sidecar), batch where Git can answer many cases in one start, replace the
+  fixed 30 s wait in `takes_over_from_a_pusher_killed_mid_push` with an environment override and a derived bound, and
+  replace the literal tallies (`(248, 116, 12)`, `(310, 72, 10)`) with relations derived from the inputs (rule MGN: runs
+  equals the enumerated cases, created and refused each above zero, some case neither). Verify with the same duration
+  comparison script before and after, and with differential tests against real Git still covering every case.
