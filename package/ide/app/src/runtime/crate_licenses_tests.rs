@@ -4,7 +4,7 @@
 //!  wrapped crate names,
 //!  and source paths.
 
-use super::{crate_relative, parse, wrap};
+use super::{WIDTH, crate_relative, parse, wrap};
 
 /// A list with a crate file text shared by two crates and a standard text used by one.
 const LIST: &[u8] = br#"{"licenses": [
@@ -52,7 +52,7 @@ fn long_crate_lists_wrap_under_the_prefix_and_keep_long_names_whole() {
     let lines = wrap("Used by: ", &items);
     assert!(lines.len() > 1, "{lines:?}");
     for line in &lines {
-        assert!(line.len() <= 78, "{line}");
+        assert!(line.len() <= WIDTH, "{line}");
     }
     assert!(lines[1].starts_with("         crate-"), "{lines:?}");
     let joined = lines.join(" ");

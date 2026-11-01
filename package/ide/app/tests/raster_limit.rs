@@ -15,8 +15,9 @@ use ide_app::row_map::{CODE_ROW, RowMap};
 /// the viewport,
 /// and the rules under test.
 use ide_app::shaped_text::{
-    TextShaper, Viewport, band_clip, fit_clip, set_texture_dimension, stack_cap, stack_fits,
-    stack_rows, texture_dimension, texture_fits, texture_heights, tile_cap, tile_texture_rows,
+    BIN_SIDE, DEFAULT_TEXTURE_DIMENSION, MAX_BINS, MAX_STACK_TEXTURES, STACK_VIEW_ROOM, TextShaper,
+    Viewport, band_clip, fit_clip, set_texture_dimension, stack_cap, stack_fits, stack_rows,
+    texture_dimension, texture_fits, texture_heights, tile_cap, tile_texture_rows,
 };
 /// The palette of the tile,
 /// and the items whose ink is read back.
@@ -307,19 +308,32 @@ fn a_tile_at_scale_two_in_a_2000_px_window_is_two_textures_on_a_device_limited_t
 /// and the stack is as tall as its textures allow.
 #[test]
 fn the_texture_size_of_the_device_bounds_each_texture_of_the_stack() {
-    set_texture_dimension(4096);
-    // 200 columns are one bin wide: 256 bins would allow 65,536 rows; the device allows 4096.
-    assert_eq!(tile_texture_rows(200), 4096);
-    assert!(texture_fits(200, 4096) && !texture_fits(200, 4097));
+    let device_side: u32 = 4096;
+    let device = u64::from(device_side);
+    set_texture_dimension(device_side);
+    // 200 columns are one bin wide: the bin count would allow more rows; the device allows `device`.
+    assert_eq!(tile_texture_rows(200), device);
+    assert!(texture_fits(200, device) && !texture_fits(200, device + 1));
     assert!(
-        !texture_fits(4097, 1),
+        !texture_fits(device + 1, 1),
         "a tile wider than the texture size fits"
     );
-    assert_eq!(texture_heights(200, 10_000), vec![4096, 4096, 1808]);
-    assert!(stack_fits(200, 4 * 4096) && !stack_fits(200, 4 * 4096 + 1));
-    set_texture_dimension(8192);
-    assert!(tile_texture_rows(200) > 4096);
-    assert_eq!(stack_rows(200), 4 * 8192);
+    let rows = 10_000_u64;
+    let remainder = u32::try_from(rows - 2 * device).expect("the remaining rows fit u32");
+    assert_eq!(
+        texture_heights(200, rows),
+        vec![device_side, device_side, remainder]
+    );
+    assert!(
+        stack_fits(200, MAX_STACK_TEXTURES * device)
+            && !stack_fits(200, MAX_STACK_TEXTURES * device + 1)
+    );
+    set_texture_dimension(DEFAULT_TEXTURE_DIMENSION);
+    assert!(tile_texture_rows(200) > device);
+    assert_eq!(
+        stack_rows(200),
+        MAX_STACK_TEXTURES * u64::from(DEFAULT_TEXTURE_DIMENSION)
+    );
 }
 
 /// The stack never holds fewer rows than the tallest window the device can show and the room for its re-center,
@@ -327,10 +341,17 @@ fn the_texture_size_of_the_device_bounds_each_texture_of_the_stack() {
 /// at 16,384 columns the bin count allows 1024 rows to a texture and four textures are not enough.
 #[test]
 fn a_stack_is_never_under_the_tallest_window_and_its_room() {
-    set_texture_dimension(16_384);
-    assert_eq!(tile_texture_rows(16_384), 1024);
-    assert_eq!(stack_rows(16_384), 16_384 + 1024);
-    assert!(stack_fits(16_384, 16_384 + 1024) && !stack_fits(16_384, 16_384 + 1025));
-    assert!(!stack_fits(16_385, 1));
-    set_texture_dimension(8192);
+    let device_side: u32 = 16_384;
+    let device = u64::from(device_side);
+    set_texture_dimension(device_side);
+    // A bin is BIN_SIDE squared pixels: the bin count bounds a texture this wide to that many bins' rows.
+    let per_texture = MAX_BINS * BIN_SIDE * BIN_SIDE / device;
+    assert_eq!(tile_texture_rows(device), per_texture);
+    assert_eq!(stack_rows(device), device + STACK_VIEW_ROOM);
+    assert!(
+        stack_fits(device, device + STACK_VIEW_ROOM)
+            && !stack_fits(device, device + STACK_VIEW_ROOM + 1)
+    );
+    assert!(!stack_fits(device + 1, 1));
+    set_texture_dimension(DEFAULT_TEXTURE_DIMENSION);
 }

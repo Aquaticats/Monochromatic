@@ -37,21 +37,21 @@ fn block(line: usize) -> Place {
 #[test]
 fn plain_text_places_line_n_at_n_code_rows() {
     let map = RowMap::plain(1000);
-    assert_eq!(CODE_ROW, 24.0);
+    assert!(CODE_ROW > 0.0, "a code row has height");
     for line in [0_usize, 1, 2, 17, 499, 999] {
         // `as f32` converts the line index to the float pixels are measured in.
-        let expected = line as f32 * 24.0;
+        let expected = line as f32 * CODE_ROW;
         assert_eq!(map.block_top(line), expected);
         assert_eq!(map.code_top(line), expected);
-        assert_eq!(map.code_bottom(line), expected + 24.0);
+        assert_eq!(map.code_bottom(line), expected + CODE_ROW);
         assert_eq!(map.block_height(line), 0.0);
         assert_eq!(map.locate(expected), code(line));
-        assert_eq!(map.locate(expected + 23.5), code(line));
+        assert_eq!(map.locate(expected + CODE_ROW - 0.5), code(line));
     }
-    assert_eq!(map.height(), 24_000.0);
+    assert_eq!(map.height(), 1000.0 * CODE_ROW);
     assert_eq!(
         map.block_top(1000),
-        24_000.0,
+        1000.0 * CODE_ROW,
         "the line count names the end of the text"
     );
     assert_eq!(map.lines(), 1000);
@@ -63,7 +63,7 @@ fn plain_text_places_line_n_at_n_code_rows() {
 fn degenerate_inputs_are_normalized() {
     let empty = RowMap::plain(0);
     assert_eq!(empty.lines(), 1);
-    assert_eq!(empty.height(), 24.0);
+    assert_eq!(empty.height(), CODE_ROW);
     let map = RowMap::new(3, &[(1, 0.0), (2, -4.0), (3, 26.0), (7, 26.0)]);
     assert_eq!(
         map,
@@ -79,20 +79,24 @@ fn blocks_push_their_line_and_everything_beneath_down() {
     // Lines 2, 3, and 7 own blocks of 26, 42, and 16 px.
     let map = RowMap::new(10, &[(2, 26.0), (3, 42.0), (7, 16.0)]);
     assert_eq!(map.code_top(0), 0.0);
-    assert_eq!(map.code_top(1), 24.0);
-    assert_eq!(map.block_top(2), 48.0, "nothing above line 2 moved");
-    assert_eq!(map.code_top(2), 74.0);
+    assert_eq!(map.code_top(1), CODE_ROW);
+    assert_eq!(
+        map.block_top(2),
+        2.0 * CODE_ROW,
+        "nothing above line 2 moved"
+    );
+    assert_eq!(map.code_top(2), 2.0 * CODE_ROW + 26.0);
     assert_eq!(
         map.block_top(3),
-        98.0,
+        3.0 * CODE_ROW + 26.0,
         "line 3's block starts where line 2's code row ends"
     );
-    assert_eq!(map.code_top(3), 140.0);
-    assert_eq!(map.code_top(4), 164.0);
-    assert_eq!(map.block_top(7), 236.0);
-    assert_eq!(map.code_top(7), 252.0);
-    assert_eq!(map.code_top(9), 300.0);
-    assert_eq!(map.height(), 10.0 * 24.0 + 26.0 + 42.0 + 16.0);
+    assert_eq!(map.code_top(3), 3.0 * CODE_ROW + 26.0 + 42.0);
+    assert_eq!(map.code_top(4), 4.0 * CODE_ROW + 26.0 + 42.0);
+    assert_eq!(map.block_top(7), 7.0 * CODE_ROW + 26.0 + 42.0);
+    assert_eq!(map.code_top(7), 7.0 * CODE_ROW + 26.0 + 42.0 + 16.0);
+    assert_eq!(map.code_top(9), 9.0 * CODE_ROW + 26.0 + 42.0 + 16.0);
+    assert_eq!(map.height(), 10.0 * CODE_ROW + 26.0 + 42.0 + 16.0);
     assert_eq!(map.block_height(2), 26.0);
     assert_eq!(map.block_height(4), 0.0);
 }
@@ -155,35 +159,36 @@ fn page_steps_count_whole_lines_and_their_pixels() {
     let plain = RowMap::plain(100);
     for height in [0.0_f32, 10.0, 24.0, 95.9, 96.0, 100.0, 628.0] {
         // The rule before virtual rows existed: the view height in rows, rounded down, and at least one.
-        let expected = ((height / 24.0).floor() as usize).max(1);
+        let expected = ((height / CODE_ROW).floor() as usize).max(1);
         for forward in [true, false] {
             assert_eq!(
-                plain.page(240.0, height, forward),
-                (expected, expected as f32 * 24.0),
+                plain.page(10.0 * CODE_ROW, height, forward),
+                (expected, expected as f32 * CODE_ROW),
                 "height {height}, forward {forward}"
             );
         }
     }
+    let whole_page = 4.0 * CODE_ROW;
     assert_eq!(
-        plain.page(0.0, 96.0, false),
-        (4, 96.0),
+        plain.page(0.0, whole_page, false),
+        ((whole_page / CODE_ROW) as usize, whole_page),
         "a page above the first line counts plain rows"
     );
     // Lines 2 and 3 own blocks of 26 and 42 px; the view starts at line 1 and is 100 px tall.
     let map = RowMap::new(10, &[(2, 26.0), (3, 42.0)]);
     assert_eq!(
-        map.page(24.0, 100.0, true),
-        (2, 74.0),
+        map.page(CODE_ROW, 100.0, true),
+        (2, 2.0 * CODE_ROW + 26.0),
         "line 1 (24) and line 2 with its block (50) fit; line 3 with its block (66) does not"
     );
     assert_eq!(
-        map.page(164.0, 100.0, false),
-        (1, 66.0),
+        map.page(4.0 * CODE_ROW + 26.0 + 42.0, 100.0, false),
+        (1, 42.0 + CODE_ROW),
         "above line 4: line 3 with its block fits, line 2 with its block does not"
     );
     assert_eq!(
-        map.page(24.0, 10.0, true),
-        (1, 24.0),
+        map.page(CODE_ROW, 10.0, true),
+        (1, CODE_ROW),
         "a page is never less than one line"
     );
 }
