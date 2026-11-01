@@ -314,6 +314,23 @@ Tradeoffs:
   the same trust as the user's own toolchain.
 - `/usr/bin/env` is a fixed absolute path;
   the program's own path is still the one the launcher resolved from a root-controlled location.
+- `env` reads a first argument that contains `=` as a variable assignment and has no option that prevents it:
+  `/usr/bin/env /tmp/a=b __sentinel` prints `env: '__sentinel': No such file or directory` and exits 127 (reproduced).
+  A program path with `=` in it is therefore refused as a service,
+  with a loud line,
+  and the sentinel starts beside the watcher,
+  which does not go through `env`.
+- After a failed confirmation the launcher stops the unit and reads its state whatever `systemctl stop` said:
+  a unit that ended and was collected is no longer loaded,
+  `stop` fails for it,
+  and `show --property=ActiveState --value` prints `inactive`.
+  Only `inactive` or `failed` counts as gone.
+  Checked on the host with a nonexistent unit (counts as gone) and with a running root unit that an unprivileged caller cannot stop
+  (`Failed to stop ...: Access denied`,
+  state `active`,
+  reported as not gone).
+  A unit that cannot be shown to be gone is reported:
+  two sentinels may run and one death may be reported twice.
 
 Applying it needs a rebuilt `wg-quicker-exempt` and `wg-quicker` (the launchers changed).
 For the Rust sentinel,
