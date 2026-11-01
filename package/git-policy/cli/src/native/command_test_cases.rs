@@ -30,8 +30,8 @@ const WORKER_CAP: usize = 8;
 /// ```
 pub(crate) fn copy_tree(from: &Path, to: &Path) {
     std::fs::create_dir_all(to).expect("copy target directory");
-    for entry in std::fs::read_dir(from).expect("copy source directory") {
-        let entry: std::fs::DirEntry = entry.expect("copy source entry");
+    for found in std::fs::read_dir(from).expect("copy source directory") {
+        let entry: std::fs::DirEntry = found.expect("copy source entry");
         let target = to.join(entry.file_name());
         let kind: std::fs::FileType = entry.file_type().expect("copy source entry type");
         assert!(!kind.is_symlink(), "a fixture holds no links: {}", entry.path().display());
@@ -66,11 +66,11 @@ pub(crate) fn across_workers<T: Sync, R: Send>(
     return std::thread::scope(|scope| {
         let handles: Vec<_> = (0..workers)
             .map(|number| {
-                let (fresh, work, next) = (&fresh, &work, &next);
+                let (make, run, claimed) = (&fresh, &work, &next);
                 return scope.spawn(move || {
-                    let mut result: R = fresh(number);
-                    while let Some(item) = items.get(next.fetch_add(1, Ordering::SeqCst)) {
-                        work(item, &mut result);
+                    let mut result: R = make(number);
+                    while let Some(item) = items.get(claimed.fetch_add(1, Ordering::SeqCst)) {
+                        run(item, &mut result);
                     }
                     return result;
                 });
