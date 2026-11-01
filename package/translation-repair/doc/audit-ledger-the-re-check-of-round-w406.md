@@ -357,6 +357,16 @@ Any change that adds code to it is checked against the limit with the counting c
 with the config of the log folder).
 This round's change to it added no line.
 
+Note of 2026-11-01 (round w409d,
+B1399):
+the output of the "277" was not saved,
+the control also fires `tsdoc(require-tsdoc)`,
+"fixtures" is too broad (the overrides exempt files named `fixture.*` and not `*.test-fixture.ts`),
+and `count.json` is outside the repository.
+B1399 saves the output,
+writes the contents of `count.json` and the command into the ledger,
+and states what the control is a control of.
+
 ## B1353: the cache versions, with the stored records read
 
 B1340 concluded that no version moves without reading the stored records,

@@ -857,8 +857,9 @@ and this one lists that index in their place
   the note of B1314 that names its sentence (B1395),
   the tags of four TSDoc descriptions (B1396),
   the originals that round w407 rewrote in place (B1397)
-  and the files the run after the version commit wrote,
-  counted by kind (B1398).
+  the files the run after the version commit wrote,
+  counted by kind (B1398)
+  and the lint cap measured again (B1399).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

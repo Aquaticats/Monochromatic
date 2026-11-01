@@ -229,6 +229,73 @@ for the rule in [A version stays only after the stored records are read][records
 printed the 15 records of `corpus-pass-XingZ6024` that the script counts as 13 pairing records,
 1 picture reading and 1 section pairing.
 
+## B1399: the lint cap measured again, with the output saved and the recipe written down
+
+The finding:
+B1352 gave "277" counted lines for `run-config.ts` and did not keep the output.
+The reader raised four points,
+and all four are right:
+- The output of the count is not in the folder of the round's logs
+  (`maxlines/` of `w407-fix` holds `count.json`,
+  `raw.json` and `positive-control.txt`).
+- The positive control is not a control of `max-lines` alone.
+  Its log ends "Found 0 warnings and 401 errors".
+  One is `eslint(max-lines)`,
+  "File has too many lines (400)",
+  and 400 are `tsdoc(require-tsdoc)`,
+  one for each undocumented declaration (`rg --count` over the log).
+  It shows that the cap fires in that folder under the configuration of the repository,
+  and the other 400 errors are noise beside it.
+- "Fixtures" is too broad.
+  `package/config/oxlint/src/overrides.ts` switches `eslint/max-lines` off in five places:
+  `**/fixture.*` (`fixtureOverride` at lines 39 to 45),
+  `**/canary-lint/**`,
+  `**/*.data.ts`,
+  `**/*.config.*`
+  and `**/*.{test,bench}.ts`.
+  A file named `*.test-fixture.ts` matches none of them.
+- The counting recipe depends on `count.json`,
+  which is outside the repository.
+
+The measurement again,
+under `maxlines/` of this round's logs:
+- `run-config.ts` copied from `dffa3ac22f` has 1,323 lines (`wc --lines`).
+  `git log 96ab9d23c6..HEAD` over the file printed nothing,
+  so it is the file B1352 counted.
+- `count.json` holds one line:
+  `{"rules":{"eslint/max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}}`.
+  The rule at a limit of one line,
+  with the two skips of the repository's setting (`package/config/oxlint/src/rule/style.ts`),
+  reports the count it would have compared with 300.
+- `oxlint --disable-nested-config --config count.json run-config.ts`,
+  run in that folder,
+  printed "File has too many lines (277)" and "Found 0 warnings and 1 error"
+  on 1 file with 97 rules (`count-output.txt`).
+  The cap is 300,
+  so the file is 23 counted lines under it.
+- The whole `run` package passes the repository's configuration:
+  `gate-oxlint-run.txt` of `w407-fix` ends "Found 0 warnings and 0 errors" on 240 files with 489 rules,
+  which include `run-config.ts`.
+  The single-file run of B1352 with 489 rules was not saved,
+  and this entry rests on the package-wide log.
+
+Whether a `*.test-fixture.ts` file is held to the cap was read from the overrides and then tried.
+The two longest of the five packages `run`,
+`stage`,
+`provider`,
+`corpus-pass` and `repair` (652 and 626 lines)
+count 299 and 297 under the same recipe (`fixtures-count-output.txt`),
+just under the cap,
+which fits a cap that applies and does not show it.
+It was not run with the repository's configuration on an over-long fixture,
+and that stays unmeasured.
+
+The note on B1352 in the ledger of round w407 carries the correction.
+The rule that this entry corrects is
+[A limit of a tool is measured on the file][tool-limit],
+which now holds the recipe.
+
 [dated-note]: mistake-prevention-docs-and-references.md#a-correction-to-a-historical-record-is-a-dated-note
+[tool-limit]: mistake-prevention-commit-checks-and-figures-told-to-others.md#a-limit-of-a-tool-is-measured-on-the-file
 [launch-checks]: mistake-prevention.md#before-a-run-launches
 [records-read]: mistake-prevention-stored-files-and-cached-decisions.md#a-version-stays-only-after-the-stored-records-are-read

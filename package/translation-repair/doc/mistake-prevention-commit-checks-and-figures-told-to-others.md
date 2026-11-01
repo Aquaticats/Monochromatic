@@ -155,20 +155,35 @@ The control for the measurement,
 a file written twice,
 was no control:
 its errors were redeclarations and never reached the rule.
+The control that replaced it fired 400 `tsdoc(require-tsdoc)` errors beside the one for the rule,
+and the output of the count was never saved
+(ledger B1399).
 
 The rule:
 a claim that a tool does or does not limit something is measured on the file,
-with the tool and the configuration
-the repository runs:
-the count the rule would report (the rule at a limit of one line,
-with the same skips),
-and a positive control that the rule fires in that folder under that configuration (a file that must break it,
-with distinct declarations so that no other error hides it).
-The log of each is kept,
-and a log is never overwritten by the next run.
+with the tool and the configuration the repository runs.
+Two logs are kept,
+and neither is overwritten by the next run:
+the count the rule would report,
+and a positive control that the rule fires in that folder under that configuration.
+A control is read for the rule's own line and for the rest of its error total,
+and an entry that cites it names every other rule that fired.
+A claim about which files a limit exempts is read from every `off` of the rule in
+`package/config/oxlint/src/overrides.ts`,
+and the globs are quoted as written:
+`**/fixture.*` is a file named `fixture.something` and not a `*.test-fixture.ts`.
 
 What enforces it:
-habit and review.
+habit and review,
+with a recipe for the cap on lines of a file (`eslint/max-lines`).
+The count is made in a folder that holds a copy of the file,
+with `count.json` holding the rule at a limit of one line and the skips of `package/config/oxlint/src/rule/style.ts`:
+`{"rules":{"eslint/max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}}`.
+`oxlint --disable-nested-config --config count.json <file>` prints "File has too many lines (N)",
+and N is the figure to compare with 300.
+The overrides are listed by `rg --line-number "max-lines" package/config/oxlint/src`.
+For a limit of another tool no recipe is written,
+and the entry that cites it states the command it ran.
 
 ## What was covered is stated with what was not
 
