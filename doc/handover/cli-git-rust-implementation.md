@@ -5859,3 +5859,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   run). Plan: one commit after the merge sets the linter to 0.5.0 (new public API `run_embedded` and feature `semantic`) and both pins
   (`package/git-policy/cli/Cargo.toml`, `package/linter/monochromatic-lint.fuzz/Cargo.toml`) to `=0.5.0`; local builds use the path, so
   nothing breaks before crates.io has it; wait for crates.io, then gate and dispatch the wrapper release.
+- `monochromatic-c0` installed 0.5.0 (lock commit `efba845e0b`; `cli-git-native --version` prints 0.5.0) and probed the catalog
+  policy (`~/temp/agent/cs-policy-050-probe.ts`). CORRECTION of my earlier statement that the policy reads index bytes only:
+  `git cli-git check` and `fix` read the worktree files their scope selects, unstaged changes included (`management.rs`, "A direct
+  command asks for the worktree files its scope selects"); only commit and push check staged or committed content. README "Commands"
+  now says so. All other probe cases matched.
