@@ -375,11 +375,11 @@ fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
     stubborn.set_nonblocking(true).expect("non-blocking");
     let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let acceptor = std::thread::spawn({
-        let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+        let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
         move || {
             let mut asked: Vec<String> = Vec::new();
             let mut held: Vec<UnixStream> = Vec::new();
-            while !finished.load(std::sync::atomic::Ordering::SeqCst) {
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
                 let Ok((stream, _)) = stubborn.accept() else {
                     std::thread::sleep(Duration::from_millis(5));
                     continue;
