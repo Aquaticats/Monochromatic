@@ -253,6 +253,25 @@ function unreachableClausesOf(
 export const DEEPSEEK_ALONE_UNREACHABLE: readonly string[] = unreachableClausesOf({ dry: DEEPSEEK_ALONE, },);
 
 /**
+ The lines of a run that name every bench {@link DEEPSEEK_ALONE_UNREACHABLE} lists, which is the stop line over
+ {@link DEEPSEEK_ALONE} and no other line that begins with the same words.
+
+ @param lines - lines the run wrote, each with its level in front
+
+ @returns Lines naming those benches, in the order written
+
+ @example
+ ```ts
+ const refusals = refusalLinesOf({ lines, },);
+ ```
+ */
+export function refusalLinesOf({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
+  return lines.filter(function namesTheRefusal(line,): boolean {
+    return line.includes(`writing bench unreachable: ${DEEPSEEK_ALONE_UNREACHABLE.join('; ',)}`,);
+  },);
+}
+
+/**
  Line the reading writes as it stops the entry over {@link DEEPSEEK_ALONE}: every writing bench of the lanes under its
  floor, as the benches the run derives from that view read, then the seats the role order gave.
  */

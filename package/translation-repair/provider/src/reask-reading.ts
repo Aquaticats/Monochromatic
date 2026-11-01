@@ -18,7 +18,7 @@ import type { RouteTimeHoldsRule, } from './reask-alternate-models.ts';
 
  @param l - logger the failed read is written to
 
- @returns The rule that applies the reading, or the rule that applies every such hold where there is no reading or it
+ @returns Rule that applies the reading, or the rule that applies every such hold where there is no reading or it
  could not be read
 
  @throws Whatever the read threw when the caller aborted

@@ -29,6 +29,7 @@ const l = contextRoot({ tag: 'reask-reading-test', },);
 
 await describe({
   name: rulePastReading.name,
+  concurrency: 1,
   children: [
     it({
       name: 'APPLIES EVERY HOLD WHERE THE CALLER READS NO DRYNESS, and applies the reading it is handed where it '

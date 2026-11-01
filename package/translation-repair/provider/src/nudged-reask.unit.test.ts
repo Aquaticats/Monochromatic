@@ -839,9 +839,9 @@ await describe({
         /**
          The first model the re-ask asks for a runaway editor seat (none when nobody was asked), under a reading.
 
-         @param readDry - the client's view of the meters, absent where the client reads none
+         @param readDry - view of the meters the client reads, absent where the client reads none
 
-         @returns the first model asked, in a list of at most one
+         @returns First model asked, in a list of at most one
          */
         async function firstAskedUnder(readDry?: () => Promise<DrynessReading>,): Promise<readonly RosterModelId[]> {
           /**

@@ -1228,7 +1228,7 @@ export function runClientWithFloors(
   /**
    Which providers are dry now, holds folded in, as the router sees them.
 
-   @param signal - the caller's abort signal
+   @param signal - abort signal of the caller
 
    @returns Dryness per provider
    */
