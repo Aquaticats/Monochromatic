@@ -53,6 +53,16 @@ const CLEARNET = {
       address: '2001:db8::7',
     },
   ],
+  interfaces: [
+    {
+      family: '-4',
+      name: 'dummy0',
+    },
+    {
+      family: '-6',
+      name: 'dummy0',
+    },
+  ],
 } as const;
 
 /**

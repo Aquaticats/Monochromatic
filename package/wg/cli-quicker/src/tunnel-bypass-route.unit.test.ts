@@ -13,7 +13,7 @@ await describe({
   name: normalizePhysicalDefaultRoute.name,
   children: [
     it({
-      name: 'strips source table and protocol ownership attributes',
+      name: 'strips source table and protocol ownership attributes, and the preferred source address the bypass table does not carry',
       fn: async () => {
         expect(normalizePhysicalDefaultRoute({
           line: 'default via 192.0.2.1 dev eth0 proto dhcp table main src 192.0.2.2 metric 100',
@@ -23,15 +23,13 @@ await describe({
           '192.0.2.1',
           'dev',
           'eth0',
-          'src',
-          '192.0.2.2',
           'metric',
           '100',
         ],);
       },
     },),
     it({
-      name: 'strips volatile IPv6 expiration while preserving preference',
+      name: 'strips volatile IPv6 expiration and the router preference, which the bypass table does not carry',
       fn: async () => {
         expect(normalizePhysicalDefaultRoute({
           line: 'default via fe80::1 dev eth0 proto ra metric 1024 expires 1200sec pref medium',
@@ -43,8 +41,6 @@ await describe({
           'eth0',
           'metric',
           '1024',
-          'pref',
-          'medium',
         ],);
       },
     },),

@@ -144,17 +144,21 @@ export async function readDefaultRoutes(
       if (line.trim() !== '') {
         routes.push({
           proto,
-          tokens: [
-            ...splitWords({ line: line.trim(), },),
-            ...(ownedOnly
-              ? [
-                'proto',
-                String(BYPASS_ROUTE_PROTOCOL,),
-              ]
-              : []),
-            'table',
-            String(table,),
-          ],
+          tokens: ownedOnly
+            // The owned form is exactly what the writers produce: the displayed route without
+            // display-only attributes, then the table and the protocol, so it reads back through the state grammar.
+            ? [
+              ...normalizePhysicalDefaultRoute({ line, },),
+              'table',
+              String(table,),
+              'proto',
+              String(BYPASS_ROUTE_PROTOCOL,),
+            ]
+            : [
+              ...splitWords({ line: line.trim(), },),
+              'table',
+              String(table,),
+            ],
         },);
       }
     }

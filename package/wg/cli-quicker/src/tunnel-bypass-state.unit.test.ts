@@ -83,6 +83,92 @@ const HOSTILE_NAMES: readonly (readonly [label: string, name: string])[] = [
 ];
 
 /**
+ Route tokens that a planted state file could carry,
+ each with a label for the test name:
+ the detached watcher passes the tokens to `ip route delete` as root,
+ so each token set tries to reach a route the owner never installed or to smuggle in an option or a word.
+ */
+const HOSTILE_ROUTES: readonly (readonly [label: string, tokens: readonly string[]])[] = [
+  ['no table', ['default', 'dev', 'eth0', 'proto', '201',],],
+  ['no protocol', ['default', 'dev', 'eth0', 'table', '52000',],],
+  ['another table', ['default', 'dev', 'eth0', 'table', '254', 'proto', '201',],],
+  ['the main table by name', ['default', 'dev', 'eth0', 'table', 'main', 'proto', '201',],],
+  ['one claimed and one other table', ['default', 'table', '52000', 'table', '254', 'proto', '201',],],
+  ['a table key without a value', ['default', 'proto', '201', 'table',],],
+  ['another protocol', ['default', 'dev', 'eth0', 'table', '52000', 'proto', 'dhcp',],],
+  ['the kernel protocol', ['default', 'dev', 'eth0', 'table', '52000', 'proto', 'kernel',],],
+  ['the protocol and another one', ['default', 'table', '52000', 'proto', '201', 'proto', '4',],],
+  ['a protocol key without a value', ['default', 'table', '52000', 'proto',],],
+  ['a leading option', ['-batch', 'default', 'table', '52000', 'proto', '201',],],
+  ['an option among the tokens', ['default', '-force', 'table', '52000', 'proto', '201',],],
+  ['a first token that is not a default route', ['10.0.0.0/8', 'dev', 'eth0', 'table', '52000', 'proto', '201',],],
+  ['an unreachable route that is not a default', ['unreachable', '10.0.0.0/8', 'table', '52000', 'proto', '201',],],
+  ['a blackhole default', ['blackhole', 'default', 'table', '52000', 'proto', '201',],],
+  ['a space inside a token', ['default', 'dev eth0', 'table', '52000', 'proto', '201',],],
+  ['a newline inside a token', ['default', 'dev', 'eth0\nroute', 'table', '52000', 'proto', '201',],],
+  ['a semicolon', ['default', 'dev', 'eth0;id', 'table', '52000', 'proto', '201',],],
+  ['a command substitution', ['default', 'dev', '$(id)', 'table', '52000', 'proto', '201',],],
+  ['a glob', ['default', 'dev', 'eth*', 'table', '52000', 'proto', '201',],],
+  ['an empty token', ['default', '', 'table', '52000', 'proto', '201',],],
+  ['a NUL', ['default', 'dev', 'eth0\u0000', 'table', '52000', 'proto', '201',],],
+  ['a bidi override', ['default', 'dev', 'eth‮0', 'table', '52000', 'proto', '201',],],
+  // `ip` reads a keyword by any prefix and lets a later one overwrite an earlier one
+  // (iproute2 e4cd9f1: lib/utils.c:909-919 matches(), ip/iproute.c:1467-1500 protocol, table and vrf),
+  // so each of these deletes a route in another table or protocol than the claimed one.
+  ['a later protocol keyword that overwrites the protocol', ['default', 'table', '52000', 'proto', '201', 'protocol', 'boot',],],
+  ['an abbreviated protocol keyword', ['default', 'table', '52000', 'proto', '201', 'pro', '0',],],
+  ['the shortest protocol keyword', ['default', 'table', '52000', 'proto', '201', 'p', '0',],],
+  ['a protocol written in hexadecimal', ['default', 'table', '52000', 'proto', '0xc9',],],
+  ['the table repeated', ['default', 'table', '52000', 'proto', '201', 'table', '52000',],],
+  ['an abbreviated table keyword that names the main table', ['default', 'table', '52000', 'proto', '201', 'tab', 'main',],],
+  ['a shorter abbreviated table keyword', ['default', 'table', '52000', 'proto', '201', 'ta', '254',],],
+  ['a vrf keyword that moves the route to a vrf table', ['default', 'table', '52000', 'proto', '201', 'vrf', 'vrf0',],],
+  ['a nexthop group', ['default', 'table', '52000', 'proto', '201', 'nexthop', 'via', '192.0.2.1', 'dev', 'eth0',],],
+  ['an unknown keyword', ['default', 'table', '52000', 'proto', '201', 'realm', '5',],],
+  ['a second destination', ['default', 'table', '52000', 'proto', '201', '10.0.0.0/8',],],
+  ['a repeated protocol as an earlier listing wrote it', ['default', 'via', '192.0.2.1', 'dev', 'eth0', 'proto', '201', 'metric', '100', 'proto', '201', 'table', '52000',],],
+  ['a gateway with a zone', ['default', 'via', 'fe80::1%eth0', 'dev', 'eth0', 'table', '52000', 'proto', '201',],],
+];
+
+/**
+ Routes the owner installs,
+ which must still be read back,
+ each with the tokens that come back:
+ an earlier version copied the preferred source and the router preference of the displayed route,
+ and a state file it wrote carries them,
+ so reading it drops them instead of leaving the state unreadable.
+ */
+const OWNED_ROUTES: readonly (readonly [
+  label: string,
+  proto: string,
+  written: readonly string[],
+  read: readonly string[],
+])[] = [
+  ['an IPv4 default with a gateway', '-4', ['default', 'via', '192.0.2.1', 'dev', 'wlp9s0', 'metric', '600', 'table', '52000', 'proto', '201',], ['default', 'via', '192.0.2.1', 'dev', 'wlp9s0', 'metric', '600', 'table', '52000', 'proto', '201',],],
+  ['an IPv6 default with a link-local gateway', '-6', ['default', 'via', 'fe80::1', 'dev', 'eth0', 'metric', '1024', 'table', '52000', 'proto', '201',], ['default', 'via', 'fe80::1', 'dev', 'eth0', 'metric', '1024', 'table', '52000', 'proto', '201',],],
+  ['a route of an earlier version that copied the source address', '-4', ['default', 'via', '192.168.253.1', 'dev', 'wlp9s0', 'src', '192.168.253.108', 'metric', '600', 'table', '52000', 'proto', '201',], ['default', 'via', '192.168.253.1', 'dev', 'wlp9s0', 'metric', '600', 'table', '52000', 'proto', '201',],],
+  ['a route of an earlier version that copied the router preference', '-6', ['default', 'via', 'fe80::1', 'dev', 'eth0', 'metric', '600', 'pref', 'medium', 'table', '52000', 'proto', '201',], ['default', 'via', 'fe80::1', 'dev', 'eth0', 'metric', '600', 'table', '52000', 'proto', '201',],],
+  ['an on-link default', '-4', ['default', 'via', '192.0.2.1', 'dev', 'eth0', 'onlink', 'table', '52000', 'proto', '201',], ['default', 'via', '192.0.2.1', 'dev', 'eth0', 'onlink', 'table', '52000', 'proto', '201',],],
+  ['the unreachable fallback', '-4', ['unreachable', 'default', 'metric', '42760', 'table', '52000', 'proto', '201',], ['unreachable', 'default', 'metric', '42760', 'table', '52000', 'proto', '201',],],
+  ['the unreachable fallback as an earlier version listed it', '-6', ['unreachable', 'default', 'dev', 'lo', 'metric', '42760', 'pref', 'medium', 'table', '52000', 'proto', '201',], ['unreachable', 'default', 'metric', '42760', 'table', '52000', 'proto', '201',],],
+];
+
+/**
+ Tables a planted state file could claim,
+ each with a label for the test name:
+ the allocator never hands out a table below the first bypass table,
+ and `ip` reads a table keyword by any prefix, so a claimed table below 256 is the main, default or local table.
+ */
+const HOSTILE_TABLES: readonly (readonly [label: string, table: number])[] = [
+  ['the unspecified table', 0,],
+  ['the default table', 253,],
+  ['the main table', 254,],
+  ['the local table', 255,],
+  ['the first table above the one-byte tables', 256,],
+  ['a table just below the first bypass table', 51_999,],
+];
+
+/**
  Invalid field shapes rejected before route mutation.
  */
 const INVALID_STATE_CASES: readonly InvalidStateCase[] = [
@@ -175,6 +261,18 @@ const INVALID_STATE_CASES: readonly InvalidStateCase[] = [
     name: 'rejects non-string route token',
     value: { ...VALID_STATE, routes: [{ proto: '-6', tokens: ['default', 1,], },], },
   },
+  ...HOSTILE_TABLES.map(function hostileTableCase([label, table,],): InvalidStateCase {
+    return {
+      name: `rejects a claim of ${label}`,
+      value: { ...VALID_STATE, table, routes: [], },
+    };
+  },),
+  ...HOSTILE_ROUTES.map(function hostileRouteCase([label, tokens,],): InvalidStateCase {
+    return {
+      name: `rejects a route with ${label}`,
+      value: { ...VALID_STATE, routes: [{ proto: '-4', tokens, },], },
+    };
+  },),
 ];
 
 /**
@@ -273,6 +371,27 @@ await describe({
             JSON.stringify({ ...VALID_STATE, interfaceName, },),
           );
           await expect(readBypassStatePath({ path, },),).resolves.toEqual({ ...VALID_STATE, interfaceName, },);
+        },),);
+      },
+    },),
+    it({
+      name: 'reads back every route shape the owner installs',
+      fn: async () => {
+        await Promise.all(OWNED_ROUTES.map(async function readsRoute([, proto, written, read,],): Promise<void> {
+          await using directory = await makeTempDir();
+          /**
+           State path of this route.
+           */
+          const path = join(directory.path, 'route.json',);
+          /**
+           State that carries the route.
+           */
+          const state = { ...VALID_STATE, routes: [{ proto, tokens: written, },], };
+          await writeFile(
+            path,
+            JSON.stringify(state,),
+          );
+          expect(await readBypassStatePath({ path, },),).toEqual({ ...state, routes: [{ proto, tokens: read, },], },);
         },),);
       },
     },),

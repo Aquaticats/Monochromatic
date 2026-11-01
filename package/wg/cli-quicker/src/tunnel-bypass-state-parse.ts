@@ -1,8 +1,13 @@
 import { BypassStateError, } from './errors.ts';
 import { isValidInterfaceName, } from './interface-name.ts';
-import type {
-  BypassOwnedRoute,
-  BypassState,
+import {
+  isOwnedRoute,
+  projectRoute,
+} from './tunnel-bypass-route-shape.ts';
+import {
+  BASE_BYPASS_TABLE,
+  type BypassOwnedRoute,
+  type BypassState,
 } from './tunnel-bypass-types.ts';
 
 /**
@@ -102,27 +107,32 @@ function isUnknownArray(value: unknown,): value is readonly unknown[] {
 
 /**
  Parses persisted route fingerprints.
- 
+
  @param value - Candidate route array.
- 
+
  @param path - State path named in diagnostics.
- 
+
+ @param table - Table the state claims,
+ which every route must name.
+
  @returns Validated immutable route identities.
- 
+
  @throws {@link BypassStateError} when route shape is invalid.
- 
+
  @example
  ```ts
- parseOwnedRoutes({ value: [], path: '/tmp/state' });
+ parseOwnedRoutes({ value: [], path: '/tmp/state', table: 52_000 });
  ```
  */
 function parseOwnedRoutes(
   {
     value,
     path,
+    table,
   }: {
     readonly value: unknown;
     readonly path: string;
+    readonly table: number;
   },
 ): readonly BypassOwnedRoute[] {
   if (!isUnknownArray(value,))
@@ -144,9 +154,18 @@ function parseOwnedRoutes(
         },))) {
       throw new BypassStateError(`Invalid application-bypass route state: ${path}`,);
     }
+    /**
+     Tokens without the attributes an earlier version copied from the displayed route.
+     */
+    const tokens = projectRoute({ tokens: route.tokens, },);
+    if (!isOwnedRoute({
+      tokens,
+      table,
+    },))
+      throw new BypassStateError(`Invalid application-bypass route state: ${path}`,);
     routes.push({
       proto: route.proto,
-      tokens: [...route.tokens,],
+      tokens: [...tokens,],
     },);
   }
   return routes;
@@ -227,7 +246,7 @@ export function parseBypassState(
     || (!isUint32(value.mark,))
     || (value.mark === 0)
     || (!isUint32(value.table,))
-    || (value.table === 0)
+    || (value.table < BASE_BYPASS_TABLE)
     || (!isUint32(value.preference,))
     || (value.preference === 0)
     || (!isOwnerId(value.ownerId,))
@@ -244,6 +263,7 @@ export function parseBypassState(
     routes: parseOwnedRoutes({
       value: value.routes,
       path,
+      table: value.table,
     },),
   };
 }

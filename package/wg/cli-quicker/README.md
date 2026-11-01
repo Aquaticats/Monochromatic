@@ -29,10 +29,32 @@ is refused with an error that shows the name.
 The route watcher reads an interface name back from the state file in the runtime directory
 and puts it into commands that run as root,
 such as `resolvectl dns <name>` and `wg show <name>`.
-That directory can be chosen by the caller (`WG_QUICKER_RUNTIME_DIRECTORY` crosses `sudo`),
-so the state file is not trusted:
+`WG_QUICKER_RUNTIME_DIRECTORY` does not cross `sudo` into the root run,
+so the caller cannot choose that directory for it;
+a disposable fixture sets the variable inside the root command.
+The state file is still not trusted, because whoever can write the directory can write the file:
 the name in it must pass the same rule,
 and a state file with another name is refused.
+The routes in it are deleted as root, and `ip` reads a keyword by any prefix and lets a later one overwrite an earlier one,
+so each route must match the grammar the route writers use and nothing else:
+`default` or `unreachable default`, then `via <address>`, `dev <name>`, `onlink` and `metric <number>`,
+and `table <claimed table>` and `proto 201`, each at most once and in that one spelling.
+The claimed table must be at least the first table the allocator hands out (52000).
+A route copied by an earlier version with a preferred source or a router preference is read with those dropped;
+any other route is refused.
+The bypass table copies only those attributes of a physical default route.
+It drops `src`, `pref`, `scope`, `mtu`, `hoplimit`, `advmss`, `linkdown` and `dead`.
+That is not free:
+an IPv6 default with `pref high` or `pref low` is copied as `medium`, and the kernel ranks IPv6 defaults of the same metric by it;
+a marked socket that is not bound to an address, on an interface with several addresses,
+gets the interface's primary source address, not the preferred source the physical route named;
+and the copy does not carry the path's MTU or hop limit.
+A physical default route that carries any other attribute (for example `features ecn`, `initcwnd`, `realm`, `tos`, `nhid` or `nexthop`)
+is outside the grammar and the dropped set.
+It stops the application bypass with a `BypassRouteError` that names the route,
+before any state changes: `up` installs nothing, and the route watcher leaves the bypass table as it is.
+It fails closed.
+A state file written by an older build that holds such a form fails to parse, and the error names the state file.
 The other places that read a name back do not trust it either:
 the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
 and every other name comes from the config,
@@ -171,11 +193,12 @@ Without a system-firewall override,
 `wg-quicker` follows `FwOptions.ConfigPath` from the selected daemon config.
 Custom deployments can set `WG_QUICKER_OPENSNITCH_DAEMON_CONFIG`;
 `WG_QUICKER_OPENSNITCH_SYSTEM_FIREWALL_CONFIG` takes precedence over `FwOptions.ConfigPath` when both are set.
-System-firewall paths,
-daemon-config overrides,
-and `WG_QUICKER_RUNTIME_DIRECTORY` must be absolute so separate lifecycle invocations cannot resolve different
-files or state.
-The overrides cross the sudo boundary through the validated private caller-context file.
+System-firewall paths
+and daemon-config overrides must be absolute so separate lifecycle invocations cannot resolve different
+files,
+and so must `WG_QUICKER_RUNTIME_DIRECTORY` where it is set.
+The OpenSnitch overrides cross the sudo boundary through the validated private caller-context file;
+`WG_QUICKER_RUNTIME_DIRECTORY` does not.
 The runtime `flock` serializes wg-quicker writers only;
 avoid editing the same OpenSnitch system-firewall file concurrently through its UI.
 See
@@ -610,6 +633,13 @@ and adds no rule of its own:
   a packet a guest sends is the original direction of its flow,
   and so is a packet from an update host that starts a flow,
   so neither passes any more.
+  Two forged packets from a guest can still make a "reply" in the tracker:
+  one that opens a flow towards the update host's address, and one that carries that address as its source.
+  The reply rules therefore also match `iifname` of the physical default interfaces of their address family,
+  where a real reply arrives and a guest's packet does not.
+  The interfaces are the `dev` of the routes that the bypass table copies from the main table,
+  read from the ownership state when the block is installed.
+  A family with no physical default interface gets no reply rule.
   The rules do not match the state of the connection (`ct state established,related`),
   because that would also pass the guests' flows that were bound for the tunnel once the routing is gone.
   The rule needs the connection tracker,
@@ -970,7 +1000,8 @@ and a test fails if one appears in either wg package.
    `mpm-shadow install`,
    `update` and `outdated` with or without `-g`,
    the `mpm` shadow,
-   and the TypeScript toolchain `sync.ts` and `update.ts`.
+   and `node` running the TypeScript `mpm-shadow` launcher (`package/monorepo-task/core-exec/src/mpm-shadow.ts` or its built entry),
+   which downloads the locked `mpm-shadow` archive when no installed copy is new enough.
    A process is recognized by the file name of its resolved executable (`mise`,
    `mpm-shadow`,
    `mpm`,
@@ -981,8 +1012,9 @@ and a test fails if one appears in either wg package.
 2. The update hosts:
    Traffic to the hosts in `src/update-hosts.data.ts` bypasses the tunnel for every program,
    browsers included.
-   The list holds every host named by `toolchain.lock.json`,
-   the toolchain resolvers and `mpm-shadow`'s network client,
+   The list holds every host named by `toolchain.plan.jsonc`,
+   `toolchain.lock.json`,
+   the Rust resolvers and installers under `package/mpm-shadow/cli/src/toolchain` and `package/file-enforcer/core-rust/src`,
    and the redirect hosts the plan never names:
    `objects.githubusercontent.com`,
    `release-assets.githubusercontent.com`,

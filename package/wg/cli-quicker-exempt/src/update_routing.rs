@@ -49,6 +49,12 @@ use std::time::{Duration, Instant};
 /// Failed moves one pass may spend before it postpones the rest,
 /// so a manager that fails slowly cannot stall the watcher for long.
 const FAILED_ATTEMPTS_PER_PASS: u32 = 2;
+/// Refusals of "No such process" for a living process,
+/// in a row,
+/// before the policy reports them.
+/// A group member that exits makes the manager refuse once;
+/// a run of them is not a race any more.
+pub const MEMBER_VANISH_LIMIT: u32 = 3;
 /// Time one pass may spend on moves before it postpones the rest.
 /// A pass can overrun it by the one attempt in progress,
 /// which the client timeout bounds.
@@ -99,6 +105,10 @@ pub struct UpdateRouting {
     scopes: ScopeRegistry,
     /// Processes whose move failed and will be tried again.
     failures: HashMap<(i32, u64), Failure>,
+    /// Moves of a living process that the manager refused with "No such process" because a process of its group exited,
+    /// in a row,
+    /// by pid and start time.
+    member_vanishes: HashMap<(i32, u64), u32>,
     /// Failed moves spent in the current pass.
     failed_attempts_this_pass: u32,
     /// No move is attempted before this time.
@@ -118,6 +128,7 @@ impl UpdateRouting {
             handled: HashSet::new(),
             scopes: ScopeRegistry::new(),
             failures: HashMap::new(),
+            member_vanishes: HashMap::new(),
             failed_attempts_this_pass: 0,
             blocked_until: None,
             pass_started: None,
@@ -288,11 +299,13 @@ impl UpdateRouting {
             slice: TOOLCHAIN_UPDATES_SLICE,
             limits: &limits,
             scope_name: &scope_name,
+            first_start_time: Some(info.start_time),
         };
         return match self.setup.adopter.adopt(&request) {
             Ok(joined) => {
                 self.handled.insert(key);
                 self.failures.remove(&key);
+                self.member_vanishes.remove(&key);
                 // A join that finds the manager hung pauses the moves like a hung move does.
                 if self.scopes.note_joined(&self.setup, TOOLCHAIN_UPDATES_SLICE, &info.cgroup, &scope_name, &joined, &limits, now) {
                     self.blocked_until = Some(now + BLOCK_AFTER_TIMEOUT);
@@ -301,7 +314,19 @@ impl UpdateRouting {
             }
             Err(AdoptError::Vanished | AdoptError::ScopeGone) => {
                 self.failures.remove(&key);
+                self.member_vanishes.remove(&key);
                 Outcome::Ignored
+            }
+            Err(AdoptError::MemberVanished) => {
+                let count = self.member_vanishes.get(&key).map_or(1, |earlier| return earlier + 1);
+                self.member_vanishes.insert(key, count);
+                if count < MEMBER_VANISH_LIMIT {
+                    return Outcome::Ignored;
+                }
+                let text = format!(
+                    "the user's service manager answered \"No such process\" {count} times in a row while a process of its group was exiting, so the process is still outside the policy"
+                );
+                self.register_failure(key, now, text)
             }
             Err(AdoptError::Failed(error)) => self.register_failure(key, now, error),
             Err(AdoptError::TimedOut(error)) => {
@@ -329,6 +354,13 @@ impl UpdateRouting {
             }
         }
         self.failures = kept_failures;
+        let mut kept_vanishes: HashMap<(i32, u64), u32> = HashMap::new();
+        for (key, count) in self.member_vanishes.drain() {
+            if alive.contains(&key.0) {
+                kept_vanishes.insert(key, count);
+            }
+        }
+        self.member_vanishes = kept_vanishes;
     }
 
     /// Considers every live process now and forgets handled processes that no longer exist.

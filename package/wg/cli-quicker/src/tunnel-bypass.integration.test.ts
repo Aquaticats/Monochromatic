@@ -356,11 +356,51 @@ assert.ok((await runNamespaceIp({ fixture, args: ['-6', 'route', 'get', '2001:48
 
 //endregion Dynamic ownership and full-tunnel shapes
 
+//region Display-only attributes are not copied
+
+/**
+ Main-table defaults as the physical routes of a real host read:
+ the IPv4 one carries a protocol and a preferred source address.
+ */
+const mainDefaultsV4 = await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', 'main', 'default',], },);
+assert.ok(mainDefaultsV4.includes('proto dhcp',) && mainDefaultsV4.includes('src 198.51.100.2',), mainDefaultsV4,);
+/**
+ The bypass table's IPv4 defaults after `up`.
+ */
+const copiedDefaultsV4 = await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', String(firstState.table,), 'default',], },);
+assert.ok(copiedDefaultsV4.includes('via 198.51.100.1',) && copiedDefaultsV4.includes(`dev ${fixture.peerPrimary}`,) && copiedDefaultsV4.includes('metric 100',), copiedDefaultsV4,);
+assert.ok(copiedDefaultsV4.includes('proto 201',), copiedDefaultsV4,);
+assert.equal(copiedDefaultsV4.includes('src',), false, `the bypass table copied the source address: ${copiedDefaultsV4}`,);
+assert.equal(copiedDefaultsV4.includes('dhcp',), false, copiedDefaultsV4,);
+/**
+ The routes the state records,
+ which are the ones `down` deletes.
+ */
+assert.ok(firstState.routes.length >= 2, 'the state records the copied defaults of both families',);
+for (const route of firstState.routes) {
+  assert.equal(route.tokens.includes('src',), false, `src in ${route.tokens.join(' ',)}`,);
+  assert.equal(route.tokens.includes('pref',), false, `pref in ${route.tokens.join(' ',)}`,);
+}
+
+//endregion Display-only attributes are not copied
+
 //region Exact teardown ownership
 
 await runNamespaceIp({ fixture, args: ['-4', 'route', 'add', 'blackhole', '198.18.0.0/15', 'table', String(firstState.table,), 'proto', 'boot',], },);
 await runNamespaceIp({ fixture, args: ['-4', 'route', 'add', 'blackhole', '192.0.2.0/24', 'table', String(firstState.table,), 'proto', '201',], },);
+/**
+ Every route of the main table before `down`.
+ */
+const mainBeforeDown = {
+  v4: await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', 'main',], },),
+  v6: await runNamespaceIp({ fixture, args: ['-6', 'route', 'show', 'table', 'main',], },),
+};
 await removeBypass({ fixture, },);
+assert.deepEqual({
+  v4: await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', 'main',], },),
+  v6: await runNamespaceIp({ fixture, args: ['-6', 'route', 'show', 'table', 'main',], },),
+}, mainBeforeDown, '`down` changed the main table',);
+assert.equal(await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', String(firstState.table,), 'default',], },), '', '`down` left a copied default route',);
 assert.ok((await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', '52000',], },)).includes('blackhole 203.0.113.0/24',));
 assert.ok((await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', String(firstState.table,),], },)).includes('blackhole 198.18.0.0/15',));
 assert.ok((await runNamespaceIp({ fixture, args: ['-4', 'route', 'show', 'table', String(firstState.table,),], },)).includes('blackhole 192.0.2.0/24',));
@@ -477,9 +517,9 @@ const replacementMonitorPid = await watcherMonitorPid({
   previousProcessId: firstMonitorPid,
 },);
 assert.notEqual(replacementMonitorPid, firstMonitorPid,);
-await runNamespaceIp({ fixture, args: ['route', 'replace', 'default', 'via', '198.51.101.1', 'dev', fixture.peerSecondary, 'metric', '50',], },);
+await runNamespaceIp({ fixture, args: ['route', 'replace', 'default', 'via', '198.51.101.1', 'dev', fixture.peerSecondary, 'proto', 'dhcp', 'src', '198.51.101.2', 'metric', '50',], },);
 await runNamespaceIp({ fixture, args: ['route', 'delete', 'default', 'via', '198.51.100.1', 'dev', fixture.peerPrimary, 'metric', '100',], },);
-await runNamespaceIp({ fixture, args: ['-6', 'route', 'replace', 'default', 'via', '2001:db8:2::1', 'dev', fixture.peerSecondary, 'metric', '50',], },);
+await runNamespaceIp({ fixture, args: ['-6', 'route', 'replace', 'default', 'via', '2001:db8:2::1', 'dev', fixture.peerSecondary, 'proto', 'ra', 'metric', '50',], },);
 await runNamespaceIp({ fixture, args: ['-6', 'route', 'delete', 'default', 'via', '2001:db8:1::1', 'dev', fixture.peerPrimary, 'metric', '100',], },);
 await waitForSecondaryRoute({
   fixture,
@@ -553,7 +593,7 @@ const missingDefault = await runBypassOperationAllowingFailure({
 assert.notEqual(missingDefault.exitCode, 0,);
 assert.ok(missingDefault.stderr.includes('no IPv4 or IPv6 physical default route exists',));
 assert.notEqual((await runSudoAllowingFailure({ args: ['test', '-e', fixture.statePath,], },)).exitCode, 0,);
-await runNamespaceIp({ fixture, args: ['route', 'add', 'default', 'via', '198.51.100.1', 'dev', fixture.peerPrimary, 'metric', '100',], },);
+await runNamespaceIp({ fixture, args: ['route', 'add', 'default', 'via', '198.51.100.1', 'dev', fixture.peerPrimary, 'proto', 'dhcp', 'src', '198.51.100.2', 'metric', '100',], },);
 await addBypass({
   fixture,
   watchRouteChanges: false,

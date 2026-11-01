@@ -110,9 +110,8 @@ the update-host list is enforced by `wg-quicker`'s route watcher
 - The process watch:
   A process that is an update entry point is moved into `app-monochromatic\x2dupdates.slice`.
   The list lives in `src/update_entry_points.rs`:
-  `mise run` of the fetching tasks (`toolchain:sync`,
+  `mise run` of the fetching tasks (`toolchain:install`,
   `update`,
-  `install`,
   `outdated`,
   their `:global` forms,
   and the aliases `bootstrap` and `prepare:android`),
@@ -120,7 +119,14 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   `i`,
   `update` and `outdated` with or without `-g`,
   the `mpm` shadow,
-  and `node` running the toolchain `sync.ts` or `update.ts`.
+  and `node` running the TypeScript `mpm-shadow` launcher,
+  `package/monorepo-task/core-exec/src/mpm-shadow.ts` or its built entry,
+  which every root `toolchain:*` task runs and which downloads the locked archive when no installed copy is new enough.
+  The launcher entry is a proposal open to the owner's veto:
+  under `mise` the matched task already carries it,
+  and only a direct run outside `mise` needs the entry.
+  The offline tasks `toolchain:list`,
+  `toolchain:list:global` and `toolchain:lock:check` stay off the list.
   A process matches by the file name of its resolved executable (`mise`,
   `mpm-shadow`,
   `mpm`,
@@ -129,13 +135,12 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   The first command-line word alone never matches,
   because `exec -a mpm /usr/bin/curl` sets it freely;
   it counts only for `mpm-shadow` started as `mpm`.
-  Tests check the list against the generated `mise.toml` and the `mpm-shadow` command grammar,
-  and fail when a fetching task or verb is missing.
-  The names `toolchain:install` and `toolchain:outdated` with their `:global` forms are the spellings after the
-  toolchain cutover;
-  they are on the list before `mise.toml` has them,
-  and the test fails the day one of them appears,
-  so the pending list shrinks with the cutover.
+  Tests read the root and package `mise.toml` files,
+  the verb grammar in `package/mpm-shadow/cli/src/toolchain/verb_grammar.rs` and `cli.rs`,
+  and the launcher script.
+  They fail when a fetching task or verb is missing from the list,
+  when a listed name no longer exists,
+  and when the grammar gains a verb that is not yet classified as fetching or offline.
 - The toolchain paths:
   An executable under the watched user's `.local/share/monochromatic-dev/toolchain/` or `toolchain-global/`
   is moved the same way.

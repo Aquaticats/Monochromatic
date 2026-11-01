@@ -51,12 +51,9 @@ export const UPDATE_HOSTS: readonly string[] = [
 
 /**
  Hosts that appear in toolchain sources but are not fetched at update time:
- documentation links and test or example placeholders.
+ documentation links.
+ `update-hosts.unit.test.ts` fails when an entry is no longer named there.
  */
 export const NON_FETCH_HOSTS: readonly string[] = [
   'pnpm.io',
-  'example',
-  'example.invalid',
-  'example.test',
-  'x',
 ];

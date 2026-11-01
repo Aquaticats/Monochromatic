@@ -14,6 +14,10 @@ export type BypassOwnedRoute = {
 
   /**
    Exact displayed route tokens including ownership table and protocol.
+   A state file read back must carry a default route (or the unreachable fallback default)
+   whose `table` is the state's table and whose `proto` is the private protocol,
+   in plain tokens,
+   because the watcher deletes these routes as root.
    */
   readonly tokens: readonly string[];
 };
@@ -65,6 +69,14 @@ export type BypassState = {
  201 is absent from installed kernel assigned protocol constants.
  */
 export const BYPASS_ROUTE_PROTOCOL = 201;
+
+/**
+ First table tried for application bypass routes,
+ and the lowest table a bypass state may claim:
+ the allocator never goes below it,
+ so a state that names a lower table (such as `main`, 254, or any table under 256 that `ip` could read from a shorter spelling) is not ours.
+ */
+export const BASE_BYPASS_TABLE = 52_000;
 
 /**
  Families covered by socket-mark policy rules.

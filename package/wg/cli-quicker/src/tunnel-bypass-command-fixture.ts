@@ -32,6 +32,15 @@ export type FixtureCommandResult = {
 export type FixtureBypassState = {
   readonly preference: number;
   readonly table: number;
+
+  /**
+   The routes the state records,
+   which `down` deletes.
+   */
+  readonly routes: readonly {
+    readonly proto: string;
+    readonly tokens: readonly string[];
+  }[];
 };
 
 /**
@@ -541,8 +550,20 @@ export async function readFixtureState(
     || ((typeof value.table) !== 'number')) {
     throw new Error('Fixture bypass state lacks numeric table or preference.',);
   }
+  /**
+   Recorded routes, read only when they have the persisted shape.
+   */
+  const routes = ('routes' in value) && Array.isArray(value.routes,)
+    ? value.routes.flatMap(function routeOf(route: unknown,): readonly { readonly proto: string; readonly tokens: readonly string[]; }[] {
+      return ((typeof route) === 'object') && (route !== null) && ('proto' in route) && ('tokens' in route)
+        && ((typeof route.proto) === 'string') && Array.isArray(route.tokens,)
+        ? [{ proto: String(route.proto,), tokens: route.tokens.map(String,), },]
+        : [];
+    },)
+    : [];
   return {
     preference: value.preference,
     table: value.table,
+    routes,
   };
 }

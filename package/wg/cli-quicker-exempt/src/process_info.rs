@@ -277,15 +277,6 @@ pub fn read_cgroup_pids(cgroup_root: &Path, cgroup: &str) -> Option<Vec<i32>> {
     return Some(String::from_utf8_lossy(&bytes).lines().filter_map(parse_pid_line).collect());
 }
 
-/// Reports whether the process is exiting,
-/// from its world-readable stat file,
-/// or `None` when the process is gone or its stat file cannot be read.
-pub fn read_exiting(proc_root: &Path, pid: i32) -> Option<bool> {
-    let bytes = read_whole(&proc_root.join(pid.to_string()).join("stat")).ok()?;
-    let stat = parse_stat_fields(&String::from_utf8_lossy(&bytes))?;
-    return Some(stat.exiting());
-}
-
 /// Reads only the start time of a process,
 /// from the world-readable stat file.
 /// Any failure is `None`,

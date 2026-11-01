@@ -2,6 +2,7 @@ import { isIP, } from 'node:net';
 
 import { TrafficBlockError, } from './errors.ts';
 import { formatMark, } from './exempt-mark-reservation.ts';
+import { isValidInterfaceName, } from './interface-name.ts';
 import type { Clearnet, } from './tunnel-clearnet.ts';
 
 /**
@@ -28,7 +29,7 @@ const DESTINATION_FAMILIES = [
 
 /**
  The match that restricts a rule to the reply direction of a tracked flow.
- It comes before the address match of the rules for the packets from the update hosts.
+ It comes after the interface match and before the address match of the rules for the packets from the update hosts.
  */
 const REPLY_ONLY = 'ct direction reply ';
 
@@ -65,7 +66,7 @@ export type BlockChain = 'output' | 'forward';
 
  @example
  ```ts
- markAcceptRules({ table: 'wg-quicker-wg0-blocked', clearnet: { mark: 100, hosts: [] } });
+ markAcceptRules({ table: 'wg-quicker-wg0-blocked', clearnet: { mark: 100, hosts: [], interfaces: [] } });
  ```
  */
 export function markAcceptRules({
@@ -81,6 +82,59 @@ export function markAcceptRules({
     || (clearnet.mark > MAX_MARK))
     throw new TrafficBlockError(`the exempt mark ${String(clearnet.mark,)} is not a 32-bit packet mark, so it cannot be let through the traffic block`,);
   return [`add rule inet ${table} output meta mark ${formatMark({ mark: clearnet.mark, },)} counter accept`,];
+}
+
+/**
+ The match that restricts a reply rule of one address family to the physical default interfaces of that family,
+ followed by the match of the reply direction of a tracked flow.
+ Two forged packets from a guest can make a "reply" in the tracker:
+ one that creates the flow with the update host as its destination,
+ and one with the update host as the source on the guest's own side.
+ A real reply from an update host arrives on the interface that carries the default route, and a guest's packet does not.
+
+ @param family - Address family of the rule.
+
+ @param clearnet - What the routing sends around the tunnel.
+
+ @returns The match,
+ empty when the family has no physical default interface.
+
+ @throws {@link TrafficBlockError} when an interface name is not a valid interface name,
+ because it is written into the script.
+
+ @example
+ ```ts
+ replyMatchOf({ family: '-4', clearnet: { hosts: [], interfaces: [{ family: '-4', name: 'eth0' }] } }); // 'iifname { "eth0" } ct direction reply '
+ ```
+ */
+function replyMatchOf(
+  {
+    family,
+    clearnet,
+  }: {
+    readonly family: '-4' | '-6';
+    readonly clearnet: Clearnet;
+  },
+): string {
+  /**
+   Names of this family without repeats.
+   */
+  const names = [...new Set(clearnet.interfaces
+    .filter(function ofFamily(physical,): boolean {
+      return physical.family === family;
+    },)
+    .map(function nameOf(physical,): string {
+      return physical.name;
+    },),),];
+  for (const name of names) {
+    if (!isValidInterfaceName({ interfaceName: name, },))
+      throw new TrafficBlockError(`${JSON.stringify(name,)} is not an interface name, so it cannot be let through the traffic block`,);
+  }
+  if (names.length === 0)
+    return '';
+  return `iifname { ${names.map(function quoted(name,): string {
+    return `"${name}"`;
+  },).join(', ',)} } ${REPLY_ONLY}`;
 }
 
 /**
@@ -108,7 +162,7 @@ type HostDirection = 'daddr' | 'saddr';
 
  @example
  ```ts
- hostRules({ table: 'wg-quicker-wg0-blocked', chain: 'forward', direction: 'saddr', clearnet: { hosts: [] } });
+ hostRules({ table: 'wg-quicker-wg0-blocked', chain: 'forward', direction: 'saddr', clearnet: { hosts: [], interfaces: [] } });
  ```
  */
 function hostRules(
@@ -148,8 +202,14 @@ function hostRules(
       if (isIP(address,) !== version)
         throw new TrafficBlockError(`${JSON.stringify(address,)} is not an IPv${String(version,)} address, so it cannot be let through the traffic block`,);
     }
-    if (addresses.length > 0)
-      rules.push(`add rule inet ${table} ${chain} ${direction === 'saddr' ? REPLY_ONLY : ''}${keyword} ${direction} { ${addresses.join(', ',)} } counter accept`,);
+    /**
+     The match of the reply rule that names the interfaces a reply may arrive on,
+     or nothing for a rule on the destination.
+     */
+    const replyMatch = direction === 'saddr' ? replyMatchOf({ family, clearnet, },) : '';
+    // A reply rule with no physical default interface of its family lets nothing through.
+    if ((addresses.length > 0) && ((direction === 'daddr') || (replyMatch !== '')))
+      rules.push(`add rule inet ${table} ${chain} ${replyMatch}${keyword} ${direction} { ${addresses.join(', ',)} } counter accept`,);
   }
   return rules;
 }
@@ -176,7 +236,7 @@ function hostRules(
 
  @example
  ```ts
- hostAcceptRules({ table: 'wg-quicker-wg0-blocked', chain: 'forward', clearnet: { hosts: [] } });
+ hostAcceptRules({ table: 'wg-quicker-wg0-blocked', chain: 'forward', clearnet: { hosts: [], interfaces: [] } });
  ```
  */
 export function hostAcceptRules(
@@ -208,6 +268,12 @@ export function hostAcceptRules(
  The rule therefore matches `ct direction reply` as well:
  only a packet that the connection tracker sees as the reply direction of a flow, which a guest's own packet is not,
  and only from an update host.
+ That alone is not enough, because two forged packets from a guest can make a "reply":
+ one that creates a flow towards the update host with the update host as its destination,
+ and one that carries the update host's address as its source.
+ The rule therefore also matches `iifname` of the physical default interfaces of the address family,
+ where a real reply arrives and a guest's packet does not.
+ A family with no physical default interface gets no reply rule.
  It does not match the state of the connection (`established`),
  which would also pass the guests' flows that were bound for the tunnel once the routing is gone.
  A packet from an update host that starts a flow is the original direction of a new flow and is dropped.
@@ -229,7 +295,7 @@ export function hostAcceptRules(
 
  @example
  ```ts
- hostReplyRules({ table: 'wg-quicker-wg0-blocked', clearnet: { hosts: [] } });
+ hostReplyRules({ table: 'wg-quicker-wg0-blocked', clearnet: { hosts: [], interfaces: [] } });
  ```
  */
 export function hostReplyRules({

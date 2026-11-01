@@ -1,7 +1,13 @@
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { BypassRouteError, } from './errors.ts';
 import { run, } from './runner.ts';
 import { splitWords, } from './text.ts';
+import {
+  isCopyableDefault,
+  projectRoute,
+  UNREACHABLE_METRIC,
+} from './tunnel-bypass-route-shape.ts';
 import {
   BYPASS_PROTOS,
   type BypassOwnedRoute,
@@ -14,11 +20,6 @@ export { isAbsentTableDiagnostic, } from './tunnel-table-diagnostic.ts';
  Route tokens associated with address family.
  */
 export type FamilyRoute = BypassOwnedRoute;
-
-/**
- Metric for unreachable fallback when physical family has no default.
- */
-const UNREACHABLE_METRIC = 42_760;
 
 /**
  Module logger for bypass route synchronization.
@@ -93,15 +94,17 @@ export function normalizePhysicalDefaultRoute(
    Raw route tokens.
    */
   const tokens = splitWords({ line: line.trim(), },);
-  return removeTokenPair({
+  return projectRoute({
     tokens: removeTokenPair({
       tokens: removeTokenPair({
-        tokens,
-        key: 'table',
+        tokens: removeTokenPair({
+          tokens,
+          key: 'table',
+        },),
+        key: 'proto',
       },),
-      key: 'proto',
+      key: 'expires',
     },),
-    key: 'expires',
   },);
 }
 
@@ -164,11 +167,18 @@ export async function readPhysicalDefaults(): Promise<readonly FamilyRoute[]> {
        Normalized default route tokens.
        */
       const tokens = normalizePhysicalDefaultRoute({ line, },);
-      if (tokens[0] === 'default')
-        routes.push({
-          proto,
-          tokens,
-        },);
+      if (tokens[0] !== 'default')
+        continue;
+      if (!isCopyableDefault({ tokens, },)) {
+        throw new BypassRouteError(
+          `The default route "${line.trim()}" has a form that wg-quicker does not copy into the bypass table `
+          + '(it copies only via, dev, onlink and metric); the application bypass is not installed.',
+        );
+      }
+      routes.push({
+        proto,
+        tokens,
+      },);
     }
   }
   return routes;
