@@ -4,10 +4,12 @@
 
 use super::support::{Fixture, WRAPPER, fixture, fixture_in};
 use super::wrapper_store::{
-    IDLE_BUILD_AGE, PARTIAL_PREFIX, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds, shared_copy,
+    IDLE_BUILD_AGE, PARTIAL_PREFIX, RESERVE_ATTEMPTS, STORE_DIRECTORY, content_name, link_stored, publish, remove_idle_builds,
+    reserve_partial, shared_copy,
 };
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
 /// The device and inode of a file, which name the file whatever path reaches it.
@@ -99,6 +101,73 @@ fn a_late_publisher_leaves_the_winners_file_in_place() {
     assert!(!loser.exists(), "the late publisher removes its partial file");
     assert_eq!(std::fs::read(&stored).expect("stored bytes"), b"winner bytes");
     assert_eq!(identity(&stored).1, winner_inode, "the stored file was replaced");
+}
+
+/// What a caller that died after linking its partial file to a published file leaves: the published file under the
+/// partial names this process identifier and the counter values below `count` would produce.
+fn plant_aliasing_leftovers(store: &Path, published: &Path, count: usize) -> Vec<PathBuf> {
+    std::fs::create_dir_all(store).expect("store");
+    std::fs::write(published, PUBLISHED_BYTES).expect("published file");
+    return (0..count)
+        .map(|index| {
+            let leftover: PathBuf = store.join(format!("{PARTIAL_PREFIX}{}-{index}", std::process::id()));
+            std::fs::hard_link(published, &leftover).expect("a leftover partial file aliasing the published file");
+            return leftover;
+        })
+        .collect();
+}
+
+/// The bytes of the file a leftover partial name aliases.
+const PUBLISHED_BYTES: &[u8] = b"a published copy that must never be written through another name";
+
+/// A partial name that exists is never reused, whatever process left it: the reservation moves on to a name nobody
+/// has, the files under the taken names keep their bytes and their one inode, and a store in which every name tried
+/// is taken is an error and not an overwrite.
+#[test]
+fn a_partial_name_that_exists_is_never_reused() {
+    let created: Fixture = fixture("store-reserve");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    let published: PathBuf = store.join("published");
+    let leftovers: Vec<PathBuf> = plant_aliasing_leftovers(store.as_path(), published.as_path(), RESERVE_ATTEMPTS - 1);
+    let counter: AtomicUsize = AtomicUsize::new(0);
+    let reserved: PathBuf = reserve_partial(store.as_path(), &counter).expect("a free name remains");
+    assert!(!leftovers.contains(&reserved), "a taken name was handed out again: {}", reserved.display());
+    assert_eq!(std::fs::metadata(&reserved).expect("reserved").len(), 0, "the reserved file is new and empty");
+    assert_eq!(std::fs::read(&published).expect("published bytes"), PUBLISHED_BYTES);
+    assert_eq!(
+        std::fs::metadata(&published).expect("published").nlink(),
+        u64::try_from(leftovers.len() + 1).expect("link count"),
+        "a leftover was replaced or removed"
+    );
+    let exhausted: PathBuf = created.root.join("exhausted-store");
+    let exhausted_published: PathBuf = exhausted.join("published");
+    plant_aliasing_leftovers(exhausted.as_path(), exhausted_published.as_path(), RESERVE_ATTEMPTS);
+    assert!(
+        reserve_partial(exhausted.as_path(), &AtomicUsize::new(0)).is_err(),
+        "every name tried was taken, yet one was handed out"
+    );
+    assert_eq!(std::fs::read(&exhausted_published).expect("published bytes"), PUBLISHED_BYTES);
+}
+
+/// A caller of the stored copy that finds the partial names of its process identifier taken by leftovers aliasing a
+/// published file copies into a name of its own and leaves the published file's bytes alone.
+#[test]
+fn a_copy_never_writes_through_a_leftover_partial_name() {
+    let created: Fixture = fixture("store-leftover");
+    let store: PathBuf = created.root.join(STORE_DIRECTORY);
+    let published: PathBuf = store.join("another-build");
+    let leftovers: Vec<PathBuf> = plant_aliasing_leftovers(store.as_path(), published.as_path(), RESERVE_ATTEMPTS - 1);
+    let stored: PathBuf = shared_copy(Path::new(WRAPPER), created.root.as_path()).expect("the copy is made");
+    assert_eq!(std::fs::read(&stored).expect("stored bytes"), std::fs::read(WRAPPER).expect("built bytes"));
+    assert_eq!(std::fs::read(&published).expect("published bytes"), PUBLISHED_BYTES, "a leftover name was written through");
+    let mut expected: Vec<String> = leftovers
+        .iter()
+        .map(|leftover| { return leftover.file_name().expect("name").to_string_lossy().into_owned(); })
+        .collect();
+    expected.push(String::from("another-build"));
+    expected.push(content_name(Path::new(WRAPPER)).expect("the build's name"));
+    expected.sort();
+    assert_eq!(names_in(&store), expected, "the leftovers stay and the copy has no partial file of its own");
 }
 
 /// A copy of another build that no fixture has linked for the idle age is removed, a younger one is not, and neither is

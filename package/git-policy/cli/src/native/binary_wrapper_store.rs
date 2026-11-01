@@ -9,7 +9,7 @@
 //!  a wave of 169 tests wrote about 3.7 GB (169 times 21.9 MB) within seconds, on the volume that every other command of
 //!  those tests syncs to; the failing runs that carried the "no hard link" message hit the shared 5-second bound.
 //!  The copy is published without a lock:
-//!  each caller that finds no stored copy writes its own uniquely named partial file and links it to the final name,
+//!  each caller that finds no stored copy writes its own exclusively created partial file and links it to the final name,
 //!  which fails if another caller published first, so the final name is only ever a complete file and the first
 //!  publisher wins.
 //!  Callers that start together may each write a partial copy once per build; every later caller finds the final file.
@@ -44,7 +44,10 @@ pub const IDLE_BUILD_AGE: Duration = Duration::from_secs(24 * 3600);
 /// How many times a caller asks for the stored copy when the link finds it gone.
 const LINK_ATTEMPTS: usize = 3;
 
-/// The number of partial files this process has started, which keeps their names unique.
+/// How many partial names a caller tries before it gives up; each failed name belonged to a file that already existed.
+pub const RESERVE_ATTEMPTS: usize = 64;
+
+/// The number of partial names this process has tried, which keeps its own names apart from each other.
 static PARTIALS_STARTED: AtomicUsize = AtomicUsize::new(0);
 
 /// The stored name of the built executable, read once per process.
@@ -109,12 +112,10 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
     if stored.exists() {
         return Ok(stored);
     }
-    let partial: PathBuf = store.join(format!(
-        "{PARTIAL_PREFIX}{}-{}",
-        std::process::id(),
-        PARTIALS_STARTED.fetch_add(1, Ordering::SeqCst)
-    ));
+    let partial: PathBuf = reserve_partial(store.as_path(), &PARTIALS_STARTED)?;
     super::support::copy_executable(built, partial.as_path());
+    // `cp` into an existing file keeps that file's mode, so the build's mode is applied after the copy.
+    std::fs::set_permissions(&partial, std::fs::metadata(built)?.permissions())?;
     if content_name(partial.as_path())? != name {
         let _ = std::fs::remove_file(&partial);
         return Err(std::io::Error::other(format!(
@@ -125,6 +126,38 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
     publish(partial.as_path(), stored.as_path())?;
     remove_idle_builds(store.as_path(), stored.as_path(), IDLE_BUILD_AGE);
     return Ok(stored);
+}
+
+/// What:
+///  Create an empty partial file under a name no file in `store` has, and return its path.
+/// Why:
+///  A name made of the process identifier and a counter is unique in one process but not across processes: a
+///  process identifier is reused after a crash and repeats in another PID namespace that shares the store, and a
+///  partial file left by a caller that died after linking it to the final name but before removing it is the
+///  published file under a second name. Opening such a name for writing, as the copy does, would truncate the
+///  published executable under the fixtures that run it. Creating the name exclusively (`create_new`, `O_EXCL`)
+///  fails on every existing name, so the caller takes the next counter value; no lock is involved.
+///  The copy then writes into the empty file this created.
+///
+/// # Errors
+///  When the file cannot be created for another reason than its name existing, or every name tried exists.
+pub fn reserve_partial(store: &Path, counter: &AtomicUsize) -> std::io::Result<PathBuf> {
+    for _ in 0..RESERVE_ATTEMPTS {
+        let candidate: PathBuf = store.join(format!(
+            "{PARTIAL_PREFIX}{}-{}",
+            std::process::id(),
+            counter.fetch_add(1, Ordering::SeqCst)
+        ));
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
+            Ok(_) => return Ok(candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+    return Err(std::io::Error::other(format!(
+        "every one of {RESERVE_ATTEMPTS} partial names in {} exists",
+        store.display()
+    )));
 }
 
 /// What:
