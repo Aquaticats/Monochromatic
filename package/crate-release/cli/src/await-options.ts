@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 
+import { manifestFileName } from './constants.ts';
 import {
   type CrateRegistry,
   findCrate,
@@ -31,6 +32,11 @@ export type AwaitOptions = PublishCheckSettings & {
    Name of the crate, as on crates.io.
    */
   readonly crateName: string;
+  /**
+   Repository-relative path of the crate's `Cargo.toml`, which holds the version a commit of the publish run must
+   carry to be this release's.
+   */
+  readonly manifestPath: string;
   /**
    Numeric identifier of the release workflow run to wait for.
    */
@@ -110,8 +116,11 @@ export function parseAwaitArguments({
       name: 'crate'
     })
   });
-  // The lookup refuses a crate that no release could have started for, instead of waiting on a version that never comes.
-  findCrate({
+  /**
+   The registry entry; the lookup refuses a crate that no release could have started for, instead of waiting on a
+   version that never comes.
+   */
+  const entry = findCrate({
     registry: registry(),
     name: crateName
   });
@@ -121,6 +130,7 @@ export function parseAwaitArguments({
       root
     })),
     crateName,
+    manifestPath: `${entry.crateDirectory}/${manifestFileName}`,
     releaseRunId: releaseRun.value,
     version: assertReleaseVersion({
       option: '<version>',

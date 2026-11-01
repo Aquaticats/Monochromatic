@@ -43,7 +43,7 @@ fn the_first_executable_in_path_order_wins() {
     let expected: PathBuf = write_program(first.path(), EXECUTABLE_MODE);
     write_program(second.path(), EXECUTABLE_MODE);
 
-    let found = find_in_path(NAME, &path_value(&[first.path(), second.path()]), Path::new(""));
+    let found = find_in_path(NAME, &path_value(&[first.path(), second.path()]), &[]);
 
     assert_eq!(found, Some(expected));
 }
@@ -55,7 +55,7 @@ fn a_file_without_an_execute_bit_is_skipped() {
     write_program(plain.path(), PLAIN_MODE);
     let expected: PathBuf = write_program(runnable.path(), EXECUTABLE_MODE);
 
-    let found = find_in_path(NAME, &path_value(&[plain.path(), runnable.path()]), Path::new(""));
+    let found = find_in_path(NAME, &path_value(&[plain.path(), runnable.path()]), &[]);
 
     assert_eq!(found, Some(expected));
 }
@@ -75,7 +75,7 @@ fn a_candidate_that_resolves_to_the_shadow_is_skipped_under_any_name() {
     let found = find_in_path(
         NAME,
         &path_value(&[link_directory.path(), real_directory.path()]),
-        &resolved_shadow,
+        &[resolved_shadow],
     );
 
     assert_eq!(found, Some(expected));
@@ -85,7 +85,29 @@ fn a_candidate_that_resolves_to_the_shadow_is_skipped_under_any_name() {
 fn an_empty_path_entry_is_ignored_and_a_missing_program_is_none() {
     let empty = scratch();
 
-    let found = find_in_path(NAME, &format!(":{}:", empty.path().display()), Path::new(""));
+    let found = find_in_path(NAME, &format!(":{}:", empty.path().display()), &[]);
 
     assert_eq!(found, None);
+}
+
+#[test]
+fn every_resolved_path_in_the_skip_list_is_skipped_not_only_the_first() {
+    let launcher_directory = scratch();
+    let tried_directory = scratch();
+    let real_directory = scratch();
+    let launcher: PathBuf = write_program(launcher_directory.path(), EXECUTABLE_MODE);
+    let tried: PathBuf = write_program(tried_directory.path(), EXECUTABLE_MODE);
+    let expected: PathBuf = write_program(real_directory.path(), EXECUTABLE_MODE);
+    let skip: Vec<PathBuf> = vec![
+        std::fs::canonicalize(&launcher).expect("resolve the launcher"),
+        std::fs::canonicalize(&tried).expect("resolve the tried candidate"),
+    ];
+
+    let found = find_in_path(
+        NAME,
+        &path_value(&[launcher_directory.path(), tried_directory.path(), real_directory.path()]),
+        &skip,
+    );
+
+    assert_eq!(found, Some(expected));
 }

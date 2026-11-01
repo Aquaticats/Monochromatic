@@ -62,18 +62,20 @@ fn is_executable_file(path: &Path) -> bool {
 }
 
 /// What:
-/// `pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf>` takes three borrowed
+/// `pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf>` takes three borrowed
 /// inputs and returns `Some(path)` when found, `None` when not. `Option` is Rust's "value or nothing" (a TS
-/// `T | undefined`).
+/// `T | undefined`). `&[PathBuf]` is a borrowed view of a list of owned paths (siblings: `Vec<PathBuf>`, the owned list).
 /// Why:
-/// `skip` is the shadow's own resolved path, so the loop never returns the shadow. `PathBuf` (owned) and not `&Path`
-/// (borrowed) because the result outlives the borrowed inputs.
+/// `skip` holds resolved paths the loop must never return: the shadow's own executable, and every candidate an earlier
+/// shadow instance already picked (`guard.rs`), because a launcher or other link that leads back to the shadow resolves to
+/// a path that is not the shadow's own. `PathBuf` (owned) and not `&Path` (borrowed) because the result outlives the
+/// borrowed inputs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function findInPath(name: string, pathVariable: string, skip: string): string | undefined
+/// export function findInPath(name: string, pathVariable: string, skip: string[]): string | undefined
 /// ```
-pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<PathBuf> {
+pub fn find_in_path(name: &str, path_variable: &str, skip: &[PathBuf]) -> Option<PathBuf> {
     for directory in path_variable.split(':') {
         // An empty PATH entry means the current directory in a shell; the shadow ignores it on purpose.
         if directory.is_empty() {
@@ -88,7 +90,7 @@ pub fn find_in_path(name: &str, path_variable: &str, skip: &Path) -> Option<Path
         // resolves to the one executable and is recognized under whatever name it was found. The `&&` joins two
         // conditions inside one `if let`.
         if let Ok(resolved) = fs::canonicalize(&candidate)
-            && resolved == skip
+            && skip.contains(&resolved)
         {
             continue;
         }

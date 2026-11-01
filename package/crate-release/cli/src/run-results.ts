@@ -144,12 +144,22 @@ export function parseRunCreatedAt(body: string): Lookup<string> {
     .createdAt as string);
 }
 
+
 /**
- The run the publish workflow started: its identifier and the commit it was built from.
+ A run the publish workflow started: its identifier, the commit it was built from and when it was created.
  */
 export type DispatchedRun = {
   readonly runId: string;
   readonly headSha: string;
+  readonly createdAt: string;
+};
+
+/**
+ The manually started runs of a listing, oldest first, and how many entries could not be read as runs.
+ */
+export type DispatchedRuns = {
+  readonly runs: readonly DispatchedRun[];
+  readonly unreadableEntries: number;
 };
 
 /**
@@ -177,29 +187,22 @@ function isListedRun(entry: unknown): entry is {
 }
 
 /**
- Pick the manually started run that the release run started: the earliest one created at or after the release run.
+ Read the runs out of the answer of `gh run list`, oldest first.
 
- A release run starts its publish run before it ends, so the publish run is never older than the release run, and a
- manual dry run that someone started earlier cannot be mistaken for it.
+ Which of them belongs to a release is decided elsewhere: the list holds every manually started run of the publish
+ workflow, whoever started it, so the order and the creation times are all this step reports.
 
  @param listing - JSON text printed by `gh run list --event workflow_dispatch --json databaseId,headSha,createdAt`
 
- @param notBefore - creation time of the release run, as the API wrote it
-
- @returns the run, or a miss when the listing is not a list, or holds no run created at or after `notBefore`
+ @returns the runs oldest first with the number of entries that were not runs, or a miss when the listing is not JSON
+ or not a list
 
  @example
  ```ts
- selectDispatchedRun({ listing: '[]', notBefore: '2026-11-01T10:00:00Z' });
+ parseDispatchedRuns('[]');
  ```
  */
-export function selectDispatchedRun({
-  listing,
-  notBefore,
-}: {
-  readonly listing: string;
-  readonly notBefore: string;
-}): Lookup<DispatchedRun> {
+export function parseDispatchedRuns(listing: string): Lookup<DispatchedRuns> {
   /**
    Parsed listing.
    */
@@ -209,31 +212,28 @@ export function selectDispatchedRun({
   if (!Array.isArray(runs.value))
     return missingValue('The run listing is not a list.');
   /**
-   Earliest start the run may have, as a time.
+   Every entry of the list, read or not.
    */
-  const earliest = Date.parse(notBefore);
+  const entries = runs.value as readonly unknown[];
   /**
-   Listed runs created at or after the release run, oldest first.
+   Entries that have the fields of a run, oldest first.
    */
-  const candidates = (runs.value as readonly unknown[])
+  const readable = entries
     .filter(isListedRun)
-    .filter(function isNotOlder(entry) {
-      return Date.parse(entry.createdAt) >= earliest;
-    })
     .toSorted(function oldestFirst(
       first,
       second
     ) {
       return Date.parse(first.createdAt) - Date.parse(second.createdAt);
     });
-  /**
-   The oldest candidate.
-   */
-  const [oldest] = candidates;
-  return oldest === undefined
-    ? missingValue(`No listed run was created at or after ${notBefore}.`)
-    : foundValue({
-      runId: String(oldest.databaseId),
-      headSha: oldest.headSha
-    });
+  return foundValue({
+    runs: readable.map(function toRun(entry) {
+      return {
+        runId: String(entry.databaseId),
+        headSha: entry.headSha,
+        createdAt: entry.createdAt
+      };
+    }),
+    unreadableEntries: entries.length - readable.length
+  });
 }

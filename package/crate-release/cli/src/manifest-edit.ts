@@ -6,6 +6,10 @@ import {
   missingValue,
 } from './lookup.ts';
 import {
+  packageVersionLines,
+  versionKey,
+} from './package-version.ts';
+import {
   blankCharacters,
   endsWithComment,
   joinManifest,
@@ -35,67 +39,9 @@ export type ManifestEdit = {
 };
 
 /**
- Key that holds the version in both a package table and an inline dependency table.
- */
-const versionKey = 'version';
-
-/**
- Header of the table that holds the crate's own version.
- */
-const packageHeader = '[package]';
-
-/**
  Characters that may stand directly before a key inside an inline table: its opening brace or a comma.
  */
 const inlineKeyIntroducers = '{,';
-
-/**
- Check whether a trimmed line is the header of the package table, with at most a comment after it.
-
- @param trimmed - line without surrounding blanks
-
- @returns true for `[package]` and `[package] # note`
-
- @example
- ```ts
- isPackageHeader('[package]');
- ```
- */
-function isPackageHeader(trimmed: string): boolean {
-  return trimmed.startsWith(packageHeader) && endsWithComment(trimmed.slice(packageHeader.length));
-}
-
-/**
- Mark each line that belongs to the package table: the lines after its header up to the next table header.
-
- @param bodies - line bodies
-
- @returns one flag per line
-
- @example
- ```ts
- packageLineFlags(['[package]', 'version = "1"', '[dependencies]']);
- ```
- */
-function packageLineFlags(bodies: readonly string[]): readonly boolean[] {
-  return bodies.reduce<boolean[]>(
-    function mark(
-      flags,
-      body
-    ) {
-      /**
-       Whether the line before this one belonged to the package table.
-       */
-      const previous = flags.at(-1) ?? false;
-      flags.push(body.charAt(skipBlanks({
-        line: body,
-        from: 0
-      })) === '[' ? isPackageHeader(body.trim()) : previous);
-      return flags;
-    },
-    [],
-  );
-}
 
 /**
  Decide what a located version value means for the release.
@@ -186,37 +132,9 @@ export function replacePackageVersion({
     hadReturn
   } = splitManifest(text);
   /**
-   Flag per line for membership in the package table.
-   */
-  const inPackage = packageLineFlags(bodies);
-  /**
    Lines of the package table that carry a quoted `version` key; TOML allows one, so the first is the one.
    */
-  const candidates = bodies.flatMap(function packageVersion(
-    body,
-    index
-  ) {
-    if (inPackage[index] !== true)
-      return [];
-    /**
-     The version value, when this line is the version key.
-     */
-    const location = locateValue({
-      line: body,
-      from: skipBlanks({
-        line: body,
-        from: 0
-      }),
-      key: versionKey
-    });
-    return location.found ? [
-      {
-        index,
-        body,
-        location: location.value
-      }
-    ] : [];
-  });
+  const candidates = packageVersionLines(bodies);
   /**
    The line that holds the version.
    */

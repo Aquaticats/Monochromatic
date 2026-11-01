@@ -6021,3 +6021,150 @@ This block supersedes "State at 2026-10-29 (night, later)".
   runs on a machine with the service installed, and this machine has none. Installing the service here would move every
   session's commits to it, so the user decides that.
 - Gate 9 (`8abacf428b`) near its end; gate 10 on `9ca669c45f` follows in `.claude/worktrees/gate-main9`.
+- Owner correction, 2026-11-01. I asked when to run `git cli-git service install` on this machine. The owner answered,
+  verbatim: "What is going on? Bazel uses client server architecture and Bazel doesn't do this." Their earlier rule was:
+  "socket activation (OS starts it) or a loud, clear failure - no, never leak internal things that could be resolved to
+  the user."
+  - My error: the install command, the installed-or-not default and the `CLI_GIT_COMMIT_SERVICE` switch are internal
+    rollout machinery, and I put them to the owner as a decision. "The wrapper never starts it" was my revisable
+    suggestion (this file, "Coordinator suggestions"), not the owner's words. The owner's rule already forbade leaking
+    the install step.
+  - Bazel (https://bazel.build/run/client-server): "If the client cannot find a running server instance, it starts a
+    new one." The client unpacks what it needs itself, with no install step. On a version mismatch, "the server is
+    stopped and a new one started". The server stops after 3 hours idle by default (`--max_idle_secs`).
+  - Adopted (owner veto open), sent to `a6e4566588e9ec087` as a sub-step before 4b:
+    - The wrapper provisions socket activation itself, the first time a commit needs the service. The daemon is still
+      started by systemd and never forked by the wrapper, because a self-started daemon inherits the caller's cgroup,
+      which `systemd-oomd` reaps (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
+    - Talk to systemd over its D-Bus API, embedded. Today `service_install.rs:91` spawns `systemctl`, which breaks the
+      embed-not-spawn rule.
+    - Delete `service install` and `uninstall`, the env switch and selection by install state; keep `status` as a
+      diagnostic. Fix the README's "once installed" text.
+    - Version skew follows Bazel: a mismatched server drains and exits, and the next connect re-activates it. The
+      service already has idle exit and `retire`.
+    - With no systemd user manager: the owner's loud, clear failure once 4d deletes the native path. The agent must
+      first show the gate containers and any real container or CI commit path keep working.
+  - Shipped state: 0.5.1 (published) contains the install command; the next release removes it.
+- 0.5.1 installed: `monochromatic-6e` committed both lock rows (the owner told c0 "Yes, bump to 0.5.1 now") and ran
+  `toolchain:install` (2 installed, 63 unchanged, 0 failed). `git --version` here prints
+  `monochromatic-git-policy-cli 0.5.1`; merge commit `75a52f4ae4` was a real commit through it. 6e also reported that its
+  pnpm-shadow 0.1.0 broke `pnpm` in the main checkout from about 09:28 to 09:33 local, and that it has fixed this.
+- Gate 9 GREEN on `8abacf428b` (step 3): 2919 of 2919 passed, 7 skipped.
+- In-process reads READY `d17e34f25d` merged as `75a52f4ae4`. Git starts per plain commit drop from 38 to 18 (read-only
+  27 to 7). Forwarded `status`, `log` and `diff` now start one Git (about 0.8 ms less); the explicit-path commit is about
+  33 ms faster; the binary is 2.1% larger. Doc: `doc/planning/cli-git-in-process-reads.md`. Its own container gate ran
+  before its review fixes. Gate 10 (4a only) was stopped as superseded; gate 11 on `75a52f4ae4` runs in `gate-main9`
+  (log `~/temp/agent/gate/main-gate11.log`).
+- Follow-ups sent to an agent:
+  - readers answering where Git fails on a malformed startup config value;
+  - the assumed `/etc/gitconfig`;
+  - a real sparse-index fixture;
+  - `choosing-technology` vetting and a source audit of `miniz_oxide` 0.9.1 and `adler2`;
+  - the `native:perf` cleanup race (ENOTEMPTY on the scratch pack dir).
+  The reads agent also reported the stale catalog-policy test `the_repository_configuration_does_not_activate_the_catalog_policy`,
+  but I already flipped it earlier today; gate 11 confirms.
+- Still queued, waiting for a free agent slot: wiring the standards-review shadow as a service work item (unblocked by
+  step 3).
+- Step 4b-1 READY `4e21b1e267`: embeds `-s`, `--allow-empty`, `-C`, `--fixup=<commit>` and `--cleanup=strip`, compared
+  field by field; `--squash` stays declined. Merge after gate 11. Next from that agent: P (provisioning per the Bazel
+  correction), then 4b-2, 4c and 4d. On P's design I required the session bus and `org.freedesktop.systemd1`, never the
+  manager's private socket: systemd(1) says of `/run/systemd/private`, "This interface is private to systemd and should
+  not be used in external projects." Also required:
+  - a hand-written D-Bus client with bounded timeouts and a fuzzed reply parser;
+  - removal of units we wrote into `~/.config/systemd/user` (they outrank the runtime directory);
+  - atomic, content-compared unit writes with no locks.
+- LFS push incident, 2026-11-01 from 09:38 local. Under 0.5.1, auto-push and manual `git push` failed twice (09:38,
+  09:43). Each time, `git-lfs push --all origin refs/heads/main` got HTTP 503 on about 20 of its 22 batch requests,
+  which are sent all at once (100 objects each; the history has 2174 LFS objects).
+  - Probes, read-only, from `~/temp/agent/lfs-batch-probe*.ts`: download batches of 1, 40 and 100 objects returned 200;
+    22 concurrent upload batches returned 200 x22.
+  - A traced `git-lfs push --all` at about 09:47 returned 200 x22 and exit 0.
+  - Conclusion: the 503 is intermittent on the server side (Cloudflare Worker); the cause is not established. `--all`
+    multiplies the exposure, with 22 requests per push where the 0.5.0 bound made a few, and adds about a second of batch
+    queries to every push.
+  - Queued fix, for the next free agent slot:
+    1. Bound uploads by the destination's actual ref values instead of `--all`, keeping SPEC's correctness case (tracking
+       refs that do not describe the destination; `SPEC.md` "Mechanism").
+    2. One bounded retry of `git-lfs push` on a 5xx batch answer (content-addressed, so safe).
+    3. Mask URL userinfo in the `git-lfs` output the wrapper relays: the `lfs.url` token is printed in every batch error.
+  - Escalated: a third wrapper push failed (09:44:32), so 3 of 4 wrapper pushes failed, and the agents report the same.
+    Pushes on this machine are effectively down under 0.5.1; commits stay saved locally. Rolling back the lock to 0.5.0
+    would pin a tool this repo publishes (rule PIN), so the path is a 0.5.2 hotfix instead. The fix agent is running
+    (items 1 and 2 first, then a separate READY for item 3). I told `monochromatic-6e`, `monochromatic-c0` and the
+    translation session the cause, and asked them not to work around it with `--no-verify` or `GIT_LFS_SKIP_PUSH=1` for
+    pushes that add LFS files.
+  - Release plan: merge the fix, gate the merge commit, release 0.5.2 from main (this ships step 3, 4a, 4b-1 and the
+    in-process reads too, all gated together), then 6e bumps the lock.
+- Publish-run selection fix READY `39a2a4daeb` merged as `23108c337c`. It picks the earliest dispatched run whose commit's
+  manifest version equals the target. Its residual gap: another crate's dispatch, made after the bump but before the
+  release's own dispatch, cannot be told apart, because `gh run list` does not expose dispatch inputs.
+- Step 4b-1 merged as `5519b7ed57`, without waiting for gate 11, so that one gate covers everything 0.5.2 ships.
+- Gate 11 GREEN on `75a52f4ae4` (step 4a plus in-process reads): 2979 of 2979 passed, 7 skipped. The 0.5.2 gate runs on
+  the hotfix merge commit; its delta over gate 11 is 4b-1, the crate-release fix and the hotfix.
+- Wrapper-store review fixes READY `378e1b6c71`, merged as `f39b1b7e62`. All 8 cross-vendor findings were real, and each
+  fix has a mutation shown failing. Recorded in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`, section "The second review". One
+  residual window is documented: between the rename and the link-back during pruning, a caller can publish one extra
+  copy, which no lock-free removal can close.
+- Forward-target planted control: my premise was wrong. With the guard disabled, the test fails, and no second
+  mechanism stops the loop. "NOT noticed" came from a harness build break: `bin/native-planted-controls.ts` copied the
+  host's `entry.rs` into the prebuilt image, whose other files were older, so it did not compile (E0432/E0560 in
+  `planted-3.log`, 2030 bytes). Fixed (READY `af8cda6409`, merged as `536fe058c8`):
+  - plant against the image's own file;
+  - a build that does not compile is its own verdict, `build-failed`, which fails the campaign with its own message;
+  - the control now names `entry::stop_tests::forward_target_naming_this_executable_stops` (8 ms).
+  The agent also noted that an ad hoc `podman run` of the suite needs `--init` plus the pid limit, or thread-spawn
+  failures hide the result.
+- Mutation m048d results:
+  - `child_class.rs`: 0 missed.
+  - `child_watch.rs`: 1 missed (`ChildWatch::end` with nothing).
+  - `process_tree.rs`: 1 missed (`still_running` true) and 1 timeout (`signal_members` with nothing).
+  - `real_index_lock.rs`: 4 missed (`create_exclusive` and `created_identity`).
+  - The index_flags planted-proof unit is still running.
+  Sent to an agent with the pre-existing oxlint errors in `bin/`. That agent first checks whether `real_index_lock.rs`
+  is on step 4d's deletion list; if it is, it writes no tests.
+- Standards-review wiring sent to its port author `ad02e84404af49107` (resumed). It wires review work items into the
+  service, appends to the audit file without clobbering the other session's uncommitted edits, and removes the old
+  hook config, the `shadow-review` task and the runbook trigger. It must not edit the provisioning files `a6e` is
+  changing.
+- Misattributed commit: the handover entry starting "Wrapper-store review fixes READY `378e1b6c71`" (26 lines) is in
+  merge commit `f0589a5f42` ("feat(wg): merge the wg-quicker restart-incident fixes..."), which another session made in
+  the shared main checkout. Cause: I ran `git add` on the handover, and my `git commit -- <path>` was then refused
+  because their merge was in progress with unmerged paths. The staged file stayed in the index, and their merge commit
+  took it. The content is intact and correct; only the commit message omits it. Per rule GCA, never amend: once pushes
+  work again, post a GitHub commit comment on `f0589a5f42` naming the handover lines as mine. My fix: commit tracked
+  files with `git commit -- <paths>` alone, never with a separate `git add` first.
+- Corrective commit comment posted on `f0589a5f42`
+  (https://github.com/Aquaticats/Monochromatic/commit/f0589a5f42612897893076f86aa4065f594fbbad#commitcomment-207630257).
+  The repository also gained rule XSG in `AGENTS.md` (`7cf00b7daa`, owner chose "Tighten CPN"; it is split into its own
+  rule because CPN plus the new sentence exceeds the RLM limit of 200 characters).
+
+### Reboot recovery, 2026-11-01
+
+- The machine rebooted; every agent stopped. The repository was intact, and main was 70 commits ahead of `origin/main`,
+  because every push since 0.5.1 failed on the LFS 503. All agent worktrees survived with uncommitted work:
+  - LFS hotfix `ab7d550ba5af421b8`: 11 files;
+  - reads follow-ups `a7439531e8536aa87`: 5 files;
+  - review wiring `ad02e84404af49107`: 16 files;
+  - service provisioning `a6e4566588e9ec087`: 31 files;
+  - mutation survivors `a0a08ba8c0924f668`: 1 commit, clean.
+  All five were resumed and told to commit their work in progress first.
+- After the reboot the LFS server failed every batch request, even sent one at a time with retries
+  (`~/temp/agent/lfs-missing-check.ts`). So I could not prove it holds the objects, and a skip-upload push of the whole
+  history could not be justified that way.
+- Narrower proof instead: across all 70 unpushed commits, 120 paths were added or changed, and none is LFS-tracked
+  (`git check-attr filter` per path). The positive control flagged known LFS files (`filter: lfs`), and no pointer
+  line was added. So the push needed no new LFS object. Pushed with `GIT_LFS_SKIP_PUSH=1`:
+  `987027a72a..11ad7efdf7`, 0 ahead after. This is not a general workaround: other sessions must still not skip for
+  pushes that add LFS files.
+- Owner, 2026-11-01, verbatim: "Why are we invoking git lfs at all when no objects in a commit or something can be
+  relevant?" Adopted (veto open) and sent to the hotfix agent `ab7d550ba5af421b8`:
+  - The wrapper finds the LFS pointers the pushed commits introduce, in-process with the `repo_read_*` readers, by
+    diffing each new commit against its parents.
+  - No new pointer: no git-lfs process and no network request.
+  - Some new pointers: `git-lfs push --object-id <destination> --stdin` with exactly those oids. git-lfs 3.8.1
+    documents `git lfs push --object-id <remote> --stdin` (`git lfs push --help`). Bounded retry on 5xx.
+  - Untrusted destination: scan the whole history, then use the same `--object-id` upload.
+  - Readers decline: the bounded git-lfs fallback.
+  The plain push of commits touching no LFS path is now the common case: none of today's 70 unpushed commits touched
+  one. Pushed `11ad7efdf7..567cd0d70f` the same checked way.

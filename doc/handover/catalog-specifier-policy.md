@@ -1000,14 +1000,86 @@ The user confirmed the shared understanding and the order below, after the third
   `git diff` of `toolchain.lock.json`: three changes only (the 0.5.0 to 0.5.1 version, the new shadow row, the digest). Not
   committed by this session on purpose: the file holds both sessions' uncommitted work.
 
+- 2026-11-01, defect in `monochromatic-pnpm-shadow` 0.1.0 found by the toolchain session (`monochromatic-6e`) and fixed in the tree:
+  - What 6e measured: after `toolchain:install` linked the shadow as `pnpm` through a launcher (an ELF that `mpm-shadow` writes for
+    every postinstall link), `pnpm --version` exited 126 with "pnpm-shadow: could not start .../pnpm-shadow-bin/pnpm: Res...", and
+    `pnpm root` and `pnpm --help` ran past a 60-second timeout. 6e disabled the link and took the PATH entry out; the plan row and the
+    lock row 0.1.0 stay.
+  - Cause: the shadow skips PATH candidates whose resolved path equals its own executable path. The link resolves to the
+    launcher, a different file, so the shadow took its own link as the real pnpm and started itself again: an endless exec chain, and
+    on the version and help path (a child process) nested children until the process limit. My tests had linked the binary directly,
+    never through a launcher.
+  - Fix, commits `fix(pnpm-shadow/cli)` (loop guard) and `fix(pnpm-shadow/cli)` (notice handshake), README section "Launchers and the
+    loop guard": each instance records the resolved path of the candidate it picks in the environment value `PNPM_SHADOW_GUARD`, and
+    the instance that candidate starts skips every recorded path, so the chain ends at the real pnpm; hard limit of eight hops. The value
+    is bound to a process (an exec guard to the process with the writer's id, a spawn guard to the writer's direct child), so a script
+    that the real pnpm runs never inherits it; an instance started by another does not warn again; for version and help the
+    innermost instance prints the notice and leaves a marker file named for the outer instance's process id in `XDG_RUNTIME_DIR`,
+    which the outer instance claims and stays silent (without that variable a launcher chain prints the notice twice).
+    6e suggested skipping every candidate in the directory the shadow was found in; that needs the invoked path, and argv[0] is the
+    bare word `pnpm` when the shell finds the link on PATH, so the guard records resolved candidates instead.
+  - Tests (68 pass, clippy clean): a launcher world (a bash script that runs the shadow under the name `pnpm`) for the exec and the
+    spawn path, a violation warning exactly once, a pnpm that runs `pnpm` again still finding the real one, and a launcher with no real
+    pnpm behind it ending with 127; plus unit tests of the guard text, the process binding, the skip list and the marker.
+    The tests were first wrong in their harness: `timeout` was not found because the child `PATH` held only the shadow and fake
+    directories (fixed with its absolute path).
+  - Proof that the tests can fail (rule on guard tests): in a podman container with `--memory=2g --cpus=2 --pids-limit=200`, inputs
+    baked in from `git archive HEAD`, with `is_meant_for` rewritten to always return false (`~/temp/agent/ps-guard-proof.ts`, log
+    `ps-guard-proof/run.log`), both launcher tests failed: "the exec path looped" (exit 124, killed by `timeout`) and the warning
+    count 9326 against the expected 1. Nothing ran on the host.
+  - Latency after the guard, paired medians against real pnpm 12.16.1 (`~/temp/agent/pnpm-shadow-pairs.ts`, 100 pairs): on a host that
+    other sessions loaded heavily (real medians up to 184.6 ms, several spreads of 13 ms to 60 ms) only `install --help` was clean
+    (+0.78 ms, p10 to p90 -1.7 to +3.3 ms, the same as before the guard); `--version` +1.48 ms and `root` -0.64 ms had spreads far above
+    those values and prove nothing either way.
+  - Not yet done: the fix is not released. 0.1.0 on crates.io and in the GitHub release is immutable and still carries the defect, so
+    a fixed release is a new version, 0.1.1. `monochromatic-6e` asked to be told when a fixed release is out, then puts the PATH entry back
+    and re-runs `command -v pnpm` plus `pnpm --version`, `root` and `--help` with timeouts.
+- 2026-11-01, `monochromatic-8c` said pushes may fail before `git push` with a `git-lfs` batch HTTP 503 since cli-git 0.5.1 (about 22 batch
+  requests per push, the server answers some with an intermittent 503); commits stay local and go out with the next successful push; a
+  0.5.2 hotfix is being built; `--no-verify` and `GIT_LFS_SKIP_PUSH=1` must not be used for pushes that add LFS files. Seen from here:
+  eight local commits ahead of `origin/main`, one of them mine (the README commit), the rest merges from other sessions.
+
+- 2026-11-01, after a system reboot (the waiter on the 0.1.1 release was stopped by it): the user answered "Release 0.1.1 now" and the
+  version bump is committed, `6751b15dbc` (`Cargo.toml` and `Cargo.lock` change by exactly the two version lines), and survived the
+  reboot. It is not on `origin/main`: 69 local commits, mostly other sessions', are ahead of it because pushes fail with the
+  cli-git 0.5.1 regression (`git-lfs push --all` sends about 22 batch requests and the LFS server answers some with HTTP 503).
+  A manual `git push origin main` at 10:12 local time failed the same way: "git-lfs push exited with status 2, so this push was not
+  started and nothing was published". No bypass was used: `--no-verify` and `GIT_LFS_SKIP_PUSH=1` would publish pointers without
+  objects, and 8c asked that they not be used for pushes that add LFS files.
+  What clears it: the cli-git 0.5.2 hotfix that 8c is building (bounded upload, retry on 5xx) and its lock bump, or a push that
+  happens to succeed. When any push lands, `6751b15dbc` goes with it, the path filter of `cargo-publish.yml` starts the release
+  (`ps-detect` sees 0.1.0 to 0.1.1), and Trusted Publishing publishes and creates the release `monochromatic-pnpm-shadow-v0.1.1`.
+  The waiter `~/temp/agent/wait-shadow-release-011.ts` (90-minute deadline) was restarted and ends at the full result.
+  Then: tell the toolchain session, which asked to be told when a fixed release is out so it can put the PATH entry back and
+  re-run `command -v pnpm`, `pnpm --version`, `pnpm root` and `pnpm --help` with timeouts, and then install 0.1.1 from the lock
+  (its `toolchain:update` row). After the reboot `ListAgents` showed no `monochromatic-6e` or `monochromatic-8c`; the peers were
+  `monochromatic-2a` and `monochromatic-6c`, and which of them owns the toolchain was not known, so no status was sent; a message to
+  the stale socket of 6e failed with ENOENT. Ask the user, or read `ListAgents` again, for the current owner before sending.
+
+- 2026-11-01, `monochromatic-pnpm-shadow` 0.1.1 released (the waiter ended with the full result): `6751b15dbc` reached `origin/main`
+  after the git-lfs 503 cleared, crates.io lists 0.1.1, and the release `monochromatic-pnpm-shadow-v0.1.1` has the x86_64 and
+  aarch64 Linux archives and a sha256sums file; the latest push-triggered `cargo-publish.yml` run (41320323471, headed by
+  `11ad7efdf7`) succeeded.
+  - Consumer check on the published archive: `cargo-binstall --no-confirm --disable-strategies compile --version 0.1.1` installed
+    `pnpm-shadow 0.1.1` in 3.96 s. Behind a launcher with a fake pnpm after it (`~/temp/agent/ps-published-launcher-check.ts`, each
+    run under `timeout 30`): `install` exit 0 with one warning block; `--version` exit 0 with pnpm's line and one notice naming the
+    fake pnpm; `root` exit 0 with no warning; `nested` (a pnpm that runs `pnpm` again) reached the real pnpm. No loop.
+  - Told the two peers listed after the reboot (`monochromatic-2a`, `monochromatic-6c`), each message addressed to whichever of them
+    owns the toolchain, because which one does was not known. Still the toolchain owner's: lock 0.1.1, put `.cache/pnpm-shadow-bin`
+    back ahead of `.cache/toolchain-bin`, and check `command -v pnpm`, `pnpm --version`, `root` and `--help` with timeouts.
+
 ## Open items
 
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
-- Done: `pnpm-shadow` built, tested, published, released with archives and installed from the archive as a consumer.
-- Waiting on `monochromatic-6e`: it staged the plan row and the link (uncommitted), holds the install and the commit until 8c
-  commits, then checks `command -v pnpm`, `pnpm --version` and `pnpm root` and reports.
-- Done by the user's answer ("Yes, bump to 0.5.1 now"): the cli-git 0.5.1 bump is in the working-tree lock; its commit is 6e's, together
-  with the shadow row, because both rows share one generated lock.
+- Done: `pnpm-shadow` 0.1.1 built, tested, published, released with archives, installed from the archive as a consumer, and shown
+  not to loop behind a launcher (the 0.1.0 defect), on the published binary and on the test build.
+- Waiting on the toolchain owner (the earlier owner, `monochromatic-6e`, was replaced after the reboot; both current peers were
+  told, each conditionally): lock 0.1.1, put `.cache/pnpm-shadow-bin` back on PATH ahead of `.cache/toolchain-bin`, then check
+  `command -v pnpm`, and `pnpm --version`, `root` and `--help` with timeouts. The link was disabled after 0.1.0 looped.
+- Done by the user's answer ("Yes, bump to 0.5.1 now"): read with `git show HEAD:toolchain.lock.json | jq` after the reboot, the
+  committed lock names cli-git 0.5.1 and the `cargo:monochromatic-pnpm-shadow` row at 0.1.0 (so 0.1.1 is not locked yet).
+- Push state after the reboot: the handover commit `07c02186b1` was saved locally and its auto-push failed with the git-lfs 503
+  ("commit saved locally, but auto-push to origin failed"); the earlier release commit had already gone out with a push that worked.
 - For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
 - For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
 - Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
@@ -1018,5 +1090,5 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for `monochromatic-6e`'s report that the shadow is installed and linked as `pnpm` and that `pnpm --version` and `pnpm root` behave as the
-README says; check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.
+Wait for the toolchain owner's report that 0.1.1 is locked, the shadow is back on PATH as `pnpm`, and `pnpm --version`, `root` and `--help`
+behave as the README says; then check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.

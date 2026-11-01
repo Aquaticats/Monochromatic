@@ -83,7 +83,8 @@ directly.
     which is `main` after the bump.
 5.  The person runs the crate's `release:wait` task with the run URL and the version.
     It follows the release run,
-    finds the publish run that it started,
+    finds the publish run that it started
+    (the earliest run built from a commit that holds the released version),
     follows that,
     and checks crates.io and the GitHub release.
 
@@ -297,8 +298,16 @@ The command
     because a failed release run starts no publish;
 2.  reads when the release run was created,
     and finds the publish run:
-    the earliest manually started run of `cargo-publish.yml` created at or after it,
-    so a manual publish dry run started earlier is never taken for it;
+    the earliest manually started run of `cargo-publish.yml` created at or after it
+    and built from a commit whose `Cargo.toml` of the crate holds `<version>`,
+    read with `gh api` at each candidate commit, oldest first.
+    A publish run that someone else dispatched in the same window on a commit before the bump
+    holds the previous version, so it is never taken for this release's run.
+    Before the bump lands no commit holds `<version>`, and the release dispatches the publish on `main` after it,
+    so the commit is the bump or a later one.
+    The run listing does not say which crate a run publishes,
+    so a dispatch for another crate made on `main` after the bump and before the release's own dispatch cannot be told apart.
+    When no run matches, the last result lists every run seen and why it was passed over;
 3.  watches the publish run,
     then checks crates.io for `<version>` and the GitHub release for the expected assets,
     as the wait command does.

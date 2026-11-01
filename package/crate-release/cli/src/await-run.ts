@@ -6,17 +6,21 @@ import {
 } from './constants.ts';
 import type { AwaitOptions } from './await-options.ts';
 import {
+  foundValue,
   type Lookup,
   missingValue,
 } from './lookup.ts';
+import { CrateReleaseError } from './error.ts';
+import { readPackageVersion } from './package-version.ts';
 import { describeDuration } from './publish-results.ts';
+import { selectPublishRun } from './publish-run-selection.ts';
 import {
   type DispatchedRun,
   parseRunCreatedAt,
-  selectDispatchedRun,
 } from './run-results.ts';
 import {
   buildDispatchedRunListArguments,
+  buildManifestContentsArguments,
   buildRunViewArguments,
   buildRunWatchArguments,
 } from './service-arguments.ts';
@@ -36,6 +40,86 @@ type LookInput = {
   readonly sleep: (milliseconds: number) => Promise<void>;
   readonly notBefore: string;
 };
+
+/**
+ Build the `gh api` arguments that read the crate's manifest at a commit.
+
+ @param options - validated await options
+
+ @param sha - commit to read the manifest at
+
+ @returns the arguments, or a miss that carries the refusal when the commit is not a hash the API could have written
+
+ @example
+ ```ts
+ manifestReadArguments({ options, sha: 'abc1234' });
+ ```
+ */
+function manifestReadArguments({
+  options,
+  sha,
+}: {
+  readonly options: AwaitOptions;
+  readonly sha: string;
+}): Lookup<readonly string[]> {
+  try {
+    return foundValue(buildManifestContentsArguments({
+      manifestPath: options.manifestPath,
+      sha,
+      ...repositoryScope(options)
+    }));
+  }
+  catch (error) {
+    if (error instanceof CrateReleaseError)
+      return missingValue(error.message);
+    throw error;
+  }
+}
+
+/**
+ Read the version a commit holds in the crate's manifest.
+
+ @param options - validated await options
+
+ @param run - runs a program call and reports its status and output
+
+ @param sha - commit to read the manifest at
+
+ @returns the version, or a miss that carries the reason `gh` or the manifest gave
+
+ @example
+ ```ts
+ await readManifestVersion({ options, run, sha: 'abc1234' });
+ ```
+ */
+async function readManifestVersion({
+  options,
+  run,
+  sha,
+}: {
+  readonly options: AwaitOptions;
+  readonly run: WaitRunner;
+  readonly sha: string;
+}): Promise<Lookup<string>> {
+  /**
+   The arguments of the read, or why the commit is not a hash the API could have written.
+   */
+  const args = manifestReadArguments({
+    options,
+    sha
+  });
+  if (!args.found)
+    return args;
+  /**
+   Answer of `gh api`.
+   */
+  const contents = await run({
+    program: ghProgram,
+    args: args.value,
+    cwd: options.root,
+  });
+  return contents.status === 0 ? readPackageVersion(contents.stdout) : missingValue(failureReason(contents));
+}
 
 /**
  Look for the publish run that the release run started, from one attempt on, sleeping between attempts.
@@ -86,9 +170,18 @@ async function findPublishRun({
    The publish run, when the listing succeeded and holds it.
    */
   const lookup: Lookup<DispatchedRun> = listing.status === 0
-    ? selectDispatchedRun({
+    ? await selectPublishRun({
       listing: listing.stdout,
-      notBefore
+      notBefore,
+      version: options.version,
+      manifestPath: options.manifestPath,
+      readVersion: async function readVersionAt(sha) {
+        return await readManifestVersion({
+          options,
+          run,
+          sha
+        });
+      }
     })
     : missingValue(failureReason(listing));
   if (lookup.found || (attempt >= options.attempts))
@@ -140,8 +233,9 @@ async function releaseRunCreatedAt({
 
  The release run is watched to its end first. When it fails, the publish run is never looked for, because a failed
  release run starts none; the report names the run so its log can be read. When it succeeds, the publish run is the
- earliest manually started run of the publish workflow created at or after the release run, so another publish run
- cannot be taken for it.
+ earliest manually started run of the publish workflow that was created at or after the release run and was built from
+ a commit whose crate manifest holds the version being released (see `selectPublishRun`), so a publish run that
+ someone else dispatched in the same window on another commit cannot be taken for it.
 
  @param options - validated await options
 

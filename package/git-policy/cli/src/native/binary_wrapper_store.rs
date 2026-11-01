@@ -9,7 +9,7 @@
 //!  a wave of 169 tests wrote about 3.7 GB (169 times 21.9 MB) within seconds, on the volume that every other command of
 //!  those tests syncs to; the failing runs that carried the "no hard link" message hit the shared 5-second bound.
 //!  The copy is published without a lock:
-//!  each caller that finds no stored copy writes its own uniquely named partial file and links it to the final name,
+//!  each caller that finds no stored copy writes its own exclusively created partial file and links it to the final name,
 //!  which fails if another caller published first, so the final name is only ever a complete file and the first
 //!  publisher wins.
 //!  Callers that start together may each write a partial copy once per build; every later caller finds the final file.
@@ -38,17 +38,24 @@ pub const PARTIAL_PREFIX: &str = ".partial-";
 
 /// How long a copy of another build must go unlinked before a publisher removes it. Each fixture's link changes the
 ///  copy's status-change time, so the age is the time since a fixture last linked it; a run that links a copy does so
-///  within seconds of finding it, far inside this.
+///  within seconds of finding it, far inside this. A copy that a fixture still links is never removed, and a link that
+///  arrives during the removal keeps the copy (`remove_idle_builds_at`).
 pub const IDLE_BUILD_AGE: Duration = Duration::from_secs(24 * 3600);
 
 /// How many times a caller asks for the stored copy when the link finds it gone.
 const LINK_ATTEMPTS: usize = 3;
 
-/// The number of partial files this process has started, which keeps their names unique.
+/// How many partial names a caller tries before it gives up; each failed name belonged to a file that already existed.
+pub const RESERVE_ATTEMPTS: usize = 64;
+
+/// The number of partial names this process has tried, which keeps its own names apart from each other.
 static PARTIALS_STARTED: AtomicUsize = AtomicUsize::new(0);
 
-/// The stored name of the built executable, read once per process.
-static BUILD_NAME: OnceLock<String> = OnceLock::new();
+/// What reading a build's name came to: the name, or the kind and text of the error that stopped the read.
+pub type BuildName = Result<String, (std::io::ErrorKind, String)>;
+
+/// The stored name of the built executable, read once per process, an error included.
+static BUILD_NAME: OnceLock<BuildName> = OnceLock::new();
 
 /// How many bytes one read takes, so a build of any size is hashed in bounded memory.
 const CHUNK_BYTES: usize = 1 << 20;
@@ -82,13 +89,30 @@ pub fn content_name(path: &Path) -> std::io::Result<String> {
     return Ok(format!("{:016x}-{length}-cli-git-native", hasher.finish()));
 }
 
+/// What:
+///  The outcome of `compute` for `cell`, which runs `compute` once however many callers arrive together.
+/// Why:
+///  Every caller that found the cell empty used to hash the whole 22 MB executable before the first result was
+///  stored, so a wave of fixtures that start together read it once each. `OnceLock::get_or_init` holds the other
+///  callers until the first one's `compute` returns, so exactly one read happens. A read that failed is the outcome
+///  for the rest of the process (an unreadable build rarely becomes readable within a test run), and the callers of
+///  a failed read fall back to a private copy of their own, which is slower but never stuck.
+///
+/// # Errors
+///  When `compute` failed, in this caller or an earlier one.
+pub fn name_once(
+    cell: &OnceLock<BuildName>,
+    compute: impl FnOnce() -> std::io::Result<String>,
+) -> std::io::Result<String> {
+    return cell
+        .get_or_init(|| { return compute().map_err(|error| { return (error.kind(), error.to_string()); }); })
+        .clone()
+        .map_err(|(kind, message)| { return std::io::Error::new(kind, message); });
+}
+
 /// The name of the build `built`, read once per process.
 fn build_name(built: &Path) -> std::io::Result<String> {
-    if let Some(known) = BUILD_NAME.get() {
-        return Ok(known.clone());
-    }
-    let computed: String = content_name(built)?;
-    return Ok(BUILD_NAME.get_or_init(|| { return computed; }).clone());
+    return name_once(&BUILD_NAME, || { return content_name(built); });
 }
 
 /// What:
@@ -97,24 +121,37 @@ fn build_name(built: &Path) -> std::io::Result<String> {
 ///  Fixtures on `root`'s filesystem link this file. The partial copy is read back and must have the build's name
 ///  before it is linked to the stored name, never renamed over it, so a caller that loses the race leaves the
 ///  winner's file alone and uses it, and a copy made from a build that changed under the caller is never published.
-///  Copies of other builds that no fixture has linked for `IDLE_BUILD_AGE` are removed once a new copy stands.
+///  Copies of other builds that no fixture has linked for `IDLE_BUILD_AGE` are removed once a new copy stands, unless a
+///  fixture links one while it is being removed (`remove_idle_builds_at`).
 ///
 /// # Errors
 ///  When the store cannot be created or written, the copy fails, or the copy does not have the build's name.
 pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
+    let name: String = build_name(built)?;
+    return shared_copy_named(built, name.as_str(), root, &|| {});
+}
+
+/// What:
+///  `shared_copy` for a build whose `name` is known, with `before_publish` run after the copy is complete and checked
+///  and before it is linked to the stored name.
+/// Why:
+///  A control that needs several callers to hold finished partial copies at the same moment, so that all of them
+///  publish against each other, blocks them in `before_publish` until all have arrived; a small file can then stand
+///  for the build, and the name need not come from the process-wide cell.
+///
+/// # Errors
+///  The errors of `shared_copy`.
+pub fn shared_copy_named(built: &Path, name: &str, root: &Path, before_publish: &dyn Fn()) -> std::io::Result<PathBuf> {
     let store: PathBuf = root.join(STORE_DIRECTORY);
     std::fs::create_dir_all(&store)?;
-    let name: String = build_name(built)?;
-    let stored: PathBuf = store.join(&name);
+    let stored: PathBuf = store.join(name);
     if stored.exists() {
         return Ok(stored);
     }
-    let partial: PathBuf = store.join(format!(
-        "{PARTIAL_PREFIX}{}-{}",
-        std::process::id(),
-        PARTIALS_STARTED.fetch_add(1, Ordering::SeqCst)
-    ));
+    let partial: PathBuf = reserve_partial(store.as_path(), &PARTIALS_STARTED)?;
     super::support::copy_executable(built, partial.as_path());
+    // `cp` into an existing file keeps that file's mode, so the build's mode is applied after the copy.
+    std::fs::set_permissions(&partial, std::fs::metadata(built)?.permissions())?;
     if content_name(partial.as_path())? != name {
         let _ = std::fs::remove_file(&partial);
         return Err(std::io::Error::other(format!(
@@ -122,9 +159,42 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
             built.display()
         )));
     }
+    before_publish();
     publish(partial.as_path(), stored.as_path())?;
     remove_idle_builds(store.as_path(), stored.as_path(), IDLE_BUILD_AGE);
     return Ok(stored);
+}
+
+/// What:
+///  Create an empty partial file under a name no file in `store` has, and return its path.
+/// Why:
+///  A name made of the process identifier and a counter is unique in one process but not across processes: a
+///  process identifier is reused after a crash and repeats in another PID namespace that shares the store, and a
+///  partial file left by a caller that died after linking it to the final name but before removing it is the
+///  published file under a second name. Opening such a name for writing, as the copy does, would truncate the
+///  published executable under the fixtures that run it. Creating the name exclusively (`create_new`, `O_EXCL`)
+///  fails on every existing name, so the caller takes the next counter value; no lock is involved.
+///  The copy then writes into the empty file this created.
+///
+/// # Errors
+///  When the file cannot be created for another reason than its name existing, or every name tried exists.
+pub fn reserve_partial(store: &Path, counter: &AtomicUsize) -> std::io::Result<PathBuf> {
+    for _ in 0..RESERVE_ATTEMPTS {
+        let candidate: PathBuf = store.join(format!(
+            "{PARTIAL_PREFIX}{}-{}",
+            std::process::id(),
+            counter.fetch_add(1, Ordering::SeqCst)
+        ));
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
+            Ok(_) => return Ok(candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    }
+    return Err(std::io::Error::other(format!(
+        "every one of {RESERVE_ATTEMPTS} partial names in {} exists",
+        store.display()
+    )));
 }
 
 /// What:
@@ -179,29 +249,91 @@ pub fn link_stored(
     )));
 }
 
-/// Remove every finished copy in the store except `keep` that no fixture has linked for `idle`, and partial files
-///  that old (a dead caller's); a name that cannot be removed stays. A younger partial file, a live caller's, is
-///  never touched.
+/// The seconds since the Unix epoch now, or zero when the clock is before it (then nothing is old enough to remove).
+fn now_seconds() -> i64 {
+    return std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| { return i64::try_from(since.as_secs()).unwrap_or(i64::MAX); });
+}
+
+/// What:
+///  Remove every finished copy in the store except `keep` that no fixture holds a link to and that has gone unlinked
+///  for `idle`, and partial files that old (a dead caller's).
+/// Why:
+///  A younger partial file belongs to a live caller and is never touched, and a name that cannot be removed stays.
+///  Each link of a fixture changes the copy's status-change time, so the age is the time since a fixture last linked
+///  or unlinked it. `remove_idle_builds_at` says how a link that arrives while the removal is under way is kept.
 pub fn remove_idle_builds(store: &Path, keep: &Path, idle: Duration) {
+    remove_idle_builds_at(store, keep, idle, now_seconds(), &mut |_| {});
+}
+
+/// What:
+///  `remove_idle_builds` judging ages at `now` (seconds since the Unix epoch), with `after_decision` run with the path
+///  of each finished copy between the decision to remove it and the removal.
+/// Why:
+///  A copy is removed only if its status-change time is `idle` or more before `now` and its only name is the store's
+///  (no fixture holds a link, and removing the name is what frees the disk). The decision is made from a status read
+///  that a fixture's link can follow, and a lock-free removal cannot make the read and the unlink one step, so the
+///  name is first renamed to a name nobody asks for and the link count is read again: a count that grew means a
+///  fixture linked in between, and the name is linked back. A caller that asks for the copy while its name is away
+///  finds nothing and publishes another copy (`link_stored` asks again), so the worst outcome of the narrow window
+///  that remains is one extra copy, never a fixture without its wrapper. `after_decision` lets a control link a
+///  fixture at exactly that moment.
+pub fn remove_idle_builds_at(store: &Path, keep: &Path, idle: Duration, now: i64, after_decision: &mut dyn FnMut(&Path)) {
     use std::os::unix::fs::MetadataExt;
     let Ok(entries) = std::fs::read_dir(store) else {
         return;
     };
-    let now: i64 = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| { return i64::try_from(since.as_secs()).unwrap_or(i64::MAX); });
     let idle_seconds: i64 = i64::try_from(idle.as_secs()).unwrap_or(i64::MAX);
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
-        let is_partial: bool = entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX);
-        let idle_long_enough: bool = entry
-            .metadata()
-            .is_ok_and(|metadata| { return now.saturating_sub(metadata.ctime()) >= idle_seconds; });
-        if (is_partial || path != keep) && idle_long_enough
-            && let Err(error) = std::fs::remove_file(&path)
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            eprintln!("wrapper store: could not remove {} ({error})", path.display());
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if now.saturating_sub(metadata.ctime()) < idle_seconds {
+            continue;
+        }
+        if entry.file_name().to_string_lossy().starts_with(PARTIAL_PREFIX) {
+            remove_name(&path);
+        } else if path != keep && metadata.nlink() == 1 {
+            after_decision(path.as_path());
+            remove_copy_nobody_linked(store, path.as_path());
         }
     }
+}
+
+/// Remove the name `path`, saying so when that fails for another reason than its being gone already.
+fn remove_name(path: &Path) {
+    if let Err(error) = std::fs::remove_file(path)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        eprintln!("wrapper store: could not remove {} ({error})", path.display());
+    }
+}
+
+/// Remove the finished copy `path` unless a fixture linked it since its link count was read as one; then its name
+///  stays. See `remove_idle_builds_at`.
+fn remove_copy_nobody_linked(store: &Path, path: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    let away: PathBuf = match reserve_partial(store, &PARTIALS_STARTED) {
+        Ok(reserved) => reserved,
+        Err(error) => {
+            eprintln!("wrapper store: could not set {} aside ({error})", path.display());
+            return;
+        }
+    };
+    if let Err(error) = std::fs::rename(path, &away) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            eprintln!("wrapper store: could not set {} aside ({error})", path.display());
+        }
+        remove_name(&away);
+        return;
+    }
+    if std::fs::metadata(&away).is_ok_and(|metadata| { return metadata.nlink() != 1; })
+        && let Err(error) = std::fs::hard_link(&away, path)
+        && error.kind() != std::io::ErrorKind::AlreadyExists
+    {
+        eprintln!("wrapper store: could not restore {} ({error})", path.display());
+    }
+    remove_name(&away);
 }

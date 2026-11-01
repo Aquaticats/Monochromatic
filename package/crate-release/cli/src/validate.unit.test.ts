@@ -10,6 +10,7 @@ import {
   parseCommitScope,
   parseCrateName,
   parseManifestPath,
+  parseRepository,
   parseRepositoryPath,
   parseSha,
   parseSystemdValue,
@@ -99,6 +100,14 @@ await describe({
         parse: parseManifestPath,
         accepted: ['Cargo.toml', 'package/x.fuzz/Cargo.toml', 'package/a b/Cargo.toml'],
         rejected: ['', 'package/x/Other.toml', 'package/x/Cargo.toml.bak', 'package/x/MyCargo.toml', '../x/Cargo.toml', '/abs/Cargo.toml', 'a//Cargo.toml'],
+      }),
+    }),
+    describe({
+      name: parseRepository.name,
+      children: textCases({
+        parse: parseRepository,
+        accepted: ['o/n', 'Aquaticat/Monochromatic', 'a.b/c_d-e'],
+        rejected: ['', 'o', 'o/n/x', '-o/n', 'o/-n', 'o/', '/n', '../n', 'o/..', './n', 'o/.', 'o/n?x=1', 'o /n', 'o/n\n'],
       }),
     }),
     describe({
