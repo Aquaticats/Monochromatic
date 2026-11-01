@@ -6,13 +6,17 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::cargo_installs::{current_link, version_directory};
 use super::fixtures::sample_lock;
 use super::layout::{
     applies_to_family, bin_search_dirs, find_bin_under, find_tool_bin, install_dir_name, is_executable,
     manager_native_bin_dirs, platform_id, tool_directory, tool_install_dir,
 };
 use super::model::{LockedTool, OsFamily};
-use super::scope::{EnvMap, ScopeKind, find_repo_root, global_scope, home_dir, repo_scope, resolve_scope};
+use super::scope::{
+    EnvMap, EXPOSURE_DIR_RELATIVE, LOCK_FILE_NAME, PLAN_FILE_NAME, ScopeKind, find_repo_root, global_scope, home_dir, repo_scope,
+    resolve_scope,
+};
 use crate::test_scratch::scratch;
 
 fn sample_tool(id: &str) -> LockedTool {
@@ -70,10 +74,10 @@ fn the_repository_scope_puts_plan_lock_and_payloads_where_the_ide_and_ci_expect(
     let env = EnvMap::from_pairs(&[("HOME", "/home/someone")]);
     let scope = repo_scope(Path::new("/work/tree"), &env).expect("a scope");
     assert_eq!(scope.kind, ScopeKind::Repo);
-    assert_eq!(scope.plan_file, PathBuf::from("/work/tree/toolchain.plan.jsonc"));
-    assert_eq!(scope.lock_file, PathBuf::from("/work/tree/toolchain.lock.json"));
-    assert_eq!(scope.exposure_dir, PathBuf::from("/work/tree/.cache/toolchain-bin"));
-    assert_eq!(scope.exposure_dir_relative, ".cache/toolchain-bin");
+    assert_eq!(scope.plan_file, Path::new("/work/tree").join(PLAN_FILE_NAME));
+    assert_eq!(scope.lock_file, Path::new("/work/tree").join(LOCK_FILE_NAME));
+    assert_eq!(scope.exposure_dir, Path::new("/work/tree").join(EXPOSURE_DIR_RELATIVE));
+    assert_eq!(scope.exposure_dir_relative, EXPOSURE_DIR_RELATIVE);
     assert_eq!(scope.link_dir, PathBuf::from("/work/tree/.cache/cli-git-bin"));
     assert_eq!(scope.toolchain_root, PathBuf::from("/home/someone/.local/share/monochromatic-dev/toolchain"));
     assert_eq!(scope.toolchain_bin_dir, PathBuf::from("/home/someone/.local/share/monochromatic-dev/toolchain/bin"));
@@ -87,7 +91,7 @@ fn xdg_variables_move_the_data_and_config_directories() {
     let global = global_scope(&env).expect("a scope");
     assert_eq!(global.kind, ScopeKind::Global);
     assert_eq!(global.root, PathBuf::from("/config/monochromatic-dev/toolchain"));
-    assert_eq!(global.plan_file, PathBuf::from("/config/monochromatic-dev/toolchain/toolchain.plan.jsonc"));
+    assert_eq!(global.plan_file, Path::new("/config/monochromatic-dev/toolchain").join(PLAN_FILE_NAME));
     assert_eq!(global.toolchain_root, PathBuf::from("/data/monochromatic-dev/toolchain-global"));
     assert_eq!(global.exposure_dir, PathBuf::from("/data/monochromatic-dev/toolchain-global/exposure"));
     assert_eq!(global.exposure_dir_relative, "exposure");
@@ -114,7 +118,7 @@ fn the_repository_root_is_found_from_a_subdirectory_or_the_override() {
     let root = directory.path().join("tree");
     let nested = root.join("package").join("deep");
     fs::create_dir_all(&nested).expect("make directories");
-    fs::write(root.join("toolchain.plan.jsonc"), "{}").expect("write the plan");
+    fs::write(root.join(PLAN_FILE_NAME), "{}").expect("write the plan");
     let env = EnvMap::from_pairs(&[("HOME", "/h")]);
     assert_eq!(find_repo_root(&nested, &env).expect("found"), root);
     let overridden = env.with("MONOCHROMATIC_WORKTREE_ROOT", "/elsewhere");
@@ -122,7 +126,7 @@ fn the_repository_root_is_found_from_a_subdirectory_or_the_override() {
     let lonely = directory.path().join("lonely");
     fs::create_dir_all(&lonely).expect("make the directory");
     let error = find_repo_root(&lonely, &env).expect_err("no plan anywhere above");
-    assert!(error.message.contains("toolchain.plan.jsonc"), "{error}");
+    assert!(error.message.contains(PLAN_FILE_NAME), "{error}");
 }
 
 #[test]
@@ -160,12 +164,12 @@ fn each_route_searches_its_own_directories() {
     let root = scope.toolchain_root.clone();
     assert_eq!(
         bin_search_dirs(&sample_tool("cargo:fd-find"), &scope, &env, &[]),
-        vec![root.join("cargo").join("fd-find").join("1.2.3").join("bin")],
+        vec![version_directory(&root, "fd-find", "1.2.3").join("bin")],
         "a third-party crate is searched in its locked version's own root, never in $CARGO_HOME/bin"
     );
     assert_eq!(
         bin_search_dirs(&sample_tool("cargo:monochromatic-mpm-shadow"), &scope, &env, &[]),
-        vec![root.join("cargo").join("monochromatic-mpm-shadow").join("current").join("bin")],
+        vec![current_link(&root, "monochromatic-mpm-shadow").join("bin")],
         "a repository-published crate is searched through its current link"
     );
     assert_eq!(bin_search_dirs(&sample_tool("node"), &scope, &env, &[]), vec![root.join("node").join("1.2.3")]);
@@ -238,7 +242,7 @@ fn find_tool_bin_looks_in_the_route_directories_of_the_scope() {
         None,
         "the shared cargo home is not searched for a cargo-binstall tool"
     );
-    let own_root = scope.toolchain_root.join("cargo").join("fd-find").join("1.2.3").join("bin").join("fd");
+    let own_root = version_directory(&scope.toolchain_root, "fd-find", "1.2.3").join("bin").join("fd");
     write_executable(&own_root);
     assert_eq!(find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]), Some(own_root));
 }
