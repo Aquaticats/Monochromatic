@@ -65,7 +65,8 @@ pub const CURRENT_LINK_NAME: &str = "current";
 /// What:
 /// Whether a tool is published by this repository:
 /// a `cargo-binstall` tool whose crate name starts with `monochromatic-`,
-/// or an `archive` tool whose `options.tagPrefix` starts with it (a release archive of this repository,
+/// or an `archive` tool of the request `github:Aquaticats/Monochromatic` whose `options.tagPrefix` starts with it
+/// (a release archive of this repository,
 /// such as `mpm-shadow` itself).
 /// Why:
 /// This repository names every crate it publishes that way (`OWN_CRATE_PREFIX`,

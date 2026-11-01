@@ -142,6 +142,20 @@ fn only_an_archive_tool_with_a_repository_tag_prefix_is_repository_published() {
     wrong_route.declaration.route = Route::BinSourced;
     assert!(!is_repository_published(&wrong_route), "the prefix only counts on the archive route");
 
+    let mut other_repository = release_tool(&rig, "0.2.0");
+    other_repository.declaration.request = Request::parse("github:other-owner/Monochromatic@latest").expect("parses");
+    assert!(!is_published_archive(&other_repository), "the prefix of another repository's tool does not make it this repository's");
+    assert!(!is_repository_published(&other_repository));
+
+    for spelling in ["github:aquaticats/monochromatic@latest", "github:Aquaticats/Monochromatic-fork@latest", "github:Aquaticats/Monochromatic2@latest"] {
+        let mut near_miss = release_tool(&rig, "0.2.0");
+        near_miss.declaration.request = Request::parse(spelling).expect("parses");
+        assert!(!is_published_archive(&near_miss), "{spelling}: the repository is matched exactly as the plan writes it");
+    }
+    let mut pinned = release_tool(&rig, "0.2.0");
+    pinned.declaration.request = Request::parse("github:Aquaticats/Monochromatic@0.2.0").expect("parses");
+    assert!(is_published_archive(&pinned), "the range of the request does not matter");
+
     let mut crate_with_prefix = rig.tool("cargo:fd-find");
     crate_with_prefix.declaration.options.tag_prefix = Some(PREFIX.to_string());
     assert!(!is_repository_published(&crate_with_prefix), "a third-party crate is decided by its crate name");
@@ -318,7 +332,7 @@ fn a_launcher_is_made_from_proc_when_the_running_file_was_deleted() {
 /// with its prefix and first bin.
 pub(super) fn named_lock(version: &str) -> String {
     return format!(
-        "{{\"tools\":{{\"{ID}\":{{\"request\":\"github:o/r@latest\",\"version\":\"{version}\",\"route\":\"archive\",\"bins\":[\"{BIN}\"],\"options\":{{\"tagPrefix\":\"{PREFIX}\"}}}}}}}}"
+        "{{\"tools\":{{\"{ID}\":{{\"request\":\"github:Aquaticats/Monochromatic@latest\",\"version\":\"{version}\",\"route\":\"archive\",\"bins\":[\"{BIN}\"],\"options\":{{\"tagPrefix\":\"{PREFIX}\"}}}}}}}}"
     );
 }
 
@@ -328,6 +342,11 @@ fn a_lock_names_only_the_release_archives_of_this_repository() {
     assert_eq!(named.len(), 1);
     assert_eq!(named[ID].versions.iter().cloned().collect::<Vec<_>>(), vec!["0.2.1".to_string()]);
     assert_eq!(named[ID].first_bin, BIN);
+
+    let other_repository = named_lock("0.2.1").replace("Aquaticats/Monochromatic", "other/repo");
+    assert!(named_archives(&other_repository, "the lock").expect("reads").is_empty(), "a prefix of this repository's style on another repository's tool");
+    let no_request = named_lock("0.2.1").replace("\"request\":\"github:Aquaticats/Monochromatic@latest\",", "");
+    assert!(named_archives(&no_request, "the lock").expect("reads").is_empty(), "a lock entry without a request names nothing");
 
     let third_party = r#"{"tools":{"node":{"version":"26.0.0","route":"archive","bins":["node"]},
         "bin":{"version":"1.0.0","route":"archive","bins":["bin"],"options":{"tagPrefix":"other-v"}},
@@ -390,4 +409,41 @@ fn the_prune_command_removes_older_release_archives_a_lock_names_and_leaves_othe
     unnamed.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", unnamed.scope.root.display()), 0);
     assert!(prune_toolchain(&unnamed.scope, &unnamed.runner, &[], false).expect("pruned").is_empty());
     assert!(tool_directory(&unnamed.scope.toolchain_root, ID).expect("a plain name").join("0.2.0").is_dir());
+}
+
+/// The release-archive tool at `version`,
+/// but of another repository that tags its releases with this repository's style of prefix.
+fn other_repository_tool(rig: &Rig, version: &str) -> LockedTool {
+    let mut tool = release_tool(rig, version);
+    tool.declaration.request = Request::parse("github:other-owner/other-repo@latest").expect("parses");
+    return tool;
+}
+
+#[test]
+fn a_tool_of_another_repository_with_this_repositorys_style_of_prefix_keeps_its_versions_and_is_never_warned_about() {
+    let rig = Rig::new();
+    serve_releases(&rig, &["0.2.0", "0.2.1"]);
+    let root = rig.scope.toolchain_root.clone();
+    let old_lock = Lock { tools: vec![other_repository_tool(&rig, "0.2.0")] };
+    let new_lock = Lock { tools: vec![other_repository_tool(&rig, "0.2.1")] };
+
+    sync_tools(&context_of(&rig, &rig.scope, &old_lock), None);
+    let report = sync_tools(&context_of(&rig, &rig.scope, &new_lock), None);
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.0").is_dir(), "installing 0.2.1 removes no older version");
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.1").is_dir());
+    assert_eq!(running_version_archive(&root, ID), None, "no current link is made for it");
+
+    // A newer install does not satisfy an older pin as drift-free, and no warning names the tool.
+    let behind = observe_all(&context_of(&rig, &rig.scope, &old_lock), &old_lock.tools);
+    assert_eq!(behind[0].observed.as_deref(), Some("0.2.0"), "the locked version's own directory is what is read");
+    let warnings = older_lock_warnings(&rig.scope, &old_lock.tools, Some(OsFamily::Linux));
+    assert!(warnings.is_empty(), "{warnings:?}");
+
+    // The cleanup does not judge it, even when a known lock names it with the same prefix.
+    let named = named_lock("0.2.1").replace("Aquaticats/Monochromatic", "other-owner/other-repo");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), named).expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    assert!(prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned").is_empty());
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.0").is_dir());
 }
