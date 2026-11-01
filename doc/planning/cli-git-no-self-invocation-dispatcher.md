@@ -1,211 +1,185 @@
-# cli-git: no self-invocation, phase 2: the commit hook dispatcher
+# cli-git: no self-invocation, phase 2: the commit hook dispatcher, and then all external hooks
 
 This is the dispatcher section of the self-invocation ban, kept in its own file so merges stay clean.
 The pointer file `doc/planning/cli-git-no-self-invocation.md` belongs to the lfs and push phase.
+It records the decision, what was tried, what was measured, and the rollout order.
 
-The human owner's rule, quoted: "We should never invoke ourselves recursively. That's bad design. Audit, remove, and
-ban that design aggressively."
-A later correction, quoted: "What the hell, we don't have to use any shell!"
-So no generated script or shell text of ours, and Git never starts the wrapper for a hook.
+## The owner's words, in order
+
+- "We should never invoke ourselves recursively. That's bad design. Audit, remove, and ban that design aggressively."
+- "What the hell, we don't have to use any shell!"
+- On running configured hooks inside Git: "Git runs your configured hooks directly - no it shouldn't do that. We don't
+  need to reimplement git commit or use generated shell entries. There are better ways."
+- On who needs support: "No, not dropping preparation hook support. I didn't ask you to do that. I only asked you to
+  stop supporting OTHER PEOPLE's hooks."
+- The settled scope, chosen label: "B: Only hooks we declare, natively".
+  The wrapper supports no external hook command at all, anywhere.
+  Every lifecycle stage keeps working because the stages are the wrapper's own policies and actions, declared in
+  `cli-git.config.jsonc`; what an external hook did in this repository is ported in.
 
 ## What the dispatcher was
 
-For every commit the wrapper wrote a `hooks` directory inside the transaction directory.
-It held `plan.json` and, when the configuration could define a hook by name, three symbolic links named
-`pre-commit`, `prepare-commit-msg` and `commit-msg`, each pointing at the wrapper's own executable.
-The native `git commit` in the shadow repository ran with `-c core.hooksPath=<tx>/hooks` and with
-`-c hook.<event>.enabled=false` for all four commit events.
+For every commit the wrapper wrote a `hooks` directory inside the transaction directory with three symbolic links named
+`pre-commit`, `prepare-commit-msg` and `commit-msg`, each pointing at the wrapper's own executable, and ran the native
+`git commit` in the shadow with `-c core.hooksPath=<tx>/hooks`.
 Git found the link as the traditional hook of the event and started it, so Git started the wrapper.
 `main.rs` read `argv[0]`, and `hook_dispatch.rs` recognized the entry by its name, took the hook lock, restored
-`GIT_CONFIG_PARAMETERS`, exported the worktree root and the preparation lease, and ran
+`GIT_CONFIG_PARAMETERS`, exported the worktree root and a preparation lease, and ran
 `git hook run --ignore-missing <event>` with a second `core.hooksPath`.
-The pre-commit re-run after a replay used the same links.
+The `pre-commit` re-run after a replay and the post-landing `post-commit` used the same machinery.
+It was a self-invocation by design, with its own lock, environment restoration and failure modes.
 
-The self-invocation was a design property with its own failure modes: a lock taken by a restarted process,
-an environment rebuilt from a plan file, an executable path recorded at plan time, and a start-name branch in the
-entry point that any symbolic link with the right name could trigger.
+## What was tried and rejected
 
-## Facts measured on this host
+### Option i: the wrapper replays Git's message protocol
 
-Git 2.56.0 (`/usr/bin/git`), run by hand in disposable directories under `${HOME}/temp/agent`.
+Measured on Git 2.56.0 and read in `builtin/commit.c` `prepare_to_commit` (v2.56.0).
+`prepare-commit-msg` gets `COMMIT_EDITMSG` and a source argument that depends on the flag: `message` for `-m`, `-F`
+and `--fixup`, `template` for a template, `commit <sha>` for `-c`, `-C` and `--amend`, `merge` and `squash` from the
+state files, and `commit CHERRY_PICK_HEAD`; with an editor the file already holds the status comment block.
+The editor runs between `prepare-commit-msg` and `commit-msg`, `--no-verify` skips only two of the three hooks, and
+"nothing to commit" is decided between `pre-commit` and `prepare-commit-msg`.
+Replaying that is reimplementing `git commit`.
 
-- Message protocol, configured hooks, plain `git commit`.
-  `prepare-commit-msg` gets `.git/COMMIT_EDITMSG message` for `-m` and `-F`, `.git/COMMIT_EDITMSG template` for `-t`,
-  and `.git/COMMIT_EDITMSG commit HEAD` for `--amend --no-edit`.
-  The message file differs by flavor: with `-t` or `-e` it already holds Git's status comment block
-  (`# Please enter the commit message ...`, `# On branch ...`, `# Changes to be committed:`) when
-  `prepare-commit-msg` reads it, and after the editor `commit-msg` reads the edited text with the same comment block.
-  `--no-verify` skips `pre-commit` and `commit-msg` but still runs `prepare-commit-msg` and `post-commit`.
-  A rewrite by `prepare-commit-msg` is what `commit-msg` reads, and a rewrite by `commit-msg` is what is committed.
-  `GIT_EDITOR` is `:` when no editor runs and the editor command when one does.
-- `hook.<event>.enabled=false` skips configured hooks only; a traditional hook in `core.hooksPath` still runs.
-  This is why the old design needed both switches.
-- `git hook run --ignore-missing pre-commit` honors the user's `hook.pre-commit.enabled=false` itself.
-  The old dispatcher forced `hook.<event>.enabled=true` and so had to check the user's switch first.
-- A native `git commit` in a shadow-shaped repository (own `config` with an `[include]` of the real config and
-  `core.worktree`, `--git-dir` only) runs the configured hooks, does not run a hook file in the real hooks directory when
-  `core.hooksPath` names a directory that cannot exist, and gives hooks `GIT_DIR=<shadow>`, `GIT_INDEX_FILE=<private>`.
-- `GIT_WORK_TREE` for hooks.
-  With `--work-tree=<abs>` Git rewrites it to `.` for hooks; a hook that changes into `sub` then sees `<repo>/sub` as
-  the top level (`doc/troubleshooting/git-private-admin-dir-hook-environment.md`, Behavior B).
-  Without `--work-tree`, with the shadow's own `core.worktree`, the variable is unset, the hook starts in the
-  worktree root, and `git rev-parse --show-toplevel` from `sub` prints the root and `--show-prefix` prints `sub/`.
+### Option ii: a shell entry that execs `git hook run`
 
-## Options
+Rejected by the owner: no shell, no generated entries.
 
-### Option i: the wrapper runs every hook itself with `git hook run`
+### Option iii: Git runs the configured hooks itself in the shadow, the wrapper holds a lock around the commit
 
-The wrapper would run `git hook run --ignore-missing pre-commit` before the commit and the message hooks around it,
-and finish `git commit` with Git's own hooks disabled.
+Committed and measured (commits `7cd936b6bc` to `9b20e24e56` of this branch), then rejected by the owner.
+It kept full message-protocol fidelity but held the hook lock across an open message editor, changed the hooks'
+`GIT_WORK_TREE` and `GIT_CONFIG_PARAMETERS`, and still ran other people's programs.
+Its measurement, for the record: a commit with one configured hook started one hook runner (four before) and synced 21
+times (23 before).
 
-- Pros.
-  No hook entry, and the lock could wrap each run exactly as before.
-- Cons.
-  The message hooks cannot be replayed from outside Git.
-  The wrapper would have to reproduce `prepare_to_commit`: the source argument (`message`, `template`,
-  `commit HEAD`, and `merge` and `squash` that depend on repository state), the status comment block for `-t` and
-  `-e`, the editor that runs between `prepare-commit-msg` and `commit-msg`, the cleanup mode, `--no-verify`
-  skipping only two of the three, and the message-file path (`COMMIT_EDITMSG` of the shadow).
-  Every flag combination of `git commit` becomes wrapper logic that must track Git's releases.
-  Finishing the commit "with hooks disabled" then needs the final message, which exists only inside Git.
-- Verdict.
-  Possible for `pre-commit` and `post-commit`, which already run this way (`post_commit_hook.rs`, and the re-run in
-  `commit_revalidation.rs`).
-  Not possible for `prepare-commit-msg` and `commit-msg` without reimplementing `git commit`.
+## What was built
 
-### Option ii: a non-wrapper entry that execs the real Git's `hook run`
+The wrapper runs no external hook program, and Git never starts the wrapper for a hook.
 
-A POSIX `sh` entry that `exec`s the real Git, with the lock and environment handled around the commit.
-Rejected by the owner ("we don't have to use any shell"), and it would still be Git starting a file we generated.
+- Every real-Git start carries `-c core.hooksPath=/dev/null/cli-git-no-hooks` and `-c hook.<event>.enabled=false` for
+  each of the 28 hook events of Git 2.56.0 (`HOOK_EVENTS` in `hooks_off.rs`; a control asks the host Git whether each
+  name is an event, with a made-up name as the positive control).
+  `pre-push` is left on: the push phase's own Git LFS upload step is a configured `pre-push` hook, and an event-level
+  switch would turn it off.
+  That phase should switch user hooks off by name from the snapshot it already reads (see "Not done").
+- The shadow's `config` switches the same events off after its include, and a guard test asserts each event and the
+  order.
+- The native commit is `git <kept options> --git-dir=<shadow> -c core.hooksPath=<absent> commit ...`, with no
+  `--work-tree` (the shadow's config names it) and no lease, no lock, no plan.
+- A repository that configures hooks gets one `configuration-warning` (code `external-hooks-unsupported`) per commit,
+  from the snapshot the commit already holds (no process start), and `git cli-git doctor` lists the hooks and exits 1.
+  Both name the `hook.<name>` keys, the events and the ways forward.
+- `hooks.concurrentCommits` still loads and is ignored, with a note in doctor and the docs.
+- `postCommit.actions` in `cli-git.config.jsonc` declares what runs after a landing: `name`, `argv` array, optional
+  `timeoutSeconds`.
+  Arguments are literal text with the fields `{head}`, `{shortHead}` (12 characters), `{topLevel}` and `{env:NAME}`.
+  The wrapper runs each action as a bounded direct child after disposal and maintenance and never fails the commit.
+- Removed with the hooks: the replay `pre-commit` re-run, the hook-change bookkeeping (`HookChanges`,
+  `describe_hook_changes`), `no_verify` tracking, the preparation lease, the hook lock and `hooks/plan.json`.
+  The tearing table lost its three `hooks/plan.json` cases per phase.
 
-### Option iii: Git runs the configured hooks natively; the wrapper owns the lock and the environment
+## Removed and added
 
-Git already runs configured hooks (`hook.<name>.event` with `hook.<name>.command`) inside `git commit`, with its own
-message protocol.
-The wrapper stops silencing them, writes no entry, and keeps traditional hooks off with a hooks path that cannot exist.
-It holds the hook lock around the one Git child that may run them, exports the lease to that child, and keeps
-`post-commit` for the post-landing run it already does.
-
-- Pros.
-  Maximum fidelity: Git itself builds the message file, the arguments, the editor step and the cleanup, for every flag.
-  Nothing starts the wrapper.
-  No plan-file environment restoration, no recorded executable path, no start-name branch.
-  Fewer processes: the three dispatcher processes and their three `git hook run` children are gone.
-- Cons.
-  The hook lock is held for the whole native commit, so an open message editor holds it.
-  The old design took it per hook event, and the SPEC said "an open message editor never holds it".
-  No scope between "per event" and "whole commit" exists without Git calling back into something of ours for each
-  event, which is the thing banned.
-  Hooks see the wrapper's own `-c` options in `GIT_CONFIG_PARAMETERS` (see "Environment a hook sees" below).
-  A hook process orphaned by a `SIGKILL`ed wrapper no longer keeps the lock, because the wrapper was its owner, where
-  the dispatcher process stayed alive as the hook's parent.
-  A terminating signal is relayed to Git by the wrapper's signal guard, so only an uncatchable kill leaves an orphan,
-  and recovery removes the shadow the orphaned commit writes into.
-- Mitigations.
-  The lock is taken only when the configuration can define a hook by name and an enabled preparation event exists, so
-  a commit with no hook takes no lock and adds no system call.
-  `hooks.concurrentCommits: true` skips it, and so does an inherited preparation lease.
-  A waiting commit prints the usual slow-wait notice and gives up at `CLI_GIT_LOCK_WAIT_SECONDS` (30 minutes by
-  default), so an editor left open does not block others forever.
-
-### Option iv: pre-commit by the wrapper, message hooks by Git
-
-Run `pre-commit` through `git hook run` under its own short lock and let Git run the message hooks.
-Rejected: it splits one protocol across two mechanisms, still needs the lock around the editor for the message hooks,
-and adds a hook runner start per commit for nothing.
-
-## Choice
-
-Option iii.
-Best fidelity for the least code, and nothing in it needs Git to start the wrapper.
-The one regression is the lock scope around an open editor; it is deliberate, bounded, documented and switchable.
-
-## Design
-
-- `commit_preparation.rs`: the native commit runs
-  `<kept global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks commit ...`.
-  The hooks-off option is given again after the caller's options so a `-c core.hooksPath` of the caller cannot bring
-  traditional hooks back into a commit (the old `-c core.hooksPath=<tx>/hooks` won over the caller's too).
-  There is no `--work-tree`: the shadow's `config` already names the work tree.
-  `post-commit` is switched off by `[hook "post-commit"] enabled = false` in the shadow's own `config`, after the
-  include, because the wrapper runs it after landing.
-  A file value reaches Git without touching `GIT_CONFIG_PARAMETERS`; a `-c hook.post-commit.enabled=false` would have
-  been inherited by every process a hook starts (measured in the first version of this change: a hook running
-  `/usr/bin/git commit` would have had its own `post-commit` silenced).
-  Known limit: a caller's own `-c hook.post-commit.enabled=true` beats the file value and runs `post-commit` in the
-  shadow as well.
-  The child gets `CLI_GIT_PREPARATION_LEASE`, and the hook lock is held around it.
-- `commit_revalidation.rs`: the `pre-commit` re-run after a replay is `git --git-dir=<shadow> hook run
-  --ignore-missing pre-commit` under the same lock and lease, skipped when no `pre-commit` hook can run.
-- `post_commit_hook.rs`: unchanged apart from sharing the lock and the disabled-event check with `hook_run.rs`.
-- `hook_run.rs`: the shared decisions (can an event run a hook, is the lock needed), the lock, the lease variable.
-- `hook_plan_record.rs`: writes `plan.json` into `<tx>/hooks` and nothing else.
-  The file stays because `has_valid_preparation_lease` validates an inherited lease against it and the tearing table
-  pins its recovery; its fields no longer include the executable path, the config parameters or the worktree root.
-- Removed: `hook_dispatch.rs`, `hook_dispatch_entries.rs` (the entry writers, `hook_entry_name`, the Windows naming),
-  the start-name branch of `main.rs`, the config-parameter quoting and restoration, `PreparationHooks`, and the
-  recognition of `<tx>/hooks` as a wrapper hooks path in the traditional-hooks warning.
-
-## Environment a hook sees
-
-Measured with a configured hook for each of the four events that records its arguments and environment, run through the
-wrapper binary of the base commit and through the binary of this change (host paths shortened).
-
-- `cwd`: the worktree root, before and after.
-- `GIT_DIR`: the shadow, before and after.
-- `GIT_INDEX_FILE`: the transaction's `commit.index`, before and after.
-- `GIT_EDITOR`: `:` without an editor, before and after.
-- `CLI_GIT_PREPARATION_LEASE`: set, before and after.
-- `GIT_WORK_TREE`: the absolute worktree root before, unset after.
-  A hook that changes directory now finds the right top level through `GIT_DIR` and the shadow's `core.worktree`
-  (`from-sub: top=<repo> prefix=[sub/]` before and after), and no longer inherits a relative `.`.
-- `GIT_CONFIG_PARAMETERS`: before, the caller's `-c` values plus the inner run's `hook.<event>.enabled=true` and a
-  `core.hooksPath=<tx>/no-hooks`; after, the hooks-off option, the caller's `-c` values and the hooks-off option again,
-  nothing else.
-  The hooks-off values reach hooks of every other wrapped Git command the same way (SPEC, "Real Git starts with
-  traditional hooks off"), and a nested `/usr/bin/git` in a hook keeps traditional hooks off.
-- `post-commit`: unchanged, the real worktree with the real index and the landed commit's author.
+Whole files removed, with their line counts at the base of this work (`5561c8b7cb`):
+`hook_dispatch.rs` (286) and its tests (255), `hook_dispatch_entries.rs` (162) and its tests (149),
+`hook_dispatch_plan.rs` (604) and its tests (457), `post_commit_hook.rs` (267) and its tests (442),
+`binary_hook_tests.rs` (306), `binary_hook_shim_tests.rs` (481): 3409 lines.
+The `argv[0]` branch of `main.rs`, `PreparationHooks`, the preparation lease functions of `transaction_lease.rs`, and
+the lease checks of `wrapped_command.rs` and `commit_command.rs` are gone too.
+Whole files added: `external_hooks.rs` (201), `doctor_config.rs` (128), `config_post_commit.rs` (193),
+`post_commit_template.rs` (208), `post_commit_action.rs` (239), `lexical_path.rs` (50), their test sidecars, and
+`binary_external_hook_tests.rs` (242).
 
 ## Counts
 
 `binary_budget_tests.rs`, strace over the whole process tree, Git 2.56.0.
 
-- Commit with no hook: unchanged (every pinned count passes unchanged).
-- Commit with one configured hook (`ONE_CONFIG_HOOK`): `hook run` starts 4 to 1 (only the post-landing
-  `post-commit`), wrapper-process sync calls 23 to 21 (two lock acquisitions instead of four), `sh` starts 1,
-  every other Git start unchanged.
-  The wrapper no longer starts itself: three process starts less per configured-hook commit.
-- `binary_hook_shim_tests.rs` trace: all four configured hooks start 1 hook runner, where they started 4.
+- The commit with no hooks and the amend and warm commits: unchanged (19 wrapper syncs for the no-hook commit).
+- The one-hook commit: the original dispatcher started 4 `hook run` processes, 3 more wrapper processes, and synced 23
+  times; option iii started 1 and synced 21; now it is a commit with one declared action: 0 hook runners, 1 `show`
+  (the author lookup for the hook is gone), the action's own program (`touch`) as the one extra start, and 19 syncs,
+  the same as the commit with no hooks.
+- No count rose anywhere.
 
 ## Guard
 
-`hook_self_invocation_tests.rs` (the source scan; it holds no magic count, only the forbidden tokens it exists for) scans the sources of the commit path for an entry writer (`symlink(`, `hard_link(`,
-`current_exe`, `write_hook_dispatch`), a hooks path built from a transaction directory, and the former vocabulary, and
-scans `main.rs` for a start-name read.
-`binary_hook_tests.rs` proves the behavior: the transaction's hooks directory holds `plan.json` only while a hook
-runs, and a wrapper link named like a former entry, inside or outside a transaction, behaves as `git`.
-The guard was shown failing on the real sources, then restored (the guard was committed first, and `git diff` of the
-two planted files was empty after the restore).
-A start-name read planted in `main.rs` (`let start_name = std::env::args_os().next();`) made
-`hook_self_invocation_tests::main_does_not_dispatch_on_its_start_name` fail with `main.rs contains args_os().next()`.
-An entry writer planted in `hook_plan_record.rs` (`std::os::unix::fs::symlink(...)` of `pre-commit` after the plan
-write) made `hook_self_invocation_tests::the_commit_path_writes_no_entry_and_names_no_hooks_path_of_its_own` fail with
-`hook_plan_record.rs contains symlink(`, and `hook_plan_record::tests::the_hooks_directory_holds_only_the_plan` fail
-as well.
-With both removed, all of them pass again.
+`hook_self_invocation_tests.rs` scans `main.rs` for a start-name read and eight commit-path sources for an entry
+writer, Git's hook runner (`"hook", "run"`, `hook run`), a shell and a transaction hooks path.
+It was shown failing on the real sources: a start-name read planted in `main.rs` gave `main.rs contains
+args_os().next()`; the pair `["hook", "run", "post-commit"]` planted in `post_commit_action.rs` gave
+`post_commit_action.rs contains "hook", "run"`; one event switch flipped in `shadow_config.rs` gave
+`applypatch-msg is not switched off`; each file was restored and its `git diff` was empty afterwards.
+`binary_external_hook_tests.rs` proves the behavior with a real commit.
 
-## Left on an allow-list
+## Rollout order
 
-Nothing from this phase.
-Everything in the commit path works with Git running the user's hook commands directly.
-The remaining self-invocation, `git cli-git lfs-pre-push` started by Git as a push hook, belongs to the lfs phase.
+A wrapper that does not know `postCommit` refuses the whole configuration file ("Unknown configuration key"), so the
+repository's `cli-git.config.jsonc` must not name the action before the new wrapper is installed.
 
-## Not covered here
+1. Release the wrapper and install it.
+   From this moment the local Git config hook `hook.standards-review-shadow` is switched off (and reported), so the
+   review does not run until step 2: commits are not blocked.
+2. In the same sitting add the declaration to the repository's `cli-git.config.jsonc` (below) and commit it.
+3. Remove the local hook so the warning goes away:
+   `git config --unset-all hook.standards-review-shadow.event` and `git config --unset-all
+   hook.standards-review-shadow.command`.
 
-- The planted-control table `bin/native-planted-controls-entry.ts` was updated for the new guards, and every `from` text
-  was checked to occur once in its source, but the table runs only in the container gate; the coordinator runs it.
-- Files over the 300-line limit that this change touched and did not create, all over it before the change:
-  `commit_preparation.rs` (414), `commit_conclusion.rs` (345) and test sidecars beside the commit path.
-  `hook_dispatch_plan.rs` shrank from 604 to 281 and gave its event-switch reads to `hook_event_switches.rs`.
-  New files are all under 300 lines.
-- Windows: the crate does not build for Windows, so the removed `<event>.exe` naming had no gate; nothing replaces it.
+The declaration, to add after the `policies` object:
+
+```jsonc
+// cli-git.config.jsonc
+"postCommit": {
+  "actions": [
+    {
+      "name": "standards-review-shadow",
+      "argv": [
+        "systemd-run",
+        "--user",
+        "--unit=standards-review-shadow-{shortHead}",
+        "--collect",
+        "--working-directory={topLevel}",
+        "--setenv=PATH={env:PATH}",
+        "--setenv=HOME={env:HOME}",
+        "mise",
+        "run",
+        "shadow-review"
+      ]
+    }
+  ]
+}
+```
+
+The unit name uses 12 characters of the commit where the shell command used `git rev-parse --short HEAD`
+(usually 7), which keeps two landings from sharing a unit name.
+The local hook lived only in machine-local Git config, so there is no installer in the repository to change; the
+runbook `doc/runbook/standards-review-gate.md` now describes the declaration.
+
+## What else relied on external hooks
+
+- This repository: only `hook.standards-review-shadow`, ported above.
+  No `hook.pre-commit.*`, `prepare-commit-msg` or `commit-msg` configuration exists in the repository, its mise tasks
+  or its packages, and no file sets `hooks.concurrentCommits`, so no preparation-hook behavior needed porting.
+- The container end-to-end suite under `package/git-policy/cli/e2e` uses configured hooks as its instrument: hook
+  program fixtures (`hook-program-fixture.ts`), baseline hook scenarios (`scenario-baseline-hook-fixture.ts`), the
+  `commit-msg-hook` and `post-commit-once` invariants, kill-in-hook scenarios and the observation of `post-commit`
+  runs.
+  They cannot observe anything now.
+  They were not rewritten: they need a decision on a replacement instrument (the editor for the kill points, a declared
+  action for the post-commit observation).
+- `package/git-policy/cli.fuzz` builds its expected configuration from the parser's types; its generator now sets the
+  `hooks.present` flag.
+- Handover and research documents that describe hooks (`doc/handover/cli-git-*.md`, `doc/research/...`) are history and
+  were not edited.
+
+## Not done
+
+- `pre-push`: user hooks on pushes still run until the push phase (owned by the lfs agent) disables them by name from
+  its snapshot and moves the LFS upload out of Git's hook mechanism.
+- `landing_index.rs` still carries the `guarded_paths` guard that hook-staged paths used; the commit path passes none.
+  It can be removed with its tests in a follow-up.
+- Files over 300 lines that this change touched and did not create: `commit_preparation.rs`, `commit_conclusion.rs`,
+  `config_schema.rs`, `config_parse.rs`, `doctor.rs` and test sidecars beside them; all were over before.
+- The planted-control table `bin/native-planted-controls-entry.ts` was updated for the new guards and each `from`
+  text was checked to occur once, but it runs only in the container gate.
+- Windows: the crate does not build for Windows, so the removed `<event>.exe` naming had no gate.

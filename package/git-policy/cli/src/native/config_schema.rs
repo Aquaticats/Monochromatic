@@ -205,7 +205,7 @@ pub struct PolicyConfig {
 pub struct HooksConfig {
     /// The value the file gave; never used.
     pub concurrent_commits: bool,
-    /// Whether the file has a `hooks` key at all.
+    /// Whether the file states `hooks.concurrentCommits`.
     pub present: bool,
 }
 

@@ -47,17 +47,20 @@ Read-only commands,
   Shapes the wrapper cannot make exact (`--squash`, `--no-commit`, `-s`, `-X`, several branches, an editor) run in
    native Git unchanged; see "Merging with staged changes" for the full list.
 - Hooks.
-  Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
-  Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported,
-   and they are never run through the wrapper:
-   every real Git it starts, forwarded commands and its own children alike, runs with
-   `-c core.hooksPath=/dev/null/cli-git-no-hooks` first, a directory that cannot exist.
-  Configured hooks still run, and a configured `pre-push` hook runs once per push that publishes:
-   the wrapper's own dry-run probes switch configured `pre-push` hooks off with `-c hook.pre-push.enabled=false`.
-  A `-c core.hooksPath=<directory>` you write after the subcommand's global options wins for that command.
-  A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs them.
-  A commit in a repository that sets `core.hooksPath` prints one non-blocking `configuration-warning` event
-   (code `traditional-hooks-unsupported`) that says so; `git cli-git doctor` lists the scripts.
+  cli-git supports no external hook program: not a traditional hook (an executable script in `.git/hooks` or in a
+   `core.hooksPath` directory) and not a hook configured with `hook.<name>.event` and `hook.<name>.command`.
+  Every real Git the wrapper starts, forwarded commands and its own children alike, runs with
+   `-c core.hooksPath=/dev/null/cli-git-no-hooks`, a directory that cannot exist, and `-c hook.<event>.enabled=false`
+   for every hook event Git knows, ahead of its arguments.
+  The wrapper's own Git LFS upload step rides `pre-push`, so that one event stays on for now (see "Git LFS").
+  A `-c` you write after the subcommand's global options wins for that command.
+  A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs hooks.
+  What a hook did is declared natively in `cli-git.config.jsonc`: a policy under `policies`, or an action that runs
+   after a commit lands under `postCommit.actions` (see "Post-commit actions").
+  A commit in a repository that configures hooks prints one non-blocking `configuration-warning` event
+   (code `external-hooks-unsupported`) naming the keys, the events and the ways forward,
+   and `git cli-git doctor` lists the same hooks.
+  A commit in a repository that sets `core.hooksPath` prints one such event too (code `traditional-hooks-unsupported`).
   The shims `git lfs install` writes are the expected case: see "Git LFS" for what replaces them.
 - Git LFS.
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
@@ -225,10 +228,11 @@ A hook file that is byte for byte the shim git-lfs writes for its own name is no
 It exits 0 when it finds none or only such shims, 1 when it finds any other hook, and 2 when it cannot locate or read
  the repository.
 Traditional hooks are not supported,
- so the commands that need a hook to keep working should become config hooks
- (`hook.<name>.event` with `hook.<name>.command`).
-A commit does not scan for them: it only warns when the configuration sets `core.hooksPath`,
- which it already knows without any extra file system access.
+ so a script that still does work should be declared natively (a policy, or a `postCommit.actions` entry).
+It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (events: ...)` line each, exit 1) and
+ notes a `hooks` key in `cli-git.config.jsonc`, which is accepted for older files and ignored.
+A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
+ hooks, which it already knows without any extra file system access.
 
 The former `trust`,
  `untrust` and `status` commands are retired.
@@ -483,7 +487,8 @@ The keys `plugins` and `trust` are refused.
   },
   "hooks": { "concurrentCommits": false },
   "indexLock": { "unprovenOwnerTimeoutMs": 1000 },
-  "landing": { "reserveAfterLostRaces": 1 }
+  "landing": { "reserveAfterLostRaces": 1 },
+  "postCommit": { "actions": [{ "name": "review", "argv": ["mise", "run", "review", "{shortHead}"] }] }
 }
 ```
 
@@ -596,14 +601,27 @@ A rule added to the scanner after a file entered history is applied to that file
 A `warn` setting reports findings without blocking.
 A policy whose protection `warn` would remove produces a configuration warning event when the file sets it to `warn`.
 
+### Post-commit actions
+
+`postCommit.actions` lists what runs after a commit lands, replacing what a `post-commit` hook did.
+Each action has a `name` (unique), an `argv` array and an optional `timeoutSeconds` (default 60).
+The wrapper runs the action itself, once per landing, after the landed commit is final and automatic maintenance has
+ run, in the worktree top level, with its own environment, as a direct child: no shell reads the arguments.
+An action never fails the commit: a start failure, a non-zero status, a timeout or an unset variable prints one
+ notice on standard error that names the action, and the commit stays landed.
+Its output is forwarded to standard error.
+An argument is a plain string that may use these fields, written in braces: `{head}` (the landed commit),
+ `{shortHead}` (its first 12 characters), `{topLevel}` (the worktree top level) and `{env:NAME}` (a variable of the
+ wrapper's environment).
+`{{` and `}}` write literal braces; any other brace use is a configuration error that lists the fields.
+At most 16 actions are accepted.
+
 ### Concurrency
 
 - `hooks.concurrentCommits`:
-   boolean,
-   default `false`.
-  `false` serializes the hooks of concurrent commit transactions (the hook lock is held around the whole native
-   commit, so a commit whose message editor stays open keeps it);
-   `true` lets them overlap.
+   boolean.
+  Retired: it tuned the hook lock, and the wrapper runs no external hook, so there is no lock.
+  Older files that set it still load; the value is checked and ignored, and `git cli-git doctor` says so.
 - `indexLock.unprovenOwnerTimeoutMs`:
    non-negative integer,
    default `1000`.
@@ -662,7 +680,7 @@ fractional or non-numeric value is ignored.
   How long a commit waits behind another process's push before it gives up and reports its push as failed.
 
 A command that passes through to Git unchanged,
- and the user's own hooks,
+ and the editor of a commit,
  run as long as they run and receive Ctrl-C like any Git command.
 
 #### What a waiting command prints
@@ -752,7 +770,7 @@ What the faults found, and the change for each, is in
   `binary_fork_failure_tests.rs` fails a short run of starts.
   `RLIMIT_NPROC` counts the user's processes on the whole host, so it cannot be swept and is not used.
 - A closed terminal or a broken pipe: `binary_fault_signal_tests.rs` sends `SIGHUP`, `SIGINT` and `SIGQUIT` to the
-  wrapper while a hook runs and `SIGHUP` to the whole process group at each phase of the transaction;
+  wrapper while the commit sits in the editor and `SIGHUP` to the whole process group at each phase of the transaction;
   `binary_fault_stream_tests.rs` closes the standard streams, gives them a pipe with no reader or a full device, and
   requires that the status matches the one Git gives when started directly.
 - Slow fsync and unusual filesystems: `binary_fault_filesystem_tests.rs` delays every flush by 30 ms, and keeps hard
@@ -771,8 +789,8 @@ What the faults found, and the change for each, is in
   Git allocations alike at points that depend on the build, so it is not expected to tell a wrapper defect from an
   allocator abort.
 
-Known gaps: a user hook that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (hooks run as long as they run,
-as documented, and are ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
+Known gaps: an editor that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (it runs as long as it runs,
+as documented, and is ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
 but not swept call by call; the Git steps of a commit that the wrapper bounds are killed without the processes below
 them.
 

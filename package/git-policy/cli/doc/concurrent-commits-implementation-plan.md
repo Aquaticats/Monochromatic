@@ -565,8 +565,8 @@ the shadow repository keeps branch-name-aware hooks working as well.
 
 ### Hook dispatcher shim
 
-Superseded for the native wrapper: Git runs the configured hooks itself and the wrapper holds the hook lock around the
-native commit (`doc/planning/cli-git-no-self-invocation-dispatcher.md`). The text below records the original design.
+Superseded for the native wrapper: it supports no external hook at all, so there is no dispatcher, hook lock or lease
+(`doc/planning/cli-git-no-self-invocation-dispatcher.md`). The text below records the original design.
 
 The shim is a runtime-generated Node program,
 not a shell script,

@@ -119,8 +119,8 @@ fn parse_action(value: &JsoncValue, path: &str) -> Result<PostCommitAction, Conf
         return Err(wrong_kind(value, path, "an object with name and argv"));
     };
     let keys: Vec<String> = member_keys(entries, path)?;
-    let mut name: Option<String> = None;
-    let mut argv: Option<Vec<Template>> = None;
+    let mut declared_name: Option<String> = None;
+    let mut declared_argv: Option<Vec<Template>> = None;
     let mut timeout_seconds: u64 = DEFAULT_ACTION_TIMEOUT_SECONDS;
     for (index, key) in keys.iter().enumerate() {
         let member: String = member_path(path, key.as_str());
@@ -131,9 +131,9 @@ fn parse_action(value: &JsoncValue, path: &str) -> Result<PostCommitAction, Conf
                 if given.is_empty() {
                     return Err(ConfigError::new(format!("Configuration key {member} must not be empty.").as_str()));
                 }
-                name = Some(given);
+                declared_name = Some(given);
             }
-            "argv" => argv = Some(parse_argv(member_value, member.as_str())?),
+            "argv" => declared_argv = Some(parse_argv(member_value, member.as_str())?),
             "timeoutSeconds" => timeout_seconds = safe_integer(member_value, member.as_str(), 1)?,
             _ => {
                 return Err(ConfigError::new(
@@ -142,10 +142,10 @@ fn parse_action(value: &JsoncValue, path: &str) -> Result<PostCommitAction, Conf
             }
         }
     }
-    let Some(name) = name else {
+    let Some(name) = declared_name else {
         return Err(ConfigError::new(format!("Configuration key {path} needs a name.").as_str()));
     };
-    let Some(argv) = argv else {
+    let Some(argv) = declared_argv else {
         return Err(ConfigError::new(format!("Configuration key {path} needs an argv array.").as_str()));
     };
     return Ok(PostCommitAction { name, argv, timeout_seconds });

@@ -223,10 +223,10 @@ pub fn run_post_commit_actions(request: &PostCommitActionsRequest<'_>) -> Vec<Ac
     let mut reports: Vec<ActionReport> = Vec::with_capacity(request.actions.len());
     for action in request.actions {
         let outcome: ActionOutcome = run_action(action, request);
-        if let Some(line) = notice(action.name.as_str(), &outcome) {
-            if let Err(error) = std::io::stderr().write_all(line.as_bytes()) {
-                debug(TAG, format!("the notice could not be written: {error}").as_str());
-            }
+        if let Some(line) = notice(action.name.as_str(), &outcome)
+            && let Err(error) = std::io::stderr().write_all(line.as_bytes())
+        {
+            debug(TAG, format!("the notice could not be written: {error}").as_str());
         }
         reports.push(ActionReport { name: action.name.clone(), outcome });
     }

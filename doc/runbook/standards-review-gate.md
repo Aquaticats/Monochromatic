@@ -65,17 +65,23 @@ Every term below is operational;
   (`doc/agent/self-review.md`),
   shown only the candidate diff's code and `AGENTS.md`.
 - Trigger:
-  the local git config hook `hook.standards-review-shadow`
-  (event `post-commit`),
-  whose command starts `mise run shadow-review`
-  in a detached systemd user unit
+  the `standards-review-shadow` action under `postCommit.actions`
+  in the repository's `cli-git.config.jsonc`,
+  which the cli-git wrapper runs itself after each landing:
+  `systemd-run --user` starts `mise run shadow-review`
+  in a detached unit named `standards-review-shadow-<short head>`
   (`--collect`,
-  `MemoryMax`,
-  `CPUQuota`,
-  `WorkingDirectory`,
-  `PATH`,
-  `HOME`),
+  the worktree top level as `--working-directory`,
+  and the wrapper's `PATH` and `HOME`),
   so a landing never waits on the review.
+  It replaces the local Git config hook `hook.standards-review-shadow`
+  (event `post-commit`):
+  cli-git supports no external hook program,
+  switches every configured hook off,
+  and names any it finds in a warning and in `git cli-git doctor`.
+  Remove that hook once the action is in place:
+  `git config --unset-all hook.standards-review-shadow.event`
+  and `git config --unset-all hook.standards-review-shadow.command`.
 - May run it:
   anyone may invoke `mise run shadow-review` by hand
   and nobody needs to:

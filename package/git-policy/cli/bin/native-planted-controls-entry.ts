@@ -1,5 +1,5 @@
 /**
- Planted guard removals in the entry point, configuration, index locks and hook runs.
+ Planted guard removals in the entry point, configuration, index locks, hooks-off starts and post-commit actions.
 
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
@@ -8,23 +8,9 @@
 import type { PlantedControl } from './native-planted-controls.ts';
 
 /**
- Controls for guards in the entry point, configuration, index locks and hook runs.
+ Controls for guards in the entry point, configuration, index locks, hooks-off starts and post-commit actions.
  */
 export const plantedEntryControls: readonly PlantedControl[] = [
-  {
-    name: "post-commit disabled event runs nothing",
-    file: "src/native/post_commit_hook.rs",
-    from: '    if event_disabled(request.plan, "post-commit") {',
-    to: '    if false && event_disabled(request.plan, "post-commit") {',
-    failing: "post_commit_hook::tests::disabled_post_commit_runs_nothing",
-  },
-  {
-    name: "post-commit runs under the hook lock",
-    file: "src/native/post_commit_hook.rs",
-    from: "    let lock: Option<OwnerLock> = if request.plan.skip_hook_lock {",
-    to: "    let lock: Option<OwnerLock> = if true {",
-    failing: "post_commit_hook::tests::hook_runs_under_the_lock_with_the_native_environment",
-  },
   {
     name: "a failed copy stops post-landing before disposal",
     file: "src/native/post_landing.rs",
@@ -138,53 +124,39 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     failing: 'process_start::tests::a_start_tick_beyond_the_safe_integers_is_refused',
   },
   {
-    name: 'native commit holds no hook lock',
-    file: 'src/native/commit_preparation.rs',
-    from: '        hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS).map_err(PreparationError::HookLock)?;',
-    to: '        hold_hook_lock(request.hooks, &[]).map_err(PreparationError::HookLock)?;',
-    failing: 'commit_preparation::tests::a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease',
+    name: 'the hooks-off start switches the event hooks on',
+    file: 'src/native/hooks_off.rs',
+    from: '        command.arg("-c").arg(format!("hook.{event}.enabled=false"));',
+    to: '        command.arg("-c").arg(format!("hook.{event}.enabled=true"));',
+    failing: 'hooks_off::tests::the_option_precedes_every_argument_of_the_caller',
   },
   {
-    name: 'native commit does not carry the preparation lease',
-    file: 'src/native/commit_preparation.rs',
-    from: '        .env(lease_name, lease_value);\n    for name in NATIVE_UNSET_VARIABLES {',
-    to: '        .env(lease_name, "");\n    for name in NATIVE_UNSET_VARIABLES {',
-    failing: 'commit_preparation::tests::a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease',
-  },
-  {
-    name: 'shadow leaves post-commit to Git',
+    name: 'the shadow config leaves a hook event on',
     file: 'src/native/shadow_config.rs',
-    from: '    lines.push(String::from("\\tenabled = false"));',
-    to: '    lines.push(String::from("\\tenabled = true"));',
-    failing: 'shadow_config::tests::config_without_extensions_has_the_fixed_layout',
+    from: '        lines.push(String::from("\\tenabled = false"));',
+    to: '        lines.push(String::from("\\tenabled = true"));',
+    failing: 'shadow_config::tests::the_shadow_config_switches_every_hook_event_off_after_the_include',
   },
   {
-    name: 'pre-commit re-run ignores the hook lock',
-    file: 'src/native/commit_revalidation.rs',
-    from: '    let hook_lock: Option<OwnerLock> = hold_hook_lock(hooks, &["pre-commit"])',
-    to: '    let hook_lock: Option<OwnerLock> = hold_hook_lock(hooks, &[])',
-    failing: 'commit_revalidation::tests::a_passing_hook_sees_the_replayed_index_no_editor_the_lease_and_the_lock',
+    name: 'the native commit names a hooks directory that can exist',
+    file: 'src/native/commit_preparation.rs',
+    from: '    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));',
+    to: '    arguments.push(String::from("core.hooksPath=.git/hooks"));',
+    failing: 'commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off',
   },
   {
-    name: 'hook lock skip flag ignored',
-    file: 'src/native/hook_run.rs',
-    from: '    if plan.skip_hook_lock || !events.iter()',
-    to: '    if !events.iter()',
-    failing: 'hook_run::tests::the_lock_is_held_only_when_a_run_can_find_a_hook',
+    name: 'an action runs without its time bound',
+    file: 'src/native/post_commit_action.rs',
+    from: '            timeout: Duration::from_secs(action.timeout_seconds),',
+    to: '            timeout: Duration::from_secs(action.timeout_seconds + 3600),',
+    failing: 'post_commit_action::tests::an_action_that_outlives_its_bound_is_stopped',
   },
   {
-    name: 'concurrent commits do not skip the hook lock',
-    file: 'src/native/hook_dispatch_plan.rs',
-    from: 'skip_hook_lock: inputs.concurrent_commits || inputs.inherited_lease_valid,',
-    to: 'skip_hook_lock: inputs.inherited_lease_valid,',
-    failing: 'hook_dispatch_plan::tests::plans_read_real_git_configuration',
-  },
-  {
-    name: 'existing hooks directory reused',
-    file: 'src/native/hook_plan_record.rs',
-    from: '    create_private_directory(hooks_directory).map_err(|error| {',
-    to: '    std::fs::create_dir_all(hooks_directory).map_err(|error| {',
-    failing: 'hook_plan_record::tests::an_existing_hooks_directory_is_refused',
+    name: 'a hook switched off by name is reported',
+    file: 'src/native/external_hooks.rs',
+    from: 'Lookup::Found(false)',
+    to: 'Lookup::Found(true)',
+    failing: 'external_hooks::tests::a_hook_switched_off_by_name_is_not_reported',
   },
 
 ];
