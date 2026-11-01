@@ -776,6 +776,14 @@ The user confirmed the shared understanding and the order below, after the third
   and the rustup and cargo-about parts of the step. The next music-player dry run or release is the step's first runner test.
   A push of the edit does not start the workflow: its push trigger watches only the two version `Cargo.toml` files.
 
+- 2026-11-01, user decision about the toolchain update: `monochromatic-7a` had said the `toolchain:update` after its cli-git release
+  moves every floating tool and needs a user decision each time; the user answered "I decide? No, just do it."
+  So the agent runs `toolchain:update` itself once the policy release is on crates.io, reviews the `toolchain.lock.json` diff
+  (the repository's review surface for it), and then lands the CI workflow; the user is not asked for that step.
+  7a was told, and asked to message the released version. State when this was recorded: crates.io newest `monochromatic-git-policy-cli`
+  is 0.4.6 (the lock's version); `package/git-policy/cli` has no catalog-specifiers code; the waiter `~/temp/agent/wait-cli-git-release.ts`
+  ends when crates.io lists a newer version (four-hour deadline).
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
