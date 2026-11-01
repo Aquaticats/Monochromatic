@@ -19,7 +19,7 @@ use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
-    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_service,
+    ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, ServiceMessage, decode_service, encode_client, encode_retire, encode_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
@@ -352,7 +352,8 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
     (&stream).write_all(greeting.as_bytes()).expect("greet");
     let mut asked = String::new();
     BufReader::new(&stream).read_line(&mut asked).expect("the client asks it to retire");
-    assert_eq!(asked.trim_end(), encode_client(&ClientMessage::Retire));
+    // Written in the version the old service announced, the only one it reads.
+    assert_eq!(asked.trim_end(), encode_retire(PROTOCOL_VERSION - 1));
     drop(stream);
     drop(old);
     let service: Service = start_service(&fixture, name.as_str(), None);
