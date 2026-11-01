@@ -48,6 +48,8 @@ mod watcher_sentinel;
 mod sentinel_launch;
 /// Commands with a time limit and a fixed search path.
 mod bounded_command;
+/// Whether the whole system is stopping.
+mod system_state;
 /// Retains links while watching application cgroup lifecycle.
 mod application_watch;
 /// Starts and stops detached application watcher.
@@ -121,6 +123,9 @@ mod sentinel_launch_tests;
 /// Unit tests for bounded commands.
 #[cfg(test)]
 mod bounded_command_tests;
+/// Unit tests for the stopping system.
+#[cfg(test)]
+mod system_state_tests;
 /// Unit tests for the user client.
 #[cfg(test)]
 mod user_client_tests;

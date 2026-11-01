@@ -496,8 +496,27 @@ naming both policies as not in force and telling to run `wg-quicker up` again,
 and waits for the notification to be sent before it exits.
 An unreadable state is reported too,
 as unknown.
-A watcher killed by a clean system shutdown may be reported if the sentinel outlives it by a moment;
-the notification then fails harmlessly.
+A shutdown or a reboot is not a policy failure:
+it ends the watcher with everything else,
+and the state in `/run` and the tunnel go with it.
+When the verdict would be a report (the state still names the dead watcher,
+or cannot be read)
+the sentinel first asks whether the whole system is stopping,
+and if it is,
+it logs one line and reports nothing.
+The system counts as stopping when `/run/nologin` exists
+(`systemd-user-sessions stop` creates it early in a shutdown,
+and `systemd-logind` creates it shortly before a scheduled one)
+or when `systemctl show --property=ActiveState --value shutdown.target` prints `active` or `activating`.
+A logout while the system keeps running is still reported:
+the tunnel stays up with no watcher,
+so the update traffic of later sessions is no longer exempted,
+which is a real failure.
+A probe that cannot tell (`systemctl` fails or runs past five seconds) counts as a system that keeps running,
+so a failing probe never hides a death.
+The one case this can hide is a watcher that dies during the minutes between a scheduled shutdown being announced and the shutdown itself,
+because `/run/nologin` already exists then;
+the tunnel is about to go away anyway.
 A sentinel that was started is not taken for running because its process was created.
 When it has loaded it writes a marker (the file `sentinel` in the state directory of the watcher)
 with the watcher's pid,
