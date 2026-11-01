@@ -59,24 +59,21 @@ fn the_ways_to_set_an_upstream_publish_and_set_it() {
             .expect("rev-parse starts");
         return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
     };
-    for (index, region) in [
-        vec!["push", "-u", "origin", "feature-a"],
-        vec!["push", "--set-upstream", "origin", "feature-b"],
-        vec!["-c", "push.autoSetupRemote=true", "push", "origin", "feature-c"],
+    for (index, (branch, region)) in [
+        ("feature-a", vec!["push", "-u", "origin", "feature-a"]),
+        ("feature-b", vec!["push", "--set-upstream", "origin", "feature-b"]),
+        ("feature-c", vec!["-c", "push.autoSetupRemote=true", "push"]),
     ]
     .into_iter()
     .enumerate()
     {
-        let branch: &str = region.last().copied().expect("a branch");
         git(&fixture, world.repo.as_path(), &["checkout", "--quiet", "-b", branch]);
         commit_directly(&fixture, world.repo.as_path(), &format!("f{index}.txt"), "text\n");
         let pushed: Observed = wrapped(&fixture, world.repo.as_path(), region.as_slice());
         assert_eq!(pushed.code, Some(0), "{region:?}: {}", stderr_of(&pushed));
         let published: String = ref_of(&fixture, world.origin.as_path(), &format!("refs/heads/{branch}"));
         assert_eq!(published, ref_of(&fixture, world.repo.as_path(), "HEAD"), "{region:?}");
-        if region[0] != "-c" {
-            assert_eq!(upstream_of(world.repo.as_path(), branch), format!("origin/{branch}"), "{region:?}");
-        }
+        assert_eq!(upstream_of(world.repo.as_path(), branch), format!("origin/{branch}"), "{region:?}");
     }
     remove_settled(&fixture);
 }

@@ -294,7 +294,7 @@ fn the_three_ways_to_set_an_upstream_do_not_stop_the_probe() {
     for (name, prefix, region) in [
         ("short", Vec::new(), vec!["-u", "origin", "feature"]),
         ("long", Vec::new(), vec!["--set-upstream", "origin", "feature"]),
-        ("auto", vec!["-c", "push.autoSetupRemote=true"], vec!["origin", "feature"]),
+        ("auto", vec!["-c", "push.autoSetupRemote=true"], Vec::new()),
     ] {
         let (repo, _origin, _base) = repository_with_origin(&format!("mp-probe-upstream-{name}"));
         git(&repo, &["checkout", "--quiet", "-b", "feature"]);
@@ -321,11 +321,11 @@ fn a_quiet_push_is_probed_like_any_other() {
     remove(repo.parent().expect("root"));
 }
 
-/// A single destination's printed location is used as it is: no query for the push URLs is started, and the
-///  destination is still confirmed.
+/// A destination typed as a path or URL is its own location and starts no query for push URLs; a remote name does,
+///  because Git's printed address has credentials removed and is never used to reach the remote.
 #[test]
-fn a_single_destination_needs_no_push_url_query() {
-    let (repo, _origin, _base) = repository_with_origin("mp-probe-single-location");
+fn only_a_remote_name_needs_the_push_url_query() {
+    let (repo, origin, _base) = repository_with_origin("mp-probe-locations");
     git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
     let root = repo.parent().expect("root").to_path_buf();
     let log = root.join("starts.log");
@@ -336,9 +336,48 @@ fn a_single_destination_needs_no_push_url_query() {
     );
     let mut counting = git_for(&repo);
     counting.real_git = wrapper;
-    probe_manual_push_updates(&counting, &[], &post(&["origin", "main"])).expect("probes");
-    let starts: String = std::fs::read_to_string(&log).expect("log");
-    assert!(!starts.contains("get-url"), "{starts}");
-    assert!(starts.contains("ls-remote"), "{starts}");
+    let starts_after = |repository: &str| -> String {
+        let _ = std::fs::remove_file(&log);
+        probe_manual_push_updates(&counting, &[], &post(&[repository, "main"])).expect("probes");
+        return std::fs::read_to_string(&log).expect("log");
+    };
+    let typed: String = starts_after(origin.to_str().expect("utf-8"));
+    assert!(!typed.contains("remote get-url"), "{typed}");
+    assert!(typed.contains("ls-remote"), "the destination is still confirmed: {typed}");
+    let named: String = starts_after("origin");
+    assert!(named.contains("remote get-url --push --all origin"), "{named}");
     remove(&root);
+}
+
+/// Text typed as the repository is told from a remote name by its shape.
+#[test]
+fn a_location_is_told_from_a_remote_name_by_its_shape() {
+    for location in [
+        "https://user:token@example.invalid/r.git",
+        "ssh://git@example.invalid/r.git",
+        "git@example.invalid:r.git",
+        "/srv/r.git",
+        "./r.git",
+        "../r.git",
+    ] {
+        assert!(looks_like_location(location), "{location}");
+    }
+    for name in ["origin", "upstream", "my-remote", "team/fork"] {
+        assert!(!looks_like_location(name), "{name}");
+    }
+}
+
+/// A source selected by a message search holds a colon; the probe still reports the commit it names (real Git output).
+#[test]
+fn a_revision_expression_with_a_colon_is_probed_as_the_commit_it_names() {
+    let (repo, _origin, _base) = repository_with_origin("mp-probe-colon-source");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=uniquemessage"]);
+    let tip = head_of(&repo);
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=later"]);
+    let updates = probe_manual_push_updates(&git_for(&repo), &[], &post(&["origin", ":/uniquemessage:refs/heads/new"]))
+        .expect("probes");
+    assert_eq!(updates.len(), 1);
+    assert_eq!(updates[0].local_oid.as_deref(), Some(tip.as_str()), "not a deletion");
+    assert_eq!(updates[0].remote_ref, "refs/heads/new");
+    remove(repo.parent().expect("root"));
 }

@@ -55,6 +55,14 @@ fn text_outside_the_format_is_refused() {
     assert_eq!(parse_porcelain("").expect("empty output"), Vec::new());
 }
 
+/// A source that holds a colon is split from its destination at the last colon.
+#[test]
+fn a_source_with_a_colon_keeps_it() {
+    let output: &str = "To /srv/origin.git\n*\t:/unique message:refs/heads/new\t[new branch]\nDone\n";
+    let blocks: Vec<PorcelainBlock> = parse_porcelain(output).expect("parses");
+    assert_eq!((blocks[0].updates[0].from.as_str(), blocks[0].updates[0].to.as_str()), (":/unique message", "refs/heads/new"));
+}
+
 /// The line Git adds when the push would set an upstream is skipped, and the real updates around it still read.
 #[test]
 fn the_set_upstream_line_is_skipped() {

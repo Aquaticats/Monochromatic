@@ -25,18 +25,12 @@ use super::auto_push_single_flight::{PushAttempt, PushGit, SingleFlightError, ru
 use super::action::PushForward;
 /// The environment of a Git child.
 use super::child_environment::environment_with_overlay;
-/// The builder of real-Git commands.
-use super::forwarding::git_command;
-/// The directory a `-C` option selects.
-use super::commit_command::effective_directory;
 /// The table-driven read of a push's options.
 use super::command_push::stackable_option_tokens;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
 /// The check that the upload can start, what the upload sends, and its run.
-use super::lfs_push_precheck::lfs_refusal;
-use super::lfs_upload::run_upload_interactive;
-use super::lfs_upload_plan::plan_upload;
+use super::lfs_interactive::{InteractiveUpload, upload_first};
 /// The merge push, planned and run inside this process.
 use super::stacked_merge_push::gated_merge_push;
 /// The destination and object names the push would send.
@@ -200,36 +194,17 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     };
     // The parent uploads the LFS objects first, as one child of its own; the push, the probe and the merge push below
     //  carry no hook and start from the unchanged arguments.
-    if forward.lfs {
-        if let Some(refusal) = lfs_refusal(prefix, region, forward.environment.as_slice()) {
-            // Terminal output error: the exit status already carries the refusal.
-            let _written = std::io::stderr().write_all(refusal.as_bytes());
-            return 1;
-        }
-        let mut query = |query_arguments: &[&str]| -> Option<String> {
-            let mut arguments: Vec<OsString> = prefix.to_vec();
-            arguments.extend(query_arguments.iter().map(OsString::from));
-            let output =
-                git_command(forward.real_git.as_path(), arguments.as_slice(), forward.overlay.as_slice()).output().ok()?;
-            if !output.status.success() {
-                return None;
-            }
-            return Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned());
-        };
-        let directory: std::path::PathBuf = effective_directory(std::env::current_dir().unwrap_or_default().as_path(), prefix);
-        if let Some(plan) = plan_upload(prefix, region, forward.environment.as_slice(), directory.as_path(), &mut query)
-            && let Some(code) = run_upload_interactive(
-                &plan,
-                prefix,
-                directory.as_path(),
-                forward.real_git.as_path(),
-                forward.environment.as_slice(),
-                forward.overlay.as_slice(),
-                &mut std::io::stderr(),
-            )
-        {
-            return code;
-        }
+    if forward.lfs
+        && let Some(code) = upload_first(&InteractiveUpload {
+            prefix,
+            region,
+            real_git: forward.real_git.as_path(),
+            environment: forward.environment.as_slice(),
+            overlay: forward.overlay.as_slice(),
+            settings: forward.lfs_settings.as_deref(),
+        })
+    {
+        return code;
     }
     let code: i32 = match run_forwarded_git(
         forward.real_git.as_path(),
