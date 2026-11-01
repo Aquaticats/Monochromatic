@@ -6760,10 +6760,21 @@ This block supersedes "State at 2026-10-29 (night, later)".
   breaks that doc's own "Repositories do not wait on each other" (a foreign `index.lock` wait blocks other
   repositories; the copy work shares one thread). My error: I carried the per-user scope into every brief without
   checking that the owner chose it.
-- Decided by the owner's correction: one service instance per repository, keyed by the common git directory (Bazel's
-  one server per workspace). Sent to `aadfd3e728b38325b` as its top item, replacing its per-repository landing item;
-  suggestions (revisable): systemd template units, a per-instance socket under `$XDG_RUNTIME_DIR/cli-git/`, the
-  instance refusing other repositories, idle exit per instance, Retire moving the per-user 0.5.5 service over.
+- SUPERSEDED: I first sent "one instance per repository" to `aadfd3e728b38325b`. OWNER, verbatim: "Should it be
+  per-repo or per-worktree/". My first answer claimed the repository-wide work (refs, `packed-refs`, objects and `gc`,
+  pushes, copies) needs one writer, from memory. OWNER note: "Do more research first. ... I doubt this." Research
+  (git-scm.com git-worktree, gitrepository-layout, git-update-ref; bazel.build output-directories): worktrees share
+  objects, `refs/`, `packed-refs`, config and hooks, but each has its own `HEAD`, index, `logs/HEAD`, `refs/worktree`,
+  `refs/bisect`, `refs/rewritten`; Git refuses one branch in two worktrees; `update-ref` verifies the old value and a
+  transaction aborts when a ref cannot be locked; Bazel's output base is "the MD5 hash of the path of the workspace
+  root", so separate checkouts get separate servers. Shared state the service writes today: `cli-git/work`
+  (`work_item.rs:24`), `cli-git/notices` (`push_failure_notice.rs:26`), `refs/cli-git-service/<seq>`
+  (`service_land.rs:180`), `cli-git/review-entries` (`standards_review_append.rs:54`).
+- DECIDED BY THE OWNER (AskUserQuestion, 2026-11-01): "Per worktree (Recommended)". One instance per worktree, keyed
+  by the worktree's own git directory; its state moves to per-worktree places (temporary refs under `refs/worktree/`);
+  the new worktree's own instance copies its ignored files; lost compare-and-swap on a shared ref retries. Sent to
+  `aadfd3e728b38325b` (top item, its per-repository landing item dropped), `ab3dd6294f9d91284` (copy by the
+  destination's instance) and `abf5d1e9f7ca62e6a` (notices per worktree). Do not re-ask.
 - Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
   --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
   in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
