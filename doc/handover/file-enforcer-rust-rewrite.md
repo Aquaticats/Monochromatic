@@ -1427,8 +1427,33 @@ each finished branch is reviewed and merged into `main`):
   run each task separately.
 - forbidden-strings 0.6.1 from CI:
   dry run `41287463221` succeeded (release success, publish skipped);
-  real run `41303293802` started,
-  watched with `release:wait`.
+  real run `41303293802` failed at "Push the bump to main as a signed commit":
+  "PUSH REFUSED: Expected branch to point to "badf75b1e556b13256f6c8dd25017f2ce9e1ad7f" but it did not."
+  The guard worked (nothing pushed or published),
+  but `main` moves every few minutes and a release takes about half an hour,
+  so a plain re-dispatch usually loses the race.
+  Sent back to the release agent:
+  on a refusal,
+  compare the new head with the base over every path the release depends on
+  (commit files,
+  crate and lock directories,
+  the path-dependency closure from `cargo metadata`),
+  rebuild on the new head when none changed,
+  refuse loudly when one did.
+  Re-dispatch 0.6.1 after that merges.
+- wg re-review (`15db705ec1..f7217a7b5b`):
+  no blockers;
+  two should-fix items sent back:
+  the block replace must be one atomic `nft -f` transaction
+  (a retried `down` leaves a gap with no block today),
+  and a block that fails to lift must be reported
+  (`removeTrafficBlock` never throws).
+  Cautions for the apply:
+  run `down` from the owner's local terminal,
+  since the block drops all non-loopback output during removal;
+  the first `up` sweeps about 6500 old units
+  (3169 active and 3291 failed at the review),
+  so the user manager stays busy for a while.
 - #2576 decided 2026-11-01 in the question tool:
   "llama.cpp + GGUF (Recommended)" and "Documented command (Recommended)".
   The research note is merged (`doc/research/xiaomi-ocr-without-python.md`).
