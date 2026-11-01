@@ -3,7 +3,7 @@
 /// Account lookup under test.
 use crate::user_account::{account_from_entry, lookup_user};
 /// Parsers under test.
-use crate::process_info::{list_pids, parse_cgroup, parse_stat, parse_stat_fields, parse_status_id, read_exiting, read_own_pid_namespace, read_process, read_whole, split_cmdline, StatFields};
+use crate::process_info::{list_pids, parse_cgroup, parse_stat, parse_stat_fields, parse_status_id, read_own_pid_namespace, read_process, read_whole, split_cmdline, StatFields};
 
 /// Reads the parent and start time past a command name that contains spaces and parentheses.
 #[test]
@@ -142,17 +142,6 @@ fn an_exiting_process_is_reported_as_absent() {
     assert_eq!(read_process(&root, 5, uid).expect("an exiting process is not an error"), None);
     std::fs::write(root.join("5/stat"), stat_text("S", 0)).expect("write a sleeper");
     assert!(read_process(&root, 5, uid).expect("readable").is_some());
-}
-
-/// The exiting check tells a live process from an exiting one and from a gone one.
-#[test]
-fn the_exiting_check_tells_live_exiting_and_gone_apart() {
-    let root = fake_process("exiting-check");
-    assert_eq!(read_exiting(&root, 5), Some(false));
-    std::fs::write(root.join("5/stat"), stat_text("S", 4)).expect("write an exiting process");
-    assert_eq!(read_exiting(&root, 5), Some(true));
-    assert_eq!(read_exiting(&root, 6), None);
-    assert_eq!(read_exiting(std::path::Path::new("/proc"), i32::try_from(std::process::id()).expect("pid fits")), Some(false));
 }
 
 /// A command line larger than the first read buffer is read whole,

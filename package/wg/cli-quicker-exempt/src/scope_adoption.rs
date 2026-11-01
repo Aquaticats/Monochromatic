@@ -16,7 +16,7 @@
 /// The limits the scope carries.
 use crate::inherited_limits::InheritedLimits;
 /// Whether the process is on its way out.
-use crate::process_info::read_exiting;
+use crate::process_info::parse_stat_fields;
 /// Names a user chose,
 /// delimited so a cause ends them where the line does.
 use crate::report_cause::quote_name;
@@ -59,6 +59,21 @@ pub struct AdoptRequest<'a> {
     pub limits: &'a InheritedLimits,
     /// Name of the scope of this origin.
     pub scope_name: &'a str,
+    /// Start time of the first process as it was read when it was matched,
+    /// so a pid that another process took over later counts as gone.
+    /// `None` skips that check.
+    pub first_start_time: Option<u64>,
+}
+
+/// Whether a process is established as gone.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Presence {
+    /// The entry is absent, the process is a zombie or exiting, or the pid belongs to another process.
+    Gone,
+    /// Its state was read and it is running.
+    Alive,
+    /// Its state could not be read or understood.
+    Unknown,
 }
 
 /// New limits for a scope that is running.
@@ -91,6 +106,12 @@ pub enum AdoptError {
     /// or was exiting and was left alone,
     /// which needs no report.
     Vanished,
+    /// The manager answered "No such process" while the first process was not established as gone
+    /// and another process of the group was.
+    /// The group is collected again on the next scan,
+    /// so a few in a row need no report,
+    /// and the policy reports a run of them.
+    MemberVanished,
     /// The scope ended before the limits could be applied,
     /// which needs no report.
     ScopeGone,
@@ -113,6 +134,7 @@ impl std::fmt::Display for AdoptError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return match self {
             AdoptError::Vanished => write!(formatter, "the process exited before it could be moved"),
+            AdoptError::MemberVanished => write!(formatter, "a process of the group exited before the group could be moved"),
             AdoptError::ScopeGone => write!(formatter, "the scope ended before its limits could be applied"),
             AdoptError::Failed(text) | AdoptError::TimedOut(text) => write!(formatter, "{text}"),
         };
@@ -162,9 +184,31 @@ impl BusctlAdopter {
         };
     }
 
-    /// Reports whether the process still exists.
-    fn process_exists(&self, pid: i32) -> bool {
-        return self.proc_root.join(pid.to_string()).join("cgroup").exists();
+    /// Establishes whether a process is gone,
+    /// from its `stat` file:
+    /// the entry is absent,
+    /// it is a zombie or flagged as exiting,
+    /// or its start time is not `start_time`, so the pid belongs to another process now.
+    /// A file that cannot be read for another reason, or cannot be parsed, leaves it unknown,
+    /// and an unknown process is never counted as gone.
+    fn presence(&self, pid: i32, start_time: Option<u64>) -> Presence {
+        let text = match std::fs::read(self.proc_root.join(pid.to_string()).join("stat")) {
+            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound || error.raw_os_error() == Some(libc::ESRCH) => return Presence::Gone,
+            Err(_unreadable) => return Presence::Unknown,
+        };
+        let Some(fields) = parse_stat_fields(&text) else {
+            return Presence::Unknown;
+        };
+        if fields.exiting() {
+            return Presence::Gone;
+        }
+        if let Some(expected) = start_time
+            && fields.start_time != expected
+        {
+            return Presence::Gone;
+        }
+        return Presence::Alive;
     }
 
     /// Waits until the pid's cgroup path names the slice,
@@ -173,14 +217,15 @@ impl BusctlAdopter {
     /// the kernel skips it while the write to `cgroup.procs` still succeeds,
     /// and a zombie keeps its old cgroup path,
     /// so waiting out the timeout would report a failure for a process that is simply gone.
-    fn confirm_moved(&self, pid: i32, slice: &str) -> Result<(), AdoptError> {
+    /// A process whose state cannot be established is waited for like a living one.
+    fn confirm_moved(&self, pid: i32, slice: &str, start_time: Option<u64>) -> Result<(), AdoptError> {
         let path = self.proc_root.join(pid.to_string()).join("cgroup");
         let started = Instant::now();
         loop {
             match std::fs::read_to_string(&path) {
                 Ok(text) if text.contains(slice) => return Ok(()),
                 Ok(_text) => {
-                    if read_exiting(&self.proc_root, pid) != Some(false) {
+                    if self.presence(pid, start_time) == Presence::Gone {
                         return Err(AdoptError::Vanished);
                     }
                 }
@@ -204,17 +249,10 @@ impl BusctlAdopter {
         return scope_cgroup_directory(&self.cgroup_root, request.uid, request.slice, request.scope_name);
     }
 
-    /// Reports whether the process is gone or on its way out,
-    /// a zombie or one flagged as exiting,
-    /// which the manager cannot move and answers with "No such process".
-    fn is_gone(&self, pid: i32) -> bool {
-        return !self.process_exists(pid) || read_exiting(&self.proc_root, pid) != Some(false);
-    }
-
-    /// Reports whether any of the processes is gone or on its way out.
+    /// Reports whether any of the processes is established as gone or on its way out.
     fn any_gone(&self, pids: &[i32]) -> bool {
         for pid in pids {
-            if self.is_gone(*pid) {
+            if self.presence(*pid, None) == Presence::Gone {
                 return true;
             }
         }
@@ -222,18 +260,23 @@ impl BusctlAdopter {
     }
 
     /// Runs one manager call as the user and turns its failure into the adoption's error.
-    /// A failure while the first process is gone or exiting is a vanish and not a failure.
-    /// So is the manager's "No such process" answer while any process of the request is gone or exiting,
-    /// because the answer names no pid and the group is collected again on the next scan.
-    /// A living first process whose move fails for another reason stays a failure.
+    /// A failure while the first process is established as gone or exiting is a vanish and not a failure.
+    /// The manager's "No such process" answer, while the first process is not established as gone
+    /// and another process of the request is, is a vanish of a member:
+    /// the answer names no pid, and the group is collected again on the next scan.
+    /// Anything else stays a failure,
+    /// including a process whose state could not be read,
+    /// because a failed move of a living process must not be hidden.
     fn call(&self, request: &AdoptRequest<'_>, first: i32, arguments: &[String]) -> Result<(), AdoptError> {
         return match self.client.run(request.uid, request.gid, arguments) {
             Ok(_output) => Ok(()),
             Err(ClientError::TimedOut(text)) => Err(AdoptError::TimedOut(text)),
             Err(error) => {
                 let answers_no_such_process = matches!(&error, ClientError::Failed(text) if text.contains(NO_SUCH_PROCESS));
-                if self.is_gone(first) || (answers_no_such_process && self.any_gone(request.pids)) {
+                if self.presence(first, request.first_start_time) == Presence::Gone {
                     Err(AdoptError::Vanished)
+                } else if answers_no_such_process && self.any_gone(request.pids) {
+                    Err(AdoptError::MemberVanished)
                 } else {
                     Err(AdoptError::Failed(error.to_string()))
                 }
@@ -267,7 +310,7 @@ impl BusctlAdopter {
     /// The emptiness check runs after a failed confirmation too,
     /// because a process that was exiting never moves and leaves a new scope empty.
     fn settle(&self, request: &AdoptRequest<'_>, first: i32, joined: Joined) -> Result<Joined, AdoptError> {
-        let confirmed = self.confirm_moved(first, request.slice);
+        let confirmed = self.confirm_moved(first, request.slice, request.first_start_time);
         let emptied = self.stop_if_empty(request);
         return match confirmed {
             Ok(()) if emptied => Err(AdoptError::Vanished),

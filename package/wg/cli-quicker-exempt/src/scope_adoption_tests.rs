@@ -291,7 +291,7 @@ fn own_ids() -> (u32, u32) {
 /// Builds a request for the given pids and limits.
 fn request<'a>(limits: &'a InheritedLimits, pids: &'a [i32]) -> AdoptRequest<'a> {
     let (uid, gid) = own_ids();
-    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE };
+    return AdoptRequest { pids, uid, gid, slice: SLICE, limits, scope_name: SCOPE, first_start_time: None };
 }
 
 /// The manager that creates and populates the scope and moves pid 77 into it.
@@ -480,8 +480,58 @@ fn a_gone_group_member_explains_the_no_such_process_answer() {
         if let Some((state, flags)) = member {
             add_process(&place, 78, state, flags);
         }
-        assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::Vanished), "{member:?}");
+        assert_eq!(place.adopter.adopt(&request(&all_limits(), &[77, 78])), Err(AdoptError::MemberVanished), "{member:?}");
     }
+}
+
+/// A process whose state cannot be established is never counted as gone:
+/// a stat file that cannot be read or parsed leaves a failed move loud,
+/// whatever the manager said,
+/// and the wait for the move ends in a failure and not in a vanish.
+#[test]
+fn an_unreadable_or_unparseable_state_keeps_the_failure_loud() {
+    for damage in ["unparseable", "unreadable"] {
+        for call in ["echo 'Access denied' >&2; exit 1", NO_SUCH_PROCESS_CALL] {
+            let place = place("unknown-state", &|_paths| return Manager { create: call.to_string(), ..accepting() });
+            let stat = place.adopter.proc_root.join("77/stat");
+            std::fs::remove_file(&stat).expect("remove the stat file");
+            if damage == "unparseable" {
+                std::fs::write(&stat, "not a stat line\n").expect("write garbage");
+            } else {
+                // Reading a directory fails with an error that is neither "absent" nor "no such process".
+                std::fs::create_dir(&stat).expect("make the stat file unreadable");
+            }
+            let refused = place.adopter.adopt(&request(&all_limits(), &[77])).expect_err("the state is unknown");
+            assert!(matches!(&refused, AdoptError::Failed(_)), "{damage} {call}: {refused}");
+        }
+        let waiting = place(
+            "unknown-state-wait",
+            &|paths| return Manager { create: makes_scope(paths, true), ..accepting() },
+        );
+        let stat = waiting.adopter.proc_root.join("77/stat");
+        std::fs::remove_file(&stat).expect("remove the stat file");
+        if damage == "unparseable" {
+            std::fs::write(&stat, "not a stat line\n").expect("write garbage");
+        } else {
+            std::fs::create_dir(&stat).expect("make the stat file unreadable");
+        }
+        let unmoved = waiting.adopter.adopt(&request(&all_limits(), &[77])).expect_err("the move is not confirmed");
+        assert!(matches!(&unmoved, AdoptError::Failed(text) if text.contains("is not in")), "{damage}: {unmoved}");
+    }
+}
+
+/// A pid that another process has taken over since the match is gone:
+/// the start time read at the match no longer fits.
+/// The same pid with the matching start time stays a failure.
+#[test]
+fn a_pid_taken_over_by_another_process_is_vanished() {
+    let place = place("reused", &|_paths| return Manager { create: "echo 'Access denied' >&2; exit 1".to_string(), ..accepting() });
+    let (uid, gid) = own_ids();
+    let limits = all_limits();
+    let same = AdoptRequest { pids: &[77], uid, gid, slice: SLICE, limits: &limits, scope_name: SCOPE, first_start_time: Some(99) };
+    assert!(matches!(place.adopter.adopt(&same), Err(AdoptError::Failed(_))));
+    let other = AdoptRequest { first_start_time: Some(100), ..same };
+    assert_eq!(place.adopter.adopt(&other), Err(AdoptError::Vanished));
 }
 
 /// A living matched process whose move fails stays a failure,
@@ -625,8 +675,8 @@ fn the_real_manager_creates_attaches_and_follows_limits() {
     if let Some(name) = &device {
         limits.io_devices.insert(name.clone(), DeviceLimits { read_bandwidth: Some(1_048_576), write_iops: Some(500), ..DeviceLimits::default() });
     }
-    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
-    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope });
+    let created = adopter.adopt(&AdoptRequest { pids: &[first_pid], uid, gid, slice, limits: &limits, scope_name: &scope, first_start_time: None });
+    let attached = adopter.adopt(&AdoptRequest { pids: &[second_pid], uid, gid, slice, limits: &limits, scope_name: &scope, first_start_time: None });
     let directory = scope_cgroup_directory(Path::new("/sys/fs/cgroup"), uid, slice, &scope);
     let read = |name: &str| return std::fs::read_to_string(directory.join(name)).unwrap_or_default().trim().replace('\n', " | ");
     let (created_cpu, created_memory, created_tasks, created_weight, created_bfq) = (read("cpu.max"), read("memory.max"), read("pids.max"), read("io.weight"), read("io.bfq.weight"));
