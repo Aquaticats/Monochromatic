@@ -456,3 +456,36 @@ commit of another file, the asset stat-dirty, run with the real `git-lfs` on the
 2 GiB of memory and 2 CPUs, repeated with the client in a PID namespace (`unshare --user --pid`) and the service outside
 it. It must exit 0 with the commit landed, without the client printing any path under a temporary directory. The client
 runs the clean filter during preparation (in its own process, under its own limits), never the service.
+
+## Slice 1b status (what is wired, what is measured, what is left)
+
+Wired: `CLI_GIT_COMMIT_SERVICE=1` (the user's runtime directory) or `abstract:<name>` (tests) sends the plain scoped commit
+(`git commit -m <message> [-m <message>] [--quiet] -- <paths>`) through the service. The wrapper prepares it itself (a
+private index seeded from the real index, the policies, no shadow repository, no capture lock), the service lands it, and
+the result is the commit native Git would have made: same tree, same message after Git's clean-up, author and committer
+from `git var`. The differential test compares the two commits field by field. Everything else (amend, `-a`, an editor,
+`-F`, signing, dates, trailers, a merge in progress, an unborn or detached head, a policy that rewrites a file, nothing to
+commit) is declined before anything changes and runs through the existing transaction, so the old locks, shadow, replay and
+recovery still serve those command lines. With the opt-in on and no service reachable the client prints the plain texts of
+`service_messages.rs`; there is no second writer.
+
+Measured on the 20 207-file clone, release binaries, host load 70 to 90, six alternating scoped commits of one file:
+- native path: 757 to 10 149 ms, median 1474 ms.
+- service path: 419 to 932 ms, median 572 ms. The service's own step is 50 to 70 ms; the rest is the wrapper's preparation
+  and the policies, not yet optimized.
+
+Real systemd socket activation (transient units, `systemd-run --user --socket-property=ListenStream=...`): the first
+commit started the service on demand and landed in 95 ms end to end with debug binaries, a warm commit took 73 ms, and after
+`SIGKILL` of the service the next commit started it again through the manager and landed (1.1 s, the manager's restart
+delay). The unit templates are `src/native/service_units/cli-git.socket` and `cli-git.service`; a test reads them against the
+socket path the wrapper uses and the resource rules (IOWeight at most 50).
+
+Tests added in this step: a commit from inside a PID namespace lands; a scoped commit beside a stat-dirty tracked LFS asset
+(the shape of issue 1770, real `git-lfs`) lands with no temporary path in the output, through the service path; a service
+killed at four arbitrary moments with sixteen clients in flight loses and duplicates nothing. A guard break (the service path
+returning early) fails the differential test because no batch reaches the journal.
+
+Left for later slices: the install command that fills `@SERVICE_BINARY@` and `@GIT@` in the unit files and enables the socket;
+making the opt-in the default; the amend, `-a`, `-F`, editor and signing command lines; moving the after-commit push and
+maintenance out of the command into work items; per-repository parallel landing; the 2 GiB, 2 CPU container variant of
+issue 1770; deleting the old landing path with its locks, shadow, replay and recovery once no command line reaches it.
