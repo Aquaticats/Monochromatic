@@ -1920,13 +1920,16 @@ await describe({
           },
           method: 'log',
         },);
-        expect(result.outcome,).toEqual({ kind: 'stopped', },);
+        expect(result.outcome,).toEqual({ kind: 'stopped', errorClass: 'VisualEvidenceInterruptedError', },);
         expect(served,).not.toContain('coverage_report',);
         expect(served,).not.toContain('critic_report',);
         expect(served,).not.toContain('translation_report',);
         expect(served,).not.toContain('lane_contest',);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
-        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
+        // THE STOP BEFORE THE SLICING SHIPS THE ARCHIVE AS THE INTERIM PAGE (B1221), where this case asserted that the
+        // published tree stayed empty, which was the defect.
+        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual(['people',],);
+        expect(await artifactNames({ artifactsDir: dirs.interimDir, },),).toEqual([`${MISSING_VISUAL_ENTRY.id}.json`,],);
         expect(lines.some(function incomplete(line,): boolean {
           return line.startsWith(`TALLY ${MISSING_VISUAL_ENTRY.id} status=INCOMPLETE ${STAMP} `,);
         },),).toBe(true,);
@@ -3459,7 +3462,8 @@ await describe({
         expect(served,).toContain('coverage_report',);
         expect(served,).not.toContain('lane_contest',);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
-        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
+        // THE STOP BEFORE THE SLICING SHIPS THE ARCHIVE AS THE INTERIM PAGE (B1221).
+        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual(['people',],);
         expect(await artifactNames({ artifactsDir: dirs.sliceCacheDir, },),).toEqual([GAP_ENTRY.id,],);
         const tally = lines.filter(function forGapEntry(line,): boolean {
           return line.startsWith(`TALLY ${GAP_ENTRY.id} `,);
@@ -3537,7 +3541,7 @@ await describe({
           stageSettings: SCRIPTED_STAGE_SETTINGS,
         },);
 
-        expect(outcome,).toEqual({ kind: 'stopped', },);
+        expect(outcome,).toEqual({ kind: 'stopped', errorClass: 'TranslationRepairInterruptedError', },);
         expect(served,).toContain('coverage_report',);
         expect(served,).not.toContain('lane_contest',);
         expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
@@ -4111,7 +4115,7 @@ await describe({
             method: 'log',
           },);
           expect(served,).toContain(schema,);
-          expect(result.outcome,).toEqual({ kind: 'stopped', },);
+          expect(result.outcome,).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
           expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
           expect(await readFile(
             fixedPagePath({
@@ -4225,7 +4229,7 @@ await describe({
             return line.startsWith(`TALLY ${ENTRY.id} status=INCOMPLETE ${STAMP} `,);
           },),
         },).toEqual({
-          outcome: { kind: 'stopped', },
+          outcome: { kind: 'stopped', errorClass: 'EveryProviderDryError', },
           artifacts: [],
           page: TARGET_TEXT,
           record: {
@@ -4235,7 +4239,7 @@ await describe({
             archiveSlices: 2,
             sourceSlices: 0,
           },
-          interimLine: [`INTERIM ${ENTRY.id} ${STAMP} settled=0 archive=2 source=0 reason=dry-stop`,],
+          interimLine: [`INTERIM ${ENTRY.id} ${STAMP} settled=0 archive=2 source=0 reason=dry-stop class=EveryProviderDryError`,],
           incomplete: true,
         },);
       },
@@ -4266,7 +4270,7 @@ await describe({
           dirs,
           entryId: ENTRY.id,
         },);
-        expect(outcome,).toEqual({ kind: 'stopped', },);
+        expect(outcome,).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
         expect(page,).toContain(FRESH,);
         expect(page,).not.toContain(BIRD_FRESH,);
         expect(page,).toContain(SEALED_PARAGRAPH,);
@@ -4347,7 +4351,7 @@ await describe({
           dirs,
           entryId: TWO_GAPS_ENTRY.id,
         },);
-        expect(stopped.outcome,).toEqual({ kind: 'stopped', },);
+        expect(stopped.outcome,).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
         expect(page.split(UNTRANSLATED_NOTE,).length - 1,).toBe(1,);
         expect(page,).toContain('The cat sleeps.',);
         expect(page,).toContain('猫猫最后的[记录](https://example.test/cat-record)说她去世时 26 岁。',);
@@ -4483,8 +4487,8 @@ await describe({
     },),
 
     it({
-      name: 'SHIPS NO INTERIM PAGE when every provider goes dry before the slicing exists, since there is no slice to '
-        + 'ship and the archive stands as it is',
+      name: 'SHIPS THE ARCHIVE AS THE INTERIM PAGE when every provider goes dry before the slicing exists (B1221), cut by '
+        + 'the deterministic preparation of the two texts, where this case asserted that nothing was written',
       fn: async () => {
         await using dirs = await throwawayDirs();
         const { outcome, } = await settledCaptured({
@@ -4496,9 +4500,16 @@ await describe({
             failWith: dryRefusal(),
           },),
         },);
-        expect(outcome,).toEqual({ kind: 'stopped', },);
-        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
-        expect(await artifactNames({ artifactsDir: dirs.interimDir, },),).toEqual([],);
+        expect(outcome,).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
+        expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
+        expect(await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: ENTRY.id,
+          },),
+          'utf8',
+        ),).toBe(TARGET_TEXT,);
+        expect(await artifactNames({ artifactsDir: dirs.interimDir, },),).toEqual([`${ENTRY.id}.json`,],);
       },
     },),
   ],

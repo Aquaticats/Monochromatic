@@ -84,7 +84,9 @@ await describe({
   name: 'the interim ship of a stopped entry',
   children: [
     it({
-      name: 'SHIPS NOTHING for a stop that is not the every-provider-dry refusal, however far the entry got',
+      name: 'SHIPS THE INTERIM PAGE for a stop that is not the every-provider-dry refusal either, recording the reason '
+        + '`entry-error`, since the owner\'s rule is "no matter what, we must ship" and this case once asserted that '
+        + 'nothing was written, which was the defect (B1220)',
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-interim-', },);
         const publishDir = join(
@@ -95,22 +97,22 @@ await describe({
           root.path,
           'interim',
         );
-        const messages: string[] = [];
         await shipInterimOnStop({
           error: new Error('scripted provider failure',),
           progress: slicedProgress(),
           entryId: 'CatEntry1',
           sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
           publishDir,
           interimDir,
           tip: 'a'.repeat(40,),
           pipelineDigest: DIGEST,
           corpusSha: 'b'.repeat(40,),
           attempt: 1,
-          l: capturingLogger({ messages, },),
+          l: capturingLogger({ messages: [], },),
         },);
-        expect(await readdir(root.path,),).toEqual([],);
-        expect(messages,).toEqual([],);
+        expect(await readdir(publishDir,),).toEqual(['people',],);
+        expect((await readInterimEntries({ interimDir, },)).get('CatEntry1',)?.reason,).toBe('entry-error',);
       },
     },),
 
@@ -135,6 +137,7 @@ await describe({
           progress: slicedProgress(),
           entryId: 'CatEntry1',
           sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
           publishDir,
           interimDir,
           tip: 'a'.repeat(40,),
@@ -149,9 +152,14 @@ await describe({
     },),
 
     it({
-      name: 'SHIPS NOTHING for a stage that heard no voice before the entry is sliced, since there is no slice to ship',
+      name: 'SHIPS THE ARCHIVE AS THE PAGE for a stage that heard no voice before the entry is sliced (B1221), cut by '
+        + 'the deterministic preparation of the two texts, where this case once asserted that nothing was written',
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-interim-', },);
+        const interimDir = join(
+          root.path,
+          'interim',
+        );
         await shipInterimOnStop({
           error: new TranslationRepairInterruptedError({
             reason: 'provider-unavailable',
@@ -160,27 +168,24 @@ await describe({
           progress: startEntryProgress(),
           entryId: 'CatEntry1',
           sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
           publishDir: join(
             root.path,
             'fixed',
           ),
-          interimDir: join(
-            root.path,
-            'interim',
-          ),
+          interimDir,
           tip: 'a'.repeat(40,),
           pipelineDigest: DIGEST,
           corpusSha: 'b'.repeat(40,),
           attempt: 1,
           l: capturingLogger({ messages: [], },),
         },);
-        // BEFORE THE ENTRY IS SLICED there is no slice to ship, whatever stopped it.
-        expect(await readdir(root.path,),).toEqual([],);
+        expect((await readInterimEntries({ interimDir, },)).get('CatEntry1',)?.reason,).toBe('provider-unavailable',);
       },
     },),
 
     it({
-      name: 'SHIPS NOTHING and says why when every provider goes dry before the entry is sliced',
+      name: 'SHIPS THE ARCHIVE AS THE PAGE and says so when every provider goes dry before the entry is sliced (B1221)',
       fn: async () => {
         await using root = await scratchDir({ prefix: 'pass-entry-interim-', },);
         const messages: string[] = [];
@@ -189,6 +194,7 @@ await describe({
           progress: startEntryProgress(),
           entryId: 'CatEntry1',
           sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
           publishDir: join(
             root.path,
             'fixed',
@@ -203,7 +209,7 @@ await describe({
           attempt: 1,
           l: capturingLogger({ messages, },),
         },);
-        expect(await readdir(root.path,),).toEqual([],);
+        expect(await readdir(root.path,),).toEqual(['fixed', 'interim',],);
         expect(messages.some(function namesTheStop(message,): boolean {
           return message.includes('before the entry was sliced',);
         },),).toBe(true,);
@@ -230,6 +236,7 @@ await describe({
           progress: slicedProgress(),
           entryId: 'CatEntry1',
           sourceText: SOURCE_DOC,
+          targetText: TARGET_DOC,
           publishDir,
           interimDir: join(
             root.path,

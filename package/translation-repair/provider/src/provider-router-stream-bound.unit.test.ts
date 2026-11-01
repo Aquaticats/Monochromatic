@@ -371,6 +371,9 @@ await describe({
         // Refused without a call, which is what lets a round count the seat
         // out of its quorum instead of waiting on it.
         expect(('thrown' in held) && (held.thrown instanceof NoProviderForModelError),).toBe(true,);
+        // NO CALL WAS MADE, so a re-ask may give the claim back (B1201).
+        expect(('thrown' in held) && (held.thrown instanceof NoProviderForModelError) && held.thrown.afterExchange,)
+          .toBe(false,);
         expect(asked,).toEqual([`bedrock:${SEAT_BEDROCK_ONLY_TEXT}`,],);
 
         const other = await ask({
@@ -400,6 +403,9 @@ await describe({
           asked,
           thrown: ('thrown' in outcome) ? String(outcome.thrown,) : 'answered',
           class: ('thrown' in outcome) && (outcome.thrown instanceof NoProviderForModelError),
+          // THE CALLS WERE MADE AND CUT (B1230), so the model was asked: a re-ask must not give its claim back.
+          afterExchange: ('thrown' in outcome) && (outcome.thrown instanceof NoProviderForModelError)
+            && outcome.thrown.afterExchange,
         },).toEqual({
           asked: [
             `synthetic:${SEAT_SYNTHETIC_TEXT_EVERYWHERE}`,
@@ -410,6 +416,7 @@ await describe({
           thrown: `NoProviderForModelError: no provider can take ${SEAT_SYNTHETIC_TEXT_EVERYWHERE}: `
             + `every provider serving this model ran past its stream bound; held out for another ${String(HOLD_MS,)}ms`,
           class: true,
+          afterExchange: true,
         },);
       },
     },),
@@ -433,6 +440,9 @@ await describe({
           asked,
           thrown: ('thrown' in outcome) ? String(outcome.thrown,) : 'answered',
           class: ('thrown' in outcome) && (outcome.thrown instanceof NoProviderForModelError),
+          // THE CALLS WERE MADE AND CUT (B1230), so the model was asked: a re-ask must not give its claim back.
+          afterExchange: ('thrown' in outcome) && (outcome.thrown instanceof NoProviderForModelError)
+            && outcome.thrown.afterExchange,
         },).toEqual({
           asked: [
             `synthetic:${SEAT_SYNTHETIC_TEXT_EVERYWHERE}`,
@@ -443,6 +453,7 @@ await describe({
           thrown: `NoProviderForModelError: no provider can take ${SEAT_SYNTHETIC_TEXT_EVERYWHERE}: `
             + 'every provider serving this model refused this call or ran past its stream bound on it',
           class: true,
+          afterExchange: true,
         },);
       },
     },),

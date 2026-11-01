@@ -111,6 +111,81 @@ await describe({
     },),
 
     it({
+      name: 'READS BACK A RECORD OF A PAGE SHIPPED FOR AN ERROR THAT ENDED THE ENTRY (`entry-error`), keeping the class '
+        + 'of the thrown error, since the owner\'s rule is that a run always ships and the stop must stay countable '
+        + 'by class from the records alone',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-', },);
+        const interimDir = join(
+          root.path,
+          INTERIM_DIR,
+        );
+        /**
+         The record of an entry a splice fault ended.
+         */
+        const record: InterimEntryRecord = {
+          ...recordFor({ id: 'Tabby', },),
+          reason: 'entry-error',
+          errorClass: 'SliceSpliceError',
+        };
+        await writeInterimEntry({
+          interimDir,
+          record,
+        },);
+        expect([...await readInterimEntries({ interimDir, },),],).toStrictEqual([['Tabby', record,],],);
+      },
+    },),
+
+    it({
+      name: 'READS A RECORD WRITTEN BEFORE THE CLASS WAS KEPT, one with no `errorClass`, as a record, since an interim '
+        + 'page the last round shipped stays open and its record must not read as none',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-', },);
+        const interimDir = join(
+          root.path,
+          INTERIM_DIR,
+        );
+        await mkdir(
+          interimDir,
+          { recursive: true, },
+        );
+        await writeFile(
+          join(
+            interimDir,
+            'Tabby.json',
+          ),
+          `${JSON.stringify(recordFor({ id: 'Tabby', },),)}\n`,
+        );
+        expect([...await readInterimEntries({ interimDir, },),],).toStrictEqual([
+          ['Tabby', recordFor({ id: 'Tabby', },),],
+        ],);
+      },
+    },),
+
+    it({
+      name: 'LEAVES OUT A RECORD WHOSE `errorClass` is not a text, naming nothing it cannot vouch for',
+      fn: async () => {
+        await using root = await scratchDir({ prefix: 'interim-', },);
+        const interimDir = join(
+          root.path,
+          INTERIM_DIR,
+        );
+        await mkdir(
+          interimDir,
+          { recursive: true, },
+        );
+        await writeFile(
+          join(
+            interimDir,
+            'Tabby.json',
+          ),
+          `${JSON.stringify({ ...recordFor({ id: 'Tabby', },), reason: 'entry-error', errorClass: 7, },)}\n`,
+        );
+        expect([...await readInterimEntries({ interimDir, },),],).toStrictEqual([],);
+      },
+    },),
+
+    it({
       name: 'DIGESTS a page by its bytes, so the same text gives the same digest and a changed page gives another',
       fn: async () => {
         expect(interimPageDigest({ pageText: 'The cat waits.\n', },),).toBe(

@@ -92,6 +92,9 @@ type SeenAsk = {
  @param transportFails - models whose exchange fails in transport, which the stage reads as a lost voice that never
  arrived (ledger B1201)
 
+ @param cutAfterExchange - models whose providers were all cut at the stream bound after a call, which the router ends
+ with the no-provider refusal marked as raised after an exchange (B1230)
+
  @returns Client honouring that script
 
  @example
@@ -104,10 +107,12 @@ function scriptedClient(
     seen,
     noProvider,
     transportFails,
+    cutAfterExchange,
   }: {
     readonly seen: SeenAsk[];
     readonly noProvider: readonly RosterModelId[];
     readonly transportFails: readonly RosterModelId[];
+    readonly cutAfterExchange: readonly RosterModelId[];
   },
 ): ModelClient {
   return {
@@ -130,6 +135,13 @@ function scriptedClient(
         throw new NoProviderForModelError({
           modelId: request.modelId,
           reason: 'every provider serving this model is out of budget',
+        },);
+      }
+      if (cutAfterExchange.includes(request.modelId,)) {
+        throw new NoProviderForModelError({
+          modelId: request.modelId,
+          reason: 'every provider serving this model refused this call or ran past its stream bound on it',
+          afterExchange: true,
         },);
       }
       if (transportFails.includes(request.modelId,))
@@ -185,6 +197,8 @@ type RunawayRun = {
 
  @param transportFails - models whose exchange fails in transport, none by default
 
+ @param cutAfterExchange - models whose providers were all cut after a call, none by default
+
  @param reaskSeat - role and bench the round request carries, when it carries any
 
  @param askedInstead - model an earlier re-ask for the seat already went to
@@ -200,6 +214,7 @@ async function recoverRunaway(
   {
     noProvider,
     transportFails = [],
+    cutAfterExchange = [],
     // A ROUND NAMES ITS SEAT (ledger B1079): the roster-wide role with no bench is what the cases that care about
     // neither the role nor the bench were written under.
     reaskSeat = { role: 'roster', reask: 'other-model', bench: [], },
@@ -207,6 +222,7 @@ async function recoverRunaway(
   }: {
     readonly noProvider: readonly RosterModelId[];
     readonly transportFails?: readonly RosterModelId[];
+    readonly cutAfterExchange?: readonly RosterModelId[];
     readonly reaskSeat?: ReaskSeat;
     readonly askedInstead?: RosterModelId;
   },
@@ -230,6 +246,7 @@ async function recoverRunaway(
         seen,
         noProvider,
         transportFails,
+        cutAfterExchange,
       },),
       messages: [{ role: 'user', content: STAGE_PROMPT, },],
       signal: new AbortController().signal,
@@ -358,6 +375,20 @@ await describe({
         },);
         expect(claims.list(),).not.toContain(SEAT_HYPER_TEXT_BEDROCK,);
         expect(claims.list(),).toContain(SEAT_BEDROCK_ONLY_TEXT,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE CLAIM OF A MODEL THE ROUTER REFUSED AFTER AN EXCHANGE (B1230): its providers were cut at the stream '
+        + 'bound after a call, so it was asked, and the claim goes back for no other seat of the question',
+      fn: async () => {
+        const claims = createReaskClaims();
+        await recoverRunaway({
+          noProvider: [],
+          cutAfterExchange: [SEAT_HYPER_TEXT_BEDROCK,],
+          reaskSeat: { role: 'roster', reask: 'other-model', bench: [], claims, },
+        },);
+        expect(claims.list(),).toContain(SEAT_HYPER_TEXT_BEDROCK,);
       },
     },),
 

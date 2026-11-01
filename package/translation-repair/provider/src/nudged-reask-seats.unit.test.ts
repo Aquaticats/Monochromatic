@@ -334,6 +334,38 @@ await describe({
     },),
 
     it({
+      name: 'KEEPS THE CLAIM OF A MODEL THE ROUTER REFUSED AFTER AN EXCHANGE (B1230): a stand-in cut at its stream bound '
+        + 'was asked, and the router then raised the same no-provider refusal for the model whose providers were all '
+        + 'cut, so another runaway seat of the question must not take it again once its hold lapses',
+      fn: async () => {
+        /**
+         Models the seat could be re-asked of, in order.
+         */
+        const bench = [FIRST_SEAT, SECOND_SEAT,];
+        const { alternates, } = alternateModelsFor({ modelId: FIRST_SEAT, role: 'roster', bench, },);
+        const [cut, answering,] = alternates;
+        if ((cut === undefined) || (answering === undefined))
+          throw new Error('the seat has two models to try',);
+        const claims = createReaskClaims();
+        await reaskElsewhereNudged({
+          request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', reask: 'other-model', bench, claims, }, },
+          first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+          ask: async (nudged,) => {
+            if (nudged.modelId === cut) {
+              throw new NoProviderForModelError({
+                modelId: nudged.modelId,
+                reason: 'every provider serving this model refused this call or ran past its stream bound on it',
+                afterExchange: true,
+              },);
+            }
+            return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+          },
+        },);
+        expect(claims.list(),).toEqual([cut, answering,],);
+      },
+    },),
+
+    it({
       name: 'KEEPS THE RUNAWAY OUTCOME WHEN EVERY MODEL OF THE ORDER THREW A TRANSPORT ERROR, after trying each of them '
         + 'and then the model itself on another provider (ledger B1162)',
       fn: async () => {

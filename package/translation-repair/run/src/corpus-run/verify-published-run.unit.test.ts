@@ -460,6 +460,32 @@ await describe({
       },
     },),
     it({
+      name: 'WORDS AN INTERIM PAGE SHIPPED FOR AN ERROR by the class of the error (B1220): neither a dry stop nor a '
+        + 'stage that heard no voice stopped it, and the line names the class the record keeps',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat8',
+          settledSlices: 2,
+          archiveSlices: 1,
+          sourceSlices: 0,
+          reason: 'entry-error',
+          errorClass: 'SliceSpliceError',
+        },);
+
+        expect((await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },)).lines,).toContain(
+          '  INTERIM PAGE: InterimCat8. An error (SliceSpliceError) stopped the entry and shipped it with 2 settled '
+            + 'slices, 1 archive slice and 0 original slices; it stays open until a pass settles the entry again and '
+            + 'overwrites it',
+        );
+      },
+    },),
+    it({
       name: 'NAMES an interim page whose bytes are not the page its record was written for, so a page edited or '
         + 'replaced after the stop does not pass as the interim page',
       fn: async (ctx) => {

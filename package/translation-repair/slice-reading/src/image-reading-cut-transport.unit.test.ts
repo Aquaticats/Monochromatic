@@ -85,6 +85,9 @@ type CutRun = {
 
  @param failing - model whose exchange fails in transport
 
+ @param cutAfterExchange - model whose providers were all cut at the stream bound after a call, which the router ends
+ with the no-provider refusal marked as raised after an exchange (B1230)
+
  @returns What the reader came to, the models asked and the record of the models taken
 
  @example
@@ -96,9 +99,11 @@ async function cutReaderWithFailures(
   {
     refused,
     failing,
+    cutAfterExchange,
   }: {
     readonly refused?: RosterModelId;
     readonly failing?: RosterModelId;
+    readonly cutAfterExchange?: RosterModelId;
   },
 ): Promise<CutRun> {
   /**
@@ -121,6 +126,13 @@ async function cutReaderWithFailures(
         return CUT;
       if (modelId === refused)
         throw new NoProviderForModelError({ modelId, reason: 'the run withheld this seat', },);
+      if (modelId === cutAfterExchange) {
+        throw new NoProviderForModelError({
+          modelId,
+          reason: 'every provider serving this model refused this call or ran past its stream bound on it',
+          afterExchange: true,
+        },);
+      }
       if (modelId === failing)
         throw new Error('connection reset while the stand-in was answering',);
       return { text: READING, servedBy: 'hyper', };
@@ -182,6 +194,28 @@ await describe({
         expect(run.kind,).toBe('read',);
         expect(run.claims.list(),).not.toContain(FIRST_STAND_IN,);
         expect(run.claims.list(),).toContain(SECOND_STAND_IN,);
+      },
+    },),
+
+    it({
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED BEFORE ANY EXCHANGE and nothing else differs, so the claim '
+        + 'assertion is the only thing this case can fail on (B1233: the case beside it fails on the parent at the '
+        + 'rethrow of the transport failure, before it reads a claim)',
+      fn: async () => {
+        const run = await cutReaderWithFailures({ refused: FIRST_STAND_IN, },);
+        expect(run.kind,).toBe('read',);
+        expect(run.asks,).toEqual([READER, FIRST_STAND_IN, SECOND_STAND_IN,],);
+        expect(run.claims.list(),).toEqual([SECOND_STAND_IN,],);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE CLAIM OF A MODEL THE ROUTER REFUSED AFTER AN EXCHANGE (B1230): its providers were cut at the '
+        + 'stream bound after a call, so another reader of the picture must not take it again',
+      fn: async () => {
+        const run = await cutReaderWithFailures({ cutAfterExchange: FIRST_STAND_IN, },);
+        expect(run.kind,).toBe('read',);
+        expect(run.claims.list(),).toEqual([FIRST_STAND_IN, SECOND_STAND_IN,],);
       },
     },),
   ],

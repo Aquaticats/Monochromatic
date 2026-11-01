@@ -429,5 +429,38 @@ await describe({
         ],);
       },
     },),
+
+    it({
+      name: 'NAMES THE CLASS OF THE ERROR THAT ENDED THE ATTEMPT on a STALLED and an INCOMPLETE line, as `class=` beside '
+        + 'the attempt, so the lines that report a stop can be counted by class without the TALLY line beside them',
+      fn: async (ctx,) => {
+        using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+        /**
+         Attempts made, by id.
+         */
+        const made: string[] = [];
+        await runAttemptQueue({
+          pending: [{ id: 'siamese', }, { id: 'sphynx', },],
+          cachedCountFor: async function cachedCountFor(): Promise<number> {
+            return 310;
+          },
+          stopBeforeNext: () => false,
+          attemptOf: () => 1,
+          wallClock: fixedWallClock,
+          attempt: async function attempt({ entry, },): Promise<AttemptOutcome> {
+            made.push(entry.id,);
+            return (entry.id === 'siamese')
+              ? { kind: 'stopped', errorClass: 'SliceSpliceError', }
+              : { kind: 'resumable-failure', errorClass: 'PromptPayloadStoreError', };
+          },
+        },);
+        expect(printed.lines,).toEqual([
+          `INCOMPLETE siamese ${AT} attempt=1 class=SliceSpliceError: stage-local work remains; whole entry will not `
+          + 'restart in this invocation',
+          `STALLED sphynx ${AT} attempt=1 class=PromptPayloadStoreError: its 310 cache records are what it started `
+          + 'with, so a further attempt in this invocation would repeat it',
+        ],);
+      },
+    },),
   ],
 },);

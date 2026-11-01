@@ -17,6 +17,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  errorClassOf,
   errorName,
   failureName,
 } from '../dist/final/node/index.mjs';
@@ -78,6 +79,50 @@ await describe({
           fn: async () => {
             expect(errorName({ error: { name: 'NotReallyAnError', }, },),)
               .toBe('a thrown value that is not an Error',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: errorClassOf.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'NAMES an error by its class as one token, the field a stop record carries so stops can be counted '
+            + 'by class from the log alone',
+          fn: async () => {
+            expect(errorClassOf({ error: new RangeError('out of range',), },),).toBe('RangeError',);
+          },
+        },),
+        it({
+          name: 'NAMES a thrown value that is not an Error as `NotAnError`, one token and not the sentence `errorName` '
+            + 'gives, which has spaces in it',
+          fn: async () => {
+            expect(errorClassOf({ error: 'mittens', },),).toBe('NotAnError',);
+            expect(errorClassOf({ error: null, },),).toBe('NotAnError',);
+          },
+        },),
+        it({
+          name: 'KEEPS TO ONE TOKEN for an error whose name holds spaces or is empty, since a field with a space in it '
+            + 'splits into two when a line is read by field',
+          fn: async () => {
+            /**
+             Error whose name is a phrase.
+             */
+            const phrased = Object.assign(
+              new Error('x',),
+              { name: 'Cat sat on it', },
+            );
+            /**
+             Error whose name is empty.
+             */
+            const unnamed = Object.assign(
+              new Error('x',),
+              { name: '', },
+            );
+            expect(errorClassOf({ error: phrased, },),).toBe('Cat_sat_on_it',);
+            expect(errorClassOf({ error: unnamed, },),).toBe('Error',);
           },
         },),
       ],

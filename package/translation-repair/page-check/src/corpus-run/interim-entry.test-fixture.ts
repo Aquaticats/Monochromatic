@@ -48,7 +48,11 @@ const INTERIM_PAGE_TEXT = 'The cat waits.\n';
  @param recordedPageText - text the record's digest is taken over, the page's own when absent, so a case can make the
  record describe another page
 
- @param reason - why the entry stopped, as the record keeps it: every provider dry, or a stage that heard no voice
+ @param reason - why the entry stopped, as the record keeps it: every provider dry, a stage that heard no voice, or an
+ error that ended the entry
+
+ @param errorClass - class of the error that ended the entry, as the record keeps it; absent in a record written before
+ the class was kept
 
  @example
  ```ts
@@ -64,6 +68,7 @@ export async function interimEntry(
     sourceSlices,
     recordedPageText = INTERIM_PAGE_TEXT,
     reason = 'dry-stop',
+    errorClass,
   }: {
     readonly runsDir: string;
     readonly entryId: string;
@@ -71,7 +76,8 @@ export async function interimEntry(
     readonly archiveSlices: number;
     readonly sourceSlices: number;
     readonly recordedPageText?: string;
-    readonly reason?: 'dry-stop' | 'provider-unavailable';
+    readonly reason?: 'dry-stop' | 'entry-error' | 'provider-unavailable';
+    readonly errorClass?: string;
   },
 ): Promise<void> {
   await mkdir(
@@ -112,6 +118,7 @@ export async function interimEntry(
         corpusSha: 'b'.repeat(COMMIT_HEX_LENGTH,),
         timestamp: '2026-10-29T12:00:00.000Z',
         reason,
+        ...((errorClass === undefined) ? {} : { errorClass, }),
         settledSlices,
         archiveSlices,
         sourceSlices,

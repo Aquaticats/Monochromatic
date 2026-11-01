@@ -175,7 +175,7 @@ await describe({
               endRun: function endRun({ error, },): void {
                 told.push(error,);
               },
-            },),).toEqual({ kind: 'stopped', },);
+            },),).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
             expect(told,).toEqual([dry,],);
             expect(printed.lines.some(function incomplete(line,): boolean {
               return line.startsWith('TALLY Cat status=INCOMPLETE',);
@@ -191,7 +191,7 @@ await describe({
               endRun: function endRun({ error, },): void {
                 told.push(error,);
               },
-            },),).toEqual({ kind: 'resumable-failure', },);
+            },),).toEqual({ kind: 'resumable-failure', errorClass: 'Error', },);
             expect(told,).toEqual([dry,],);
           },
         },),
@@ -222,7 +222,7 @@ await describe({
               endRun: function endRun({ error, },): void {
                 told.push(error,);
               },
-            },),).toEqual({ kind: 'resumable-failure', },);
+            },),).toEqual({ kind: 'resumable-failure', errorClass: 'WritingBenchUnreachableError', },);
             expect(told,).toEqual([],);
             expect(printed.lines.some(function failed(line,): boolean {
               return line.startsWith('TALLY Cat status=ERROR',) && line.includes('19:15:08 UTC',);
@@ -251,7 +251,7 @@ await describe({
               durationMs: 5,
               aborted: true,
               endRun: function endRun(): void {},
-            },),).toEqual({ kind: 'stopped', },);
+            },),).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
             expect(printed.lines.some(function incompleteLine(text,): boolean {
               return text.startsWith(`TALLY Cat status=INCOMPLETE ${STAMP} ms=5 `,);
             },),).toBe(true,);
@@ -278,7 +278,7 @@ await describe({
             expect(printed.lines.length,).toBe(1,);
             expect(
               printed.lines[0]?.startsWith(
-                'TALLY XingZ60 status=ERROR at=2026-10-22T08:10:11.123Z attempt=1 ms=25200743 aborted=true error=',
+                'TALLY XingZ60 status=ERROR at=2026-10-22T08:10:11.123Z attempt=1 ms=25200743 aborted=true class=Error error=',
               ),
             ).toBe(true,);
           },
@@ -305,8 +305,8 @@ await describe({
             expect(printed.lines.filter(function interrupted(text,): boolean {
               return text.startsWith('INTERRUPTED ',);
             },),).toEqual([
-              `INTERRUPTED Cat ${STAMP}: slice 3 lost its carried reading`,
-              `INTERRUPTED Cat ${STAMP}: slice 5 lost its carried reading`,
+              `INTERRUPTED Cat ${STAMP} class=TranslationRepairInterruptedError: slice 3 lost its carried reading`,
+              `INTERRUPTED Cat ${STAMP} class=TranslationRepairInterruptedError: slice 5 lost its carried reading`,
             ],);
           },
         },),
@@ -322,8 +322,48 @@ await describe({
               error: new EveryProviderDryError({ measured: 'every meter dry', },),
               durationMs: 5,
               aborted: false,
-            },),).toEqual({ kind: 'stopped', },);
+            },),).toEqual({ kind: 'stopped', errorClass: 'EveryProviderDryError', },);
             expect(printed.lines.length,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'NAMES THE CLASS OF THE THROWN ERROR as `class=` on the TALLY line, before the error text, for a class '
+            + 'whose message names nothing of it, since the run log of XingZ6023 held `SyntaxError` as its only class '
+            + 'name though its entry stopped on `PageFootnoteIntegrityError`, and no census of stops could be measured',
+          fn: async (ctx,) => {
+            using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+            tallyCaughtEntry({
+              entryId: 'Cat',
+              error: new UnansweredContestSliceError({ sliceIndex: 3, },),
+              durationMs: 5,
+              aborted: false,
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
+            },);
+            expect(printed.lines,).toEqual([
+              `TALLY Cat status=INCOMPLETE ${STAMP} ms=5 aborted=false class=UnansweredContestSliceError `
+              + 'error=slice 3 differs across lanes and the contest names it nowhere',
+            ],);
+          },
+        },),
+
+        it({
+          name: 'NAMES A THROWN VALUE THAT IS NOT AN ERROR as one token, `NotAnError`, since the class field is read by '
+            + 'a person counting stops and a sentence with spaces breaks the field',
+          fn: async (ctx,) => {
+            using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+            expect(tallyCaughtEntry({
+              entryId: 'Cat',
+              error: 'a string was thrown',
+              durationMs: 5,
+              aborted: false,
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
+            },),).toEqual({ kind: 'resumable-failure', errorClass: 'NotAnError', },);
+            expect(printed.lines.some(function namesTheToken(line,): boolean {
+              return line.includes(' aborted=false class=NotAnError error=',);
+            },),).toBe(true,);
           },
         },),
       ],
