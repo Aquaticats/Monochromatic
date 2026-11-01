@@ -783,11 +783,9 @@ CM6:
  nothing type-checks automatically.
 
 CM7:
- Provision tools with `mise run toolchain:install`;
- `toolchain.lock.json` pins every version,
- and ad-hoc installs or lock edits bypass the checked-in toolchain.
- Mise runs tasks;
- it manages no tools.
+ Install tools only from `toolchain.lock.json` (`mise run toolchain:install`;
+ in containers and CI use its row's archive and sha256);
+ never `cargo install` or compile a locked tool.
 
 ## Before editing code
 
