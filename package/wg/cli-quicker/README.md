@@ -454,6 +454,101 @@ It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
 
+## Taking the tunnel down
+
+`wg-quicker down` runs the steps that can fail before it removes any routing.
+This is the owner's decision,
+the option "Keep the tunnel up":
+"Run every step that can fail (stopping watchers,
+reading state) before touching routing;
+if one fails,
+stop with the tunnel fully up and a loud error saying what to do."
+The accepted cost is that "a later step failing (for example deleting the interface) is still possible;
+that case falls back to blocking".
+The owner also answered no to a separate `wg-quicker restart` command,
+so there is none.
+
+The order is:
+
+- Stop the route watcher.
+  Reading the persisted state and checking the watcher's identity happen here.
+- Stop the application watcher of `wg-quicker-exempt`.
+  If this fails,
+  the route watcher is started again.
+  A missing `wg-quicker-exempt` program is reported by the stop itself and `down` goes on,
+  as before.
+- Remove the routing:
+  the policy rules,
+  the application-bypass routes,
+  rules and state,
+  the kill switch,
+  and the interface.
+  The interface delete is verified:
+  an interface that is still there after `ip link delete` is a failure.
+- Revert the DNS settings,
+  remove the OpenSnitch allowance,
+  and remove a leftover block.
+  The tunnel is gone by then,
+  so a failure here exposes nothing and is reported without a block.
+
+If a step before the routing removal fails,
+nothing was removed and the tunnel is still fully up:
+
+```text
+error: could not stop the route watcher (<reason>)
+the tunnel fr-par-fr1 is still fully up; nothing was removed
+fix: <what to do>, then run `wg-quicker down fr-par-fr1` again
+```
+
+If a step of the routing removal fails,
+traffic would go outside the tunnel from a tunnel that looks up,
+so `down` blocks traffic instead and says how to finish.
+The block is an nft table of its own,
+`inet wg-quicker-<interface>-blocked`,
+that drops everything leaving through an interface other than loopback and everything forwarded.
+The tunnel's kill switch (`inet wg-quicker-<interface>`) is a different table and only drops spoofed packets addressed to the tunnel's own addresses;
+it blocks nothing outbound.
+The network does not work while the block is in place:
+
+```text
+error: down fr-par-fr1 failed part way: could not delete the interface (<reason>)
+traffic is BLOCKED (nft table inet wg-quicker-fr-par-fr1-blocked drops everything that leaves the machine), so nothing goes outside the tunnel unprotected, and the network will not work until down is finished
+to finish: run `wg-quicker down fr-par-fr1` again, with this build or with the build that started the tunnel; a down that succeeds removes the block
+to lift the block by hand: sudo nft delete table inet wg-quicker-fr-par-fr1-blocked
+```
+
+If the block cannot be installed either,
+the error says that traffic leaves outside the tunnel now.
+A successful `down`,
+a `down` of an interface that is already gone,
+and an `up` (which refuses an existing interface) remove a leftover block.
+The rollback of a failed `up` does not use this order and does not block.
+
+### Upgrading a running tunnel
+
+The persisted state,
+the watcher record and the state path have the same format in every build so far,
+so a `down` of a newer build can stop a watcher that an older build started.
+A `down` of a build without the fix of the watcher check (before commit `cf48274391`) can fail with `Refusing to signal PID ... because command is not bypass watcher`
+while the signaled watcher is still exiting:
+a signaled process reads an empty command line before it is a zombie,
+and the check took that for another command.
+The older order then left the interface up with the routing already removed,
+which sent all traffic outside the tunnel for 92 seconds in the incident of 2026-10-31
+(see [the incident](doc/troubleshooting/node-runtime-watcher-upgrade.md)).
+
+Until a build with both fixes runs the tunnel:
+take the tunnel down with the build that started it,
+then bring it up with the new build.
+That sequence is conservative about formats,
+but it does not avoid the race,
+because the build that started the tunnel has it too;
+if `down` reports the refusal,
+run `wg-quicker down` again at once,
+since the watcher is gone by then.
+With a build that has both fixes,
+`down` stops a watcher that any older build started and keeps the tunnel up if a step fails first.
+
 ## Update traffic policy
 
 The wg packages alone decide that update traffic leaves outside the tunnel.
@@ -697,6 +792,11 @@ The watcher resolves every host through the tunnel link,
 asking for both address families with their TTLs,
 adds new addresses at once,
 and sleeps for the smallest TTL clamped between 30 seconds and 15 minutes.
+When every lookup of a refresh timed out,
+the resolver is not answering yet (the live restart of 2026-10-31 saw that for the first minute after the tunnel was created),
+so the next refresh is in 5 seconds instead;
+the refresh is still reported loudly,
+and any other failure keeps the usual delay.
 The wait ends at once when the watcher is asked to stop.
 An address leaves the rules only after it was absent from two consecutive refreshes,
 because round-robin DNS and CDNs drop an address from one answer and return it in the next.

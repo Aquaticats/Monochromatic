@@ -203,6 +203,204 @@ and HTTPS completed.
 - Accepting every command-line argument was unnecessary.
   Only the executable installation path needed to vary.
 
+## Second cause of the same refusal: a watcher that was exiting (live incident, 2026-10-31)
+
+### Symptom
+
+`wg-quicker down fr-par-fr1`,
+run with the build of commit `fad3cdc216` against a tunnel and route watcher that the build of `557ea24e24` had started at 22:24,
+failed at 23:57:43 with the same two lines as in the Node upgrade incident of this document:
+
+```text
+AggregateError: Application-bypass cleanup failed for fr-par-fr1; ownership state retained.
+BypassRouteError: Refusing to signal PID 55398 because command is not bypass watcher for
+/run/wg-quicker/interface-596e9a12408f3a60f757a723f3de0dd6.json.
+```
+
+The stack shows where the check ran:
+`watcherIsRunning` called from `waitForWatcherStop` called from `stopBypassWatcher`.
+`waitForWatcherStop` runs only after the `SIGTERM` was sent,
+so the first identity check had passed and the watcher had been signaled.
+
+### Exposure window
+
+Measured from the sudo journal (`journalctl --identifier=sudo`) and the failing run:
+
+- 23:57:42:
+  `down` starts with the new build.
+  Its first steps removed the OpenSnitch allowance,
+  the policy rules,
+  the update-host rules and the bypass routes.
+- 23:57:43:
+  `down` fails,
+  with the interface still present.
+  `ip route get 1.1.1.1` then answered `via 192.168.253.1 dev wlp9s0`:
+  all traffic left outside the tunnel,
+  from a tunnel that looked up.
+- 23:59:14:
+  `down` with the old build completed and removed the tunnel.
+  The half-removed state lasted 92 seconds.
+- 23:59:41:
+  `up` with the new build started,
+  and it exited 0 at 00:00:39.
+  No tunnel carried traffic for 177 seconds in all.
+
+### Root cause
+
+#### It was not a persisted-format difference
+
+The first suspicion was that the new build read a state or watcher record that the old build wrote differently.
+It did not:
+
+- `git log` shows no commit after `557ea24e24` that touches `tunnel-bypass-state.ts`,
+  `tunnel-bypass-watcher-sidecar.ts`,
+  `tunnel-bypass-path.ts`,
+  `linux-process-identity.ts`,
+  `tunnel-bypass-watch-service.ts` or `bypass-watch.ts`.
+- The built `index.mjs` of three builds were compared function by function:
+  the one live before the first live apply,
+  the one that started the tunnel,
+  and the one that failed.
+  `parseBypassState`,
+  `parseWatcherIdentity`,
+  `bypassStatePath`,
+  `watcherIdentityPath`,
+  `bypassStateKey` and `readWatcherIdentity` are byte-identical after renaming the numbered logger variables,
+  and the state serializer is the same text.
+- The sudo journal shows the same bundle path (`/var/home/.../package/wg/cli-quicker/dist/final/node/index.mjs`) for the `up` of 22:24 and the `down` of 23:57,
+  so the watcher script argument was not different either.
+- The new watcher's command line (read from `/proc` after the second `up`) is `node`,
+  the watcher script,
+  and the state path:
+  three arguments,
+  as the check expects.
+
+#### A process that is exiting reads an empty command line
+
+While a signaled process releases its address space,
+`/proc/PID/stat` still shows a live state and `/proc/PID/cmdline` already reads empty.
+Measured with a throwaway `node` process holding 200 MB that was sent `SIGTERM` and polled with the same two reads as `readLinuxProcessIdentity`:
+four of six runs showed state `R` with an empty command line,
+in up to hundreds of consecutive samples,
+before the process became a zombie.
+The watcher of the incident had run for an hour and a half (22:24 to 23:57);
+its memory size at that moment was not measured,
+and the time the exit takes depends on it.
+
+`watcherIsRunning` compared the (empty) command line with the expected arguments and,
+finding them different,
+threw the refusal that exists to stop a reused PID from being signaled:
+
+```ts
+// package/wg/cli-quicker/src/tunnel-bypass-watch-service.ts:125
+if (live.commandLine
+  .length
+  === 0)
+  return false;
+```
+
+That guard is the fix.
+The start time already identifies the process,
+so an empty command line of a live-state process is a watcher that is going away,
+and `waitForWatcherStop` goes on waiting for its process group to disappear.
+A live process running another command is still refused.
+
+The race is in every build that has the check,
+including the build that started the tunnel,
+so a `down` with the old build can fail the same way.
+The `down` of 23:59:14 passed because the watcher had exited by then.
+
+#### The teardown order turned a failed stop into a half-removed tunnel
+
+`cleanup` removed the policy rules first,
+and `cleanupBypassState` went on with the network removal after the watcher stop failed
+(its comment:
+"Network cleanup attempted even when sidecar validation blocks watcher signaling"),
+and only then threw.
+The kill switch,
+the link deletion and the DNS revert never ran.
+The check that failed is a step that can fail,
+and it ran after the routing was gone.
+
+### Fix
+
+- `cf48274391`:
+  an empty command line of a live-state process counts as a watcher that is no longer running.
+- `ab046a3a97`:
+  `down` runs the steps that can fail first.
+  The owner chose the option "Keep the tunnel up":
+  "Run every step that can fail (stopping watchers,
+  reading state) before touching routing;
+  if one fails,
+  stop with the tunnel fully up and a loud error saying what to do."
+  The accepted cost is that "a later step failing (for example deleting the interface) is still possible;
+  that case falls back to blocking".
+  The owner also answered no to a separate `wg-quicker restart` command.
+- `c02dd1949c`:
+  the first update-host refresh retries in five seconds when every lookup timed out.
+
+### The refresh that timed out
+
+After the second `up`,
+the first update-host refresh timed out on all 21 lookups (`/run/systemd/resolve/io.systemd.Resolve did not finish answering within 10000 ms`)
+and the retry 30 seconds later succeeded.
+What the logs establish:
+NetworkManager assumed the new device at 23:59:43,
+`systemd-resolved` received the DNS list for it in the same second and logged nothing else at its default level,
+and the link runs with `+DNSOverTLS` and six servers,
+IPv6 first.
+The refresh inside `up` took about 55 seconds from the OpenSnitch notice (23:59:43) to its report (00:00:38).
+The first `up` of 22:24 needed 22 seconds for the same step and succeeded.
+The mechanism was not established and could not be reproduced without another live `down` and `up`.
+The hypothesis is that strict DNS-over-TLS needs a TCP and TLS handshake through a tunnel whose own first handshake had not completed,
+and that `systemd-resolved` tries the servers in turn,
+so one lookup outlasts the ten-second limit of the client.
+
+### Verification
+
+- The race:
+  a probe with a throwaway process (the heading "A process that is exiting reads an empty command line"),
+  unit tests of `watcherIsRunning` (any node binary,
+  exiting,
+  another command,
+  other start time,
+  zombie,
+  gone),
+  of the stop wait through a scripted exit,
+  and of `stopBypassWatcher` against a real stand-in process whose state and record are written in the literal format of `557ea24e24`.
+  Reading an empty command line as another command,
+  and accepting another command,
+  each fail a named test.
+- The order:
+  tests with injected failures for every step,
+  the verified interface delete against a real interface that cannot be deleted (the loopback),
+  and the block script in two throwaway network namespaces joined by a veth pair
+  (reachable before the block;
+  blocked between the namespaces,
+  with the loopback and the own address fine,
+  after it;
+  reachable again after deleting the table).
+- The refresh:
+  tests of the five-second retry and of the unchanged delays,
+  and a real timed-out call that carries the marker.
+
+### Recovery and upgrading a running tunnel
+
+The recovery of the incident was the old build's `down` (restored in place),
+then the new build's `up`.
+After the fix is built,
+`down` with the new build stops a watcher that any older build started,
+because the persisted formats never changed,
+and it keeps the tunnel up if anything fails first.
+Before the fix,
+the sequence "`down` with the build that started the tunnel,
+then `up` with the new build" is still the conservative one,
+but it does not avoid the race:
+that build has the race too.
+If a `down` reports the refusal,
+run `wg-quicker down` again at once:
+the watcher is gone by then and the retry removes the rest.
+
 ## Upstream filing decision
 
 No upstream filing applies.
