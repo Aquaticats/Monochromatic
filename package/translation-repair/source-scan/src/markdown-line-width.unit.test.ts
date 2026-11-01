@@ -144,6 +144,68 @@ await describe({
     },),
 
     it({
+      name: 'READS A FENCE ONLY AT THE INDENT COMMONMARK ALLOWS (ledger B1413): an opening or closing run indented four '
+        + 'columns past its container is no fence, so the prose after an indented run is measured and an over-indented '
+        + 'run closes nothing; a fence inside a list item, after a marker or inside a block quote is still a fence',
+      fn: async () => {
+        /**
+         The reviewer's reproducer: four spaces and three backticks, a blank line, and a wide line of prose.
+         */
+        const indentedCode = `    \`\`\`\n\n${'cat '.repeat(WIDE_FROM / 4,)}`;
+        expect(wideLinesOf({ text: indentedCode, },),).toEqual([3,],);
+        // A paragraph line, then a run indented four columns: it continues the paragraph and opens nothing.
+        expect(wideLinesOf({ text: `A line.\n    \`\`\`\n${WIDE_PROSE}\n`, },),).toEqual([3,],);
+        /**
+         A fence, an over-indented run that closes nothing, wide prose inside it, the real close and wide prose after.
+         */
+        const overIndentedClose = [
+          '```text',
+          WIDE_PROSE,
+          '    ```',
+          WIDE_PROSE,
+          '```',
+          WIDE_PROSE,
+        ].join('\n',);
+        expect(wideLinesOf({ text: overIndentedClose, },),).toEqual([6,],);
+        // THE CONTROLS: three columns of indent open and close a fence, and a fence inside a numbered item, indented to
+        // the item's text, hides what it holds (the shape of the corpus-pass runbook).
+        expect(wideLinesOf({ text: `   \`\`\`\n${WIDE_PROSE}\n   \`\`\`\n${WIDE_PROSE}\n`, },),).toEqual([4,],);
+        /**
+         A numbered item, a fence indented four columns under it, its wide code, its close, and wide prose after.
+         */
+        const itemFence = [
+          '1.  Confirm the identity exists.',
+          '',
+          '    ```sh',
+          `    ${WIDE_PROSE}`,
+          '    ```',
+          '',
+          WIDE_PROSE,
+        ].join('\n',);
+        expect(wideLinesOf({ text: itemFence, },),).toEqual([7,],);
+        /**
+         A bullet that opens a fence on its marker line, and a block quote that does, each followed by wide prose.
+         */
+        const markerFence = ['- ```ts', WIDE_PROSE, '  ```', WIDE_PROSE,].join('\n',);
+        const quotedFence = ['> ```ts', `> ${WIDE_PROSE}`, '> ```', WIDE_PROSE,].join('\n',);
+        expect(wideLinesOf({ text: markerFence, },),).toEqual([4,],);
+        expect(wideLinesOf({ text: quotedFence, },),).toEqual([4,],);
+      },
+    },),
+
+    it({
+      name: 'COUNTS A WIDE CHARACTER OF THE UNICODE TABLE AS TWO COLUMNS (ledger B1413): U+2329 and U+2FF0, which the '
+        + 'reviewer found counted as one, fill two, and a flag of two regional indicators fills two and not four',
+      fn: async () => {
+        // Forty of the character and a space fill 120 columns.
+        expect(wideLinesOf({ text: '\u{2329} '.repeat(WIDE_FROM / 3,), },),).toEqual([1,],);
+        expect(wideLinesOf({ text: '\u{2FF0} '.repeat(WIDE_FROM / 3,), },),).toEqual([1,],);
+        // A flag and a space fill three columns, so 24 of them fill 72; counted four for the pair, they filled 120.
+        expect(wideLinesOf({ text: '\u{1F1E8}\u{1F1E6} '.repeat(WIDE_FROM / 5,), },),).toEqual([],);
+      },
+    },),
+
+    it({
       name: 'COUNTS A COLUMN AS A DISPLAY COLUMN (ledger B1376): a wide character fills two, so a line of 80 code points '
         + 'that fills 120 columns is wide and one that fills 119 is not',
       fn: async () => {
