@@ -6751,6 +6751,19 @@ This block supersedes "State at 2026-10-29 (night, later)".
   and the unit's `ExecStart` names `.../0.5.5/bin/cli-git-service`. The self-heal is verified at the user boundary.
   `pending` and `claimed` were empty just before. The old service's log showed two 0.5.4-only review failures ("no
   repository scratch directory"), the bug `aa3d87fdcd` fixed.
+- OWNER CORRECTION, 2026-11-01, verbatim: "I just saw something extremely bad. If I'm reading correctly, you're making
+  every different repo go through one service (server) when it shouldn't." Correct: one socket
+  `$XDG_RUNTIME_DIR/cli-git/service.sock` (`service_route.rs:23`) and one unit pair `cli-git.socket`/`cli-git.service`
+  (`service_provision.rs:34` to `:37`) serve every repository. The owner decided a resident single-writer service
+  ("ARCHITECTURE DECIDED"); "one service per user (per uid), not per repository"
+  (`doc/planning/cli-git-resident-service.md:147`) was the design agent's choice, never put to the owner, and the code
+  breaks that doc's own "Repositories do not wait on each other" (a foreign `index.lock` wait blocks other
+  repositories; the copy work shares one thread). My error: I carried the per-user scope into every brief without
+  checking that the owner chose it.
+- Decided by the owner's correction: one service instance per repository, keyed by the common git directory (Bazel's
+  one server per workspace). Sent to `aadfd3e728b38325b` as its top item, replacing its per-repository landing item;
+  suggestions (revisable): systemd template units, a per-instance socket under `$XDG_RUNTIME_DIR/cli-git/`, the
+  instance refusing other repositories, idle exit per instance, Retire moving the per-user 0.5.5 service over.
 - Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
   --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
   in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
