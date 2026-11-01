@@ -225,6 +225,10 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// The choice of commit path when the variable is unset, `0` or `1`, with the activation installed or not.
+#[path = "binary_service_default_tests.rs"]
+mod service_default;
+
 /// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
 #[path = "binary_service_tests.rs"]
 mod service;

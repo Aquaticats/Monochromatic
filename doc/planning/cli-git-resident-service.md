@@ -489,3 +489,32 @@ Left for later slices: the install command that fills `@SERVICE_BINARY@` and `@G
 making the opt-in the default; the amend, `-a`, `-F`, editor and signing command lines; moving the after-commit push and
 maintenance out of the command into work items; per-repository parallel landing; the 2 GiB, 2 CPU container variant of
 issue 1770; deleting the old landing path with its locks, shadow, replay and recovery once no command line reaches it.
+
+## Install command, default and the uninstalled machine
+
+`git cli-git service install` fills the two unit templates (`@SERVICE_BINARY@` is the `cli-git-service` program next to the
+wrapper, `@GIT@` is the real Git the wrapper resolves), writes only the files that differ, runs `daemon-reload` and
+`enable --now cli-git.socket`. It never starts the service: the socket is the only unit started, and the operating system
+starts the service on the first connection. A second run changes nothing and says so. `uninstall` disables and removes
+both units and is repeatable; `status` exits 0 only when the socket is active. All three are answered by the wrapper
+without Git. The unit files are configuration the service manager reads; the wrapper writes no script or shell text.
+
+The commit path is chosen by `CLI_GIT_COMMIT_SERVICE` and the files on disk, without starting a process:
+- unset: the service is used when the socket unit file exists in the account's `systemd/user` directory, or a socket
+  already exists at the runtime path. Otherwise the commit takes the path it took before.
+- `0`: never the service.
+- `1`: always the service; without the activation installed the commit stops at once with the not-installed text that
+  names `git cli-git service install`, and nothing in the repository changes.
+
+Decision for the uninstalled machine: until the old landing path is deleted (the last step of the migration), an
+uninstalled machine keeps it, because that path is the only writer such a machine has, and removing it before the service
+covers every command line would stop commits. This is the present writer, not a fallback: an installed machine never
+falls back to it (an installed machine whose service does not answer gets the plain stop of the failure catalogue). Once
+the old path is deleted, the unset case on an uninstalled machine becomes the same plain stop as `1`, and the install
+command becomes a precondition for committing. Rejected: installing on first use (the wrapper would write service-manager
+configuration without being asked), and a lock-based fallback writer on any machine (the owner's decision: locks are an
+anti-pattern).
+
+Tests: `service_commit_tests.rs` (the choice from value, runtime directory and unit directory), `service_install_tests.rs`
+(a stand-in service manager program records every call), `binary_service_default_tests.rs` (installed and unset lands
+through the service, `0` stays native, uninstalled stays native, `1` uninstalled stops plainly and quickly).

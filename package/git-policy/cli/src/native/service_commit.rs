@@ -33,6 +33,7 @@ use super::service_commit_args::{ServiceCommitArgs, cleanup_message, parse_servi
 use super::service_land::LANDING_ATTEMPTS;
 use super::service_messages::{ClientFailure, render};
 use super::service_protocol::{ALLOWED_MODES, Change, CommitRequest, MAX_CHANGES, is_object_name, is_plain_path};
+use super::service_install::{SOCKET_UNIT_NAME, platform_without_manager, unit_directory};
 use super::service_server::Bind;
 use super::transaction_git::{GitContext, GitRequest, run_git_checked};
 use super::transaction_journal::{Base, Conclusion, SymbolicHead, TransactionMode};
@@ -40,30 +41,48 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// Environment variable that opts a person in to landing scoped commits through the service:
-///  `1` for the service at the user's runtime directory, or `abstract:<name>` for a service at an abstract name (tests).
+/// Environment variable that steers landing scoped commits through the service:
+///  unset uses the service when its activation is installed for the account, `0` never uses it, `1` always uses it
+///  (and stops with the plain install message when it is not installed), and `abstract:<name>` names a service at an
+///  abstract address (tests).
 pub const SERVICE_VARIABLE: &str = "CLI_GIT_COMMIT_SERVICE";
 
 /// The socket's place under the user's runtime directory.
 pub const SOCKET_RELATIVE: &str = "cli-git/service.sock";
 
 /// What:
-///  Where the service listens, from the opt-in variable and the runtime directory.
+///  Where the service listens and what the operating system can do about it, from the variable's value, the runtime
+///  directory and the account's unit directory.
 /// Why:
-///   Nothing but the explicit value turns the path on.
+///   The default is on once the activation is installed. A machine without it keeps the commit path it had until that
+///  path is retired; `1` asks for the service and so gets the plain stop when it cannot be reached. A socket that
+///  exists counts as installed, whoever made it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// serviceAddress(value, runtimeDir)
+/// chooseService(value, runtimeDir, unitDir)
 /// ```
-pub fn service_address(value: &str, runtime_dir: Option<&Path>) -> Option<Bind> {
-    if let Some(name) = value.strip_prefix("abstract:") {
-        return if name.is_empty() { None } else { Some(Bind::Abstract(name.to_string())) };
+pub fn choose_service(value: Option<&str>, runtime_dir: Option<&Path>, unit_dir: Option<&Path>) -> Option<(Bind, Activation)> {
+    if value == Some("0") {
+        return None;
     }
-    if value == "1" {
-        return runtime_dir.map(|directory| { return Bind::Path(directory.join(SOCKET_RELATIVE)); });
+    if let Some(name) = value.and_then(|text| { return text.strip_prefix("abstract:"); }) {
+        return if name.is_empty() { None } else { Some((Bind::Abstract(name.to_string()), Activation::Managed)) };
     }
-    return None;
+    if value.is_some_and(|text| { return text != "1"; }) {
+        return None;
+    }
+    let socket: PathBuf = runtime_dir?.join(SOCKET_RELATIVE);
+    let asked: bool = value == Some("1");
+    if !cfg!(target_os = "linux") {
+        return if asked { Some((Bind::Path(socket), Activation::Unsupported(platform_without_manager()))) } else { None };
+    }
+    let installed: bool = socket.exists() || unit_dir.is_some_and(|directory| { return directory.join(SOCKET_UNIT_NAME).is_file(); });
+    return match (installed, asked) {
+        (true, _) => Some((Bind::Path(socket), Activation::Managed)),
+        (false, true) => Some((Bind::Path(socket), Activation::NotInstalled)),
+        (false, false) => None,
+    };
 }
 
 /// A scratch directory for the private indexes, removed when it goes out of scope.
@@ -229,8 +248,11 @@ pub fn try_service_commit<F: RepositoryFacts>(
     checks: &mut ShippedChecks<F>,
     request: &StageRequest,
 ) -> Result<Option<TransactionResult>, TransactionStop> {
-    let runtime: Option<PathBuf> = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
-    let Some(address) = std::env::var(SERVICE_VARIABLE).ok().and_then(|value| { return service_address(value.as_str(), runtime.as_deref()); }) else {
+    let path_variable = |name: &str| -> Option<PathBuf> { return std::env::var_os(name).filter(|value| { return !value.is_empty(); }).map(PathBuf::from); };
+    let runtime: Option<PathBuf> = path_variable("XDG_RUNTIME_DIR");
+    let units: Option<PathBuf> = unit_directory(path_variable("XDG_CONFIG_HOME").as_deref(), path_variable("HOME").as_deref());
+    let value: Option<String> = std::env::var(SERVICE_VARIABLE).ok();
+    let Some((address, activation)) = choose_service(value.as_deref(), runtime.as_deref(), units.as_deref()) else {
         return Ok(None);
     };
     let region = invocation.region;
@@ -245,7 +267,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let author: String = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT")?;
     let committer: String = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT")?;
-    let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
+    let config: ClientConfig = ClientConfig { address, activation, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     for attempt in 0..LANDING_ATTEMPTS {
         let ready: Box<Ready> = match prepare(invocation, checks, request, scratch_name.as_str())? {

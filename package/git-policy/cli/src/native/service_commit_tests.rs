@@ -1,17 +1,57 @@
-//! Controls for the opt-in that turns the service path on.
+//! Controls for the choice that turns the service path on.
 
 use super::*;
 
-/// Only the two explicit spellings turn it on, and only with what they need.
-#[test]
-fn only_the_explicit_values_turn_the_service_path_on() {
-    let runtime: PathBuf = PathBuf::from("/run/user/1000");
-    assert_eq!(service_address("1", Some(runtime.as_path())), Some(Bind::Path(runtime.join(SOCKET_RELATIVE))));
-    assert_eq!(service_address("1", None), None, "no runtime directory, no address");
-    assert_eq!(service_address("abstract:name", None), Some(Bind::Abstract(String::from("name"))));
-    for value in ["", "0", "yes", "true", "abstract:", "path:/x"] {
-        assert_eq!(service_address(value, Some(runtime.as_path())), None, "{value:?}");
+const RUNTIME: &str = "/run/user/1000";
+
+/// A unit directory, with the socket unit in it when `installed`; one per control so the two states never share files.
+fn units(control: &str, installed: bool) -> PathBuf {
+    let directory: PathBuf = crate::test_support::fixture(format!("service-choice-{control}-{installed}").as_str());
+    if installed {
+        std::fs::write(directory.join(SOCKET_UNIT_NAME), b"unit").expect("socket unit");
     }
+    return directory;
+}
+
+/// Unset uses the service exactly when the activation is installed; the answer comes from the files, not a process.
+#[test]
+fn unset_follows_the_installed_activation() {
+    let runtime: PathBuf = PathBuf::from(RUNTIME);
+    let present: PathBuf = units("unset", true);
+    let absent: PathBuf = units("unset", false);
+    assert_eq!(
+        choose_service(None, Some(runtime.as_path()), Some(present.as_path())),
+        Some((Bind::Path(runtime.join(SOCKET_RELATIVE)), Activation::Managed))
+    );
+    assert_eq!(choose_service(None, Some(runtime.as_path()), Some(absent.as_path())), None, "an uninstalled machine keeps its path");
+    assert_eq!(choose_service(None, Some(runtime.as_path()), None), None);
+    assert_eq!(choose_service(None, None, Some(present.as_path())), None, "no runtime directory, no address");
+}
+
+/// `1` asks for the service and gets the plain not-installed stop; `0` and unknown spellings never use it.
+#[test]
+fn the_explicit_values_decide_regardless_of_the_installation() {
+    let runtime: PathBuf = PathBuf::from(RUNTIME);
+    let present: PathBuf = units("explicit", true);
+    let absent: PathBuf = units("explicit", false);
+    let address: Bind = Bind::Path(runtime.join(SOCKET_RELATIVE));
+    assert_eq!(choose_service(Some("1"), Some(runtime.as_path()), Some(present.as_path())), Some((address.clone(), Activation::Managed)));
+    assert_eq!(choose_service(Some("1"), Some(runtime.as_path()), Some(absent.as_path())), Some((address, Activation::NotInstalled)));
+    assert_eq!(choose_service(Some("1"), None, Some(present.as_path())), None);
+    assert_eq!(choose_service(Some("abstract:name"), None, None), Some((Bind::Abstract(String::from("name")), Activation::Managed)));
+    for value in ["0", "", "yes", "true", "abstract:", "path:/x"] {
+        assert_eq!(choose_service(Some(value), Some(runtime.as_path()), Some(present.as_path())), None, "{value:?}");
+    }
+}
+
+/// A socket that exists counts as installed, whoever made it.
+#[test]
+fn an_existing_socket_counts_as_installed() {
+    let runtime: PathBuf = crate::test_support::fixture("service-choice-socket");
+    let socket: PathBuf = runtime.join(SOCKET_RELATIVE);
+    std::fs::create_dir_all(socket.parent().expect("parent")).expect("directory");
+    std::fs::write(&socket, b"").expect("socket stand-in");
+    assert_eq!(choose_service(None, Some(runtime.as_path()), None), Some((Bind::Path(socket), Activation::Managed)));
 }
 
 const SOCKET_UNIT: &str = include_str!("service_units/cli-git.socket");

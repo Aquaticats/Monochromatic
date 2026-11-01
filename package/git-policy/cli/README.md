@@ -1028,9 +1028,12 @@ commit that waits says how many commits go first.
 - `git cli-git service install` writes two unit files for the account's service manager (systemd on Linux), naming the
   service program next to the wrapper and the real Git, and enables the socket. It is repeatable and says what it did.
 - `git cli-git service uninstall` stops and removes them; `git cli-git service status` says whether the socket is ready.
-- Set `CLI_GIT_COMMIT_SERVICE=1` to send plain scoped commits through the service. Without it, and for every command line the
-  service does not cover yet (amend, `-a`, `-F`, an editor, signing, dates, trailers), commits run as before.
-- With it set and the service not installed or not starting, the commit stops with a plain message that says what to do; there
-  is no other way for the same commit to be made behind the user's back.
+- Once the activation is installed, plain scoped commits go through the service with no setting. `CLI_GIT_COMMIT_SERVICE=0`
+  keeps a run out of it. Every command line the service does not cover yet (amend, `-a`, `-F`, an editor, signing, dates,
+  trailers) commits as before.
+- `CLI_GIT_COMMIT_SERVICE=1` asks for the service on a machine that has not installed it: the commit stops at once with a plain
+  message that names the install command, and nothing changes in the repository.
+- When the activation is installed and the service does not answer, the commit stops with a plain message that says what to do;
+  there is no other way for the same commit to be made behind the user's back.
 
 The design, the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.
