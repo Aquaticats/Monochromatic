@@ -402,7 +402,9 @@ fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
     assert!(began.elapsed() < Duration::from_secs(5), "bounded by the start wait: {:?}", began.elapsed());
     finished.store(true, std::sync::atomic::Ordering::SeqCst);
     let asked: Vec<String> = acceptor.join().expect("acceptor");
-    assert!(!asked.is_empty() && asked.iter().all(|line| { return *line == encode_client(&ClientMessage::Retire); }), "{asked:?}");
+    // The connection the client gave up on says nothing; every other line is the request to retire.
+    let spoken: Vec<&String> = asked.iter().filter(|line| { return !line.is_empty(); }).collect();
+    assert!(!spoken.is_empty() && spoken.iter().all(|line| { return **line == encode_client(&ClientMessage::Retire); }), "{asked:?}");
     git(&fixture, &repo, &["status", "--short"]);
     remove_settled(&fixture);
 }

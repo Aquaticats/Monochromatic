@@ -300,6 +300,9 @@ fn a_running_service_of_another_release_is_retired_and_the_commit_lands() {
             let mut old: Running = old;
             let status = old.wait().expect("the old service exits when asked");
             std::fs::remove_file(runtime.join(SOCKET_RELATIVE)).expect("the old socket goes");
+            // Dropping the old handle would remove the runtime directory the next service listens in. The process has
+            //  exited and been waited for, so there is nothing left for the handle to release.
+            std::mem::forget(old);
             return (status, start_in(root.as_path(), runtime.as_path()));
         }
     });
