@@ -67,6 +67,11 @@ directly.
     so GitHub signs the commit:
     `main` requires signed commits,
     and a runner has no signing key.
+    `main` moves every few minutes and a release takes long,
+    so the commit is usually refused once for a moved `main`.
+    The push command then compares the new head with the checkout over every path the release depends on,
+    and sends the same commit again on the new head when none changed
+    (see the push command below).
 4.  The `publish` job dispatches `.github/workflows/cargo-publish.yml` on `main` for the crate with its `dry-run` input off.
     A push made with the repository's `GITHUB_TOKEN` starts no workflow
     ([GitHub documents][token-trigger-rule] that events triggered by the `GITHUB_TOKEN` create no workflow run,
@@ -83,6 +88,10 @@ directly.
     and checks crates.io and the GitHub release.
 
 A release that fails before the push leaves `main` as it was.
+A push that finds a path the release depends on changed on `main` pushes nothing,
+names the paths,
+and fails the run:
+dispatch the release again.
 A release that fails after the push,
 or a publish that fails,
 leaves the bump on `main`.
@@ -308,13 +317,13 @@ Its publish check options (`--workflow`,
 ## Push command
 
 ```bash
-node bin/push-release.ts --repo <owner/name> --branch <branch> --scratch-dir <dir>
+node bin/push-release.ts --crate <name> --repo <owner/name> --branch <branch> --scratch-dir <dir> [--max-attempts <count>]
 ```
 
 The release workflow runs this after the release command.
 It reads the head commit of the checkout:
 its parent,
-which must be the only parent,
+which must be the only parent and is the base the release verified,
 its subject,
 and the files it changes.
 It writes a `createCommitOnBranch` GraphQL request that adds exactly those files,
@@ -322,10 +331,71 @@ with their whole contents,
 on top of that parent,
 and sends it with `gh api graphql --input`.
 GitHub signs a commit made through that mutation,
-which a branch that requires signed commits accepts,
-and refuses it when the branch has moved since the checkout,
-so nothing lands on top of work the release did not see.
+which a branch that requires signed commits accepts.
 The environment must hold `GH_TOKEN`.
+
+### A branch that moves during the release
+
+GitHub refuses the commit when the branch is no longer at the head the request expects,
+and `main` moves every few minutes while a release takes about half an hour.
+A plain refusal would make a re-dispatch lose the same race,
+so the command settles it instead of giving up.
+
+Before it sends anything,
+it records every path the release depends on:
+
+- the files the release commit changes;
+- the directory of the crate and the directories whose lockfile the release refreshed (`lockDirs` in the registry);
+- every path dependency in the dependency closure of the crate and of each lock directory,
+  read with `cargo metadata --locked` at the checkout,
+  which is the tree the check and the dry run built;
+- the manifest and the lockfile of each workspace root.
+
+A package from a registry or a git source is not watched,
+and neither is a path package outside the repository.
+A path package at the repository root is refused,
+because its directory is every file.
+
+When a send is refused with GitHub's words for a stale expected head,
+the command
+
+1.  reads the new head of the branch with `gh api repos/<repo>/git/ref/heads/<branch>`;
+2.  compares the checkout base with the new head through the compare endpoint,
+    `repos/<repo>/compare/<base>...<head>`,
+    and keeps the changed paths that are one of the watched files,
+    or are or lie below one of the watched directories.
+    The test is exact:
+    `package/ab` is not below `package/a`,
+    and a renamed file counts by its old and its new path;
+3.  sends the same commit again,
+    expecting the new head,
+    when no watched path changed,
+    and starts again from step 1 if the branch moved once more,
+    comparing from the checkout base each time;
+4.  pushes nothing,
+    names the changed paths and fails the run when one did change.
+    It does the same when the new head cannot be read,
+    when the comparison fails or the branch is not ahead of the checkout,
+    and when the branch moved before every allowed send (`--max-attempts`,
+    default six,
+    the first send included).
+
+The compare endpoint lists at most three hundred files for a whole comparison.
+A list that long may have been cut and cannot show a path unchanged,
+and on this repository a half-hour window has reached it.
+The command then decides by object names instead:
+one GraphQL query reads the object name of each watched path at the base and at the new head,
+and equal names prove a path unchanged whatever else changed on the branch,
+because the name of a tree covers everything below it.
+
+Every step is printed:
+the base,
+the watched paths,
+each new head,
+the comparison,
+and the decision.
+Files that a build script or `include_str!` reads from outside the crate and path dependency directories are not seen,
+because `cargo metadata` does not list them.
 
 ## Wait command
 
