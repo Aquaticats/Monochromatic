@@ -33,8 +33,8 @@ pub const LINE_PREFIX: &str = "warning: ";
 pub const RULE_SUMMARY: &str = "the repository allows `catalog:`, `catalog:<name>` or exactly `workspace:*` in dependencies, \
 devDependencies and optionalDependencies, and `*`, `catalog:` or `catalog:<name>` in peerDependencies, and allows \
 only package.json manifests. This is advice only: pnpm runs next with its own arguments and its own exit status. \
-The warning appears on every run and has no switch to turn it off; the way to silence it is to fix the manifests \
-named above.";
+The warning appears on every run of a command that resolves or changes dependencies and has no switch to turn it \
+off; the way to silence it is to fix the manifests named above.";
 
 /// What:
 /// `pub fn render_report(root: &Path, report: &ScanReport) -> Option<String>` returns the text to print, or `None`

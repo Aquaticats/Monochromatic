@@ -1205,6 +1205,12 @@ pub mod service_commit;
 /// Installing, removing and checking the commit service's activation.
 pub mod service_install;
 
+/// The service's consumer of after-commit push and upkeep work.
+pub mod service_work;
+
+/// The wrapper's side of after-commit work: records, wake and notices.
+pub mod service_handoff;
+
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
 #[path = "no_self_invocation_tests.rs"]

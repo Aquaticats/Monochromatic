@@ -49,6 +49,12 @@ fn start_at(fixture: &Fixture, runtime: &Path) -> Child {
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
     let child: Child = Command::new(SERVICE)
         .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+        // The service's own settings, as the service manager would give them: nothing of the test runner's.
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
@@ -142,5 +148,77 @@ fn asking_for_the_service_without_it_stops_plainly() {
     assert!(stderr.contains(INSTALL_COMMAND), "{stderr}");
     assert!(began.elapsed() < PATIENCE / 2, "no waiting for a start that cannot happen");
     assert_eq!(subject(&fixture, &repo), before, "nothing changed");
+    finish(&fixture, runtime.as_path());
+}
+
+/// A bare repository the work repository pushes to, set as the branch's upstream.
+fn with_remote(fixture: &Fixture, repo: &Path) -> PathBuf {
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(fixture, &fixture.root, &["init", "--quiet", "--bare", remote.to_str().expect("UTF-8")]);
+    git(fixture, repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    git(fixture, repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    return remote;
+}
+
+/// The commit a branch names in a repository, or empty text when it names none.
+fn tip(fixture: &Fixture, directory: &Path, branch: &str) -> String {
+    return git_text(fixture, directory, &["rev-parse", "--quiet", "--verify", branch]).trim_end().to_string();
+}
+
+fn states(fixture: &Fixture, repo: &Path, state: &str) -> usize {
+    let directory: PathBuf = repo.join(".git").join(git_policy_cli::work_item::WORK_DIRECTORY).join(state);
+    let _ = fixture;
+    return std::fs::read_dir(directory).map_or(0, Iterator::count);
+}
+
+/// Waits for a condition the service brings about after the commit returned, up to the patience of these controls.
+fn eventually(what: &str, mut condition: impl FnMut() -> bool) {
+    let began: Instant = Instant::now();
+    while !condition() {
+        assert!(began.elapsed() < PATIENCE, "{what} never happened");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// A commit through the service returns, and the service then pushes it: the upstream has the commit, both work records
+///  are done, and nothing was pushed by the wrapper.
+#[test]
+fn the_service_pushes_after_the_commit_returned() {
+    let (fixture, repo, runtime) = prepared("service-push");
+    let remote: PathBuf = with_remote(&fixture, &repo);
+    install_units(&fixture);
+    let mut service: Child = start_at(&fixture, runtime.as_path());
+    let output: Output = commit(&fixture, &repo, runtime.as_path(), None);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let landed: String = tip(&fixture, &repo, "HEAD");
+    let branch: String = format!("refs/heads/{}", git_text(&fixture, &repo, &["branch", "--show-current"]).trim_end());
+    eventually("the push", || { return tip(&fixture, &remote, branch.as_str()) == landed; });
+    eventually("the records settling", || { return states(&fixture, &repo, "done") == git_policy_cli::service_handoff::HANDED_OVER.len(); });
+    assert_eq!(states(&fixture, &repo, "pending") + states(&fixture, &repo, "claimed") + states(&fixture, &repo, "failed"), 0);
+    let _killed = service.kill();
+    let _waited = service.wait();
+    finish(&fixture, runtime.as_path());
+}
+
+/// A push that cannot succeed does not fail the commit; the next commit through the service says so once, plainly.
+#[test]
+fn a_failed_push_is_reported_by_the_next_commit() {
+    let (fixture, repo, runtime) = prepared("service-push-fails");
+    let remote: PathBuf = with_remote(&fixture, &repo);
+    install_units(&fixture);
+    let mut service: Child = start_at(&fixture, runtime.as_path());
+    std::fs::remove_dir_all(&remote).expect("the remote disappears");
+    let first: Output = commit(&fixture, &repo, runtime.as_path(), None);
+    assert!(first.status.success(), "the commit stands: {}", String::from_utf8_lossy(&first.stderr));
+    eventually("the failed record", || { return states(&fixture, &repo, "failed") > 0; });
+    std::fs::write(repo.join("a.txt"), "base\nmore\nand more\n").expect("edit again");
+    let second: Output = commit(&fixture, &repo, runtime.as_path(), None);
+    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    let stderr: String = String::from_utf8_lossy(&second.stderr).to_string();
+    let first_commit: String = git_text(&fixture, &repo, &["rev-parse", "HEAD~1"]).trim_end().to_string();
+    assert!(stderr.contains(git_policy_cli::service_messages::push_failed_notice(first_commit.as_str(), "").split(" Git ").next().expect("start")), "{stderr}");
+    assert_eq!(stderr.matches("backup push of your commit").count(), 1, "said once: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
     finish(&fixture, runtime.as_path());
 }

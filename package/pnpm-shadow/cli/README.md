@@ -1,9 +1,11 @@
 # pnpm-shadow
 
 Shadows `pnpm`.
-Before every pnpm run it checks the `package.json` files of the pnpm workspace that contains the current directory,
+Before a pnpm command that resolves or changes dependencies,
+it checks the `package.json` files of the pnpm workspace that contains the current directory,
 warns on standard error about every dependency version that is not `catalog:`, `catalog:<name>` or `workspace:*`,
-then runs the real `pnpm` with the arguments untouched and exits with pnpm's own status.
+then runs the real `pnpm` with the arguments untouched.
+Every other command goes straight to pnpm.
 It never blocks pnpm.
 
 Why it exists:
@@ -27,13 +29,43 @@ so they cannot disagree about what is allowed.
   This crate does not link itself as `pnpm`;
   linking it is a toolchain-plan change that is not made here.
 
+## When it warns
+
+The user's rule is that the warning appears only where it makes sense:
+when pnpm is about to resolve or change dependencies from `package.json`.
+The command word is the first word that is not an option or an option's value,
+looking through one `recursive` word.
+These commands warn
+(read from `pnpm --help` of pnpm 12.16.1, aliases included):
+`add`,
+`install` (`i`),
+`install-test` (`it`),
+`update` (`up`, `upgrade`),
+`remove` (`rm`, `uninstall`, `un`, `uni`),
+`dedupe`,
+`import`,
+`link` (`ln`),
+`unlink` (`dislink`),
+and `ci` (`clean-install`, `ic`, `install-clean`).
+
+- Any other command, such as `run`, `list`, `root`, `exec`, `dlx`, `test`, `fetch` or `prune`, does no scan at all.
+- A help or version word before a literal `--` (`--help`, `-h`, `--version`, `-v`) cancels the warning:
+  `pnpm install --help` installs nothing.
+- Everything after a literal `--` belongs to a script and is never read.
+- An option that takes a value (`--dir`, `-C`, `--filter`, `-F`, `--registry` and the others listed in `src/verb.rs`)
+  consumes the next word,
+  so `pnpm --filter install list` is a `list`.
+  A pnpm option that takes a value and is missing from that list would make the next word look like the command;
+  the effect is a missed warning, never a wrong one,
+  and the fix is one line in `VALUE_OPTIONS`.
+
 ## What it checks
 
 - The workspace is found like pnpm finds it:
   the nearest directory, starting at the current directory and going up, that holds `pnpm-workspace.yaml`.
   Only the file's presence is tested; the YAML is never read.
   With no such directory the shadow says nothing and pnpm runs.
-- The tree under the workspace root is walked with the `ignore` crate,
+- The tree under the workspace root is walked in parallel with the `ignore` crate,
   which honors `.gitignore`, even when the workspace is not a git checkout.
   `.git` and `node_modules` are never entered,
   dot-directories are,
@@ -50,20 +82,50 @@ so they cannot disagree about what is allowed.
 
 One block on standard error, only when there is something to say:
 a first line with the count and the workspace root,
-one `pnpm-shadow: warning:` line per finding or note,
-and a closing line that states the rule and says the shadow is advice only.
-Standard output is never written by the shadow,
-so pnpm's output is exactly pnpm's.
-It warns on every run, including `pnpm --version`, and has no switch to turn that off:
+one `warning:` line per finding or note,
+and a closing line that states the rule and says the warning is advice only.
+The warning lines never name the wrapper:
+the wrapper names itself in exactly two places,
+after `pnpm --version` or `pnpm -v` (one line on standard output:
+`pnpm-shadow <version>, shadowing pnpm at <path of the real pnpm>`)
+and after `pnpm --help`, `pnpm -h` or `pnpm help` (a blank line and a short section with the same line).
+Both appear only when the command line is exactly that one word and pnpm succeeded,
+so `pnpm install --help` prints exactly what pnpm printed.
+The same two failures name the wrapper because they are the wrapper's own: no real pnpm found, and pnpm could not be started.
+There is no switch to turn the warning off:
 the way to silence it is to fix the manifests it names.
+
+## How it hands over
+
+For every command line except a lone version or help word,
+the shadow replaces itself with pnpm (`exec`):
+no wrapper process stays resident,
+and pnpm's exit status and signals are pnpm's own.
+For a lone version or help word it waits for pnpm,
+because the notice follows pnpm's text.
 
 ## Exit codes
 
-- pnpm's own exit code, or `128` plus the signal number when pnpm died from a signal.
+- pnpm's own exit code, or the signal that killed pnpm (after `exec`, the caller sees pnpm's death itself);
+  in the waiting case `128` plus the signal number.
 - `127`: no real `pnpm` found on `PATH`.
 - `126`: the real `pnpm` was found but could not be started.
 
 The real pnpm is the first executable named `pnpm` on `PATH` that does not resolve to this binary.
+
+## Cost
+
+Measured on 2026-11-01 on this repository (22,508 walked entries, 257 `package.json`), pnpm 12.16.1,
+100 interleaved pairs per command (the real pnpm and the shadow back to back, order alternating),
+median of the paired difference:
+`pnpm --version` 0.85 ms over 6.6 ms,
+`pnpm root` 0.59 ms over 11.8 ms,
+`pnpm install --help` 0.78 ms over 6.6 ms.
+`/usr/bin/true` takes about 0.5 ms to start,
+so the wrapper's fixed cost is near the cost of starting any process.
+A command that warns pays for the walk:
+the parallel walk's median was 10.0 ms against 78.9 ms for the serial walk (30 alternating rounds).
+The numbers and their spread are in `doc/handover/catalog-specifier-policy.md`.
 
 ## Limits
 
@@ -71,12 +133,10 @@ The real pnpm is the first executable named `pnpm` on `PATH` that does not resol
   The build fails on any other platform on purpose;
   a cross-platform version is a later change.
 - It checks the tree of its own current directory's workspace.
-  It does not parse `--dir` or `-C`, so `pnpm --dir /other` from a different tree checks the wrong tree.
+  It does not parse the value of `--dir` or `-C` as a directory, so `pnpm --dir /other install` from a different tree checks the wrong tree.
 - It reads the worktree, not the index,
   so unstaged edits are checked and a deleted-but-tracked file is not.
   The cli-git policy and the CI workflow are the checks of record.
-- Each run walks the whole workspace tree.
-  The cost on this repository is in the handover record `doc/handover/catalog-specifier-policy.md`.
 
 ## Checks
 

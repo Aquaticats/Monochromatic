@@ -14,6 +14,7 @@
 
 use super::service_journal::landed_commits;
 use super::service_land::{LandContext, Outcome, land_batch, recover};
+use super::service_work::{GitHandlers, drain};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client, encode_service,
 };
@@ -101,7 +102,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<std::path::PathBuf>) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -125,6 +126,9 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>) {
         }
         Ok(ClientMessage::Retire) => {
             let _queued = queue.send(Job::Retire);
+        }
+        Ok(ClientMessage::Work { common_dir }) => {
+            let _queued = work.send(common_dir);
         }
         Err(reason) => {
             eprintln!("cli-git-service: refused a request line: {reason}");
@@ -179,6 +183,30 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
 }
 
 /// What:
+///  Runs the after-commit work of each repository named, one repository at a time, folding wakes that arrive while it
+///  works into the next round.
+/// Why:
+///   Draining claims everything pending, so a burst of wakes for one repository is one pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for await (const dir of wakes) await drain(dir, handlers)
+/// ```
+fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers) {
+    while let Ok(first) = receiver.recv() {
+        let mut directories: Vec<std::path::PathBuf> = vec![first];
+        while let Ok(more) = receiver.try_recv() {
+            if !directories.contains(&more) {
+                directories.push(more);
+            }
+        }
+        for directory in directories {
+            drain(directory.as_path(), handlers, std::time::SystemTime::now());
+        }
+    }
+}
+
+/// What:
 ///  Runs the service until it is told to retire.
 /// Why:
 ///   Recovery runs before the first connection is accepted; then the loop takes everything queued as one batch, groups it
@@ -193,10 +221,15 @@ pub fn serve(listener: UnixListener, context: &LandContext) {
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
+    // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
+    let (work_sender, work_receiver): (Sender<std::path::PathBuf>, Receiver<std::path::PathBuf>) = channel();
+    let handlers: GitHandlers = GitHandlers { context: context.git.clone() };
+    std::thread::spawn(move || { work_loop(&work_receiver, &handlers); });
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue); });
+            let work: Sender<std::path::PathBuf> = work_sender.clone();
+            std::thread::spawn(move || { handle_connection(connection, &queue, &work); });
         }
     });
     let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });

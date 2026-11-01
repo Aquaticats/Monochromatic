@@ -1806,6 +1806,165 @@ doc/agent slice opened and troubleshooting still running):
 - Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
   position 26, troubleshooting at worklist line 67, doc/agent on its six files.
 
+Wave-4 forty-third checkpoint (2026-11-01, doc/agent complete and the slot moved to a
+translation-repair package; cc, desktop, fm and troubleshooting still running):
+
+- Lane milestone: doc/agent COMPLETE. All six tracked files read (431 lines); rows
+  `w5-docs-agent-001` to `-006`, w5-docs-agent.jsonl 6 of 6 by my run. My spots:
+  all six issue-tracker convention bullets are bold-label bullets; the three
+  exactly-120-character lines are regression-suite 4 and 29 and self-review 21;
+  regression-suite still records three `/tmp` scratch paths (XTD/ATH forbid
+  them); the five-triage-roles premise and the "stale" verb are quoted live. The
+  lane is released.
+- Freed slot: package/translation-repair/slice-cache opened as a single-package
+  slice (121 tracked files), findings to w5-tr-slice-cache.jsonl from id
+  `w5-tr-slice-cache-001`, base rr-tsc-001, deduping the earlier pkg-dom,
+  pkg-array-at and new-round4 mentions.
+- Active: cc-docs at 405 to 412, desktop-fork on deepmerge, fm-decision at
+  position 26, troubleshooting at worklist line 67, slice-cache on its package.
+
+Wave-4 forty-fourth checkpoint (2026-11-01, four lane returns verified and relaunched;
+slice-cache is still running):
+
+- doc/troubleshooting round 2: worklist lines 67 to 70, rows
+  `w2-logger-src-077` to `-085`; my spots confirm the Containerfile and lockfile
+  drift, the depth-1 `du` recipe, the reformatted task output and the deleted
+  linter lockfile. The ledger is 84 of 85: row 35 remains quote-bad because the
+  concurrent session keeps reflowing package/git-policy/cli/README.md; it is
+  marked concurrent and must be re-verified before filing. Next: worklist line
+  71, id w2-logger-src-086, base rr-ts-379.
+- `w4-cc-statusline` (cc-docs round 5) closed positions 405 to 412 and read nine
+  419 to 520 middles: rows `w4-docs-035` (anchor_denot region markers and the
+  unmarked 382 to 601 tail), `-036` (the Laya vet's evaluate/judge paths against
+  the one-file auto-mode src), `-037` (137 and 11 bold-label bullets in the
+  rolling-desktop vets) and `-038` (three ALL CAPS conclusions in the
+  translation-repair debt-layers record). Row 034 was retracted as a duplicate of
+  pkg-shell-argument-28. Ledger 37 of 37. Next: the remaining 419 to 520
+  middles, id w4-docs-039, base rr-gp-335.
+- `w4-desktop-app` (desktop-fork round 5) read 54 more deepmerge files: rows
+  `w4-upstream-fork-066` to `-071` (duplicated ActionUtils owners, copied esbuild
+  loader, three copied worker pools, unguarded RECALL_NPM_DIR, unvalidated
+  recall seed/size, and the bare --skipLibCheck override). Ledger 71 of 71; 110
+  of 124 files. Next: the 14 remaining type files and tsconfig, id
+  w4-upstream-fork-072, base rr-desktop-089.
+- `w4-fm-variant-qt` (fm-decision round 5) read positions 26, 29, 30, 35, 40 and
+  42: rows `w4-docs-decision-046` to `-051` (six-vs-two gitignore negations,
+  seeds/seeder drift, 51-vs-1344 seeds, three split bold spans, the serde_json
+  catalog line, and the commands.rs pointer). The pre-existing row 034 had moved
+  with toolchain.plan.jsonc; I repaired it to lines 369/378. Ledger 51 of 51.
+  Next: position 41, id w4-docs-decision-052, base rr-fmv-62.
+- Active: cc-docs at the 419 to 520 middles, desktop-fork on the type files,
+  fm-decision at position 41, troubleshooting at line 71, slice-cache on its
+  package.
+
+Wave-4 forty-fifth checkpoint (2026-11-01, slice-cache first turn verified and relaunched;
+the other four lanes are still running):
+
+- package/translation-repair/slice-cache round 1: 83 of 119 reviewable files read;
+  rows `w5-tr-slice-cache-001` (build-entries example key the map never holds),
+  `-002` (two @internal helpers published by src/index.ts), `-003`
+  (openRefineSliceCache is the only store opener with no test) and `-004` (the
+  INCOMPLETE case table omits the ArchiveOriginalCompletenessError arm while 14
+  siblings have rows). My spots reproduce all four; the ledger is 4 of 4.
+  Next: cache-account-repo.test-fixture.ts and the 34 unread unit tests, id
+  w5-tr-slice-cache-005, base rr-tsc-002.
+- Active: cc-docs at the 419 to 520 middles, desktop-fork on the type files,
+  fm-decision at position 41, troubleshooting at line 71, slice-cache on its
+  unread tests.
+
+Wave-4 forty-sixth checkpoint (2026-11-01, cc, desktop and fm returns verified; the desktop lane
+moves to corpus-pass, and troubleshooting and slice-cache keep running):
+
+- `w4-cc-statusline` (cc-docs round 6) deep-swept the 419 to 520 middles at
+  digest-plus-regional depth: 83 markdown files, 91,190 lines, zero new rows.
+  w4-docs.jsonl stays 37 of 37. Verified live: 432 backticked references, the
+  scratch-path notes, all four supersession markers, the rescreen arithmetic,
+  the chunk exit counts and the single H1 per file. Next: line-by-line deep
+  reads of the zero-cited tech-* vets, id w4-docs-039, base rr-gp-336.
+- Lane milestone: `w4-desktop-app` COMPLETE. The last 14 deepmerge-ts.fuzz
+  type files read end to end; rows `w4-upstream-fork-072` (isTypeLevelFile omits
+  type-export-name.ts, leaving one unrewritten specifier in 18 copied names),
+  `-073` (declaredTypeNames returns [''] for a type-only re-export) and `-074`
+  (type-record's "each case pins the runtime value" claim: 1 of 14 cases has no
+  expect). Ledger 74 of 74; the upstream-fork family is complete at 16 of 16.
+  The lane is released and its slot moved to translation-repair/corpus-pass.
+- `w4-fm-variant-qt` (fm-decision round 6) read positions 41 and 43: rows
+  `w4-docs-decision-052` to `-055` (mise.lock read as live, the floating stable
+  claims, the kopia-stack 2-gate Status against three FULL PASS plus 18 renders,
+  and the 29 split .NET wraps). Concurrent commit 93390c7afe shifted
+  cargo-publish.yml by two lines; I repaired rows 020 and 027 to :61 and :228
+  and the ledger is 55 of 55. Next: position 44, id w4-docs-decision-056, base
+  rr-fmv-63.
+- Freed slot: package/translation-repair/corpus-pass opened (362 tracked files),
+  findings to w5-tr-corpus-pass.jsonl from id `w5-tr-corpus-pass-001`, base
+  rr-tcp-001, deduping the earlier corpus-pass mentions.
+- Active: cc-docs on the deep middles, fm-decision at position 44,
+  troubleshooting at line 71, slice-cache on its unread tests, corpus-pass on
+  its package.
+
+Wave-4 forty-seventh checkpoint (2026-11-01, troubleshooting round 3 verified; the other four
+lanes keep running):
+
+- doc/troubleshooting round 3: worklist lines 70 to 72, rows
+  `w2-logger-src-086` to `-091`. My spots: the cargo-nightly doc carries zero
+  URLs, the shallow-publish doc writes cargo-publish.old.yml into the repository
+  root, and checksExecuted appears only in the doc. The unstable row 35 moved to
+  w2-logger-src-concurrent.jsonl with a re-verify note after the README reflowed
+  twice; w2-logger-src.jsonl is now 90 of 90 clean. Next: worklist line 73, id
+  w2-logger-src-092, base rr-ts-380.
+- Active: cc-docs on the deep middles, fm-decision at position 44, slice-cache
+  on its unread tests, corpus-pass on its package, troubleshooting at line 73.
+
+Wave-4 forty-eighth checkpoint (2026-11-01, slice-cache and corpus-pass returns verified and
+relaunched; cc and fm still running):
+
+- slice-cache round 2: 12 more tests read, rows `w5-tr-slice-cache-005`
+  (commitFileAt example doubles its newline escape), `-006` (corpus-pin test
+  names an unqualified run-config.ts that lives in the sibling run package) and
+  `-007` (the settled-carve test promises an unsettled or legacy forward but
+  asserts only unsettled). My spots reproduce all three; ledger 7 of 7, 95 of 119
+  files. Next: consolidate-cache-store.unit.test.ts, id
+  w5-tr-slice-cache-008, base rr-tsc-003.
+- corpus-pass round 1: rows `w5-tr-corpus-pass-001` (README files adjudication as
+  a test-only devDependency while production imports its /ts subpath), `-002`
+  (README names pass-entry.ts for settleEntry, which is declared in
+  pass-entry-settle.ts) and `-003` (visualEvidenceReader lacks @param in both
+  functions). My spots reproduce all three; ledger 3 of 3; about 17 of 101
+  non-test modules read fully. Next: pass-dry-stop and the remaining modules, id
+  w5-tr-corpus-pass-004, base rr-tcp-002.
+- Active: cc-docs on the deep middles, fm-decision at position 44,
+  troubleshooting at line 73, slice-cache on its remaining tests, corpus-pass
+  on its remaining modules.
+
+Wave-4 forty-ninth checkpoint (2026-11-01, cc deep-read turn verified and relaunched; fm,
+troubleshooting, slice-cache and corpus-pass keep running):
+
+- `w4-cc-statusline` (cc-docs round 7) deep-read six zero-cited tech vets and
+  swept all 39 of them (36,897 lines): rows `w4-docs-039` (the fearless-simd vet
+  wraps paragraphs into list markers, splitting the fingerprint literal between
+  lines 19 and 20 and the search pattern between 74 and 75; 139 of 222
+  list-marker lines continue an open sentence) and `-040` (six bold-label bullets
+  at lines 252, 258, 268, 275, 281 and 285). My spots reproduce both; w4-docs.jsonl
+  is 39 of 39. Next: position 423 onward, id w4-docs-041, base rr-gp-337.
+- Active: fm-decision at position 44, troubleshooting at line 73, slice-cache on
+  its remaining tests, corpus-pass on its remaining modules, cc-docs at position
+  423 onward.
+
+Wave-4 fiftieth checkpoint (2026-11-01, fm follow-on turn verified and relaunched; the other four
+lanes keep running):
+
+- `w4-fm-variant-qt` (fm-decision round 7) read positions 44 to 48 and 63:
+  rows `w4-docs-decision-056` to `-062` (split dotted names and quote spans,
+  sixteen escaped quotes inside inline code, one URL repeated 3 to 7 times as an
+  autolink, the vet-slint Cargo.toml citation landing on a PipeWire comment, the
+  jsonc scan.rs pointer on the error TSDoc, the vet-react-native grep of a
+  zero-tracked package, and the device-gate pre-gate plan). My spots confirm the
+  zero-tracked react-native grep and the jsonc pointer; ledger 62 of 62. Next:
+  position 49, id w4-docs-decision-063, base rr-fmv-64.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, slice-cache on its remaining tests, corpus-pass on its remaining
+  modules.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

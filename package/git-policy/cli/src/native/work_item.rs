@@ -243,7 +243,24 @@ fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime
 /// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', id))
 /// ```
 pub fn claim_next(work_dir: &Path, now: SystemTime) -> Result<Option<Claimed>, String> {
+    return claim_next_of(work_dir, now, &[WorkKind::Review, WorkKind::Push, WorkKind::Maintenance]);
+}
+
+/// What:
+///  Claim the oldest pending item of the given kinds, leaving every other kind where it is.
+/// Why:
+///   Consumers of different kinds share one queue; the kind starts the file name, so a consumer never opens, moves or
+///   stamps an item that belongs to another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rename(join(workDir, 'pending', id), join(workDir, 'claimed', id)) // only ids that start with a handled kind
+/// ```
+pub fn claim_next_of(work_dir: &Path, now: SystemTime, kinds: &[WorkKind]) -> Result<Option<Claimed>, String> {
     for (id, _) in entries_oldest_first(work_dir, PENDING) {
+        if !kinds.iter().any(|kind| return id.starts_with(format!("{}-", kind.name()).as_str())) {
+            continue;
+        }
         let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(id.as_str());
         if std::fs::rename(state_directory(work_dir, PENDING).join(id.as_str()), claimed_path.as_path()).is_err() {
             continue;

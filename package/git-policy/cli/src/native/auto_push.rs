@@ -275,6 +275,114 @@ fn report_outcome(
     });
 }
 
+/// What a push plan decided before anything was pushed.
+enum Planned {
+    /// Nothing to push; the result says why.
+    Skip(AutoPushResult),
+    /// Push the branch with these arguments.
+    Push {
+        /// The branch HEAD names.
+        branch_ref: String,
+        /// Whether the branch has an upstream, which makes a moved remote branch reconcilable.
+        has_upstream: bool,
+        /// The `git push` arguments.
+        arguments: Vec<String>,
+    },
+}
+
+/// What:
+///  Decide whether and how to push: no upstream and no origin skips, a detached HEAD skips with a note, otherwise the
+///  push arguments follow the upstream state.
+/// Why:
+///   The wrapper's own auto-push and the service's push consumer decide identically; only how the push is coordinated
+///  differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const plan = await planPush({ gitPath, cwd });
+/// ```
+fn plan_push(git: &PushGit, err: &mut dyn Write) -> Result<Planned, SingleFlightError> {
+    let has_upstream = query_succeeds(
+        git,
+        &[
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{upstream}",
+        ],
+    )?;
+    if !has_upstream && !query_succeeds(git, &["remote", "get-url", "origin"])? {
+        debug(TAG, "no upstream and no origin remote; skipping auto-push");
+        return Ok(Planned::Skip(AutoPushResult {
+            outcome: AutoPushOutcome::Skipped,
+            exit_code: 0,
+            shown: String::new(),
+            joined: false,
+        }));
+    }
+    let Some(branch_ref) = read_symbolic_head(git)? else {
+        // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
+        let _written = writeln!(err, "{DETACHED_HEAD_NOTE}");
+        return Ok(Planned::Skip(AutoPushResult {
+            outcome: AutoPushOutcome::Skipped,
+            exit_code: 0,
+            shown: DETACHED_HEAD_NOTE.to_owned(),
+            joined: false,
+        }));
+    };
+    let named: Option<Vec<String>> = if has_upstream {
+        named_destination_push(git, &branch_ref)?
+    } else {
+        None
+    };
+    let named_arguments: Vec<String> = named.into_iter().flatten().collect();
+    let arguments: Vec<String> = if !named_arguments.is_empty() {
+        named_arguments
+    } else if has_upstream {
+        UPSTREAM_PUSH_ARGUMENTS.iter().map(|argument| { return (*argument).to_owned(); }).collect()
+    } else {
+        FIRST_PUSH_ARGUMENTS.iter().map(|argument| { return (*argument).to_owned(); }).collect()
+    };
+    return Ok(Planned::Push { branch_ref, has_upstream, arguments });
+}
+
+/// What:
+///  Push a landed commit's branch once, with no coordination with other processes.
+/// Why:
+///   The service's push consumer is the only pusher of the repositories it serves and coalesces pending pushes of one
+///  branch into this single call, so it needs no lock; the output and the failure note are those of `auto_push`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await pushOnce({ gitPath, cwd }, landedOid);
+/// ```
+pub fn push_once(git: &PushGit, landed_oid: &str, err: &mut dyn Write) -> Result<AutoPushResult, SingleFlightError> {
+    let (branch_ref, has_upstream, arguments): (String, bool, Vec<String>) = match plan_push(git, err)? {
+        Planned::Skip(result) => return Ok(result),
+        Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
+    };
+    let argument_views: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    debug(TAG, &format!("pushing {landed_oid} with {argument_views:?} on {branch_ref}"));
+    let mut attempt: PushAttempt = run_push_command(git, argument_views.as_slice())?;
+    if has_upstream && attempt.exit_code != 0 {
+        attempt = reconcile_divergent_push(git, &branch_ref, attempt)?;
+    }
+    let failed: bool = attempt.exit_code != 0;
+    let shown: String = filter_push_output(&attempt.output, attempt.exit_code);
+    if !shown.is_empty() {
+        writeln!(err, "{shown}").map_err(SingleFlightError::Io)?;
+    }
+    if failed && !attempt.output.contains(RECONCILE_FAILED_PREFIX) {
+        writeln!(err, "{PUSH_FAILED_NOTE}").map_err(SingleFlightError::Io)?;
+    }
+    return Ok(AutoPushResult {
+        outcome: if failed { AutoPushOutcome::Failed } else { AutoPushOutcome::Pushed },
+        exit_code: attempt.exit_code,
+        shown,
+        joined: false,
+    });
+}
+
 /// What:
 ///  Back up a landed commit by pushing its branch, single-flight per branch.
 /// Why:
@@ -291,51 +399,11 @@ pub fn auto_push(
     landed_oid: &str,
     err: &mut dyn Write,
 ) -> Result<AutoPushResult, SingleFlightError> {
-    let has_upstream = query_succeeds(
-        git,
-        &[
-            "rev-parse",
-            "--abbrev-ref",
-            "--symbolic-full-name",
-            "@{upstream}",
-        ],
-    )?;
-    if !has_upstream && !query_succeeds(git, &["remote", "get-url", "origin"])? {
-        debug(TAG, "no upstream and no origin remote; skipping auto-push");
-        return Ok(AutoPushResult {
-            outcome: AutoPushOutcome::Skipped,
-            exit_code: 0,
-            shown: String::new(),
-            joined: false,
-        });
-    }
-    let Some(branch_ref) = read_symbolic_head(git)? else {
-        // Terminal output error: the note itself is the only diagnostic; a failed write to stderr is not a push failure.
-        let _written = writeln!(err, "{DETACHED_HEAD_NOTE}");
-        return Ok(AutoPushResult {
-            outcome: AutoPushOutcome::Skipped,
-            exit_code: 0,
-            shown: DETACHED_HEAD_NOTE.to_owned(),
-            joined: false,
-        });
+    let (branch_ref, has_upstream, owned_arguments): (String, bool, Vec<String>) = match plan_push(git, err)? {
+        Planned::Skip(result) => return Ok(result),
+        Planned::Push { branch_ref, has_upstream, arguments } => (branch_ref, has_upstream, arguments),
     };
-    let named: Option<Vec<String>> = if has_upstream {
-        named_destination_push(git, &branch_ref)?
-    } else {
-        None
-    };
-    let named_arguments: Vec<&str> = named
-        .iter()
-        .flatten()
-        .map(String::as_str)
-        .collect();
-    let push_arguments: &[&str] = if !named_arguments.is_empty() {
-        named_arguments.as_slice()
-    } else if has_upstream {
-        UPSTREAM_PUSH_ARGUMENTS
-    } else {
-        FIRST_PUSH_ARGUMENTS
-    };
+    let push_arguments: &[&str] = &owned_arguments.iter().map(String::as_str).collect::<Vec<&str>>();
     debug(
         TAG,
         &format!("auto-pushing {landed_oid} with {push_arguments:?} on {branch_ref}"),

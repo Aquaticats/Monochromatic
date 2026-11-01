@@ -1064,6 +1064,10 @@ commit that waits says how many commits go first.
   trailers) commits as before.
 - `CLI_GIT_COMMIT_SERVICE=1` asks for the service on a machine that has not installed it: the commit stops at once with a plain
   message that names the install command, and nothing changes in the repository.
+- The backup push and the automatic upkeep of a commit the service landed run in the service after the command returned.
+  A push that fails does not fail the commit; the next commit through the service prints a notice once. The service pushes
+  with its own environment, so a variable only your terminal has (an ssh agent address) must also be in the user manager's
+  environment.
 - When the activation is installed and the service does not answer, the commit stops with a plain message that says what to do;
   there is no other way for the same commit to be made behind the user's back.
 

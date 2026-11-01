@@ -54,6 +54,9 @@ pub mod shadow_notice;
 /// The shadow mode: warn, look up, launch, wait.
 pub mod shim;
 
+/// The command-word rules: whether the manifest warning makes sense for a pnpm command line.
+pub mod verb;
+
 /// Scratch directories for the unit tests, placed beside the build output.
 #[cfg(test)]
 mod test_scratch;
@@ -77,3 +80,7 @@ mod shadow_notice_tests;
 /// The unit tests of the child launch and exit-status mapping.
 #[cfg(test)]
 mod shim_tests;
+
+/// The unit tests of the command-word rules.
+#[cfg(test)]
+mod verb_tests;

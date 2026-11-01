@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
@@ -130,6 +130,11 @@ pub enum ClientMessage {
     Commit(Box<CommitRequest>),
     /// Finish the queue and exit, so the manager starts the current binary.
     Retire,
+    /// Work items were written for this repository; run what is pending.
+    Work {
+        /// The repository's common Git directory, which holds the work directory.
+        common_dir: PathBuf,
+    },
 }
 
 /// What the service sends.
@@ -185,6 +190,11 @@ fn object(entries: Vec<(&str, Value)>) -> String {
 pub fn encode_client(message: &ClientMessage) -> String {
     return match message {
         ClientMessage::Retire => object(vec![("type", Value::from("retire")), ("version", Value::from(PROTOCOL_VERSION))]),
+        ClientMessage::Work { common_dir } => object(vec![
+            ("type", Value::from("work")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
+        ]),
         ClientMessage::Commit(request) => object(vec![
             ("type", Value::from("commit")),
             ("version", Value::from(PROTOCOL_VERSION)),
@@ -235,6 +245,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     match field(&value, "type")? {
         "retire" => return Ok(ClientMessage::Retire),
+        "work" => {
+            let common_dir: PathBuf = PathBuf::from(field(&value, "commonDir")?);
+            if !common_dir.is_absolute() || common_dir.to_string_lossy().contains('\0') {
+                return Err(String::from("work request is not acceptable"));
+            }
+            return Ok(ClientMessage::Work { common_dir });
+        }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),
     }

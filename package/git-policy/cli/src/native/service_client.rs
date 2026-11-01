@@ -215,3 +215,42 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
         std::thread::sleep(CONNECT_PAUSE * u32::try_from(breaks).unwrap_or(1));
     }
 }
+
+/// What:
+///  Tells the service that work items were written for a repository, starting it through the operating system when it
+///  is not running, and returns once the service has taken the message.
+/// Why:
+///   The wrapper never starts the service or runs the work itself; the message is the only thing the service needs to
+///  look at the repository's work directory. The connection closes when the service has read the line, which is the
+///  confirmation that it will act.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await wake(config, commonDir)
+/// ```
+pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf() });
+    line.push('\n');
+    let mut announced: bool = false;
+    let mut replacements: usize = 0;
+    loop {
+        let (mut reader, version) = reach(config, notices, &mut announced)?;
+        if version != PROTOCOL_VERSION {
+            if version > PROTOCOL_VERSION || replacements >= REPLACEMENTS {
+                return Err(ClientFailure::NoCommonVersion);
+            }
+            replacements += 1;
+            let mut retire: String = encode_client(&ClientMessage::Retire);
+            retire.push('\n');
+            let _sent = reader.get_mut().write_all(retire.as_bytes());
+            std::thread::sleep(CONNECT_PAUSE * 4);
+            continue;
+        }
+        if reader.get_mut().write_all(line.as_bytes()).is_err() {
+            return Err(ClientFailure::Unavailable);
+        }
+        // The service closes the connection after it has read the line.
+        while read_message(&mut reader).is_some() {}
+        return Ok(());
+    }
+}
