@@ -73,16 +73,18 @@ fn starts_with_own_crate_prefix(prefix: &str) -> bool {
 }
 
 /// Whether a request source and a tag prefix name releases of this repository:
-/// the source is `OWN_REPOSITORY_SOURCE` exactly,
+/// the source is `OWN_REPOSITORY_SOURCE` apart from letter case
+/// (GitHub owner and repository names are case-insensitive,
+/// and the names are ASCII),
 /// and the prefix starts with `monochromatic-`.
 fn names_own_releases(request_source: &str, tag_prefix: Option<&str>) -> bool {
-    return request_source == OWN_REPOSITORY_SOURCE && tag_prefix.is_some_and(starts_with_own_crate_prefix);
+    return request_source.eq_ignore_ascii_case(OWN_REPOSITORY_SOURCE) && tag_prefix.is_some_and(starts_with_own_crate_prefix);
 }
 
 /// What:
 /// Whether a tool is an archive-route tool published by this repository:
 /// the `archive` route,
-/// a request for `github:Aquaticats/Monochromatic` (written exactly so),
+/// a request for `github:Aquaticats/Monochromatic` (in any letter case),
 /// and an `options.tagPrefix` that starts with `monochromatic-`.
 /// Why:
 /// The tag prefix is what names one program's releases in this repository's many tags,

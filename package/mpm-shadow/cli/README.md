@@ -728,7 +728,8 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
   each tree's `.cache/toolchain-bin` links the version its own lock names.
 - A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
   repository's own crates) is repository-published.
-  So is an `archive` tool whose request names `github:Aquaticats/Monochromatic` (written exactly so)
+  So is an `archive` tool whose request names `github:Aquaticats/Monochromatic`
+  (in any letter case, because GitHub owner and repository names are case-insensitive)
   and whose `options.tagPrefix` starts with `monochromatic-`:
   a release archive of this repository,
   such as `mpm-shadow` itself,
