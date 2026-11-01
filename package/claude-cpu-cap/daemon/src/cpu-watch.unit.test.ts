@@ -38,6 +38,8 @@ await describe({
             ...process.env,
             CPU_WATCH_CAP_FILE: paths.capFile,
             CPU_WATCH_CGROUP_FILE: paths.cgroupFile,
+            CPU_WATCH_IO_WEIGHT_FILE: paths.ioWeightFile,
+            CPU_WATCH_IO_BFQ_WEIGHT_FILE: paths.ioBfqWeightFile,
             CPU_WATCH_HWMON_ROOT: paths.hwmonRoot,
             CPU_WATCH_PROC_ROOT: paths.procRoot,
             CPU_WATCH_SAMPLE_DIR: paths.sampleDir,
@@ -64,8 +66,12 @@ await describe({
         const text = output.join('',);
         expect(text,).toContain('WATCHER-STARTED',);
         expect(text,).toContain('CAP-APPLIED',);
+        expect(text,).toContain('IO-WEIGHT-APPLIED',);
         expect(text,).toContain('WATCHER-STOPPED',);
         expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
+        // Both weight files of the fixture were written; the live cgroup is never touched by this test.
+        expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe('default 10',);
+        expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe('default 10',);
       },
     },),
   ],
