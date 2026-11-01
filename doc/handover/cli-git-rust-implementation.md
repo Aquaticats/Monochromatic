@@ -6405,3 +6405,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the worktree (`~/temp/agent/mirror-package-node-modules.ts`; the earlier mirror covered only 3). Gate 17 runs (unit
   `gpc-main-gate17`). When green: merge, release 0.5.4, bump the lock, then measure a real signed commit through the
   service.
+- Gate 17 GREEN on `caecdda4ae` plus main (the service pre-4d work): 3132 of 3132 passed, 8 skipped. Merged into main
+  and released as 0.5.4 (logs `~/temp/agent/release-054.log` and `-wait.log`). HOLD wrapper merges until its bump lands.
+  - The service's push uploads LFS first, verified from the code only:
+    `GitHandlers::push` -> `push_once` -> `run_push_command` -> `lfs_bounded_push::run_push`, which narrows the plan
+    with the in-process pointer scan when `PushGit.lfs` is set. No binary test covers it through the service yet; that
+    is part of the landings agent's brief (restating the 15 push-in-command tests).
+- Review key in memory READY `54a8610195` from `ad02e84404af49107`:
+  - new `service_review_key.rs` (redacted `Debug`);
+  - optional `reviewKey` in the work message, held per repository for one round and then forgotten;
+  - the review reads both credential names only from the message.
+  It fast-forwarded `integ-20261101`. Gate 18 runs there (unit `gpc-main-gate18`), and so does the e2e container suite
+  with the service (unit `gpc-e2e-service`, log `~/temp/agent/gate/e2e-service.log`), which the service agent could not
+  run. Not covered: an end-to-end review through a real socket, because the review uses the real gateway endpoint.
