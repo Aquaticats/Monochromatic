@@ -6336,3 +6336,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
     per-destination claim by exclusive create and rename, like `worktree_copy_stage_claim.rs`. Its own slice and agent.
   - Release plan: 4b-2 and 4c ship only together with a (rebuild), so that this machine's concurrent signed commits do
     not regress.
+- Fuzz sidecar READY `7a4bc1f057`, merged into main as `c0fb22bbf1`. It adds `[tasks.lint]` (plain shape like
+  `forbidden-strings/core.fuzz`, running `lint:types` and `lint:oxlint`), so the root lint reaches the sidecar; the GFP
+  plant gave E0432. It also registers `dbus_reply`, which had been missing from `bin/fuzz-options.ts` (smoke: 238002
+  executions, exit 0).
+- Reads fix READY `08200867f5`:
+  - The three `lfs_object_plan` tests now use the hermetic overlay.
+  - Production gap found: the resident service built reader contexts without the forward-target variable
+    (`service_main.rs:43`, `service_work.rs:222`), so its in-process reads would have declined on every call. Fixed with
+    `git_system_config::with_real_git` at every call site that knows its Git.
+  - Binary control `budget::the_wrapper_learns_the_system_config_path_once_and_its_reads_still_answer` (one `git var`
+    cold, none warm).
+  The integration branch was fast-forwarded to it, then main was merged (`f96cdf42e4`). Gate 16 runs there (unit
+  `gpc-main-gate16`). When green: merge to main and release 0.5.3 (reads and LFS follow-ups). Hold merges touching the
+  wrapper until the bump lands.
+- `worktree_copy_lock` slice sent to agent `ab3dd6294f9d91284`.
