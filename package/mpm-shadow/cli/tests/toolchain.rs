@@ -6,6 +6,7 @@
 
 use std::fs;
 
+use mpm_shadow::cli::{build_command, declared_verbs};
 use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -175,13 +176,80 @@ fn bin_needs_no_lock() {
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
 }
 
+/// The rendered help line of the subcommand `name`:
+/// the first line whose first word is the command name.
+fn help_line<'help>(help: &'help str, name: &str) -> &'help str {
+    return help
+        .lines()
+        .find(|line| return line.split_whitespace().next() == Some(name))
+        .unwrap_or_else(|| {
+            panic!("{name} is missing from --help:\n{help}");
+        });
+}
+
+/// The declared verb surface must be exactly the surface the grammar registers:
+/// a subcommand added without a declaration would escape the rendered-help assertion.
+fn assert_grammar_matches_declaration() {
+    let grammar = build_command();
+    let registered: Vec<&str> = grammar
+        .get_subcommands()
+        .map(|command| return command.get_name())
+        .collect();
+    let declared: Vec<&str> = declared_verbs().iter().map(|verb| return verb.name).collect();
+    assert_eq!(
+        registered, declared,
+        "the grammar registers a subcommand the declaration does not name"
+    );
+    for verb in declared_verbs() {
+        let command = grammar
+            .find_subcommand(verb.name)
+            .unwrap_or_else(|| {
+                panic!("{} is declared but not registered", verb.name);
+            });
+        let aliases: Vec<&str> = command.get_visible_aliases().collect();
+        assert_eq!(
+            aliases, verb.aliases,
+            "{}: the grammar registers other aliases than the declaration",
+            verb.name
+        );
+    }
+}
+
+/// The alias bracket `clap` renders beside a subcommand:
+/// `[alias: i]` for one alias and `[aliases: i, ls]` for several.
+fn alias_bracket(aliases: &[&str]) -> Option<String> {
+    return match aliases {
+        [] => None,
+        [only] => Some(format!("[alias: {only}]")),
+        many => Some(format!("[aliases: {}]", many.join(", "))),
+    };
+}
+
+/// The alias bracket a rendered help line carries,
+/// if any.
+fn rendered_alias_bracket(line: &str) -> Option<&str> {
+    let start: usize = line.find("[alias")?;
+    let rest: &str = &line[start..];
+    let end: usize = rest.find(']')?;
+    return Some(&rest[..=end]);
+}
+
 #[test]
-fn help_lists_the_toolchain_verbs() {
+fn help_lists_every_declared_verb_and_its_visible_aliases() {
+    assert_grammar_matches_declaration();
     let fixture = Fixture::new();
     let output = fixture.run(&["--help"]);
     let help = text(&output.stdout);
-    for verb in ["install", "update", "outdated", "list", "verify-archive", "bin", "prune"] {
-        assert!(help.contains(verb), "{verb} missing from:\n{help}");
+    for verb in declared_verbs() {
+        let line: &str = help_line(&help, verb.name);
+        let rendered: Option<&str> = rendered_alias_bracket(line);
+        assert_eq!(
+            alias_bracket(verb.aliases).as_deref(),
+            rendered,
+            "{}: --help renders {rendered:?} but the declaration has {:?}:\n{line}",
+            verb.name,
+            verb.aliases
+        );
     }
 }
 

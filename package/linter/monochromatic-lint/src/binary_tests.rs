@@ -24,6 +24,9 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+/// The declared long options of the command grammar.
+use monochromatic_lint::cli_options::long_options;
+
 /// The path of the executable Cargo built for this test run.
 const BINARY: &str = env!("CARGO_BIN_EXE_monochromatic-lint");
 
@@ -192,25 +195,12 @@ fn help_version_and_usage_errors_use_the_documented_statuses() {
         "{}",
         help.stdout
     );
-    for flag in [
-        "--config",
-        "--fix",
-        "--stdin",
-        "--stdin-filename",
-        "--max-warnings",
-        "--quiet",
-        "--silent",
-        "--print-config",
-        "--init",
-        "--rules",
-        "--concurrency",
-        "--ignore-pattern",
-        "--ignore-path",
-        "--no-ignore",
-        "--no-error-on-unmatched-pattern",
-        "--debug",
-    ] {
-        assert!(help.stdout.contains(flag), "{flag}");
+    for option in long_options() {
+        assert!(
+            help.stdout.contains(&option),
+            "{option} is missing from:\n{}",
+            help.stdout
+        );
     }
     assert_eq!(help.stderr, "");
     // Read the version from the manifest so a release bump cannot leave this assertion stale.
@@ -1422,6 +1412,7 @@ fn directives_through_the_executable() {
     assert_eq!(listed[2]["suppressible"], true);
 }
 
-/// The unit-test scratch root, shared with the library test build and placed in the build directory.
+/// The unit-test scratch root,
+/// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]
 mod test_scratch;

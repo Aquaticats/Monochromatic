@@ -10,9 +10,10 @@
 //! ```
 
 /// Import the production command grammar,
+///  the declared long option surface,
 ///  the severity an unused-directive finding carries,
 ///  and the parser's fallible entry point.
-use super::CliOptions;
+use super::{CliOptions, long_options};
 use crate::diagnostic::Severity;
 use clap::Parser;
 /// Import native argv/path storage.
@@ -121,14 +122,21 @@ fn inconsistent_modes_and_invalid_values_are_rejected() {
 fn help_and_version_remain_available_without_setup() {
     let help: clap::Error = parse(&["--help"]).expect_err("help request");
     assert_eq!(help.kind(), clap::error::ErrorKind::DisplayHelp);
-    assert!(help.to_string().contains("--stdin-filename"));
+    let rendered: String = help.to_string();
+    // The rendered help must name every long option the parser declares.
+    for option in long_options() {
+        assert!(
+            rendered.contains(&option),
+            "{option} is missing from:\n{rendered}"
+        );
+    }
     // Help is written for the person running the command, not copied from source documentation.
     assert!(
-        help.to_string()
+        rendered
             .starts_with("Lint Rust, Markdown and MDX with repository-owned policies.\n\nUsage: monochromatic-lint [OPTIONS] [PATH]...")
     );
-    assert!(!help.to_string().contains("In TS you'd write"));
-    assert!(!help.to_string().contains("What:"));
+    assert!(!rendered.contains("In TS you'd write"));
+    assert!(!rendered.contains("What:"));
     let version: clap::Error = parse(&["--version"]).expect_err("version request");
     assert_eq!(version.kind(), clap::error::ErrorKind::DisplayVersion);
 }
