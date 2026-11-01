@@ -12,7 +12,7 @@ import {
 import type { AttemptRecord, } from './ledger-fixture.ts';
 import type { ScenarioContext, } from './scenario-model-fixture.ts';
 import type { TraceOperation, } from './trace-replay-fixture.ts';
-import { reached, } from './barrier-fixture.ts';
+import { waitForConnection, } from './client-connection-fixture.ts';
 import {
   readWorktree,
   runWrapper,
@@ -392,12 +392,9 @@ async function runClaimedOperation({
     paths: operation.selected,
     mode: 'explicit',
   },);
-  await reached({
-    repository: context.repository,
-    token: attempt.token,
-    running: attempt.running,
-    event: 'pre-commit',
-  },);
+  // A wrapper that holds a socket has prepared its commit from the worktree and waits at the service,
+  // so the bytes it captured are final; one that settled first captured nothing more to wait for.
+  await waitForConnection(attempt.running,);
   captured.resolve();
   /**
    Finished record.
@@ -422,7 +419,7 @@ async function runClaimedOperation({
  Runs operations with at most `concurrency` in flight,
  starting them in trace order.
 
- @param context - scenario context; the repository needs a `pre-commit` hook
+ @param context - scenario context
 
  @param operations - planned operations
 
