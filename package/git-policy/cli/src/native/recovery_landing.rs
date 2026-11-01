@@ -42,6 +42,8 @@ use super::recovery_evidence::{
     LANDING_RECORD_PREFIX, RECORD_SUFFIX, attempt_numbers, directory_names, release_recorded_locks,
     remove_dead_pid_file,
 };
+/// The release of a dead owner's locks, with or without the record that proves the lock ours.
+use super::recovery_dead_owner_locks::{release_dead_owner_locks, release_without_preparing};
 /// Exact reads and existence probes.
 use super::recovery_files::{path_present, read_recovery_file, recovery_path_exists};
 /// Shadow location and removal.
@@ -246,6 +248,15 @@ pub fn recover_dead_transaction(
             "recoverDeadTransaction",
             format!("dead owner stopped before capture: {}", directory.display()).as_str(),
         );
+        // A lock record or a PID file beside the directory means the commit went on and the record of its real
+        // index was lost, not that it stopped early: its lock is released and its keeps are removed as in a discard.
+        let default_objects: PathBuf = place.common_dir.join("objects");
+        if release_without_preparing(default_objects.as_path(), directory, names.as_slice(), transaction_id, owner_pid)? {
+            debug(
+                "recoverDeadTransaction",
+                format!("the preparing record is gone but the transaction progressed: {}", directory.display()).as_str(),
+            );
+        }
         remove_shadow_repository(
             shadow_repository_path(place.common_dir.as_path(), transaction_id).as_path(),
         )?;
@@ -257,7 +268,7 @@ pub fn recover_dead_transaction(
         .last()
         .copied()
     else {
-        release_recorded_locks(directory, names.as_slice(), real_index, owner_pid)?;
+        release_dead_owner_locks(directory, names.as_slice(), real_index, owner_pid)?;
         discard_transaction(directory, transaction_id, &preparing)?;
         return Ok(RecoveryAction::CommitNotCreated);
     };

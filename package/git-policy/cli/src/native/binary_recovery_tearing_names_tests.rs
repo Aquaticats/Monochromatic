@@ -9,6 +9,8 @@
 //!  tearing sweep's delete damage does, and compares the result with a state built as if the record was never written.
 //!  The first barrier that makes the names of the transaction directory durable is the directory sync of
 //!  `landing-1.json`, which comes before the branch moves, so the losses are reachable only at the phases before it.
+//!  The lost owner name and the lost lock record, which once left the repository stuck, are in
+//!  `binary_recovery_tearing_converge_tests.rs` and `binary_recovery_tearing_lock_tests.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -16,17 +18,17 @@
 //! expect(lost).toEqual(await classify(await pausedAsIfNeverWritten(phase, 'preparing.json')));
 //! ```
 
-use super::{Paused, Probe, classify, pause_at, probe};
+use super::{Paused, classify, pause_at};
 use crate::commit::remove_settled;
 use git_policy_cli::transaction_registry::is_transaction_id;
 use std::path::{Path, PathBuf};
 
 /// The phases a commit reaches before the directory sync of `landing-1.json`.
-const PHASES_BEFORE_THE_LANDING_BARRIER: [&str; 4] =
+pub(super) const PHASES_BEFORE_THE_LANDING_BARRIER: [&str; 4] =
     ["capture-locked", "preparation-done", "landing-locked", "objects-migrated"];
 
 /// The phases a commit reaches after the branch moved, where `landing-1.json` is durable.
-const PHASES_AFTER_THE_BRANCH_MOVED: [&str; 2] = ["ref-updated", "index-installed"];
+pub(super) const PHASES_AFTER_THE_BRANCH_MOVED: [&str; 2] = ["ref-updated", "index-installed"];
 
 /// What:
 ///  The one published transaction directory a killed commit left.
@@ -37,7 +39,7 @@ const PHASES_AFTER_THE_BRANCH_MOVED: [&str; 2] = ["ref-updated", "index-installe
 /// ```ts
 /// (await readdir(registry)).filter(isTransactionId)[0]
 /// ```
-fn transaction_directory(git_dir: &Path) -> PathBuf {
+pub(super) fn transaction_directory(git_dir: &Path) -> PathBuf {
     let found: Vec<PathBuf> = std::fs::read_dir(git_dir.join("cli-git-transactions"))
         .expect("registry")
         .flatten()
@@ -57,7 +59,7 @@ fn transaction_directory(git_dir: &Path) -> PathBuf {
 /// ```ts
 /// await rm(join(directory, name));
 /// ```
-fn lose_name(directory: &Path, name: &str) {
+pub(super) fn lose_name(directory: &Path, name: &str) {
     std::fs::remove_file(directory.join(name)).unwrap_or_else(|error| { panic!("{name} is present to lose: {error}"); });
 }
 
@@ -71,11 +73,11 @@ fn lose_name(directory: &Path, name: &str) {
 /// ({ cell, note })
 /// ```
 #[derive(Debug, Eq, PartialEq)]
-struct Outcome {
+pub(super) struct Outcome {
     /// The classified word of the tearing table.
-    cell: String,
+    pub(super) cell: String,
     /// The first line of the standard error of the first probe.
-    note: String,
+    pub(super) note: String,
 }
 
 /// What:
@@ -87,7 +89,7 @@ struct Outcome {
 /// ```ts
 /// const outcome = await classify(paused); await remove(paused);
 /// ```
-fn settle(paused: Paused) -> Outcome {
+pub(super) fn settle(paused: Paused) -> Outcome {
     let (cell, note): (String, String) = classify(&paused);
     remove_settled(&paused.fixture);
     return Outcome { cell, note };
@@ -95,8 +97,10 @@ fn settle(paused: Paused) -> Outcome {
 
 /// The names `preparing.json` loses, compared at each phase before the landing barrier with a transaction directory
 ///  that holds the owner record only and a repository with no shadow: a commit killed before it wrote `preparing.json`.
+///  Both converge: the lost name no longer leaves `index.lock` behind, because recovery releases the lock the lock
+///  record proves, and the never-written state has the PID file of the dead owner to release the lock by.
 #[test]
-fn a_lost_preparing_name_equals_a_preparing_record_never_written() {
+fn a_lost_preparing_name_leaves_nothing_and_a_never_written_one_releases_the_announced_lock() {
     for phase in PHASES_BEFORE_THE_LANDING_BARRIER {
         let lost: Paused = pause_at(phase);
         let directory: PathBuf = transaction_directory(lost.repo.join(".git").as_path());
@@ -117,33 +121,11 @@ fn a_lost_preparing_name_equals_a_preparing_record_never_written() {
         std::fs::remove_dir_all(never.repo.join(".git/cli-git/shadow")).expect("remove the shadow");
         let never_outcome: Outcome = settle(never);
         eprintln!("{phase}: lost {lost_outcome:?}; never written {never_outcome:?}");
-        assert_eq!(lost_outcome.cell, never_outcome.cell, "{phase}: {lost_outcome:?} against {never_outcome:?}");
-        assert!(
-            lost_outcome.cell.starts_with("discards"),
-            "{phase}: a lost preparing.json discards the commit without sticking: {lost_outcome:?}"
-        );
-    }
-}
-
-/// The name `index-lock-1.json` loses, compared at each phase that holds the real index lock with a repository where
-///  the lock exists and neither its record nor its PID file does: a commit killed between creating the lock and writing
-///  the record.
-///  Equal does not mean converged: both cells are `discards+residue!commit-exit-2`, a stale `index.lock` that fails every
-///  later commit until it is removed by hand, and the window for it is wider than before the directory sync was dropped.
-#[test]
-fn a_lost_index_lock_name_equals_a_lock_record_never_written() {
-    for phase in ["landing-locked", "objects-migrated"] {
-        let lost: Paused = pause_at(phase);
-        let directory: PathBuf = transaction_directory(lost.repo.join(".git").as_path());
-        lose_name(directory.as_path(), "index-lock-1.json");
-        let lost_outcome: Outcome = settle(lost);
-        let never: Paused = pause_at(phase);
-        let never_directory: PathBuf = transaction_directory(never.repo.join(".git").as_path());
-        lose_name(never_directory.as_path(), "index-lock-1.json");
-        std::fs::remove_file(never.repo.join(".git/index~pid.lock")).expect("the PID file is announced after the record");
-        let never_outcome: Outcome = settle(never);
-        eprintln!("{phase}: lost {lost_outcome:?}; never written {never_outcome:?}");
-        assert_eq!(lost_outcome.cell, never_outcome.cell, "{phase}: {lost_outcome:?} against {never_outcome:?}");
+        // The model has no record of the kept pack, so at `objects-migrated` it leaves the `.keep` behind; a real lost
+        // name still has the lock record that tells recovery the transaction got that far, and removes it.
+        let model: &str = if phase == "objects-migrated" { "discards+residue" } else { "discards" };
+        assert_eq!(never_outcome.cell, model, "{phase}: {lost_outcome:?} against {never_outcome:?}");
+        assert_eq!(lost_outcome.cell, "discards", "{phase}: a lost preparing.json discards and leaves nothing: {lost_outcome:?}");
     }
 }
 
@@ -157,40 +139,5 @@ fn a_lost_ref_updated_name_still_completes_the_landing() {
         lose_name(directory.as_path(), "ref-updated.json");
         let outcome: Outcome = settle(lost);
         assert_eq!(outcome.cell, "completes", "{phase}: {outcome:?}");
-    }
-}
-
-/// What:
-///  The standard error of the next guarded command after the owner record's name was lost, and its exit code.
-/// Why:
-///   This is the one lost name that does not leave the state of a record never written, so the finding needs the text
-///  the person reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await run('git status') // { code, stderr }
-/// ```
-fn status_after_losing_the_owner_name(phase: &str) -> Probe {
-    let paused: Paused = pause_at(phase);
-    let directory: PathBuf = transaction_directory(paused.repo.join(".git").as_path());
-    lose_name(directory.as_path(), "owner.json");
-    let first: Probe = probe(&paused.fixture, paused.repo.as_path(), &["status", "--porcelain=v1"]);
-    remove_settled(&paused.fixture);
-    return first;
-}
-
-/// The owner record's name lost from the published directory (the candidate directory sync dropped): every phase before
-///  the landing barrier sticks, and the failure names the directory.
-///  This pins a known gap, not a goal: the repository is stuck until the directory is removed by hand
-///  (`doc/planning/cli-git-spawn-and-sync-reduction.md`, section "J4 outcome"); a recovery that converges here should
-///  change this test.
-#[test]
-fn a_lost_owner_name_pins_the_known_gap_of_a_stuck_repository_naming_the_directory() {
-    for phase in PHASES_BEFORE_THE_LANDING_BARRIER {
-        let first: Probe = status_after_losing_the_owner_name(phase);
-        assert_eq!(first.code, Some(2), "{phase}: {}", first.stderr);
-        eprintln!("{phase}: lost owner name, first status: code {:?}, {}", first.code, first.stderr);
-        assert!(first.stderr.contains("Transaction owner record is missing"), "{phase}: {}", first.stderr);
-        assert!(first.stderr.contains("cli-git-transactions"), "{phase}: {}", first.stderr);
     }
 }

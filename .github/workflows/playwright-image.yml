@@ -1,0 +1,218 @@
+name: playwright-image
+
+# Builds playwright.Dockerfile and publishes it as ghcr.io/aquaticats/monochromatic-playwright:<tag>, where <tag> is
+# the first 16 hex digits of the SHA-256 of playwright.Dockerfile. `mise run prepare:playwright` computes the same tag,
+# pulls it, and builds the file locally only when the pull fails (doc/runbook/publish-playwright-image.md).
+#
+# - A tag names one content: when it already exists nothing is built or pushed, so a rerun, or an edit of this file
+#   alone, never replaces an image that people already pulled (the Dockerfile installs bun from its latest installer,
+#   so a rebuild under the same tag would not be the same bytes). The check that decides this fails the run when it
+#   cannot tell (a registry error, a timeout) and only treats a missing tag, or a package the registry grants no token
+#   for, as absent, so a transient fault never leads to an overwrite.
+# - Authentication is the workflow's own GITHUB_TOKEN (packages: write). The first push creates the package, linked to
+#   this repository by the org.opencontainers.image.source label; a new package is private until the owner makes it
+#   public in its package settings (Danger Zone, Change visibility), which GitHub offers nowhere else. While it is
+#   private, the last step of every run says so in a warning.
+# - The image is linux/amd64, the runner's architecture. `mise run prepare:playwright` pulls it only on a machine that
+#   reports linux/amd64 and builds locally on any other, because podman pulls a single-platform image of another
+#   platform with only a warning.
+# - Only runs on main publish. A workflow_dispatch from another ref skips the job, and the concurrency group is per ref
+#   so such a run cannot cancel or delay a run on main. The guard lives in this file, so a branch that edits the file
+#   is not stopped by it (doc/runbook/publish-playwright-image.md says what would be).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'playwright.Dockerfile'
+      - '.github/workflows/playwright-image.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/aquaticats/monochromatic-playwright
+
+concurrency:
+  group: playwright-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish the Playwright image
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Reads this repository to check out playwright.Dockerfile.
+      contents: read
+      # Pushes the image to ghcr.io/aquaticats/monochromatic-playwright with the workflow's own token. The package is
+      # linked to this repository by the org.opencontainers.image.source label, so no other credential is involved.
+      packages: write # Pushes the image with the workflow's token
+      # Attests build provenance of the pushed image, with the same action and permissions as music-player-release.yml.
+      id-token: write # Gets the OIDC token that signs the attestation
+      attestations: write # Stores the attestation for the image digest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Compute the tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(sha256sum playwright.Dockerfile | cut --characters=1-16)"
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag $tag"
+
+      - name: Check whether the tag exists
+        id: exists
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR_NAME: ${{ github.actor }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          repository="${IMAGE#ghcr.io/}"
+          accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
+          # A transport fault (no connection, a timeout after the retries) makes curl exit non-zero, which ends this
+          # step with curl's own message, so the build and the push are skipped.
+          curl_options=(--silent --show-error --max-time 30 --retry 3 --retry-delay 2)
+          absent() {
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG is absent ($1); building it"
+            exit 0
+          }
+          unknown() {
+            echo "::error title=Cannot tell whether the tag exists::$1. Nothing was built or pushed, so no existing tag was replaced. After a registry fault one rerun of the job is right. On the first run, before the package exists, the registry answer for a missing package was never observed with the workflow token, so a rerun would fail the same way and the status handling of this step has to be edited (doc/runbook/publish-playwright-image.md)."
+            exit 1
+          }
+          body="$(mktemp)"
+          # The registry's own token flow, the one `podman login` and `podman pull` use: the workflow's token is the
+          # password of a basic-auth request and the answer is a bearer token for this repository. The credentials go
+          # through stdin (`--config -`) and not the command line.
+          token_status="$(printf 'user = "%s:%s"\n' "$GITHUB_ACTOR_NAME" "$GITHUB_TOKEN" \
+            | curl "${curl_options[@]}" --config - --output "$body" --write-out '%{http_code}' \
+              "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull")"
+          if [ "$token_status" = 403 ]; then
+            # A 403 from the token endpoint means the registry grants this token nothing for the package: the package
+            # does not exist yet, or it exists and the workflow token has no access to it. Both go on to the build; in
+            # the second reading the push is refused, so no existing tag is replaced.
+            absent "HTTP 403 for the token: the package does not exist yet, or it exists and this token has no access to it; the build runs, and a push this token may not make is refused"
+          fi
+          if [ "$token_status" != 200 ]; then
+            unknown "The token request answered HTTP $token_status"
+          fi
+          if ! token="$(jq --raw-output '.token // empty' "$body")" || [ -z "$token" ]; then
+            unknown "The token response had no token"
+          fi
+          echo "::add-mask::$token"
+          manifest_status="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\n' "$token" "$accept" \
+            | curl "${curl_options[@]}" --config - --head --output /dev/null --write-out '%{http_code}' \
+              "https://ghcr.io/v2/$repository/manifests/$TAG")"
+          if [ "$manifest_status" = 200 ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG exists (HTTP $manifest_status); nothing to build"
+            exit 0
+          fi
+          if [ "$manifest_status" = 404 ]; then
+            absent "HTTP 404 for the tag"
+          fi
+          unknown "The manifest request answered HTTP $manifest_status"
+
+      - name: Build the image
+        if: steps.exists.outputs.present != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          podman --version
+          podman build \
+            --file playwright.Dockerfile \
+            --label "org.opencontainers.image.source=$REPOSITORY_URL" \
+            --label "org.opencontainers.image.description=Browsers and system libraries for the Playwright tests of the Monochromatic monorepo (playwright.Dockerfile)" \
+            --tag "$IMAGE:$TAG" \
+            .
+
+      - name: Push the image
+        id: push
+        if: steps.exists.outputs.present != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR_NAME: ${{ github.actor }}
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GITHUB_TOKEN" | podman login ghcr.io --username "$GITHUB_ACTOR_NAME" --password-stdin
+          podman push --digestfile "$RUNNER_TEMP/playwright-image.digest" "$IMAGE:$TAG"
+          digest="$(cat "$RUNNER_TEMP/playwright-image.digest")"
+          case "$digest" in
+            sha256:*) ;;
+            *)
+              echo "::error title=Unexpected digest::podman wrote '$digest' as the digest of the pushed image"
+              exit 1
+              ;;
+          esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "pushed $IMAGE:$TAG as $digest"
+
+      # Provenance is recorded in GitHub's attestation store for the digest, as for the files music-player-release.yml
+      # attests (no push-to-registry, so no registry credential is involved). Consumers still pull by tag and nothing
+      # in a pull checks it; `gh attestation verify oci://<image>@<digest> --owner Aquaticats` does.
+      - name: Attest provenance
+        if: steps.exists.outputs.present != 'true'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+
+      - name: Check that anyone can pull it
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.value }}
+        run: |
+          set -euo pipefail
+          repository="${IMAGE#ghcr.io/}"
+          accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
+          # Advisory only: a fault here is reported as the status below (000 when nothing answered) and never fails a
+          # run that has already published the image. No credentials of ours are sent: this is what a person without
+          # a login (or prepare:playwright) sees.
+          curl_options=(--silent --max-time 30 --retry 3 --retry-delay 2)
+          body="$(mktemp)"
+          token_status="$(curl "${curl_options[@]}" --output "$body" --write-out '%{http_code}' \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull" || true)"
+          # What the first refused request answered: HTTP 403 and the registry's error code for a private package.
+          answer="$token_status"
+          token=""
+          if [ "$token_status" = 200 ]; then
+            token="$(jq --raw-output '.token // empty' "$body" 2>/dev/null || true)"
+          else
+            code="$(jq --raw-output '.errors[0].code // empty' "$body" 2>/dev/null || true)"
+            if [ -n "$code" ]; then
+              answer="$token_status ($code)"
+            fi
+          fi
+          if [ -n "$token" ]; then
+            echo "::add-mask::$token"
+            answer="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\n' "$token" "$accept" \
+              | curl "${curl_options[@]}" --config - --head --output /dev/null --write-out '%{http_code}' \
+                "https://ghcr.io/v2/$repository/manifests/$TAG" || true)"
+          fi
+          {
+            echo "## Playwright image"
+            echo "- image: \`$IMAGE:$TAG\`"
+            echo "- anonymous pull check: HTTP $answer"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$answer" = 200 ]; then
+            echo "anyone can pull $IMAGE:$TAG"
+          else
+            echo "::warning title=Playwright image is not public::An anonymous request for $IMAGE:$TAG answered HTTP $answer, so the package is private or the tag is missing. The owner makes the package public once: open it from https://github.com/orgs/Aquaticats/packages, then Package settings, Danger Zone, Change visibility, Public. Until then prepare:playwright falls back to building playwright.Dockerfile locally."
+          fi

@@ -3,7 +3,7 @@ import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { startApplicationExemptions, } from './application-exemption.ts';
+import { startExemptionsOrAbort, } from './application-exemption.ts';
 import type { WireguardConfig, } from './config.ts';
 import { CommandError, } from './errors.ts';
 import {
@@ -11,6 +11,7 @@ import {
   runAllowingFailure,
 } from './runner.ts';
 import { makeTempDir, } from './tempdir.ts';
+import { bringUp, } from './tunnel-up.ts';
 import { cleanup, } from './tunnel-cleanup.ts';
 import { linkExists, } from './tunnel-link.ts';
 import {
@@ -283,7 +284,8 @@ async function setDns({ config, }: { readonly config: WireguardConfig; },): Prom
 }
 
 /**
- Performs the up sequence and rolls back on failure.
+ Performs the up sequence and rolls back on failure,
+ including a failure to find the exemption program when the config sets `ExemptMark`.
  
  @param config - Parsed config.
  
@@ -297,34 +299,53 @@ async function upInner({ config, }: { readonly config: WireguardConfig; },): Pro
    Interface brought up by this sequence.
    */
   const iface = config.interfaceName;
-  try {
-    await addLink({ interfaceName: iface, },);
-    await executeHooks({
-      hooks: config.preUp,
-      interfaceName: iface,
-    },);
-    await applyPeerConfig({ config, },);
-    await installOpenSnitchEndpointAllowance({
-      interfaceName: iface,
-      endpointPorts: config.endpointPorts,
-    },);
-    await addAddressesAndUp({ config, },);
-    await setDns({ config, },);
-    await setupRoutes({ config, },);
-    if (config.exemptMark !== undefined)
-      await startApplicationExemptions({
-        interfaceName: iface,
-        mark: config.exemptMark,
-      },);
-    await executeHooks({
-      hooks: config.postUp,
-      interfaceName: iface,
-    },);
-  }
-  catch (error: unknown) {
-    await cleanup({ config, },);
-    throw error;
-  }
+  await bringUp({
+    ...(config.exemptMark === undefined ? {} : { exemptMark: config.exemptMark, }),
+    steps: {
+      addLink: function addLinkStep(): Promise<void> {
+        return addLink({ interfaceName: iface, },);
+      },
+      runPreUp: function runPreUpStep(): Promise<void> {
+        return executeHooks({
+          hooks: config.preUp,
+          interfaceName: iface,
+        },);
+      },
+      applyPeerConfig: function applyPeerConfigStep(): Promise<void> {
+        return applyPeerConfig({ config, },);
+      },
+      allowEndpoints: function allowEndpointsStep(): Promise<void> {
+        return installOpenSnitchEndpointAllowance({
+          interfaceName: iface,
+          endpointPorts: config.endpointPorts,
+        },);
+      },
+      addAddressesAndBringUp: function addAddressesAndBringUpStep(): Promise<void> {
+        return addAddressesAndUp({ config, },);
+      },
+      setDns: function setDnsStep(): Promise<void> {
+        return setDns({ config, },);
+      },
+      setupRoutes: function setupRoutesStep(): Promise<void> {
+        return setupRoutes({ config, },);
+      },
+      startExemptions: function startExemptionsStep({ mark, }: { readonly mark: number; },): Promise<void> {
+        return startExemptionsOrAbort({
+          interfaceName: iface,
+          mark,
+        },);
+      },
+      runPostUp: function runPostUpStep(): Promise<void> {
+        return executeHooks({
+          hooks: config.postUp,
+          interfaceName: iface,
+        },);
+      },
+    },
+    rollback: function rollbackStep(): Promise<void> {
+      return cleanup({ config, },);
+    },
+  },);
 }
 
 /**

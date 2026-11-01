@@ -121,6 +121,55 @@ export class PolicyRoutingConflictError extends Error {
 }
 
 /**
+ Error raised when a config sets `ExemptMark` and the `wg-quicker-exempt` program cannot be found
+ in any root-controlled location,
+ so the start stops and is rolled back.
+
+ @example
+ ```ts
+ throw new WatcherMissingError({ message: 'not found', searched: ['/usr/bin/wg-quicker-exempt'] });
+ ```
+ */
+export class WatcherMissingError extends Error {
+  /**
+   Stable error type name rendered by Node.
+   */
+  override name = 'WatcherMissingError';
+
+  /**
+   Every root-controlled location that was looked at.
+   */
+  readonly searched: readonly string[];
+
+  /**
+   Creates the error with the words for the person and the places searched.
+
+   @param message - What was not found,
+   what was done about it,
+   and how to install the program.
+
+   @param searched - Every location that was looked at.
+
+   @example
+   ```ts
+   new WatcherMissingError({ message: 'not found', searched: [] });
+   ```
+   */
+  public constructor(
+    {
+      message,
+      searched,
+    }: {
+      readonly message: string;
+      readonly searched: readonly string[];
+    },
+  ) {
+    super(message,);
+    this.searched = searched;
+  }
+}
+
+/**
  Error raised when an external `ip`, `wg`, or `resolvectl` command exits non-zero.
  
  @example

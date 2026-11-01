@@ -559,6 +559,12 @@ before the barrier where the loss is reachable:
   `published_owners_must_be_valid` in `recovery_inspect_tests.rs`. Open: whether to accept that, make recovery remove
   such a directory when it holds no landing record, or put the candidate directory sync back (one call per commit).
 
+Superseded by "J4 follow-up: lost names converge" below: the `preparing.json`, `index-lock-1.json` and `owner.json`
+bullets and the paragraph after them describe the state when the syncs were dropped, before recovery learned to converge
+on them. The tests `a_lost_index_lock_name_equals_a_lock_record_never_written` and
+`a_lost_owner_name_pins_the_known_gap_of_a_stuck_repository_naming_the_directory` no longer exist (replaced by the
+controls below), and `a_lost_preparing_name_equals_a_preparing_record_never_written` was renamed.
+
 The "leaves `index.lock`" outcome of the first two bullets does not converge either, and the exposure grew. The wrapper
 cannot prove the lock is its own, so `git status` works but every commit waits `indexLock.unprovenOwnerTimeoutMs`,
 stops with exit 2 and `index-lock-unproven-owner` ("Remove the lock only after confirming no Git process is using this
@@ -591,6 +597,133 @@ Wrapper syncs of the budget scenarios, before and after (the Git children's sync
 Not changed: `write_prepared_record` in `commit_preparation.rs` still syncs; it is called only by
 `prepare_native_commit`, which no production path calls. The migration `index-pack` syncs (3 per commit) are another
 change.
+
+### J4 follow-up: lost names converge
+
+The owner accepted the durability risk and refused to put the syncs back; the requirement that stays is that the wrapper
+never leaves a repository stuck. Recovery now converges on the three lost names above without a new sync, a new spawn
+or a new syscall on a commit that finds its state whole: every new check runs in the branch that already found a dead
+or ownerless transaction. The budget scenarios pass at their recorded counts, and 243 of the 247 cells of the J3 table
+are unchanged.
+
+Rule A, a published directory without `owner.json` (`ownerless_directory.rs`). The directory is abandoned, and
+recovered exactly like a dead owner's, when two things hold: the newest modification time of the directory and
+everything in it is older than `FOREIGN_OWNER_PATIENCE` (3600 seconds, the constant `pid_namespace.rs` already uses for
+an owner whose PID cannot be probed), and no other process has the directory or a file in it as a working directory or
+an open descriptor (`process_use.rs`, a pass over `/proc`). Otherwise recovery fails closed as before, and the message
+names the directory, the reason (the age of the newest entry, or the process that uses it), that the wrapper recovers
+the directory by itself after sixty minutes of quiet, and the one removal by hand that is safe: `rm -r <directory>`
+after confirming no cli-git or git command runs, and only when the directory holds no `landing-<n>.json`, because with
+one the branch may have moved and removal skips the index installation that recovery performs.
+
+The safety argument for rule A is an age bound, not a proof about one process. No record survives that names the
+writer: no other file in the directory holds a PID, the scratch directory's name holds one only at some phases and
+without the PID namespace, and the registry locks are held by whoever works now. A running wrapper cannot lose its own
+`owner.json` name (the loss needs a crash, and a crash ends every process that ran), so the rule can free a live
+wrapper's directory only if someone removed `owner.json` by hand and the wrapper then sat idle for the whole patience
+with no file open. That is the same trade the wrapper already makes for an owner of another PID namespace. A recovered
+directory is ordered after every attributed one (its creation time is unknown), and no PID file is matched for it. A
+directory with a fresh file in it, a directory a process uses, and a directory dated in the future all stay refused.
+
+Rule B1, `preparing.json` lost with a lock record present (`recovery_unrecorded_lock.rs`). Recovery used to read the
+missing `preparing.json` as "stopped before capture" and remove the directory, destroying the lock record that proves
+which `index.lock` was the owner's. It now releases the recorded locks first, through the worktree's own `index.lock`
+(the registry's parent is the Git directory; a lock elsewhere does not match the recorded device and inode and stays),
+and removes the transaction's pack keeps from the common object directory. The proof is the existing one: the lock's
+device, inode and filesystem identity equal the record, and the landing lock is held because a lock record counts as
+having entered the landing section.
+
+Rule B2, `index-lock-1.json` lost (`recovery_unrecorded_lock.rs`). With no lock record, the dead owner's PID file
+(`index~pid.lock`) is the one fact that links the lock to the owner. The lock is released only when all of these hold:
+the PID file reads exactly `pid <owner>` for the dead owner of the transaction directory; the owner record is readable
+and its PID namespace is this one (a number from another namespace names nothing here); no process with that number
+exists, so a reused number is refused; the lock is a regular empty file (nothing was written into it); the lock's
+modification time is not before the owner record's and not after the PID file's, which a lock another process took
+after the owner released its own fails; no process whose descriptors can be read holds the lock open (matched by
+device and inode, so a second name does not hide it); and the landing lock is held, because the PID file counts as
+having entered the landing section. The identity of the lock is read again just before the removal. Every refusal logs
+a warning that names the missing proof.
+
+Named limits of rule B2, none hidden:
+
+- The open-file scan cannot read the descriptors of a process of this account that holds capabilities (`systemd --user`
+  is one on this host: the first sweep after the rule was written refused the release for that reason, so an unreadable
+  process no longer blocks it). Such a process is reported in
+  the debug log and does not keep the lock. A Git or wrapper that holds the lock yet cannot be read is not a case the
+  proofs leave open, because the other proofs show who created the lock and neither hands a lock on, but the scan is
+  the weakest of them.
+- The dates are file system times, with the granularity of the file system; an equal date passes.
+- A lock of unknown origin (no PID file, or a PID file that names someone else, or a lock another process took) still
+  stops every commit. A power loss that also loses the PID file's name, or the lock records and the owner record
+  together, leaves that state. The message names the exact `rm` command, `lsof` as the check, and the condition under
+  which removal is safe (no process holds the lock, and the PID file beside it, if any, names a process that no longer
+  runs).
+- Where `/proc` cannot be listed (macOS, Windows) the scan reports the process table as unavailable and rule B2 keeps
+  the lock (the "no process table" unit case); rule A still rests on its age bound alone there, because the
+  process scan is only a veto for it. This host is Linux; the non-Linux behavior is not exercised.
+- A real file system may lose every name created since the last durable directory block at once. The tests lose one
+  name at a time, as the sweep always did.
+
+Changed cells of the J3 table, four of 247, all improvements, none worsened:
+
+- `landing-locked|T/preparing.json|delete`: from "discards+residue!commit-exit-2" to "discards".
+- `objects-migrated|T/preparing.json|delete`: from "discards+residue!commit-exit-2" to "discards".
+- `landing-locked|T/index-lock-1.json|delete`: from "discards+residue!commit-exit-2" to "discards".
+- `objects-migrated|T/index-lock-1.json|delete`: from "discards+residue!commit-exit-2" to "discards".
+
+The `owner.json` delete cells stay "sticks" in the sweep because the sweep damages a directory that is seconds old; the
+same loss in a directory aged two hours converges at all six phases (`a_lost_owner_name_in_an_aged_directory_converges`:
+"discards" before the branch moves, "completes" after).
+
+Controls, in `binary_recovery_tearing_converge_tests.rs`: a fresh directory with a lost owner name stops with the exact
+message; an aged one with a sleeping process whose working directory is in it keeps the stop and names the process, and
+converges once the process is gone; a lock of unknown origin keeps the stop and the message names `rm`, `lsof` and the
+safety condition; a sleeper that holds the lock open, a sleeper whose number the owner record and PID file name with a
+different birth identity, a lock dated after the PID file, and a live creator (true birth identity) each leave the lock,
+the PID file and the directory as they were.
+
+Guards shown failing, then restored (each breaks one rule, runs the unit and binary controls, restores the line):
+
+- Rule A age check removed: three ownerless unit controls, `published_owners_must_be_valid` and the binary
+  `a_lost_owner_name_stops_a_fresh_directory_and_names_the_way_out` fail.
+- Rule A use scan removed: `a_directory_in_use_is_unproven_even_when_old`,
+  `a_live_process_inside_an_old_directory_keeps_it` and the binary `a_live_process_in_an_aged_directory_keeps_the_stop_until_it_is_gone` fail.
+- Rule A abandonment turned into a refusal: `a_lost_owner_name_in_an_aged_directory_converges` fails.
+- Rule B1 disabled: `damage_at_landing_locked`, `damage_at_objects_migrated` and
+  `a_lost_preparing_name_leaves_nothing_and_a_never_written_one_releases_the_announced_lock` fail.
+- Rule B2 disabled: seven binary controls fail (`damage_at_landing_locked`, `damage_at_objects_migrated`,
+  `a_lost_index_lock_name_converges`,
+  `a_lost_preparing_name_leaves_nothing_and_a_never_written_one_releases_the_announced_lock` and the three
+  keep-the-lock controls, which then find nothing to keep).
+- Rule B2 without the process table check: the "no process table" case of
+  `a_missing_proof_keeps_the_lock_and_names_the_proof` fails.
+- Rule B2 without the process-number check: `a_reused_process_number_keeps_the_lock` and the unit case fail.
+- Rule B2 without the open-file veto: `a_process_holding_the_lock_open_keeps_it` and the unit case fail.
+- Rule B2 without the date order: `a_lock_newer_than_the_pid_file_keeps_it` and the unit case fail.
+- Rule B2 without the PID file match: the unknown-origin binary control and two unit cases fail.
+
+Open value call for the owner: rule A waits sixty minutes of quiet (`FOREIGN_OWNER_PATIENCE`, reused so one constant
+serves both cases), so a fresh ownerless directory stops every guarded command for up to an hour, with the message
+above naming the manual way out. A shorter bound (for example tied to `CLI_GIT_LOCK_WAIT_SECONDS`, 30 minutes by
+default) converges sooner and widens the window in which a live wrapper whose `owner.json` was removed by hand and that
+sat idle without a file open could lose its directory; the choice trades convergence time against that window.
+
+Remaining stuck states, none hidden:
+
+- Rule B2 refuses when any process carries the dead owner's number, because only the existence of the number is
+  checked, not a start time (the PID file holds none). On a busy host the number can be reused soon; the lock then
+  stays until it is removed by hand with the command the message names.
+- A lock of unknown origin (see the limits above).
+- A `.pending` staging candidate whose `owner.json` name was lost is kept in place and reported as live
+  (`StagingUnattributed`). This is not a stuck case: `Gate::Live` is not a refusal at any of its call sites
+  (`wrapped_command.rs`, `index_writer_coordination.rs`, `management.rs`), which all continue on `Clear | Live`.
+- The recovery order for an abandoned directory (after every attributed one, its creation time being unknown).
+
+Not run: the container gate, the Windows clippy target, and a real power loss. In the full host suites the unit test
+`markdown_linter::tests::the_real_linter_meets_the_contract` and the binary
+`markdown::the_real_linter_rewrites_through_add_check_and_fix` fail because `GIT_POLICY_NATIVE_TEST_LINTER` is unset (the
+gate image sets it), and `fault_remote::an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_started`
+failed once under load and passed on its own; every other test passed (2375 of 2376 unit, 349 of 351 binary).
 
 ## Results of the hook-entry and configuration-snapshot slices
 

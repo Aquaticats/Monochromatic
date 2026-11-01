@@ -25,6 +25,9 @@
 //! export * from './lock.ts';
 //! ```
 
+/// The newest finished copy of a repository-published tool across both toolchain roots.
+pub mod across_roots;
+
 /// The plan and lock agreement validator and the offline projection.
 pub mod agree;
 
@@ -118,6 +121,32 @@ pub mod model_encode;
 /// and the status report.
 pub mod observe;
 
+/// Cargo's own install record (`.crates.toml`) as crate,
+/// version and binaries.
+pub mod cargo_record;
+
+/// Finding the old copies of this repository's own tools in the shared cargo bin directory,
+/// and deciding which links move and which copies go.
+pub mod old_copies;
+
+/// Carrying out the plan for the old copies:
+/// re-point the links,
+/// then remove the copy and its cargo record.
+pub mod old_copy_apply;
+
+/// The places that can hold a link to an old copy,
+/// and the scan for links to one file.
+pub mod old_copy_places;
+
+/// The removal of an old copy in the cargo bin directory and of an older managed version.
+pub mod old_copy_remove;
+
+/// The older managed copies of this repository's tools in the root that does not hold the newest copy.
+pub mod managed_losers;
+
+/// The worktrees of the repository and the lock file of each.
+pub mod worktrees;
+
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
 
@@ -152,6 +181,9 @@ pub mod status_cmd;
 
 /// The `install` command.
 pub mod sync;
+
+/// Running the cleanup of old copies after `install` and printing its lines.
+pub mod sync_old_copies;
 
 /// CI detection by the rules of `ci-info`,
 /// which pnpm uses.
@@ -309,6 +341,22 @@ mod prune_cargo_tests;
 /// The unit tests of the names that become directory names.
 #[cfg(test)]
 mod segment_tests;
+
+/// The unit tests of the reader of cargo's install record.
+#[cfg(test)]
+mod cargo_record_tests;
+
+/// The unit tests of the cleanup of old copies of this repository's tools.
+#[cfg(all(test, unix))]
+mod old_copies_tests;
+
+/// The unit tests of the places searched for links to an old copy.
+#[cfg(all(test, unix))]
+mod old_copy_places_tests;
+
+/// The unit tests of the newest-across-both-roots rule for this repository's tools.
+#[cfg(all(test, unix))]
+mod across_roots_tests;
 
 /// The unit tests of how an archive install becomes visible (staging,
 /// the completion marker,

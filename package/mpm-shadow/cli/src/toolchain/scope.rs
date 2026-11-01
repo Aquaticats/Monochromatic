@@ -132,6 +132,12 @@ pub struct Scope {
     pub guard_file: PathBuf,
     /// Where tool payloads are installed (`.../monochromatic-dev/toolchain` or `toolchain-global`).
     pub toolchain_root: PathBuf,
+    /// The toolchain root of the other scope:
+    /// `toolchain-global` for the repository scope,
+    /// `toolchain` for the global scope.
+    /// This repository's own tools are one set across both roots:
+    /// the newest finished copy wins wherever it is.
+    pub other_toolchain_root: PathBuf,
     /// The directory of links to every declared bin.
     pub exposure_dir: PathBuf,
     /// The exposure directory as the IDE launcher reads it:
@@ -202,6 +208,7 @@ fn config_home(env: &EnvMap, home: &Path) -> PathBuf {
 pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
     let home: PathBuf = home_dir(env)?;
     let toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain");
+    let other_toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain-global");
     return Ok(Scope {
         kind: ScopeKind::Repo,
         root: root.to_path_buf(),
@@ -215,6 +222,7 @@ pub fn repo_scope(root: &Path, env: &EnvMap) -> Result<Scope, ToolchainError> {
         toolchain_bin_dir: toolchain_root.join("bin"),
         bin_config_file: toolchain_root.join("bin.config.json"),
         toolchain_root,
+        other_toolchain_root,
         home,
     });
 }
@@ -235,6 +243,7 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
     let home: PathBuf = home_dir(env)?;
     let config_dir: PathBuf = config_home(env, &home).join("monochromatic-dev").join("toolchain");
     let toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain-global");
+    let other_toolchain_root: PathBuf = data_home(env, &home).join("monochromatic-dev").join("toolchain");
     return Ok(Scope {
         kind: ScopeKind::Global,
         root: config_dir.clone(),
@@ -248,6 +257,7 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
         toolchain_bin_dir: toolchain_root.join("bin"),
         bin_config_file: toolchain_root.join("bin.config.json"),
         toolchain_root,
+        other_toolchain_root,
         home,
     });
 }

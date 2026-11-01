@@ -4774,3 +4774,96 @@ This block supersedes "State at 2026-10-29 (night, later)".
   owner's: accept, or restore the one directory sync after `index-lock-1.json` (and the candidate sync for A).
 - Container gate on the merged tree running in unit `gpc-sync-gate`, log `~/temp/agent/gate/sync-gate.log`.
 - Then: one wrapper release 0.4.6 carrying the removals, the override and the convergence fix; lock update, sync.
+
+## Lost-name recovery converges (merged `f0f6e9476d`)
+
+- Container gate on `5c56372103` (the sync removals): 2700 run, 2700 passed, 7 skipped, exit 0 (log
+  `~/temp/agent/gate/sync-gate.log`).
+- The convergence agent's branch (`28ff817996`, `eee8fc7ba3`, `2a053cc6ce`) is merged into main as `f0f6e9476d`.
+  No sync or spawn count rose (`budget::` 4 of 4). The container gate on the merged tree runs in unit `gpc-conv-gate`
+  (log `~/temp/agent/gate/conv-gate.log`, ends with `gate exit=N`).
+- Rule A (published directory without `owner.json`): recovered like a dead owner's only when the newest mtime in the
+  directory is older than 3600 s (`FOREIGN_OWNER_PATIENCE`) and no other process has the directory or a file in it as
+  cwd or open fd. A fresh ownerless directory still stops guarded commands (exit 2) for up to an hour, and the message
+  names the safe manual way out. The 3600 s value is a default I adopted (the conservative one); a shorter bound such as
+  `CLI_GIT_LOCK_WAIT_SECONDS` converges sooner but widens the window in which a live wrapper could lose its directory.
+  Open to the owner's veto.
+- Rule B1 (lost `preparing.json` with a lock record): releases recorded locks first with the existing identity proof.
+- Rule B2 (lost `index-lock-1.json`): removes the lock only with the PID-file match, the same PID namespace, no live
+  process with that number, an empty regular file, mtime between `owner.json` and the PID file, no visible holder, a
+  listable process table, and an identity re-read before `unlink`. The open-file check ignores unreadable processes
+  (`systemd --user` here), the weakest of the proofs.
+- Tearing sweep: 247 cells, 243 identical, 4 improved (`landing-locked` and `objects-migrated`, `preparing.json` and
+  `index-lock-1.json` deletes, from `discards+residue!commit-exit-2` to `discards`).
+- Guards shown failing and restored: ten (age check, use scan, abandonment, B1, B2 whole, and five B2 proofs).
+- Still stuck on purpose: a lock of unknown origin (no PID file, someone else's PID file, a lock taken later); a busy host
+  where the dead owner's number is reused; both give the exact `lsof` and `rm` text. Real power loss untested; non-Linux
+  untested; Windows clippy not run.
+- Next: gate result, then release 0.4.6, lock update and sync, tell `monochromatic-6e`. Remove worktree
+  `.claude/worktrees/agent-ad2d4960413134304` and `agent-a2e7b44c2c901235d` after confirming both are on main.
+
+## Release 0.4.6 and the m045 survivors
+
+- Container gate on the merged tree (`f0f6e9476d`): 2729 run, 2729 passed, 7 skipped (log
+  `~/temp/agent/gate/conv-gate.log`).
+- Wrapper 0.4.6 released: commit `1604b0d012`, crates.io 0.4.6, GitHub release
+  `monochromatic-git-policy-cli-v0.4.6`. `release:wait` needs `<sha> <version>` arguments after the task name.
+- Lock commit `b896deca0d` (wrapper 0.4.6, `monochromatic-mpm-shadow` 0.2.1, `nightly-2026-11-01`); `toolchain:sync`
+  installed them (3 installed, 0 failed); the production `git --version` banner reads 0.4.6. `monochromatic-6e` told.
+- An empty duplicate commit `cd0b2de000` exists beside the real handover commit `dff9887136` (a retry raced the
+  original); not amended.
+- Peer notice from `monochromatic-6e` (owner decided 2026-11-01): after its cutover, `toolchain:sync` goes away and
+  `mise run toolchain:install` runs mpm-shadow, which installs the wrapper version-keyed under
+  `~/.local/share/monochromatic-dev/toolchain/cargo/monochromatic-git-policy-cli/<version>` with a `current` link; from
+  mpm-shadow 0.2.2 it re-points `~/.cargo/bin` links and the newest copy wins, so an older lock no longer downgrades a
+  shared install. It will message when the merge lands. This closes the shared-install downgrade hazard.
+- m045 survivors still open (units `filesystem-identity`, `private-storage`, `process-tree` still running at the time of
+  writing; `announced_query` and `filesystem_identity_fsid` are clean):
+  - `real_index_lock.rs`: 7 (241, 261, 280, 284 twice, 334, 598). `owner_lock.rs:703` `announces_at_start`: 1.
+  - `private_storage.rs`: 5 (191 three, 235, 419). `process_tree.rs`: 4 (93 twice, 109 twice).
+  - `filesystem_identity.rs:360` `darwin_fs_id`: 2.
+- Three agents in worktrees are writing the killing tests (one per group above), each proving its guards by applying the
+  mutant by hand. Next: merge their branches, run the container gate, rerun the mutation scope for the touched files,
+  update this section.
+
+## m045 survivors: dispositions (three agent branches merged)
+
+- Killed with permanent tests: `real_index_lock.rs` 261:23 and 598:5 (`real_index_lock_fallback_tests.rs`; the second
+  forces a cross-device link on `/dev/shm`, asserts the two devices differ, and has not been seen inside the podman
+  image yet); `private_storage.rs` all five (191 three, 243 staging-removal report, 457 directory-sync classification,
+  via two pure seams `staging_removal_report` and `settle_directory_sync` that add no syscalls;
+  `private_storage_publish_tests.rs`); `process_tree.rs` `terminate_members` and `kill_members` (real `sh` plus
+  `sleep 600` child, bounded poll); macOS-gated tests for `still_running -> true` and both `darwin_fs_id` mutants,
+  proved on `m1` in a scratch crate (since deleted), not compiled on Linux.
+- Equivalent (body already the mutant): `owner_lock.rs:703` `announces_at_start` (`return false;`),
+  `process_tree.rs` `descendants_of -> vec![]` and `still_running -> false`; `descendants_of -> vec![Default::default()]`
+  is unviable (`TreeMember` has no `Default`).
+- Unreachable on Linux, need a Windows run: `real_index_lock.rs` 241, 280, 284 (two), 334 (all `cfg(not(unix))`) and
+  `filesystem_identity.rs` `windows_fs_id`. Joins the Windows tasks (task 30).
+- New findings in my own package, queued: (1) the crate does not build on macOS: `signal_relay.rs:101` and
+  `signal_relay_tests.rs` use `SI_USER`, `SI_QUEUE`, `SI_KERNEL`, which the `libc` crate lacks on Darwin (found with
+  `cargo test` on `m1`); (2) `private_storage.rs` is about 720 lines, over the 300-line limit, from before this work;
+  (3) the three non-Linux dead-code warnings in `process_tree_tests.rs`.
+- Next: container gate on the combined tree (unit `gpc-surv-gate`, log `~/temp/agent/gate/surv-gate.log`), then the
+  m045 scope reruns for `real_index_lock`, `private_storage`, `process_tree` once the old units end; remove merged
+  agent worktrees.
+
+## m046 rerun, macOS build fix, worktree cleanup
+
+- Container gate on the combined survivor-test tree: 2738 run, 2738 passed, 7 skipped (log
+  `~/temp/agent/gate/surv-gate.log`); the `/dev/shm` cross-device test passes inside the podman image.
+- Final m045 results: `filesystem_identity` 71 mutants, 4 missed (`darwin_fs_id` x2, now covered by macOS-gated tests;
+  `windows_fs_id` x2, Windows only); `process_tree` 32 mutants, 6 missed (four macOS-only or equivalent, `terminate_members`
+  and `kill_members` now killed on Linux); `private_storage` and `real_index_lock` as recorded above.
+- Fix `5874ef1bd1`: macOS sender codes `SI_USER = 0x10001` and `SI_QUEUE = 0x10002` defined in `signal_relay.rs` for
+  `target_os = "macos"` (the `libc` crate lacks them there); tests use a `KERNEL_CODE` constant (`SI_KERNEL` on Linux, 0
+  elsewhere). The 16 `signal_relay` tests pass on Linux. An agent is checking the crate build and the `signal_relay` tests
+  on `m1` (scratch on `/Volumes/MacData`, deleted afterwards) and will list any other macOS compile errors.
+- Mutation rerun `m046` (units `cli-git-mutpar-m046-src-native-real-index-lock`, `...-private-storage`,
+  `...-process-tree`, `--timeout 2400`, images `m0460` to `m0463` from the gate image): confirms the new tests kill the
+  mutants they target and finds anything new in the seam code. Read results from `~/temp/agent/mutpar-m046-*.log.N`.
+- The five merged agent worktrees of this segment are removed (`git worktree remove --force`; each held only the
+  hook-generated `doc/audit/standards-review-gate-shadow.md`); about 35 older agent worktrees from other work remain and
+  are not mine to judge.
+- Still open: `private_storage.rs` over 300 lines (about 720) from before; Windows-only survivors; `windows_fs_id`;
+  cutover notice from `monochromatic-6e` (mpm-shadow 0.2.2 merge, it will message).

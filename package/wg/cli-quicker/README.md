@@ -20,9 +20,10 @@ Default sudo `env_reset` drops custom settings and replaces `PATH`.
 The launcher carries only allowlisted caller home,
 cache,
 token,
-runtime,
-UID,
-and companion settings through a private mode-`0600` bounded file.
+and runtime settings through a private mode-`0600` bounded file.
+No setting that names the companion program,
+the watched user or the caller's `PATH` crosses `sudo`,
+because any of them would let the caller choose what runs as root in place of the process watch.
 The root child validates file type,
 ownership,
 mode,
@@ -35,7 +36,7 @@ Consequently,
 
 Self-elevation intentionally authorizes current user-owned runtime,
 bundle,
-and selected paired or caller-path companion for root execution;
+and the paired repository build of the companion for root execution;
 use root-owned installed artifacts when workspace integrity is not trusted.
 
 See
@@ -331,14 +332,30 @@ The tunnel lifecycle does not move Ghostty into another systemd slice.
 
 Before network mutation,
 `wg-quicker` resolves `wg-quicker-exempt` to exact executable path.
-It prefers explicit `WG_QUICKER_EXEMPT_COMMAND`,
-then paired repository release or debug build,
-then installed command in privileged or captured caller `PATH`.
-An unavailable configured companion fails before interface creation.
-The watched desktop UID comes from `WG_QUICKER_EXEMPT_UID`,
- then `SUDO_UID`,
- then non-root effective UID.
-Direct root execution without an explicit or sudo identity fails instead of watching root's app slice.
+It looks only in root-controlled locations:
+the paired repository release or debug build,
+then the absolute directories of the privileged `PATH`,
+which under `sudo` is its `secure_path`.
+The caller's own `PATH` is never searched,
+and a relative or empty `PATH` entry is skipped because it means the current directory.
+When nothing is found and the config sets `ExemptMark`,
+`up` does not search further and does not go on:
+it throws a `WatcherMissingError` that names every location it searched and says how to install the program,
+and the failure runs the same rollback as any other failed step of the up,
+so the tunnel is not left up and traffic goes direct.
+The owner chose that,
+see "A missing watcher stops `up`" below.
+A config without `ExemptMark` never looks for the program.
+`down` reports instead of failing when the companion is missing,
+so tearing the tunnel down is never blocked;
+it says that a watcher an earlier run started may still run.
+No environment variable names the executable or the watched user:
+`WG_QUICKER_EXEMPT_COMMAND` and `WG_QUICKER_EXEMPT_UID` were removed,
+because setting either before `sudo` pointed the process watch at a stand-in program or at another user,
+which is a switch for a policy that has none.
+The watched desktop UID comes from `SUDO_UID`,
+ then the non-root effective UID.
+Direct root execution without a sudo identity fails instead of watching root's app slice.
 
 The Rust watcher installs inotify on user's existing `app.slice` before its first scan,
 attaches the Ghostty service,
@@ -386,42 +403,10 @@ Watcher state validates PID,
 process start time,
 and complete command before shutdown.
 
-The watcher also attaches the toolchain updates slice,
+The watcher also moves update entry points into the toolchain updates slice,
 `app-monochromatic\x2dupdates.slice`,
-so the toolchain's sync and update runs and every child they start (cargo-binstall,
-cargo,
-rustup,
-uv,
-pnpm,
-node fetch,
-curl) take the physical route instead of the tunnel.
-`mise run toolchain:sync`,
-`toolchain:update`,
-`toolchain:sync:global`,
-`toolchain:update:global` and `mpm-shadow install`, `update` and `outdated` re-execute themselves through
-`systemd-run --user --scope --slice=app-monochromatic\x2dupdates.slice`
-after a silent probe proves a user manager accepts the scope.
-They stay in place,
-with a logged reason,
-on another platform,
-in a container or any host without a user manager,
-under `MONOCHROMATIC_TOOLCHAIN_CLEARNET=off`,
-and when already inside the slice.
-The `app-` prefix matters:
-systemd nests the slice directly under `app.slice`,
-the only directory the watcher scans and watches,
-and `\x2d` keeps the name one hierarchy level.
-Cgroup programs apply to descendant cgroups,
-so each per-run scope inherits the mark with no attach of its own.
-A slice stays active after its last scope exits,
-so the attachment survives between runs.
-Without a tunnel nothing marks the slice and the traffic takes the default route anyway.
-When the slice does not yet exist,
-the silent probe creates it and the real run starts only after the probe's process has ended.
-That interval is the margin the watcher's inotify event has to attach the new slice;
-nothing confirms the attachment,
-so a watcher that is slower than the probe leaves the first sockets of that one run unmarked.
-Later runs find the slice already attached.
+and marks that slice.
+See [Update traffic policy](#update-traffic-policy).
 
 On `up`,
  application bypass routing:
@@ -468,6 +453,461 @@ not every route carrying protocol `201`.
 It does not flush whole tables and does not depend on current config values,
 so unrelated routes and configuration edits made after `up` are preserved.
 Synchronization refuses a table containing an unrecorded default before mutation.
+
+## Update traffic policy
+
+The wg packages alone decide that update traffic leaves outside the tunnel.
+The toolchain (`package/file-enforcer` and `package/mpm-shadow`) knows nothing about the tunnel and never places itself.
+The user's words,
+verbatim:
+
+> mpm-shadow should never determine itself goes through clearnet.
+> Our wg set of pkgs should determine that!
+
+> Anyone using our wg set of tools should be warned on start and the behavior shouldn't have a toggle.
+> It should always enforce our policies,
+> even clearnet.
+
+The first words of the user's second note explain why the start notice is loud:
+
+> this case was exceptionally bad,
+> because it would have had privacy implications and outright break people living in exceptionally ridiculous networking environments.
+> Imagine somewhere where if some people detect you're accessing crates.io you're paid a visit.
+
+### Two configs that run without the policies, loudly
+
+Two configs bring the tunnel up with neither policy in force.
+Both are deliberate decisions of the owner,
+recorded here so a later review does not mistake them for a gap.
+
+- A config without `ExemptMark`.
+  The owner's words,
+  verbatim:
+
+  > Warn if ExemptMark is unset but continue to up,
+  > because sometimes for some configs we want no exemptions.
+
+  So `up` prints a start report that names both policies as not in force and continues.
+  This is not a toggle of the policies:
+  no setting turns a method off for a config that has a mark,
+  and a config without a mark gets the report on every start.
+- A config with `Table = off`.
+  The owner chose to keep it loud and not in force:
+  wg-quicker installs no routing rule and no bypass table,
+  so there is nothing for the policies to act on,
+  and every start prints `POLICY NOT IN FORCE` naming `Table = off` as the reason.
+  `up` continues here too.
+
+`run-subcommand.unit.test.ts` checks that `up` runs after the report in both cases,
+that the report comes first,
+and that `down` prints no start report.
+
+### A missing watcher stops `up`
+
+A config that sets `ExemptMark` needs `wg-quicker-exempt`,
+which runs the process watch and marks the sockets.
+When the program cannot be found in a root-controlled location,
+the owner chose "Abort up as before".
+The owner's words,
+verbatim:
+
+> `up` fails and rolls back,
+as before this branch.
+
+So `up` throws a `WatcherMissingError` from the exemption step,
+the rollback of `up` removes what the earlier steps did,
+and the message names the locations searched,
+the build command `mise run //package/wg/cli-quicker-exempt:build`,
+and the option of installing the program where sudo's `secure_path` finds it.
+The caller's own `PATH` is still never searched.
+A config without `ExemptMark` is not affected,
+which is the owner's earlier decision above.
+`tunnel-up.unit.test.ts` runs the real `up` sequence over recording steps and the real exemption step:
+a missing program with `ExemptMark` stops the up,
+runs the rollback once and skips the post hooks;
+no `ExemptMark` goes on without the exemption step;
+a found program is run once;
+and any other failing step is rolled back and rethrown.
+The real `up` needs root,
+so only this sequence is covered here.
+
+### Three methods, one union
+
+Any match means clearnet.
+Every method is always on:
+there is no setting,
+flag,
+environment variable,
+or config key that disables any of them,
+and a test fails if one appears in either wg package.
+
+1. The process watch:
+   `wg-quicker-exempt`'s root watcher moves a process that is an update entry point into the exempt slice,
+   so it and its later children inherit the socket mark.
+   The entry points are `mise run` of a toolchain task that fetches,
+   `mpm-shadow install`,
+   `update` and `outdated` with or without `-g`,
+   the `mpm` shadow,
+   and the TypeScript toolchain `sync.ts` and `update.ts`.
+   A process is recognized by the file name of its resolved executable (`mise`,
+   `mpm-shadow`,
+   `mpm`,
+   `node`)
+   together with its command-line words.
+   The first command-line word alone never matches,
+   because `exec -a mpm /usr/bin/curl` sets it freely.
+2. The update hosts:
+   Traffic to the hosts in `src/update-hosts.data.ts` bypasses the tunnel for every program,
+   browsers included.
+   The list holds every host named by `toolchain.lock.json`,
+   the toolchain resolvers and `mpm-shadow`'s network client,
+   and the redirect hosts the plan never names:
+   `objects.githubusercontent.com`,
+   `release-assets.githubusercontent.com`,
+   `index.crates.io` and `static.crates.io`.
+   A test scans those sources and fails when a host appears there that the list lacks.
+3. The toolchain paths:
+   A process whose executable is under `<data home>/monochromatic-dev/toolchain/` or `toolchain-global/`
+   is moved like the first method.
+   Every program the toolchain installed there qualifies,
+   for example `node`,
+   `bun`,
+   `pnpm`,
+   `uv`,
+   `zig`,
+   `cmake`,
+   `rust`,
+   `caddy`,
+   `sops` and `age` (the examples are the tools installed when this was written;
+   the start notice of `wg-quicker-exempt` lists what is installed on the machine now),
+   so while a tunnel with `ExemptMark` is up,
+   every script and dev server run by the toolchain's node,
+   every build by its compilers,
+   and everything they fetch runs outside the tunnel,
+   not only updates.
+   This is the user's choice,
+   not a side effect,
+   and the start notice says it.
+
+### How update hosts are routed
+
+For each address of each listed host,
+the route watcher adds `ip rule add to <address> table <bypass table> pref <bypass preference> protocol 201`.
+The bypass table already carries copies of the physical defaults,
+so the rule sends every packet to that address along the physical route,
+whatever process sent it.
+The rules are owned by the lifecycle:
+`down` lists the rules with protocol `201`,
+the claimed table,
+the claimed preference and a destination selector,
+and deletes exactly those.
+No rule is installed for a loopback,
+private,
+link-local,
+shared,
+documentation,
+benchmarking,
+protocol-assignment,
+6to4,
+Teredo,
+segment-routing,
+deprecated site-local,
+NAT64 (both prefixes),
+IPv4-mapped,
+multicast or reserved address,
+so a hostile or broken DNS answer cannot route local traffic through the bypass table;
+a refused answer is reported.
+
+#### Which DNS servers answer
+
+Host rules use only answers from the tunnel's own `DNS =` servers,
+asked through the tunnel.
+That was the owner's choice,
+labelled "Tunnel DNS only":
+a resolver the tunnel's owner did not configure is not trusted to decide which addresses leave the tunnel.
+The lookup goes to `systemd-resolved` over its varlink socket with `ResolveRecord`,
+naming the tunnel link's interface index and the flags `DNS`,
+`NO_SEARCH`,
+`NO_SYNTHESIZE`,
+`NO_ZONE` and `NO_TRUST_ANCHOR` (26881),
+so only unicast DNS on that link can answer and the name is asked exactly as written.
+No search domain is appended:
+the `lan` search domain of the network cannot turn `github.com` into `github.com.lan` and make the router's answer a rule.
+Node's own resolver is not used.
+Its source (`src/cares_wrap.h` of v26.13.0) calls `ares_query_dnsrec`,
+which does not expand search domains either,
+but it would send plain DNS to the stub on `127.0.0.53`,
+and the stub would choose the upstream by its own routing domains and not by the tunnel link.
+The varlink call names the link,
+so the choice is not left to routing domains.
+A call ends at a total deadline of ten seconds from its start,
+not after ten seconds of silence,
+because a peer that sends one byte now and then is never silent,
+and a reply longer than 1 MiB is refused,
+because the reply for one record is a few hundred bytes.
+
+The link keeps its own DNS-over-TLS setting,
+so the query path keeps DNS-over-TLS.
+On 2026-10-31 `resolvectl status fr-par-fr1` showed `+DNSOverTLS` and `resolvectl dnsovertls fr-par-fr1` printed `yes`,
+the strict mode without a cleartext fallback.
+The reply of every measured lookup for all 21 hosts also carried the confidential flag of `systemd-resolved`,
+which its source documents as "only sent via encrypted channels,
+or never left this system";
+the flag alone therefore does not prove a TLS hop,
+and the strict link setting is what does.
+The servers of `fr-par-fr1` are `2606:4700:4700::1111`,
+`1.1.1.1`,
+`9.9.9.9`,
+`149.112.112.112`,
+`2620:fe::fe` and `2620:fe::9`.
+
+A config with no `DNS =` gets no host rules.
+`up` prints `POLICY NOT IN FORCE` for the update-host policy,
+and every refresh prints it again,
+saying that the tunnel sets no DNS server,
+that traffic to the update hosts uses the tunnel,
+and that the process watch and the toolchain paths still run.
+Where the DNS servers or the peer endpoints of the tunnel cannot be read,
+the refresh changes nothing and says so.
+
+#### What never gets a rule
+
+- The tunnel's own DNS servers and the endpoints of its peers,
+  in any spelling,
+  because a rule for them would move the tunnel's control traffic or its DNS onto the physical network.
+  The refusal is reported by name.
+- More than 64 usable addresses from one host,
+  or more than 384 distinct addresses in total.
+  Only an address that passed every check counts toward the 64,
+  so a resolver cannot hide the real addresses behind unusable ones.
+  The numbers come from the answers measured on 2026-10-31:
+  132 addresses in total,
+  92 distinct,
+  and at most 24 for one host (`registry.npmjs.org`),
+  so 64 is about 2.7 times the largest answer and 384 about four times the distinct total.
+  The cut is reported with how many addresses were cut.
+  A report names its first ten problems and counts the rest.
+
+`ip rule` commands run at most 8 at a time,
+and each rule added or removed is logged at info level with the host or hosts behind it.
+
+#### Refresh
+
+The watcher resolves every host through the tunnel link,
+asking for both address families with their TTLs,
+adds new addresses at once,
+and sleeps for the smallest TTL clamped between 30 seconds and 15 minutes.
+The wait ends at once when the watcher is asked to stop.
+An address leaves the rules only after it was absent from two consecutive refreshes,
+because round-robin DNS and CDNs drop an address from one answer and return it in the next.
+The first refresh runs during `up`,
+so the rules exist before traffic flows.
+
+### Warned on every start, loud when not in force
+
+Every `up` with `ExemptMark` prints a notice on standard error and in the log that names exactly which traffic leaves
+outside the tunnel:
+the update entry points,
+everything the toolchain installed,
+and every update host.
+It also says why:
+the repository keeps toolchain updates on the physical network.
+It states what a reader could otherwise miss:
+
+- a host rule carries a whole address,
+  so a shared CDN address sends every other site on it outside the tunnel too;
+  `docs.python.org` shares all eight of its addresses with `pypi.org`,
+  and `raw.githubusercontent.com` and `avatars.githubusercontent.com` share four of eight with the release-asset hosts
+  (measured 2026-10-31);
+- the toolchain root rule covers every installed program and every script run by the toolchain's node,
+  not only updates;
+- what can imitate a match:
+  the executable's file name together with its command-line words,
+  the tail of a toolchain script path,
+  any executable named `mpm`,
+  and any executable under the install roots,
+  which are inside a home directory the user can write
+  (a root that is a link counts as the place it points to only when that place is strictly inside the home,
+  and `wg-quicker-exempt` leaves any other link out and reports it),
+  so any program the user can run from such a path or under such a name leaves outside the tunnel too;
+- what is not covered:
+  processes in another pid namespace (containers and sandboxes),
+  and processes the user's service manager cannot move.
+
+The notice is built by `startNotices`,
+a pure function of the config facts,
+so a test checks every combination of mark,
+`Table = off` and DNS servers and fails if any start would print nothing.
+With `Table = off` wg-quicker installs no routing rule and no bypass table,
+so the start prints the `POLICY NOT IN FORCE` report instead of the notice,
+saying that where traffic goes is decided by the user's own routing.
+
+`wg-quicker-exempt` prints its part of the notice when its watcher starts,
+into its log,
+and the loud lines it printed while starting reach the output of `up`.
+
+Nothing degrades silently.
+A report that starts with `POLICY NOT IN FORCE` names the policy that cannot be enforced and what that leaves:
+
+- a start without `ExemptMark` names both policies,
+  because the bypass table that carries them does not exist and update traffic uses the tunnel;
+- a config with no `DNS =` server,
+  a DNS failure,
+  a refused answer,
+  a cut by the address caps,
+  or a failed `ip rule` command names the update-host policy and the affected hosts or addresses;
+- a failed slice creation,
+  process-event subscription,
+  dropped events,
+  unmovable process,
+  failed adoption,
+  or failed BPF attach names the process-watch policy or the socket-marking policy.
+
+No failure installs a different route on its own:
+the traffic that the failed policy covers stays in the tunnel.
+
+### Failures after startup
+
+The route watcher runs detached with its own output discarded,
+so a failure after `up` returned would reach nobody.
+Each failure is therefore delivered the way the owner chose,
+"Notification + journal":
+to the system journal at error level,
+and as a desktop notification to the user who started the tunnel through `sudo`,
+which is `SUDO_UID` and `SUDO_GID` as the watcher inherits them.
+The journal line carries the identifier `wg-quicker`
+(`journalctl --identifier=wg-quicker`),
+once per failure kind per minute;
+the notification comes once per failure kind every ten minutes,
+sent by `busctl` as that user through `setpriv` with a cleared environment.
+
+The limit keys on the kind of failure and on a normalized cause within the kind,
+never on the raw text,
+because the text embeds names a user chose,
+such as a host answer,
+and a key on the raw text would let distinct names defeat the limit.
+The kinds are `update-host problems`,
+`update-host refresh failed`,
+`route monitor failed`,
+`route watcher stopped` and `route watcher died`.
+The normalized cause is the first 200 characters of the line with every run of digits made alike.
+Each channel delivers the first four distinct causes of a kind in each interval,
+so two different problems in the update-host refreshes are two reports and not one,
+and at most 32 further causes per interval over all kinds together;
+the first cause of every kind is always delivered.
+The map of remembered kinds holds at most 64,
+dropping the expired ones first and then the oldest.
+A repeat or a further cause held back by the limit is counted,
+and the next delivery says "repeated N more time(s) since the last report";
+the identity of a held-back cause beyond the cap is not kept.
+A later notification of the same kind and cause replaces the earlier one on the desktop
+(the id `Notify` printed is passed as `replaces_id`),
+distinct causes stay side by side,
+and each notification expires after ten minutes,
+so one persistent failure shows one notification and not several.
+What `up` itself finds while it starts is not rate limited:
+the refresh that runs during `up` logs every report to the terminal before anything is delivered,
+and only the detached watcher's later deliveries to the journal and the desktop go through the limit.
+A channel that fails is named in the watcher's log,
+and a start without a `sudo` caller still journals and says that no user can be notified.
+
+Text that a user chose reaches a line escaped.
+The loud report builder escapes control characters,
+escape sequences,
+line breaks,
+line and paragraph separators,
+direction marks and the invisible tag characters as `\u{XXXX}`,
+the journal input is escaped again,
+the notification body has its markup characters turned into entities as well,
+and the lines relayed from the start of `wg-quicker-exempt` are escaped before they are logged.
+
+The failures that reach this channel are a failed update-host refresh,
+a refresh with problems (including a tunnel with no `DNS =` server),
+a route monitor session that failed and will be replaced,
+a watcher that stopped for good,
+and a watcher that died.
+The same texts stay on the terminal during `up`.
+`wg-quicker-exempt` delivers its own failures the same way,
+under the identifier `wg-quicker-exempt`.
+
+### When the route watcher itself dies
+
+The watcher cannot report its own death when `SIGKILL`,
+the out-of-memory killer or `systemd-oomd` ends it,
+and from then on the bypass table no longer follows the physical default route
+and the update-host rules are no longer refreshed.
+A second small process,
+the sentinel (`bypass-watch-sentinel`),
+is started once the watcher has registered its identity record.
+It is started outside the cgroup of the watcher:
+as its own transient service of the system manager,
+`wg-quicker-sentinel-<watcher pid>-<start time>`,
+through `systemd-run --collect` with `ManagedOOMPreference=omit`,
+and with the sudo identity passed as `--setenv` because a service does not inherit it.
+The watcher runs in the cgroup of the terminal or session that ran `wg-quicker up`,
+and a kill of that whole cgroup,
+for example by `systemd-oomd`,
+would take a sentinel in the same cgroup with it and leave nothing to report.
+A service in its own root-owned cgroup survives that,
+and `systemd-oomd` is asked not to choose the service itself.
+If the manager refuses the unit or `systemd-run` is missing,
+the sentinel starts detached beside the watcher instead,
+and `up` says loudly that a kill of the watcher's whole cgroup then ends both without a report.
+It checks every half second that the process with the watcher's pid and start time still exists,
+so a reused pid is not mistaken for the watcher.
+When the watcher is gone it waits one and a half seconds and reads the identity record:
+a record removed by the watcher's own clean exit or by `wg-quicker down`,
+or a record that names another watcher,
+means the end was asked for and the sentinel exits quietly;
+a record that still names the dead watcher means it was killed or crashed,
+and the sentinel delivers a report of kind `route watcher died` naming both policies;
+an unreadable record is reported as unknown.
+A watcher that stops with an error already delivers its own report,
+and its record is removed on the way out,
+so that case is not reported twice.
+A sentinel that was started is not taken for running because its process was created.
+When it has loaded it writes a marker beside the state (`<state>.sentinel.json`)
+with the watcher's pid,
+its own pid and its own start time,
+and `up` waits up to two seconds for a marker that names this watcher
+while the sentinel's process still exists with that start time.
+If none appears,
+or if the sentinel cannot be started at all,
+`up` says so loudly,
+with `systemctl status wg-quicker-sentinel-<pid>-<start time>` as the place to look,
+and goes on with the tunnel.
+The service is created by `systemd-run` as root,
+so the real service start cannot be exercised without root;
+the arguments are checked in tests,
+and their option grammar was checked on a throwaway transient unit of the user manager.
+The limit is stated plainly:
+if the sentinel is killed first,
+or both die together,
+nothing reports it,
+and a clean system shutdown ends both without a report;
+with the service,
+a kill of the watcher's whole cgroup no longer takes the sentinel with it.
+`wg-quicker-exempt` has its own sentinel for its watcher.
+
+### Boundaries
+
+- A CDN may hand a program an address that differs from the one the watcher resolved.
+  Both use the same resolver path and cache,
+  but nothing guarantees equal answers.
+- The destination rule also carries every other site on a shared address,
+  not only the update host.
+  The owner kept the list as built,
+  `github.com` and `api.github.com` included,
+  and accepted the shared addresses.
+- A process in a Flatpak or `bwrap` sandbox cannot get itself moved by imitating a name:
+  the watcher sees it from the host with its real executable and a different pid namespace,
+  so `exec -a mpm sleep 8` inside `bwrap --unshare-pid` showed the executable `/usr/bin/sleep`,
+  was visible to the host watcher,
+  and was adopted into a throwaway slice by a matcher that trusted the first command-line word;
+  the matcher now trusts the executable's file name and skips another pid namespace with a report.
+- Sockets a process opened before it was moved keep the tunnel route.
+- Only processes inside the user's systemd manager subtree can be moved.
+  See the [wg-quicker-exempt README](../cli-quicker-exempt/README.md#update-traffic-policy).
 
 ## Development
 

@@ -778,6 +778,121 @@ each finished branch is reviewed and merged into `main`):
   as before this branch;
   the branch had made it continue with a loud error,
   which the owner never decided).
+  Fixed 2026-11-01,
+  tip `557ea24e24` (12 commits on `e1ef91dbb1`;
+  156 Rust tests and 89 TypeScript suites passed;
+  `monochromatic-lint` clean for both packages):
+  linked install roots accepted only strictly below the resolved home,
+  others reported as not in force;
+  `WatcherMissingError` aborts and rolls back `up`;
+  the reporter built after the signal descriptor;
+  four distinct causes per kind per interval (global cap 32),
+  startup reports unlimited in `up`'s output;
+  wider escapes;
+  sentinels as transient system services with `ManagedOOMPreference=omit`,
+  confirmed by a marker.
+  The author notes the sentinels run user-writable executables as root in long-lived services.
+  The same reviewer is re-checking `e1ef91dbb1..557ea24e24`.
+  Re-check 2026-11-01:
+  no blocker.
+  Should-fix (sent to the wg agent):
+  the repeat limit's cause is cut at 200 characters after a fixed prefix of about 128,
+  so different errors of one kind collapse.
+  Minor:
+  sentinels report "watcher died" at logout and reboot;
+  `systemctl status` hint for a collected unit;
+  the TS marker write follows symlinks;
+  no timeout on `systemd-run`.
+  Held for the owner:
+  a link target anywhere strictly under the home is still accepted
+  (a link to `~/.local/share` makes everything under it match).
+- Live 2026-11-01 (the owner's full restart):
+  `557ea24e24` merged into `main` as `3b3020c65a` and pushed;
+  both packages built in `main`;
+  the previous `dist` and watcher binary backed up to `${HOME}/temp/agent/wg-golive/backup`;
+  `wg-quicker down fr-par-fr1` started 22:24:14 EDT,
+  `wg-quicker up fr-par-fr1` exited 0 at 22:24:45
+  (output in `${HOME}/temp/agent/wg-golive/up.log`).
+  Verified:
+  the POLICY NOTICE printed on start;
+  86 update-host rules added
+  (`ip rule` then showed 47 IPv4 and 49 IPv6 lines for table 52000,
+  each family including the fwmark rule);
+  `ip route get 151.101.2.137` (crates.io) leaves via `wlp9s0` table 52000,
+  while 1.1.1.1 and 9.9.9.9 (the tunnel's DNS servers) stay on `fr-par-fr1`;
+  toolchain `node` processes (`open-code-review`,
+  the `mvm` MCP servers and others) now sit in `wg-quicker-update-<pid>-<start>.scope` under the slice;
+  a request from the slice left from `2607:f2c0:...` (physical) and a normal one from `2a02:6ea0:...` (tunnel).
+  Reported loudly at start,
+  by design:
+  about 18 matched processes not moved because each is the main process of another session's service
+  (`cli-git-mutpar-*`,
+  `rr-cent...`).
+  Defect found live:
+  both sentinels were started as services but did not confirm within 2000 ms,
+  and afterwards no `wg-quicker*` unit or sentinel process exists,
+  so a watcher's death would go unreported.
+  System journal:
+  both units failed at exec with "Unable to locate executable '<path under /var/home/user>': Permission denied",
+  `status=203/EXEC`,
+  started by PID 1 in `init_t`;
+  SELinux refusing system services the execution of these files:
+  `getenforce` is Enforcing,
+  the node is labelled `data_home_t`,
+  and the watcher binary `container_file_t:s0:c311,c738`
+  (a container mount relabelled its `target/` directory);
+  root's discretionary permissions cannot deny an exec.
+  (Corrected 2026-11-01:
+  this session said no AVC record was logged and suggested a dontaudit rule;
+  both were wrong.
+  The records exist,
+  `{ execute }` from `init_t` on `data_home_t` and on `container_file_t`,
+  `permissive=0`;
+  this session's `ausearch --start '10/31/2026'` failed to parse the date,
+  while `10/31/26` finds them;
+  `sesearch` on a copy of the loaded policy (setools 4.6.0 in a container) found no dontaudit
+  and no allow rule for `init_t` executing those types.)
+  The wg agent's round 4 (2026-11-01):
+  sentinels start behind `/usr/bin/env`,
+  which the policy transitions to `unconfined_service_t`,
+  allowed to execute both labels (measured with throwaway units:
+  direct exec 203/EXEC;
+  user-manager service cannot read `/run/wg-quicker`;
+  a root-owned copy in `/usr/local/libexec` runs but needs an installer);
+  an unconfirmed unit is stopped and the sentinel starts beside the watcher with a loud line;
+  the repeat-limit cause is now the whole line up to 1024 characters,
+  with digits, absolute paths and unit names normalized;
+  a system stop (`/run/nologin` or an active `shutdown.target`) is not reported as a death,
+  a logout is;
+  bounded `systemd-run` calls;
+  `doc/troubleshooting/selinux-denies-system-service-exec-of-home-files.md`.
+  Rust 172 tests,
+  TypeScript 91 passing.
+  The `target/` labels come from `podman run --volume ...:Z` relabelling
+  (892,281 entries `c190,c881`,
+  58,960 `c311,c738`).
+  A separate reviewer re-checks `557ea24e24..HEAD`
+  (done 2026-11-01 at tip `6dfd88d343`:
+  no blocker;
+  the trampoline adds no authority on this host;
+  should-fix:
+  `/run/nologin` as a stop signal hides real deaths before a scheduled shutdown,
+  so it is dropped in favour of `shutdown.target` alone;
+  minors on a failed `systemctl stop`,
+  a program path containing `=`,
+  and cgroup names with spaces;
+  all sent back);
+  then merge,
+  rebuild,
+  and apply without a tunnel gap
+  (`watch-stop` and `watch-start` for the Rust watcher,
+  and a by-hand `systemd-run` for the TypeScript sentinel,
+  per the agent's report).
+  Earlier note:
+  sent to the wg agent to confirm,
+  write a troubleshooting doc,
+  and find a placement that runs on this host,
+  ideally applied without another tunnel gap).
 - Separate review of the switch branch (2026-11-01,
   `82bc287a8c..cc96e34a54`):
   no new blocker.
@@ -862,6 +977,210 @@ each finished branch is reviewed and merged into `main`):
   and runbook fixes (an MD8 split bold span,
   GitHub's delete and restore limits,
   check 3's preconditions).
+- Switch agent reported 2026-11-01:
+  switch branch tip `254c474ccb` (main merged in `a416790756`;
+  `git diff main -- package/mpm-shadow` empty);
+  `playwright-image-publish` tip `3c7305aeca`.
+  The lock was regenerated with the released 0.2.1 by a named update
+  (mpm-shadow 0.2.0 to 0.2.1,
+  cargo-binstall 1.26.1 to 1.26.2,
+  `cargo:monochromatic-git-policy-cli` 0.4.4 to 0.4.5,
+  `pipx:slopo` 0.9.0 to 0.9.1;
+  Rust held at `main`'s `nightly-2026-10-31`);
+  `install --lockfile-only --frozen-lockfile` reports the lock current (64 tools,
+  digest verified);
+  the `mpm-shadow` musl rows point at the gnu archive,
+  because releases publish gnu archives only.
+  The final no-overlay Dockerfile build exited 0 after 2120 s
+  (bootstrap fetched and checked 0.2.1;
+  `mpm-shadow install --frozen-lockfile` installed 64,
+  failed 0;
+  `prepare:pnpm` ran).
+  Also done:
+  `task-mpm-shadow` runs the lock's exact mpm-shadow for every toolchain task (the owner's "Run the lock's version"),
+  with `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`;
+  the Playwright task pulls only on `linux/amd64`;
+  cutover doc verbs updated;
+  stale docs fixed;
+  drift steps now fail the run;
+  `FILE_ENFORCER_IDLE_SECONDS=2` in CI and the Dockerfile;
+  a `repository` input on `repo-tools-setup` for Depot.
+  On the publish branch:
+  the exists check fails unless it can tell,
+  the job is guarded to `main` (a branch dispatch runs the branch's own file,
+  so the guard stops accidents only),
+  provenance attestation added,
+  runbook corrected.
+  Delta re-checks running for both branches;
+  the switch still waits for mpm-shadow 0.2.2 and a lock regeneration with it.
+- Playwright image published 2026-11-01:
+  `playwright-image-publish` (re-check clean;
+  text fixes to `1186b180aa`) merged into `main` as `8530c18245`;
+  run `41266231857` found the tag absent (HTTP 404),
+  built and pushed `ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464` as
+  `sha256:3e7042a80905629a59c4c48a72b0666af4f64bb2934245371df56208976427df`,
+  with provenance attestation.
+  The package was private (anonymous token HTTP 401);
+  the owner made it public ("Made it public");
+  afterwards an anonymous token was issued and the manifest HEAD returned HTTP 200.
+  Second run `41267052681`,
+  dispatched on `main`,
+  succeeded and printed
+  "ghcr.io/aquaticats/monochromatic-playwright:e802ff364dc61464 exists (HTTP 200); nothing to build".
+  Still to verify after the cutover merge:
+  a real `prepare:playwright` pull from GHCR on this machine.
+- Switch delta review (2026-11-01,
+  `cc96e34a54..254c474ccb`):
+  no blocker;
+  drift gate green on the branch (committed outputs,
+  lock,
+  pnpr config).
+  Should-fix sent to the switch agent:
+  a wrong cached bootstrap copy is reused after a failed rename while the log says "fetched and verified";
+  the bootstrap cache `.cache/mpm-shadow-bootstrap/` is a second install location the newest-only rule
+  and 0.2.2 cannot see (suggested:
+  the toolchain root's own layout);
+  the `Local file drift` step unverified.
+  The reviewer also noted the wg OpenSnitch rules do not cover that cache path;
+  the toolchain must not adapt to the firewall (`OWK`),
+  so the location is chosen for the toolchain's reasons and coverage is checked afterwards.
+  Owner's answer on the bootstrap conflict:
+  "At least the lock's version"
+  (run the newest installed copy at or above the lock's version,
+  warning when it is newer;
+  fetch the lock's archive only when none exists;
+  a copy older than the lock never runs).
+- mpm-shadow 0.2.2 (2026-11-01,
+  tip `313a81668e`,
+  466 tests passed,
+  lint exit 0):
+  re-point then remove old copies in `$CARGO_HOME/bin`
+  (via `cargo uninstall --bin` when `.crates.toml` names the bin;
+  correction:
+  `.crates.toml` is accurate on this machine,
+  only `.crates2.json` is stale),
+  and newest across roots (`across_roots.rs`,
+  `managed_losers.rs`).
+  Implementer's own design,
+  not the owner's:
+  an emptied root's `current` forwards to the winner root's `current`.
+  Separate review of `5e301c751d..313a81668e` running;
+  the decision record gets a `docs(decision)` commit on the branch
+  (done:
+  `7c2f5ac08d`,
+  `ae6296a515` dating the bootstrap amendment,
+  `e4107e172f` clearing the file's 14 old lint findings;
+  tip `e4107e172f`).
+  Review 2026-11-01:
+  no blocker.
+  Should-fix:
+  `$CARGO_HOME/bin` itself is not searched for links,
+  so a sibling link such as `~/.cargo/bin/git -> cli-git-native` dangled after removal (executed);
+  sent back as following the owner's option ("nothing dangles").
+  Owner's answer on an unrecorded copy (no `.crates.toml` entry):
+  "Delete it" (removed after its links are re-pointed,
+  version not checked).
+  Minor items sent too:
+  forward `current` before removal,
+  recompute the forward at apply time,
+  gate and `--` in the apply-time `cargo uninstall`,
+  NotFound as done,
+  prune and the global forward,
+  a stale `current` in the winning root.
+  Fixed 2026-11-01,
+  tip `39be20e06b` (473 tests passed;
+  lint exit 0;
+  clippy clean;
+  10 guard removals each failed a named test;
+  the reviewer's sibling-link probe replayed with real cargo and git,
+  nothing dangled):
+  `$CARGO_HOME/bin` searched for links;
+  the forward made before removal and recomputed at apply time;
+  `cargo uninstall --root R --bin B -- <crate>` with the prefix gate at apply time;
+  another run's removal counted as done;
+  `prune --toolchain` never prunes a version another root's `current` forwards into;
+  every install repairs the winning root's `current`;
+  the owner's "Delete it" recorded in the README and the decision record.
+  Final re-check of `313a81668e..39be20e06b` running;
+  a clean result releases it under the 0.2.1 rule.
+  Final re-check 2026-11-01:
+  no blocker,
+  no should-fix,
+  S1 and M1 to M6 closed (S1 executed on the final binary;
+  `cargo uninstall ... -- <crate>` checked with real cargo;
+  lint exit 0).
+  Merged into `main` as `caada873eb` and pushed;
+  release run `41269279750` started.
+  Released 2026-11-01:
+  run `41269279750` succeeded;
+  crates.io `max_version` 0.2.2;
+  release `monochromatic-mpm-shadow-v0.2.2` with both linux-gnu archives and the sha256sums file;
+  the x86_64 archive passed `sha256sum --check` and printed `mpm-shadow 0.2.2` in a throwaway home.
+  The switch agent was told to merge `main`,
+  regenerate the lock (mpm-shadow 0.2.2,
+  wrapper 0.4.6,
+  `nightly-2026-11-01`;
+  nothing older than `main`'s),
+  run the committed-output check and one final Dockerfile build.
+- Switch fixes reported 2026-11-01,
+  tip `3adda252e7` (`5adc06997f` code and tests,
+  `3adda252e7` docs):
+  "At least the lock's version" in the candidate judgement;
+  a wrong cached copy is replaced and re-checked (mutation-checked test);
+  the bootstrap cache is gone,
+  and a fetched mpm-shadow installs into `<data home>/monochromatic-dev/toolchain/mpm-shadow/<version>/`
+  the way mpm-shadow's archive route does;
+  one-line failures,
+  dead-process leftovers cleaned,
+  a 10 s `--version` timeout,
+  Node 24 stated.
+  `Local file drift` verified on an export (`write`,
+  then `check --outputs local` and `check`,
+  exit 0).
+  The live rule `/etc/opensnitchd/rules/000-allow-monochromatic-toolchain-install-roots.json` allows
+  `process.path` matching `^(?:/home/user/\.local/share/monochromatic-dev|/var/home/user/\.local/share/monochromatic-dev)/toolchain(?:-global)?/`,
+  so the new location is covered without the toolchain adapting to the firewall.
+  The switch lock is behind `main` on `cargo:monochromatic-git-policy-cli` (0.4.5 vs 0.4.6) and `rust`
+  (`nightly-2026-10-31` vs `nightly-2026-11-01`);
+  the final regeneration moves both,
+  plus mpm-shadow to 0.2.2.
+  Delta re-check of `254c474ccb..3adda252e7` running.
+  Re-check 2026-11-01:
+  no blocker;
+  the bootstrap's layout and marker match mpm-shadow 0.2.1,
+  whose `list` reports the copy as its own.
+  Should-fix,
+  sent to the switch agent:
+  the global root is not scanned (a 0.2.2 in `toolchain-global` was ignored),
+  against the owner's "Newest across roots";
+  a concurrent fetch can fail one task on rename.
+  Minor:
+  the README's first run leaves `~/.local/bin/mpm-shadow` behind,
+  the PATH fallback skips the version check,
+  `rc` ordering,
+  pid-namespace staging cleanup.
+  Fixed 2026-11-01,
+  tip `2335dd3625` (`02411eea47` through `2335dd3625`;
+  core-exec build,
+  types,
+  oxlint and unit tests passed):
+  both roots scanned;
+  a failed rename re-checks the version folder;
+  the PATH fallback refuses a copy older than the lock;
+  SemVer pre-release order;
+  leftovers need a gone pid and ten minutes of age;
+  the README first run uses a throwaway directory.
+  Re-check of `3adda252e7..2335dd3625` running.
+- From monochromatic-7a 2026-11-01:
+  git wrapper 0.4.6 is published (release commit `1604b0d012`);
+  `main`'s lock commit `b896deca0d` pins it,
+  `monochromatic-mpm-shadow` 0.2.1 and Rust `nightly-2026-11-01`,
+  installed into the shared `~/.cargo/bin` by `main`'s TypeScript sync.
+  The switch agent was told its final lock must not name anything older than `main`'s
+  (wrapper 0.4.6,
+  `nightly-2026-11-01`,
+  mpm-shadow 0.2.2).
+  7a was told what changes for the wrapper at the cutover and that this session messages it when the merge lands.
 - Queued 2026-11-01,
   owner:
   "gh issue #2576. But prioritize cutover first."

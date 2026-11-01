@@ -12,6 +12,7 @@ use std::process::{Command, Output};
 
 use mpm_shadow::toolchain::launcher::{LaunchRecord, record_path, render_record};
 use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
+use mpm_shadow::toolchain::scope::ScopeKind;
 
 /// The tool the fixtures install.
 const TOOL_ID: &str = "cargo:monochromatic-demo-tool";
@@ -59,6 +60,7 @@ impl Tree {
             tool_id: TOOL_ID.to_string(),
             lock_file: tree.lock_file(),
             real: crate_dir.join("current").join("bin").join("tool"),
+            scope: ScopeKind::Repo,
         };
         fs::write(record_path(&tree.launcher()), render_record(&record)).expect("write the record");
         return tree;
@@ -251,6 +253,7 @@ fn archive_tree(locked: &str, used: &str) -> (tempfile::TempDir, PathBuf, PathBu
         tool_id: "demo-release".to_string(),
         lock_file,
         real: tool_dir.join("current").join("release-folder").join("tool"),
+        scope: ScopeKind::Repo,
     };
     fs::write(record_path(&launcher), render_record(&record)).expect("write the record");
     return (directory, launcher, record.real);

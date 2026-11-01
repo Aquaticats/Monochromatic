@@ -3,7 +3,7 @@
 //!  and stops detached application-cgroup watcher processes.
 
 /// Watch loop preparation and execution.
-use crate::application_watch::{prepare_application_watch, run_application_watch};
+use crate::application_watch::{prepare_application_watch, run_application_watch, ReporterIdentity};
 /// Production target roots and app slice path.
 use crate::application_targets::{user_app_slice, ScanRoots};
 /// Generic exact process validation and shutdown.
@@ -21,6 +21,25 @@ use crate::application_watch_state::{
     write_watch_state,
     WatchProcess,
 };
+/// The relay of the start's loud lines.
+use crate::startup_relay::forward_startup_failures;
+/// The user's toolchain roots.
+use crate::install_roots::{install_roots, InstallRoots};
+/// Moves matched processes into the updates slice.
+use crate::scope_adoption::BusctlAdopter;
+/// The watched user's account.
+use crate::user_account::lookup_user;
+/// Non-panicking output and escaping.
+use crate::log_line::{log_line, sanitize, write_unchecked};
+/// The sentinel of the watcher,
+/// started outside the watcher's cgroup.
+use crate::sentinel_launch::{launch_sentinel, SentinelRequest, SystemSteps};
+/// The policy engine and its setup.
+use crate::update_routing::{RoutingSetup, UpdateRouting};
+/// The start notice and the marker of a loud report.
+use crate::update_report::{policy_failure, policy_notice, refused_root_failures};
+/// The account of the watched user.
+use crate::user_account::UserAccount;
 /// Handshake and file errors.
 use std::io::{self, BufRead, BufReader, Write};
 /// Unix log creation mode.
@@ -28,7 +47,7 @@ use std::os::unix::fs::OpenOptionsExt;
 /// Child process session setup hook.
 use std::os::unix::process::CommandExt;
 /// Watcher application slice path.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 /// Child process launch pipes.
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -110,6 +129,23 @@ fn read_watch_log(key: &str) -> io::Result<String> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(String::new()),
         Err(error) => return Err(error),
     }
+}
+
+/// Size of the watcher log now,
+/// zero when it does not exist yet.
+fn watch_log_length(key: &str) -> u64 {
+    return match watch_log_path(key).and_then(std::fs::metadata) {
+        Ok(metadata) => metadata.len(),
+        Err(_error) => 0,
+    };
+}
+
+/// Looks up the watched user and the toolchain install roots of that user.
+fn user_install_roots(uid: u32) -> io::Result<(UserAccount, InstallRoots)> {
+    let account = lookup_user(uid)?;
+    let canonical_home = std::fs::canonicalize(&account.home).ok();
+    let roots = install_roots(&account.home, canonical_home.as_deref());
+    return Ok((account, roots));
 }
 
 /// Starts a new session in the forked child so the watcher is isolated from the invoking terminal.
@@ -197,6 +233,9 @@ pub fn start_application_watch(
     uid: u32,
 ) -> io::Result<()> {
     stop_application_watch(key)?;
+    let (account, roots) = user_install_roots(uid)?;
+    write_unchecked(&policy_notice(&roots.roots, &account.home));
+    let log_offset = watch_log_length(key);
     let mut candidate = spawn_watch_candidate(key, mark, uid)?;
     if let Err(error) = write_watch_state(key, candidate.process) {
         drop(candidate.input);
@@ -211,6 +250,38 @@ pub fn start_application_watch(
             io::ErrorKind::InvalidData,
             format!("unexpected application watcher commit: {acknowledgement}"),
         ));
+    }
+    // The watcher is running and committed;
+    // failing to relay its startup reports must not undo that,
+    // but it must be said.
+    if let Err(error) = forward_startup_failures(key, log_offset) {
+        write_unchecked(&format!(
+            "wg-quicker-exempt: the watcher started, but its startup reports could not be read from its log: {}",
+            sanitize(&error.to_string())
+        ));
+    }
+    match std::env::current_exe() {
+        Ok(executable) => {
+            let outcome = launch_sentinel(
+                &SystemSteps,
+                &SentinelRequest {
+                    key,
+                    watcher_pid: candidate.process.pid,
+                    watcher_start_time: candidate.process.start_time,
+                    uid: candidate.process.uid,
+                    gid: account.gid,
+                    executable: &executable,
+                },
+            );
+            for report in &outcome.reports {
+                write_unchecked(report);
+            }
+            write_unchecked(&outcome.summary());
+        }
+        Err(error) => write_unchecked(&policy_failure(&format!(
+            "the sentinel that reports the watcher's own death could not start, because the path of this program is unknown ({error}); \
+if the watcher is killed or runs out of memory nothing will say so"
+        ))),
     }
     return Ok(());
 }
@@ -228,15 +299,28 @@ pub fn run_application_watch_child(
         proc_root: Path::new("/proc"),
         cgroup_root: Path::new("/sys/fs/cgroup"),
     };
-    let mut watch = prepare_application_watch(roots, mark)?;
-    println!("{READY}");
+    let (account, install_root_set) = user_install_roots(uid)?;
+    log_line(&policy_notice(&install_root_set.roots, &account.home));
+    for line in refused_root_failures(&install_root_set.refused) {
+        log_line(&line);
+    }
+    let routing = UpdateRouting::new(RoutingSetup {
+        uid,
+        gid: account.gid,
+        install_roots: install_root_set.roots,
+        proc_root: PathBuf::from("/proc"),
+        cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+        adopter: Box::new(BusctlAdopter::new()),
+    });
+    let mut watch = prepare_application_watch(roots, mark, routing, ReporterIdentity { uid, gid: account.gid })?;
+    writeln!(io::stdout(), "{READY}")?;
     io::stdout().flush()?;
     let mut commit = String::new();
     io::stdin().lock().read_line(&mut commit)?;
     if commit.trim_end() != COMMIT {
         return Ok(());
     }
-    println!("{COMMITTED}");
+    writeln!(io::stdout(), "{COMMITTED}")?;
     io::stdout().flush()?;
     return run_application_watch(&mut watch);
 }

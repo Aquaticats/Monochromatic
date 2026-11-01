@@ -11,6 +11,18 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus};
 use std::time::{Duration, Instant};
 
+/// The sender codes the tests feed in; macOS gets them from the module itself because the `libc` crate lacks them there.
+#[cfg(all(unix, not(target_os = "macos")))]
+use libc::{SI_QUEUE, SI_USER};
+
+/// A code that no process sends: the kernel's own on Linux, the empty code elsewhere (macOS has no `SI_KERNEL`).
+#[cfg(target_os = "linux")]
+const KERNEL_CODE: std::ffi::c_int = libc::SI_KERNEL;
+
+/// A code that no process sends: the kernel's own on Linux, the empty code elsewhere (macOS has no `SI_KERNEL`).
+#[cfg(all(unix, not(target_os = "linux")))]
+const KERNEL_CODE: std::ffi::c_int = 0;
+
 /// Environment variable naming the helper scenario.
 const MODE_VAR: &str = "CLI_GIT_SIGNAL_GUARD_TEST_MODE";
 /// Environment variable naming the helper's scratch directory.
@@ -144,9 +156,9 @@ fn finish(mut helper: Child) -> ExitStatus {
 #[cfg(unix)]
 #[test]
 fn only_process_senders_are_relayed() {
-    assert!(is_process_sender(libc::SI_USER));
-    assert!(is_process_sender(libc::SI_QUEUE));
-    assert!(!is_process_sender(libc::SI_KERNEL));
+    assert!(is_process_sender(SI_USER));
+    assert!(is_process_sender(SI_QUEUE));
+    assert!(!is_process_sender(KERNEL_CODE));
 }
 
 /// On Linux a thread-directed kill is a process sender too.
@@ -176,7 +188,7 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
     let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
     let header: *mut SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<SignalHeader>();
     // SAFETY: `header` points into the live `info` buffer above.
-    unsafe { (*header).code = libc::SI_KERNEL };
+    unsafe { (*header).code = KERNEL_CODE };
     relay_handler(libc::SIGINT, &mut info, std::ptr::null_mut());
     assert_eq!(
         PENDING[0].load(std::sync::atomic::Ordering::SeqCst),
@@ -184,7 +196,7 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
         "a terminal sender is not marked for relay"
     );
     // SAFETY: as above.
-    unsafe { (*header).code = libc::SI_USER };
+    unsafe { (*header).code = SI_USER };
     relay_handler(libc::SIGINT, &mut info, std::ptr::null_mut());
     assert_eq!(
         PENDING[0].load(std::sync::atomic::Ordering::SeqCst),

@@ -632,3 +632,8 @@ fn announce_held_lock(real_index: &Path, lock_path: &Path) -> Result<(), String>
 #[cfg(test)]
 #[path = "real_index_lock_tests.rs"]
 mod tests;
+
+/// Controls for failures of the exclusive creation and for the lock created in place after a refused link.
+#[cfg(test)]
+#[path = "real_index_lock_fallback_tests.rs"]
+mod fallback_tests;

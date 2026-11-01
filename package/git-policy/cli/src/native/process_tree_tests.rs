@@ -3,6 +3,7 @@
 use super::*;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// A shell that starts a sleeping child, prints its number, and waits for it.
 fn shell_with_a_sleeper() -> (Child, i32) {
@@ -46,6 +47,31 @@ fn a_descendant_is_found_and_signalled() {
     let status = shell.wait().expect("the shell ends");
     assert!(status.success() || status.code().is_some(), "{status:?}");
     assert!(!still_running(member), "the sleeper ended");
+}
+
+/// Ending the found members with the named wrapper reaches the process: `SIGTERM` for `terminate_members`, `SIGKILL`
+/// for `kill_members`.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_named_wrappers_end_the_found_members() {
+    for (name, end) in [("terminate_members", terminate_members as fn(&[TreeMember])), ("kill_members", kill_members)] {
+        let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
+        let root: i32 = i32::try_from(shell.id()).expect("a process number");
+        let found: Vec<TreeMember> = descendants_of(root);
+        let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
+        end(&found);
+        // Bounded poll: a wrapper that signals nothing leaves the sleeper running, and the shell's `wait` would then
+        // block for the sleeper's whole lifetime.
+        let deadline: Instant = Instant::now() + Duration::from_secs(10);
+        while still_running(member) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let ended: bool = !still_running(member);
+        // Reaps the shell whatever happened.
+        signal_members(&found, libc::SIGKILL);
+        shell.wait().expect("the shell ends");
+        assert!(ended, "{name} ended the sleeper");
+    }
 }
 
 /// A number whose start time differs is another process: it is not signalled.

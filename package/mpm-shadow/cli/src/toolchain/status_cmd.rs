@@ -29,6 +29,10 @@ use super::load::load_agreeing;
 use super::lock::Lock;
 /// Imports what this module uses from `super::observe`.
 use super::observe::{format_status, observe_all};
+/// Imports what this module uses from `super::old_copy_apply`.
+use super::old_copy_apply::preview_lines;
+/// Imports `plan_old_copies` from `super::old_copies`.
+use super::old_copies::plan_old_copies;
 /// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
 /// Imports `Runner` from `super::runner`.
@@ -70,6 +74,10 @@ pub fn run_status(scope: &Scope, env: &EnvMap, runner: &dyn Runner, host: &Host)
     let mut text: String = format_status(&observations);
     for warning in older_lock_warnings(scope, &lock.tools, host.family) {
         text.push_str(&format!("toolchain list: warning: {warning}\n"));
+    }
+    // An old copy is not drift (the lock is satisfied); `list` names what `install` would do with each, and exits as before.
+    for line in preview_lines(&plan_old_copies(&context, &[])) {
+        text.push_str(&format!("toolchain list: warning: {line}\n"));
     }
     return Ok(StatusReport { text, drifted });
 }

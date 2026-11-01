@@ -39,11 +39,11 @@ use serde_json::{Map, Value};
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{CURRENT_LINK_NAME, is_newer_than_locked, older_lock_message};
+use super::cargo_installs::{CURRENT_LINK_NAME, is_newer_than_locked, older_lock_message_for};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
-/// Imports `Scope` from `super::scope`.
-use super::scope::Scope;
+/// Imports what this module uses from `super::scope`.
+use super::scope::{Scope, ScopeKind};
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -64,6 +64,9 @@ pub struct LaunchRecord {
     /// The binary to run:
     /// `<crate directory>/current/bin/<name>`.
     pub real: PathBuf,
+    /// Which scope made the launcher,
+    /// so the warning names the upgrade command of that scope's lock.
+    pub scope: ScopeKind,
 }
 
 /// The record file beside a launcher.
@@ -80,6 +83,11 @@ pub fn render_record(record: &LaunchRecord) -> String {
     fields.insert("toolId".to_string(), Value::String(record.tool_id.clone()));
     fields.insert("lockFile".to_string(), Value::String(record.lock_file.to_string_lossy().to_string()));
     fields.insert("real".to_string(), Value::String(record.real.to_string_lossy().to_string()));
+    let scope: &str = match record.scope {
+        ScopeKind::Repo => "repo",
+        ScopeKind::Global => "global",
+    };
+    fields.insert("scope".to_string(), Value::String(scope.to_string()));
     return Value::Object(fields).to_string();
 }
 
@@ -87,10 +95,16 @@ pub fn render_record(record: &LaunchRecord) -> String {
 /// or `None` when it is not one.
 pub fn parse_record(text: &str) -> Option<LaunchRecord> {
     let value: Value = serde_json::from_str(text).ok()?;
+    // A record written before the field existed belongs to a tree.
+    let scope: ScopeKind = match value.get("scope").and_then(Value::as_str) {
+        Some("global") => ScopeKind::Global,
+        _ => ScopeKind::Repo,
+    };
     return Some(LaunchRecord {
         tool_id: value.get("toolId")?.as_str()?.to_string(),
         lock_file: PathBuf::from(value.get("lockFile")?.as_str()?),
         real: PathBuf::from(value.get("real")?.as_str()?),
+        scope,
     });
 }
 
@@ -222,7 +236,8 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", scope.launcher_dir.display())));
     }
     let launcher: PathBuf = scope.launcher_dir.join(name);
-    let record: LaunchRecord = LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf() };
+    let record: LaunchRecord =
+        LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
     write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
     let source: PathBuf = running_binary()?;
     place_binary(&source, &launcher)?;
@@ -269,7 +284,12 @@ fn is_current_link(candidate: &&Path) -> bool {
 /// so the link is the nearest ancestor of the binary that is named `current`.
 fn version_that_runs(real: &Path) -> Option<String> {
     let link: &Path = real.ancestors().skip(1).find(is_current_link)?;
-    let target: PathBuf = fs::read_link(link).ok()?;
+    // The final directory's name, so a `current` that forwards to the other toolchain root's `current` still names the
+    // version that runs; a link that does not resolve falls back to its own target.
+    let target: PathBuf = match fs::canonicalize(link) {
+        Ok(resolved) => resolved,
+        Err(_) => fs::read_link(link).ok()?,
+    };
     let name: String = file_name_text(&target);
     if name.is_empty() {
         return None;
@@ -296,7 +316,7 @@ pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch 
         && let Some(locked) = locked_version(text, &record.tool_id)
         && is_newer_than_locked(&used, &locked)
     {
-        warning = Some(older_lock_message(&record.tool_id, &locked, &used));
+        warning = Some(older_lock_message_for(record.scope, &record.tool_id, &locked, &used));
     }
     return Launch { warning, program: record.real.clone() };
 }

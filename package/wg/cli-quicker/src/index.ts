@@ -17,13 +17,12 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
 import { loadConfig, } from './config.ts';
 import { CliUsageError, } from './errors.ts';
-import { RECOMMENDED_EXEMPT_MARK, } from './exempt-mark-reservation.ts';
 import { runOpenSnitchRulesCommand, } from './opensnitch-rules-command.ts';
 import { restorePrivilegeContext, } from './privilege-context.ts';
 import { relaunchWithRootIfNeeded, } from './privilege.ts';
+import { runSubcommand, } from './run-subcommand.ts';
 import {
   down,
   up,
@@ -131,24 +130,18 @@ async function main(): Promise<void> {
     arg: target,
     expandAllowedIps: subcommand === 'up',
   },);
-  if (subcommand === 'up') {
-    if (config.exemptMark === undefined) {
-      l.warn(
-        `Config for ${target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox Nightly, ChatGPT, Interpreter, and Qure will use the tunnel. So will toolchain sync and update runs. Add \`ExemptMark = ${String(RECOMMENDED_EXEMPT_MARK,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
-      );
-    } else {
-      /**
-       Exact companion path resolved before first network mutation.
-       */
-      const command = await resolveApplicationExemptionCommand();
-      /**
-       Process environment updated with exact preflighted path for later watcher calls.
-       */
-      const environment = process.env;
-      environment.WG_QUICKER_EXEMPT_COMMAND = command;
-    }
-  }
-  await (subcommand === 'up' ? up({ config, },) : down({ config, },));
+  await runSubcommand({
+    subcommand,
+    target,
+    config,
+    steps: {
+      up,
+      down,
+      warn: function warnNotice(notice,): void {
+        l.warn(notice,);
+      },
+    },
+  },);
 }
 
 await main();
