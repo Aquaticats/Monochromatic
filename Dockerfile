@@ -70,6 +70,10 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # (`mise run toolchain:install` is the same entry).
 RUN export $(cat .env.local | xargs) && mpm-shadow install --frozen-lockfile
 
+# The file-enforcer CLI README asks containers to set the idle time of the server a command starts low, for a
+# deterministic shutdown; 2 seconds is what the crate's own tests use.
+ENV FILE_ENFORCER_IDLE_SECONDS=2
+
 # `prepare:pnpm` is the part of `prepare` this image needs: `pnpm install`, `pnpm approve-builds sharp`, and
 # `file-enforcer write`. The full `prepare` also fans out to two children that the image skips on purpose:
 # - `prepare:playwright` pulls (or builds) the Playwright container image. The services built from this image start

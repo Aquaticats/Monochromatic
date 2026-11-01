@@ -7,6 +7,9 @@ jobs:
   baseline:
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 120
+    env:
+      # The file-enforcer CLI README asks CI to set the server's idle time low, for a deterministic shutdown.
+      FILE_ENFORCER_IDLE_SECONDS: '2'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
