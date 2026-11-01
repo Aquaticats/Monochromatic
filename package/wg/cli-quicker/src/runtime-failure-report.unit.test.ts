@@ -20,9 +20,13 @@ import {
 } from '../dist/final/node/escape-text.mjs';
 import {
   createRepeatLimit,
+  MAX_CAUSES_PER_KIND,
+  MAX_EXTRA_CAUSES_PER_INTERVAL,
   MAX_REMEMBERED_KINDS,
+  normalizeCause,
   withHeldRepeats,
 } from '../dist/final/node/failure-repeat-limit.mjs';
+import { resolveNotificationUser, } from '../dist/final/node/notification-user.mjs';
 import {
   createFailureDelivery,
   FAILURE_JOURNAL_INTERVAL_MS,
@@ -32,7 +36,6 @@ import {
   notificationArguments,
   notificationCommand,
   parseNotificationId,
-  resolveNotificationUser,
   runDeliveryCommandWithin,
   type DeliveryCommand,
 } from '../dist/final/node/runtime-failure-report.mjs';
@@ -263,12 +266,47 @@ await describe({
          Limit of one minute.
          */
         const limit = createRepeatLimit({ intervalMs: 60_000, },);
-        expect(limit({ key: 'a', now: 0, },),).toEqual({ deliver: true, held: 0, },);
-        expect(limit({ key: 'a', now: 10_000, },),).toEqual({ deliver: false, },);
-        expect(limit({ key: 'a', now: 59_999, },),).toEqual({ deliver: false, },);
-        expect(limit({ key: 'b', now: 59_999, },),).toEqual({ deliver: true, held: 0, },);
-        expect(limit({ key: 'a', now: 60_000, },),).toEqual({ deliver: true, held: 2, },);
-        expect(limit({ key: 'a', now: 120_000, },),).toEqual({ deliver: true, held: 0, },);
+        expect(limit({ key: 'a', cause: 'c', now: 0, },),).toEqual({ deliver: true, held: 0, },);
+        expect(limit({ key: 'a', cause: 'c', now: 10_000, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'a', cause: 'c', now: 59_999, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'b', cause: 'c', now: 59_999, },),).toEqual({ deliver: true, held: 0, },);
+        expect(limit({ key: 'a', cause: 'c', now: 60_000, },),).toEqual({ deliver: true, held: 2, },);
+        expect(limit({ key: 'a', cause: 'c', now: 120_000, },),).toEqual({ deliver: true, held: 0, },);
+      },
+    },),
+    it({
+      name: 'delivers the first distinct causes of a kind in each interval, holds back the rest and counts them',
+      fn: async () => {
+        /**
+         Limit of one minute.
+         */
+        const limit = createRepeatLimit({ intervalMs: 60_000, },);
+        for (const cause of ['alpha', 'beta', 'gamma', 'delta',])
+          expect(limit({ key: 'skipped', cause, now: 0, },),).toEqual({ deliver: true, held: 0, },);
+        expect(MAX_CAUSES_PER_KIND,).toBe(4,);
+        expect(limit({ key: 'skipped', cause: 'epsilon', now: 1, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'skipped', cause: 'alpha', now: 2, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'skipped', cause: 'zeta', now: 3, },),).toEqual({ deliver: false, },);
+        expect(limit({ key: 'skipped', cause: 'epsilon', now: 60_000, },),).toEqual({ deliver: true, held: 3, },);
+      },
+    },),
+    it({
+      name: 'shares a cap on extra causes over all kinds and always delivers the first cause of a kind',
+      fn: async () => {
+        /**
+         Limit of one minute.
+         */
+        const limit = createRepeatLimit({ intervalMs: 60_000, },);
+        /**
+         Deliveries over twenty kinds of four causes each.
+         */
+        let delivered = 0;
+        for (let kind = 0; kind < 20; kind += 1)
+          for (const cause of ['a', 'b', 'c', 'd',])
+            if (limit({ key: `kind ${String(kind,)}`, cause, now: 0, },).deliver)
+              delivered += 1;
+        expect(delivered,).toBe(20 + MAX_EXTRA_CAUSES_PER_INTERVAL,);
+        expect(limit({ key: 'a new kind', cause: 'a', now: 1, },),).toEqual({ deliver: true, held: 0, },);
       },
     },),
     it({
@@ -279,8 +317,8 @@ await describe({
          */
         const limit = createRepeatLimit({ intervalMs: 1_000, },);
         for (let index = 0; index < (MAX_REMEMBERED_KINDS * 2); index += 1)
-          limit({ key: `kind ${String(index,)}`, now: index, },);
-        expect(limit({ key: 'kind 0', now: 5_000, },),).toEqual({ deliver: true, held: 0, },);
+          limit({ key: `kind ${String(index,)}`, cause: 'c', now: index, },);
+        expect(limit({ key: 'kind 0', cause: 'c', now: 5_000, },),).toEqual({ deliver: true, held: 0, },);
       },
     },),
     it({
@@ -291,9 +329,25 @@ await describe({
          */
         const limit = createRepeatLimit({ intervalMs: 1_000_000, },);
         for (let index = 0; index < (MAX_REMEMBERED_KINDS + 10); index += 1)
-          limit({ key: `kind ${String(index,)}`, now: index, },);
-        expect(limit({ key: 'kind 0', now: 1_000, },),).toEqual({ deliver: true, held: 0, },);
-        expect(limit({ key: `kind ${String(MAX_REMEMBERED_KINDS + 9,)}`, now: 1_001, },),).toEqual({ deliver: false, },);
+          limit({ key: `kind ${String(index,)}`, cause: 'c', now: index, },);
+        expect(limit({ key: 'kind 0', cause: 'c', now: 1_000, },),).toEqual({ deliver: true, held: 0, },);
+        expect(limit({ key: `kind ${String(MAX_REMEMBERED_KINDS + 9,)}`, cause: 'c', now: 1_001, },),).toEqual({ deliver: false, },);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: normalizeCause.name,
+  children: [
+    it({
+      name: 'makes numbers alike, keeps names and reasons, and keeps the first characters only',
+      fn: async () => {
+        expect(normalizeCause({ line: 'pid 12 failed (attempt 3) in 30s', },),).toBe('pid # failed (attempt #) in #s',);
+        expect(normalizeCause({ line: 'pid 12 failed', },),).toBe(normalizeCause({ line: 'pid 99999 failed', },),);
+        expect(normalizeCause({ line: 'pid 12 failed: boom', },),).not.toBe(normalizeCause({ line: 'pid 12 failed: other', },),);
+        expect(normalizeCause({ line: 'x'.repeat(1_000,), },),).toHaveLength(200,);
+        expect(normalizeCause({ line: '', },),).toBe('',);
       },
     },),
   ],
@@ -367,7 +421,7 @@ await describe({
       },
     },),
     it({
-      name: 'does not let distinct names in the text defeat the limit of a kind',
+      name: 'delivers only the first distinct causes when names in the text differ, and delivers one when they differ only in digits',
       fn: async () => {
         const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
         await Promise.all(Array.from({ length: 200, }, (_unused, index,) => deliver({
@@ -375,7 +429,16 @@ await describe({
           line: `POLICY NOT IN FORCE: host-${String(index,)}.example failed ${'x'.repeat(index,)}`,
         },),),);
         expect(clock.now,).toBe(0,);
-        expect(ran,).toHaveLength(2,);
+        expect(ran,).toHaveLength(2 * MAX_CAUSES_PER_KIND,);
+        /**
+         Deliveries whose lines differ only in digits.
+         */
+        const digits = delivery({ lookupFound: true, failing: [], },);
+        await Promise.all(Array.from({ length: 200, }, (_unused, index,) => digits.deliver({
+          kind: 'update-host problems',
+          line: `POLICY NOT IN FORCE: host-${String(index,)}.example failed`,
+        },),),);
+        expect(digits.ran,).toHaveLength(2,);
       },
     },),
     it({
@@ -392,15 +455,36 @@ await describe({
       name: 'replaces the notification of the same kind by the id the client returned, and only that kind',
       fn: async () => {
         const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
-        await deliver({ kind: 'a', line: 'first a', },);
-        await deliver({ kind: 'b', line: 'first b', },);
+        await deliver({ kind: 'a', line: 'a failed 1', },);
+        await deliver({ kind: 'b', line: 'b failed 1', },);
         clock.now = FAILURE_NOTIFICATION_INTERVAL_MS + 1;
-        await deliver({ kind: 'a', line: 'second a', },);
+        await deliver({ kind: 'a', line: 'a failed 2', },);
         /**
          The notification calls in order.
          */
         const notifications = ran.filter((call,) => call.command === 'setpriv',);
         expect(notifications.map((call,) => call.args.at(-7,),),).toEqual(['0', '0', '102',],);
+      },
+    },),
+    it({
+      name: 'delivers distinct causes of one kind to both channels, and a notification replaces only the one of its own cause',
+      fn: async () => {
+        const { deliver, ran, clock, } = delivery({ lookupFound: true, failing: [], },);
+        await deliver({ kind: 'move skipped', line: 'POLICY NOT IN FORCE: pid 11 is in a login session scope', },);
+        await deliver({ kind: 'move skipped', line: 'POLICY NOT IN FORCE: pid 12 runs in another pid namespace', },);
+        await deliver({ kind: 'move skipped', line: 'POLICY NOT IN FORCE: pid 13 is the main process of a service', },);
+        expect(ran.map((call,) => call.command,),).toEqual(['systemd-cat', 'setpriv', 'systemd-cat', 'setpriv', 'systemd-cat', 'setpriv',],);
+        await deliver({ kind: 'move skipped', line: 'POLICY NOT IN FORCE: pid 14 is in a login session scope', },);
+        expect(ran,).toHaveLength(6,);
+        clock.now = FAILURE_NOTIFICATION_INTERVAL_MS + 1;
+        await deliver({ kind: 'move skipped', line: 'POLICY NOT IN FORCE: pid 15 is in a login session scope', },);
+        await deliver({ kind: 'move skipped', line: 'POLICY NOT IN FORCE: pid 16 runs in another pid namespace', },);
+        /**
+         The notification calls in order,
+         with the id each replaces.
+         */
+        const notifications = ran.filter((call,) => call.command === 'setpriv',);
+        expect(notifications.map((call,) => call.args.at(-7,),),).toEqual(['0', '0', '0', '102', '104',],);
       },
     },),
     it({

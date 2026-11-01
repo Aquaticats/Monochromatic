@@ -781,22 +781,33 @@ once per failure kind per minute;
 the notification comes once per failure kind every ten minutes,
 sent by `busctl` as that user through `setpriv` with a cleared environment.
 
-The limit keys on the kind of failure and never on the text,
+The limit keys on the kind of failure and on a normalized cause within the kind,
+never on the raw text,
 because the text embeds names a user chose,
 such as a host answer,
-and distinct names would defeat a text key.
+and a key on the raw text would let distinct names defeat the limit.
 The kinds are `update-host problems`,
 `update-host refresh failed`,
 `route monitor failed`,
 `route watcher stopped` and `route watcher died`.
+The normalized cause is the first 200 characters of the line with every run of digits made alike.
+Each channel delivers the first four distinct causes of a kind in each interval,
+so two different problems in the update-host refreshes are two reports and not one,
+and at most 32 further causes per interval over all kinds together;
+the first cause of every kind is always delivered.
 The map of remembered kinds holds at most 64,
 dropping the expired ones first and then the oldest.
-A repeat held back by the limit is counted,
-and the next delivery says "repeated N more time(s) since the last report".
-A later notification of the same kind replaces the earlier one on the desktop
+A repeat or a further cause held back by the limit is counted,
+and the next delivery says "repeated N more time(s) since the last report";
+the identity of a held-back cause beyond the cap is not kept.
+A later notification of the same kind and cause replaces the earlier one on the desktop
 (the id `Notify` printed is passed as `replaces_id`),
+distinct causes stay side by side,
 and each notification expires after ten minutes,
 so one persistent failure shows one notification and not several.
+What `up` itself finds while it starts is not rate limited:
+the refresh that runs during `up` logs every report to the terminal before anything is delivered,
+and only the detached watcher's later deliveries to the journal and the desktop go through the limit.
 A channel that fails is named in the watcher's log,
 and a start without a `sudo` caller still journals and says that no user can be notified.
 

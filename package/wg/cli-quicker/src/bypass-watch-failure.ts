@@ -1,9 +1,11 @@
 import {
+  resolveNotificationUser,
+  type SudoEnvironment,
+} from './notification-user.ts';
+import {
   createFailureDelivery,
   type DeliveryRunner,
   type FailureDelivery,
-  resolveNotificationUser,
-  type SudoEnvironment,
 } from './runtime-failure-report.ts';
 import {
   POLICY_BYPASS_TABLE,
