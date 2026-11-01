@@ -6625,3 +6625,48 @@ This block supersedes "State at 2026-10-29 (night, later)".
      naming the landed commit, the way native Git prints one.
 - Cleanup done: `~/temp/agent/hotfix/measure` was 143 MB, not 2 GB; its build copies are removed, logs and
   `measure.ts` kept.
+
+### 2026-11-01: 0.5.5 integrated (READY `9bce534c5d`), gate 19 running
+
+- Integrator `a84894bfa146cfcc4` merged `1084be64d5`, `457495dbba`, `57e27ae533`, `b6fdeee5f5` onto integ; only
+  `service_commit.rs` and `service_messages_tests.rs` conflicted. `integ-20261101` fast-forwarded to `9bce534c5d`.
+- Release-blocking bug it found and fixed (`95c66d563b`): the merged client wrote Retire as protocol 5, which the real
+  0.5.4 service refuses (`refused a request line: unsupported version`), so the 0.5.4 service would never have been
+  replaced and every commit after the bump would fail with `OtherRelease`. `encode_retire(version)` now writes the
+  version the service announced. Proven red, green, red (client line reverted) by
+  `service_upgrade::a_signed_commit_replaces_a_running_0_5_4_service_whose_program_was_deleted`, which runs the REAL
+  0.5.4 binary (`#[ignore]`, `CLI_GIT_OLD_SERVICE=<path>`, binary copied to `~/temp/agent/integ-0.5.5/`).
+- Counts: lib 2758 passed (7 skipped); binary route off 446 passed (2 skipped); `CLI_GIT_TEST_SERVICE=1` 381 passed,
+  65 failed. I compared the 65 by group with `doc/planning/cli-git-resident-service.md` ("Suite with the service as the
+  only route, after part 1"): every group and count matches, except `fork_failure` 1 against the doc's 2 (one fewer
+  failure). Names were not compared one by one.
+- Gate coverage limit: `native:test:container` does not set `CLI_GIT_TEST_SERVICE`, so its binary suite runs the
+  transaction route; the production route is covered only by the `binary_service_*` controls, which start their own
+  service. 4d part 2 (deleting the transaction route) closes this.
+- `index_pack_fsync` controls retired (recorded in the planning doc); `push-rejection-surfaced` e2e invariant fixed.
+- LFS notice, QUEUED for the e2e fix agent: `clean_reason` drops every line containing `lfs.url`, so the wrapper's own
+  LFS failure line (with its exit status) is dropped from the push notice. Decided: mask the URL userinfo the way the
+  session does (`s#//[^/@[:space:]]+@#//<masked>@#g`) and keep the line.
+- e2e (three runs): the known classes fail as before. Two new items:
+  - `concurrent-trace-replay` `landed-bytes` mismatch (seed 4233994366, landed `sha256:35cbb161b93a`, accepted
+    `sha256:aee5602a59a8`), identical on a baseline without the three product branches, so older than 0.5.5. Agent
+    `ab63181f7426bcbea` is diagnosing it (harness or product) on `9bce534c5d`. Does not block 0.5.5; blocks calling e2e
+    passing.
+  - `command-succeeds [tN add]: exited 128`, intermittent, only with the 0.5.5 branches, stderr not captured.
+    Classified from the code, not yet by a test: the service now holds Git's real `index.lock` for the whole landing
+    (`service_land.rs:188` acquire to `:308` release, across `rev-parse`, `diff-tree`, `fast-import`, `update-ref` and
+    the index build), where 0.5.4 took it only after the branch moved. The client never holds it, and the Landed reply
+    goes out after the release, so the person's own next command is safe. A wrapped `git add` from ANOTHER process in
+    the same worktree has no wait path (`wrapped_command.rs`), so it fails 128 the way it would against a native
+    `git commit`; the window is wider than in 0.5.4. Not a 0.5.5 blocker (0.5.5 fixes the revert-landing bug the
+    index-first order exists for). QUEUED for the e2e fix agent: index-writing wrapped commands wait, event-driven and
+    named, for the service's own marked `index.lock` instead of failing, with a binary test that stalls a landing and
+    runs a wrapped `git add` in the same worktree (owner: "never leak internal things that could be resolved to the
+    user").
+- Bump precondition (from `monochromatic-git-policy-cli-v0.5.4:.../service_server.rs:255` to `:274`): on Retire the 0.5.4
+  service leaves its loop after the current batch and `serve` returns, so a push running on its work thread dies and
+  its record stays `claimed` for the 30-minute lease. Before `bump-and-verify.ts 0.5.5`, `.git/cli-git/work/pending`
+  and `claimed` must be empty; after, confirm nothing is stranded. Other repositories this account commits in are not
+  checked (limit).
+- Next: gate 19 green, then merge integ to main, push, release 0.5.5, bump without the manual reset, verify a signed
+  commit through the new service, then dispatch the e2e fix agent with every QUEUED item.
