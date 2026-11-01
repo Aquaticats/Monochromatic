@@ -5162,3 +5162,21 @@ This block supersedes "State at 2026-10-29 (night, later)".
   replay pre-commit re-run are deleted. 'Port anything in': the agent reports any behavior a preparation hook provided that the
   policy engine does not (expected: none in this repository), to be ported as policies by name.
 - This supersedes the open lock-scope and shell-command-string questions recorded in the two earlier sections.
+
+### Owner decision (hooks): only hooks we declare, run natively; no external hook commands
+
+- Sequence, for the record: I asked whether to keep user-configured preparation hooks and wrongly wrote the "stop supporting"
+  answer up as dropping preparation hook support; the owner corrected me ("No, not dropping preparation hook support. I didn't
+  ask you to do that. I only asked you to stop supporting OTHER PEOPLE's hooks.") and chose, with a clarified question, option
+  B, verbatim label "B: Only hooks we declare, natively".
+- Meaning: the wrapper supports no external hook commands at all (traditional hooks were already unsupported; Git-config
+  `hook.<name>.*` commands on any event go too). Every lifecycle stage keeps working as our in-process policies and actions
+  declared in `cli-git.config.jsonc`. Anything an external hook did here is ported in: `hook.standards-review-shadow` (event
+  `post-commit`, a `systemd-run` command) becomes a declared native post-commit action run by the wrapper as a direct bounded
+  child with an argv array and no shell. A repository that still configures `hook.*` gets a loud explanation, never silent
+  ignoring; `hooks.concurrentCommits` is accepted and ignored so older configs load.
+- Work: agent `a21d6fec9d0d04797` (branch `worktree-agent-a21d6fec9d0d04797`) was sent the full scope; the LFS agent
+  (`a2c239ccb199db9d8`) removes the injected LFS hook in favor of a parent-run `git lfs push`. Rollout order for the standards
+  review: wrapper release with the native action first, then change the installer's source so the repository declares it in
+  `cli-git.config.jsonc`, then remove the Git config hook.
+- This supersedes the earlier sections about the hook lock scope, the shell-command-string question and option (iii).
