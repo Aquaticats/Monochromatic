@@ -14,7 +14,8 @@
 
 use super::service_journal::landed_commits;
 use super::service_index_lock::Announce;
-use super::service_land::{LandContext, Outcome, land_batch_announcing, recover, recover_for};
+use super::service_land::{LandContext, Outcome, land_batch_announcing, recover};
+use super::private_storage::remove_tree;
 use super::service_work::{GitHandlers, Wake, run_round};
 use super::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, MAX_LINE_BYTES, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
@@ -22,7 +23,7 @@ use super::service_protocol::{
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::Arc;
 use std::time::Duration;
@@ -146,6 +147,9 @@ enum Job {
     Retire,
     /// After-commit work was announced; it only restarts the idle clock.
     Activity,
+    /// A client that held a commit's scratch directory is gone; the directory is removed between batches, never during a
+    ///  landing that may read it.
+    Release(std::path::PathBuf),
 }
 
 /// Returns when the other end of the connection has closed it, or the connection failed. Anything the client sends is ignored.
@@ -199,7 +203,8 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
             busy.fetch_add(1, Ordering::SeqCst);
             wait_for_close(&stream);
             busy.fetch_sub(1, Ordering::SeqCst);
-            let _unused = (common_dir, path);
+            let _unused = common_dir;
+            let _queued = queue.send(Job::Release(path));
         }
         Ok(ClientMessage::Work { common_dir, review_key }) => {
             let _queued = work.send((common_dir, review_key));
@@ -212,27 +217,11 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
     }
 }
 
-/// The commits a repository's landing thread has answered: those the journal held when the service started, and those landed
-///  since. Request identities are unique across repositories, so each thread asks only about the requests it is sent.
-struct Landed {
-    /// What the journal held at the start; shared and never changed.
-    earlier: Arc<HashMap<String, String>>,
-    /// What this thread landed.
-    since: HashMap<String, String>,
-}
-
-impl Landed {
-    fn get(&self, id: &str) -> Option<&String> {
-        return self.since.get(id).or_else(|| { return self.earlier.get(id); });
-    }
-}
-
 /// Lands one group of jobs that share a branch, and answers each client.
-fn land_group(context: &LandContext, seq: &AtomicU64, group: Vec<(Box<CommitRequest>, UnixStream)>, landed: &mut Landed) {
-    let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _)| { return landed.get(&request.id).is_some(); });
+fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitRequest>, UnixStream)>, landed: &mut HashMap<String, String>) {
+    let (again, pending): (Vec<_>, Vec<_>) = group.into_iter().partition(|(request, _)| { return landed.contains_key(&request.id); });
     for (request, stream) in again {
-        let commit: String = landed.get(&request.id).cloned().unwrap_or_default();
-        send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: true });
+        send(&stream, &ServiceMessage::Landed { id: request.id.clone(), commit: landed[&request.id].clone(), already: true });
     }
     // The same request sent twice into one batch (a client that reconnected) is landed once and answered twice.
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -241,12 +230,11 @@ fn land_group(context: &LandContext, seq: &AtomicU64, group: Vec<(Box<CommitRequ
         return;
     }
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
-    //  time) left its intent open; settling it first puts the index right before anything else changes it. Only this
-    //  repository's batches are settled here: each repository lands on its own thread.
-    if let Some((first, _)) = fresh.first() {
-        let _settled = recover_for(context, first.common_dir.as_path());
-    }
-    let number: u64 = seq.fetch_add(1, Ordering::SeqCst) + 1;
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
+    //  time) left its intent open; settling it first puts the index right before anything else changes it.
+    let _settled = recover(context);
+    *seq += 1;
     for (index, (_, stream)) in fresh.iter().enumerate().skip(1) {
         send(stream, &ServiceMessage::Position { number: index + 1, of: fresh.len() });
     }
@@ -259,7 +247,7 @@ fn land_group(context: &LandContext, seq: &AtomicU64, group: Vec<(Box<CommitRequ
             }
         }
     };
-    match land_batch_announcing(context, number, &requests, &announce) {
+    match land_batch_announcing(context, *seq, &requests, &announce) {
         Ok(outcomes) => {
             super::service_fault::reach("before-ack");
             for ((request, _), outcome) in fresh.iter().zip(&outcomes) {
@@ -272,7 +260,7 @@ fn land_group(context: &LandContext, seq: &AtomicU64, group: Vec<(Box<CommitRequ
             for ((request, stream), outcome) in fresh.iter().zip(outcomes) {
                 match outcome {
                     Outcome::Landed { commit } => {
-                        landed.since.insert(request.id.clone(), commit.clone());
+                        landed.insert(request.id.clone(), commit.clone());
                         send(stream, &ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                     }
                     Outcome::RetryPrepare { base } => send(stream, &ServiceMessage::RetryPrepare { id: request.id.clone(), base }),
@@ -310,8 +298,8 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
 /// What:
 ///  Runs the service until it is told to retire.
 /// Why:
-///   Recovery runs before the first connection is accepted; then each request goes to the landing thread of its repository
-///  (`land_lane`), which batches, groups and lands what is queued for that repository and answers.
+///   Recovery runs before the first connection is accepted; then the loop takes everything queued as one batch, groups it
+///  by branch in order of first arrival, lands each group, and answers.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -320,7 +308,7 @@ fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsi
 pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
     let idle: Duration = settings.idle;
     let _reports = recover(context);
-    let earlier: Arc<HashMap<String, String>> = Arc::new(landed_commits(context.journal.as_path()));
+    let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
     let acceptor_queue: Sender<Job> = sender.clone();
     // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
@@ -340,87 +328,56 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
             std::thread::spawn(move || { handle_connection(connection, &queue, &work, &counted, release.as_str()); });
         }
     });
-    let seq: AtomicU64 = AtomicU64::new(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); }));
-    // Each repository lands on its own thread, so a landing that waits for a foreign holder of one repository's index lock does
-    //  not hold back the commits of the others; within a repository the order is still the order of arrival.
-    std::thread::scope(|scope| {
-        let mut lanes: HashMap<std::path::PathBuf, Sender<(Box<CommitRequest>, UnixStream)>> = HashMap::new();
-        loop {
-            let job: Job = match receiver.recv_timeout(idle) {
-                Ok(job) => job,
-                // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
-                Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
-                Err(_) => return,
-            };
-            match job {
-                // The lanes finish what they were sent, and the scope ends when they have.
-                Job::Retire => return,
-                Job::Activity => {}
-                Job::Commit(request, stream) => {
-                    busy.fetch_add(1, Ordering::SeqCst);
-                    let lane: &Sender<(Box<CommitRequest>, UnixStream)> = lanes.entry(request.common_dir.clone()).or_insert_with(|| {
-                        let (lane_sender, lane_receiver) = channel();
-                        let (seq, busy, earlier) = (&seq, &*busy, Arc::clone(&earlier));
-                        scope.spawn(move || { land_lane(context, seq, &lane_receiver, busy, earlier); });
-                        return lane_sender;
-                    });
-                    let _queued = lane.send((request, stream));
-                }
-            }
-        }
-    });
-}
-
-/// What:
-///  The landing thread of one repository: takes everything queued as a batch, groups it by branch in order of first arrival,
-///  lands each group, and answers.
-/// Why:
-///   The batch is what is waiting when the previous batch ends, so commits that arrive during a landing share the next
-///  durable write. The thread ends when the service drops its queue.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for await (const batch of queue.batches()) for (const group of byBranch(batch)) await landGroup(group)
-/// ```
-fn land_lane(
-    context: &LandContext,
-    seq: &AtomicU64,
-    receiver: &Receiver<(Box<CommitRequest>, UnixStream)>,
-    busy: &AtomicUsize,
-    earlier: Arc<HashMap<String, String>>,
-) {
-    let mut landed: Landed = Landed { earlier, since: HashMap::new() };
-    while let Ok(first) = receiver.recv() {
-        let mut jobs: Vec<(Box<CommitRequest>, UnixStream)> = vec![first];
+    let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });
+    let mut retiring: bool = false;
+    while !retiring {
+        let first: Job = match receiver.recv_timeout(idle) {
+            Ok(job) => job,
+            // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
+            Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
+            Err(_) => return,
+        };
+        let mut jobs: Vec<Job> = vec![first];
         while jobs.len() < MAX_BATCH {
             match receiver.try_recv() {
                 Ok(job) => jobs.push(job),
                 Err(_) => break,
             }
         }
-        let count: usize = jobs.len();
         // Branches in order of first arrival; within a branch, arrival order.
         let mut groups: Vec<((std::path::PathBuf, String, bool), Vec<(Box<CommitRequest>, UnixStream)>)> = Vec::new();
-        for (request, stream) in jobs {
-            // An amend is a group of its own, and what arrives after it starts another group, so the order on one branch is
-            //  the order of arrival.
-            // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
-            let queue_reference: String = if request.reference == "HEAD" {
-                format!("HEAD@{}", request.repository.display())
-            } else {
-                request.reference.clone()
-            };
-            let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
-            let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
-            match joins {
-                Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),
-                _ => groups.push((key, vec![(request, stream)])),
+        let mut releases: Vec<std::path::PathBuf> = Vec::new();
+        for job in jobs {
+            match job {
+                Job::Retire => retiring = true,
+                Job::Activity => {}
+                Job::Release(path) => releases.push(path),
+                Job::Commit(request, stream) => {
+                    // An amend is a group of its own, and what arrives after it starts another group, so the order on
+                    //  one branch is the order of arrival.
+                    // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
+                    let queue_reference: String = if request.reference == "HEAD" {
+                        format!("HEAD@{}", request.repository.display())
+                    } else {
+                        request.reference.clone()
+                    };
+                    let key = (request.common_dir.clone(), queue_reference, request.lands_alone());
+                    let joins = groups.iter_mut().rev().find(|((common, reference, _), _)| { return *common == key.0 && *reference == key.1; });
+                    match joins {
+                        Some((existing, members)) if !key.2 && !existing.2 => members.push((request, stream)),
+                        _ => groups.push((key, vec![(request, stream)])),
+                    }
+                }
             }
         }
         for (_, group) in groups {
-            land_group(context, seq, group, &mut landed);
+            land_group(context, &mut seq, group, &mut landed);
         }
-        busy.fetch_sub(count, Ordering::SeqCst);
+        for path in releases {
+            if let Err(error) = remove_tree(path.as_path()) {
+                eprintln!("cli-git-service: the scratch directory {} could not be removed: {error}", path.display());
+            }
+        }
     }
 }
 
