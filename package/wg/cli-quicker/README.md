@@ -526,28 +526,39 @@ The rollback of a failed `up` does not use this order and does not block.
 
 ### Upgrading a running tunnel
 
+With a build that has both fixes (commits `cf48274391` and `ab046a3a97` or later),
+take the tunnel down with that build and bring it up with that build,
+whichever build started the tunnel.
 The persisted state,
 the watcher record and the state path have the same format in every build so far,
-so a `down` of a newer build can stop a watcher that an older build started.
-A `down` of a build without the fix of the watcher check (before commit `cf48274391`) can fail with `Refusing to signal PID ... because command is not bypass watcher`
-while the signaled watcher is still exiting:
+so the newer `down` reads what the older `up` wrote.
+It stops the watcher without taking an exiting watcher for another command,
+and if a step that can fail fails first,
+the tunnel stays up and the error says what to do.
+
+The watcher check compares the exact path of the watcher script.
+A rebuild in place keeps that path;
+a `down` from a copy of the CLI at another path is refused,
+and the refusal names the command the watcher runs and the command it expected.
+
+A build before those fixes behaves differently,
+and that is the case of the incident of 2026-10-31
+(see [the incident](doc/troubleshooting/node-runtime-watcher-upgrade.md)).
+Its `down` can fail with `Refusing to signal PID ... because command is not bypass watcher` while the signaled watcher is still exiting:
 a signaled process reads an empty command line before it is a zombie,
 and the check took that for another command.
 The older order then left the interface up with the routing already removed,
-which sent all traffic outside the tunnel for 92 seconds in the incident of 2026-10-31
-(see [the incident](doc/troubleshooting/node-runtime-watcher-upgrade.md)).
-
-Until a build with both fixes runs the tunnel:
-take the tunnel down with the build that started it,
-then bring it up with the new build.
-That sequence is conservative about formats,
-but it does not avoid the race,
-because the build that started the tunnel has it too;
+which sent all traffic outside the tunnel for 92 seconds in the incident.
+The earlier advice,
+to take the tunnel down with the build that started it and then bring it up with the new one,
+was the workaround for this before the cause was known.
+It does not avoid the race,
+because the build that started the tunnel has it too.
+So for a tunnel that is still run by a build without the fixes:
 if `down` reports the refusal,
 run `wg-quicker down` again at once,
-since the watcher is gone by then.
-With a build that has both fixes,
-`down` stops a watcher that any older build started and keeps the tunnel up if a step fails first.
+since the watcher is gone by then,
+and then bring the tunnel up with the build that has the fixes.
 
 ## Update traffic policy
 

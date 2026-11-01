@@ -403,16 +403,17 @@ so one lookup outlasts the ten-second limit of the client.
 
 The recovery of the incident was the old build's `down` (restored in place),
 then the new build's `up`.
-After the fix is built,
-`down` with the new build stops a watcher that any older build started,
-because the persisted formats never changed,
-and it keeps the tunnel up if anything fails first.
-Before the fix,
+With the fixes built (`cf48274391` and `ab046a3a97`),
+the right call is `down` with the new build and then `up` with the new build,
+for a tunnel that any build started:
+the persisted formats never changed,
+the exit race is fixed,
+and a failure of a step that can fail keeps the tunnel up.
+Before the fixes,
 the sequence "`down` with the build that started the tunnel,
-then `up` with the new build" is still the conservative one,
-but it does not avoid the race:
-that build has the race too.
-If a `down` reports the refusal,
+then `up` with the new build" was the workaround,
+but it does not avoid the race because that build has the race too;
+if a `down` reports the refusal,
 run `wg-quicker down` again at once:
 the watcher is gone by then and the retry removes the rest.
 
