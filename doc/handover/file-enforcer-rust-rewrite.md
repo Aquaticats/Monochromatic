@@ -1065,6 +1065,20 @@ each finished branch is reviewed and merged into `main`):
   the final regeneration moves both,
   plus mpm-shadow to 0.2.2.
   Delta re-check of `254c474ccb..3adda252e7` running.
+  Re-check 2026-11-01:
+  no blocker;
+  the bootstrap's layout and marker match mpm-shadow 0.2.1,
+  whose `list` reports the copy as its own.
+  Should-fix,
+  sent to the switch agent:
+  the global root is not scanned (a 0.2.2 in `toolchain-global` was ignored),
+  against the owner's "Newest across roots";
+  a concurrent fetch can fail one task on rename.
+  Minor:
+  the README's first run leaves `~/.local/bin/mpm-shadow` behind,
+  the PATH fallback skips the version check,
+  `rc` ordering,
+  pid-namespace staging cleanup.
 - From monochromatic-7a 2026-11-01:
   git wrapper 0.4.6 is published (release commit `1604b0d012`);
   `main`'s lock commit `b896deca0d` pins it,
