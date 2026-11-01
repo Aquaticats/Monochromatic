@@ -18,6 +18,8 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::Refused,
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
         ClientFailure::Unavailable,
+        ClientFailure::InstallProgramMissing(String::from("/opt/cli-git/cli-git-service")),
+        ClientFailure::InstallCommandFailed(String::from("the account has no space left for its settings")),
     ];
     for platform in [Platform::Windows, Platform::Bsd, Platform::LinuxWithoutUserServices, Platform::Other] {
         all.push(ClientFailure::NoActivation(platform));
@@ -41,6 +43,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::Refused => 10,
         ClientFailure::IndexInUse(_) => 11,
         ClientFailure::Unavailable => 12,
+        ClientFailure::InstallProgramMissing(_) => 13,
+        ClientFailure::InstallCommandFailed(_) => 14,
     };
 }
 
@@ -80,7 +84,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::Unavailable) + 1;
+    let expected: usize = variant_index(&ClientFailure::InstallCommandFailed(String::new())) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -153,7 +157,7 @@ fn messages_quote_their_constants_and_facts() {
 fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     for failure in samples() {
         let claims: bool = render(&failure).contains(NOTHING_CHANGED);
-        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded);
+        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::InstallCommandFailed(_));
         assert_eq!(!claims, may_have_landed, "{failure:?}");
     }
 }

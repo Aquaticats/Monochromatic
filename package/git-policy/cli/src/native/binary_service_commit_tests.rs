@@ -212,3 +212,38 @@ fn a_scoped_commit_beside_a_stat_dirty_lfs_asset_lands_through_the_service() {
     let _waited = service.wait();
     remove_settled(&fixture);
 }
+
+/// `git cli-git service install` through the built wrapper puts the units next to the account's configuration, enables
+///  the socket through the service manager's control program, is repeatable, and `uninstall` takes it all out again.
+#[test]
+fn the_wrapper_installs_and_removes_the_service_activation() {
+    let fixture: Fixture = fixture("service-install-binary");
+    let calls: PathBuf = fixture.root.join("systemctl.log");
+    super::support::executable(
+        fixture.root.join("bin/systemctl").as_path(),
+        format!("#!/bin/sh\necho \"$@\" >> '{}'\nexit 0\n", calls.display()).as_bytes(),
+    );
+    super::support::copy_executable(Path::new(SERVICE), fixture.root.join("wrapper/cli-git-service").as_path());
+    let run = |arguments: &[&str]| -> Output {
+        return wrapped_commit(&fixture, &fixture.root, arguments).output().expect("the wrapper runs");
+    };
+    let installed: Output = run(&["cli-git", "service", "install"]);
+    assert!(installed.status.success(), "{}", String::from_utf8_lossy(&installed.stderr));
+    let units: PathBuf = fixture.root.join("home/.config/systemd/user");
+    for name in [git_policy_cli::service_install::SOCKET_UNIT_NAME, git_policy_cli::service_install::SERVICE_UNIT_NAME] {
+        assert!(units.join(name).is_file(), "{name} was written");
+    }
+    let service: String = std::fs::read_to_string(units.join(git_policy_cli::service_install::SERVICE_UNIT_NAME)).expect("unit");
+    assert!(service.contains(fixture.root.join("wrapper/cli-git-service").to_string_lossy().as_ref()), "{service}");
+    assert!(String::from_utf8_lossy(&installed.stdout).contains("Installed"), "{}", String::from_utf8_lossy(&installed.stdout));
+    let again: Output = run(&["cli-git", "service", "install"]);
+    assert!(String::from_utf8_lossy(&again.stdout).contains("already installed"), "{}", String::from_utf8_lossy(&again.stdout));
+    let removed: Output = run(&["cli-git", "service", "uninstall"]);
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert!(!units.join(git_policy_cli::service_install::SOCKET_UNIT_NAME).exists());
+    let log: String = std::fs::read_to_string(&calls).expect("calls");
+    assert!(log.contains("--user enable --now cli-git.socket") && log.contains("disable --now"), "{log}");
+    let wrong: Output = run(&["cli-git", "service", "start"]);
+    assert!(!wrong.status.success(), "an unknown word is a usage error");
+    remove_settled(&fixture);
+}

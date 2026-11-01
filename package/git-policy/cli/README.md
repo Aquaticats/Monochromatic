@@ -1018,3 +1018,20 @@ The license texts are in `LICENSES/`.
 
 [mise]: https://mise.jdx.dev/
 [repository]: https://github.com/Aquaticat/Monochromatic
+
+## The commit service
+
+A plain scoped commit (`git commit -m <message> -- <paths>`) can be landed by a resident commit service instead of by the
+wrapper itself. The service is a separate program, `cli-git-service`, that the operating system starts on demand; the
+wrapper never starts it. Commits queue in arrival order, a batch of whatever is queued lands with one durable write, and a
+commit that waits says how many commits go first.
+
+- `git cli-git service install` writes two unit files for the account's service manager (systemd on Linux), naming the
+  service program next to the wrapper and the real Git, and enables the socket. It is repeatable and says what it did.
+- `git cli-git service uninstall` stops and removes them; `git cli-git service status` says whether the socket is ready.
+- Set `CLI_GIT_COMMIT_SERVICE=1` to send plain scoped commits through the service. Without it, and for every command line the
+  service does not cover yet (amend, `-a`, `-F`, an editor, signing, dates, trailers), commits run as before.
+- With it set and the service not installed or not starting, the commit stops with a plain message that says what to do; there
+  is no other way for the same commit to be made behind the user's back.
+
+The design, the measurements and the migration plan are in `doc/planning/cli-git-resident-service.md`.
