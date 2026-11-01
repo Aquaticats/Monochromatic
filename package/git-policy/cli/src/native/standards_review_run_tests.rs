@@ -73,14 +73,14 @@ fn a_review_sends_the_built_input_and_logs_the_verdict() {
 fn failures_are_logged_as_entries() {
     let directory: PathBuf = fixture("run-failures");
     let names: Vec<String> = code_names();
-    for key in [None, Some("")] {
+    for (key, sha) in [(None, "aaaaaaaaaaaa"), (Some(""), "bbbbbbbbbbbb")] {
         let opts: ReviewOptions = options(directory.as_path(), "http://127.0.0.1:1/unused", key);
-        let outcome: ReviewOutcome = review_landed(&names, "sha", "s", &|files| return reader(files), &opts, &clock());
+        let outcome: ReviewOutcome = review_landed(&names, sha, "s", &|files| return reader(files), &opts, &clock());
         assert!(matches!(&outcome, ReviewOutcome::Reviewed(judged) if judged.outcome == format!("Luna failed: {NO_KEY_MESSAGE}")));
     }
     let mock: Mock = Mock::start(Answer::Bytes(http_reply("500 Internal Server Error", "boom")));
     let opts: ReviewOptions = options(directory.as_path(), mock.url.as_str(), Some("k"));
-    review_landed(&names, "sha", "s", &|files| return reader(files), &opts, &clock());
+    review_landed(&names, "cccccccccccc", "s", &|files| return reader(files), &opts, &clock());
     mock.finish();
     let log: String = std::fs::read_to_string(opts.log_path.as_path()).expect("log");
     assert_eq!(log.matches("Named superlinear cost:\n  unjudged\n").count(), 3);

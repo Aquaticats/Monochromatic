@@ -81,9 +81,9 @@ pub fn review_item(context: &GitContext, item: &WorkItem, options: ReviewOptions
     if !has_shadow_log(Path::new(item.repository.as_str())) {
         return Verdict::Done;
     }
-    let context: GitContext = context.clone();
+    let owned_context: GitContext = context.clone();
     let owned: WorkItem = item.clone();
-    let outcome: Option<ReviewOutcome> = run_within(budget, move || { return run_review(&context, &owned, &options, &wall_clock_millis); });
+    let outcome: Option<ReviewOutcome> = run_within(budget, move || { return run_review(&owned_context, &owned, &options, &wall_clock_millis); });
     return match outcome {
         None => Verdict::Failed(format!("the review of {} did not finish within {} s", item.oid, budget.as_secs())),
         Some(ReviewOutcome::Unread(message) | ReviewOutcome::Unwritable(message)) => Verdict::Failed(message),
