@@ -367,7 +367,8 @@ fn a_vanished_process_is_not_reported() {
 }
 
 /// A living process whose group lost a member is retried quietly a few times,
-/// and a run of them is reported, so a process that never gets moved is not hidden.
+/// and a run of them is reported,
+/// so a process that never gets moved is not hidden.
 #[test]
 fn a_run_of_member_vanishes_is_reported_after_the_limit() {
     let script = (0..=MEMBER_VANISH_LIMIT).map(|_attempt| return Err(AdoptError::MemberVanished)).collect();

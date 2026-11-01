@@ -49,8 +49,11 @@ use std::time::{Duration, Instant};
 /// Failed moves one pass may spend before it postpones the rest,
 /// so a manager that fails slowly cannot stall the watcher for long.
 const FAILED_ATTEMPTS_PER_PASS: u32 = 2;
-/// Refusals of "No such process" for a living process, in a row, before the policy reports them.
-/// A group member that exits makes the manager refuse once; a run of them is not a race any more.
+/// Refusals of "No such process" for a living process,
+/// in a row,
+/// before the policy reports them.
+/// A group member that exits makes the manager refuse once;
+/// a run of them is not a race any more.
 pub const MEMBER_VANISH_LIMIT: u32 = 3;
 /// Time one pass may spend on moves before it postpones the rest.
 /// A pass can overrun it by the one attempt in progress,
@@ -103,7 +106,8 @@ pub struct UpdateRouting {
     /// Processes whose move failed and will be tried again.
     failures: HashMap<(i32, u64), Failure>,
     /// Moves of a living process that the manager refused with "No such process" because a process of its group exited,
-    /// in a row, by pid and start time.
+    /// in a row,
+    /// by pid and start time.
     member_vanishes: HashMap<(i32, u64), u32>,
     /// Failed moves spent in the current pass.
     failed_attempts_this_pass: u32,
@@ -350,7 +354,13 @@ impl UpdateRouting {
             }
         }
         self.failures = kept_failures;
-        self.member_vanishes.retain(|key, _count| return alive.contains(&key.0));
+        let mut kept_vanishes: HashMap<(i32, u64), u32> = HashMap::new();
+        for (key, count) in self.member_vanishes.drain() {
+            if alive.contains(&key.0) {
+                kept_vanishes.insert(key, count);
+            }
+        }
+        self.member_vanishes = kept_vanishes;
     }
 
     /// Considers every live process now and forgets handled processes that no longer exist.

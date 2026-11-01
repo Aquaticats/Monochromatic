@@ -68,7 +68,9 @@ pub struct AdoptRequest<'a> {
 /// Whether a process is established as gone.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Presence {
-    /// The entry is absent, the process is a zombie or exiting, or the pid belongs to another process.
+    /// The entry is absent,
+    /// the process is a zombie or exiting,
+    /// or the pid belongs to another process.
     Gone,
     /// Its state was read and it is running.
     Alive,
@@ -188,8 +190,11 @@ impl BusctlAdopter {
     /// from its `stat` file:
     /// the entry is absent,
     /// it is a zombie or flagged as exiting,
-    /// or its start time is not `start_time`, so the pid belongs to another process now.
-    /// A file that cannot be read for another reason, or cannot be parsed, leaves it unknown,
+    /// or its start time is not `start_time`,
+    /// so the pid belongs to another process now.
+    /// A file that cannot be read for another reason,
+    /// or cannot be parsed,
+    /// leaves it unknown,
     /// and an unknown process is never counted as gone.
     fn presence(&self, pid: i32, start_time: Option<u64>) -> Presence {
         let text = match std::fs::read(self.proc_root.join(pid.to_string()).join("stat")) {
@@ -261,9 +266,12 @@ impl BusctlAdopter {
 
     /// Runs one manager call as the user and turns its failure into the adoption's error.
     /// A failure while the first process is established as gone or exiting is a vanish and not a failure.
-    /// The manager's "No such process" answer, while the first process is not established as gone
-    /// and another process of the request is, is a vanish of a member:
-    /// the answer names no pid, and the group is collected again on the next scan.
+    /// The manager's "No such process" answer,
+    /// while the first process is not established as gone
+    /// and another process of the request is,
+    /// is a vanish of a member:
+    /// the answer names no pid,
+    /// and the group is collected again on the next scan.
     /// Anything else stays a failure,
     /// including a process whose state could not be read,
     /// because a failed move of a living process must not be hidden.

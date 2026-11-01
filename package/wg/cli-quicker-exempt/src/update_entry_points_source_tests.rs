@@ -130,7 +130,8 @@ fn entry_task(entry: &str) -> Option<String> {
 }
 
 /// The task names and patterns a structured TOML value names.
-/// For `Depends` that is every plain string of the array (or the one string), and every `task` value;
+/// For `Depends` that is every plain string of the array (or the one string),
+/// and every `task` value;
 /// an entry written as an inner array is not read.
 /// For `Run` it is only the `task` values and the strings of `tasks` arrays.
 fn references_in(text: &str, key: ReferenceKey) -> Vec<String> {
@@ -309,7 +310,9 @@ fn canonical_verb<'a>(grammar: &'a Grammar, spelling: &'a str) -> &'a str {
 }
 
 /// Reports whether an `mpm-shadow` call fetches:
-/// its verb, under any alias the grammar declares, is a fetching verb,
+/// its verb,
+/// under any alias the grammar declares,
+/// is a fetching verb,
 /// and it is not `install --lockfile-only` combined with `--frozen-lockfile` or `--offline`,
 /// the two forms the README documents as opening no connection.
 fn call_fetches(words: &[String], grammar: &Grammar) -> bool {
@@ -338,7 +341,9 @@ fn mise_run_targets(body: &str) -> Vec<String> {
 /// `?` is one character,
 /// `*` any characters within one `:`-separated group,
 /// and `**` any number of whole groups
-/// (mise docs, "Running tasks", section "Wildcards").
+/// (mise docs,
+/// "Running tasks",
+/// section "Wildcards").
 /// Braces and character sets are not read.
 fn pattern_matches(pattern: &str, name: &str) -> bool {
     let pattern_groups: Vec<&str> = pattern.split(':').collect();
@@ -398,7 +403,9 @@ fn reference_fetches(task: &Task, reference: &str, fetching: &[String]) -> bool 
 /// The names and aliases of every task that fetches:
 /// one that calls a fetching `mpm-shadow` verb under any spelling the grammar declares,
 /// or one that runs a task that does,
-/// by `mise run`, `depends`, `depends_post` or a `run` step.
+/// by `mise run`,
+/// `depends`,
+/// `depends_post` or a `run` step.
 fn fetching_names(tasks: &[Task], grammar: &Grammar) -> Vec<String> {
     let mut fetching: Vec<String> = Vec::new();
     loop {
