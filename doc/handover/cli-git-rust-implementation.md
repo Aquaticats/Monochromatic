@@ -7095,3 +7095,24 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   /var/home/user/Monochromatic/.git/worktrees/agent-acbcd4a30d0c3abf6/MERGE_HEAD" (the 0.5.7 integrator resolving its
   merge). No other refusal: root not yet a subvolume, enough free space, commit-service queues empty.
   Rerun the dry run once that merge is committed; the apply needs its own owner grant or the owner running it.
+
+## 2026-11-01: cross-vendor review of the per-worktree service change
+
+- Reviewer: `openai/gpt-6.1-sol`, static, on `git diff adae0adfdf a1038d28f6` plus the planning doc,
+  `service_instance.rs` and `service_provision.rs`; full text `~/temp/agent/review-pwt/sol-review.txt` (outside Git).
+  Not approved: six P1 and one P2, none verified yet.
+  1. P1 `service_provision.rs:228-235`: `StopUnit` returns when the stop job is queued, not when the legacy unit has
+     exited, and its errors are ignored, so a worktree instance can start while the per-user writer still runs.
+  2. P1 `service_provision.rs:217-225`: a legacy service with units under `~/.config/systemd/user` is never retired
+     (to check whether any release ever installed there).
+  3. P1: a downgrade to 0.5.5 revives the per-user writer while worktree instances are still alive.
+  4. P1 `service_land.rs:374-376`: recovery selects intents by hashing `intent.index.parent()`, so an alternate index
+     (`GIT_INDEX_FILE` outside the Git directory) is never recovered after a kill.
+  5. P1 `auto_push.rs:407-409`: the branch check is a snapshot and `plan_push` rereads `HEAD`, so a switch in between
+     can push the other branch while the record is marked done.
+  6. P1 `service_pruned.rs:104-107`: an embedded amendment's tree is not checked transitively; a pruned blob under a
+     surviving tree can land.
+  7. P2 `service_work.rs:103-108`: legacy linked-worktree records under the common directory are never drained (a bare
+     repository has no main-worktree instance).
+- Assigned to the 0.5.7 integrator (agent `acbcd4a30d0c3abf6`) after its merge: verify each (red first), fix the
+  confirmed ones on the merged branch, report per-finding verdicts. 0.5.7 does not ship before this.
