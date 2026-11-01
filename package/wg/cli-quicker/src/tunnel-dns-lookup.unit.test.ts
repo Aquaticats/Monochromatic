@@ -7,6 +7,7 @@ import {
 import {
   createServer,
   type Server,
+  type Socket,
 } from 'node:net';
 import { join, } from 'node:path';
 
@@ -20,6 +21,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   addressText,
   callVarlink,
+  MAX_REPLY_BYTES,
   createTunnelHostLookup,
   ERROR_NO_NAME_SERVERS,
   ERROR_NO_SUCH_RECORD,
@@ -123,9 +125,11 @@ async function startFakeResolver(
   {
     path,
     answer,
+    respond,
   }: {
     readonly path: string;
     readonly answer?: (request: string,) => string;
+    readonly respond?: (socket: Socket,) => void;
   },
 ): Promise<{ readonly server: Server; readonly requests: string[]; }> {
   /**
@@ -149,6 +153,7 @@ async function startFakeResolver(
          */
         if (answer !== undefined)
           socket.write(`${answer(received.slice(0, -1,),)}\0`,);
+        respond?.(socket,);
       }
     },);
     socket.on('error', () => undefined,);
@@ -303,8 +308,85 @@ await describe({
             await rm(directory, { force: true, recursive: true, },);
           },
         };
-        await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), timeoutMs: 150, },),).rejects.toThrow('did not answer',);
+        await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), timeoutMs: 150, },),).rejects.toThrow('did not finish answering',);
         await expect(callVarlink({ payload: '{}', socketPath: join(directory, 'absent',), },),).rejects.toThrow();
+      },
+    },),
+    it({
+      name: 'ends a call at its total deadline even when the peer keeps sending a byte now and then',
+      fn: async () => {
+        /**
+         Directory holding the fake socket.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-',),);
+        /**
+         Timer of the slow drip,
+         stopped with the server.
+         */
+        const drips: NodeJS.Timeout[] = [];
+        /**
+         Fake resolver that sends one byte every 30 ms and never the terminator.
+         */
+        const { server, } = await startFakeResolver({
+          path: join(directory, 's',),
+          respond: (socket,) => {
+            drips.push(setInterval(
+              () => {
+                socket.write('a',);
+              },
+              30,
+            ),);
+          },
+        },);
+        await using cleanup = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            for (const drip of drips)
+              clearInterval(drip,);
+            server.close();
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        /**
+         Moment the call began.
+         */
+        const started = performance.now();
+        await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), timeoutMs: 400, },),).rejects.toThrow('did not finish answering',);
+        expect(performance.now() - started,).toBeLessThan(3_000,);
+      },
+    },),
+    it({
+      name: 'refuses a reply longer than the cap, with or without a terminator, and accepts one that fits',
+      fn: async () => {
+        /**
+         Directory holding the fake socket.
+         */
+        const directory = await mkdtemp(join(scratchRoot(), 'wgv-',),);
+        /**
+         What the fake resolver sends next.
+         */
+        const next = { reply: '', };
+        /**
+         Fake resolver that sends the chosen reply.
+         */
+        const { server, } = await startFakeResolver({
+          path: join(directory, 's',),
+          respond: (socket,) => {
+            socket.write(next.reply,);
+          },
+        },);
+        await using cleanup = {
+          async [Symbol.asyncDispose](): Promise<void> {
+            server.close();
+            await rm(directory, { force: true, recursive: true, },);
+          },
+        };
+        next.reply = 'a'.repeat(5_000,);
+        await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), maxReplyBytes: 4_096, },),).rejects.toThrow('longer than 4096 bytes',);
+        next.reply = `${'a'.repeat(5_000,)}\0`;
+        await expect(callVarlink({ payload: '{}', socketPath: join(directory, 's',), maxReplyBytes: 4_096, },),).rejects.toThrow('longer than 4096 bytes',);
+        next.reply = `${'a'.repeat(4_000,)}\0`;
+        expect(await callVarlink({ payload: '{}', socketPath: join(directory, 's',), maxReplyBytes: 4_096, },),).toBe('a'.repeat(4_000,),);
+        expect(MAX_REPLY_BYTES,).toBe(1_048_576,);
       },
     },),
   ],

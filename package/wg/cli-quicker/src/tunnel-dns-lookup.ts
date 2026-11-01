@@ -96,9 +96,19 @@ export const RECORD_TYPE_AAAA = 28;
 const RECORD_CLASS_IN = 1;
 
 /**
- Milliseconds a varlink call may take before it is abandoned.
+ Milliseconds a whole varlink call may take before it is abandoned.
+ This is a total deadline from the start of the call,
+ not a limit on silence,
+ because a peer that sends one byte every few seconds is never silent.
  */
 const CALL_TIMEOUT_MS = 10_000;
+
+/**
+ Most bytes of one varlink reply that are read.
+ A reply for one record is a few hundred bytes,
+ so a larger one is not from a resolver that answers this question.
+ */
+export const MAX_REPLY_BYTES = 1_048_576;
 
 /**
  Bytes in an IPv4 address.
@@ -172,18 +182,26 @@ export type RecordAnswer = {
 
  The request is a JSON object ended by a NUL byte,
  and the reply is read up to the next NUL byte.
+ The call ends at a total deadline,
+ and a reply longer than the cap is refused,
+ so a stalled or hostile peer cannot hold the watcher or fill its memory.
+ Each chunk is searched for the terminator once,
+ and the pieces are joined once at the end.
 
  @param payload - JSON request text without the terminator.
 
  @param socketPath - Socket to call.
 
- @param timeoutMs - Milliseconds before the call is abandoned.
+ @param timeoutMs - Milliseconds from the start of the call before it is abandoned.
+
+ @param maxReplyBytes - Most reply bytes read.
 
  @returns Reply JSON text without the terminator.
 
  @throws When the socket cannot be reached,
  closes before a reply,
- or does not answer in time.
+ does not finish answering in time,
+ or sends a reply longer than the cap.
 
  @example
  ```ts
@@ -195,10 +213,12 @@ export function callVarlink(
     payload,
     socketPath = RESOLVE_SOCKET_PATH,
     timeoutMs = CALL_TIMEOUT_MS,
+    maxReplyBytes = MAX_REPLY_BYTES,
   }: {
     readonly payload: string;
     readonly socketPath?: string;
     readonly timeoutMs?: number;
+    readonly maxReplyBytes?: number;
   },
 ): Promise<string> {
   /**
@@ -210,18 +230,24 @@ export function callVarlink(
     reject,
   } = Promise.withResolvers<string>();
   /**
-   Reply bytes received so far.
+   Reply pieces received so far, and their total size.
    */
-  const chunks: Buffer[] = [];
+  const reply = {
+    chunks: [] as Buffer[],
+    bytes: 0,
+  };
   /**
    Connection to the resolver.
    */
   const socket = connect(socketPath,);
-  socket.setTimeout(
-    timeoutMs,
-    function onTimeout(): void {
-      socket.destroy(new Error(`${socketPath} did not answer within ${String(timeoutMs,)} ms`,),);
+  /**
+   Total deadline of the call.
+   */
+  const deadline = setTimeout(
+    function onDeadline(): void {
+      socket.destroy(new Error(`${socketPath} did not finish answering within ${String(timeoutMs,)} ms`,),);
     },
+    timeoutMs,
   );
   socket.once(
     'connect',
@@ -232,20 +258,26 @@ export function callVarlink(
   socket.on(
     'data',
     function collect(chunk: Buffer,): void {
-      chunks.push(chunk,);
       /**
-       Everything received so far.
+       Position of the reply terminator in this chunk.
        */
-      const received = Buffer.concat(chunks,);
+      const end = chunk.indexOf(0,);
       /**
-       Position of the reply terminator.
+       Reply bytes this chunk adds.
        */
-      const end = received.indexOf(0,);
-      if (end !== (-1)) {
-        resolve(received.subarray(
+      const added = end === (-1) ? chunk.length : end;
+      if ((reply.bytes + added) > maxReplyBytes) {
+        socket.destroy(new Error(`${socketPath} sent a reply longer than ${String(maxReplyBytes,)} bytes`,),);
+        return;
+      }
+      reply.bytes += added;
+      reply.chunks
+        .push(chunk.subarray(
           0,
-          end,
-        )
+          added,
+        ),);
+      if (end !== (-1)) {
+        resolve(Buffer.concat(reply.chunks,)
           .toString('utf8',),);
         socket.destroy();
       }
@@ -260,6 +292,7 @@ export function callVarlink(
   socket.once(
     'close',
     function closedEarly(): void {
+      clearTimeout(deadline,);
       reject(new Error(`${socketPath} closed before it answered`,),);
     },
   );
