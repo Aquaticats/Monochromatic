@@ -476,8 +476,20 @@ fn run_git_pausing(
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
-    let class = class_of(request.arguments.as_slice());
-    return run_git_once_with(context, request, &|| { return WatchTerms::for_class(class); });
+    return run_git_once_with(context, request, &|| { return terms_for_request(request); });
+}
+
+/// What:
+///  The watch terms of a request: those of the class its subcommand belongs to.
+/// Why:
+///   A query step and a bulk step are stopped at different bounds, so the choice is one function a test can pin.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// termsForClass(classOf(request.args))
+/// ```
+pub(crate) fn terms_for_request(request: &GitRequest) -> WatchTerms {
+    return WatchTerms::for_class(class_of(request.arguments.as_slice()));
 }
 
 /// What:

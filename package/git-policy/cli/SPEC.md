@@ -2757,12 +2757,16 @@ the time waited and the bound with the variable that changes it.
   (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.
   A watcher thread sees the wait from outside, and at the bound ends the child with `SIGKILL`;
   the command fails with the bound named.
-  The bound is per class of step: 60 seconds for a plumbing step (a query, or an edit of a ref or an index)
-  and 300 seconds for an object-writing step or any step not classed
-  (`pack-objects`, `index-pack`, `add`, `maintenance`, the object reader);
+  The bound is per class of step:
+  60 seconds for a quick query step (`rev-parse`, `rev-list`, `ls-tree`, `cat-file`, `diff-tree`, `merge-base`,
+  `write-tree`, `update-ref`, `symbolic-ref`, `for-each-ref`, `config`, `remote`, `version`)
+  and 300 seconds for every other step, which is a bulk step: one that moves bytes (`pack-objects`, `index-pack`,
+  `add`, `maintenance`), one that compares the index with the worktree (`reset`, `update-index`, `ls-files`, `diff`),
+  one not known to be a query, and the object reader.
   `CLI_GIT_CHILD_WAIT_SECONDS` gives every class the same bound.
-  The command text in the notice is followed by the class (`, a local plumbing step` or `, an object-writing step`),
-  and the first notice comes after 5 seconds for a plumbing step and 10 seconds for an object-writing one.
+  The command text in the notice is followed by the class (`, a quick query step` or `, a bulk step`),
+  and the first notice comes after 5 seconds for a quick query step and 10 seconds for a bulk one,
+  never later than half the bound.
   Git commands that inherit the terminal (the editor, hooks, the user's own Git commands) are not bounded.
 
 At each bound the refusal names the holder and says how to go on:

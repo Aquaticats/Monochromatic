@@ -805,6 +805,9 @@ pub mod shadow_create;
 /// The entries of an empty bare repository, created in-process instead of by `git init`.
 pub mod shadow_skeleton;
 
+/// A read of the assume-unchanged and skip-worktree marks of an index file.
+pub mod index_flags;
+
 /// Loading many blobs through one `git cat-file --batch`.
 pub mod blob_batch;
 

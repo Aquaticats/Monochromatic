@@ -7,14 +7,19 @@ use super::*;
 /// Every class, so a relation is checked for each.
 const CLASSES: [ChildClass; 2] = [ChildClass::Plumbing, ChildClass::Object];
 
+/// Subcommands that move bytes, or compare the index with the worktree, or talk to a remote:
+///  inputs for the claim that anything not named a query is a bulk step.
+const BULK_STEPS: [&str; 10] =
+    ["pack-objects", "index-pack", "add", "hash-object", "maintenance", "reset", "update-index", "ls-files", "diff", "show"];
+
 /// Request arguments from words.
 fn arguments(words: &[&str]) -> Vec<OsString> {
     return words.iter().map(OsString::from).collect();
 }
 
-/// Every named plumbing subcommand is classed as plumbing, whatever options precede it.
+/// Every named query subcommand is classed as plumbing, whatever options precede it.
 #[test]
-fn plumbing_subcommands_are_classed_as_plumbing_after_any_global_options() {
+fn query_subcommands_are_classed_as_plumbing_after_any_global_options() {
     for name in PLUMBING_SUBCOMMANDS {
         assert_eq!(class_of(&arguments(&[name, "--quiet"])), ChildClass::Plumbing, "{name}");
         assert_eq!(
@@ -25,26 +30,20 @@ fn plumbing_subcommands_are_classed_as_plumbing_after_any_global_options() {
     }
 }
 
-/// Every named object-writing subcommand is classed as object work.
+/// A step that moves bytes, refreshes the index or reaches a remote gets the bound of bulk work, whatever its options,
+///  and so does maintenance, which runs a repack when it is not detached.
 #[test]
-fn object_subcommands_are_classed_as_object_work() {
-    for name in OBJECT_SUBCOMMANDS {
-        assert_eq!(class_of(&arguments(&["-c", "core.fsync=none", name])), ChildClass::Object, "{name}");
+fn steps_that_move_bytes_or_compare_the_index_are_bulk_work() {
+    for name in BULK_STEPS {
+        assert_eq!(class_of(&arguments(&["-c", "core.fsync=none", name, "--quiet", "--detach"])), ChildClass::Object, "{name}");
     }
 }
 
-/// Maintenance runs a repack when it is not detached, so it gets the bound of object work, whatever its options.
+/// No step that refreshes the index with the worktree is a query:
+///  the refresh hashes every stat-dirty file, so such a step must not share the short bound.
 #[test]
-fn maintenance_is_object_work() {
-    for options in [&["maintenance", "run", "--auto", "--quiet", "--detach"][..], &["maintenance", "run", "--no-detach"][..]] {
-        assert_eq!(class_of(&arguments(options)), ChildClass::Object, "{options:?}");
-    }
-}
-
-/// The two lists never name the same subcommand, so a class is never chosen by list order.
-#[test]
-fn no_subcommand_is_in_both_lists() {
-    for name in OBJECT_SUBCOMMANDS {
+fn no_bulk_step_is_in_the_query_list() {
+    for name in BULK_STEPS {
         assert!(!PLUMBING_SUBCOMMANDS.contains(&name), "{name}");
     }
 }
@@ -78,8 +77,8 @@ fn an_unusable_value_falls_back_to_the_class_default() {
     }
 }
 
-/// An object-writing step may run longer than a plumbing step and is announced no sooner, and no first notice comes
-///  after the step would already have been stopped.
+/// A bulk step may run longer than a query step and is announced no sooner, and no first notice comes after the step
+///  would already have been stopped.
 #[test]
 fn the_object_class_is_the_more_patient_one_and_every_notice_precedes_its_bound() {
     assert!(OBJECT_CHILD_WAIT > PLUMBING_CHILD_WAIT);

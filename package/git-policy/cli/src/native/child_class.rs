@@ -3,15 +3,17 @@
 //! Why:
 //!  One bound for every step had to be long enough for the slowest, so a stalled `rev-parse` held a commit for as long
 //!  as a stalled `pack-objects`, and the first notice came after one second for steps that only needed a moment.
-//!  The classes follow what a step does and how its time grows, measured on the repository this crate lives in
+//!  The classes follow what a step touches, measured on the repository this crate lives in
 //!  (`doc/planning/cli-git-commit-timeouts.md`):
-//!  a query or plumbing step reads or edits refs and indexes and ends in milliseconds,
-//!  while a step that writes objects costs time in proportion to the bytes it moves.
+//!  a query reads refs, commits and trees and ends in milliseconds whatever the worktree holds, while a step that
+//!  writes objects, or that compares the index with the worktree, costs time in proportion to the bytes it reads
+//!  (`reset`, `update-index --refresh` and `ls-files --modified` took 2.9 s on a stat-dirty 20 000-file index against
+//!  0.03 s on a clean one, and a cold disk multiplies that).
 //!  The user's own `git commit` with its hooks is not a class: its runtime belongs to the user and it is never bounded.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const limit = classOf(args) === 'plumbing' ? PLUMBING_LIMIT_MS : OBJECT_LIMIT_MS;
+//! const limit = QUERY_SUBCOMMANDS.includes(subcommandOf(args)) ? QUERY_LIMIT_MS : BULK_LIMIT_MS;
 //! ```
 
 /// Positive-seconds parsing shared with the lock wait limits.
@@ -27,47 +29,38 @@ use std::time::Duration;
 ///  before it is stopped, whatever its class.
 pub const CHILD_WAIT_VARIABLE: &str = "CLI_GIT_CHILD_WAIT_SECONDS";
 
-/// How long a query or plumbing step may run:
+/// How long a query step may run:
 ///  a hundred times the slowest such step measured on a host at several times its core count in load.
 pub const PLUMBING_CHILD_WAIT: Duration = Duration::from_secs(60);
 
-/// How long a step that writes objects may run:
-///  its time grows with the bytes it moves, so the bound leaves room for a large file on a loaded host.
+/// How long a bulk step may run:
+///  its time grows with the bytes it moves or compares, so the bound leaves room for a large or stat-dirty worktree
+///  on a loaded host.
 pub const OBJECT_CHILD_WAIT: Duration = Duration::from_secs(300);
 
-/// How long a query or plumbing step runs before the first notice.
+/// How long a query step runs before the first notice.
 pub const PLUMBING_NOTICE_GRACE: Duration = Duration::from_secs(5);
 
-/// How long a step that writes objects runs before the first notice.
+/// How long a bulk step runs before the first notice.
 pub const OBJECT_NOTICE_GRACE: Duration = Duration::from_secs(10);
 
-/// Subcommands that write or move objects, whose time grows with the bytes they handle.
-///  Any subcommand not named here and not a known plumbing one is treated the same way, so an unknown step gets the
-///  longer bound instead of an early stop; `maintenance` is one of them, because in the foreground it runs a repack.
-pub const OBJECT_SUBCOMMANDS: [&str; 7] =
-    ["pack-objects", "index-pack", "unpack-objects", "add", "hash-object", "fast-import", "repack"];
-
-/// Subcommands that read, or edit refs and indexes, and end in milliseconds.
-pub const PLUMBING_SUBCOMMANDS: [&str; 22] = [
+/// Subcommands that only read refs, commits and trees, or write one ref or one tree from the index as it is:
+///  they end in milliseconds whatever the worktree holds.
+///  Every other subcommand, named or not, is a bulk step and gets the longer bound instead of an early stop:
+///  `pack-objects`, `index-pack`, `add`, `hash-object` and `maintenance` move bytes, and `reset`, `read-tree`,
+///  `update-index`, `ls-files`, `diff`, `diff-index`, `show` and `ls-remote` refresh the index, compare it with the
+///  worktree or talk to a remote.
+pub const PLUMBING_SUBCOMMANDS: [&str; 13] = [
     "rev-parse",
     "rev-list",
     "symbolic-ref",
     "for-each-ref",
-    "ls-files",
     "ls-tree",
-    "ls-remote",
-    "diff",
-    "diff-index",
-    "diff-tree",
     "cat-file",
-    "show",
+    "diff-tree",
     "merge-base",
     "write-tree",
-    "read-tree",
-    "update-index",
     "update-ref",
-    "reset",
-    "init",
     "config",
     "remote",
     "version",
@@ -84,9 +77,9 @@ pub const PLUMBING_SUBCOMMANDS: [&str; 22] = [
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChildClass {
-    /// A query, or an edit of refs or an index.
+    /// A query of refs, commits and trees.
     Plumbing,
-    /// A step that writes or moves objects.
+    /// A step that writes objects, compares the index with the worktree, or is not known to be a query.
     Object,
 }
 
@@ -94,8 +87,8 @@ impl ChildClass {
     /// How a notice or a timeout sentence names the kind of step.
     pub fn label(self) -> &'static str {
         return match self {
-            Self::Plumbing => "a local plumbing step",
-            Self::Object => "an object-writing step",
+            Self::Plumbing => "a quick query step",
+            Self::Object => "a bulk step",
         };
     }
 
@@ -133,11 +126,12 @@ impl ChildClass {
 /// What:
 ///  The class of the Git step a request runs.
 /// Why:
-///   A step is classed by its subcommand; one that is not named in `PLUMBING_SUBCOMMANDS` gets the longer bound.
+///   A step is a query only when its subcommand is named in `PLUMBING_SUBCOMMANDS`; every other step, a request with
+///  no subcommand included, gets the longer bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// PLUMBING.includes(subcommandOf(args)) ? 'plumbing' : 'object'
+/// QUERIES.includes(subcommandOf(args)) ? 'plumbing' : 'object'
 /// ```
 pub fn class_of(arguments: &[OsString]) -> ChildClass {
     let Some((_, name)) = subcommand_of(arguments) else {
