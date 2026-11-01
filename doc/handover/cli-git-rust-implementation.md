@@ -4679,3 +4679,11 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Expect survivors to need new tests, not code changes, unless a survivor shows dead logic. Kill each survivor and
   timeout, as in earlier waves; commit tests with the mutant name in the message.
 - Check with `systemctl --user is-active cli-git-mutpar-m045-*` before reading logs.
+
+- Correction to the m045 entry: the first launch failed in seconds on every unit ("image not known:
+  `localhost/git-policy-native-test:m0453`"). `native:mutation:parallel` runs each unit against its own image tag
+  `<label><index>` and does not build it; the image comes from a gate run. Fix used: tag the latest gate image once per
+  unit, `podman tag localhost/git-policy-native-test:development localhost/git-policy-native-test:m0450 ... :m0456`
+  (the `development` image was built by the gate on the merged tree), then relaunch. Seven units active after the
+  relaunch; launcher log `~/temp/agent/gate/mutpar-m045b.log`. For a future campaign: run the gate first, tag per unit,
+  then launch; the first sign of success is `is-active` still true after a minute.
