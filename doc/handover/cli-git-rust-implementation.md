@@ -6670,3 +6670,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   checked (limit).
 - Next: gate 19 green, then merge integ to main, push, release 0.5.5, bump without the manual reset, verify a signed
   commit through the new service, then dispatch the e2e fix agent with every QUEUED item.
+- Gate 19 GREEN on `9bce534c5d`: 3205 passed, 9 skipped, `exit=0` (`~/temp/agent/gate/main-gate19.log`). Main had no
+  wrapper or `toolchain.lock.json` change since the merge base. Merged to main as `72893e5faa`, pushed (60 commits, no
+  LFS paths). 0.5.5 release dispatch: the first try was refused (note over 200 characters), the second is running.
+- The QUEUED items went to two agents in parallel (base `72893e5faa`, for 0.5.6), split by side so they rarely touch
+  the same file:
+  - service side `aadfd3e728b38325b`: client SIGKILL scratch directory, immediate reclaim of another instance's claimed
+    records, branch switch during a held commit, stale socket `bind --path`, the prune gap before the branch moves,
+    per-repository landing, and classifying `reservation-after-lost-races`;
+  - client side `abf5d1e9f7ca62e6a`: `external-hooks-unsupported` on the service route, one summary line naming the
+    landed commit, Git's abbreviation length, masking only URL userinfo in the push notice, and wrapped index-writing
+    commands waiting for the service's own `index.lock`.
