@@ -255,14 +255,36 @@ export async function runRefinePhase(
         lane: 'repair',
         sliceIndex: outcome.sliceIndex,
         run: async function settleRefineInContext() {
+          // THE REFINERS ARE READ AGAIN FOR EACH SLICE (ledger B1332), as the consolidation polish reads its own: a bench a
+          // hold re-derived after the lane started is the one asked, and the slice is keyed under the roster it runs on.
+          /**
+           Seating the caller reads for this slice, empty when the given roster stands.
+           */
+          const seating: RepairSliceSeating = (reseat === undefined) ? {} : await reseat();
+          /**
+           Roster this slice runs on.
+           */
+          const sliceModels: RepairModels = seating.repairModels ?? models;
+          /**
+           Rewriters of this slice, the lane's own where the reading names none.
+           */
+          const sliceRefiners = sliceModels.refinerModelIds ?? [];
           return await settleRefinePhaseSlice({
             client,
             outcome,
             slices,
-            models,
+            models: sliceModels,
             ...((reseat === undefined) ? {} : { reseat, }),
-            refinerModelIds,
-            runShape,
+            refinerModelIds: (sliceRefiners.length === 0) ? refinerModelIds : sliceRefiners,
+            runShape: (seating.repairModels === undefined)
+              ? runShape
+              : refineRunShape({
+                refinerModelIds: (sliceRefiners.length === 0) ? refinerModelIds : sliceRefiners,
+                judgeModelIds: sliceModels.judgeModelIds,
+                checkerModelIds: sliceModels.checkerModelIds,
+                ...(identityContext === undefined ? {} : { identityContext, }),
+                ...(referenceContext === undefined ? {} : { referenceContext, }),
+              },),
             definitions,
             ...(identityContext === undefined ? {} : { identityContext, }),
             ...(referenceContext === undefined ? {} : { referenceContext, }),

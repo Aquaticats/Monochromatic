@@ -17,6 +17,7 @@ import { resumedSliceDiscardFinding, } from '@monochromatic-dev/translation-repa
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import {
   notApplicableFinding,
+  type RefinedSliceSettlement,
   repairPreparedDocument,
   repairTranslation,
 } from '@monochromatic-dev/translation-repair-repair';
@@ -1382,6 +1383,163 @@ Meow meow meow meow.
         expect(asked.length,).toBeGreaterThan(0,);
         expect(asked,).toContain(SEAT_OPENROUTER_ONLY_CHECKER,);
         expect(asked,).not.toContain(SEAT_SYNTHETIC_VISION_WITHHELD,);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE REFINERS THE HOOK RETURNS FOR A SLICE and keys the refinement under them (ledger B1332): a refiner '
+        + 'bench re-derived after the lane started is the one asked, and the records written are those of a lane that '
+        + 'started on it',
+      fn: async () => {
+        const prepared = prepareDocumentPair({
+          sourceText: SOURCE_LONG_SECTION,
+          targetText: TARGET_LONG_SECTION,
+        },);
+        /**
+         Roster the lane starts on, with one refiner nothing else in the roster asks.
+         */
+        const started: RepairModels = {
+          ...MODELS,
+          refinerModelIds: ['minimax-m3',],
+        };
+        /**
+         Roster the hook hands back: the same, with another refiner.
+         */
+        const reseated: RepairModels = {
+          ...started,
+          refinerModelIds: ['gemma-4-26b-a4b-it',],
+        };
+        /**
+         Models asked and refinement keys written by one lane.
+
+         @param models - roster the lane starts on
+
+         @param hookRoster - roster the hook hands each slice, when it hands one
+
+         @returns Models asked, and the sorted keys of the refinement records
+         */
+        async function runLane(
+          { models, hookRoster, }: { readonly models: RepairModels; readonly hookRoster?: RepairModels; },
+        ): Promise<{ readonly asked: readonly string[]; readonly keys: readonly string[]; }> {
+          /**
+           Models asked, in order.
+           */
+          const asked: string[] = [];
+          /**
+           Keys of the refinement records persisted.
+           */
+          const keys: string[] = [];
+          /**
+           The scripted client with its calls recorded.
+           */
+          const scripted = scriptedClient({ criticIssues: [], },);
+          await repairPreparedDocument({
+            client: {
+              ...scripted,
+              chatJson: async <ValueT,>(request: ChatJsonRequest<ValueT>,): Promise<ChatJsonOutcome<ValueT>> => {
+                if (request.responseFormat?.json_schema.name === 'refine_report')
+                  asked.push(request.modelId,);
+                return await scripted.chatJson(request,);
+              },
+            },
+            prepared,
+            models,
+            signal: new AbortController().signal,
+            perCallTimeoutMs: HANG_STOP_MS,
+            refineCache: {
+              resumed: new Map<string, RefinedSliceSettlement>(),
+              persist: async ({ key, },) => {
+                keys.push(key,);
+              },
+            },
+            ...((hookRoster === undefined) ? {} : {
+              beforeSlice: async (): Promise<RepairSliceSeating> => ({ repairModels: hookRoster, }),
+            }),
+            stageSettings: SCRIPTED_STAGE_SETTINGS,
+          },);
+          return { asked, keys: keys.toSorted(), };
+        }
+        const hooked = await runLane({ models: started, hookRoster: reseated, },);
+        const startedOn = await runLane({ models: reseated, },);
+        expect(hooked.asked,).toContain('gemma-4-26b-a4b-it',);
+        expect(hooked.asked,).not.toContain('minimax-m3',);
+        expect(startedOn.keys.length,).toBeGreaterThan(0,);
+        expect(hooked.keys,).toEqual(startedOn.keys,);
+      },
+    },),
+
+    it({
+      name: 'KEYS A SLICE UNDER THE ROSTER IT RAN ON (ledger B1331): the records a lane writes for slices the hook re-seated '
+        + 'are the records a lane that started on the re-seated roster writes, and not the ones of the roster at the lane\'s '
+        + 'start',
+      fn: async () => {
+        const prepared = prepareDocumentPair({
+          sourceText: SOURCE_TWO_SECTIONS,
+          targetText: TARGET_TWO_SECTIONS,
+        },);
+        /**
+         Roster the hook hands back: the same models, the critics in another order, which the key hashes in order.
+         */
+        const reseated: RepairModels = {
+          ...MODELS,
+          criticModelIds: [...MODELS.criticModelIds,].toReversed(),
+        };
+        /**
+         Keys one lane writes for its slices.
+
+         @param models - roster the lane starts on
+
+         @param hookRoster - roster the hook hands each slice, when it hands one
+
+         @returns Keys of the records persisted, sorted
+         */
+        async function keysWritten(
+          { models, hookRoster, }: { readonly models: RepairModels; readonly hookRoster?: RepairModels; },
+        ): Promise<readonly string[]> {
+          /**
+           Keys of the records persisted.
+           */
+          const keys: string[] = [];
+          await repairPreparedDocument({
+            client: scriptedClient({ criticIssues: [MISTRANSLATION_ISSUE,], },),
+            prepared,
+            models,
+            signal: new AbortController().signal,
+            perCallTimeoutMs: HANG_STOP_MS,
+            sliceCache: {
+              resumed: new Map<string, ChunkRepairOutcome>(),
+              persist: async ({ key, },) => {
+                keys.push(key,);
+              },
+            },
+            ...((hookRoster === undefined) ? {} : {
+              beforeSlice: async (): Promise<RepairSliceSeating> => ({ repairModels: hookRoster, }),
+            }),
+            stageSettings: SCRIPTED_STAGE_SETTINGS,
+          },);
+          return keys.toSorted();
+        }
+        /**
+         Keys of a lane that started on the re-seated roster.
+         */
+        const startedReseated = await keysWritten({ models: reseated, },);
+        /**
+         Keys of a lane that started on the other roster and was re-seated by the hook for every slice.
+         */
+        const reseatedByHook = await keysWritten({ models: MODELS, hookRoster: reseated, },);
+        /**
+         Keys of a lane that started on the other roster and stayed on it.
+         */
+        const stayed = await keysWritten({ models: MODELS, },);
+        /**
+         Keys of a lane whose hook hands back the roster it started on, which must be the keys it writes unhooked.
+         */
+        const handedBackSame = await keysWritten({ models: MODELS, hookRoster: MODELS, },);
+        expect(startedReseated.length,).toBeGreaterThan(0,);
+        expect(handedBackSame,).toEqual(stayed,);
+        expect(reseatedByHook,).toEqual(startedReseated,);
+        // POSITIVE CONTROL: the roster does move the key, so the equality above is not one of keys that ignore it.
+        expect(stayed,).not.toEqual(startedReseated,);
       },
     },),
 

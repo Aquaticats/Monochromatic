@@ -289,7 +289,15 @@ export async function repairPreparedDocument(
             ...((beforeSlice === undefined) ? {} : { reseat: beforeSlice, }),
             slice,
             slicePosition,
-            runShape,
+            // A SLICE IS KEYED UNDER THE ROSTER IT RUNS ON (ledger B1331): a roster the hook re-seated for this slice is
+            // the one its key hashes, so a record written under it is the record a lane that started on it writes.
+            runShape: (seating.repairModels === undefined)
+              ? runShape
+              : repairRunShape({
+                models: seating.repairModels,
+                ...identityFragment,
+                ...referenceFragment,
+              },),
             ...((sliceCache === undefined) ? {} : { sliceCache, }),
             twins,
             signal,
