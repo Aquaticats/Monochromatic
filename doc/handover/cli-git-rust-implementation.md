@@ -5023,3 +5023,23 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Default push deadline: the user ordered it set to 30 seconds ("Make the push deadline 30s. NOW."); committed on main
   (`DEFAULT_PUSH_DEADLINE` 30 s, default lock wait 95 s, README and SPEC updated, tests derive from the constants). New
   repository rule MGN (user): tests never assert magic numbers or magic lists.
+
+### Commit timeouts and the 1800-second child bound (user directive)
+
+- User, verbatim: "Another defect in git wrapper: Some commits can time out. Fix it." and "1800s for git pack-objects is
+  laughably inappropriate." Evidence in this session's commit logs: every Git child of the commit path (shadow
+  `init --bare`, `reset`, `ls-files`, `diff-index`, `pack-objects --revs --local --stdout`, `maintenance run --auto
+  --detach`) prints `still waiting ... after 1 seconds; stopping it after 1800 seconds`. The bound is one default for all
+  (`child_watch.rs` `DEFAULT_CHILD_WAIT`, `CLI_GIT_CHILD_WAIT_SECONDS`); the lock waits in `live_lock.rs` are the other long
+  bound on the commit side. Code reading: a push-phase failure (including its lock wait running out) is caught and never
+  changes the commit's exit status (`auto_push.rs`), so it is not the commit failure the user means.
+- A docs-only commit in the main checkout spent more than a minute in the `pack-objects` child at load average about 57; the
+  suspicion (to be tested, not assumed) is an unbounded history walk because no negative revisions bound it.
+- Agent `a6e4566588e9ec087` (worktree): measure each child, root-cause the slow `pack-objects`, set bounds per class from
+  measured worst cases, fix notice noise, check the lock waits, tests with guard evidence, record in
+  `doc/planning/cli-git-commit-timeouts.md`.
+- Also running: launcher fix (`a8310f4e5df826765`, `--examine` and build timeout), gate image cache (`a36bceb8146ab7688`),
+  LFS and audit (`a2c239ccb199db9d8`), dispatcher (`a21d6fec9d0d04797`). The catalog-specifiers branch
+  (`worktree-agent-a026a6b10f496cda2`, five commits) is reviewed but not merged: 0.4.7 (30-second push deadline) goes out
+  first, then the merge, a gate and 0.4.8; the library `monochromatic-catalog-specifier` 0.1.0 is on crates.io (verified),
+  contrary to the agent's report.
