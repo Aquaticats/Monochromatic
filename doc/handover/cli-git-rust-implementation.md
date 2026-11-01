@@ -6827,6 +6827,28 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Sent back to `afcbaabc8c4046584`: capture order (the decision's "later capture wins" for one worktree; t10 now fails
   as a conflict where the decision lands it), and the two paths that still re-read the worktree (`Submitted::Moved`
   rebuild of a Git-built commit; the prune re-prepare on a first attempt).
+- Client side READY `40334312d5` (agent `abf5d1e9f7ca62e6a`, branch `worktree-agent-abf5d1e9f7ca62e6a`, base
+  `72893e5faa`), each with red then green tests:
+  1. `external-hooks-unsupported`: already printed on the service route (`service_prepare.rs:216` to `:219`, from
+     `af4564fb1c`); the e2e README line was stale and is gone; the control was shown to fail without the warning;
+  2. one summary line: every Git build quiet, `landed_summary.rs` prints `[<branch> <name>] <subject>` with
+     `(root-commit)`, `detached HEAD`, `-q`, and the diffstat for Git-built commits via one `git diff-tree`;
+  3. `object_abbreviation.rs` reproduces Git v2.56.0's length (`core.abbrev`, packed counts, multi-pack-index,
+     uniqueness across loose, packed and alternates), checked against `git ls-tree --abbrev`; the push notice asks Git
+     once (`rev-parse --short`) because it has no config snapshot (accepted: notices are rare);
+  4. the LFS line stays with only userinfo masked by the existing `mask_userinfo_text`, because the sed pattern stops
+     at the first `@` and would leak part of `user:p@ss@host` (accepted, better than the session pattern);
+  5. `service_index_wait.rs` waits on inotify for the service's marked `index.lock` with a named notice; a mark older
+     than 60 s is treated as a dead service's leftover; `service_hold_retry.rs` reruns `add`, `rm`, `mv` when Git
+     loses the race; e2e `interleaved-index-writers` passes, including the failing seed 3605007440;
+  6. notices carry the branch and show in the worktree holding it (moot once notices are per worktree);
+  7. `push_deadline_advice.rs`: on the service route the remedy is `systemctl --user set-environment
+     CLI_GIT_PUSH_DEADLINE_SECONDS=120` then `systemctl --user restart cli-git.service`.
+  Lib 2794; binary 456 passed, 2 failed at the 5-second bound under host load about 34 (both passed on rerun). The bound
+  is deliberate and documented (`package/git-policy/cli/README.md:903`,
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`); the capped container gate passes.
+  Limits: other index writers (`checkout`, `reset`, `stash`) still get Git's refusal if the service retakes the lock
+  between the wait and Git starting; a killed service's marked lock waits for the 60 s age.
 - THIRD cross-vendor review of the copy (`~/temp/agent/review-wtc/v3/sol-review.txt`): not approved. Closed: P2-6
   (client completion and progress), P2-8 for the live wrapper. Partly closed: 1, 2, 3, 4, 5, 7, 9, A, B. New ranked:
   1. P1 under per-worktree services: copy state (requests, journals, stage paths) is repository-wide in the common
