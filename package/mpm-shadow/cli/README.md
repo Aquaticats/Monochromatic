@@ -496,10 +496,15 @@ except where a musl platform now gets the musl build the release offers):
   (see "Installing a plan that is ahead of the lock"),
   then installs every locked tool that is not at its locked version,
   makes the postinstall links,
-  rebuilds the exposure directory and runs the postinstall commands.
+  rebuilds the exposure directory,
+  runs the postinstall commands
+  and then retires the old copies of this repository's tools
+  (see "Old copies of this repository's tools").
 - `mpm-shadow list`:
   compares the installed tools with the lock.
   Exits 1 on drift.
+  Also names the old copies of this repository's tools that `install` would retire,
+  which are not drift.
 - `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
   deletes the cargo tool versions no known lock names
   and the superseded versions of this repository's release archives (see "Cleanup").
@@ -885,13 +890,169 @@ It runs only when asked;
 
 The first `install` with this layout finds no version directory,
 installs every `cargo-binstall` tool into its own,
-links the tree's exposure and postinstall links to it,
-and leaves `$CARGO_HOME/bin` and `$CARGO_HOME/.crates.toml` exactly as they were:
-trees still on the TypeScript toolchain keep linking the files there.
+and links the tree's exposure and postinstall links to it.
 `list` reports such a tool as absent until that first `install`.
-Nothing copies,
-moves or deletes the legacy files;
-removing them is the cutover's decision.
+Nothing copies or moves the legacy files,
+and a third-party tool's file in `$CARGO_HOME/bin` and its entry in `$CARGO_HOME/.crates.toml` stay exactly as they were.
+This repository's own tools are different:
+their legacy copies in `$CARGO_HOME/bin` are old copies,
+which the same `install` retires (see "Old copies of this repository's tools").
+
+### Old copies of this repository's tools
+
+The rule,
+in the owner's words:
+"No older repo-maintained tools should ever exist when newer is present."
+An old copy is a regular file in the shared cargo bin directory (`$CARGO_HOME/bin`,
+default `~/.cargo/bin`) that is named like a bin the scope's lock declares for a repository-published tool and that mpm-shadow did not install.
+Repository-published has the meaning of the section "Cargo tool installs":
+a `cargo-binstall` crate named `monochromatic-*`,
+or an `archive` tool of `github:Aquaticats/Monochromatic` with a `monochromatic-` tag prefix.
+The retired TypeScript sync put such copies there (measured on the owner's machine on 2026-11-01:
+`cli-git-native`,
+`mpm-shadow`,
+`search-shadow`,
+`monochromatic-lint` and `monochromatic-nested-wayland-session`),
+and links in `~/.local/bin` and in every checkout's `.cache/*-bin` still run them.
+Cargo's records cannot say which copies are old:
+on that machine `.crates2.json` named `monochromatic-git-policy-cli` 0.2.13 for a 0.4.5 binary and had no entry for `mpm-shadow`,
+so the decision rests on where the file is,
+never on a record.
+No runbook step removes an old copy by hand:
+`install` does it,
+and the rest of this section is what it does.
+
+#### The order
+
+The owner chose "Re-point,
+then remove":
+"After its own newest copy is installed:
+links in known places (~/.local/bin,
+every checkout's .cache/*-bin,
+the global farm) that target an old copy are re-pointed to the managed copy;
+then the old copy and its cargo record are removed,
+each action printed."
+The cost the owner accepted:
+mpm-shadow edits links it did not create,
+but only links that resolve to an old copy of this repository's own tool.
+Every `install`,
+in the repository scope and with `--global`,
+does this once its own installs,
+links,
+exposure directory and postinstall commands are done:
+- Each link in a known place that resolves to the old copy is replaced by a link to the managed copy,
+  atomically:
+  a temporary link is renamed over the old one,
+  so a reader sees one or the other,
+  and the file the old link pointed at is never written through.
+- Only when no link that could be seen resolves to the copy any more,
+  and the managed copy is still an executable file,
+  the copy is removed:
+  with `cargo uninstall --root <cargo home> --bin <bin> <crate>` when `.crates.toml` names the bin (which updates cargo's records and leaves every other bin of that crate alone),
+  otherwise the file itself.
+- Each action is printed after the counts line,
+  as `toolchain install: re-pointed <link> -> <managed copy>` and `toolchain install: removed <copy> (...)`.
+- A second `install` finds nothing to do and prints nothing.
+
+The mpm-shadow that runs can itself be the old copy it removes.
+On Linux it keeps running from its open file,
+and the launchers it made were made before the removal.
+
+#### Known places
+
+- `~/.local/bin` (the global scope's link directory) and the global exposure directory (`<data home>/monochromatic-dev/toolchain-global/exposure`).
+- Every directory under `.cache` whose name ends in `-bin` (`cli-git-bin`,
+  `mpm-shadow-bin`,
+  `search-shadow-bin`,
+  `toolchain-bin`) in the scope's own worktree and in every worktree that `git worktree list --porcelain` reports.
+- Only symbolic links directly in those directories are looked at.
+- A link is judged by the file it finally resolves to,
+  never by its text:
+  on the owner's machine `/home` is a link to `var/home`,
+  and links to one copy spell its path both ways.
+- A link to a foreign file,
+  a link that dangles and a regular file (even one with the old copy's bytes) are never touched.
+
+#### Which managed copy a link gets
+
+A re-pointed link names the `current` path of the managed copy (`<toolchain root>/cargo/<crate>/current/bin/<bin>`,
+or for a release archive the program under `<toolchain root>/<tool id>/current`),
+so a later version change never leaves it dangling.
+In a checkout the link goes to the repository scope's copy,
+and the next `install` in that checkout replaces it with that tree's own launcher link as usual.
+Outside every checkout (`~/.local/bin` and the global farm) the link goes to the copy in the one toolchain root that holds a working managed copy.
+When the repository root and the global root both hold one,
+which of them such a link should run is an open decision of the owner (the owner's global plan manages `cargo:monochromatic-git-policy-cli` too,
+so the case can arise).
+The cleanup then leaves those links and the old copy alone,
+still moves the links in checkouts,
+and says so in a warning.
+
+#### When a copy stays
+
+An old copy is kept,
+with `toolchain install: warning: old copy <path> of <id> is kept ...` and the reason,
+when:
+- the tool's own install failed in this run,
+  or no finished managed copy of the bin exists (a version directory that cargo never recorded does not count),
+  because the old copy may be the only working one.
+- cargo's record says the old copy is newer than the managed one:
+  upgrade this tree's lock with `mise run toolchain:update`.
+- the entry in the cargo bin directory is a symbolic link and not a copy.
+- some place could not be searched:
+  git could not list the worktrees,
+  a listed worktree's directory is missing and not marked `prunable`,
+  a directory could not be read,
+  or the run is `install --global`,
+  which has no repository and searches no checkout (run `mpm-shadow install` inside a checkout to finish).
+  The links that can be seen are still moved.
+- a link to the copy appeared after the search,
+  or a link could not be re-pointed (that is also a failure,
+  so `install` exits 1).
+- both toolchain roots hold a managed copy and a link outside every checkout resolves to the old copy (see the previous heading).
+
+A file that cargo's record attributes to a crate this repository does not publish is another program and is not judged at all.
+A `cargo uninstall` that fails (a locked package cache,
+an unreadable record) keeps the copy,
+whose links already moved,
+and is a failure with cargo's message and the remedy:
+fix what cargo reports and run `install` again.
+
+#### Flags and other commands
+
+- `install`,
+  `install --no-frozen-lockfile` and `install --frozen-lockfile` (the default in CI) all do the cleanup:
+  freezing the lock only stops `install` from resolving plan entries into it,
+  and the cleanup reads the lock and the file system and uses no network.
+- `install --lockfile-only`,
+  with or without `--frozen-lockfile` or `--offline`,
+  installs nothing,
+  so no managed copy is made or checked and nothing is re-pointed or removed (`--offline` exists only together with `--lockfile-only`).
+- `update` and `outdated` never do it,
+  not even when `update` installs a prerequisite for a lookup.
+- `list` only reads:
+  for each old copy it prints a `toolchain list: warning:` line that says what `install` would do (which links it would re-point,
+  and that it would remove the copy) or why the copy stays,
+  and an old copy is not drift,
+  so the exit code does not change.
+- `prune --toolchain` does not remove old copies:
+  it deletes version directories under the toolchain root that no known lock names,
+  an old copy lies outside that root,
+  and judging one needs the managed copy that only `install` makes sure of.
+- A tree still on the TypeScript toolchain keeps using `$CARGO_HOME/bin`,
+  so a copy it installs there is an old copy again,
+  and the next `install` removes it.
+
+#### Measured behaviour of cargo
+
+Measured on 2026-10-31 with cargo 1.101.0-nightly in disposable homes that held copies of the owner's records:
+- `cargo uninstall --root <cargo home> monochromatic-git-policy-cli` removed the file and the entries of both records although `.crates2.json` named another version.
+- A crate named only in `.crates2.json` is "did not match any packages" (exit 101),
+  and so is a crate named in neither record,
+  so `.crates.toml` decides whether cargo is asked.
+- `--bin <name>` on a crate with several bins removed that bin only and rewrote the entry with the others.
+- An unparseable `.crates2.json` made `cargo uninstall` fail with a message naming the file,
+  in a run of the built binary against a disposable tree.
 
 ## Network
 
