@@ -26,15 +26,13 @@ import {
 import { copyNextest, } from './native-nextest-snapshot.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
 import { copyStraceSource, } from './native-strace-snapshot.ts';
-import {
-  testContainerfile,
-  wrapperCrates,
-} from './native-test-containerfile.ts';
+import { testContainerfile, } from './native-test-containerfile.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
+import { wrapperCrates, } from './native-wrapper-snapshot.ts';
 
 // Resource limits default to the repository's test-container bounds; `--memory`, `--cpus` and `--pids-limit` override them.
 /**

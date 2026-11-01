@@ -148,7 +148,8 @@ export async function checkCompleted({ matrix, }: {
 }
 
 /**
- Check that a native commit retires the hook lock of a dead incumbent, runs the hook once and lands.
+ Check that a native commit retires the hook lock of a dead incumbent and lands, and that the configured hook neither
+ runs nor goes unreported, because the wrapper supports no external hook program.
 
  @param matrix - recorder of the driver's checks
 
@@ -225,8 +226,13 @@ export async function checkDeadHookLock({ matrix, }: {
   const ran = lines.slice(before.length)
     .join(',');
   matrix.check({
-    condition: ran === 'start,end',
-    message: `${tag}: the hook ran once to the end (${ran})`,
+    condition: ran === '',
+    message: `${tag}: the configured hook did not run (${ran || 'no lines'})`,
+  });
+  matrix.check({
+    condition: commit.stderr
+      .includes('external-hooks-unsupported'),
+    message: `${tag}: the wrapper reported the configured hook as unsupported`,
   });
   /**
    What the wrapper left behind.
