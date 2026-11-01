@@ -758,6 +758,24 @@ The user confirmed the shared understanding and the order below, after the third
   job cannot pass vacuously; the job fails on a violation (detection, not prevention).
   Not yet measured: the policy itself (not built), a check in a shallow CI checkout, and the workflow on a GitHub runner.
 
+- 2026-11-01, rule changes after the user's challenges about the bootstrap measurement:
+  - `QJ1` now says to split a measured total by its logged steps before blaming one and to compare options step for step
+    (commit `f04bcf2590`).
+  - `CM7` now says to install tools only from `toolchain.lock.json` (in containers and CI use its row's archive and sha256) and never to
+    `cargo install` or compile a locked tool (commit `57f5078f6f`).
+  - Cause recorded: the probe container compiled cargo-binstall because I copied `cargo install cargo-binstall --locked` from the
+    music-player workflow without reading the lock's own `cargo-binstall` row, which pins a prebuilt archive with a sha256.
+- 2026-11-01, the same fault fixed in `.github/workflows/music-player-release.yml` (user answered "Fix it now"): job `notices`
+  (runner `ubuntu-24.04`) now reads the `linux-x64` url and sha256 from the lock, guards the url prefix, downloads, runs
+  `sha256sum --check --strict`, extracts into `$RUNNER_TEMP/binstall`, adds it to `GITHUB_PATH` and `PATH`, then runs the unchanged
+  `cargo binstall ... cargo-about`.
+  Checked here (`~/temp/agent/test-music-player-binstall-step.ts`, the new lines extracted from the workflow and run with a scratch
+  `RUNNER_TEMP` and `GITHUB_PATH` against the real lock): url guard, download, checksum check, extraction and the `GITHUB_PATH`
+  write succeeded; the extracted `cargo-binstall -V` printed `1.26.2` and its archive sha256 equals the lock's.
+  Not run: the workflow on a GitHub runner (the user chose to skip the full multi-platform dry run; there is no notices-only trigger),
+  and the rustup and cargo-about parts of the step. The next music-player dry run or release is the step's first runner test.
+  A push of the edit does not start the workflow: its push trigger watches only the two version `Cargo.toml` files.
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
