@@ -8,7 +8,10 @@
  @module
  */
 
-import { readdir, } from 'node:fs/promises';
+import {
+  readdir,
+  readFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setInterval as ticks, } from 'node:timers/promises';
 
@@ -122,6 +125,74 @@ export async function waitForPushRecord({
       states,
     },)).length > 0)
       return 'record';
+    if (running.isSettled())
+      return 'settled';
+    if (Date.now() >= deadline)
+      return 'timeout';
+  }
+  return 'timeout';
+}
+
+/**
+ Reads the tip of the scenario's branch from its loose reference file.
+ The service moves the branch with `update-ref`, which writes the loose file,
+ so a read of the file is far quicker than starting Git and sees the move as soon as it happens.
+
+ @param repository - scenario repository
+
+ @returns the commit ID the branch names
+
+ @example
+ ```ts
+ await readBranchTip(repository);
+ ```
+ */
+export async function readBranchTip(repository: ScenarioRepository,): Promise<string> {
+  return (await readFile(
+    join(
+      repository.commonDir,
+      'refs',
+      'heads',
+      repository.branch,
+    ),
+    'utf8',
+  )).trim();
+}
+
+/**
+ Waits until the branch moved off a commit or the wrapper settled.
+
+ @param repository - scenario repository
+
+ @param from - the tip before the commit started
+
+ @param running - the wrapper process
+
+ @returns `moved` when the branch names another commit,
+ `settled` when the wrapper ended first,
+ `timeout` otherwise
+
+ @example
+ ```ts
+ await waitForBranchMove({ repository, from: head, running: victim.running });
+ ```
+ */
+export async function waitForBranchMove({
+  repository,
+  from,
+  running,
+}: Readonly<{
+  repository: ScenarioRepository;
+  from: string;
+  running: Pick<RunningProcess, 'isSettled'>;
+}>,): Promise<'moved' | 'settled' | 'timeout'> {
+  /**
+   When the wait ends.
+   */
+  const deadline = Date.now() + RECORD_TIMEOUT_MS;
+  for await (const _tick of ticks(POLL_MILLISECONDS,)) {
+    if (await readBranchTip(repository,) !== from)
+      return 'moved';
     if (running.isSettled())
       return 'settled';
     if (Date.now() >= deadline)

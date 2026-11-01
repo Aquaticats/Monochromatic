@@ -6,7 +6,7 @@
  the message editor open (preparation is under way, the message is not final),
  the message editor done (the message is final, nothing is sent),
  the commit queued at a frozen service (prepared and connected, nothing is sent),
- and the commit landed (its push record exists).
+ and the commit landed (the service is frozen the instant the branch moves, so the agent dies in its exchange with it).
  A seeded time offset can land anywhere, including inside the exchange with the service.
  The first three points leave nothing to land, so the victim's commit must not appear;
  the later ones leave a landed commit that must appear once.
@@ -22,6 +22,7 @@ import {
 } from './barrier-fixture.ts';
 import { synthesizeText, } from './content-fixture.ts';
 import { editorOptions, } from './editor-attempt-fixture.ts';
+import { killWhenLanded, } from './landing-kill-fixture.ts';
 import type { AttemptRecord, } from './ledger-fixture.ts';
 import { landedCommit, } from './scenario-reservation-helper-fixture.ts';
 import {
@@ -39,7 +40,7 @@ import {
   startQueued,
 } from './scenario-queue-fixture.ts';
 import { planFaultOffset, } from './seeded-schedule-fixture.ts';
-import { waitForPushRecord, } from './work-record-fixture.ts';
+import { readBranchTip, } from './work-record-fixture.ts';
 import {
   runWrapper,
   type StartedAttempt,
@@ -184,6 +185,10 @@ async function reachPoint({
     };
   }
   /**
+   Tip of the branch before the victim starts.
+   */
+  const head = await readBranchTip(context.repository,);
+  /**
    Victim that commits plainly.
    */
   const victim = await startAttempt({
@@ -205,21 +210,20 @@ async function reachPoint({
     };
   }
   /**
-   Whether the victim's push record appeared before it settled.
+   Whether the branch moved before the victim settled; the service stays frozen until the caller resumes it.
    */
-  const arrival = await waitForPushRecord({
-    repository: context.repository,
-    running: victim.running,
+  const arrival = await killWhenLanded({
+    context,
+    victim,
+    from: head,
   },);
-  // The wrapper exits within milliseconds of writing the record, so the kill cannot wait for the bystander's start.
-  victim.kill();
   return {
     victim,
     bystander: startBystander,
     expectations: [{
       name: 'victim-reached-point',
-      holds: arrival === 'record',
-      detail: `victim ${arrival} before its push record appeared`,
+      holds: arrival === 'moved',
+      detail: `victim ${arrival} before its commit landed`,
     },],
   };
 }
@@ -321,8 +325,9 @@ async function killAndRecover({
    Bystander started while the victim is at the point.
    */
   const bystander = await startBystander();
+  // The victim's kill is already done at the points that freeze the service; the caller runs it again at the others.
   victim.kill();
-  if (point === 'queued')
+  if ((point === 'queued') || (point === 'after-landing'))
     context.repository
       .service
       .resume();
@@ -454,7 +459,7 @@ export const SIGKILL_SCENARIOS: readonly ScenarioDefinition[] = [
   },),
   killScenario({
     point: 'after-landing',
-    summary: 'SIGKILL one agent once its commit landed and its push record exists, while another commits, then recover',
+    summary: 'SIGKILL one agent the instant its commit landed, while another commits, then recover',
   },),
   killScenario({
     point: 'offset',
