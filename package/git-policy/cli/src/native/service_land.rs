@@ -14,6 +14,7 @@
 
 use super::service_fault::reach;
 use super::service_head::head_names;
+use super::service_instance::instance_of;
 use super::service_pruned::batch_content_missing;
 use super::service_journal::{Intent, Recovery, list_intents, mark_done, recovery_for, write_intent, OPEN_EXTENSION};
 use super::service_index_lock::{Announce, IndexLock, acquire, remove_stale, try_acquire};
@@ -179,7 +180,7 @@ pub fn land_batch_announcing(context: &LandContext, seq: u64, requests: &[Commit
     }
     let repository: &Path = first.repository.as_path();
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-    let scratch: String = format!("refs/cli-git-service/{seq}");
+    let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
     let mut outcomes: Vec<Outcome>;
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.
@@ -354,12 +355,39 @@ pub struct RecoveryReport {
 /// await recover(context)
 /// ```
 pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
+    return recover_selected(context, &|_| { return true; }, true);
+}
+
+/// What:
+///  Finishes or drops the open batches of the worktree one instance serves, found in a journal that other worktrees' batches
+///  may share.
+/// Why:
+///   The single service of the releases before one service per worktree kept one journal for every worktree, in the directory
+///  above each instance's own, and an instance takes over the batches of its worktree (found by the worktree's index, which
+///  sits in its Git directory) there. A development run may also give several instances one journal. Whatever belongs to
+///  another worktree is left to its instance, and a record that cannot be read is not any instance's to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await recoverInstance(context, instance)
+/// ```
+pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
+    let ours = |intent: &Intent| -> bool { return intent.index.parent().is_some_and(|git_dir| { return instance_of(git_dir) == instance; }); };
+    return recover_selected(context, &ours, false);
+}
+
+fn recover_selected(context: &LandContext, selected: &dyn Fn(&Intent) -> bool, remove_unreadable: bool) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     for (path, parsed) in list_intents(context.journal.as_path(), OPEN_EXTENSION) {
         let Some(intent) = parsed else {
-            let _removed = std::fs::remove_file(&path);
+            if remove_unreadable {
+                let _removed = std::fs::remove_file(&path);
+            }
             continue;
         };
+        if !selected(&intent) {
+            continue;
+        }
         let git: GitContext = GitContext { common_dir: Some(intent.common_dir.clone()), ..context.git.clone() };
         let current: String = checked(&git, intent.repository.as_path(), &["rev-parse", "--verify", intent.reference.as_str()], None).unwrap_or_default();
         let ancestor: bool = run(&git, intent.repository.as_path(), &["merge-base", "--is-ancestor", intent.new.as_str(), current.as_str()], None)

@@ -24,7 +24,7 @@ use super::policy_engine::StageRequest;
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
-use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
+use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, ScratchWatch, Submitted, submit, watch_scratch};
 use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit, with_fixed_message};
 use super::service_handoff::ServiceHandoff;
 use super::service_land::LANDING_ATTEMPTS;
@@ -36,7 +36,7 @@ use super::service_protocol::CommitRequest;
 use super::service_provision::provision;
 use super::service_pruned::{PRUNE_RETRIES, content_was_removed, prepared_content_missing, reach_service_phase};
 use super::transaction_phase::Phase;
-use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable};
+use super::service_route::{Route, RouteInputs, choose_route, remembered_own_executable, worktree_git_dir};
 use super::transaction_git::run_git_checked;
 use super::worktree_completion::install_added_worktree_files;
 use std::ffi::OsString;
@@ -93,6 +93,8 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let config_home: Option<PathBuf> = path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = path_variable("HOME");
     let bus_address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    // The worktree's own Git directory names the service instance, so no route exists outside a repository.
+    let Some(git_dir) = worktree_git_dir(invocation.context, invocation.cwd) else { return Ok(None) };
     let route: Route = choose_route(&RouteInputs {
         runtime_dir: runtime.as_deref(),
         bus_address: bus_address.as_deref(),
@@ -100,6 +102,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
         home: home.as_deref(),
         own_executable: remembered_own_executable(),
         real_git: invocation.context.real_git.as_path(),
+        git_dir: git_dir.as_path(),
     });
     let Route::Service { address, provision: provisioning } = route else { return Ok(None) };
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
@@ -119,6 +122,10 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let mut fixed_message: Option<PathBuf> = None;
     // The branch (or `HEAD`) the first preparation found, which every later preparation must find again.
     let mut first_reference: Option<String> = None;
+    // The commit's scratch directory, handed to the service once the first preparation made it: the service removes it when this
+    //  command ends, and when this process is killed, because the connection closes either way. Without a service of this
+    //  release to take it, the directory is removed here as before.
+    let mut scratch_watch: Option<ScratchWatch> = None;
     // How often the content was found removed; the commit is prepared again for the first, and the second is said plainly.
     let mut removals: usize = 0;
     for attempt in 0..REBUILD_ATTEMPTS {
@@ -153,6 +160,9 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 file: fixed_message.as_ref().map(|file| { return file.display().to_string(); }),
             };
             return Err(TransactionStop::Message(render(&failure)));
+        }
+        if scratch_watch.is_none() {
+            scratch_watch = watch_scratch(&config, ready.inputs.capture.layout.git_dir.as_path(), ready.scratch.0.as_path());
         }
         if !decided {
             decided = true;
@@ -216,6 +226,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     id: id.clone(),
                     repository: ready.repository.clone(),
                     common_dir: ready.common_dir.clone(),
+                    git_dir: native_inputs.capture.layout.git_dir.clone(),
                     reference: ready.reference.clone(),
                     base: ready.base.clone(),
                     // The service names the index entries from the commit itself, so no list of changes travels.
@@ -237,6 +248,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     id: id.clone(),
                     repository: ready.repository.clone(),
                     common_dir: ready.common_dir.clone(),
+                    git_dir: native_inputs.capture.layout.git_dir.clone(),
                     reference: ready.reference.clone(),
                     base: ready.base.clone(),
                     changes: ready.changes.clone().unwrap_or_default(),
@@ -296,7 +308,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
                 let handoff: ServiceHandoff = ServiceHandoff {
                     config: config.clone(),
                     repository: ready.repository.clone(),
-                    common_dir: ready.common_dir.clone(),
+                    git_dir: native_inputs.capture.layout.git_dir.clone(),
                     reference: ready.reference.clone(),
                     parent: first_parent,
                 };

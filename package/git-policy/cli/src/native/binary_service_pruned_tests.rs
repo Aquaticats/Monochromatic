@@ -48,6 +48,7 @@ fn case(name: &str) -> Case {
     let markers: PathBuf = fixture.root.join("markers");
     std::fs::create_dir(&markers).expect("markers");
     let service: FixtureService = start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
     return Case { fixture, repo, service, blob, markers };
 }
 

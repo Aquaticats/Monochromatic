@@ -8,7 +8,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, fixture, git, repository};
-use git_policy_cli::service_route::SOCKET_RELATIVE;
+use git_policy_cli::service_instance::{instance_of, socket_for};
 use std::ffi::OsStr;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -29,27 +29,40 @@ pub(super) fn runtime_for(name: &str) -> PathBuf {
     return scratch.join(format!("rt-{}-{name}", std::process::id()));
 }
 
-/// A service process under test, stopped (and its runtime directory removed) when it goes out of scope.
+/// The services under test, one per worktree as in production, stopped (and their runtime directory removed) when they go out
+///  of scope.
 pub(super) struct Running {
-    child: Child,
+    children: Vec<Child>,
     runtime: PathBuf,
 }
 
-/// Methods over a running service.
+/// Methods over running services.
 impl Running {
     pub(super) fn kill(&mut self) -> std::io::Result<()> {
-        return self.child.kill();
+        let mut result: std::io::Result<()> = Ok(());
+        for child in &mut self.children {
+            let killed = child.kill();
+            if result.is_ok() {
+                result = killed;
+            }
+        }
+        return result;
     }
 
     pub(super) fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
-        return self.child.wait();
+        let mut last: Option<std::io::Result<std::process::ExitStatus>> = None;
+        for child in &mut self.children {
+            last = Some(child.wait());
+        }
+        return last.expect("a service was started");
     }
 
-    /// Waits for the process to exit by itself for at most `limit`; nothing when it is still running then.
+    /// Waits for the first service to exit by itself for at most `limit`; nothing when it is still running then.
     pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {
         let began: Instant = Instant::now();
+        let child: &mut Child = self.children.first_mut()?;
         loop {
-            if let Ok(Some(status)) = self.child.try_wait() {
+            if let Ok(Some(status)) = child.try_wait() {
                 return Some(status);
             }
             if began.elapsed() >= limit {
@@ -62,13 +75,16 @@ impl Running {
 
 impl Drop for Running {
     fn drop(&mut self) {
-        let _killed = self.child.kill();
-        let _waited = self.child.wait();
+        for child in &mut self.children {
+            let _killed = child.kill();
+            let _waited = child.wait();
+        }
         let _removed = std::fs::remove_dir_all(&self.runtime);
     }
 }
 
-/// Starts the service on the socket the wrapper looks for in `runtime`, with the settings a service manager would give it.
+/// Starts the service of every worktree under `root` on the socket the wrapper looks for in `runtime`, with the settings a
+///  service manager would give each instance.
 pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
     return start_in_release(root, runtime, None);
 }
@@ -76,27 +92,37 @@ pub(super) fn start_in(root: &Path, runtime: &Path) -> Running {
 /// Starts the service as `start_in` does, announcing `release` to its clients instead of its own, so a test can stand a
 ///  service of another release where the manager would have left one from before an upgrade.
 pub(super) fn start_in_release(root: &Path, runtime: &Path, release: Option<&str>) -> Running {
-    let socket: PathBuf = runtime.join(SOCKET_RELATIVE);
-    std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
+    std::fs::create_dir_all(runtime.join("cli-git")).expect("socket directory");
     let journal: PathBuf = root.join("journal");
-    let child: Child = Command::new(SERVICE)
-        .args(["--journal", journal.to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
-        .args(release.map(|text| { return ["--release", text]; }).into_iter().flatten())
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("HOME", root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("the service starts");
-    let running: Running = Running { child, runtime: runtime.to_path_buf() };
+    let git_dirs: Vec<PathBuf> = super::support::worktree_git_dirs(root, 4);
+    assert!(!git_dirs.is_empty(), "a worktree to serve under {}", root.display());
+    let mut running: Running = Running { children: Vec::new(), runtime: runtime.to_path_buf() };
+    let mut sockets: Vec<PathBuf> = Vec::new();
+    for git_dir in git_dirs {
+        let socket: PathBuf = socket_for(runtime, git_dir.as_path());
+        let child: Child = Command::new(SERVICE)
+            .args(["--journal", journal.to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
+            .args(["--instance", instance_of(git_dir.as_path()).as_str()])
+            .args(release.map(|text| { return ["--release", text]; }).into_iter().flatten())
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", root.join("home"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .expect("the service starts");
+        running.children.push(child);
+        sockets.push(socket);
+    }
     let began: Instant = Instant::now();
-    while UnixStream::connect(&socket).is_err() {
-        assert!(began.elapsed() < PATIENCE, "the service never listened");
-        std::thread::sleep(Duration::from_millis(10));
+    for socket in sockets {
+        while UnixStream::connect(&socket).is_err() {
+            assert!(began.elapsed() < PATIENCE, "the service never listened");
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
     return running;
 }
@@ -168,6 +194,7 @@ fn the_fixture_service_takes_a_wrapped_commit_and_goes_with_its_owner() {
     git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
     std::fs::write(repo.join("a.txt"), "base\nmore\n").expect("edit");
     let service = super::support::start_fixture_service(&fixture);
+    service.serve(&fixture, repo.join(".git").as_path());
     let runtime: PathBuf = service.runtime.clone();
     let mut command: Command = wrapped_commit(&fixture, &repo, &["commit", "-m", "through the harness", "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", &runtime);

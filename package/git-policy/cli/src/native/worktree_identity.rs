@@ -289,6 +289,20 @@ pub fn worktree_root(identity: &WorktreeIdentity) -> Option<&Path> {
 /// ```ts
 /// function commonDirectory(identity: WorktreeIdentity): string | undefined;
 /// ```
+pub fn git_directory(identity: &WorktreeIdentity) -> Option<&Path> {
+    match identity {
+        WorktreeIdentity::BareRepository { git_dir, .. }
+        | WorktreeIdentity::MainWorktree { git_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { git_dir, .. } => {
+            return Some(git_dir.as_path());
+        }
+        WorktreeIdentity::OutsideWorktree => {
+            return None;
+        }
+    }
+}
+
+/// The common Git directory of an identity, which every worktree of the repository shares.
 pub fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
     match identity {
         WorktreeIdentity::BareRepository { common_dir, .. }

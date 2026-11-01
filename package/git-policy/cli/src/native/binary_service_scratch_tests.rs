@@ -109,7 +109,7 @@ fn nothing_but_a_scratch_directory_of_the_repository_is_ever_removed() {
     for path in [&precious, &elsewhere, &notes] {
         let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("address");
         let mut stream: UnixStream = UnixStream::connect_addr(&socket).expect("connect");
-        let line: String = encode_client(&ClientMessage::Scratch { common_dir: git_dir.clone(), path: path.clone() });
+        let line: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.clone(), path: path.clone() });
         stream.write_all(format!("{line}\n").as_bytes()).expect("send");
         drop(stream);
     }

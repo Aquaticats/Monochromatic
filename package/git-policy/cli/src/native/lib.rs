@@ -1257,6 +1257,9 @@ pub mod service_work;
 /// The wrapper's side of after-commit work: records and the wake.
 pub mod service_handoff;
 
+/// Which commit service instance belongs to a worktree: its name, socket and unit instances.
+pub mod service_instance;
+
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;
 

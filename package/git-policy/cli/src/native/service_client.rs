@@ -251,6 +251,27 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
     }
 }
 
+/// What:
+///  Asks the service listening at `socket` to finish its batch and exit, when one answers; nothing else is waited for.
+/// Why:
+///   The single service of the earlier releases is replaced by one service per worktree. It is asked politely first, in the
+///  protocol version it announced, so that a batch it is landing is finished; the manager then stops its units. A socket
+///  nobody listens on, or a service that does not greet, is no one to ask.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await askToRetire(socket)
+/// ```
+pub fn ask_to_retire(socket: &std::path::Path) {
+    let Ok(stream) = UnixStream::connect(socket) else { return };
+    let _timeout = stream.set_read_timeout(Some(START_WAIT));
+    let mut reader: BufReader<UnixStream> = BufReader::new(stream);
+    let Some(ServiceMessage::Welcome { version, .. }) = read_message(&mut reader) else { return };
+    let mut retire: String = encode_retire(version);
+    retire.push('\n');
+    let _sent = reader.get_mut().write_all(retire.as_bytes());
+}
+
 /// A scratch directory handed to the service: the service removes it when this value is dropped, and when the process that
 ///  holds it dies by any means, because the connection is the only thing that says the directory is still wanted.
 pub struct ScratchWatch {
@@ -268,9 +289,9 @@ pub struct ScratchWatch {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const watch = await watchScratch(config, commonDir, path) // undefined when no service of this release answers
+/// const watch = await watchScratch(config, gitDir, path) // undefined when no service of this release answers
 /// ```
-pub fn watch_scratch(config: &ClientConfig, common_dir: &std::path::Path, path: &std::path::Path) -> Option<ScratchWatch> {
+pub fn watch_scratch(config: &ClientConfig, git_dir: &std::path::Path, path: &std::path::Path) -> Option<ScratchWatch> {
     let stream: UnixStream = connect(&config.address).ok()?;
     let _timeout = stream.set_read_timeout(Some(config.start_wait));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream);
@@ -278,7 +299,7 @@ pub fn watch_scratch(config: &ClientConfig, common_dir: &std::path::Path, path: 
     if version != PROTOCOL_VERSION || release.as_deref() != Some(RELEASE) {
         return None;
     }
-    let mut line: String = encode_client(&ClientMessage::Scratch { common_dir: common_dir.to_path_buf(), path: path.to_path_buf() });
+    let mut line: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.to_path_buf(), path: path.to_path_buf() });
     line.push('\n');
     reader.get_mut().write_all(line.as_bytes()).ok()?;
     let connection: UnixStream = reader.into_inner();
@@ -296,10 +317,10 @@ pub fn watch_scratch(config: &ClientConfig, common_dir: &std::path::Path, path: 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await wake(config, commonDir, reviewKey)
+/// await wake(config, gitDir, reviewKey)
 /// ```
-pub fn wake(config: &ClientConfig, common_dir: &std::path::Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
-    let mut line: String = encode_client(&ClientMessage::Work { common_dir: common_dir.to_path_buf(), review_key: review_key.cloned() });
+pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option<&ReviewKey>, notices: &mut dyn Write) -> Result<(), ClientFailure> {
+    let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: review_key.cloned() });
     line.push('\n');
     let mut announced: bool = false;
     let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced)?;

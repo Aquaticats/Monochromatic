@@ -12,7 +12,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await recordPushFailure(commonDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(commonDir));
+//! await recordPushFailure(gitDir, { branchRef, oid, reason }); stderr.write(await takePushFailures(gitDir));
 //! ```
 
 use super::auto_push::PUSH_FAILED_NOTE;
@@ -22,7 +22,7 @@ use super::private_storage::{create_private_directory_all, write_private_file_un
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-/// Directory under the common Git directory that holds the records for the person.
+/// Directory under the worktree's own Git directory that holds the records for the person.
 pub const NOTICE_DIRECTORY: &str = "cli-git/notices";
 
 /// Separates the parts of a record's name; it is not a character a branch key can contain.
@@ -45,8 +45,8 @@ const LEFT_OUT_LINE: &str = "(a line about the Git LFS server setting is left ou
 const NO_REASON: &str = "Git gave no reason.";
 
 /// The directory that holds the records of a repository.
-pub fn notice_directory(common_dir: &Path) -> PathBuf {
-    return common_dir.join(NOTICE_DIRECTORY);
+pub fn notice_directory(git_dir: &Path) -> PathBuf {
+    return git_dir.join(NOTICE_DIRECTORY);
 }
 
 /// A 64-bit FNV-1a hash of the text, in hexadecimal.
@@ -144,10 +144,10 @@ pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recordPushFailure(commonDir, { branchRef, commit, said })
+/// await recordPushFailure(gitDir, { branchRef, commit, said })
 /// ```
-pub fn record_push_failure(common_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
-    let directory: PathBuf = notice_directory(common_dir);
+pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+    let directory: PathBuf = notice_directory(git_dir);
     create_private_directory_all(directory.as_path()).map_err(|error| { return format!("creating the notice directory failed: {error}"); })?;
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
@@ -163,10 +163,10 @@ pub fn record_push_failure(common_dir: &Path, branch_ref: &str, commit: &str, sa
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await clearPushFailures(commonDir, branchRef)
+/// await clearPushFailures(gitDir, branchRef)
 /// ```
-pub fn clear_push_failures(common_dir: &Path, branch_ref: &str) {
-    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return };
+pub fn clear_push_failures(git_dir: &Path, branch_ref: &str) {
+    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return };
     let prefix: String = branch_prefix(branch_ref);
     for entry in listing.flatten() {
         if entry.file_name().to_string_lossy().starts_with(prefix.as_str()) {
@@ -182,10 +182,10 @@ pub fn clear_push_failures(common_dir: &Path, branch_ref: &str) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const texts = await takePushFailures(commonDir)
+/// const texts = await takePushFailures(gitDir)
 /// ```
-pub fn take_push_failures(common_dir: &Path) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(notice_directory(common_dir)) else { return Vec::new() };
+pub fn take_push_failures(git_dir: &Path) -> Vec<String> {
+    let Ok(listing) = std::fs::read_dir(notice_directory(git_dir)) else { return Vec::new() };
     let mut paths: Vec<PathBuf> = listing.flatten().map(|entry| { return entry.path(); }).collect();
     paths.sort();
     let mut texts: Vec<String> = Vec::new();

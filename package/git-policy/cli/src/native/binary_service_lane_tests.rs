@@ -1,19 +1,20 @@
 //! What:
-//!  A landing that waits for a foreign holder of one repository's index lock, beside a landing in another repository.
+//!  One commit service per worktree: a landing that waits for a foreign holder of one worktree's index lock does not delay
+//!  another worktree's commits, and a service refuses a request that names another worktree.
 //! Why:
-//!  One service lands the commits of every repository an account uses. A wait for a foreign `index.lock` is a wait in one
-//!  repository, so it must not hold back the commits of the others: the service gives each repository its own landing, and
-//!  within a repository the order stays the order of arrival.
+//!  Every worktree has its own service instance, the way Bazel runs one server per workspace, so a wait in one worktree (a
+//!  foreign `index.lock`, a slow push) is a wait for that worktree only. An instance serves the worktree it was started for,
+//!  and a request that reaches the wrong socket is refused where it can be seen, never landed in the wrong worktree
+//!  (`doc/planning/cli-git-resident-service.md`, "One service per worktree").
 
 use super::support::{Fixture, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
+use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::service_messages::ClientFailure;
 use git_policy_cli::service_protocol::{ALLOWED_MODES, Change, CommitRequest};
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
 use std::io::Write;
-use std::os::linux::net::SocketAddrExt;
-use std::os::unix::net::{SocketAddr, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -25,54 +26,103 @@ const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 /// The longest a control waits for anything: far beyond what a healthy run needs, so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-/// How long a landing in a free repository may take while another repository's landing waits: far below the wait limit the
-///  service runs under, so a landing that waited behind the other would miss it.
-const FREE_REPOSITORY_BOUND: Duration = Duration::from_secs(15);
+/// How long a landing in a free worktree may take while another worktree's landing waits: far below the wait limit the services
+///  run under, so a landing that waited behind the other would miss it.
+const FREE_WORKTREE_BOUND: Duration = Duration::from_secs(15);
 
-/// How long the control gives a request to reach the service and start waiting, when the service has nothing to say about it.
+/// How long the control gives a request to reach its service and start waiting, when the service has nothing to say about it.
 const ARRIVAL_PAUSE: Duration = Duration::from_secs(3);
 
-/// The wait for a foreign lock the service is started with, long enough that no control reaches it before it is done.
+/// The wait for a foreign lock the services are started with, long enough that no control reaches it before it is done.
 const LOCK_WAIT_SECONDS: &str = "120";
 
-/// A service process that is stopped when the control ends, whether it passed or panicked.
-struct Held(Child);
+/// A repository with its main worktree and one linked worktree, each with its own Git directory.
+struct Worktrees {
+    main: PathBuf,
+    linked: PathBuf,
+    main_git_dir: PathBuf,
+    linked_git_dir: PathBuf,
+}
 
-impl Drop for Held {
+fn worktrees(fixture: &Fixture) -> Worktrees {
+    let main: PathBuf = repository(fixture, OsStr::new("main"));
+    git(fixture, &main, &["config", "maintenance.autoDetach", "false"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, &main, &["worktree", "add", "--quiet", "-b", "linked", linked.to_str().expect("UTF-8")]);
+    let linked_git_dir: PathBuf = main.join(".git/worktrees/linked");
+    assert!(linked_git_dir.is_dir(), "the linked worktree's own Git directory");
+    let main_git_dir: PathBuf = main.join(".git");
+    return Worktrees { main, linked, main_git_dir, linked_git_dir };
+}
+
+/// The instances of both worktrees, each on its own socket, killed with the control.
+struct Services {
+    children: Vec<Child>,
+    runtime: PathBuf,
+}
+
+impl Drop for Services {
     fn drop(&mut self) {
-        let _killed = self.0.kill();
-        let _waited = self.0.wait();
+        for child in &mut self.children {
+            let _killed = child.kill();
+            let _waited = child.wait();
+        }
+        let _removed = std::fs::remove_dir_all(&self.runtime);
     }
 }
 
-fn start(fixture: &Fixture, name: &str) -> Held {
-    let child: Child = Command::new(SERVICE)
-        .args(["--journal"])
-        .arg(fixture.root.join("journal"))
-        .args(["--abstract", name])
-        .env("CLI_GIT_LOCK_WAIT_SECONDS", LOCK_WAIT_SECONDS)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .expect("the service starts");
-    return Held(child);
+fn start(fixture: &Fixture, name: &str, worktrees: &Worktrees) -> Services {
+    let runtime: PathBuf = super::service_commit::runtime_for(name);
+    std::fs::create_dir_all(runtime.join("cli-git")).expect("runtime directory");
+    let mut services: Services = Services { children: Vec::new(), runtime };
+    let mut sockets: Vec<PathBuf> = Vec::new();
+    for git_dir in [&worktrees.main_git_dir, &worktrees.linked_git_dir] {
+        let socket: PathBuf = socket_for(services.runtime.as_path(), git_dir.as_path());
+        let child: Child = Command::new(SERVICE)
+            .args(["--journal"])
+            .arg(fixture.root.join("journal"))
+            .arg("--path")
+            .arg(&socket)
+            .args(["--instance", instance_of(git_dir.as_path()).as_str()])
+            .env("CLI_GIT_LOCK_WAIT_SECONDS", LOCK_WAIT_SECONDS)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .expect("the service starts");
+        services.children.push(child);
+        sockets.push(socket);
+    }
+    let began: Instant = Instant::now();
+    for socket in sockets {
+        while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+            assert!(began.elapsed() < PATIENCE, "the service never listened");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    return services;
 }
 
-fn config(name: &str) -> ClientConfig {
-    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, commit_wait: PATIENCE };
+fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
+    return ClientConfig {
+        address: Bind::Path(socket_for(runtime, git_dir)),
+        activation: Activation::Managed,
+        start_wait: PATIENCE,
+        commit_wait: PATIENCE,
+    };
 }
 
-/// A request that sets `path` to `content` in `repo`, prepared against the branch as it is now.
-fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
-    std::fs::write(repo.join(path), content).expect("write");
-    let query = |arguments: &[&str]| -> String { return super::commit::git_text(fixture, repo, arguments).trim_end().to_string(); };
+/// A request that sets `path` to `content` in the worktree at `root`, whose own Git directory is `git_dir`, on `branch`.
+fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &str, path: &str) -> CommitRequest {
+    std::fs::write(root.join(path), format!("{id}\n")).expect("write");
+    let query = |arguments: &[&str]| -> String { return super::commit::git_text(fixture, root, arguments).trim_end().to_string(); };
     let blob: String = query(&["hash-object", "-w", "--", path]);
     return CommitRequest {
         id: id.to_string(),
-        repository: repo.to_path_buf(),
-        common_dir: repo.join(".git"),
-        reference: String::from("refs/heads/main"),
+        repository: root.to_path_buf(),
+        common_dir: query(&["rev-parse", "--path-format=absolute", "--git-common-dir"]).into(),
+        git_dir: git_dir.to_path_buf(),
+        reference: format!("refs/heads/{branch}"),
         base: query(&["rev-parse", "HEAD"]),
         changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
@@ -82,7 +132,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         tree: None,
         commit: None,
         cleanup: None,
-        index: repo.join(".git/index"),
+        index: git_dir.join("index"),
     };
 }
 
@@ -100,50 +150,70 @@ impl Write for Heard {
     }
 }
 
-fn submitted_in_thread(name: &str, sent: CommitRequest, heard: Sender<()>) -> Receiver<Result<Submitted, ClientFailure>> {
+fn submitted_in_thread(config: ClientConfig, sent: CommitRequest, heard: Sender<()>) -> Receiver<Result<Submitted, ClientFailure>> {
     let (done, result) = channel();
-    let config: ClientConfig = config(name);
     std::thread::spawn(move || {
         let _sent = done.send(submit(&config, &sent, &mut Heard(heard)));
     });
     return result;
 }
 
-/// A landing that waits for a foreign holder of one repository's index lock does not hold back the landing in another
-///  repository, and lands itself, in its turn, once the holder is gone.
+/// A landing that waits for a foreign holder of one worktree's index lock does not delay the landing in another worktree of
+///  the same repository, and lands itself, in its turn, once the holder is gone.
 #[test]
-fn a_landing_waiting_for_a_foreign_index_lock_does_not_hold_back_another_repository() {
-    let fixture: Fixture = fixture("service-lanes");
-    let waiting_repo: PathBuf = repository(&fixture, OsStr::new("waiting"));
-    let free_repo: PathBuf = repository(&fixture, OsStr::new("free"));
-    for repo in [&waiting_repo, &free_repo] {
-        git(&fixture, repo, &["config", "maintenance.autoDetach", "false"]);
-    }
-    let name: String = format!("service-lanes-{}", std::process::id());
-    let _service: Held = start(&fixture, name.as_str());
-    let began: Instant = Instant::now();
-    while !SocketAddr::from_abstract_name(name.as_bytes()).and_then(|socket| { return UnixStream::connect_addr(&socket); }).is_ok() {
-        assert!(began.elapsed() < PATIENCE, "the service never listened");
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    // A program other than the service holds the waiting repository's index lock.
-    let lock: PathBuf = waiting_repo.join(".git/index.lock");
+fn a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree() {
+    let fixture: Fixture = fixture("service-worktrees");
+    let trees: Worktrees = worktrees(&fixture);
+    let name: String = format!("wt-{}", std::process::id());
+    let services: Services = start(&fixture, name.as_str(), &trees);
+    // A program other than the service holds the main worktree's index lock.
+    let lock: PathBuf = trees.main_git_dir.join("index.lock");
     std::fs::write(&lock, b"").expect("the foreign lock");
     let (heard, waiting_notice) = channel();
-    let waiting: Receiver<Result<Submitted, ClientFailure>> =
-        submitted_in_thread(name.as_str(), request(&fixture, &waiting_repo, "waiting", "waiting.txt", "w\n"), heard);
+    let waiting = submitted_in_thread(
+        config(services.runtime.as_path(), trees.main_git_dir.as_path()),
+        request(&fixture, &trees.main, &trees.main_git_dir, "main", "waiting", "waiting.txt"),
+        heard,
+    );
     // The landing says that it waits when it can name the holder; when it cannot, a pause is enough for the request to arrive.
     let _heard = waiting_notice.recv_timeout(ARRIVAL_PAUSE);
     let (silent, _unheard) = channel();
     let started: Instant = Instant::now();
-    let free: Receiver<Result<Submitted, ClientFailure>> = submitted_in_thread(name.as_str(), request(&fixture, &free_repo, "free", "free.txt", "f\n"), silent);
-    let landed = free.recv_timeout(FREE_REPOSITORY_BOUND);
+    let free = submitted_in_thread(
+        config(services.runtime.as_path(), trees.linked_git_dir.as_path()),
+        request(&fixture, &trees.linked, &trees.linked_git_dir, "linked", "free", "free.txt"),
+        silent,
+    );
+    let landed = free.recv_timeout(FREE_WORKTREE_BOUND);
     // Whatever happened, the holder goes away so that nothing outlives the control.
     std::fs::remove_file(&lock).expect("the foreign holder lets go");
-    let answer = landed.expect("the other repository's landing was held back by the wait");
+    let answer = landed.expect("the other worktree's landing was held back by the wait");
     assert!(matches!(answer, Ok(Submitted::Landed { .. })), "{answer:?}");
-    assert!(started.elapsed() < FREE_REPOSITORY_BOUND);
+    assert!(started.elapsed() < FREE_WORKTREE_BOUND);
     let finally = waiting.recv_timeout(PATIENCE).expect("the waiting landing ends once the holder is gone");
     assert!(matches!(finally, Ok(Submitted::Landed { .. })), "{finally:?}");
+    drop(services);
+    super::commit::remove_settled(&fixture);
+}
+
+/// A request for one worktree that reaches another worktree's socket is refused, and nothing moves in either worktree.
+#[test]
+fn a_service_refuses_a_request_for_another_worktree() {
+    let fixture: Fixture = fixture("service-worktrees-refused");
+    let trees: Worktrees = worktrees(&fixture);
+    let name: String = format!("wtr-{}", std::process::id());
+    let services: Services = start(&fixture, name.as_str(), &trees);
+    let main_tip: String = super::commit::git_text(&fixture, &trees.main, &["rev-parse", "main"]).trim_end().to_string();
+    let linked_tip: String = super::commit::git_text(&fixture, &trees.linked, &["rev-parse", "linked"]).trim_end().to_string();
+    // The linked worktree's request, sent to the main worktree's service.
+    let wrong = request(&fixture, &trees.linked, &trees.linked_git_dir, "linked", "wrong-door", "wrong.txt");
+    let refused = submit(&config(services.runtime.as_path(), trees.main_git_dir.as_path()), &wrong, &mut std::io::sink());
+    assert_eq!(refused, Err(ClientFailure::Refused));
+    assert_eq!(super::commit::git_text(&fixture, &trees.main, &["rev-parse", "main"]).trim_end(), main_tip, "the main worktree's branch did not move");
+    assert_eq!(super::commit::git_text(&fixture, &trees.linked, &["rev-parse", "linked"]).trim_end(), linked_tip, "the linked worktree's branch did not move");
+    // The same request at its own worktree's service lands.
+    let right = submit(&config(services.runtime.as_path(), trees.linked_git_dir.as_path()), &wrong, &mut std::io::sink());
+    assert!(matches!(right, Ok(Submitted::Landed { .. })), "{right:?}");
+    drop(services);
     super::commit::remove_settled(&fixture);
 }

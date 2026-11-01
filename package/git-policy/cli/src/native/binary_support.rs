@@ -75,17 +75,22 @@ pub struct Fixture {
 ///  commits needs it; set once, it applies to every control of the run.
 pub const SERVICE_VARIABLE: &str = "CLI_GIT_TEST_SERVICE";
 
-/// A commit service started for one fixture, stopped with it.
+/// The commit services of one fixture, one per worktree as in production, stopped with the fixture.
 pub struct FixtureService {
-    child: Child,
-    /// The runtime directory the wrapper finds the service's socket in.
+    /// The running service of each worktree, by the worktree's own Git directory.
+    children: std::sync::Mutex<std::collections::HashMap<PathBuf, Child>>,
+    /// The runtime directory the wrapper finds the services' sockets in.
     pub runtime: PathBuf,
 }
 
 impl Drop for FixtureService {
     fn drop(&mut self) {
-        let _killed = self.child.kill();
-        let _waited = self.child.wait();
+        if let Ok(mut children) = self.children.lock() {
+            for child in children.values_mut() {
+                let _killed = child.kill();
+                let _waited = child.wait();
+            }
+        }
         let _removed = std::fs::remove_dir_all(&self.runtime);
     }
 }
@@ -97,59 +102,109 @@ const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-service");
 static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// What:
-///  Starts the commit service of a fixture: listening at the socket path the wrapper looks for under a short runtime
-///  directory, with the journal in the fixture, and killed by the kernel if the test process dies.
+///  Makes the runtime directory a fixture's services listen in; no service runs until a worktree asks for one.
 /// Why:
 ///  A socket path holds about a hundred bytes, which the fixture tree's depth does not allow, so the runtime directory is
-///  in the short agent scratch directory under the home. The parent-death signal means a control that panics or is killed
-///  leaves no service behind.
+///  in the short agent scratch directory under the home. Each service gets the parent-death signal, so a control that panics
+///  or is killed leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
-    use std::os::unix::process::CommandExt;
+    let _ = fixture;
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
-    let socket: PathBuf = runtime.join("cli-git/service.sock");
-    std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("runtime directory");
-    let mut command: Command = Command::new(SERVICE_PROGRAM);
-    command
-        .args(["--journal"])
-        .arg(fixture.root.join("journal"))
-        .arg("--path")
-        .arg(&socket)
-        .env_clear()
-        .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
-        .env("HOME", fixture.root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        // The identity the person's own configuration gives their Git, which a push that merges (a lost race) needs.
-        .env("GIT_AUTHOR_NAME", "Fixture")
-        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
-        .env("GIT_COMMITTER_NAME", "Fixture")
-        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
-    for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
-        command.env(name, value);
-    }
-    // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
-    unsafe {
-        command.pre_exec(|| {
-            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
-            return Ok(());
-        });
-    }
-    let child: Child = command.spawn().expect("the fixture's commit service starts");
-    let service: FixtureService = FixtureService { child, runtime };
-    let began: std::time::Instant = std::time::Instant::now();
-    while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-    return service;
+    std::fs::create_dir_all(runtime.join("cli-git")).expect("runtime directory");
+    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
-/// The runtime directory of the fixture's service, started on first use; nothing unless the run asked for services.
+impl FixtureService {
+    /// What:
+    ///  Starts the service of the worktree whose own Git directory is `git_dir`, listening at the socket the wrapper looks for,
+    ///  unless it already runs.
+    /// Why:
+    ///   In production the manager starts one instance per worktree on its first connection; the fixture has no manager, so
+    ///  it starts the instance itself and waits until it listens.
+    pub fn serve(&self, fixture: &Fixture, git_dir: &Path) {
+        use std::os::unix::process::CommandExt;
+        let key: PathBuf = std::fs::canonicalize(git_dir).unwrap_or_else(|_| { return git_dir.to_path_buf(); });
+        let mut children = self.children.lock().expect("the fixture's services");
+        if children.contains_key(&key) {
+            return;
+        }
+        let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
+        let mut command: Command = Command::new(SERVICE_PROGRAM);
+        command
+            .args(["--journal"])
+            .arg(fixture.root.join("journal"))
+            .arg("--path")
+            .arg(&socket)
+            .arg("--instance")
+            .arg(git_policy_cli::service_instance::instance_of(key.as_path()))
+            .env_clear()
+            .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
+            .env("HOME", fixture.root.join("home"))
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+            // The identity the person's own configuration gives their Git, which a push that merges (a lost race) needs.
+            .env("GIT_AUTHOR_NAME", "Fixture")
+            .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+            .env("GIT_COMMITTER_NAME", "Fixture")
+            .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit());
+        for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
+            command.env(name, value);
+        }
+        // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
+        unsafe {
+            command.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+                return Ok(());
+            });
+        }
+        let child: Child = command.spawn().expect("the fixture's commit service starts");
+        children.insert(key, child);
+        let began: std::time::Instant = std::time::Instant::now();
+        while std::os::unix::net::UnixStream::connect(&socket).is_err() {
+            assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    /// Starts the service of every worktree under the fixture root that has none yet: the repositories and the linked
+    ///  worktrees a control made, found as Git finds them.
+    pub fn serve_worktrees(&self, fixture: &Fixture) {
+        for git_dir in worktree_git_dirs(fixture.root.as_path(), 4) {
+            self.serve(fixture, git_dir.as_path());
+        }
+    }
+}
+
+/// The own Git directories of the worktrees under `directory`, down to `depth` levels: a `.git` directory is its worktree's
+///  Git directory, and a `.git` file names a linked worktree's. Bare repositories have no worktree and are not listed.
+pub fn worktree_git_dirs(directory: &Path, depth: usize) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let Ok(entries) = std::fs::read_dir(directory) else { return found };
+    for entry in entries.flatten() {
+        let path: PathBuf = entry.path();
+        let name = entry.file_name();
+        if name == ".git" {
+            if path.is_dir() {
+                found.push(path);
+            } else if let Ok(text) = std::fs::read_to_string(&path)
+                && let Some(target) = text.lines().find_map(|line| { return line.strip_prefix("gitdir: "); })
+            {
+                found.push(directory.join(target));
+            }
+        } else if depth > 0 && name != "node_modules" && path.is_dir() && !path.is_symlink() {
+            found.extend(worktree_git_dirs(path.as_path(), depth - 1));
+        }
+    }
+    return found;
+}
+
+/// The runtime directory of the fixture's services, with a service running for every worktree of the fixture; nothing unless
+///  the run asked for services.
 fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
         return None;
@@ -158,7 +213,9 @@ fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
     if service.is_none() {
         *service = Some(start_fixture_service(fixture));
     }
-    return service.as_ref().map(|started| { return started.runtime.clone(); });
+    let started = service.as_ref()?;
+    started.serve_worktrees(fixture);
+    return Some(started.runtime.clone());
 }
 
 /// A pipe whose two ends are closed on `exec`: `[read end, write end]`.

@@ -57,8 +57,8 @@ pub trait WorkHandlers {
 }
 
 /// The work directory of a repository.
-pub fn work_directory(common_dir: &Path) -> PathBuf {
-    return common_dir.join(WORK_DIRECTORY);
+pub fn work_directory(git_dir: &Path) -> PathBuf {
+    return git_dir.join(WORK_DIRECTORY);
 }
 
 /// What:
@@ -69,12 +69,12 @@ pub fn work_directory(common_dir: &Path) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// isAcceptable(item, commonDir)
+/// isAcceptable(item, gitDir)
 /// ```
-pub fn is_acceptable(item: &WorkItem, common_dir: &Path) -> bool {
+pub fn is_acceptable(item: &WorkItem, git_dir: &Path) -> bool {
     return Path::new(item.repository.as_str()).is_absolute()
         && Path::new(item.repository.as_str()).is_dir()
-        && Path::new(item.git_dir.as_str()) == common_dir
+        && Path::new(item.git_dir.as_str()) == git_dir
         && item.branch_ref.starts_with("refs/")
         && !item.branch_ref.contains(['\0', '\n', ' '])
         && item.oid.len() >= 40
@@ -98,10 +98,10 @@ fn settle_all(work_dir: &Path, claimed: &[super::work_item::Claimed], state: &st
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await drain(commonDir, handlers, new Date())
+/// await drain(gitDir, handlers, new Date())
 /// ```
-pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
-    let work_dir: PathBuf = work_directory(common_dir);
+pub fn drain(git_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
+    let work_dir: PathBuf = work_directory(git_dir);
     // This thread claims nothing before this line, and the manager runs one service at a time, so a claim found here was
     //  left by a service that died or was asked to retire in the middle of a push. Waiting out a lease would leave its work
     //  stranded for the lease's length; each such death costs the item one try.
@@ -121,7 +121,7 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
         if claimed.is_empty() {
             return;
         }
-        let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, common_dir); });
+        let (acceptable, refused): (Vec<_>, Vec<_>) = claimed.into_iter().partition(|item| { return is_acceptable(&item.item, git_dir); });
         settle_all(work_dir.as_path(), &refused, FAILED);
         let (pushes, rest): (Vec<_>, Vec<_>) = acceptable.into_iter().partition(|item| { return item.item.kind == WorkKind::Push; });
         let (reviews, upkeep): (Vec<_>, Vec<_>) = rest.into_iter().partition(|item| { return item.item.kind == WorkKind::Review; });
@@ -140,14 +140,14 @@ pub fn drain(common_dir: &Path, handlers: &dyn WorkHandlers, now: SystemTime) {
                     // A push of the branch went through, so an earlier failure to push it is no longer true. The records go
                     //  before the items settle: a service that dies between the two pushes again, and nothing is lost.
                     if let Some(newest) = members.last() {
-                        clear_push_failures(common_dir, newest.item.branch_ref.as_str());
+                        clear_push_failures(git_dir, newest.item.branch_ref.as_str());
                     }
                     settle_all(work_dir.as_path(), &members, DONE);
                 }
                 Verdict::Failed(text) => {
                     // The record goes before the items settle, so an item in `failed` always has its record.
                     if let Some(newest) = members.last()
-                        && let Err(reason) = record_push_failure(common_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
+                        && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
                     {
                         eprintln!("cli-git-service: the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
@@ -237,17 +237,17 @@ impl GitHandlers {
     }
 
     /// Keep the credential for the reviews of this repository until `forget_review_key`.
-    pub fn remember_review_key(&self, common_dir: &Path, key: ReviewKey) {
-        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(common_dir.to_path_buf(), key);
+    pub fn remember_review_key(&self, git_dir: &Path, key: ReviewKey) {
+        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(git_dir.to_path_buf(), key);
     }
 
     /// Drop the credential of this repository.
-    pub fn forget_review_key(&self, common_dir: &Path) {
-        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(common_dir);
+    pub fn forget_review_key(&self, git_dir: &Path) {
+        self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(git_dir);
     }
 
-    fn review_key_of(&self, common_dir: &Path) -> Option<ReviewKey> {
-        return self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(common_dir).cloned();
+    fn review_key_of(&self, git_dir: &Path) -> Option<ReviewKey> {
+        return self.review_keys.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(git_dir).cloned();
     }
 
     fn push_git(&self, item: &WorkItem) -> PushGit {

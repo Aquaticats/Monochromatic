@@ -35,6 +35,7 @@ fn request(world: &World, id: &str, path: &str, content: &str) -> CommitRequest 
         id: String::from(id),
         repository: world.repo.clone(),
         common_dir: world.repo.join(".git"),
+        git_dir: world.repo.join(".git"),
         reference: String::from("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
         changes: vec![Change { path: String::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
@@ -561,6 +562,7 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
             reference: String::from("refs/heads/wt"),
             base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
             changes: vec![Change { path: format!("{id}.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+            git_dir: git_dir.clone(),
             index: git_dir.join("index"),
             ..request(&world, id, "unused.txt", "x\n")
         };

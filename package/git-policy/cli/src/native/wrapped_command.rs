@@ -434,8 +434,9 @@ fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocation, checks:
     if is_machine_read(command_word(stripped), command_region(stripped)) {
         return;
     }
-    let Some(common_dir) = checks.facts.known_common_dir() else { return };
-    for text in take_push_failures(common_dir.as_path()) {
+    // The records are the worktree's own, so a notice shows in the worktree whose push failed.
+    let Some(git_dir) = checks.facts.known_git_dir() else { return };
+    for text in take_push_failures(git_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{text}");
     }

@@ -52,7 +52,7 @@ use super::rule_commit_sequencer::{
 /// The transaction Git context.
 use super::transaction_git::GitContext;
 /// The common directory of a location's identity.
-use super::worktree_identity::common_directory;
+use super::worktree_identity::{common_directory, git_directory};
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 ///  Sibling
@@ -121,6 +121,12 @@ pub trait RepositoryFacts {
     fn known_common_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
         return asked.and_then(Result::ok).and_then(|found| { return common_directory(&found.identity).map(Path::to_path_buf); });
+    }
+    /// The invocation's own Git directory (the worktree's, which holds its work records and notices) when it is known without
+    ///  starting Git. A provider that has no location answers nothing.
+    fn known_git_dir(&mut self) -> Option<PathBuf> {
+        let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
+        return asked.and_then(Result::ok).and_then(|found| { return git_directory(&found.identity).map(Path::to_path_buf); });
     }
     /// Real Git,
     ///  the child environment and the invocation's global options,
@@ -369,6 +375,13 @@ impl RepositoryFacts for GitFacts {
         }
         // A plain layout is read from the file system; a layout the reader declines is not worth a Git process here.
         return self.layout().map(|found| { return found.common_dir.clone(); });
+    }
+
+    fn known_git_dir(&mut self) -> Option<PathBuf> {
+        if let Some(Ok(found)) = &self.location {
+            return git_directory(&found.identity).map(Path::to_path_buf);
+        }
+        return self.layout().map(|found| { return found.git_dir.clone(); });
     }
 
     fn transaction_context(&self) -> GitContext {

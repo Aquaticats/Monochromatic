@@ -142,6 +142,9 @@ pub const RELOAD: Target = Target { destination: MANAGER_NAME, path: MANAGER_PAT
 /// `StartUnit` on the user manager.
 pub const START_UNIT: Target = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StartUnit" };
 
+/// `StopUnit` on the user manager.
+pub const STOP_UNIT: Target = Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "StopUnit" };
+
 /// `ResetFailedUnit` on the user manager.
 pub const RESET_FAILED_UNIT: Target =
     Target { destination: MANAGER_NAME, path: MANAGER_PATH, interface: MANAGER_INTERFACE, member: "ResetFailedUnit" };
@@ -407,6 +410,11 @@ impl Bus {
     /// Clears a unit's failed state and its start-rate counter, so a start is not refused as "repeated too quickly".
     pub fn reset_failed(&mut self, name: &str) -> Result<(), CallError> {
         return self.call(&RESET_FAILED_UNIT, &[name]).map(drop);
+    }
+
+    /// Stops a unit, replacing a queued job for it.
+    pub fn stop_unit(&mut self, name: &str) -> Result<(), CallError> {
+        return self.call(&STOP_UNIT, &[name, "replace"]).map(drop);
     }
 
     /// Starts a unit, replacing a queued job for it.
