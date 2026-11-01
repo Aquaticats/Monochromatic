@@ -119,6 +119,7 @@ fn the_refusal_names_the_directory_the_automatic_condition_and_the_safe_removal(
     assert!(message.contains(format!("rm -r {}", directory.display()).as_str()), "{message}");
     assert!(message.contains("Its newest entry changed 12 seconds ago."), "{message}");
     assert!(message.contains("60 minutes"), "{message}");
+    assert!(message.contains("the next guarded command recovers the directory by itself"), "{message}");
     assert!(message.contains("no cli-git or git command is running"), "{message}");
     assert!(message.contains("landing-<n>.json"), "{message}");
     assert!(!message.contains('\u{2014}') && !message.contains('\u{2013}'), "{message}");

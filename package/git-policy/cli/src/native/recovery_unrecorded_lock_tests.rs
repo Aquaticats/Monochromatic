@@ -7,10 +7,10 @@ use crate::transaction_owner::{current_transaction_owner, encode_transaction_own
 use std::time::Duration;
 
 /// The transaction the fixtures use.
-const ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
+pub(crate) const ID: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
 
 /// The process number of the dead owner.
-const DEAD: i64 = 4242;
+pub(crate) const DEAD: i64 = 4242;
 
 /// A process probe that finds no process.
 fn missing(_pid: i64) -> ProcessStart {
@@ -52,17 +52,17 @@ fn date(path: &Path, seconds: u64) {
 
 /// One worktree directory with a published transaction, an empty lock and the PID file, dated in the order a landing
 /// writes them: the owner record, then the lock, then the PID file.
-struct Scene {
+pub(crate) struct Scene {
     /// The fixture root.
-    root: PathBuf,
+    pub(crate) root: PathBuf,
     /// The transaction directory.
-    directory: PathBuf,
+    pub(crate) directory: PathBuf,
     /// The real index, which does not exist; only its lock and PID file do.
-    index: PathBuf,
+    pub(crate) index: PathBuf,
 }
 
 /// Build the scene with the dead owner `DEAD`.
-fn scene(name: &str) -> Scene {
+pub(crate) fn scene(name: &str) -> Scene {
     let root: PathBuf = fixture(name);
     let directory: PathBuf = root.join("cli-git-transactions").join(ID);
     std::fs::create_dir_all(&directory).expect("transaction");
@@ -169,42 +169,6 @@ fn an_owner_without_a_trustworthy_number_keeps_the_lock() {
     std::fs::remove_file(scene.directory.join(OWNER_FILENAME)).expect("lose the owner record");
     let lost: UnrecordedLockRelease = release(&scene, 0, missing, nobody);
     assert!(matches!(&lost, UnrecordedLockRelease::Kept(reason) if reason.contains("no PID file names")), "{lost:?}");
-    assert!(real_lock_path(scene.index.as_path()).exists());
-    remove(scene.root.as_path());
-}
-
-/// The PID file announces an owner only by its exact text.
-#[test]
-fn a_pid_file_announces_its_owner_by_exact_text() {
-    let scene: Scene = scene("unrecorded-announces");
-    assert!(announces_owner(scene.index.as_path(), DEAD));
-    assert!(!announces_owner(scene.index.as_path(), DEAD + 1));
-    assert!(!announces_owner(scene.index.as_path(), 0));
-    std::fs::write(lock_pid_path(scene.index.as_path()), format!("pid {DEAD}")).expect("no newline");
-    assert!(!announces_owner(scene.index.as_path(), DEAD));
-    std::fs::remove_file(lock_pid_path(scene.index.as_path())).expect("remove");
-    assert!(!announces_owner(scene.index.as_path(), DEAD));
-    remove(scene.root.as_path());
-}
-
-/// Without `preparing.json` the real index is the worktree's own, found from the registry's place.
-#[test]
-fn the_real_index_defaults_to_the_worktrees_own() {
-    let scene: Scene = scene("unrecorded-default-index");
-    assert_eq!(real_index_of_transaction(scene.directory.as_path()), scene.index);
-    std::fs::write(scene.directory.join(PREPARING_FILENAME), b"not a record").expect("garbage");
-    assert_eq!(real_index_of_transaction(scene.directory.as_path()), scene.index);
-    remove(scene.root.as_path());
-}
-
-/// A dead owner with no lock record and no announcing PID file progressed nowhere, and nothing is touched.
-#[test]
-fn a_transaction_that_announced_nothing_is_not_progress() {
-    let scene: Scene = scene("unrecorded-no-progress");
-    std::fs::remove_file(lock_pid_path(scene.index.as_path())).expect("remove");
-    let progressed: bool =
-        release_without_preparing(scene.root.join("objects").as_path(), scene.directory.as_path(), &[], ID, DEAD).expect("judged");
-    assert!(!progressed);
     assert!(real_lock_path(scene.index.as_path()).exists());
     remove(scene.root.as_path());
 }

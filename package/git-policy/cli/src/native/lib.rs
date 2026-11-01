@@ -812,6 +812,9 @@ pub mod ownerless_directory;
 /// The release of a real index lock that a dead wrapper's PID file announces without a lock record.
 pub mod recovery_unrecorded_lock;
 
+/// Where a dead owner's real index lock is found, and the release of the locks its surviving records prove.
+pub mod recovery_dead_owner_locks;
+
 /// Owner inspection of registry entries and the oldest-first order.
 pub mod recovery_inspect;
 

@@ -10,7 +10,7 @@
 //!  The first barrier that makes the names of the transaction directory durable is the directory sync of
 //!  `landing-1.json`, which comes before the branch moves, so the losses are reachable only at the phases before it.
 //!  The lost owner name and the lost lock record, which once left the repository stuck, are in
-//!  `binary_recovery_tearing_converge_tests.rs`.
+//!  `binary_recovery_tearing_converge_tests.rs` and `binary_recovery_tearing_lock_tests.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -100,7 +100,7 @@ pub(super) fn settle(paused: Paused) -> Outcome {
 ///  Both converge: the lost name no longer leaves `index.lock` behind, because recovery releases the lock the lock
 ///  record proves, and the never-written state has the PID file of the dead owner to release the lock by.
 #[test]
-fn a_lost_preparing_name_equals_a_preparing_record_never_written() {
+fn a_lost_preparing_name_leaves_nothing_and_a_never_written_one_releases_the_announced_lock() {
     for phase in PHASES_BEFORE_THE_LANDING_BARRIER {
         let lost: Paused = pause_at(phase);
         let directory: PathBuf = transaction_directory(lost.repo.join(".git").as_path());

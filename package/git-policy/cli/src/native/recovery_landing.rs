@@ -43,7 +43,7 @@ use super::recovery_evidence::{
     remove_dead_pid_file,
 };
 /// The release of a dead owner's locks, with or without the record that proves the lock ours.
-use super::recovery_unrecorded_lock::{release_dead_owner_locks, release_without_preparing};
+use super::recovery_dead_owner_locks::{release_dead_owner_locks, release_without_preparing};
 /// Exact reads and existence probes.
 use super::recovery_files::{path_present, read_recovery_file, recovery_path_exists};
 /// Shadow location and removal.

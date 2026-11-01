@@ -27,7 +27,7 @@ use super::recovery_inspect::{
     InspectedEntry, NO_OWNER_PID, OwnerEvidence, inspect_registry_entry, oldest_first,
 };
 /// The real index of a transaction and the PID file that announces its dead owner.
-use super::recovery_unrecorded_lock::{announces_owner, real_index_of_transaction};
+use super::recovery_dead_owner_locks::{announces_owner, real_index_of_transaction};
 /// Dead-transaction recovery.
 use super::recovery_landing::{RecoveryAction, RecoveryPlace, recover_dead_transaction};
 /// Isolated merges that died.

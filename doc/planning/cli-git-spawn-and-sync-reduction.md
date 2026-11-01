@@ -561,7 +561,9 @@ before the barrier where the loss is reachable:
 
 Superseded by "J4 follow-up: lost names converge" below: the `preparing.json`, `index-lock-1.json` and `owner.json`
 bullets and the paragraph after them describe the state when the syncs were dropped, before recovery learned to converge
-on them.
+on them. The tests `a_lost_index_lock_name_equals_a_lock_record_never_written` and
+`a_lost_owner_name_pins_the_known_gap_of_a_stuck_repository_naming_the_directory` no longer exist (replaced by the
+controls below), and `a_lost_preparing_name_equals_a_preparing_record_never_written` was renamed.
 
 The "leaves `index.lock`" outcome of the first two bullets does not converge either, and the exposure grew. The wrapper
 cannot prove the lock is its own, so `git status` works but every commit waits `indexLock.unprovenOwnerTimeoutMs`,
@@ -684,13 +686,14 @@ Guards shown failing, then restored (each breaks one rule, runs the unit and bin
 
 - Rule A age check removed: three ownerless unit controls, `published_owners_must_be_valid` and the binary
   `a_lost_owner_name_stops_a_fresh_directory_and_names_the_way_out` fail.
-- Rule A use scan removed: `a_directory_in_use_is_unproven_even_when_old`, `a_live_process_inside_an_old_directory_keeps_it`
-  and the binary `a_live_process_in_an_aged_directory_keeps_the_stop_until_it_is_gone` fail.
+- Rule A use scan removed: `a_directory_in_use_is_unproven_even_when_old`,
+  `a_live_process_inside_an_old_directory_keeps_it` and the binary `a_live_process_in_an_aged_directory_keeps_the_stop_until_it_is_gone` fail.
 - Rule A abandonment turned into a refusal: `a_lost_owner_name_in_an_aged_directory_converges` fails.
 - Rule B1 disabled: `damage_at_landing_locked`, `damage_at_objects_migrated` and
-  `a_lost_preparing_name_equals_a_preparing_record_never_written` fail.
+  `a_lost_preparing_name_leaves_nothing_and_a_never_written_one_releases_the_announced_lock` fail.
 - Rule B2 disabled: seven binary controls fail (`damage_at_landing_locked`, `damage_at_objects_migrated`,
-  `a_lost_index_lock_name_converges`, `a_lost_preparing_name_equals_a_preparing_record_never_written` and the three
+  `a_lost_index_lock_name_converges`,
+  `a_lost_preparing_name_leaves_nothing_and_a_never_written_one_releases_the_announced_lock` and the three
   keep-the-lock controls, which then find nothing to keep).
 - Rule B2 without the process table check: the "no process table" case of
   `a_missing_proof_keeps_the_lock_and_names_the_proof` fails.
@@ -699,10 +702,28 @@ Guards shown failing, then restored (each breaks one rule, runs the unit and bin
 - Rule B2 without the date order: `a_lock_newer_than_the_pid_file_keeps_it` and the unit case fail.
 - Rule B2 without the PID file match: the unknown-origin binary control and two unit cases fail.
 
-Not run: the container gate, the Windows clippy target, and a real power loss. The recovery order for an abandoned
-directory (after every attributed one) and a `.pending` staging candidate whose owner name was lost (still kept in
-place, which makes guarded commands wait for a transaction that may be live) are not changed here; the second is the
-same family of state and is recorded as open.
+Open value call for the owner: rule A waits sixty minutes of quiet (`FOREIGN_OWNER_PATIENCE`, reused so one constant
+serves both cases), so a fresh ownerless directory stops every guarded command for up to an hour, with the message
+above naming the manual way out. A shorter bound (for example tied to `CLI_GIT_LOCK_WAIT_SECONDS`, 30 minutes by
+default) converges sooner and widens the window in which a live wrapper whose `owner.json` was removed by hand and that
+sat idle without a file open could lose its directory; the choice trades convergence time against that window.
+
+Remaining stuck states, none hidden:
+
+- Rule B2 refuses when any process carries the dead owner's number, because only the existence of the number is
+  checked, not a start time (the PID file holds none). On a busy host the number can be reused soon; the lock then
+  stays until it is removed by hand with the command the message names.
+- A lock of unknown origin (see the limits above).
+- A `.pending` staging candidate whose `owner.json` name was lost is kept in place and reported as live
+  (`StagingUnattributed`). This is not a stuck case: `Gate::Live` is not a refusal at any of its call sites
+  (`wrapped_command.rs`, `index_writer_coordination.rs`, `management.rs`), which all continue on `Clear | Live`.
+- The recovery order for an abandoned directory (after every attributed one, its creation time being unknown).
+
+Not run: the container gate, the Windows clippy target, and a real power loss. In the full host suites the unit test
+`markdown_linter::tests::the_real_linter_meets_the_contract` and the binary
+`markdown::the_real_linter_rewrites_through_add_check_and_fix` fail because `GIT_POLICY_NATIVE_TEST_LINTER` is unset (the
+gate image sets it), and `fault_remote::an_auto_push_with_a_git_lfs_that_never_exits_is_stopped_with_everything_it_started`
+failed once under load and passed on its own; every other test passed (2375 of 2376 unit, 349 of 351 binary).
 
 ## Results of the hook-entry and configuration-snapshot slices
 

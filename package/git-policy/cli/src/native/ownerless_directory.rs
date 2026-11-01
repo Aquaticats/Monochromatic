@@ -199,9 +199,9 @@ pub fn ownerless_refusal(directory: &Path, reason: &str) -> RecoveryError {
     return RecoveryError(format!(
         "Transaction owner record is missing: {dir}. A published transaction directory names the cli-git process that \
          runs it in `owner.json`, so cli-git cannot tell whether that process is still running, and every guarded \
-         command stops (exit 2) until this directory is dealt with. {reason}. cli-git recovers the directory by \
-         itself, with no action from you, once nothing in it has changed for {minutes} minutes and no process has a \
-         file or working directory in it. To continue sooner, first confirm that no cli-git or git command is running \
+         command stops (exit 2) until this directory is dealt with. {reason}. Once nothing in it has changed for \
+         {minutes} minutes and no process has a file or working directory in it, the next guarded command recovers \
+         the directory by itself, with no action from you. To continue sooner, first confirm that no cli-git or git command is running \
          in this repository (for example with `ps`), then remove the directory with `rm -r {dir}`. Remove it by hand \
          only when it holds no `landing-<n>.json` record: with one, the commit may already have moved the branch, and \
          removing the directory skips the index installation that cli-git's own recovery performs, so wait for the \
