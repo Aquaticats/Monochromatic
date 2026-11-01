@@ -1441,7 +1441,20 @@ each finished branch is reviewed and merged into `main`):
   rebuild on the new head when none changed,
   refuse loudly when one did.
   Re-dispatch 0.6.1 after that merges.
-  Queued:
+  The fix merged as `7aaa29a740`
+  (watched paths include the `cargo metadata --locked` closure,
+  for forbidden-strings `package/forbidden-strings/core`,
+  `package/git-policy/cli`
+  and `package/jsonc-edit/core-rust`;
+  up to 6 sends;
+  a dry run skips the push step, so only a real run tests it).
+  Real run 2:
+  `41306407444`,
+  watched with `release:wait`.
+  The git-wrapper session (`monochromatic-8c`) was told the fix is on `main`;
+  queued:
+  send it the result of run `41306407444`.
+  Earlier queue item, done:
   when the retry-onto-new-head fix is on `main`,
   message the git-wrapper session (`monochromatic-8c`).
   It will release the wrapper through `crate-release.yml` then,
