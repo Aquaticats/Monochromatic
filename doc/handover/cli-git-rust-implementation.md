@@ -4941,3 +4941,15 @@ This block supersedes "State at 2026-10-29 (night, later)".
   files; release order is library crate first, then the wrapper, then lock update.
 - Not decided: where the exit-2 notice for an `off` selected policy should sit relative to the four existing optional
   policies (it changes their direct-run behavior too); recorded here so the choice is made once, with the policy work.
+
+### `mono/catalog-specifiers`: build started
+
+- `monochromatic-c0` published `monochromatic-catalog-specifier` 0.1.0 (crates.io; source `package/catalog-specifier/core-rust`;
+  API `check_manifest(path, bytes) -> Vec<Finding>`). Step 3 of its confirmed order is mine.
+- An agent builds the policy in a worktree (brief quotes the requirements with their sources: id, default `error`, no
+  options, rule via the library, findings for tracked `package.json5`/`package.yaml`/`package.yml`, inline exact pin
+  `=0.1.0` with path, not activated in `cli-git.config.jsonc`, old configs keep working, test against the repository's
+  current config; my choices `off_unless_listed: true` and exit 2 for a direct `--policy` run on an `off` policy). It must
+  also make the container build see the new path dependency. Next: review its report, merge, container gate, mutation
+  campaign over the new files, then release (library already published), then lock update through the new toolchain verbs,
+  which the user decides (`toolchain:update`), then c0 activates `error` and lands CI.
