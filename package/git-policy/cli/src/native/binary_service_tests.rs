@@ -372,3 +372,37 @@ fn a_newer_service_leaves_the_user_a_plain_instruction() {
     git(&fixture, &repo, &["status", "--short"]);
     remove_settled(&fixture);
 }
+
+/// The service is killed at an arbitrary moment while many clients are in flight; it is started again and every client
+///  is answered, each commit on the branch exactly once, with a clean index and a clean `fsck`.
+#[test]
+fn a_service_killed_at_arbitrary_moments_under_load_loses_and_duplicates_nothing() {
+    let delays_ms: [u64; 4] = [1, 5, 12, 25];
+    for (round, delay) in delays_ms.into_iter().enumerate() {
+        let fixture: Fixture = fixture(format!("service-random-kill-{round}").as_str());
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        let name: String = address(&fixture, "random");
+        let mut doomed: Service = start_service(&fixture, name.as_str(), None);
+        wait_until_reachable(name.as_str());
+        let clients: usize = 16;
+        let requests: Vec<CommitRequest> = (0..clients).map(|n| { return request(&fixture, &repo, format!("r{n}").as_str(), format!("f{n}.txt").as_str(), "x\n"); }).collect();
+        let handles: Vec<_> = requests.into_iter().map(|sent| {
+            let client: ClientConfig = config(name.as_str());
+            return std::thread::spawn(move || { return submit_quietly(&client, &sent); });
+        }).collect();
+        std::thread::sleep(Duration::from_millis(delay));
+        let _killed = doomed.child.kill();
+        let _waited = doomed.child.wait();
+        let restarted: Service = start_service(&fixture, name.as_str(), None);
+        for (n, handle) in handles.into_iter().enumerate() {
+            let answered = handle.join().expect("client thread").expect("answered after the restart");
+            assert!(matches!(answered, Submitted::Landed { .. }), "client {n} after a kill at {delay} ms: {answered:?}");
+        }
+        for n in 0..clients {
+            assert_eq!(count_of(&fixture, &repo, format!("message of r{n}").as_str()), 1, "client {n}, kill at {delay} ms");
+        }
+        assert_healthy(&fixture, &repo, "random kill");
+        stop(restarted);
+        remove_settled(&fixture);
+    }
+}

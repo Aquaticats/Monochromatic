@@ -10,6 +10,7 @@ repository = "https://github.com/Aquaticats/Monochromatic.git"
 include = [
   "src/native/**/*.rs",
   "src/native/dependent_version_fixtures/*.json",
+  "src/native/service_units/*",
   "src/native/index_lock_restart_manager.ps1",
   "/Cargo.toml",
   "/Cargo.lock",
