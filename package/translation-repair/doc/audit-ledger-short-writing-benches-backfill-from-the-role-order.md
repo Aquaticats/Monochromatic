@@ -302,7 +302,15 @@ and the full `test:unit` of `corpus-pass` found 11 cases in 5 files for the same
 and the new chunk-line words.
 `bench` passed unchanged (143 pass lines and no failure line).
 The oxlint run of `run` found 19 warnings and 4 errors in the new code
-(`cc1783a0e8`).
+(`cc1783a0e8`),
+and that of `corpus-pass` 4 warnings (`e5b7538512`).
+The whole source-scan suite found 4 scans' findings on the docs commit (fixed in `b48353727a`):
+an import nothing read,
+an exported type no other file imports,
+7 TSDoc descriptions opening with an article,
+and a poll bound in a test that the real-clock list does not hold.
+Each was fixed in code,
+with nothing added to a list.
 
 ## B1290: a static list beside a derived seating
 
@@ -324,6 +332,13 @@ Slips:
   a few `sed` edits ran without the keyless wrapper,
   and `tail` read the end of a type-check log.
   No key was read or printed.
+- The whole source-scan suite ran twice,
+  not once:
+  the first run found the 4 scans' findings above,
+  and the second ran on the commit that fixed them.
+- The message of `b48353727a` says 5 scans where the log shows 4 failing scans (8 failure lines,
+  2 for each).
+  It was not amended.
 - A test run was started on a hook that never ends
   (a hold that did not end,
   so the reading waited again and again)
