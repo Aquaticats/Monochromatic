@@ -1122,6 +1122,23 @@ await describe({
           },
         },),
         it({
+          name: 'refuses the mpm-shadow on PATH when it is older than the lock on a platform with no archive row, and runs nothing',
+          fn: async () => {
+            using directory = makeDirectory();
+            const { root, pathDirectory, dataHome, } = makeRepository({
+              directory: directory.path,
+              options: { url: 'http://127.0.0.1:1/none', sha256: 'unused', row: false, staleLink: true, },
+            },);
+
+            const run = await runEntry({ root, pathDirectory, dataHome, args: ['list',], environment: { PATH_STUB_VERSION: STALE_VERSION, }, },);
+
+            expect(run.exitCode,).toBe(1,);
+            expect(run.stdout,).toBe('',);
+            expect(run.stderr,).toContain(`the mpm-shadow on PATH is ${STALE_VERSION}, older than the lock's ${LOCKED_VERSION}, which never runs`,);
+            expect(run.stderr,).not.toContain('\n    at ',);
+          },
+        },),
+        it({
           name: 'fails with one line when the lock has no mpm-shadow tool',
           fn: async () => {
             using directory = makeDirectory();
