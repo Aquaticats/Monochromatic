@@ -6713,3 +6713,19 @@ This block supersedes "State at 2026-10-29 (night, later)".
   keeps the `Landed` arm's printing; `aadfd3e728b38325b` was told to keep clear of the retry block in `service_land.rs`.
 - Confirmed: the diagnosis captured the `add` exit 128 stderr, "fatal: Unable to create '.../.git/index.lock': File
   exists", while a landing held the lock; the queued client-side fix stands.
+
+### 2026-11-01: worktree creation should be cheap on btrfs (owner intent)
+
+- My `git branch` and `git switch --create` were refused by `branch-worktree-only` (in the main checkout and in a linked
+  worktree). OWNER, verbatim, about `git worktree add -b` being heavy: "yes but that's intended and I also intended for
+  this to not be so heavy because we can take advantage of btrfs." The policy stays; worktree creation must get cheap.
+- Branch `e2e-trace-diagnosis-20261101` now holds `a0126e571c`, made with `git worktree add -b` (worktree removed after).
+- Baseline of that command through 0.5.4, one run: 7.88 s wall, 1.05 s user, 1.22 s sys, 20546 files; the worktree was
+  803.66 MiB with 803.65 MiB exclusive and 8 KiB shared (`btrfs filesystem du --summarize`). `.claude/worktrees/` holds
+  85 worktrees. The filesystem is btrfs on LUKS; `/var/home` is the subvolume (inode 256) and the repository root is an
+  ordinary directory (inode 2595895). Ignored files are already reflinked (`worktree_copy_stage.rs`); tracked files are
+  written by real Git's checkout.
+- Task #80: research agent `abc58339444bd7c9d` measures today's checkout, `--no-checkout` plus reflinking clean
+  tracked files from a source worktree, and a subvolume snapshot (plus what migrating the main checkout to a subvolume
+  takes), and writes `doc/planning/cli-git-btrfs-worktree.md`. Next: ask the owner the decisions it names, then
+  implement.
