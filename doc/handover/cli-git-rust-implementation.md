@@ -6127,3 +6127,10 @@ This block supersedes "State at 2026-10-29 (night, later)".
   service, appends to the audit file without clobbering the other session's uncommitted edits, and removes the old
   hook config, the `shadow-review` task and the runbook trigger. It must not edit the provisioning files `a6e` is
   changing.
+- Misattributed commit: the handover entry starting "Wrapper-store review fixes READY `378e1b6c71`" (26 lines) is in
+  merge commit `f0589a5f42` ("feat(wg): merge the wg-quicker restart-incident fixes..."), which another session made in
+  the shared main checkout. Cause: I ran `git add` on the handover, and my `git commit -- <path>` was then refused
+  because their merge was in progress with unmerged paths. The staged file stayed in the index, and their merge commit
+  took it. The content is intact and correct; only the commit message omits it. Per rule GCA, never amend: once pushes
+  work again, post a GitHub commit comment on `f0589a5f42` naming the handover lines as mine. My fix: commit tracked
+  files with `git commit -- <paths>` alone, never with a separate `git add` first.
