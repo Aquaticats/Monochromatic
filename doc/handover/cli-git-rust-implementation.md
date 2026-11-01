@@ -7022,3 +7022,35 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Migration timing: after gate 20, the 0.5.6 release and the bump, with the service agent paused. 87 processes have a
   working directory inside the checkout, among them the owner's ghostty shell (`bash --posix`) and `brh rebase testing`;
   that shell needs `cd "$PWD"` after the exchange.
+
+## 2026-11-01: owner answers on mount options, migration tool and timing; per-worktree service READY
+
+- OWNER chose "Kernel arg (Recommended)": after the bazzite:testing rebase finishes, the owner runs
+  `sudo rpm-ostree kargs --editor` and changes `rootflags=subvol=root` to
+  `rootflags=subvol=root,compress=zstd:1,user_subvol_rm_allowed`; it applies from the next boot. The owner runs it, not
+  an agent (the option said "you run"). `rpm-ostree kargs --help` lists `--replace=KEY=VALUE=NEWVALUE`, which is
+  ambiguous with `=` inside the value, hence the editor.
+- OWNER chose "Wrapper subcommand (Recommended)": the migration becomes a wrapper subcommand done in-process (btrfs
+  ioctls, FICLONE, own tree walk, renameat2 exchange, index stat rewrite, journal, refusals; nothing spawned), and the
+  doctor prints that one command. The name `git cli-git migrate-to-subvolume` is my suggestion, revisable.
+- OWNER chose "After 0.5.6 (Recommended)": I run the proven script on the real checkout after the 0.5.6 release and
+  bump, with my agents paused, dry run first, old tree kept until `git fsck` and commits pass; the owner then runs
+  `cd "$PWD"` in shells inside the checkout.
+- Per-worktree service READY from agent `aadfd3e728b38325b`: head `a1038d28f6` on `worktree-agent-aadfd3e728b38325b`,
+  containing `origin/main` at `adae0adfdf` but not the 0.5.6 code (`877bdab090`). Instance name: 128-bit FNV-1a of the
+  real path of the worktree's own Git directory; template units `cli-git@.socket` and `cli-git@.service`, socket
+  `%t/cli-git/%i.sock`; the service refuses requests for another worktree; work records in `<git dir>/cli-git/work`;
+  temporary ref `refs/worktree/cli-git-service/<seq>`; notices in `<git dir>/cli-git/notices`; upgrade retires the
+  per-user 0.5.5 service and returns its claims to `pending`. Also fixed: client SIGKILL scratch directory (service
+  owns it, released when the client's connection closes), immediate requeue of claims left by a dead service, branch
+  switch during a held commit (`BranchMoved`, message kept), stale socket on `bind --path`, the landing prune gap
+  (`Unavailable` before any import), `push_once` retries a locked tracking ref; `reservation-after-lost-races` retired as
+  machinery slated for deletion. Suites on its head: binary 454 of 454, e2e ten scenarios pass, clippy clean; lib 2780
+  of 2788 with 8 failures that it says also fail at its base under `CLI_GIT_TEST_ROOT` in `~/temp` (three
+  `lfs_object_plan`, four `repo_read_hook`, `repository_facts::queries_are_lazy_and_the_location_is_asked_once`); the
+  0.5.6 integrator saw 2809 of 2809 lib tests pass on the default root, so these are host-layout dependent and queued
+  for diagnosis (pre-existing issue in a package I own).
+  Limits it names: a first-ever commit has no service to hand the scratch directory to; 0.5.5 work records of linked
+  worktrees drain only when the main worktree's instance wakes; the ignored real-0.5.4 upgrade test was not run.
+- Next: gate 20, merge 0.5.6, release, bump, migrate; in parallel an integrator merges `a1038d28f6` onto `877bdab090`
+  for 0.5.7, a cross-vendor review of the per-worktree diff, the subcommand agent, the host-layout lib failures.
