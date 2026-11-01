@@ -19,7 +19,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { pageThatParses, } from '../../dist/final/node/index.mjs';
+import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure';
+import {
+  FallbackPageRefusedError,
+  pageThatParses,
+  refuseFallbackPage,
+} from '../../dist/final/node/index.mjs';
 import {
   refusingNope,
   type SourceShippedRow,
@@ -79,6 +84,28 @@ function parsingWith(
     l,
     readGrammar: refusingNope,
   },);
+}
+
+/**
+ Runs a call and answers what it threw.
+
+ @param call - call to run
+
+ @returns Thrown value, or undefined where it threw nothing
+
+ @example
+ ```ts
+ const error = thrownBy(() => { refuseFallbackPage({ parsing, policy: 'refuse', },); },);
+ ```
+ */
+function thrownBy(call: () => void,): unknown {
+  try {
+    call();
+  }
+  catch (error) {
+    return error;
+  }
+  return undefined;
 }
 
 await describe({
@@ -148,6 +175,82 @@ await describe({
           return check;
         },),).toEqual(['page-unparseable',],);
       },
+    },),
+
+    describe({
+      name: refuseFallbackPage.name,
+      concurrency: 1,
+      children: [
+        it({
+          name: 'REFUSES A PAGE THAT KEPT THE ARCHIVE under the refuse policy, naming the defect and nothing of the page',
+          fn: async () => {
+            /**
+             The error the refusal raised.
+             */
+            const error = thrownBy(() => {
+              refuseFallbackPage({
+                parsing: parsingWith({ wordings: ['The cat naps.\n\n', 'NOPE\n\n', 'The cat dines.\n\n',], },),
+                policy: 'refuse',
+              },);
+            },);
+            expect(error instanceof FallbackPageRefusedError,).toBe(true,);
+            expect(refusalText({ error, },),).toBe(
+              'the rebuilt page does not parse under the strict grammar (page-grammar-archive-kept), so the page stays '
+                + 'as it was',
+            );
+          },
+        },),
+
+        it({
+          name: 'REFUSES A PAGE THAT IS UNPARSEABLE EVEN SO under the refuse policy, naming page-unparseable',
+          fn: async () => {
+            /**
+             The error the refusal raised.
+             */
+            const error = thrownBy(() => {
+              refuseFallbackPage({
+                parsing: parsingWith({
+                  wordings: ['The cat naps.\n\n', 'NOPE\n\n', 'The cat eats.\n\n',],
+                  rows: [
+                    ROWS[0] ?? { incumbentText: '', sourceText: '', },
+                    { incumbentText: 'NOPE\n\n', sourceText: '猫醒了。\n\n', },
+                    ROWS[2] ?? { incumbentText: '', sourceText: '', },
+                  ],
+                },),
+                policy: 'refuse',
+              },);
+            },);
+            expect(error instanceof FallbackPageRefusedError,).toBe(true,);
+            expect(refusalText({ error, },),).toBe(
+              'the rebuilt page does not parse under the strict grammar (page-unparseable), so the page stays as it was',
+            );
+          },
+        },),
+
+        it({
+          name: 'LETS A FALLBACK PAGE THROUGH under the ship policy, the default of a first publish',
+          fn: async () => {
+            expect(thrownBy(() => {
+              refuseFallbackPage({
+                parsing: parsingWith({ wordings: ['The cat naps.\n\n', 'NOPE\n\n', 'The cat dines.\n\n',], },),
+                policy: 'ship',
+              },);
+            },),).toBeUndefined();
+          },
+        },),
+
+        it({
+          name: 'LETS A PAGE THAT PARSES THROUGH under the refuse policy, the control',
+          fn: async () => {
+            expect(thrownBy(() => {
+              refuseFallbackPage({
+                parsing: parsingWith({ wordings: ['The cat naps.\n\n', 'The cat wakes.\n\n', 'The cat eats.\n\n',], },),
+                policy: 'refuse',
+              },);
+            },),).toBeUndefined();
+          },
+        },),
+      ],
     },),
   ],
 },);

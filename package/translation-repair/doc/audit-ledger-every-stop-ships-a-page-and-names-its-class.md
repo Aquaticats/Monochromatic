@@ -567,6 +567,10 @@ Slips in how the work was run:
   the provider suite ran before `77e37c62f1` moved the reach readers and the exchange mark out of the router,
   and five files of it reran after,
   so the moved code is covered by its own new files and the router files and not by a second full run.
+- The `corpus-pass` suite ran before that split as well,
+  and 3 cases of `claude-schemas.unit.test.ts` were red from `77e37c62f1` on
+  (added 2026-11-01 in round w401,
+  with the cause and the fix in B1264).
 - The markdown-lint scan failed 28 times on the first run of the docs
   (a comma followed by more text on the same line),
   and a script that inserts the break at each position it names cleared them.
@@ -711,6 +715,10 @@ Every caller sorts voices of its own bench.
   where it used to refuse.
   This round did not read that function;
   the statement is the re-check's.
+  Corrected in place on 2026-11-01 (round w401,
+  `8c607fdeb3`):
+  the function was read and the finding holds,
+  and B1260 records the fix.
 
 ## B1237: the tagged-parent scan reads `l: undefined`
 

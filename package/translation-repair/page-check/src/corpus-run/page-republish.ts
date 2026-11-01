@@ -37,10 +37,21 @@ import {
 // records. A carve that does not reproduce the recorded rows is not the carve
 // the readings were decided over, and the page is left and reported.
 //
+// A PAGE THAT STANDS IS NEVER REPLACED BY A WORSE ONE (B1260). The publisher
+// ships a page the strict grammar refuses with the archive kept at the slices
+// that break it, or as composed with `page-unparseable` (B1207), so a page that
+// disagrees is rebuilt with the fallback refused: the old page stays as it was
+// and is reported (the owner, 2026-09-27). A page that is missing has none to
+// keep, so the fallback ships with its defect named, as a first publish does.
+//
 // NOTHING HERE STOPS THE PASS. Every refusal (an unreadable artifact, a moved
-// carve, a publish-time page check) leaves the page as it was and is logged by
-// class name only, since a refusal message quotes the corpus text it disagrees
-// about.
+// carve, a rebuilt page the grammar refuses over a page that stands) leaves the
+// page as it was and is logged by class name only, or by the defect names of
+// `FallbackPageRefusedError`, since a refusal message quotes the corpus text it
+// disagrees about. The content checks of the publisher do not refuse: they ship
+// their defects, as in a first publish. So do the defects the composed page
+// carries (`page-source-unparseable` among them), which `refuseFallbackPage`
+// does not read (ledger B1264).
 
 /**
  One entry's pair as it stood at a corpus commit.
@@ -304,6 +315,9 @@ async function rebuildPage(
       entryId: artifact.id,
       publishDir,
       l,
+      // A PAGE THAT STANDS IS KEPT, a missing one is not: the owner's answer of 2026-09-27 is that a page the build will
+      // not take stays as it was and is reported, and where there is no page "a run always ships" (B1260, B1262).
+      fallback: (why === 'disagreed') ? 'refuse' : 'ship',
       ...((prepared.archiveOriginalSpans === undefined)
         ? {}
         : { archiveOriginalSpans: prepared.archiveOriginalSpans, }),

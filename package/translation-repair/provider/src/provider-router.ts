@@ -496,7 +496,7 @@ export function createRoutingClient(
       const provider = await markingAfterExchange({
         // EVERY ATTEMPT BUT THE FIRST FOLLOWS A CALL that was cut or refused (B1230).
         exchanged: attempt > 0,
-        choose: chooseProvider,
+        decision: chooseProvider,
         request,
         refused: last.refused,
       },);

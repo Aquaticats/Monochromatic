@@ -222,6 +222,7 @@ Filed in:
 - [Audit ledger: XingZ6023 shipped no page](audit-ledger-xingz6023-shipped-no-page.md)
 - [Audit ledger: the stand-in order and the pages that ship](audit-ledger-stand-in-order-and-pages-that-ship.md)
 - [Audit ledger: every stop ships a page and names its class](audit-ledger-every-stop-ships-a-page-and-names-its-class.md)
+- [Audit ledger: a republish keeps the page that stands](audit-ledger-a-republish-keeps-the-page-that-stands.md)
 - [Audit ledger: the stop signal ships and the pages that stay](audit-ledger-the-stop-signal-ships-and-the-pages-that-stay.md)
 - [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md)
 - [Audit ledger: the consistency pass](audit-ledger-the-consistency-pass.md)

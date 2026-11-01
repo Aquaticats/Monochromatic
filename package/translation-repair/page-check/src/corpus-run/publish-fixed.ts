@@ -50,7 +50,11 @@ import {
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
 import { pageGuardSteps, } from './publish-page-guard-steps.ts';
-import { pageThatParses, } from './page-grammar-fallback.ts';
+import {
+  type FallbackPolicy,
+  pageThatParses,
+  refuseFallbackPage,
+} from './page-grammar-fallback.ts';
 import { fixedPagePath, } from './fixed-page-path.ts';
 import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
@@ -110,10 +114,17 @@ import {
  archive, and before anything is written or logged as shipped; false leaves the page standing at its path untouched
  (an interim page that would replace a better page, B1242). Absent means write.
 
+ @param fallback - what a page that fell back to the archive does: `ship`
+ writes it with its defect named (a first publish, since a run always ships),
+ `refuse` writes nothing, for a republish over a page that stands (B1260)
+
  @returns Path written, and what the page carries of the source's destinations
 
  @throws {@link UnansweredContestSliceError} when a slice the contest was
  obliged to decide is named nowhere in it, so no reading can say what ships
+
+ @throws {@link FallbackPageRefusedError} when `fallback` is `refuse` and the
+ composed page is refused by the strict grammar, before anything is written
 
  @example
  ```ts
@@ -133,6 +144,7 @@ export async function publishFixedPage(
     carried = [],
     readGrammar,
     mayWrite,
+    fallback = 'ship',
   }: {
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
@@ -145,6 +157,7 @@ export async function publishFixedPage(
     readonly carried?: readonly CarriedInsertion[];
     readonly readGrammar?: Parameters<typeof pageThatParses>[0]['readGrammar'];
     readonly mayWrite?: (composed: { readonly keptArchiveAt: readonly number[]; },) => boolean;
+    readonly fallback?: FallbackPolicy;
   },
 ): Promise<{
   readonly path: string;
@@ -179,6 +192,11 @@ export async function publishFixedPage(
     archiveText,
     l,
     ...((readGrammar === undefined) ? {} : { readGrammar, }),
+  },);
+  // A REPUBLISH OVER A PAGE THAT STANDS KEEPS IT when this page fell back (B1260): nothing has been written yet.
+  refuseFallbackPage({
+    parsing,
+    policy: fallback,
   },);
   /**
    The page.

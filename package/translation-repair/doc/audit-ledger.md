@@ -860,6 +860,13 @@ named for that subject and listed here.
   the scan that reads `l: undefined` (B1237),
   the minors of four earlier re-checks (B1238)
   and the reports with no history before XingZ6023 (B1239).
+- [Audit ledger: a republish keeps the page that stands](audit-ledger-a-republish-keeps-the-page-that-stands.md):
+  The fixes of round w401:
+  a republish that never replaces a page that stands with a worse one (B1260),
+  its seam (B1261),
+  the missing page that ships its fallback (B1262),
+  the cache versions (B1263)
+  and the slips with what stays open (B1264).
 - [Audit ledger: the stop signal ships and the pages that stay](audit-ledger-the-stop-signal-ships-and-the-pages-that-stay.md):
   The gaps the re-check of round w399 left in the rule that every stop ships a page,
   and the fixes of round w400:
