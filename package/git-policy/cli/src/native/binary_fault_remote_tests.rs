@@ -19,7 +19,7 @@
 //! ```
 
 use super::commit::{assert_nothing_left, git_text, keep_maintenance_in_the_foreground, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, executable, fixture, git, observe, repository, stderr_of};
+use super::support::{Fixture, Observed, close_on_exec_pipe, executable, fixture, git, observe, repository, stderr_of};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
@@ -51,10 +51,7 @@ struct Tripwire {
 impl Tripwire {
     /// A new pipe, both ends closed on `exec` so that only the copy handed to a command is inherited.
     fn new() -> Tripwire {
-        let mut ends: [libc::c_int; 2] = [0, 0];
-        // SAFETY: `pipe2` fills the two integers it is given.
-        let made: libc::c_int = unsafe { libc::pipe2(ends.as_mut_ptr(), libc::O_CLOEXEC) };
-        assert_eq!(made, 0, "pipe2 failed: {}", std::io::Error::last_os_error());
+        let ends: [libc::c_int; 2] = close_on_exec_pipe();
         // SAFETY: both descriptors were just created here and are owned by nothing else.
         let (read_end, write_end): (OwnedFd, OwnedFd) = unsafe { (OwnedFd::from_raw_fd(ends[0]), OwnedFd::from_raw_fd(ends[1])) };
         return Tripwire { read_end: File::from(read_end), write_end: Some(write_end) };
