@@ -22,6 +22,7 @@ import {
 } from './scenario-queue-fixture.ts';
 import {
   allSucceeded,
+  isReportedConflict,
   type ScenarioContext,
   type ScenarioDefinition,
 } from './scenario-model-fixture.ts';
@@ -120,7 +121,7 @@ async function editSharedLines({
  the first agent has edited its hunk and is queued,
  the second then edits its hunk and is queued behind it,
  and the service runs again.
- The first lands, and the second, which saw the branch before the first landed, prepares again from the worktree.
+ The first lands, and the second, which saw the branch before the first landed, has its captured bytes merged onto it.
 
  @param context - scenario context
 
@@ -290,17 +291,10 @@ const sharedOverlapping: ScenarioDefinition = {
       },
       {
         name: 'conflict-reported',
-        holds: failed.every(function reported(attempt,) {
-          return (attempt.outcome
-            .exitCode
-            === 1)
-            && attempt.outcome
-              .stderr
-              .includes('"type":"core-finding"',);
-        },),
+        holds: failed.every(isReportedConflict,),
         detail: failed.map(function describe(attempt,) {
           return `${attempt.label} exited ${String(attempt.outcome
-            .exitCode,)} without a core-finding: ${attempt.outcome
+            .exitCode,)} without a replay-conflict finding naming its path: ${attempt.outcome
               .stderr
               .trim()
               .split('\n',)

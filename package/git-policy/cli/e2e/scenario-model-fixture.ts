@@ -222,16 +222,83 @@ export function allSucceeded({
     name,
     holds: failed.length === 0,
     detail: failed.map(function describe(attempt,) {
+      /**
+       Git explains "nothing to commit" on its standard output, while stderr then holds only the queue notice.
+       */
+      const standardOutput = attempt.outcome
+        .stdout
+        .trim()
+        .split('\n',)
+        .slice(-2,)
+        .join(' | ',);
       return `${attempt.label} exited ${String(attempt.outcome
         .exitCode,)}: ${attempt.outcome
           .stderr
           .trim()
           .split('\n',)
           .slice(-2,)
-          .join(' | ',)}`;
+          .join(' | ',)}; stdout: ${standardOutput}`;
     },)
       .join('; ',),
   };
+}
+
+/**
+ Whether an attempt failed with the finding of a commit whose captured change overlaps what landed before it:
+ exit 1, the `concurrent-commit/replay-conflict` core finding, and one of the attempt's own paths named in it.
+
+ @param attempt - finished attempt
+
+ @returns whether the attempt ended as a reported replay conflict
+
+ @example
+ ```ts
+ isReportedConflict(attempt);
+ ```
+ */
+export function isReportedConflict(attempt: Pick<AttemptRecord, 'outcome' | 'selectedPaths'>,): boolean {
+  return (attempt.outcome
+    .exitCode
+    === 1)
+    && attempt.outcome
+      .stderr
+      .includes('"code":"concurrent-commit/replay-conflict"',)
+    && attempt.selectedPaths
+      .some(function named(path,) {
+        return attempt.outcome
+          .stderr
+          .includes(path,);
+      },);
+}
+
+/**
+ Expectation that every listed attempt landed its captured bytes merged onto the branch (exit 0)
+ or failed as a reported replay conflict, which is the accepted design's only other outcome.
+
+ @param name - expectation name
+
+ @param attempts - attempts the accepted design lets land or conflict
+
+ @returns expectation record
+
+ @example
+ ```ts
+ landedOrConflicted({ name: 'all-commits-succeed', attempts });
+ ```
+ */
+export function landedOrConflicted({
+  name,
+  attempts,
+}: Readonly<{
+  name: string;
+  attempts: readonly AttemptRecord[];
+}>,): Expectations[number] {
+  return allSucceeded({
+    name,
+    attempts: attempts.filter(function neither(attempt,) {
+      return !isReportedConflict(attempt,);
+    },),
+  },);
 }
 
 //endregion Expectation helpers

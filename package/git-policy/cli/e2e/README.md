@@ -253,6 +253,12 @@ so the default `final-newline` normalization never changes captured bytes.
 A worker that touches a path another in-flight worker selected waits until that worker's wrapper holds a socket to the service
 (`client-connection-fixture.ts`; preparation, which captures the bytes, is over by then),
 so every attempt commits exactly the bytes the harness wrote for it.
+When the service sends a commit back because a path it names changed on the branch,
+the wrapper merges the captured bytes onto the branch with the preparation base as merge base
+and never reads the worktree again,
+so a later worker's bytes cannot land under an earlier worker's message.
+Such an attempt exits `0`, or exits `1` with the `concurrent-commit/replay-conflict` finding naming its path
+(`landedOrConflicted`, `scenario-model-fixture.ts`).
 A worker that deletes or renames away a path an in-flight worker creates
 (or a path created by an in-flight worker before that one)
 waits until that worker's wrapper exited instead,
@@ -315,8 +321,11 @@ Design scenarios exercise the accepted concurrent-commit design:
   and the service resumes.
   `agents-queued-in-order` fails when either agent settled before it connected.
   Far-apart hunks must both land;
-  overlapping hunks may fail only with exit `1` and a `core-finding` event.
-  The first lands, and the second, which prepared against the branch before that, prepares again from the worktree.
+  overlapping hunks may fail only with exit `1` and the `concurrent-commit/replay-conflict` `core-finding` event
+  that names the path.
+  The first lands, and the second, which prepared against the branch before that,
+  has the bytes it captured merged onto the branch (`src/native/service_replay.rs`);
+  a write the harness makes after the second command started never appears in its commit.
 - `shared-file-adjacent-edits`:
   the first agent edits one line and is queued at a frozen service,
   the second edits the line after it, the line before it, or inserts a line right after it (seeded)
