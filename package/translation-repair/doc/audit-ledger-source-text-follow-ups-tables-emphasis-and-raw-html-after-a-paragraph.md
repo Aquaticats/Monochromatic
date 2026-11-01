@@ -11,7 +11,7 @@ and the search,
 the differentials,
 the real-corpus counts and the full task of the final code.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the source text under a note](audit-ledger-source-text.md),
 which lists every file of this record.
 The block comparison and the openers in code are in
 [their own file](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md),

@@ -26,6 +26,10 @@ each of at most 1,000 lines and named for what it holds.
 New text goes into the file whose subject it belongs to;
 a file that would pass the limit gives up a subject to a new file,
 named for that subject and listed here.
+This index is such a file too:
+a subject with many records has an index of its own that lists them,
+and this one lists that index in their place
+(the census of code no unit test runs and the follow-ups of the page grammar left it on 2026-11-01).
 
 - [Audit ledger: glossaries and Canadian forms](audit-ledger-glossaries-and-canadian-forms.md):
   Every glossary entry and Canadian-forms pass measured against the corpus,
@@ -50,72 +54,14 @@ named for that subject and listed here.
   names claiming more than they check,
   magic numbers,
   and the log every test run writes into `node_modules/.monochromatic/`.
-- [Audit ledger: code no unit test runs, method,
-  first censuses and early batches](audit-ledger-test-suite-unrun-code-method-first-censuses-and-early-batches.md):
-  How the coverage of code no unit test runs was first measured on 2026-09-28 and 2026-09-29,
-  the rule for when T8 closes and the census task that proves reach,
-  the first whole-suite censuses,
-  and the first eight batches of cases written against them,
-  ending with the page-assembly rounds error that was decided rather than tested.
-- [Audit ledger: code no unit test runs,
-  stretch queue batches one to ten](audit-ledger-test-suite-unrun-code-stretch-queue-batches-one-to-ten.md):
-  The stretch queue,
-  batches one to ten,
-  each read against a whole-suite census,
-  from the census placement module to the `corpus-run` title modules,
-  including the triage of the queue and the finding that the compressed build hid guards.
-- [Audit ledger: code no unit test runs, stretch
-  queue batches eleven to sixteen](audit-ledger-test-suite-unrun-code-stretch-queue-batches-eleven-to-sixteen.md):
-  The stretch queue,
-  batches eleven to sixteen,
-  each read against a whole-suite census,
-  from the alignment modules to the pairing modules.
-- [Audit ledger: code no unit test runs, stretch queue batches
-  seventeen to twenty-four](audit-ledger-test-suite-unrun-code-stretch-queue-batches-seventeen-to-twenty-four.md):
-  The stretch queue,
-  batches seventeen to twenty-four,
-  each read against a whole-suite census,
-  from the slice modules to the page modules.
-- [Audit ledger: code no unit test runs, agent clusters
-  and bundles before the trial](audit-ledger-test-suite-unrun-code-agent-clusters-and-bundles-before-the-trial.md):
-  The clusters of the census cut and given to agents reading one commit,
-  what review changed in each patch,
-  and the nineteen bundles whose agents stopped at a usage limit,
-  up to the hand-over to the trial model.
-- [Audit ledger: code no unit test runs, trial model
-  clusters from `group` to `coverage`](audit-ledger-test-suite-unrun-code-trial-clusters-group-through-coverage.md):
-  The trial model's first thirteen clusters of the fresh whole-suite census,
-  from `group` to `coverage`,
-  each of eight to ten stretches.
-- [Audit ledger: code no unit test runs, trial model clusters
-  from `markup` to `corpus-run/editor`](audit-ledger-test-suite-unrun-code-trial-clusters-markup-through-editor.md):
-  The trial model's clusters fourteen to forty of the fresh whole-suite census,
-  from `markup` to `corpus-run/editor`,
-  each of five to seven stretches except the last.
-- [Audit ledger: code no unit test runs, trial model clusters from `corpus-run/roster`
-  to `corpus-run/publish`](audit-ledger-test-suite-unrun-code-trial-clusters-roster-through-publish.md):
-  The trial model's clusters forty-one to sixty-nine of the fresh whole-suite census,
-  from `corpus-run/roster` to `corpus-run/publish`,
-  each of three or four stretches.
-- [Audit ledger: code no unit test runs,
-  re-verification of 2026-10-05](audit-ledger-test-suite-unrun-code-reverification-of-2026-10-05.md):
-  The correction of 2026-10-05 of eight groups the trial model had blamed on the census,
-  the verified facts about the census tools,
-  the method adopted from then on,
-  and the re-verification of the sites left open.
-- [Audit ledger: code no unit test runs, census at `65bd3a645`
-  and the runner entry files](audit-ledger-test-suite-unrun-code-census-at-65bd3a645-and-runner-entry-files.md):
-  The whole-suite census of 2026-10-06 and the library clusters cut from it,
-  the quote-loss refusal kept cold on purpose,
-  and the runner entry files moved into modules,
-  with what stayed open at the close of that passage.
-- [Audit ledger: code no unit test runs,
-  final census and what stays cold](audit-ledger-test-suite-unrun-code-final-census-and-what-stays-cold.md):
-  The final whole-suite census of 2026-10-10,
-  the two clusters cut from it,
-  the entry tails round,
-  the last census,
-  and the stretches that stay cold with the reason for each.
+- [Audit ledger: code no unit test runs](audit-ledger-test-suite-unrun-code.md):
+  The index of the records of finding T8:
+  the method and the first censuses,
+  the stretch queue,
+  the agent and trial-model clusters,
+  the re-verification of 2026-10-05,
+  the census at `65bd3a645`
+  and the final census with what stays cold.
 - [Audit ledger: page assembly and the corpus-run driver](audit-ledger-page-assembly-and-corpus-run-driver.md):
   Findings in the page-assembly passes and the driver that runs a corpus pass,
   the archive's notices that a page is unfinished and the translators' notes that decided a contest (B698),
@@ -126,76 +72,10 @@ named for that subject and listed here.
   a refinement rolled back with no line in the log (B829),
   alignment findings that reached the artifact and not the log (B830),
   and standings kept without contest endorsement that no `TALLY` field counted (B831).
-- [Audit ledger: the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md):
-  The original of an untranslated passage written as literal text from a CommonMark parse,
-  a page the grammar refuses with the original on it,
-  a page shipped without the runs no writing makes parse and how a page on disk is judged (B832),
-  and the corrections it made to A8,
-  B827,
-  B830
-  and B831.
-- [Audit ledger: the source text under a note,
-  follow-ups on parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md):
-  The holes between the plain parse and the strict grammar that followed B832,
-  the limits of that follow-up closed and the shapes a second search found,
-  the wiring tests of the page on disk,
-  the sixth round after the re-check of round 4,
-  and the seventh round,
-  the module lines from the tokenizer and the footnote reading (B832 follow-ups).
-- [Audit ledger: the source text under a note, the ninth round of follow-ups](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md):
-  Lone carriage returns as line endings,
-  the sampled live-construct check over a wider pool at one pair in four,
-  the full pass over every pair and text,
-  the walk fixture's hook in the grammar,
-  and the limits and mutants of the round (B832 follow-ups).
-- [Audit ledger: the source text under a note, the reading comparison and the real corpus](audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md):
-  The page check's comparison of the reading of the page with the reading of the source,
-  the count of real texts per residual class,
-  the fixes of the classes and the checks of the fourth round (B832 follow-ups).
-- [Audit ledger: the source text under a note, the block comparison and the openers in code](audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md):
-  The comparison decided for each top-level block,
-  the defects for a block it cannot decide and a run it cannot compare,
-  the comments that never close taken out of code and math,
-  the code spans an indent-four footnote start cuts,
-  and the pins,
-  mutants,
-  search and real-corpus counts of the fifth round (B832 follow-ups).
-- [Audit ledger: the source text under a note, tables, emphasis and raw HTML after a paragraph](audit-ledger-source-text-follow-ups-tables-emphasis-and-raw-html-after-a-paragraph.md):
-  The footnote start indented four columns after a table row,
-  in emphasis and link text and after a backslash hard break,
-  the comment openers that cut a paragraph or stand in a footnote's fence,
-  the block of raw HTML that cuts a paragraph,
-  the pins,
-  mutants,
-  differentials,
-  search and real-corpus counts of the answer to the third re-check (B832 follow-ups).
-- [Audit ledger: the source text under a note, the plain reading with tables and the containers](audit-ledger-source-text-follow-ups-the-plain-reading-with-tables-and-the-containers.md):
-  A link target decoded as far as it reads,
-  the plain reading with GFM tables and strikethrough,
-  the footnote start after a link reference definition,
-  every opener that starts a block of raw HTML,
-  the fence,
-  the display math and the openers under a footnote in a block quote or a list item,
-  the lazy lines and the raw HTML a footnote opens with,
-  the placing of the block comparison,
-  and the reds,
-  mutants,
-  differentials,
-  search,
-  real-corpus counts and residual classes of the answer to the fourth re-check (B832 follow-ups).
-- [Audit ledger: the source text under a note, the footnote readings, round 8](audit-ledger-source-text-follow-ups-the-footnote-readings-round-eight.md):
-  The image alternative text with an autolink or a code span,
-  the list marker after indented code,
-  indented display math after a line of a paragraph,
-  the footnote that opens with a tag alone,
-  the fence mark indented four columns,
-  the twenty-nine minimal texts of the containers re-check,
-  the pin of the tab path,
-  the placing of the block comparison in the time of the places that matter,
-  and the search,
-  differentials,
-  real-corpus counts,
-  gates and limits of the round (B970 to B979).
+- [Audit ledger: the source text under a note](audit-ledger-source-text.md):
+  The index of the records of the page grammar (B832)
+  and of its follow-up rounds,
+  which closed the holes between the plain parse and the strict grammar.
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.

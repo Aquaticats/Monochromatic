@@ -4,7 +4,7 @@ The ninth round of the follow-ups of B832 (the original of an untranslated passa
 lone carriage returns,
 a wider sample of the generated sets and a full pass over them.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the source text under a note](audit-ledger-source-text.md),
 which lists every file of this record.
 Rounds 1 to 8 are in
 [the file of the follow-ups on parser gaps and step searches](audit-ledger-source-text-follow-ups-parser-gaps-and-step-searches.md),

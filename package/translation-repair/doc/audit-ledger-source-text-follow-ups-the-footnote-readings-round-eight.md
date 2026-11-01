@@ -13,7 +13,7 @@ a fence mark indented four columns after a line,
 the twenty-nine minimal texts of the containers re-check,
 and the time of `placedAfter`.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the source text under a note](audit-ledger-source-text.md),
 which lists every file of this record.
 The record this round answers is
 [the file on the plain reading with tables and the containers][plain-file],

@@ -3,7 +3,7 @@
 Follow-ups of B832 (the original of an untranslated passage written as literal text),
 each found by reading the encoder against the strict grammar or by a seeded step search.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the source text under a note](audit-ledger-source-text.md),
 which lists every file of this record.
 The ninth round is in [its own file](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md).
 The entry they follow is in [the page grammar](audit-ledger-source-text-under-a-note-and-the-page-grammar.md).

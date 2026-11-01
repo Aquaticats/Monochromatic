@@ -5,7 +5,7 @@ the comparison of what a reader of the page sees with what a reader of the sourc
 the count of real texts per residual class,
 the fixes of the classes and the checks of the round.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the source text under a note](audit-ledger-source-text.md),
 which lists every file of this record.
 The rounds before it are in
 [the file of the ninth round](audit-ledger-source-text-follow-ups-lone-carriage-returns-and-the-full-pass.md),

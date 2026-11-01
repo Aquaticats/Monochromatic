@@ -2,7 +2,7 @@
 
 Findings on making a page carry the original of an untranslated passage.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the source text under a note](audit-ledger-source-text.md),
 which lists every file of this record.
 
 ## B832: the page could stop over an original the grammar refuses, and four texts said more than the code did
