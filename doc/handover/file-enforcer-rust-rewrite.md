@@ -1551,10 +1551,23 @@ each finished branch is reviewed and merged into `main`):
   `898c39ffc2` `=` and `+` refused (nft rejects them as table names).
   Tip to merge locally:
   `898c39ffc2`.
-  Queued after the restart:
-  `BypassOwnedRoute.tokens` from the state file reach `ip route del` as root arguments,
-  checked only as non-empty strings;
-  reject a leading `-` at least.
+  Last review:
+  nothing blocks the restart
+  (conntrack active,
+  `nft_ct` loaded,
+  the kill switch uses `ct mark`).
+  Merged into `main` as `f0589a5f42`
+  (conflicts with main's test-constant commits in two Rust test files resolved;
+  package tests run after the commit).
+  Queued after the restart (inert here:
+  `ip_forward` 0,
+  no guests,
+  `/run/wg-quicker` root:root 0700):
+  the forward reply rules also need `iifname` of the physical interfaces,
+  since two forged packets can make a "reply";
+  `BypassOwnedRoute.tokens` must be pinned to `table <state.table> proto 201` and a known route shape
+  (a leading `-` is harmless after `route delete`; any attribute is the exposure);
+  drop the `WG_QUICKER_RUNTIME_DIRECTORY` pass-through for root runs.
   Planned restart:
   merge,
   build both packages,
