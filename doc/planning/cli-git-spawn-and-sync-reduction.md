@@ -512,6 +512,81 @@ the standard error of two repeated commands (exit 2 both times). Shown failing b
 return the parser's failure unchanged (both unit tests and the harness test fail) and by giving the gate a hint again
 (`gates_follow_recovery` fails); restored, all pass.
 
+### J4 outcome: the benign syncs, the shadow `packed-refs` sync and four directory syncs dropped
+
+Decision by the owner: "Real gain real risk. We're high rollers." The three removals ranked first in
+`doc/handover/wrapper-sync-attribution.md` are done, each in its own commit, and the exposure each one accepts is
+recorded here. A kill leaves the page cache intact, so no test below is a power loss; the harness damages files to
+stand for one.
+
+Nine syncs of records the J3 table shows to be benign (commit `664820231f`): `captured.json`, `hooks/plan.json`,
+`prepared.json` (file and directory), `index~pid.lock`, the landed record (file and directory) and the `index-installed`
+marker (file and directory). They are still published whole by link, so a kill leaves them whole or absent; they are
+no longer flushed. The writers are `write_private_file_unsynced` and `write_exclusive_unsynced` in `private_storage.rs`,
+and `journal_record.rs` names the level of a journal record (`RecordSync`). The J3 table is unchanged (247 cases pass
+against the recorded outcomes).
+
+The shadow repository's `packed-refs` (commit `782e1cd2cd`): the sweep in `binary_recovery_tearing_shadow_tests.rs`
+empties, halves, zero-fills and deletes the file at all six phases and requires the recorded undamaged outcome each
+time. With recovery temporarily made to read the file (`remove_shadow_repository` refusing a file that does not start
+with the pack-refs header) all six phase tests fail at the first damage, `empty`, with the engine failure
+`content-unavailable` and the table word `sticks` against `discards` or `completes`; restored, all six pass. The files
+backend only: on reftable the shadow's refs are read by `is_store_held` and the write stays a Git transaction.
+
+Four directory syncs (commit `62a4642ec8`): the transaction directory after `preparing.json`, `index-lock-1.json` and
+`ref-updated.json`, and the `.pending` candidate directory. The directory sync of `landing-1.json`, which comes before
+the compare-and-swap, is now the first sync that makes the names in the transaction directory durable (the
+`owner.json` name included); the file syncs of those records stay. The lost-name tests are in
+`binary_recovery_tearing_names_tests.rs`. Each deletes the record the way a lost directory entry would, at every phase
+before the barrier where the loss is reachable:
+
+- `preparing.json` lost: discards at `capture-locked` and `preparation-done`, and "discards, leaves `index.lock`, the
+  next commit exits 2" at `landing-locked` and `objects-migrated`. The outcome equals a state built as if
+  `preparing.json` was never written (only `owner.json` left in the transaction directory, no shadow).
+- `index-lock-1.json` lost: "discards, leaves `index.lock`, the next commit exits 2" at both phases that hold the lock.
+  The outcome equals the state of a kill between creating the lock and writing its record (the record and the PID file
+  both absent).
+- `ref-updated.json` lost: completes at `ref-updated` and `index-installed`, because `landing-1.json` is durable.
+- `owner.json` lost (the candidate directory sync dropped, and the sync after `preparing.json` that used to persist the
+  same directory): does not converge. Every guarded command stops with exit 2 and
+  "Transaction owner record is missing: <directory>" at every phase before the barrier, and the person has to remove the
+  directory by hand. This is the row `T/owner.json: all applicable damages sticks` of the J3 table made reachable by
+  the loss of one directory entry. It requires a filesystem that persists the rename of the published directory and the
+  contents of `owner.json` but not the name of `owner.json` in it, which file sync does not promise by POSIX but ext4,
+  XFS and btrfs do in practice; no such state was produced on a real filesystem, only by deleting the file.
+  The recovery code was not changed: treating a published directory without an owner record as dead would make
+  recovery remove a directory whose owner it cannot identify, and the fail-closed text is pinned by
+  `published_owners_must_be_valid` in `recovery_inspect_tests.rs`. Open: whether to accept that, make recovery remove
+  such a directory when it holds no landing record, or put the candidate directory sync back (one call per commit).
+
+The stale `index.lock` of the first two bullets is not new. It is the state a kill between creating the lock and writing
+its record leaves today. The wrapper cannot prove the lock is its own, so every commit waits `indexLock.unprovenOwnerTimeoutMs`
+and stops with `index-lock-unproven-owner` ("Remove the lock only after confirming no Git process is using this
+repository"), the same as for any foreign stale lock; nothing is lost and the commit that landed nothing leaves the
+worktree edit intact.
+
+Guards shown failing, then restored: restoring any one of the nine syncs fails the unit pin of its writer and all four
+budget scenarios by one or two calls (all six file syncs at once: 30 observed against 24 budgeted on the cold commit;
+all three directory syncs at once: 27 against 24); `the_files_snapshot_is_not_synced` and the budgets fail with the
+shadow sync restored (24 against 23 cold); the budgets fail with the `preparing.json` directory sync restored (20
+against 19) and with the `ref-updated.json` directory sync restored (20 against 19), and
+`a_landing_lock_syncs_its_record_file_only` and `publication_syncs_the_owner_file_and_the_registry_and_not_the_candidate`
+fail with the lock record's directory sync and the candidate sync restored. For the lost-name tests, making recovery
+refuse a missing `preparing.json`, a missing `ref-updated.json` or a lock record missing while a PID file exists fails
+`a_lost_preparing_name_equals_a_preparing_record_never_written`, `a_lost_ref_updated_name_still_completes_the_landing` and
+`a_lost_index_lock_name_equals_a_lock_record_never_written`.
+
+Wrapper syncs of the budget scenarios, before and after (the Git children's syncs are unchanged):
+
+- Cold commit: 33 to 19 wrapper syncs (36 to 22 with the 3 of `index-pack`).
+- Warm commit (second wrapped commit, a scenario added before the removals): 28 to 14 wrapper syncs (35 to 21 with the
+  3 of `index-pack`, the 3 of `pack-objects` and the 1 of `multi-pack-index write`).
+- Commit with one configuration hook (cold): 37 to 23. Amend (cold): 33 to 19.
+
+Not changed: `write_prepared_record` in `commit_preparation.rs` still syncs; it is called only by
+`prepare_native_commit`, which no production path calls. The migration `index-pack` syncs (3 per commit) are another
+change.
+
 ## Results of the hook-entry and configuration-snapshot slices
 
 Method: `strace --follow-forks -e trace=execve,fsync,fdatasync,syncfs,sync_file_range` over one wrapped
@@ -572,12 +647,13 @@ storage, the maintenance keys and the shadow format, because those reads ignore 
 The host and gate suites carry a spawn budget (from `GIT_TRACE2_PERF`) and the host suite a sync budget (from
 `strace`); each slice lowers its budget to the measured count. Starting point: 45 processes, 41 syncs.
 
-The ratchet tests are `src/native/binary_budget_tests.rs` (the constants and the three scenarios) and
+The ratchet tests are `src/native/binary_budget_tests.rs` (the constants and the four scenarios) and
 `src/native/binary_budget_trace.rs` (the `strace` reader) in `package/git-policy/cli`. Run them with
 `mise run //package/git-policy/cli:native:test:binary:host -- budget::`. A wrapped explicit-path commit
-(`git commit --quiet --message=x -- a.txt`) runs under `strace --follow-forks` on a disposable repository in three
-scenarios: no hooks, one hook defined in the configuration (`hook.<name>.event` and `hook.<name>.command`), and
-`--amend`. The tests count every `execve` of Git by subcommand, every start of another program, and every `fsync`,
+(`git commit --quiet --message=x -- a.txt`) runs under `strace --follow-forks` on a disposable repository in four
+scenarios: no hooks, one hook defined in the configuration (`hook.<name>.event` and `hook.<name>.command`), `--amend`,
+and the second wrapped commit of a repository (warm, where Git's maintenance repacks and the creation syncs of a first
+commit do not happen). After the J4 removals the wrapper makes 19 syncs in a cold commit and 14 in a warm one. The tests count every `execve` of Git by subcommand, every start of another program, and every `fsync`,
 `fdatasync`, `syncfs` and `sync_file_range` call, attributed to the wrapper process (threads included) or to the Git
 subcommand that made it. They compare exact counts with the constants, so a rise and a saving both fail, naming each
 figure that moved, and the constants are lowered in the same change that makes a commit cheaper; a rise needs a recorded
