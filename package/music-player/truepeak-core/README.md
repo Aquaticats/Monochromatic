@@ -193,6 +193,8 @@ Run these with `mise run //package/music-player/truepeak-core:<task>`.
 - `build`,
    `build:debug`:
    compile the library.
+- `build:default`:
+   build the feature-less surface (no `service` or `fingerprint` features).
 - `lint`:
    `cargo check`.
 - `lint:clippy`:
@@ -200,3 +202,5 @@ Run these with `mise run //package/music-player/truepeak-core:<task>`.
 - `test`,
    `test:debug`:
    the unit tests.
+- `bench:cache`:
+   time storing a first analysis in the decision cache.
