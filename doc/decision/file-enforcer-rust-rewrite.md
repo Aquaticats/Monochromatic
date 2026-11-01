@@ -311,6 +311,10 @@ and accepted with this record:
   "mpm-shadow edits links it didn't create (only ones that point at a copy of this repository's own tool)."
   The preview the owner saw:
   `installed cli-git-native 0.4.5 (managed) / re-pointed ~/.local/bin/git -> <toolchain>/cargo/.../current / removed ~/.cargo/bin/cli-git-native (old copy) / removed ~/.cargo/bin/mpm-shadow 0.2.0 (old copy)`.
+  Asked what to do with an old copy that `.crates.toml` does not record,
+  the owner chose "Delete it" on 2026-11-01:
+  "Keep it as built:
+  any unrecorded copy with a declared bin name is removed after its links are re-pointed."
   The rule behind it is an invariant that the owning tool enforces and no runbook step does by hand.
   The behaviour is in `package/mpm-shadow/cli/README.md`,
   section "Old copies of this repository's tools".
@@ -345,8 +349,19 @@ and accepted with this record:
   then keeps running the newest copy instead of dangling,
   including in a clone that git does not list.
   A scope that later installs a newer version replaces the forward with a real `current`,
-  and `prune --toolchain` leaves a crate directory that holds only a forward.
+  and `prune --toolchain` leaves a crate directory that holds only a forward,
+  and never removes a cargo version that the other root's `current` forwards to.
+  The forward is made before the versions are removed,
+  and again checked against the root's contents when the plan is applied.
+  Every `install` also repairs a stale `current` in the winning root,
+  so a run killed between the completion marker and the link cannot make another scope run an older copy.
   Other implementer choices in the same work:
+  the shared cargo bin directory is searched for links to a copy as well,
+  so a sibling link there does not dangle;
+  the crate name that reaches `cargo uninstall` is read again at removal,
+  must still start with `monochromatic-`,
+  and follows `--`;
+  a copy or version directory that another run removed first counts as done;
   only a regular file in the shared cargo bin directory counts as an old copy;
   `.crates.toml` is consulted only to skip a bin that cargo attributes to another crate,
   to keep a copy it records as newer than the managed one,
