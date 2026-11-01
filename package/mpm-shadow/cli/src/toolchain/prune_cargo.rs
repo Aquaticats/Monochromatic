@@ -374,11 +374,18 @@ pub fn prune_toolchain(
                 Some(versions) => !versions.is_empty(),
                 None => false,
             };
+            let had_versions: bool = match present.get(crate_name) {
+                Some(versions) => !versions.is_empty(),
+                None => false,
+            };
             if remaining {
                 // Only a crate this repository publishes has a `current` link; a third-party crate is never given one.
                 if crate_name.starts_with(OWN_CRATE_PREFIX) {
                     point_current_at_newest(&scope.toolchain_root, crate_name)?;
                 }
+            } else if !had_versions {
+                // A directory that held no version before holds only a `current` link that forwards to the other toolchain
+                // root's newer copy (see `managed_losers.rs`); nothing was pruned from it, so it stays.
             } else if let Err(error) = fs::remove_dir_all(&crate_dir) {
                 return Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display())));
             }

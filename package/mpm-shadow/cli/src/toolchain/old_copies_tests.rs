@@ -341,24 +341,28 @@ fn a_git_listing_that_fails_keeps_the_copy_but_still_moves_the_links_it_can_see(
 }
 
 #[test]
-fn both_roots_holding_a_copy_leave_the_links_outside_checkouts_and_the_old_copy_for_the_owner_to_decide() {
-    let scene = Scene::new();
-    scene.write_old_copy();
-    let repository_copy = scene.install_managed("0.4.5");
-    scene.install_managed_under(&scene.global_root(), "0.4.4");
-    make_link(&scene.local_git(), &scene.old_copy());
-    let (checkout, checkout_link) = scene.second_checkout_git();
-    scene.list_worktrees(&[&scene.rig.scope.root, &checkout]);
-    let plans = plan_old_copies(&scene.context(), &[]);
-    let plan = &plans.plans[0];
-    assert!(plan.kept.as_deref().unwrap_or("").contains("owner's decision"), "{plan:?}");
-    assert_eq!(plan.repoints.len(), 1, "only the checkout's link moves: {plan:?}");
-    assert_eq!(plan.repoints[0].link, checkout_link);
-    assert_eq!(plan.repoints[0].target, repository_copy, "a checkout belongs to the repository scope");
-    let outcome = apply_old_copies(&scene.context(), &plans);
-    assert_eq!(fs::read_link(scene.local_git()).expect("a link"), scene.old_copy(), "left as it was");
-    assert!(scene.old_copy().exists());
-    assert_eq!(outcome.warnings.len(), 1, "{outcome:?}");
+fn with_both_roots_holding_a_copy_every_link_goes_to_the_newest_one_wherever_it_is() {
+    for (repository_version, global_version) in [("0.4.5", "0.4.4"), ("0.4.5", "0.4.6")] {
+        let scene = Scene::new();
+        scene.write_old_copy();
+        let repository_copy = scene.install_managed(repository_version);
+        let global_copy = scene.install_managed_under(&scene.global_root(), global_version);
+        make_link(&scene.local_git(), &scene.old_copy());
+        let (checkout, checkout_link) = scene.second_checkout_git();
+        scene.list_worktrees(&[&scene.rig.scope.root, &checkout]);
+        let plans = plan_old_copies(&scene.context(), &[]);
+        let plan = &plans.plans[0];
+        assert_eq!(plan.kept, None, "no link is left to anyone's decision: {plan:?}");
+        let newest = if global_version > repository_version { &global_copy } else { &repository_copy };
+        assert_eq!(plan.repoints.len(), 2, "{plan:?}");
+        for repoint in &plan.repoints {
+            assert_eq!(&repoint.target, newest, "{} runs the newest copy ({global_version} against {repository_version})", repoint.link.display());
+        }
+        apply_old_copies(&scene.context(), &plans);
+        assert_eq!(&fs::read_link(scene.local_git()).expect("a link"), newest);
+        assert_eq!(&fs::read_link(&checkout_link).expect("a link"), newest);
+        assert!(!scene.old_copy().exists());
+    }
 }
 
 #[test]

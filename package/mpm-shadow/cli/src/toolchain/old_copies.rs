@@ -32,7 +32,9 @@ use crate::constants::OWN_CRATE_PREFIX;
 use crate::version::compare_versions;
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_repository_published, newest_installed_of};
+use super::across_roots::winning_version;
+/// Imports `is_repository_published` from `super::cargo_installs`.
+use super::cargo_installs::is_repository_published;
 /// Imports what this module uses from `super::cargo_record`.
 use super::cargo_record::{RecordedInstall, install_naming_bin, read_recorded_installs};
 /// Imports `Context` from `super::context`.
@@ -42,9 +44,11 @@ use super::layout::{applies_to_family, cargo_bin_dir, cargo_home_dir, find_tool_
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::old_copy_places`.
-use super::old_copy_places::{LinkScan, PlaceKind, Places, known_places, links_to_copy};
+use super::managed_losers::{LoserPlan, plan_losers};
+/// Imports what this module uses from `super::old_copy_places`.
+use super::old_copy_places::{LinkScan, PlaceKind, Places, links_to_copy, places_of};
 /// Imports what this module uses from `super::scope`.
-use super::scope::{ScopeKind, toolchain_roots};
+use super::scope::toolchain_roots;
 
 /// A link the cleanup re-points at the managed copy.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -84,6 +88,8 @@ pub struct OldCopyPlans {
     /// One plan per old copy,
     /// in lock order and bin order.
     pub plans: Vec<OldCopyPlan>,
+    /// One plan per toolchain root that holds older managed copies of a tool whose newest copy is elsewhere.
+    pub losers: Vec<LoserPlan>,
     /// The places searched;
     /// empty when no old copy exists,
     /// because then nothing asked git for the checkouts.
@@ -140,76 +146,6 @@ fn candidates_of(ctx: &Context, tool: &LockedTool) -> Vec<Candidate> {
     return found;
 }
 
-/// The toolchain root of the other scope,
-/// or `None` when there is none.
-fn other_root(ctx: &Context) -> Option<PathBuf> {
-    let own: PathBuf = resolved(&ctx.scope.toolchain_root);
-    for root in toolchain_roots(ctx.env) {
-        if resolved(&root) != own {
-            return Some(root);
-        }
-    }
-    return None;
-}
-
-/// The working managed copy of `bin` under `root`:
-/// the executable behind the `current` link of the tool there.
-fn managed_copy_under(ctx: &Context, tool: &LockedTool, bin: &str, root: &Path) -> Option<PathBuf> {
-    let mut scope = ctx.scope.clone();
-    scope.toolchain_root = root.to_path_buf();
-    return find_tool_bin(tool, bin, &scope, ctx.env, &[]);
-}
-
-/// What the cleanup does with the links of one place kind,
-/// by which toolchain roots hold a working copy.
-enum Target {
-    /// Re-point at this copy.
-    Use(
-        /// The managed copy.
-        PathBuf,
-    ),
-    /// Both scopes hold a copy and the place belongs to neither;
-    /// the owner has not decided which one wins.
-    Undecided,
-}
-
-/// What:
-/// The managed copy a link in a place of `kind` moves to.
-/// Why:
-/// A checkout belongs to the repository scope,
-/// so its links go to the repository scope's copy when it has one.
-/// Outside any checkout (`~/.local/bin`,
-/// the global farm) a single working copy in one root is the only candidate;
-/// when both roots hold one,
-/// which wins is the owner's decision,
-/// so the link is left alone and the old copy stays.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function targetFor(kind: PlaceKind, repoCopy?: string, globalCopy?: string): Target
-/// ```
-fn target_for(kind: PlaceKind, repository_copy: Option<&Path>, global_copy: Option<&Path>) -> Target {
-    if kind == PlaceKind::Checkout {
-        return match repository_copy.or(global_copy) {
-            Some(copy) => Target::Use(copy.to_path_buf()),
-            None => Target::Undecided,
-        };
-    }
-    return match (repository_copy, global_copy) {
-        (Some(only), None) | (None, Some(only)) => Target::Use(only.to_path_buf()),
-        _ => Target::Undecided,
-    };
-}
-
-/// The repository scope's copy and the global scope's copy,
-/// given which one this run belongs to.
-fn copies_by_scope(ctx: &Context, mine: &Path, other: Option<PathBuf>) -> (Option<PathBuf>, Option<PathBuf>) {
-    return match ctx.scope.kind {
-        ScopeKind::Repo => (Some(mine.to_path_buf()), other),
-        ScopeKind::Global => (other, Some(mine.to_path_buf())),
-    };
-}
-
 /// A plan that keeps the copy for `reason` and moves no link.
 fn kept_plan(tool: &LockedTool, candidate: &Candidate, managed: Option<PathBuf>, reason: String) -> OldCopyPlan {
     return OldCopyPlan {
@@ -258,25 +194,14 @@ fn precondition_reason(
 }
 
 /// The reasons the copy stays after its links were looked at:
-/// places that could not be seen or listed,
-/// and links no root may take over yet.
-fn scan_reasons(places: &Places, scan: &LinkScan, undecided: &[PathBuf]) -> Vec<String> {
+/// places that could not be seen or listed.
+fn scan_reasons(places: &Places, scan: &LinkScan) -> Vec<String> {
     let mut reasons: Vec<String> = Vec::new();
     for reason in &places.incomplete {
         reasons.push(format!("a place could not be searched for links: {reason}"));
     }
     for directory in &scan.unreadable {
         reasons.push(format!("{} could not be listed, so links in it are unseen", directory.display()));
-    }
-    if !undecided.is_empty() {
-        let mut names: Vec<String> = Vec::new();
-        for link in undecided {
-            names.push(link.display().to_string());
-        }
-        reasons.push(format!(
-            "both toolchain roots hold a managed copy, so which one {} should run is the owner's decision (links left as they are)",
-            names.join(", ")
-        ));
     }
     return reasons;
 }
@@ -287,43 +212,34 @@ fn scan_reasons(places: &Places, scan: &LinkScan, undecided: &[PathBuf]) -> Vec<
 /// each with the managed copy it moves to.
 /// Why:
 /// Reads only.
-/// A copy whose links cannot all move,
-/// or whose places could not all be searched,
-/// is kept.
+/// Every link goes to the newest copy across both toolchain roots,
+/// whichever place it sits in.
+/// A copy whose places could not all be searched is kept.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planLinks(ctx: Context, tool: LockedTool, candidate: Candidate, mine: string, places: Places): OldCopyPlan
+/// function planLinks(candidate: Candidate, tool: LockedTool, managed: string, places: Places): OldCopyPlan
 /// ```
-fn plan_links(ctx: &Context, tool: &LockedTool, candidate: &Candidate, mine: PathBuf, places: &Places) -> OldCopyPlan {
-    let other: Option<PathBuf> = match other_root(ctx) {
-        Some(root) => managed_copy_under(ctx, tool, &candidate.bin, &root),
-        None => None,
-    };
-    let (repository_copy, global_copy): (Option<PathBuf>, Option<PathBuf>) = copies_by_scope(ctx, &mine, other);
+fn plan_links(candidate: &Candidate, tool: &LockedTool, managed: PathBuf, places: &Places) -> OldCopyPlan {
     let scan: LinkScan = links_to_copy(places, &candidate.path);
     let mut repoints: Vec<Repoint> = Vec::new();
-    let mut undecided: Vec<PathBuf> = Vec::new();
     for found in &scan.found {
-        match target_for(found.kind, repository_copy.as_deref(), global_copy.as_deref()) {
-            Target::Use(target) => repoints.push(Repoint { link: found.path.clone(), kind: found.kind, target }),
-            Target::Undecided => undecided.push(found.path.clone()),
-        }
+        repoints.push(Repoint { link: found.path.clone(), kind: found.kind, target: managed.clone() });
     }
-    let reasons: Vec<String> = scan_reasons(places, &scan, &undecided);
+    let reasons: Vec<String> = scan_reasons(places, &scan);
     let kept: Option<String> = if reasons.is_empty() { None } else { Some(reasons.join("; ")) };
     return OldCopyPlan {
         tool_id: tool.declaration.id.clone(),
         bin: candidate.bin.clone(),
         path: candidate.path.clone(),
-        managed: Some(mine),
+        managed: Some(managed),
         repoints,
         kept,
     };
 }
 
 /// What:
-/// The plan for every old copy of the repository-published tools in `ctx.tools`.
+/// The plans for the old copies in the shared cargo bin directory of the repository-published tools in `ctx.tools`.
 /// `failed` is what the install of this run reported as failed,
 /// as tool id and message.
 /// Why:
@@ -336,12 +252,11 @@ fn plan_links(ctx: &Context, tool: &LockedTool, candidate: &Candidate, mine: Pat
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function planOldCopies(ctx: Context, failed: [string, string][]): { plans: OldCopyPlan[]; places: Places }
+/// function planCargoBinCopies(ctx: Context, failed: [string, string][], places: Places | undefined): OldCopyPlan[]
 /// ```
-pub fn plan_old_copies(ctx: &Context, failed: &[(String, String)]) -> OldCopyPlans {
+fn plan_cargo_bin_copies(ctx: &Context, failed: &[(String, String)], places: &mut Option<Places>) -> Vec<OldCopyPlan> {
     let installs: Vec<RecordedInstall> = read_recorded_installs(&cargo_home_dir(ctx.env, &ctx.scope.home));
     let mut plans: Vec<OldCopyPlan> = Vec::new();
-    let mut places: Option<Places> = None;
     for tool in ctx.tools {
         if !is_repository_published(tool) || !applies_to_family(&tool.declaration.os, ctx.host.family) {
             continue;
@@ -353,7 +268,7 @@ pub fn plan_old_copies(ctx: &Context, failed: &[(String, String)]) -> OldCopyPla
             {
                 continue;
             }
-            let managed_version: Option<String> = newest_installed_of(&ctx.scope.toolchain_root, tool);
+            let managed_version: Option<String> = winning_version(ctx.scope, tool);
             let mine: Option<PathBuf> = find_tool_bin(tool, &candidate.bin, ctx.scope, ctx.env, &[]);
             if let Some(reason) = precondition_reason(tool, &candidate, recorded, managed_version.as_deref(), failed) {
                 plans.push(kept_plan(tool, &candidate, mine, reason));
@@ -363,13 +278,29 @@ pub fn plan_old_copies(ctx: &Context, failed: &[(String, String)]) -> OldCopyPla
                 plans.push(kept_plan(tool, &candidate, None, "the managed copy of this bin is missing or not executable".to_string()));
                 continue;
             };
-            if places.is_none() {
-                places = Some(known_places(ctx.scope, ctx.env, ctx.runner));
-            }
-            if let Some(searched) = places.as_ref() {
-                plans.push(plan_links(ctx, tool, &candidate, managed, searched));
-            }
+            plans.push(plan_links(&candidate, tool, managed, places_of(places, ctx.scope, ctx.env, ctx.runner)));
         }
     }
-    return OldCopyPlans { plans, places: places.unwrap_or_default() };
+    return plans;
+}
+
+/// What:
+/// The plan for every old copy of this repository's tools:
+/// the copies in the shared cargo bin directory,
+/// and the older managed copies in either toolchain root.
+/// Why:
+/// Reads only.
+/// The places are searched once,
+/// and only when some copy exists,
+/// so a run with nothing to retire never asks git for the checkouts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function planOldCopies(ctx: Context, failed: [string, string][]): OldCopyPlans
+/// ```
+pub fn plan_old_copies(ctx: &Context, failed: &[(String, String)]) -> OldCopyPlans {
+    let mut places: Option<Places> = None;
+    let plans: Vec<OldCopyPlan> = plan_cargo_bin_copies(ctx, failed, &mut places);
+    let losers: Vec<LoserPlan> = plan_losers(ctx, failed, &mut places);
+    return OldCopyPlans { plans, losers, places: places.unwrap_or_default() };
 }

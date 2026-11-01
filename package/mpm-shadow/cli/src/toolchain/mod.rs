@@ -25,6 +25,9 @@
 //! export * from './lock.ts';
 //! ```
 
+/// The newest finished copy of a repository-published tool across both toolchain roots.
+pub mod across_roots;
+
 /// The plan and lock agreement validator and the offline projection.
 pub mod agree;
 
@@ -134,6 +137,9 @@ pub mod old_copy_apply;
 /// The places that can hold a link to an old copy,
 /// and the scan for links to one file.
 pub mod old_copy_places;
+
+/// The older managed copies of this repository's tools in the root that does not hold the newest copy.
+pub mod managed_losers;
 
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
@@ -341,6 +347,10 @@ mod old_copies_tests;
 /// The unit tests of the places searched for links to an old copy.
 #[cfg(all(test, unix))]
 mod old_copy_places_tests;
+
+/// The unit tests of the newest-across-both-roots rule for this repository's tools.
+#[cfg(all(test, unix))]
+mod across_roots_tests;
 
 /// The unit tests of how an archive install becomes visible (staging,
 /// the completion marker,

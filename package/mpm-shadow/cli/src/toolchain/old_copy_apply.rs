@@ -25,6 +25,8 @@
 
 /// Imports `fs` from `std`.
 use std::fs;
+/// Imports `Path` from `std::path`.
+use std::path::Path;
 
 /// Imports `Context` from `super::context`.
 use super::context::Context;
@@ -36,8 +38,12 @@ use super::cargo_record::{RecordedInstall, install_naming_bin, read_recorded_ins
 use super::layout::{cargo_home_dir, is_executable};
 /// Imports what this module uses from `super::old_copies`.
 use super::old_copies::{OldCopyPlan, OldCopyPlans, Repoint, plan_old_copies};
+/// Imports what this module uses from `super::managed_losers`.
+use super::managed_losers::LoserPlan;
 /// Imports `links_to_copy` from `super::old_copy_places`.
 use super::old_copy_places::links_to_copy;
+/// Imports `remove_downloads` from `super::published_archive`.
+use super::published_archive::remove_downloads;
 
 /// What the cleanup did:
 /// the action lines,
@@ -112,13 +118,13 @@ fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> {
 }
 
 /// Re-points one link,
-/// recording the line or the failure.
+/// recording the line or the failure under `label`.
 /// A link that could not move still resolves to the copy,
 /// and the search before the removal keeps the copy for that reason.
-fn repoint(plan: &OldCopyPlan, link: &Repoint, outcome: &mut OldCopyOutcome) {
+fn repoint(label: &str, link: &Repoint, outcome: &mut OldCopyOutcome) {
     match atomic_symlink(&link.link, &link.target) {
         Ok(()) => outcome.lines.push(format!("re-pointed {} -> {}", link.link.display(), link.target.display())),
-        Err(error) => outcome.failed.push((failure_label(plan), format!("cannot re-point {}: {error}", link.link.display()))),
+        Err(error) => outcome.failed.push((label.to_string(), format!("cannot re-point {}: {error}", link.link.display()))),
     }
 }
 
@@ -137,7 +143,7 @@ fn repoint(plan: &OldCopyPlan, link: &Repoint, outcome: &mut OldCopyOutcome) {
 /// ```
 fn apply_plan(ctx: &Context, plans: &OldCopyPlans, plan: &OldCopyPlan, outcome: &mut OldCopyOutcome) {
     for link in &plan.repoints {
-        repoint(plan, link, outcome);
+        repoint(&failure_label(plan), link, outcome);
     }
     if let Some(reason) = &plan.kept {
         outcome.warnings.push(kept_warning(plan, reason));
@@ -167,6 +173,87 @@ fn apply_plan(ctx: &Context, plans: &OldCopyPlans, plan: &OldCopyPlan, outcome: 
     }
 }
 
+/// The label of a failure about the older copies of one tool in one root.
+fn loser_label(plan: &LoserPlan) -> String {
+    return format!("older managed copy of {} in {}", plan.tool_id, plan.root.display());
+}
+
+/// The warning for older managed copies that stay.
+fn loser_kept_warning(plan: &LoserPlan, reason: &str) -> String {
+    return format!(
+        "older managed copy of {} in {} is kept ({} in {} runs): {reason}",
+        plan.tool_id,
+        plan.root.display(),
+        plan.winner_version,
+        plan.winner_root.display()
+    );
+}
+
+/// Removes one older version's directory
+/// (and,
+/// for a release archive,
+/// its downloads).
+fn remove_version(plan: &LoserPlan, directory: &Path, version: &str) -> Result<(), String> {
+    if let Err(error) = fs::remove_dir_all(directory) {
+        return Err(format!("cannot remove {}: {error}", directory.display()));
+    }
+    if plan.archive
+        && let Err(error) = remove_downloads(&plan.root, &plan.tool_id, version)
+    {
+        return Err(error.message);
+    }
+    return Ok(());
+}
+
+/// What:
+/// Applies the plan for the older managed copies of one tool in one root:
+/// moves the links that resolve to them,
+/// removes the versions when nothing that could be seen still resolves to one,
+/// and leaves the emptied root's `current` forwarding to the winner's.
+/// Why:
+/// The forwarding link is why a launcher record or a link that names the emptied root's `current` keeps running the winner.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function applyLoser(plans: OldCopyPlans, plan: LoserPlan, outcome: OldCopyOutcome): void
+/// ```
+fn apply_loser(plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {
+    for link in &plan.repoints {
+        repoint(&loser_label(plan), link, outcome);
+    }
+    if let Some(reason) = &plan.kept {
+        outcome.warnings.push(loser_kept_warning(plan, reason));
+        return;
+    }
+    for copy in &plan.copies {
+        for (_, file) in &copy.bins {
+            let remaining = links_to_copy(&plans.places, file);
+            if !remaining.found.is_empty() || !remaining.unreadable.is_empty() {
+                outcome.warnings.push(loser_kept_warning(plan, "a link to it still resolves to it, so removing it would leave that link dangling"));
+                return;
+            }
+        }
+    }
+    for copy in &plan.copies {
+        match remove_version(plan, &copy.directory, &copy.version) {
+            Ok(()) => outcome.lines.push(format!(
+                "removed {} (older managed copy of {}; {} in {} runs)",
+                copy.directory.display(),
+                plan.tool_id,
+                plan.winner_version,
+                plan.winner_root.display()
+            )),
+            Err(message) => outcome.failed.push((loser_label(plan), message)),
+        }
+    }
+    if let Some((link, target)) = &plan.forward {
+        match atomic_symlink(link, target) {
+            Ok(()) => outcome.lines.push(format!("{} now forwards to {}", link.display(), target.display())),
+            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot forward {}: {error}", link.display()))),
+        }
+    }
+}
+
 /// What:
 /// Carries out every plan in order.
 /// Why:
@@ -180,6 +267,9 @@ pub fn apply_old_copies(ctx: &Context, plans: &OldCopyPlans) -> OldCopyOutcome {
     let mut outcome: OldCopyOutcome = OldCopyOutcome::default();
     for plan in &plans.plans {
         apply_plan(ctx, plans, plan, &mut outcome);
+    }
+    for loser in &plans.losers {
+        apply_loser(plans, loser, &mut outcome);
     }
     return outcome;
 }
@@ -232,6 +322,29 @@ pub fn preview_lines(plans: &OldCopyPlans) -> Vec<String> {
                 "old copy {} of {} would be removed by `install` after it did: {moves}",
                 plan.path.display(),
                 plan.tool_id
+            )),
+        }
+    }
+    for plan in &plans.losers {
+        let mut versions: Vec<String> = Vec::new();
+        for copy in &plan.copies {
+            versions.push(copy.version.clone());
+        }
+        let moves: String = format!("re-point {} link(s)", plan.repoints.len());
+        match &plan.kept {
+            Some(reason) => lines.push(format!(
+                "older managed copy of {} in {} ({}) stays: {reason}; `install` would {moves}",
+                plan.tool_id,
+                plan.root.display(),
+                versions.join(", ")
+            )),
+            None => lines.push(format!(
+                "older managed copy of {} in {} ({}) would be removed by `install` after it did: {moves}; {} in {} runs",
+                plan.tool_id,
+                plan.root.display(),
+                versions.join(", "),
+                plan.winner_version,
+                plan.winner_root.display()
             )),
         }
     }

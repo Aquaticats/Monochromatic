@@ -7,9 +7,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::cargo_installs::older_lock_message;
+use super::cargo_installs::{older_lock_message, older_lock_message_for};
 use super::fakes::Rig;
 use super::launcher::{LaunchRecord, ensure_launcher, parse_record, prepare_launch, record_path, render_record};
+use super::scope::ScopeKind;
 
 /// The id the tests use for the tool.
 const TOOL: &str = "cargo:monochromatic-git-policy-cli";
@@ -31,6 +32,7 @@ fn record_with_current(directory: &Path, installed: &[&str], current: &str) -> L
         tool_id: TOOL.to_string(),
         lock_file: directory.join("toolchain.lock.json"),
         real: crate_dir.join("current").join("bin").join("cli-git-native"),
+        scope: ScopeKind::Repo,
     };
 }
 
@@ -40,11 +42,47 @@ fn a_record_round_trips_and_a_bad_one_is_refused() {
         tool_id: TOOL.to_string(),
         lock_file: PathBuf::from("/work/toolchain.lock.json"),
         real: PathBuf::from("/root/cargo/x/current/bin/x"),
+        scope: ScopeKind::Repo,
     };
     assert_eq!(parse_record(&render_record(&record)), Some(record));
     assert_eq!(parse_record("not json"), None);
     assert_eq!(parse_record("{\"toolId\":\"a\"}"), None);
     assert_eq!(record_path(Path::new("/a/b/git")), PathBuf::from("/a/b/git.launch"));
+}
+
+#[test]
+fn a_global_record_round_trips_and_a_record_without_a_scope_belongs_to_a_tree() {
+    let record = LaunchRecord {
+        tool_id: TOOL.to_string(),
+        lock_file: PathBuf::from("/config/toolchain.lock.json"),
+        real: PathBuf::from("/root/cargo/x/current/bin/x"),
+        scope: ScopeKind::Global,
+    };
+    assert_eq!(parse_record(&render_record(&record)), Some(record));
+    let older = parse_record("{\"toolId\":\"a\",\"lockFile\":\"/l\",\"real\":\"/r\"}").expect("a record written before the field existed");
+    assert_eq!(older.scope, ScopeKind::Repo);
+}
+
+#[test]
+fn a_global_launcher_warns_with_the_global_upgrade_command() {
+    let rig = Rig::new();
+    let record = LaunchRecord { scope: ScopeKind::Global, ..record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4") };
+    let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
+    assert_eq!(launch.warning, Some(older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4")));
+    assert!(launch.warning.unwrap_or_default().contains("`mise run toolchain:update:global`"));
+}
+
+#[test]
+fn a_current_link_that_forwards_to_the_other_roots_current_still_names_the_version_that_runs() {
+    let rig = Rig::new();
+    let winner = record_with_current(&rig._directory.path().join("winner-root"), &["0.4.5"], "0.4.5");
+    let emptied_crate = rig._directory.path().join("emptied-root").join("cargo").join("monochromatic-git-policy-cli");
+    fs::create_dir_all(&emptied_crate).expect("make the emptied root's crate directory");
+    std::os::unix::fs::symlink(winner.real.parent().and_then(Path::parent).expect("the winner's current link"), emptied_crate.join("current"))
+        .expect("forward current");
+    let record = LaunchRecord { real: emptied_crate.join("current").join("bin").join("cli-git-native"), ..winner };
+    let launch = prepare_launch(&record, Some(&lock_text("0.4.4")));
+    assert_eq!(launch.warning, Some(older_lock_message(TOOL, "0.4.4", "0.4.5")), "the version behind the chain, not the word current");
 }
 
 #[test]

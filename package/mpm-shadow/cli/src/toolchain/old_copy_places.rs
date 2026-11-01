@@ -263,3 +263,21 @@ pub fn links_to_copy(places: &Places, copy: &Path) -> LinkScan {
     scan.found.sort();
     return scan;
 }
+
+/// What:
+/// The places of this run,
+/// searched the first time they are asked for and kept in `slot` after that.
+/// Why:
+/// Asking git for the worktrees costs a process,
+/// and a run with no copy to judge must not pay it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function placesOf(slot: { places?: Places }, ctx: Context): Places
+/// ```
+pub fn places_of<'a>(slot: &'a mut Option<Places>, scope: &Scope, env: &EnvMap, runner: &dyn Runner) -> &'a Places {
+    if slot.is_none() {
+        *slot = Some(known_places(scope, env, runner));
+    }
+    return slot.get_or_insert_with(Places::default);
+}
