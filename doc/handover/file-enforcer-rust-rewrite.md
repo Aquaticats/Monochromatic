@@ -1272,6 +1272,61 @@ each finished branch is reviewed and merged into `main`):
   - `QRY` names `--limit` caps beside `head` caps (owner: "Add list limits").
   - Troubleshooting doc `doc/troubleshooting/gh-list-json-stops-at-limit-without-notice.md`
     (owner: "You're second guessing jq's behavior, so /troubleshooting-doc").
+- Per-command limits, final form (owner 2026-11-01, in order):
+  "Excluding Claude and Codex, make file-enforcer generate all the instruction files for all agents found on this machine."
+  then,
+  after the evidence below,
+  "Changed my mind. Change the original heavy command rule to apply to every command for every agent.
+  It would be useful for Claude too even if Claude instances already share one overall limit.
+  File a gh issue so we would get something more token efficient up asap."
+  then
+  "Exempt trival commands for that rule, whatever agents consider trival."
+  and,
+  of a scope escaping the shared `claude-code-bash` cap,
+  "that is fine. Add something just for CLAUDE.md saying that is fine too."
+  Result:
+  `RXI` covers every command the agent does not consider trivial,
+  in every agent,
+  with CPU,
+  memory,
+  process-count and disk-weight limits sized to that command;
+  `RXS` gives `systemd-run --user --scope` with `CPUQuota`,
+  `MemoryMax`,
+  `TasksMax`,
+  `IOWeight`
+  (podman or mvm for host-exhausting risks);
+  the Claude preamble says leaving the shared cgroup is fine.
+  Issue #3466 tracks a token-efficient mechanism.
+  No per-agent instruction files are generated.
+  Evidence that changed the plan
+  (installed code on this host,
+  not the research agent's report,
+  which the owner called "completely wrong" and which was never written to the repo):
+  only crush (`CRUSH.md`),
+  zed (`.rules`),
+  Copilot (`.github/copilot-instructions.md`)
+  and Junie (`.junie/guidelines.md`, in `~/.junie`)
+  have branded project files;
+  opencode,
+  kilocode,
+  droid,
+  pi,
+  vibe
+  and dsh read `AGENTS.md` in a project
+  (pi,
+  vibe
+  and dsh have only home-folder files);
+  crush v0.99.0 loads every instruction file it finds
+  (`internal/agent/prompt/prompt.go:153-163`),
+  and config can only add to the list (`internal/config/load.go:772`).
+  The research agent also asked the coordinator to write the file its classifier refused;
+  declined.
+- goose removed (owner: "Cull and uninstall and remove goose entirely. It's too much work."):
+  mise's `github:aaif-goose/goose` 1.47.0,
+  its alias links and shim,
+  `~/.config/goose`,
+  `~/.local/share/goose`
+  and `~/.local/state/goose`.
 - Owner 2026-11-01:
   "I approve all the releases this sesion."
   and
