@@ -727,18 +727,96 @@ deadline), and the connection errors `systemd-run` printed in the next minutes w
 The machine's boot time afterwards reads 2026-11-01 10:08:37 EST (`uptime --since`). These times are recorded so they can
 be compared with the reboot's cause later; no connection between them is claimed.
 
-### Paths that would hit the no-manager failure (preliminary, to be completed and reported before 4d deletes anything)
+### Paths that would hit the no-manager failure (measured before 4d, nothing deleted)
 
-The failure applies only after 4d, to a commit that runs the wrapper with no socket and no session bus. First pass, from
-the repository's workflows and tasks:
-- `mise.toml` line with `cli-git-native cli-git fix --all --policy mono/dependent-version-bump`: a management command,
-  not a commit; unaffected.
-- `.github/workflows/catalog-specifiers.yml`: detection after the fact; it runs no commit through the wrapper.
-- Gate containers and the CI release jobs: not yet listed. Each must be checked for a `git commit` run with the wrapper first
-  on `PATH` and without a user session bus; the list, with the evidence for each, goes in this section and in 4d's READY
-  before anything is deleted.
-- Anything that runs the wrapper in a plain shell without a login session (cron, `systemd-run --scope` from a service, a
-  container, `ssh` without a session) has no session bus, and would stop after 4d with the message for that platform.
+The failure applies only after 4d, to a commit that runs the wrapper with no socket and no session bus (the route reads
+`XDG_RUNTIME_DIR`, the socket under it, the session bus socket, and `cli-git-service` beside the wrapper). Checked from the
+repository's workflows, tasks and harnesses:
+
+Unaffected, with the evidence:
+- `mise.toml` line with `cli-git-native cli-git fix --all --policy mono/dependent-version-bump`: a management command, not
+  a commit.
+- `.github/workflows/catalog-specifiers.yml`: installs `cli-git-native` under that name only and runs `cli-git check`; the
+  `git add` there is real Git.
+- `.github/workflows/npm-release.yml`: exposes the executable "under its own name, never as git" (its own comment), so the
+  changesets action commits with real Git.
+- `.github/workflows/crate-release.yml` and `cargo-publish.yml`: no step installs the wrapper as `git`. The release commit is
+  made by `package/crate-release/cli/src/release-steps.ts` (`git commit --message ... -- <paths>`) with the runner's real
+  Git, and the bump reaches main through the GraphQL API.
+- `mise` tasks: none runs a commit (the only matches are comments about the CI version commit and a formatting-commit parse
+  gate that a person runs first).
+
+Affected (each needs a service the harness starts, or it stops with the platform message):
+- The gate (`bin/test-native-container.ts`, `native:test:host`, `native:test:binary:host`) and the mutation runs
+  (`bin/mutate-native-container.ts`, `native-planted-controls*.ts`): the binary tests build their environment with
+  `env_clear()` and no `XDG_RUNTIME_DIR` (`binary_support.rs`), so every wrapped commit takes the earlier path today.
+  Forty-two test files run a wrapped commit, one hundred fourteen calls of `wrapped_commit`/`run_commit`. The place to fix
+  is the one constructor of the fixture environment: start a `cli-git-service` per fixture at a short runtime directory (as
+  `start_in` already does for the service tests) and set `XDG_RUNTIME_DIR`.
+- `bin/e2e-native-container.ts` and the concurrent-commit scenarios in `e2e/`: the image installs the wrapper as `git` and
+  replays workloads in `podman run` with no bus; the harness must start the service in the container before the scenarios.
+- `bin/interop-native-container.ts` and `native-interop/`: they exercise old-format transaction states (registry,
+  recovery); they retire with that code, except the one-time reader.
+- `bin/native-perf.ts` and `native-perf-git.ts`: they commit through the wrapper on the host, where a bus exists, so they
+  would provision the person's own units as a side effect; they should start their own service instead.
+- A shell with `XDG_RUNTIME_DIR` unset: cron (the default `crond` PAM stack has no `pam_systemd`), containers and toolbox
+  shells without the runtime directory mounted, and an agent sandbox that does not mount `/run/user/<uid>` (the earlier
+  sessions' note that `systemd-run` fails inside the sandbox is the sign). `ssh` gets the runtime directory and the bus while
+  the user manager runs (a login session, or linger).
+- Nested wrappers (`rebase --exec`, hooks) inherit the caller's environment and need nothing more.
+
+### Every lock-like mechanism and what 4d does with it (owner: "Use as few locks as possible.")
+
+Sizes are lines of code and of tests under `src/native` at this commit. Dispositions are proposals for the coordinator's
+go-ahead; nothing is deleted yet.
+
+Delete, because the single-writer service makes it unnecessary (landing moves to the service's compare-and-swap):
+- The owner-lock family: `owner_lock.rs`, `owner_lock_record.rs`, `live_lock.rs`, `commit_landing_lock.rs`,
+  `transaction_lease.rs`, `transaction_owner.rs`, `ownerless_directory.rs`, `capture_order.rs` (the capture lock and
+  sequence exist only so replay can order captures), `replay_reservation.rs`: 3 022 and 2 917 lines.
+- `real_index_lock.rs` and `recovery_dead_owner_locks.rs`, `recovery_unrecorded_lock.rs`: the wrapper's own creation of
+  Git's `index.lock` for the landing, and the proofs that release a dead owner's copy. The service updates the index with
+  `git reset`, which takes Git's own lock.
+- `index_writer_coordination.rs` (and `index_writer_forward.rs`'s use of it, `management.rs`'s `hold_landing_lock`): today
+  every forwarded index writer (`add`, `reset`, `checkout`, `stash`, `rebase`...) takes the landing lock and waits for a
+  foreign `index.lock` first. With no landing lock to protect, such a command competes only on Git's own `index.lock`,
+  as it does without the wrapper.
+- Recovery and registry: `recovery_*.rs`, `commit_recovery.rs`, `transaction_registry.rs`, `transaction_gate.rs`: 4 440 and
+  3 532 lines with the files above; replaced by the service's journal replay. Keep a one-time reader that removes the old
+  registry directory.
+- Replay and landing: `replay_*.rs`, `landing_*.rs`, `commit_landing_loop.rs`, `post_landing.rs`.
+- The push lock: `auto_push_single_flight.rs` (the lock and its join logic; `run_single_flight_push_repeating` is called
+  only from `auto_push.rs`, the inline push after a commit), `holder_budget.rs` (a time budget that exists so a waiter's
+  limit can be derived), `lock_holder_facts.rs`, the waits for it in `bounded_push.rs`, and the environment variable
+  `CLI_GIT_PUSH_LOCK_WAIT_SECONDS`. Pushes become service work items coalesced per branch (`push_once`). Manual `git push`
+  never took this lock, so nothing changes for it.
+- The index-lock holder evidence: `index_lock_wait.rs`, `index_lock_wait_host.rs`, `index_lock_holders.rs`,
+  `index_lock_holder_parsers.rs`, `index_lock_evidence.rs`: 2 926 and 2 081 lines with the coordination above. They exist
+  to decide how long to wait for a foreign `index.lock`; the service's own bounded retry replaces them. The environment
+  variables `CLI_GIT_LOCK_WAIT_SECONDS` and `CLI_GIT_WAIT_NOTICE_SECONDS` go with them.
+
+Replace with a lock-free mechanism:
+- The transaction directory of the preparation that stays (unborn and detached heads, conclusions, policy rewrites): its
+  owner record and registry become the commit's own scratch directory, removed with the commit, as `service_commit.rs`
+  already does for the private indexes and `service_native.rs` for the scratch repository.
+- The `last-pushed` record of `auto_push_single_flight.rs`: written whole by rename (`auto_push_record.rs`), read by the
+  service's push; a lost update only repeats a push.
+- `worktree_copy_lock.rs` (a per-repository settlement lock for linked-worktree ignored-state copies, with its
+  `settlement.lock` directory, `CLI_GIT_WORKTREE_COPY_LEASE` variable and 20 ms polling): independent of the commit service.
+  Each copy has its own destination, journal and stage, and `worktree_copy_stage_claim.rs` already claims a stage by exclusive
+  creation; the replacement is a per-destination claim by exclusive create and rename, with recovery claiming a journal the
+  same way. It is a slice of its own, with its own differential tests.
+
+Keep, because nothing else works:
+- Git's own `index.lock`, honoured by the service's bounded retry (five tries, a tenth of a second apart, then the plain
+  `IndexInUse` message). That is Git's lock, held by another Git process; the bound is the smallest that rides out a
+  concurrent `git add`.
+
+Not locks (exclusive creation used as a one-time claim, never waited on), so they stay: `private_storage.rs` (`create_new`
+for private records), `worktree_copy_stage.rs` (exclusive file creation in a private stage), `direct_fix_install.rs`
+(a temporary file beside the file, then a rename), `worktree_completion.rs` (the same pattern), and `bounded_push.rs`, which
+holds no file creation at all (the only lock it carries is the wait limit derivation above). No `flock` or `fcntl` lock
+exists in non-test code.
 
 ### Secrets in the service's environment (open for the coordinator)
 
