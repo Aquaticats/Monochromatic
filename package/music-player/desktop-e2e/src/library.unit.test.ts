@@ -22,7 +22,22 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  BITS_PER_SAMPLE,
   buildLibrary,
+  BYTES_PER_SAMPLE,
+  FALLBACK_ARTIST_FOLDER,
+  FALLBACK_ARTIST_TRACKS,
+  FALLBACK_LOOSE_FILES,
+  FORMAT_CHUNK_BYTES,
+  INT16_MAX,
+  LONG_TONES,
+  OMEGA_TONE_FILE,
+  RIFF_SIZE_OVERHEAD_BYTES,
+  SAMPLE_RATE,
+  TONE_LEVEL,
+  TONES_FOLDER,
+  TRASH_FOLDER,
+  TRASH_TONE_FILE,
   waveBytes,
 } from './library.ts';
 
@@ -42,32 +57,36 @@ await describe({
       name: 'writes a mono 16-bit PCM WAV header that matches the data size',
       fn: async ({ expect, }) => {
         const bytes = waveBytes({ seconds: 1, hertz: 440, },);
+        // One second of samples, and the header the RIFF size field does not count.
+        const dataBytes = SAMPLE_RATE * BYTES_PER_SAMPLE;
+        const headerBytes = 8 + RIFF_SIZE_OVERHEAD_BYTES;
         expect(bytes.subarray(0, 4,).toString('ascii',),).toBe('RIFF',);
         expect(bytes.subarray(8, 12,).toString('ascii',),).toBe('WAVE',);
         expect(bytes.subarray(12, 16,).toString('ascii',),).toBe('fmt ',);
-        expect(bytes.readUInt32LE(16,),).toBe(16,);
+        expect(bytes.readUInt32LE(16,),).toBe(FORMAT_CHUNK_BYTES,);
         expect(bytes.readUInt16LE(20,),).toBe(1,);
         expect(bytes.readUInt16LE(22,),).toBe(1,);
-        expect(bytes.readUInt32LE(24,),).toBe(22_050,);
-        expect(bytes.readUInt32LE(28,),).toBe(44_100,);
-        expect(bytes.readUInt16LE(32,),).toBe(2,);
-        expect(bytes.readUInt16LE(34,),).toBe(16,);
+        expect(bytes.readUInt32LE(24,),).toBe(SAMPLE_RATE,);
+        expect(bytes.readUInt32LE(28,),).toBe(SAMPLE_RATE * BYTES_PER_SAMPLE,);
+        expect(bytes.readUInt16LE(32,),).toBe(BYTES_PER_SAMPLE,);
+        expect(bytes.readUInt16LE(34,),).toBe(BITS_PER_SAMPLE,);
         expect(bytes.subarray(36, 40,).toString('ascii',),).toBe('data',);
-        expect(bytes.readUInt32LE(40,),).toBe(44_100,);
-        expect(bytes.readUInt32LE(4,),).toBe(36 + 44_100,);
-        expect(bytes.length,).toBe(44 + 44_100,);
+        expect(bytes.readUInt32LE(40,),).toBe(dataBytes,);
+        expect(bytes.readUInt32LE(4,),).toBe(bytes.length - 8,);
+        expect(bytes.length,).toBe(headerBytes + dataBytes,);
       },
     },),
     it({
       name: 'holds a quiet tone: the first sample is zero and no sample is louder than the tone level',
       fn: async ({ expect, }) => {
         const bytes = waveBytes({ seconds: 1, hertz: 440, },);
-        expect(bytes.readInt16LE(44,),).toBe(0,);
+        const dataStart = 8 + RIFF_SIZE_OVERHEAD_BYTES;
+        expect(bytes.readInt16LE(dataStart,),).toBe(0,);
         let peak = 0;
-        for (let offset = 44; offset < bytes.length; offset += 2)
+        for (let offset = dataStart; offset < bytes.length; offset += 2)
           peak = Math.max(peak, Math.abs(bytes.readInt16LE(offset,),),);
         expect(peak,).toBeGreaterThan(1_000,);
-        expect(peak,).toBeLessThanOrEqual(Math.round(0.05 * 32_767,),);
+        expect(peak,).toBeLessThanOrEqual(Math.round(TONE_LEVEL * INT16_MAX,),);
       },
     },),
   ],
@@ -83,14 +102,16 @@ await describe({
         const { library, } = await buildLibrary({ root, generatorPath: join(root, 'missing.ts',), },);
         expect(library,).toBe(join(root, 'library',),);
         const top = (await readdir(library,)).toSorted();
-        expect(top.filter((name,) => name.startsWith('Fallback ',),),).toHaveLength(30,);
-        expect(top.filter((name,) => !name.endsWith('.wav',),),).toEqual(['Aaa Tones', 'Mmm Tones', 'Zzz Tones',],);
+        expect(top.filter((name,) => name.endsWith('.wav',),),).toHaveLength(FALLBACK_LOOSE_FILES,);
+        expect(top.filter((name,) => !name.endsWith('.wav',),),).toEqual([TONES_FOLDER, FALLBACK_ARTIST_FOLDER, TRASH_FOLDER],);
         expect(
-          await readdir(join(library, 'Aaa Tones',),),
-        ).toHaveLength(4,);
-        expect((await readdir(join(library, 'Mmm Tones',),)).length,).toBe(30,);
-        expect((await readdir(join(library, 'Zzz Tones',),)).toSorted(),).toEqual(['01 Omega tone.wav', '99 Trash me.wav',],);
-        expect((await stat(join(library, 'Aaa Tones', '01 Alpha tone.wav',),)).size,).toBe(44 + (200 * 44_100),);
+          await readdir(join(library, TONES_FOLDER,),),
+        ).toHaveLength(LONG_TONES.length,);
+        expect((await readdir(join(library, FALLBACK_ARTIST_FOLDER,),)).length,).toBe(FALLBACK_ARTIST_TRACKS,);
+        expect((await readdir(join(library, TRASH_FOLDER,),)).toSorted(),).toEqual([OMEGA_TONE_FILE, TRASH_TONE_FILE],);
+        expect(
+          (await stat(join(library, TONES_FOLDER, LONG_TONES[0].name,),)).size,
+        ).toBe(8 + RIFF_SIZE_OVERHEAD_BYTES + LONG_TONES[0].seconds * SAMPLE_RATE * BYTES_PER_SAMPLE);
         await rm(root, { recursive: true, force: true, },);
       },
       timeout: 60_000,
@@ -112,7 +133,7 @@ await describe({
           ].join('\n',),
         );
         const { library, } = await buildLibrary({ root, generatorPath: generator, },);
-        expect((await readdir(library,)).toSorted(),).toEqual(['Aaa Tones', 'Generated Artist', 'Zzz Tones',],);
+        expect((await readdir(library,)).toSorted(),).toEqual([TONES_FOLDER, 'Generated Artist', TRASH_FOLDER],);
         expect(await readFile(join(library, 'Generated Artist', 'one.wav',), 'utf8',),).toBe('x',);
         await rm(root, { recursive: true, force: true, },);
       },

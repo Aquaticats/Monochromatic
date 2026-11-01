@@ -29,12 +29,12 @@ import { pathExists, } from './files.ts';
 /**
  Samples per second of every generated tone.
  */
-const SAMPLE_RATE = 22_050;
+export const SAMPLE_RATE = 22_050;
 
 /**
  Bytes of one 16-bit mono sample.
  */
-const BYTES_PER_SAMPLE = 2;
+export const BYTES_PER_SAMPLE = 2;
 
 /**
  Bytes of a 32-bit WAV field.
@@ -44,42 +44,67 @@ const BYTES_PER_WORD = 4;
 /**
  Bits of one sample.
  */
-const BITS_PER_SAMPLE = 16;
+export const BITS_PER_SAMPLE = 16;
 
 /**
  Bytes of the format chunk of a PCM WAV file.
  */
-const FORMAT_CHUNK_BYTES = 16;
+export const FORMAT_CHUNK_BYTES = 16;
 
 /**
  Bytes of a WAV header that the RIFF size field does not count: everything after the size field except the data.
  */
-const RIFF_SIZE_OVERHEAD_BYTES = 36;
+export const RIFF_SIZE_OVERHEAD_BYTES = 36;
 
 /**
  Tone level as a fraction of full scale: quiet enough to leave headroom, loud enough to be a real signal.
  */
-const TONE_LEVEL = 0.05;
+export const TONE_LEVEL = 0.05;
 
 /**
  Largest value of a signed 16-bit sample.
  */
-const INT16_MAX = 32_767;
+export const INT16_MAX = 32_767;
 
 /**
  Number of loose files the fallback library puts at its root, matching the three percent loose share of the generator.
  */
-const FALLBACK_LOOSE_FILES = 30;
+export const FALLBACK_LOOSE_FILES = 30;
 
 /**
  Number of tracks in the fallback artist folder.
  */
-const FALLBACK_ARTIST_TRACKS = 30;
+export const FALLBACK_ARTIST_TRACKS = 30;
+
+/**
+ Folder that sorts first and holds the long tone tracks.
+ */
+export const TONES_FOLDER = 'Aaa Tones';
+
+/**
+ Folder that sorts between the tone folders and holds the fallback artist tracks.
+ */
+export const FALLBACK_ARTIST_FOLDER = 'Mmm Tones';
+
+/**
+ Folder that sorts last and holds the file the Delete check trashes.
+ */
+export const TRASH_FOLDER = 'Zzz Tones';
+
+/**
+ Name of the long tone in the tones folder that the seek checks use.
+ */
+export const OMEGA_TONE_FILE = '01 Omega tone.wav';
+
+/**
+ Name of the file in the trash folder that the Delete check trashes.
+ */
+export const TRASH_TONE_FILE = '99 Trash me.wav';
 
 /**
  The folder of long tone tracks that makes seeking and track changes possible.
  */
-const LONG_TONES = [
+export const LONG_TONES = [
   {
     name: '01 Alpha tone.wav',
     seconds: 200,
@@ -264,7 +289,7 @@ async function writeFallbackBase(library: string,): Promise<void> {
    */
   const artist = join(
     library,
-    'Mmm Tones',
+    FALLBACK_ARTIST_FOLDER,
   );
   await mkdir(
     artist,
@@ -395,7 +420,7 @@ export async function buildLibrary(
    */
   const tones = join(
     library,
-    'Aaa Tones',
+    TONES_FOLDER,
   );
   await mkdir(
     tones,
@@ -407,7 +432,7 @@ export async function buildLibrary(
    */
   const last = join(
     library,
-    'Zzz Tones',
+    TRASH_FOLDER,
   );
   await mkdir(
     last,
@@ -433,7 +458,7 @@ export async function buildLibrary(
     writeFile(
       join(
         last,
-        '01 Omega tone.wav',
+        OMEGA_TONE_FILE,
       ),
       waveBytes({
         seconds: 30,
@@ -443,7 +468,7 @@ export async function buildLibrary(
     writeFile(
       join(
         last,
-        '99 Trash me.wav',
+        TRASH_TONE_FILE,
       ),
       waveBytes({
         seconds: 2,
