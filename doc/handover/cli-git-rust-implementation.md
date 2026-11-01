@@ -5043,3 +5043,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (`worktree-agent-a026a6b10f496cda2`, five commits) is reviewed but not merged: 0.4.7 (30-second push deadline) goes out
   first, then the merge, a gate and 0.4.8; the library `monochromatic-catalog-specifier` 0.1.0 is on crates.io (verified),
   contrary to the agent's report.
+
+### Directive: invoke real git as rarely as possible (queued part)
+
+- User, verbatim: "Invoke real git as rarely as possible." It extends the commit-timeouts agent (`a6e4566588e9ec087`): it owns
+  the object-moving and write children (`pack-objects`, `index-pack`, shadow `init --bare`, `reset`, `update-ref`,
+  `maintenance`, the commit) and should prefer not starting Git over bounding it, using the `gix-*` crates already in the lock.
+- QUEUED (the concurrent subagent limit of 5 was reached): a read-only query agent for `diff-index`, `ls-files`, `cat-file`,
+  `rev-parse`, `for-each-ref`, `symbolic-ref`, `merge-base`, `config` reads in `repository_facts.rs`, `candidate_*`,
+  `git_facts` and call sites: inventory with the budget harness counts, in-process replacements behind `RepositoryFacts` with
+  differential tests against real Git (packed and loose objects, alternates, linked worktree, unborn branch, detached HEAD,
+  odd and non-UTF-8 paths, corrupt object), guard tests shown failing, budget counts lowered deliberately, no new
+  dependency without justification. The full brief is in the session transcript of the 2026-11-01 work; relaunch it when a
+  slot frees (the owner can raise `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`).
