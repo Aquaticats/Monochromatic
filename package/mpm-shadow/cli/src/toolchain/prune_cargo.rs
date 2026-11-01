@@ -232,7 +232,7 @@ fn named_by_all(lock_files: &[PathBuf]) -> Result<(BTreeMap<String, BTreeSet<Str
         for (crate_name, versions) in named_versions(&text, &file.display().to_string())? {
             named.entry(crate_name).or_default().extend(versions);
         }
-        for (id, archive) in named_archives(&text) {
+        for (id, archive) in named_archives(&text, &file.display().to_string())? {
             let slot: &mut NamedArchive = archives.entry(id).or_default();
             slot.versions.extend(archive.versions);
             slot.first_bin = archive.first_bin;
@@ -260,7 +260,7 @@ fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run
     let present = present_archive_versions(&scope.toolchain_root, named);
     let mut removed: Vec<PathBuf> = Vec::new();
     for (id, version) in plan_archive_prune(&present) {
-        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version);
+        let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)?;
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
         }

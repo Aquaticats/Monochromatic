@@ -206,7 +206,7 @@ pub fn install_bin_sourced(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
     let Some(cli) = ctx.find_bin_of("bin", "bin", &[]) else {
         return Err(ToolchainError::failure(format!(
             "the bin CLI is not installed; expected it under {}",
-            super::layout::tool_install_dir(&ctx.scope.toolchain_root, "bin", "").display()
+            ctx.scope.toolchain_bin_dir.display()
         )));
     };
     let mut env = ctx.env.all().clone();

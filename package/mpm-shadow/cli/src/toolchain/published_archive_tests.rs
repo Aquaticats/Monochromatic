@@ -21,9 +21,9 @@ use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
 use super::prune_cargo::{PresentVersion, prune_toolchain};
+use super::layout::tool_directory;
 use super::published_archive::{
     current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, running_version_archive,
-    tool_directory,
 };
 use super::runner::RunRequest;
 use super::scope::{Scope, repo_scope};
@@ -106,7 +106,7 @@ fn context_of<'a>(rig: &'a Rig, scope: &'a Scope, lock: &'a Lock) -> Context<'a>
 /// the program,
 /// inside the folder an archive would hold.
 fn finish_archive(root: &Path, version: &str) -> PathBuf {
-    let program = tool_directory(root, ID).join(version).join("release-folder").join(BIN);
+    let program = tool_directory(root, ID).expect("a plain name").join(version).join("release-folder").join(BIN);
     write_executable(&program);
     return program;
 }
@@ -151,7 +151,7 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
 
     let second = sync_tools(&context_of(&rig, &rig.scope, &lock_new), None);
     assert_eq!(second.installed, vec![ID.to_string()], "{second:?}");
-    assert!(!tool_directory(&root, ID).join("0.2.0").exists(), "installing 0.2.1 removed 0.2.0");
+    assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists(), "installing 0.2.1 removed 0.2.0");
     assert!(!old_download.exists(), "and the archive downloaded for it");
     assert!(root.join("downloads").join(format!("{ID}-0.2.1-mpm-shadow-0.2.1.tar.gz")).is_file());
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.1"));
@@ -159,7 +159,7 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
     // This tree's exposed link goes through its launcher to the program behind `current`, which resolves.
     let launcher = rig.scope.launcher_dir.join(BIN);
     assert_eq!(fs::read_link(rig.scope.exposure_dir.join(BIN)).expect("a link"), launcher);
-    let through_current = fs::canonicalize(current_link_of(&root, ID).join("release-folder").join(BIN)).expect("current resolves");
+    let through_current = fs::canonicalize(current_link_of(&root, ID).expect("a plain name").join("release-folder").join(BIN)).expect("current resolves");
     assert!(through_current.to_string_lossy().ends_with("0.2.1/release-folder/mpm-shadow-release"), "{}", through_current.display());
 }
 
@@ -180,7 +180,7 @@ fn a_tree_pinning_an_older_release_keeps_the_newer_install_runs_it_and_is_warned
     assert!(report_old.installed.is_empty(), "an older version is never installed beside a newer one");
     assert_eq!(report_old.unchanged, vec![ID.to_string()]);
     assert_eq!(tar_lines(&rig).len(), 1, "0.2.0 was not even downloaded unpacked");
-    assert!(!tool_directory(&root, ID).join("0.2.0").exists());
+    assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists());
     assert_eq!(report_old.warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")], "{report_old:?}");
     assert!(report_old.warnings[0].contains("older repository tools are never kept"));
     assert!(report_old.warnings[0].contains("mise run toolchain:update"));
@@ -199,7 +199,7 @@ fn a_release_is_observed_as_the_newest_finished_install_and_an_unfinished_one_is
     assert_eq!(newest_installed_archive(&root, ID, BIN), None, "nothing installed");
 
     // An interrupted unpacking: the version directory exists, the program does not.
-    fs::create_dir_all(tool_directory(&root, ID).join("0.2.2").join("release-folder")).expect("make");
+    fs::create_dir_all(tool_directory(&root, ID).expect("a plain name").join("0.2.2").join("release-folder")).expect("make");
     assert_eq!(newest_installed_archive(&root, ID, BIN), None, "an unfinished install is not counted");
     let before = observe_all(&context_of(&rig, &rig.scope, &lock), &lock.tools);
     assert!(!before[0].in_sync);
@@ -310,7 +310,7 @@ fn named_lock(version: &str) -> String {
 
 #[test]
 fn a_lock_names_only_the_release_archives_of_this_repository() {
-    let named = named_archives(&named_lock("0.2.1"));
+    let named = named_archives(&named_lock("0.2.1"), "the lock").expect("a lock that names a release archive");
     assert_eq!(named.len(), 1);
     assert_eq!(named[ID].versions.iter().cloned().collect::<Vec<_>>(), vec!["0.2.1".to_string()]);
     assert_eq!(named[ID].first_bin, BIN);
@@ -318,11 +318,11 @@ fn a_lock_names_only_the_release_archives_of_this_repository() {
     let third_party = r#"{"tools":{"node":{"version":"26.0.0","route":"archive","bins":["node"]},
         "bin":{"version":"1.0.0","route":"archive","bins":["bin"],"options":{"tagPrefix":"other-v"}},
         "cargo:x":{"version":"1.0.0","route":"cargo-binstall","bins":["x"],"options":{"tagPrefix":"monochromatic-x-v"}}}}"#;
-    assert!(named_archives(third_party).is_empty(), "no prefix, a foreign prefix and another route name nothing");
+    assert!(named_archives(third_party, "the lock").expect("reads").is_empty(), "no prefix, a foreign prefix and another route name nothing");
     let typescript_format = r#"{"tools":{"node":{"request":{"track":"latest"},"version":"26.0.0","route":"archive"}}}"#;
-    assert!(named_archives(typescript_format).is_empty());
-    assert!(named_archives("not json").is_empty());
-    assert!(named_archives("{}").is_empty());
+    assert!(named_archives(typescript_format, "the lock").expect("reads").is_empty());
+    assert!(named_archives("not json", "the lock").expect("reads").is_empty());
+    assert!(named_archives("{}", "the lock").expect("reads").is_empty());
 }
 
 fn versions_present(entries: &[(&str, bool)]) -> BTreeMap<String, Vec<PresentVersion>> {
@@ -351,20 +351,20 @@ fn the_prune_command_removes_older_release_archives_a_lock_names_and_leaves_othe
     for version in ["0.2.0", "0.2.1"] {
         finish_archive(&root, version);
     }
-    std::os::unix::fs::symlink("0.2.0", current_link_of(&root, ID)).expect("a stale current");
+    std::os::unix::fs::symlink("0.2.0", current_link_of(&root, ID).expect("a plain name")).expect("a stale current");
     let third_party = root.join("node").join("1.0.0");
     fs::create_dir_all(&third_party).expect("make");
     fs::write(rig.scope.root.join("toolchain.lock.json"), named_lock("0.2.0")).expect("write");
     rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
 
     let planned = prune_toolchain(&rig.scope, &rig.runner, &[], true).expect("dry run");
-    assert_eq!(planned, vec![tool_directory(&root, ID).join("0.2.0")]);
-    assert!(tool_directory(&root, ID).join("0.2.0").is_dir(), "a dry run deletes nothing");
+    assert_eq!(planned, vec![tool_directory(&root, ID).expect("a plain name").join("0.2.0")]);
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.0").is_dir(), "a dry run deletes nothing");
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.0"), "and moves no link");
 
     let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
-    assert_eq!(removed, vec![tool_directory(&root, ID).join("0.2.0")]);
-    assert!(tool_directory(&root, ID).join("0.2.1").is_dir());
+    assert_eq!(removed, vec![tool_directory(&root, ID).expect("a plain name").join("0.2.0")]);
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.1").is_dir());
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.1"), "current follows the survivor");
     assert!(third_party.is_dir(), "an archive directory no lock names as a release archive is never judged");
 
@@ -375,5 +375,5 @@ fn the_prune_command_removes_older_release_archives_a_lock_names_and_leaves_othe
     fs::write(unnamed.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
     unnamed.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", unnamed.scope.root.display()), 0);
     assert!(prune_toolchain(&unnamed.scope, &unnamed.runner, &[], false).expect("pruned").is_empty());
-    assert!(tool_directory(&unnamed.scope.toolchain_root, ID).join("0.2.0").is_dir());
+    assert!(tool_directory(&unnamed.scope.toolchain_root, ID).expect("a plain name").join("0.2.0").is_dir());
 }

@@ -51,11 +51,13 @@ use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{find_bin_under, install_dir_name, tool_install_dir};
+use super::layout::{find_bin_under, install_dir_name, tool_directory, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Route};
 /// Imports `PresentVersion` from `super::prune_cargo`.
 use super::prune_cargo::PresentVersion;
+/// Imports the name checks from `super::segment`.
+use super::segment::{check_bin_name, check_tool_id, check_version};
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -82,15 +84,10 @@ pub fn is_published_archive(tool: &LockedTool) -> bool {
     };
 }
 
-/// `<toolchain root>/<tool id>`,
-/// the directory that holds every installed version of the tool.
-pub fn tool_directory(toolchain_root: &Path, id: &str) -> PathBuf {
-    return tool_install_dir(toolchain_root, id, "");
-}
-
-/// `<toolchain root>/<tool id>/current`.
-pub fn current_link_of(toolchain_root: &Path, id: &str) -> PathBuf {
-    return tool_directory(toolchain_root, id).join(CURRENT_LINK_NAME);
+/// `<toolchain root>/<tool id>/current`;
+/// refuses an id that is not one plain directory name.
+pub fn current_link_of(toolchain_root: &Path, id: &str) -> Result<PathBuf, ToolchainError> {
+    return Ok(tool_directory(toolchain_root, id)?.join(CURRENT_LINK_NAME));
 }
 
 /// The program that shows an install of the tool finished:
@@ -122,7 +119,12 @@ fn newest_first<T: AsRef<str>>(left: &T, right: &T) -> Ordering {
 /// not hidden),
 /// newest first.
 fn version_names(toolchain_root: &Path, id: &str) -> Vec<String> {
-    let Ok(entries) = fs::read_dir(tool_directory(toolchain_root, id)) else {
+    // An id that is not one plain directory name is refused where the plan and the lock are decoded; for any other
+    // value there is no directory to list, and listing none is the safe answer.
+    let Ok(directory) = tool_directory(toolchain_root, id) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(directory) else {
         return Vec::new();
     };
     let mut names: Vec<String> = Vec::new();
@@ -143,7 +145,10 @@ fn version_names(toolchain_root: &Path, id: &str) -> Vec<String> {
 /// The newest version of the tool whose install finished.
 pub fn newest_installed_archive(toolchain_root: &Path, id: &str, first_bin: &str) -> Option<String> {
     for name in version_names(toolchain_root, id) {
-        if is_finished(&tool_install_dir(toolchain_root, id, &name), first_bin) {
+        // A listed name is a plain directory name, so the path is always built.
+        if let Ok(directory) = tool_install_dir(toolchain_root, id, &name)
+            && is_finished(&directory, first_bin)
+        {
             return Some(name);
         }
     }
@@ -153,7 +158,7 @@ pub fn newest_installed_archive(toolchain_root: &Path, id: &str, first_bin: &str
 /// The version the tool's `current` link names (the link's target is the version directory's name),
 /// or `None` when there is no link.
 pub fn running_version_archive(toolchain_root: &Path, id: &str) -> Option<String> {
-    let target: PathBuf = fs::read_link(current_link_of(toolchain_root, id)).ok()?;
+    let target: PathBuf = fs::read_link(current_link_of(toolchain_root, id).ok()?).ok()?;
     let name: String = file_name_text(&target);
     if name.is_empty() {
         return None;
@@ -177,7 +182,7 @@ pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bi
         return Ok(None);
     };
     if running_version_archive(toolchain_root, id).as_deref() != Some(newest.as_str()) {
-        atomic_symlink(&current_link_of(toolchain_root, id), Path::new(&newest))?;
+        atomic_symlink(&current_link_of(toolchain_root, id)?, Path::new(&newest))?;
     }
     return Ok(Some(newest));
 }
@@ -220,7 +225,7 @@ pub fn remove_older_archives(toolchain_root: &Path, id: &str, first_bin: &str) -
         if compare_versions(&name, &newest) != Ordering::Less {
             continue;
         }
-        let directory: PathBuf = tool_install_dir(toolchain_root, id, &name);
+        let directory: PathBuf = tool_install_dir(toolchain_root, id, &name)?;
         if let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
         }
@@ -256,22 +261,28 @@ fn first_bin_of(entry: &Value) -> Option<&str> {
 /// The archive-route repository-published tools one lock names,
 /// by tool id,
 /// read from its JSON text without decoding the rest of the model.
+/// A tool whose id,
+/// version or first bin is not one plain directory name refuses the whole read,
+/// naming `origin` (the lock's path) and the entry.
 /// Why:
 /// Other worktrees may sit on a commit whose lock is in an older format;
 /// such a lock has no `options.tagPrefix` and names no archive tool,
 /// which is the safe reading for a cleanup.
+/// A lock that names a repository release under an id like `..` is not an older format but a crafted one,
+/// and the id would be joined onto the toolchain root and listed and deleted from,
+/// so the cleanup stops instead of judging it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function namedArchives(lockText: string): Map<string, NamedArchive>
+/// export function namedArchives(lockText: string, origin: string): Map<string, NamedArchive>  // throws
 /// ```
-pub fn named_archives(lock_text: &str) -> BTreeMap<String, NamedArchive> {
+pub fn named_archives(lock_text: &str, origin: &str) -> Result<BTreeMap<String, NamedArchive>, ToolchainError> {
     let mut named: BTreeMap<String, NamedArchive> = BTreeMap::new();
     let Ok(lock) = serde_json::from_str::<Value>(lock_text) else {
-        return named;
+        return Ok(named);
     };
     let Some(tools) = lock.get("tools").and_then(Value::as_object) else {
-        return named;
+        return Ok(named);
     };
     for (id, entry) in tools {
         if entry.get("route").and_then(Value::as_str) != Some("archive") {
@@ -284,13 +295,21 @@ pub fn named_archives(lock_text: &str) -> BTreeMap<String, NamedArchive> {
         let (Some(first_bin), Some(version)) = (first_bin_of(entry), entry.get("version").and_then(Value::as_str)) else {
             continue;
         };
-        if own {
-            let slot: &mut NamedArchive = named.entry(id.clone()).or_default();
-            slot.versions.insert(version.to_string());
-            slot.first_bin = first_bin.to_string();
+        if !own {
+            continue;
         }
+        for checked in [check_tool_id(id), check_version(version), check_bin_name(first_bin)] {
+            if let Err(message) = checked {
+                return Err(ToolchainError::failure(format!(
+                    "{origin} names a release archive that cannot be judged safely, so nothing was deleted; tools.{id}: {message}"
+                )));
+            }
+        }
+        let slot: &mut NamedArchive = named.entry(id.clone()).or_default();
+        slot.versions.insert(version.to_string());
+        slot.first_bin = first_bin.to_string();
     }
-    return named;
+    return Ok(named);
 }
 
 /// What:
@@ -310,7 +329,9 @@ pub fn present_archive_versions(toolchain_root: &Path, named: &BTreeMap<String, 
     for (id, archive) in named {
         let mut found: Vec<PresentVersion> = Vec::new();
         for version in version_names(toolchain_root, id) {
-            let directory: PathBuf = tool_install_dir(toolchain_root, id, &version);
+            let Ok(directory) = tool_install_dir(toolchain_root, id, &version) else {
+                continue;
+            };
             let finished: bool = find_bin_under(&directory, &archive.first_bin).is_some();
             found.push(PresentVersion { version, finished });
         }

@@ -133,7 +133,7 @@ fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), Toolcha
         file_name
     ));
     download_verified(ctx, &artifact.url, &download_path, &artifact.sha256)?;
-    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version);
+    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     if let Err(error) = fs::create_dir_all(&install_dir) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", install_dir.display())));
     }

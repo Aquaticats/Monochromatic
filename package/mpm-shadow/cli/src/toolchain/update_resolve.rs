@@ -42,6 +42,8 @@ use super::context::Context;
 use super::http::{DEFAULT_MAX_DOWNLOAD_BYTES, DEFAULT_MAX_GET_BYTES};
 /// Imports the model types the resolvers build.
 use super::model::{Artifact, Declaration, LockedTool, Origin};
+/// Imports the check that a version is one plain directory name.
+use super::segment::check_version;
 
 /// What a resolver found:
 /// the version to lock and the artifact rows (empty for tools installed by name and version).
@@ -187,6 +189,17 @@ pub fn by_name(version: &str) -> Resolution {
 /// export function resolveTool(ctx: Context, declaration: Declaration, current?: LockedTool): Resolution
 /// ```
 pub fn resolve_tool(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
+    let resolution: Resolution = resolve_origin(ctx, declaration, current)?;
+    // The version becomes the name of the install directory, and a release tag may hold separators (`release/1.2`).
+    if let Err(message) = check_version(&resolution.version) {
+        return Err(ResolveError::Failed(format!("{}: {message}", declaration.id)));
+    }
+    return Ok(resolution);
+}
+
+/// Asks the resolver of the request's origin,
+/// without checking the version it answers.
+fn resolve_origin(ctx: &Context, declaration: &Declaration, current: Option<&LockedTool>) -> Result<Resolution, ResolveError> {
     if declaration.request.is_exact()
         && let Some(locked) = current
         && locked.declaration.request == declaration.request

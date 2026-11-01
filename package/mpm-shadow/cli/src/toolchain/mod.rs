@@ -121,6 +121,9 @@ pub mod prune_cargo;
 /// The newest-only install layout of the archive-route tools this repository publishes.
 pub mod published_archive;
 
+/// The names the plan and the lock may use as directory names.
+pub mod segment;
+
 /// Readers for the text other tools print,
 /// and the version comparison.
 pub mod parse_output;
@@ -299,3 +302,7 @@ mod launcher_tests;
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
 mod prune_cargo_tests;
+
+/// The unit tests of the names that become directory names.
+#[cfg(test)]
+mod segment_tests;

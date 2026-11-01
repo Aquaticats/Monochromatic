@@ -324,9 +324,9 @@ fn a_second_failure_is_final_and_says_the_lookup_was_made_twice() {
 fn an_installed_tool_whose_lookup_fails_is_not_synced() {
     let (_directory, scope, env, http, runner) = auto_sync_rig();
     for name in ["node", "npm", "npx"] {
-        write_executable(&tool_install_dir(&scope.toolchain_root, "node", "1.2.3").join(name));
+        write_executable(&tool_install_dir(&scope.toolchain_root, "node", "1.2.3").expect("a plain name").join(name));
     }
-    write_executable(&tool_install_dir(&scope.toolchain_root, "pnpm", "1.2.3").join("pnpm"));
+    write_executable(&tool_install_dir(&scope.toolchain_root, "pnpm", "1.2.3").expect("a plain name").join("pnpm"));
     runner.answer("pnpm list", "[{\"dependencies\": {\"wrangler\": {\"version\": \"4.0.0\"}}}]", 0);
     http.fail(NPM_URL, "503");
     let report = run_update(&scope, &env, &runner, &http, &linux(), false).expect("a report");

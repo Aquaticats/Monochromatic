@@ -15,7 +15,7 @@
 //! ```ts
 //! // layout.ts
 //! export function hostPlatformId(): string
-//! export function toolInstallDir(root: string, id: string, version: string): string
+//! export function toolInstallDir(root: string, id: string, version: string): string  // throws on an unsafe name
 //! export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[]): string[]
 //! export function findToolBin(tool: LockedTool, name: string, scope: Scope, env: EnvMap, extra: string[]): string | undefined
 //! ```
@@ -27,12 +27,16 @@ use std::path::{Path, PathBuf};
 
 /// Imports `cargo_bin_dir_of` from `super::cargo_installs`.
 use super::cargo_installs::cargo_bin_dir_of;
+/// Imports `ToolchainError` from `super::error`.
+use super::error::ToolchainError;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, OsFamily, Route};
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{current_link_of, is_published_archive};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
+/// Imports the name checks from `super::segment`.
+use super::segment::{check_tool_id, check_version};
 
 /// How many directory levels below a search root `find_bin_under` descends.
 const MAX_BIN_SEARCH_DEPTH: usize = 3;
@@ -128,16 +132,70 @@ pub fn install_dir_name(id: &str) -> String {
     return name;
 }
 
-/// The directory one tool version installs into:
-/// `<toolchain root>/<install dir name>/<version>`;
-/// an empty `version`
-/// gives the tool's own directory.
-pub fn tool_install_dir(toolchain_root: &Path, id: &str, version: &str) -> PathBuf {
-    let tool_dir: PathBuf = toolchain_root.join(install_dir_name(id));
-    if version.is_empty() {
-        return tool_dir;
+/// What:
+/// The directory that holds every installed version of a tool:
+/// `<toolchain root>/<install dir name>`.
+/// Why:
+/// Refuses an id whose directory name is not one plain name or is a directory the toolchain root keeps for something
+/// else,
+/// so a crafted id never makes a path outside the toolchain root.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function toolDirectory(toolchainRoot: string, id: string): string  // throws
+/// ```
+pub fn tool_directory(toolchain_root: &Path, id: &str) -> Result<PathBuf, ToolchainError> {
+    if let Err(message) = check_tool_id(id) {
+        return Err(ToolchainError::failure(message));
     }
-    return tool_dir.join(version);
+    return Ok(toolchain_root.join(install_dir_name(id)));
+}
+
+/// What:
+/// The directory one tool version installs into:
+/// `<toolchain root>/<install dir name>/<version>`.
+/// Why:
+/// Refuses an id (see `tool_directory`) or a version that is not one plain name
+/// (empty,
+/// `.`,
+/// `..`,
+/// a separator,
+/// NUL,
+/// a leading dot,
+/// `current`),
+/// so a crafted lock never makes an install or a deletion reach outside the tool's directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function toolInstallDir(toolchainRoot: string, id: string, version: string): string  // throws
+/// ```
+pub fn tool_install_dir(toolchain_root: &Path, id: &str, version: &str) -> Result<PathBuf, ToolchainError> {
+    let tool_dir: PathBuf = tool_directory(toolchain_root, id)?;
+    if let Err(message) = check_version(version) {
+        return Err(ToolchainError::failure(message));
+    }
+    return Ok(tool_dir.join(version));
+}
+
+/// What:
+/// The directory a version's downloaded archives are kept in:
+/// `<toolchain root>/downloads/<install dir name>/<version>`.
+/// Why:
+/// One directory per tool and version,
+/// so removing the downloads of one version can never touch another's
+/// (a name prefix such as `a-1-` would match both `a` at version `1-x` and `a-1`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function toolDownloadsDir(toolchainRoot: string, id: string, version: string): string  // throws
+/// ```
+pub fn tool_downloads_dir(toolchain_root: &Path, id: &str, version: &str) -> Result<PathBuf, ToolchainError> {
+    let downloads: PathBuf = toolchain_root.join("downloads");
+    let tool_dir: PathBuf = tool_directory(&downloads, id)?;
+    if let Err(message) = check_version(version) {
+        return Err(ToolchainError::failure(message));
+    }
+    return Ok(tool_dir.join(version));
 }
 
 /// The directory below `$CARGO_HOME` (default `~/.cargo`) cargo installs binaries into.
@@ -236,7 +294,9 @@ fn build_tools_version(tool: &LockedTool) -> String {
 /// export function binSearchDirs(tool: LockedTool, scope: Scope, env: EnvMap, extra: string[]): string[]
 /// ```
 pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
-    let install_dir: PathBuf = tool_install_dir(&scope.toolchain_root, &tool.declaration.id, &tool.version);
+    // A name that is not one plain directory name is refused when the plan and the lock are decoded, so the error
+    // arm is unreachable for a decoded lock; for any other value "nowhere to look" is the safe answer.
+    let install_dir: Option<PathBuf> = tool_install_dir(&scope.toolchain_root, &tool.declaration.id, &tool.version).ok();
     let mut dirs: Vec<PathBuf> = Vec::new();
     match tool.declaration.route {
         Route::CargoBinstall => dirs.push(cargo_bin_dir_of(tool, scope)),
@@ -255,8 +315,12 @@ pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dir
             dirs.extend(extra_dirs.iter().cloned());
         }
         // A release archive of this repository is run from the newest installed version, through its `current` link.
-        Route::Archive if is_published_archive(tool) => dirs.push(current_link_of(&scope.toolchain_root, &tool.declaration.id)),
-        Route::CargoGit | Route::GoInstall | Route::Archive => dirs.push(install_dir),
+        Route::Archive if is_published_archive(tool) => {
+            if let Ok(link) = current_link_of(&scope.toolchain_root, &tool.declaration.id) {
+                dirs.push(link);
+            }
+        }
+        Route::CargoGit | Route::GoInstall | Route::Archive => dirs.extend(install_dir),
         Route::RustupToolchain => {
             dirs.push(cargo_bin_dir(env, &scope.home));
             let rustup_home: PathBuf = match env.get("RUSTUP_HOME") {
@@ -266,9 +330,11 @@ pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dir
             dirs.push(rustup_home.join("toolchains"));
         }
         Route::AndroidSdk => {
-            dirs.push(install_dir.join("cmdline-tools").join(&tool.version).join("bin"));
-            dirs.push(install_dir.join("platform-tools"));
-            dirs.push(install_dir.join("build-tools").join(build_tools_version(tool)));
+            if let Some(sdk) = install_dir {
+                dirs.push(sdk.join("cmdline-tools").join(&tool.version).join("bin"));
+                dirs.push(sdk.join("platform-tools"));
+                dirs.push(sdk.join("build-tools").join(build_tools_version(tool)));
+            }
         }
         Route::RustupComponents => {}
     }

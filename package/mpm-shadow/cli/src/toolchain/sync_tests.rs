@@ -260,7 +260,7 @@ fn a_full_sync_report_lists_unresolved_bins() {
     rig.http.serve(node_url, b"x");
     rig.lock.tools[0].artifacts =
         vec![("linux-x64".to_string(), super::model::Artifact { url: node_url.to_string(), sha256: super::hash::sha256_hex(b"x") })];
-    let dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3");
+    let dir = tool_install_dir(&rig.scope.toolchain_root, "node", "1.2.3").expect("a plain name");
     rig.runner.on("tar", Box::new(move |_request| write_executable(&dir.join("bin").join("node"))));
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.installed, vec!["node".to_string()]);
