@@ -363,9 +363,9 @@ export function judgeSeatsFor(
     staticCheckers.length,
   );
   /**
-   Whether the run's seating would take a model in a writing role: served by a wet provider, not withheld on the provider
-   that would serve it, and not withheld from the role in this reading by the function a re-ask leaves its alternates
-   out by, so the bench and the re-ask cannot part (ledger B1330).
+   Whether the run's seating would take a model in a writing role: served by a wet provider, not withheld on the
+   provider that would serve it, and not withheld from the role in this reading by the function a re-ask leaves its
+   alternates out by, so the bench and the re-ask cannot part (ledger B1330).
 
    @param role - writing role of the bench
 
@@ -381,7 +381,9 @@ export function judgeSeatsFor(
         role,
         dry,
       },);
-      return served(modelId,) && seated(modelId,) && (!withheld);
+      return served(modelId,)
+        && seated(modelId,)
+        && (!withheld);
     };
   }
   /**

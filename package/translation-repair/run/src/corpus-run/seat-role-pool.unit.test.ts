@@ -257,7 +257,9 @@ await describe({
               routeTimeHolds: { applied: 'in-reading', dry, },
             },);
             for (const modelId of rolePoolOf({ role, },).filter(function offBench(poolModel,): boolean {
-              return (!derived.includes(poolModel,)) && (poolModel !== listed[0]) && (MODEL_CARDS[poolModel].anthropic === undefined)
+              return (!derived.includes(poolModel,))
+                && (poolModel !== listed[0])
+                && (MODEL_CARDS[poolModel].anthropic === undefined)
                 && (!isDecisionSeat({ modelId: poolModel, },));
             },)) {
               /**
@@ -268,12 +270,20 @@ await describe({
                 role,
                 dry,
               },);
+              /**
+               The reading the finding names.
+               */
+              const readingText = JSON.stringify(dry,);
+              /**
+               Names the model, the role and the reading in a finding.
+               */
+              const where = `${role}: ${modelId}`;
               if (withheld && alternates.includes(modelId,))
-                findings.push(`${role}: ${modelId} is withheld by the reading but a re-ask may ask it (dry ${JSON.stringify(dry,)})`,);
+                findings.push(`${where} is withheld by the reading but a re-ask may ask it (dry ${readingText})`,);
               if ((!withheld) && (!alternates.includes(modelId,)))
-                findings.push(`${role}: ${modelId} is not withheld by the reading but no re-ask asks it (dry ${JSON.stringify(dry,)})`,);
+                findings.push(`${where} is not withheld by the reading but no re-ask asks it (dry ${readingText})`,);
               if (withheld && derived.includes(modelId,))
-                findings.push(`${role}: ${modelId} is withheld by the reading but the bench seats it (dry ${JSON.stringify(dry,)})`,);
+                findings.push(`${where} is withheld by the reading but the bench seats it (dry ${readingText})`,);
             }
             // NOT KNOWING THE READING WITHHOLDS EVERY MODEL THAT CARRIES A HOLD APPLIED AT SEATING TIME.
             for (const modelId of reaskPoolOf({ role, },))
@@ -286,7 +296,10 @@ await describe({
               && (!isDecisionSeat({ modelId: poolModel, },));
           },)) {
             if (seats.roster.includes(modelId,) === isWithheldFromRole({ modelId, role: 'roster', dry, },))
-              findings.push(`roster: ${modelId} is on the bench exactly when the function withholds it (dry ${JSON.stringify(dry,)})`,);
+              findings.push(
+                `roster: ${modelId} is on the bench exactly when the function withholds it `
+                  + `(dry ${JSON.stringify(dry,)})`,
+              );
           }
           for (const [role, listed, derived,] of benches) {
             for (const modelId of listed.filter(function withheld(listedId,): boolean {

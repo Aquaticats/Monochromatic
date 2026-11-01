@@ -360,10 +360,10 @@ await describe({
         },),
 
         it({
-          name: 'WEIGHS A BALLOT BY THE MODEL THAT CAST IT, whether or not it sits on the checker bench the run derives '
-            + '(ledger B1333): a model that wrote the text of an issue and also checks it, as a refiner the backfill seated '
-            + 'from the role order does when it is a measured checker too, is heard at the self-vote weight, and a '
-            + 'checker that did not write it is heard whole',
+          name: 'WEIGHS A BALLOT BY THE MODEL THAT CAST IT, whether or not it sits on the checker bench the run '
+            + 'derives (ledger B1333): a model that wrote the text of an issue and also checks it, as a refiner the '
+            + 'backfill seated from the role order does when it is a measured checker too, is heard at the self-vote '
+            + 'weight, and a checker that did not write it is heard whole',
           fn: async () => {
             /** The model that wrote the text of the first issue and casts a ballot on it. */
             const writer = SEAT_SYNTHETIC_VISION_WITHHELD;

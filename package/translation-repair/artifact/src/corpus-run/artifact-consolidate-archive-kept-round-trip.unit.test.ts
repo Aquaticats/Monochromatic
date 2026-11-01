@@ -71,9 +71,9 @@ await describe({
   name: 'the settlement applyFinalPolish keeps at the archive for a lost contributor name form',
   children: [
     it({
-      name: 'PINS THE WRITER HALF OF THE ROUND TRIP (B1240): the relabelled terminal `gate-kept-standing` is the record '
-        + 'of an archive kept at the slice, and the reader accepts it. The reader\'s refusal of an archive-kept record '
-        + 'under the terminal `consolidated` is pinned by the case "READS AN INCUMBENT THAT STOOD IN" of '
+      name: 'PINS THE WRITER HALF OF THE ROUND TRIP (B1240): the relabelled terminal `gate-kept-standing` is the '
+        + 'record of an archive kept at the slice, and the reader accepts it. The reader\'s refusal of an archive-kept '
+        + 'record under the terminal `consolidated` is pinned by the case "READS AN INCUMBENT THAT STOOD IN" of '
         + '`artifact-two-lane-read-consolidate.unit.test.ts`, not here (the re-check of round w404)',
       fn: async () => {
         const prepared = prepareDocumentPair({

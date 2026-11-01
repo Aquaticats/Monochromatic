@@ -36,6 +36,7 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';
 import {
+  type DrynessReading,
   HYPER_WET_ONLY,
   SYNTHETIC_WET_ONLY,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
@@ -375,9 +376,9 @@ await describe({
 
     it({
       name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through the same claims (ledger B1072, B1076): a first reply '
-        + 'that ended in a length stop with no content is re-asked under another model\'s name with no provider hint and '
-        + 'no nudge, so its digest is the one that model\'s own first ask of the question has, and a later ask of the '
-        + 'question replays both exchanges',
+        + 'that ended in a length stop with no content is re-asked under another model\'s name with no provider hint '
+        + 'and no nudge, so its digest is the one that model\'s own first ask of the question has, and a later ask of '
+        + 'the question replays both exchanges',
       fn: async () => {
         /** Every request that crossed the wrapper, in order. */
         const asked: ChatTextRequest[] = [];
@@ -409,8 +410,9 @@ await describe({
     },),
 
     it({
-      name: 'NEVER RE-ASKS A MODEL THE RUN\'S TALLY WITHHELD (ledger B1162): the tally sits outside this wrapper, so the '
-        + 'refusal it gives its own door is handed in and read at the re-ask too, and the next model of the order is asked',
+      name: 'NEVER RE-ASKS A MODEL THE RUN\'S TALLY WITHHELD (ledger B1162): the tally sits outside this wrapper, so '
+        + 'the refusal it gives its own door is handed in and read at the re-ask too, and the next model of the order '
+        + 'is asked',
       fn: async () => {
         /**
          Models a runaway of this seat could be re-asked of, in order.
@@ -439,10 +441,13 @@ await describe({
     },),
 
     it({
-      name: 'RE-ASKS A RUNAWAY EDITOR OF QWEN3.8-27B ONLY WHERE THE DRYNESS READ HANDED IN HAS SYNTHETIC SERVING IT (ledger '
-        + 'B1330), and never where it has Hyper serving it',
+      name: 'RE-ASKS A RUNAWAY EDITOR OF QWEN3.8-27B ONLY WHERE THE DRYNESS READ HANDED IN HAS SYNTHETIC SERVING IT '
+        + '(ledger B1330), and never where it has Hyper serving it',
       fn: async () => {
-        for (const [dry, asksQwen,] of [[SYNTHETIC_WET_ONLY, true,], [HYPER_WET_ONLY, false,],] as const) {
+        /**
+         Whether the re-ask of a runaway editor asked Qwen3.8-27B, given the dryness read the wrapper was handed.
+         */
+        async function asksQwenUnder(dry: DrynessReading,): Promise<boolean> {
           /** Every request that crossed the wrapper, in order. */
           const asked: ChatTextRequest[] = [];
           const client = promptUniqueClient({ inner: runawayThenAnswer({ asked, },), readDry: async () => dry, },);
@@ -455,8 +460,10 @@ await describe({
               bench: ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', REQUEST.modelId,],
             },
           },);
-          expect(asked[1]?.modelId === 'hf:Qwen/Qwen3.8-27B',).toBe(asksQwen,);
+          return asked[1]?.modelId === 'hf:Qwen/Qwen3.8-27B';
         }
+        expect(await asksQwenUnder(SYNTHETIC_WET_ONLY,),).toBe(true,);
+        expect(await asksQwenUnder(HYPER_WET_ONLY,),).toBe(false,);
       },
     },),
 
@@ -588,9 +595,9 @@ await describe({
     },),
 
     it({
-      name: 'BOOKS NOTHING ON THE RUN METER FOR A REUSE, from memory or from the durable store: the meter holds the one '
-        + 'priced call, and the log holds one PROMPT-REUSE line for each reuse and no SPEND line beyond the call\'s own, '
-        + 'so the meter of a corpus run does not over-read where a prompt is asked twice',
+      name: 'BOOKS NOTHING ON THE RUN METER FOR A REUSE, from memory or from the durable store: the meter holds the '
+        + 'one priced call, and the log holds one PROMPT-REUSE line for each reuse and no SPEND line beyond the '
+        + 'call\'s own, so the meter of a corpus run does not over-read where a prompt is asked twice',
       fn: async () => {
         await using dir = await scratchDir({ prefix: 'prompt-reuse-meter-', },);
         resetRunSpend();
@@ -635,8 +642,9 @@ await describe({
     },),
 
     it({
-      name: 'NAMES THE REUSE SCOPE IN THE PROMPT DIGEST ONLY WHEN IT IS GIVEN: a request with no scope keeps the digest '
-        + 'it always had, pinned here so no stored payload of a corpus run moves, and each scope is a digest of its own',
+      name: 'NAMES THE REUSE SCOPE IN THE PROMPT DIGEST ONLY WHEN IT IS GIVEN: a request with no scope keeps the '
+        + 'digest it always had, pinned here so no stored payload of a corpus run moves, and each scope is a digest of '
+        + 'its own',
       fn: async () => {
         /** Digest of the request as a corpus run sends it. */
         const unscoped = modelPromptDigest({ request: REQUEST, },);

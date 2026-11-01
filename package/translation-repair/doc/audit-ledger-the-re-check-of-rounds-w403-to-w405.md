@@ -16,7 +16,7 @@ The rules the entries leave behind are in
 [Preventing mistakes: tests that read other packages](mistake-prevention-tests-that-read-other-packages.md),
 [Preventing mistakes: shared code, loops and keyed tables](mistake-prevention-shared-code-loops-and-keyed-tables.md),
 [Preventing mistakes: stored files and cached decisions](mistake-prevention-stored-files-and-cached-decisions.md),
-[Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md)
+[Preventing mistakes: commits on a branch and figures told to others][commit-checks]
 and
 [Preventing mistakes: docs and references](mistake-prevention-docs-and-references.md).
 
@@ -48,8 +48,8 @@ and "no mistake is too small or low impact or ambiguious to fix".
   the first file holds one note (in the slips of B1229) and the second holds two (in B1264).
   Corrected in place,
   and no other text of rounds w402 and w405 names the old home (searched in `doc` and the package folder).
-- 29 headers of `source-scan/src/claude-schema-*.test-fixture.ts` said what `claude-schemas.unit.test.ts` feeds the builder
-  search.
+- 29 headers of `source-scan/src/claude-schema-*.test-fixture.ts` said what `claude-schemas.unit.test.ts` feeds the
+  builder search.
   The search is in `claude-schema-source-search.unit.test.ts` since round w402.
   The 29 headers,
   the comment of `provider/src/claude-schema.ts` and the TSDoc of `stage/src/pair-sections-stage.ts` name the file that
@@ -329,8 +329,8 @@ and the ballot is keyed by that voice,
 so the discount follows the answerer.
 
 The case:
-"WEIGHS A BALLOT BY THE MODEL THAT CAST IT" in `tally-resolution.unit.test.ts` shows that a model that wrote the text of an
-issue and also checks it is heard at `SELF_VOTE_WEIGHT`,
+"WEIGHS A BALLOT BY THE MODEL THAT CAST IT" in `tally-resolution.unit.test.ts` shows that a model that wrote the
+text of an issue and also checks it is heard at `SELF_VOTE_WEIGHT`,
 and a checker that did not is heard whole;
 the cases of `stage-answerer.unit.test.ts` show that the voice of a seat answered in its place names the answerer.
 So the clause is removed:
@@ -549,7 +549,7 @@ a version moves only if a keyed input changed.
 The lead's `KillMode` probe script removed `sigprobe/signals.log` before it wrote new evidence,
 and ledger B1295 cited that file.
 The rule is recorded in
-[Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites):
+[Preventing mistakes: commits on a branch and figures told to others][evidence-cited]:
 a probe writes new evidence under new names and never removes a file a ledger may cite.
 B1295 now copies its original reading and cites the new files.
 
@@ -565,8 +565,8 @@ Slips:
   and some used `--max-count` as a cap on evidence,
   where the brief forbids caps.
   The first listing was an `ls` of the whole agent folder.
-- The monochromatic-lint binary of the machine moved to 0.5.0 (the lead's commit `07bc2d0e6d` of the main checkout) while
-  this tree pins 0.4.0 and the older binary is no longer installed.
+- The monochromatic-lint binary of the machine moved to 0.5.0 (the lead's commit `07bc2d0e6d` of the main checkout)
+  while this tree pins 0.4.0 and the older binary is no longer installed.
   Every test of `corpus-pass` that ships text through the real wrap failed with `LintBinaryVersionError`
   (`red-b-cache-key.txt`),
   and `mise run toolchain:sync` is forbidden to the round.
@@ -598,3 +598,6 @@ Open:
 - Lines wider than 120 columns remain (B1338),
   and no scan reads the width.
 - The router's own `chatJson` re-ask reads no dryness (B1330).
+
+[commit-checks]: mistake-prevention-commit-checks-and-figures-told-to-others.md
+[evidence-cited]: mistake-prevention-commit-checks-and-figures-told-to-others.md#evidence-a-ledger-cites

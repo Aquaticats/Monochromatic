@@ -209,8 +209,8 @@ await describe({
     },),
 
     it({
-      name: 'ASKS A CHECKER ONLY OF A MODEL THE CHECKER BENCHMARK MEASURED IN: the measured order less the runaway, the '
-        + 'Claude route and the bench, and every other roster model is left out with why, the two Gemma sizes the '
+      name: 'ASKS A CHECKER ONLY OF A MODEL THE CHECKER BENCHMARK MEASURED IN: the measured order less the runaway, '
+        + 'the Claude route and the bench, and every other roster model is left out with why, the two Gemma sizes the '
         + 'benchmark measured out of the role among them',
       fn: async () => {
         const { alternates, leftOut, } = alternateModelsFor({
@@ -235,8 +235,8 @@ await describe({
     },),
 
     it({
-      name: 'ASKS AN EDITOR OR A REFINER OF THE WRITERS THE EDITOR CALIBRATION SEATS, not of a model that hold keeps out of '
-        + 'writing, and never of a model on the bench of the question',
+      name: 'ASKS AN EDITOR OR A REFINER OF THE WRITERS THE EDITOR CALIBRATION SEATS, not of a model that hold keeps '
+        + 'out of writing, and never of a model on the bench of the question',
       fn: async () => {
         for (const role of ['editor', 'refiner',] as const) {
           const { alternates, } = alternateModelsFor({
@@ -252,11 +252,11 @@ await describe({
     },),
 
     it({
-      name: 'ORDERS THE STAND-INS OF AN EDITOR OR A REFINER BY THEIR STANDING IN THAT ROLE, best first, then the models never '
-        + 'measured in it by the share of runaways (the owner\'s "Order by role standing (Recommended)", 2026-10-31, ledger '
-        + 'B1144): the editor calibration of 2026-09-01 puts Qwen3.8-27B (17.3) before Kimi-K3 (14.2), minimax-m3 (8.4) and '
-        + 'gemma-4-26b (7.0) as an editor, and glm-5.3 (12.1) before Kimi-K3 (7.8), Qwen3.8-27B (7.7) and gemma-4-26b (3.4) '
-        + 'as a refiner',
+      name: 'ORDERS THE STAND-INS OF AN EDITOR OR A REFINER BY THEIR STANDING IN THAT ROLE, best first, then the '
+        + 'models never measured in it by the share of runaways (the owner\'s "Order by role standing (Recommended)", '
+        + '2026-10-31, ledger B1144): the editor calibration of 2026-09-01 puts Qwen3.8-27B (17.3) before Kimi-K3 '
+        + '(14.2), minimax-m3 (8.4) and gemma-4-26b (7.0) as an editor, and glm-5.3 (12.1) before Kimi-K3 (7.8), '
+        + 'Qwen3.8-27B (7.7) and gemma-4-26b (3.4) as a refiner',
       fn: async () => {
         expect(alternateModelsFor({
           modelId: 'hf:zai-org/GLM-5.3-Flash',
@@ -288,9 +288,10 @@ await describe({
     },),
 
     it({
-      name: 'NEVER ASKS A MODEL THE RUN WITHHOLDS FROM AN EDITOR OR REFINER SEAT (ledger B1330): Qwen3.8-27B is left out of both '
-        + 'roles with hyper-slow named where the reading has Hyper serving it, is first for an editor and third for a '
-        + 'refiner where Synthetic serves it and Hyper is dry, and is left out of both where the reading is unknown',
+      name: 'NEVER ASKS A MODEL THE RUN WITHHOLDS FROM AN EDITOR OR REFINER SEAT (ledger B1330): Qwen3.8-27B is left '
+        + 'out of both roles with hyper-slow named where the reading has Hyper serving it, is first for an editor and '
+        + 'third for a refiner where Synthetic serves it and Hyper is dry, and is left out of both where the reading '
+        + 'is unknown',
       fn: async () => {
         for (const [role, position, bench,] of [
           ['editor', 0, ['hf:zai-org/GLM-5.3-Flash', 'claude-sonnet-5-5', 'glm-5.3', 'deepseek-v4.1-flash',],],
@@ -320,16 +321,22 @@ await describe({
             ...asked,
             routeTimeHolds: { applied: 'in-reading', dry: SYNTHETIC_WET_ONLY, },
           },).alternates.indexOf(QWEN,),).toBe(position,);
-          expect(alternateModelsFor({ ...asked, routeTimeHolds: { applied: 'by-the-caller', }, },).alternates.includes(QWEN,),)
-            .toBe(true,);
+          /**
+           The alternates of a caller that applies the reading itself.
+           */
+          const { alternates: byTheCaller, } = alternateModelsFor({
+            ...asked,
+            routeTimeHolds: { applied: 'by-the-caller', },
+          },);
+          expect(byTheCaller.includes(QWEN,),).toBe(true,);
         }
       },
     },),
 
     it({
-      name: 'NEVER ASKS KIMI-K3 FOR A SELECT OR SLATE SEAT, nor QWEN3.8-27B FOR A SEAT THE RUN WITHHOLDS IT FROM WHILE HYPER SERVES '
-        + 'IT (ledger B1143): with Synthetic dry and Hyper serving Kimi-K3 the run keeps it off the select and slate benches, '
-        + 'and a runaway select or slate judge is not re-asked of it on Hyper',
+      name: 'NEVER ASKS KIMI-K3 FOR A SELECT OR SLATE SEAT, nor QWEN3.8-27B FOR A SEAT THE RUN WITHHOLDS IT FROM WHILE '
+        + 'HYPER SERVES IT (ledger B1143): with Synthetic dry and Hyper serving Kimi-K3 the run keeps it off the '
+        + 'select and slate benches, and a runaway select or slate judge is not re-asked of it on Hyper',
       fn: async () => {
         for (const role of ['select-judge', 'slate-judge',] as const) {
           const { alternates, leftOut, } = alternateModelsFor({ modelId: 'minimax-m3', role, },);
@@ -364,8 +371,8 @@ await describe({
     },),
 
     it({
-      name: 'LEAVES OUT EVERY MODEL ON THE BENCH OF THE QUESTION, each named with why, since its answer recorded as the '
-        + 'voice of the seat that ran away would count one model twice',
+      name: 'LEAVES OUT EVERY MODEL ON THE BENCH OF THE QUESTION, each named with why, since its answer recorded as '
+        + 'the voice of the seat that ran away would count one model twice',
       fn: async () => {
         const { alternates, leftOut, } = alternateModelsFor({
           modelId: SEAT_HYPER_OPENROUTER_UNMEASURED,

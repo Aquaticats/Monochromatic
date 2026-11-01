@@ -350,8 +350,8 @@ await describe({
     },),
 
     it({
-      name: 'MOVES ON TO THE NEXT MODEL when one has no provider with budget, and asks nothing of the seat\'s own model '
-        + 'while another model is left',
+      name: 'MOVES ON TO THE NEXT MODEL when one has no provider with budget, and asks nothing of the seat\'s own '
+        + 'model while another model is left',
       fn: async () => {
         const run = await recoverRunaway({ noProvider: [SEAT_HYPER_TEXT_BEDROCK,], },);
         expect(run.seen.map(function modelOf(seen,) {
@@ -364,9 +364,9 @@ await describe({
     },),
 
     it({
-      name: 'MOVES ON TO THE NEXT MODEL when one\'s exchange fails in transport (ledger B1201), as it does for one with no '
-        + 'provider: the seat is lost only when every model of the order has failed, and its own model is not asked '
-        + 'while another is left',
+      name: 'MOVES ON TO THE NEXT MODEL when one\'s exchange fails in transport (ledger B1201), as it does for one '
+        + 'with no provider: the seat is lost only when every model of the order has failed, and its own model is not '
+        + 'asked while another is left',
       fn: async () => {
         const run = await recoverRunaway({ noProvider: [], transportFails: [SEAT_HYPER_TEXT_BEDROCK,], },);
         expect(run.seen.map(function modelOf(seen,) {
@@ -379,8 +379,8 @@ await describe({
     },),
 
     it({
-      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED (ledger B1201) and keeps that of one whose exchange failed '
-        + 'in transport, since only the second was asked',
+      name: 'RELEASES THE CLAIM OF A MODEL THE ROUTER REFUSED (ledger B1201) and keeps that of one whose exchange '
+        + 'failed in transport, since only the second was asked',
       fn: async () => {
         const claims = createReaskClaims();
         await recoverRunaway({
@@ -394,8 +394,8 @@ await describe({
     },),
 
     it({
-      name: 'KEEPS THE CLAIM OF A MODEL THE ROUTER REFUSED AFTER AN EXCHANGE (B1230): its providers were cut at the stream '
-        + 'bound after a call, so it was asked, and the claim goes back for no other seat of the question',
+      name: 'KEEPS THE CLAIM OF A MODEL THE ROUTER REFUSED AFTER AN EXCHANGE (B1230): its providers were cut at the '
+        + 'stream bound after a call, so it was asked, and the claim goes back for no other seat of the question',
       fn: async () => {
         const claims = createReaskClaims();
         await recoverRunaway({
@@ -408,8 +408,8 @@ await describe({
     },),
 
     it({
-      name: 'LEAVES OUT THE MODEL AN EARLIER RE-ASK FOR THE SEAT WENT TO, so the round asks the next model and does not '
-        + 'replay the first model\'s claimed reply as a second voice',
+      name: 'LEAVES OUT THE MODEL AN EARLIER RE-ASK FOR THE SEAT WENT TO, so the round asks the next model and does '
+        + 'not replay the first model\'s claimed reply as a second voice',
       fn: async () => {
         const run = await recoverRunaway({ noProvider: [], askedInstead: SEAT_HYPER_TEXT_BEDROCK, },);
         expect(run.seen.map(function modelOf(seen,) {
@@ -419,16 +419,17 @@ await describe({
     },),
 
     it({
-      name: 'ASKS QWEN3.8-27B FOR A RUNAWAY EDITOR ONLY WHERE THE CLIENT\'S READING HAS SYNTHETIC SERVING IT (ledger B1330): '
-        + 'it is first where Synthetic serves it, never asked where Hyper would, and left out with hyper-slow named where '
-        + 'the client reports no reading',
+      name: 'ASKS QWEN3.8-27B FOR A RUNAWAY EDITOR ONLY WHERE THE CLIENT\'S READING HAS SYNTHETIC SERVING IT (ledger '
+        + 'B1330): it is first where Synthetic serves it, never asked where Hyper would, and left out with hyper-slow '
+        + 'named where the client reports no reading',
       fn: async () => {
         /**
-         The first model asked for a runaway editor seat, and the log's account of the models left out.
+         The first model asked for a runaway editor seat (none when nobody was asked), and the log's account of the
+         models left out.
          */
         async function firstOf(
-          dryness: DrynessReading | undefined,
-        ): Promise<{ readonly first: RosterModelId | undefined; readonly leftOut: string; }> {
+          dryness?: DrynessReading,
+        ): Promise<{ readonly firstAsked: readonly RosterModelId[]; readonly leftOut: string; }> {
           const run = await recoverRunaway({
             noProvider: [],
             reaskSeat: {
@@ -439,17 +440,22 @@ await describe({
             ...((dryness === undefined) ? {} : { dryness, }),
           },);
           return {
-            first: run.seen[0]?.modelId,
+            firstAsked: run.seen.slice(0, 1,).map(function modelOf(seen,) {
+              return seen.modelId;
+            },),
             leftOut: run.lines.find(function isLeftOut(line,): boolean {
               return line.includes('left out:',);
             },) ?? '',
           };
         }
-        expect((await firstOf(SYNTHETIC_WET_ONLY,)).first,).toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
-        for (const dryness of [HYPER_WET_ONLY, undefined,] as const) {
-          const { first, leftOut, } = await firstOf(dryness,);
-          expect(first,).not.toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
-          expect(leftOut,).toContain(`${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} (held out of the editor role by hyper-slow)`,);
+        expect((await firstOf(SYNTHETIC_WET_ONLY,)).firstAsked,).toEqual([SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
+        const heldOut = `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} (held out of the editor role by `
+          + 'hyper-slow)';
+        const underHyper = await firstOf(HYPER_WET_ONLY,);
+        const withoutReading = await firstOf();
+        for (const { firstAsked, leftOut, } of [underHyper, withoutReading,]) {
+          expect(firstAsked,).not.toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+          expect(leftOut,).toContain(heldOut,);
         }
       },
     },),
@@ -515,8 +521,8 @@ await describe({
     },),
 
     it({
-      name: 'LOGS THE SEAT, THE REASON, THE MODEL CHOSEN AND EACH MODEL LEFT OUT WITH WHY, and counts the runaway as its '
-        + 'own cause in the round\'s lines',
+      name: 'LOGS THE SEAT, THE REASON, THE MODEL CHOSEN AND EACH MODEL LEFT OUT WITH WHY, and counts the runaway as '
+        + 'its own cause in the round\'s lines',
       fn: async () => {
         const run = await recoverRunaway({
           noProvider: [],
@@ -558,8 +564,8 @@ await describe({
     },),
 
     it({
-      name: 'WRITES THE MODELS LEFT OUT ALSO WHERE NONE IS LEFT TO ASK, ahead of the warning of the fall back, and says '
-        + 'that none is to be asked',
+      name: 'WRITES THE MODELS LEFT OUT ALSO WHERE NONE IS LEFT TO ASK, ahead of the warning of the fall back, and '
+        + 'says that none is to be asked',
       fn: async () => {
         const run = await recoverRunaway({
           noProvider: [],
@@ -586,8 +592,8 @@ await describe({
     },),
 
     it({
-      name: 'CARRIES THE BENCH AND THE SEAT ON THE ASK, so a runaway of the other model is not re-asked of a model seated '
-        + 'on the question or back of the seat that began it',
+      name: 'CARRIES THE BENCH AND THE SEAT ON THE ASK, so a runaway of the other model is not re-asked of a model '
+        + 'seated on the question or back of the seat that began it',
       fn: async () => {
         const run = await recoverRunaway({
           noProvider: [],

@@ -373,7 +373,8 @@ and `source-scan` has the same lines it had.
   and fails if the file holds it more or fewer times than listed;
   since round w405 it also lists the expression that names the file (B1314).
   A change of the lock alone does run the case:
-  the gate's selector sends a changed path outside `package/translation-repair/` that is no Markdown file to a full gate,
+  the gate's selector sends a changed path outside `package/translation-repair/`
+  that is no Markdown file to a full gate,
   which runs every package,
   `typography/src/semantic-wrap-binary.unit.test.ts` included
   (corrected in place by round w406 (B1325):

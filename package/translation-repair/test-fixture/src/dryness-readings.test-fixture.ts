@@ -1,15 +1,26 @@
 //region Dryness readings
 // READINGS OF THE PROVIDER METERS the tests of the re-ask, the seat derivation and the backfill share (ledger B1330):
-// which providers have budget, as the router's own view of them is shaped. The type is written out here and not imported,
-// since this package depends on no other package of the family; it is assignable to the provider package's `BudgetView`.
+// which providers have budget, as the router's own view of them is shaped. The type is written out here and not
+// imported, since this package depends on no other package of the family; it is assignable to the provider package's
+// `BudgetView`.
+
+/**
+ The providers a reading names.
+ */
+type DrynessProvider =
+  | 'anthropic'
+    | 'bedrock'
+    | 'deepseek'
+    | 'hyper'
+    | 'neuralwatt'
+    | 'openrouter'
+    | 'synthetic'
+    | 'xiaomi';
 
 /**
  Whether each provider is out of budget, the shape of the provider package's `BudgetView`.
  */
-export type DrynessReading = Readonly<Record<
-  'anthropic' | 'bedrock' | 'deepseek' | 'hyper' | 'neuralwatt' | 'openrouter' | 'synthetic' | 'xiaomi',
-  boolean
->>;
+export type DrynessReading = Readonly<Record<DrynessProvider, boolean>>;
 
 /**
  A reading in which only the named providers have budget.

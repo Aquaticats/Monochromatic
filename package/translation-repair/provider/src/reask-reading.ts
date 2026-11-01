@@ -51,8 +51,8 @@ export async function rulePastReading(
     if (signal.aborted)
       throw error;
     l.warn(
-      `the budget view could not be read (${exchangeFailureLogText({ error, },)}); leaving out every model that carries a `
-        + 'hold the run applies at seating time',
+      `the budget view could not be read (${exchangeFailureLogText({ error, },)}); `
+        + 'leaving out every model that carries a hold the run applies at seating time',
     );
     return { applied: 'always', };
   }

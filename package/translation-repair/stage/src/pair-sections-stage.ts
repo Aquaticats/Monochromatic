@@ -49,8 +49,8 @@ const AGREEMENT_NEEDED = 2;
 
 /**
  Schema the reply must satisfy before it reaches the reader.
- Exported so the producer list of the corpus pass (`corpus-pass/src/claude-schema-producers.ts`) holds the schema the stage
- sends, which the schema cases of `corpus-pass/src/claude-schemas.unit.test.ts` walk and
+ Exported so the producer list of the corpus pass (`corpus-pass/src/claude-schema-producers.ts`) holds the schema the
+ stage sends, which the schema cases of `corpus-pass/src/claude-schemas.unit.test.ts` walk and
  `source-scan/src/claude-schema-source-search.unit.test.ts` keeps complete.
  */
 export const SECTION_PAIRING_RESPONSE_FORMAT: JsonSchemaResponseFormat = {

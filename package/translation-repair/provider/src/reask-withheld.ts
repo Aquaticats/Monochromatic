@@ -30,7 +30,8 @@ import { reachOf, } from './roster-reach.ts';
 
  @example
  ```ts
- const holds = routeTimeHoldsInReading({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'editor', dry, },); // ['hyper-slow'] with Hyper wet
+ // The holds are ['hyper-slow'] with Hyper wet and none with Synthetic wet.
+ const holds = routeTimeHoldsInReading({ modelId: 'hf:Qwen/Qwen3.8-27B', role: 'editor', dry, },);
  ```
  */
 export function routeTimeHoldsInReading(

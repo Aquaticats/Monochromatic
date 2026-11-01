@@ -215,7 +215,11 @@ function stopLineOf(
    Seats the view derives.
    */
   const seats = judgeSeatsFor({ dry, },);
-  return `JUDGE SEATS phase=lanes writing bench unreachable: ${unreachableClausesOf({ dry, },).join('; ',)}; `
+  /**
+   The clauses of the stop line, in the order the run states them.
+   */
+  const clauses = unreachableClausesOf({ dry, },);
+  return `JUDGE SEATS phase=lanes writing bench unreachable: ${clauses.join('; ',)}; `
     + `backfilled by role order: ${backfillWordsOf({ backfilled: seats.backfilled, },)}; stopping the entry`;
 }
 

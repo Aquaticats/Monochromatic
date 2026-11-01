@@ -1387,9 +1387,9 @@ Meow meow meow meow.
     },),
 
     it({
-      name: 'ASKS THE REFINERS THE HOOK RETURNS FOR A SLICE and keys the refinement under them (ledger B1332): a refiner '
-        + 'bench re-derived after the lane started is the one asked, and the records written are those of a lane that '
-        + 'started on it',
+      name: 'ASKS THE REFINERS THE HOOK RETURNS FOR A SLICE and keys the refinement under them (ledger B1332): a '
+        + 'refiner bench re-derived after the lane started is the one asked, and the records written are those of a '
+        + 'lane that started on it',
       fn: async () => {
         const prepared = prepareDocumentPair({
           sourceText: SOURCE_LONG_SECTION,
@@ -1469,9 +1469,9 @@ Meow meow meow meow.
     },),
 
     it({
-      name: 'KEYS A SLICE UNDER THE ROSTER IT RAN ON (ledger B1331): the records a lane writes for slices the hook re-seated '
-        + 'are the records a lane that started on the re-seated roster writes, and not the ones of the roster at the lane\'s '
-        + 'start',
+      name: 'KEYS A SLICE UNDER THE ROSTER IT RAN ON (ledger B1331): the records a lane writes for slices the hook '
+        + 're-seated are the records a lane that started on the re-seated roster writes, and not the ones of the '
+        + 'roster at the lane\'s start',
       fn: async () => {
         const prepared = prepareDocumentPair({
           sourceText: SOURCE_TWO_SECTIONS,
@@ -1538,7 +1538,8 @@ Meow meow meow meow.
         expect(startedReseated.length,).toBeGreaterThan(0,);
         expect(handedBackSame,).toEqual(stayed,);
         expect(reseatedByHook,).toEqual(startedReseated,);
-        // POSITIVE CONTROL: the roster does move the key, so the equality asserted before it is not one of keys that ignore it.
+        // POSITIVE CONTROL: the roster does move the key, so the equality asserted before it is not one of keys that
+        // ignore it.
         expect(stayed,).not.toEqual(startedReseated,);
       },
     },),

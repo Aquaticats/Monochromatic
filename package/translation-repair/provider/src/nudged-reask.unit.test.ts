@@ -34,6 +34,7 @@ import {
   warnLinesDuring,
 } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
 import {
+  type DrynessReading,
   HYPER_WET_ONLY,
   SYNTHETIC_WET_ONLY,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
@@ -169,8 +170,8 @@ await describe({
     },),
 
     it({
-      name: 'RECORDS A REFUSAL-SHAPED RE-ASK AS SUCH, naming the kind it failed as and the marker for its cause, not the detail '
-        + 'of a schema mismatch, beside the first answer that is returned',
+      name: 'RECORDS A REFUSAL-SHAPED RE-ASK AS SUCH, naming the kind it failed as and the marker for its cause, not '
+        + 'the detail of a schema mismatch, beside the first answer that is returned',
       fn: async () => {
         const bothFail = await reaskElsewhereNudged({
           request: REQUEST,
@@ -345,8 +346,8 @@ await describe({
         },);
         expect(warned,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] ${SEAT_SYNTHETIC_TEXT_EVERYWHERE}: no re-ask elsewhere `
-            + '(refused by ProviderHttpError from synthetic with HTTP 400 (the provider said: "the cat refused this passage")); '
-            + 'keeping the first answer',
+            + '(refused by ProviderHttpError from synthetic with HTTP 400 (the provider said: "the cat refused this '
+            + 'passage")); keeping the first answer',
         ],);
       },
     },),
@@ -370,9 +371,10 @@ await describe({
     },),
 
     it({
-      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL WITH THE PLAIN QUESTION, not of the same one on another route: '
-        + 'the first reply ended in a length stop with no content, so the ask names the model with the lowest share of '
-        + 'runaways, carries no provider hint and no nudge (the owner\'s answer of 2026-10-30, "Plain question")',
+      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL WITH THE PLAIN QUESTION, not of the same one on another '
+        + 'route: the first reply ended in a length stop with no content, so the ask names the model with the lowest '
+        + 'share of runaways, carries no provider hint and no nudge '
+        + '(the owner\'s answer of 2026-10-30, "Plain question")',
       fn: async () => {
         /**
          Calls the re-ask received.
@@ -512,9 +514,9 @@ await describe({
     },),
 
     it({
-      name: 'FALLS BACK TO THE RUNAWAY ITSELF ON ANOTHER PROVIDER, saying so on a warning, when no other model can take '
-        + 'the re-ask: it is the only model left, so the re-ask is what it was before, and the nudge rides on that ask '
-        + 'alone while every other model got the plain question',
+      name: 'FALLS BACK TO THE RUNAWAY ITSELF ON ANOTHER PROVIDER, saying so on a warning, when no other model can '
+        + 'take the re-ask: it is the only model left, so the re-ask is what it was before, and the nudge rides on '
+        + 'that ask alone while every other model got the plain question',
       fn: async () => {
         /**
          Calls the re-ask received.
@@ -628,8 +630,8 @@ await describe({
     },),
 
     it({
-      name: 'SKIPS A MODEL THE ROLE HOLDS OUT: for a wide judge the models the card drops from the wide seats are never '
-        + 'asked, though every model before them had no provider, and the fall back to the runaway follows',
+      name: 'SKIPS A MODEL THE ROLE HOLDS OUT: for a wide judge the models the card drops from the wide seats are '
+        + 'never asked, though every model before them had no provider, and the fall back to the runaway follows',
       fn: async () => {
         /**
          Models asked, in order.
@@ -656,8 +658,8 @@ await describe({
     },),
 
     it({
-      name: 'SKIPS A MODEL ON THE BENCH OF THE QUESTION and names it in the log with why, so the answer recorded as the '
-        + 'runaway\'s voice is never a second voice of a model already seated',
+      name: 'SKIPS A MODEL ON THE BENCH OF THE QUESTION and names it in the log with why, so the answer recorded as '
+        + 'the runaway\'s voice is never a second voice of a model already seated',
       fn: async () => {
         /**
          Models asked, in order.
@@ -685,8 +687,8 @@ await describe({
     },),
 
     it({
-      name: 'LOGS EACH MODEL LEFT OUT AND WHY ONCE, BEFORE THE FIRST ASK, so a model that has no provider with budget moves '
-        + 'the loop on without the left-out line being written again',
+      name: 'LOGS EACH MODEL LEFT OUT AND WHY ONCE, BEFORE THE FIRST ASK, so a model that has no provider with budget '
+        + 'moves the loop on without the left-out line being written again',
       fn: async () => {
         /**
          Lines of the info log of a re-ask whose first model cannot be served and whose second can.
@@ -715,8 +717,8 @@ await describe({
     },),
 
     it({
-      name: 'LOGS EACH MODEL LEFT OUT AND WHY ALSO WHERE NO MODEL IS LEFT TO ASK, ahead of the warning of the fall back, '
-        + 'and says that none is to be asked',
+      name: 'LOGS EACH MODEL LEFT OUT AND WHY ALSO WHERE NO MODEL IS LEFT TO ASK, ahead of the warning of the fall '
+        + 'back, and says that none is to be asked',
       fn: async () => {
         /**
          Lines of the info log and of the warnings of a re-ask whose bench holds every model that could take it.
@@ -771,8 +773,8 @@ await describe({
     },),
 
     it({
-      name: 'ASKS ANOTHER MODEL THE CONVERSATION THE SEAT NAMES FOR IT and names that model on the usable answer, while '
-        + 'the fall back to the runaway keeps the question as it stood with the nudge',
+      name: 'ASKS ANOTHER MODEL THE CONVERSATION THE SEAT NAMES FOR IT and names that model on the usable answer, '
+        + 'while the fall back to the runaway keeps the question as it stood with the nudge',
       fn: async () => {
         /**
          Conversation a seat hands to a model other than the one asked, in place of the question as it stood.
@@ -831,18 +833,17 @@ await describe({
     },),
 
     it({
-      name: 'LEAVES QWEN3.8-27B OUT OF AN EDITOR\'S ALTERNATES WHILE THE READING HAS HYPER SERVING IT, asks it first where '
-        + 'Synthetic serves it, and leaves it out where the client reads no dryness (ledger B1330)',
+      name: 'LEAVES QWEN3.8-27B OUT OF AN EDITOR\'S ALTERNATES WHILE THE READING HAS HYPER SERVING IT, asks it first '
+        + 'where Synthetic serves it, and leaves it out where the client reads no dryness (ledger B1330)',
       fn: async () => {
         /**
-         The first model each reading asks for a runaway editor seat.
+         The first model the re-ask asks for a runaway editor seat (none when nobody was asked), under a reading.
+
+         @param readDry - the client's view of the meters, absent where the client reads none
+
+         @returns the first model asked, in a list of at most one
          */
-        const firstAsked: Record<string, RosterModelId | undefined> = {};
-        for (const [reading, readDry,] of [
-          ['hyper wet', async () => HYPER_WET_ONLY,],
-          ['synthetic wet', async () => SYNTHETIC_WET_ONLY,],
-          ['no view', undefined,],
-        ] as const) {
+        async function firstAskedUnder(readDry?: () => Promise<DrynessReading>,): Promise<readonly RosterModelId[]> {
           /**
            Models the re-ask asked, in order.
            */
@@ -863,12 +864,16 @@ await describe({
             },
             ...((readDry === undefined) ? {} : { readDry, }),
           },);
-          firstAsked[reading] = asked[0];
+          return asked.slice(0, 1,);
         }
-        expect(firstAsked['synthetic wet'],).toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
-        expect(firstAsked['hyper wet'],).not.toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
-        expect(firstAsked['no view'],).not.toBe(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
-        expect(firstAsked['hyper wet'],).toBeDefined();
+        const underSynthetic = await firstAskedUnder(async () => SYNTHETIC_WET_ONLY,);
+        const underHyper = await firstAskedUnder(async () => HYPER_WET_ONLY,);
+        const withoutView = await firstAskedUnder();
+        expect(underSynthetic,).toEqual([SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
+        expect(underHyper,).toHaveLength(1,);
+        expect(underHyper,).not.toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
+        expect(withoutView,).toHaveLength(1,);
+        expect(withoutView,).not.toContain(SEAT_SYNTHETIC_VISION_NO_OPENROUTER,);
       },
     },),
   ],

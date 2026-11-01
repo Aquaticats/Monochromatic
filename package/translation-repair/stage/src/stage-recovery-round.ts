@@ -203,6 +203,10 @@ async function recoverRunaway<ValueT,>(
     ];
 
   /**
+   The client the round asks through, whose view of the provider meters the pool of alternates reads.
+   */
+  const { client, } = roundRequest;
+  /**
    Models to ask in the order of their share of runaways, and the ones left out of the seat's role, the bench or an
    earlier ask.
    */
@@ -219,7 +223,7 @@ async function recoverRunaway<ValueT,>(
     // dryness view says where Hyper would serve a model, so Qwen3.8-27B is left out of an editor's alternates then and
     // not where Synthetic serves it; a client with no view leaves out every model with such a hold.
     routeTimeHolds: await rulePastReading({
-      readDry: roundRequest.client.providerDryness,
+      readDry: client.providerDryness,
       signal: roundRequest.signal,
       l: rl,
     },),

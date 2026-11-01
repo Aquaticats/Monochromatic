@@ -314,7 +314,8 @@ await describe({
         },),
         it({
           name: 'DERIVES BOTH WRITING BENCHES IN EVERY READING OF THE EIGHT METERS as the static seats a wet provider '
-            + 'serves, the role order, then the static seats nobody serves, never wider than the static bench and never repeating a seat',
+            + 'serves, the role order, then the static seats nobody serves, never wider than the static bench and '
+            + 'never repeating a seat',
           fn: async () => {
             for (const dry of everyView()) {
               const {
@@ -388,7 +389,8 @@ await describe({
         },),
         it({
           name: 'SEATS A CANDIDATE THAT IS ALSO A CHECKER ONLY WHERE THE CHECKER BENCH OF THE SAME READING HOLDS IT, '
-            + 'and only while the contract permits a checker to confirm text it wrote (Kimi-K3 in the XingZ6024 reading)',
+            + 'and only while the contract permits a checker to confirm text it wrote (Kimi-K3 in the XingZ6024 '
+            + 'reading)',
           fn: async () => {
             expect(RUN_MODELS.checkerSelfCertificationPermitted,).toBe(true,);
             const { seats, derived, } = benchesFor({ dry: XINGZ6024, },);

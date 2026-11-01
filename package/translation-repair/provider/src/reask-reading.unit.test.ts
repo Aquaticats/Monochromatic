@@ -12,8 +12,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
-import { warnLinesDuring, } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
-import { HYPER_WET_ONLY, } from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
+import {
+  warnLinesDuring,
+} from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
+import {
+  HYPER_WET_ONLY,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
 import { rulePastReading, } from '../dist/final/node/index.mjs';
 
 //region Reading for a re-ask tests
@@ -27,9 +31,10 @@ await describe({
   name: rulePastReading.name,
   children: [
     it({
-      name: 'APPLIES EVERY HOLD WHERE THE CALLER READS NO DRYNESS, and applies the reading it is handed where it reads one',
+      name: 'APPLIES EVERY HOLD WHERE THE CALLER READS NO DRYNESS, and applies the reading it is handed where it '
+        + 'reads one',
       fn: async () => {
-        const signal = new AbortController().signal;
+        const { signal, } = new AbortController();
         expect(await rulePastReading({ readDry: undefined, signal, l, },),).toEqual({ applied: 'always', },);
         expect(await rulePastReading({ readDry: async () => HYPER_WET_ONLY, signal, l, },),).toEqual({
           applied: 'in-reading',
@@ -41,7 +46,7 @@ await describe({
     it({
       name: 'APPLIES EVERY HOLD AND SAYS SO WHERE THE READ FAILS, and hands the failure back when the caller aborted',
       fn: async () => {
-        const signal = new AbortController().signal;
+        const { signal, } = new AbortController();
         const { warned, result, } = await warnLinesDuring({
           run: async () =>
             rulePastReading({

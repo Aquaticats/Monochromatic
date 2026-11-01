@@ -44,8 +44,8 @@ import {
 // refiners included. The holds applied at seating time (`hyper-slow`, `hyper-slow-select`) keep a model out of a bench
 // only while Hyper would serve it, so a caller that knows the reading hands it over (`routeTimeHolds`) and the pool
 // leaves out only the models that reading withholds, by the one function the backfill reads too
-// (`routeTimeHoldsInReading` in `reask-withheld.ts`). A caller that does not know it gets the pool that leaves out every
-// such model, so a withheld model is never asked on a guess.
+// (`routeTimeHoldsInReading` in `reask-withheld.ts`). A caller that does not know it gets the pool that leaves out
+// every such model, so a withheld model is never asked on a guess.
 //
 // BENCH: A MODEL SEATED ON THE QUESTION IS NOT ASKED (the lead's adoption of 2026-10-30 from "one judge alone never
 // decides", 2026-10-25, "Two judges must name it", 2026-10-25, and `roster-id.ts` on one model in two seats). The
@@ -112,8 +112,8 @@ export type AlternateModels = {
 
  - `always`: the pool leaves out every model that carries such a hold the role honours, whatever the reading. This is
    the rule of a caller that does not know the reading, and it is the default: a withheld model is never asked.
- - `in-reading`: the pool leaves out only the models the reading withholds, which is the models that carry the hold while
-   Hyper is the provider that would serve them, so a model Synthetic serves stays in the pool.
+ - `in-reading`: the pool leaves out only the models the reading withholds, which is the models that carry the hold
+   while Hyper is the provider that would serve them, so a model Synthetic serves stays in the pool.
  - `by-the-caller`: the pool leaves out none, for a caller that applies the reading itself to each candidate (the
    backfill of the writing benches asks the run's seating).
 
@@ -123,9 +123,29 @@ export type AlternateModels = {
  ```
  */
 export type RouteTimeHoldsRule =
-  | { readonly applied: 'always'; }
-  | { readonly applied: 'in-reading'; readonly dry: BudgetView; }
-  | { readonly applied: 'by-the-caller'; };
+  | {
+    /**
+     Discriminator for the rule that leaves out every model carrying a hold the role honours.
+     */
+    readonly applied: 'always';
+  }
+    | {
+      /**
+       Discriminator for the rule that leaves out the models the reading withholds.
+       */
+      readonly applied: 'in-reading';
+
+      /**
+       The meters the reading is taken from.
+       */
+      readonly dry: BudgetView;
+    }
+    | {
+      /**
+       Discriminator for the rule that leaves out none, the caller having applied the reading itself.
+       */
+      readonly applied: 'by-the-caller';
+    };
 
 /**
  The rule of a caller that does not know the reading: every hold applied at seating time keeps its model out.
@@ -205,7 +225,15 @@ function holdsUnder(
 
  @example
  ```ts
- const reasons = reasonsToLeaveOut({ candidate: 'glm-5.3', role: 'wide-judge', pool: [], bench: [], askedAlready: [], askedForOtherSeats: [], rule: { applied: 'always', }, },);
+ const reasons = reasonsToLeaveOut({
+   candidate: 'glm-5.3',
+   role: 'wide-judge',
+   pool: [],
+   bench: [],
+   askedAlready: [],
+   askedForOtherSeats: [],
+   rule: { applied: 'always', },
+ },);
  ```
  */
 function reasonsToLeaveOut(
@@ -399,9 +427,9 @@ function alternateOrderOf(
 
  @param readings - census table the order is read from
 
- @param routeTimeHolds - how the holds applied at seating time reach the pool: every such hold, whatever the reading (the
- default, for a caller that does not know it), only the holds the reading applies, or none because the caller applies the
- reading itself (ledger B1330)
+ @param routeTimeHolds - how the holds applied at seating time reach the pool: every such hold, whatever the reading
+ (the default, for a caller that does not know it), only the holds the reading applies, or none because the caller
+ applies the reading itself (ledger B1330)
 
  @returns Chat models other than it that its seat's role may take, that are not on the metered Claude route and not on
  the bench, ordered by share of runaways; empty only where the pool, the bench and the earlier asks leave no model

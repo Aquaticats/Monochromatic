@@ -255,8 +255,9 @@ export async function runRefinePhase(
         lane: 'repair',
         sliceIndex: outcome.sliceIndex,
         run: async function settleRefineInContext() {
-          // THE REFINERS ARE READ AGAIN FOR EACH SLICE (ledger B1332), as the consolidation polish reads its own: a bench a
-          // hold re-derived after the lane started is the one asked, and the slice is keyed under the roster it runs on.
+          // THE REFINERS ARE READ AGAIN FOR EACH SLICE (ledger B1332), as the consolidation polish reads its own: a
+          // bench a hold re-derived after the lane started is the one asked, and the slice is keyed under the roster it
+          // runs on.
           /**
            Seating the caller reads for this slice, empty when the given roster stands.
            */

@@ -37,8 +37,8 @@
  OUT OF ITS REACH: a path built from a text another module returns, a climb written in a variable that
  holds the `..` segment, a git read whose arguments are built apart from its call and which has no `-C` argument,
  a read of a file by a child process the test starts, and a working directory read through a name imported for it
- (`import { cwd } from 'node:process'`), since only `process.cwd()` is an anchor. Reading the package graph itself (which package
- imports which) is another scan's.
+ (`import { cwd } from 'node:process'`), since only `process.cwd()` is an anchor. Reading the package graph itself
+ (which package imports which) is another scan's.
 
  THE FILES LISTED are reads the scan finds that belong to no package: each holds its reason, the file, the kind, the
  expression as the scan prints it and the number of findings. The expression names the file the read reaches, so a
@@ -1987,7 +1987,8 @@ const OFFENDER_CASES: readonly ReadCase[] = [
     kinds: ['glob',],
   },
   {
-    label: 'constants that hold the file\'s folder, declared in an order that no single pass in either direction resolves',
+    label: 'constants that hold the file\'s folder, declared in an order that no single pass in either '
+      + 'direction resolves',
     path: SHALLOW,
     text: [
       'const SECOND = join(FIRST, \'src\',);',
@@ -2221,7 +2222,8 @@ const CONTROL_CASES: readonly ReadCase[] = [
   {
     label: 'a path of literals whose variable segment is climbed back out of and no further',
     path: SHALLOW,
-    text: 'export const dogs = async () => await readFile(join(\'dog\', name, \'..\', \'..\', \'bark.ts\',), \'utf8\',);\n',
+    text: 'export const dogs = async () => await readFile(join(\'dog\', name, \'..\', \'..\', \'bark.ts\',), '
+      + '\'utf8\',);\n',
     kinds: [],
   },
   {
@@ -2488,7 +2490,8 @@ await describe({
          */
         const reformatted: SourceText = {
           ...holding,
-          text: 'export const lock = join(\n  import.meta.dirname,\n  \'..\',\n  \'..\',\n  \'toolchain.lock.json\',\n);\n',
+          text: 'export const lock = join(\n  import.meta.dirname,\n  \'..\',\n  \'..\',\n  '
+            + '\'toolchain.lock.json\',\n);\n',
         };
         /**
          The entry that covers it.
@@ -2525,7 +2528,8 @@ await describe({
             `cat/nap.unit.test.ts:1 climb: join(import.meta.dirname, '..', '..', 'package.json',)${rewrittenNote}`,
             'cat/nap.unit.test.ts climb: listed 1 and held 0',
             'cat/nap.unit.test.ts:3 climb: join(LOCK, \'..\', \'package.json\',)',
-            `cat/nap.unit.test.ts:1 climb: join( import.meta.dirname, '..', '..', 'toolchain.lock.json', )${rewrittenNote}`,
+            'cat/nap.unit.test.ts:1 climb: join( import.meta.dirname, \'..\', \'..\', '
+              + `'toolchain.lock.json', )${rewrittenNote}`,
             'cat/nap.unit.test.ts climb: listed 1 and held 0',
           ],
         },);
