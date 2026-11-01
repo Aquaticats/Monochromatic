@@ -489,9 +489,9 @@ fn overlapping_creations_each_copy_their_own_worktree_once() {
         );
     };
     let (first, second) = std::thread::scope(|scope| {
-        let first = scope.spawn(|| add("one"));
+        let first = scope.spawn(|| return add("one"));
         wait_for(fixture.root.join("in-one").as_path());
-        let second = scope.spawn(|| add("two"));
+        let second = scope.spawn(|| return add("two"));
         wait_for(fixture.root.join("in-two").as_path());
         release("one");
         let first_done: Observed = first.join().expect("first wrapper");

@@ -35,25 +35,43 @@ fn publish(journals: &Path, destination: &Path, label: &str) -> Claim {
         .expect("won the name");
 }
 
-/// A child process that holds a file open and says so, the way a running copy holds its claim.
-fn holder_of(path: &Path) -> Child {
-    let mut child: Child = Command::new("sh")
-        .args(["-c", "exec 3<\"$1\"; echo ready; exec sleep 3600", "holder"])
-        .arg(path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("holder starts");
-    let stdout = child.stdout.take().expect("stdout");
-    let mut line: String = String::new();
-    std::io::BufReader::new(stdout).read_line(&mut line).expect("ready line");
-    assert_eq!(line, "ready\n");
-    return child;
+/// A child process that holds a file open, the way a running copy holds its claim.
+///  It is killed and reaped when dropped, so a failing test leaks no process.
+struct Holder {
+    /// The holding process.
+    child: Child,
 }
 
-/// Kills a child process the way an out-of-memory kill does and waits until the kernel has released everything it held.
-fn kill_and_reap(mut child: Child) {
-    child.kill().expect("killed");
-    child.wait().expect("reaped");
+impl Holder {
+    /// Starts the holder and returns once it says it holds the file.
+    fn of(path: &Path) -> Holder {
+        let mut child: Child = Command::new("sh")
+            .args(["-c", "exec 3<\"$1\"; echo ready; exec sleep 3600", "holder"])
+            .arg(path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("holder starts");
+        let stdout = child.stdout.take().expect("stdout");
+        let holder: Holder = Holder { child };
+        let mut line: String = String::new();
+        std::io::BufReader::new(stdout).read_line(&mut line).expect("ready line");
+        assert_eq!(line, "ready\n");
+        return holder;
+    }
+
+    /// Kills the process the way an out-of-memory kill does and waits until the kernel has released everything it held.
+    fn kill_and_reap(mut self) {
+        self.child.kill().expect("killed");
+        self.child.wait().expect("reaped");
+    }
+}
+
+impl Drop for Holder {
+    /// Kills and reaps a holder that is still running.
+    fn drop(&mut self) {
+        let _ignored_kill: std::io::Result<()> = self.child.kill();
+        let _ignored_wait: std::io::Result<std::process::ExitStatus> = self.child.wait();
+    }
 }
 
 /// A published claim says what the copy will use, is private to the account, and leaves no temporary behind.
@@ -140,13 +158,13 @@ fn a_claim_another_process_holds_is_held_until_that_process_is_killed() {
     let (root, journals, destination) = scene("claim-process");
     let path: PathBuf = journals.join("topic.claim");
     drop(publish(journals.as_path(), destination.as_path(), "process"));
-    let child: Child = holder_of(path.as_path());
-    let pid: u32 = child.id();
+    let holder: Holder = Holder::of(path.as_path());
+    let pid: u32 = holder.child.id();
     match examine_claim(path.as_path()).expect("examined") {
         Examination::Held { reason, .. } => assert!(reason.contains(pid.to_string().as_str()), "{reason}"),
         other => panic!("expected a held claim, got {other:?}"),
     }
-    kill_and_reap(child);
+    holder.kill_and_reap();
     match examine_claim(path.as_path()).expect("examined") {
         Examination::Abandoned(claim) => assert_eq!(claim.path(), path.as_path()),
         other => panic!("expected an abandoned claim, got {other:?}"),

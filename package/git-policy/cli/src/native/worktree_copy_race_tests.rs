@@ -111,18 +111,42 @@ impl Scene {
 }
 
 /// A child process that holds a file open and says so, the way a running copy holds its claim.
-fn holder_of(path: &Path) -> Child {
-    let mut child: Child = Command::new("sh")
-        .args(["-c", "exec 3<\"$1\"; echo ready; exec sleep 3600", "holder"])
-        .arg(path)
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("holder starts");
-    let stdout = child.stdout.take().expect("stdout");
-    let mut line: String = String::new();
-    std::io::BufReader::new(stdout).read_line(&mut line).expect("ready line");
-    assert_eq!(line, "ready\n");
-    return child;
+///  It is killed and reaped when dropped, so a failing test leaks no process.
+struct Holder {
+    /// The holding process.
+    child: Child,
+}
+
+impl Holder {
+    /// Starts the holder and returns once it says it holds the file.
+    fn of(path: &Path) -> Holder {
+        let mut child: Child = Command::new("sh")
+            .args(["-c", "exec 3<\"$1\"; echo ready; exec sleep 3600", "holder"])
+            .arg(path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("holder starts");
+        let stdout = child.stdout.take().expect("stdout");
+        let holder: Holder = Holder { child };
+        let mut line: String = String::new();
+        std::io::BufReader::new(stdout).read_line(&mut line).expect("ready line");
+        assert_eq!(line, "ready\n");
+        return holder;
+    }
+
+    /// Kills the process the way an out-of-memory kill does and waits until the kernel has released everything it held.
+    fn kill_and_reap(mut self) {
+        self.child.kill().expect("killed");
+        self.child.wait().expect("reaped");
+    }
+}
+
+impl Drop for Holder {
+    /// Kills and reaps a holder that is still running.
+    fn drop(&mut self) {
+        let _ignored_kill: std::io::Result<()> = self.child.kill();
+        let _ignored_wait: std::io::Result<std::process::ExitStatus> = self.child.wait();
+    }
 }
 
 /// The files of the destination's `cache`, sorted.
@@ -166,9 +190,9 @@ fn a_copy_yields_to_a_live_claim_on_its_destination() {
     assert!(!scene.marker().exists());
     // The live copy dies; the next copy settles its claim and does the work itself, without anyone having let go.
     drop(live);
-    let (copied, notices) = scene.synchronize();
+    let (copied, copy_notices) = scene.synchronize();
     assert_eq!(copied.expect("copied"), Synchronized::Copied(COPIED_ENTRIES));
-    assert!(notices.is_empty(), "{notices}");
+    assert!(copy_notices.is_empty(), "{copy_notices}");
     assert_eq!(cache_tree(scene.created.root.as_path()), vec!["cache", "cache/deep", "cache/deep/data", "cache/top"]);
     assert_eq!(scene.anything_left(), Vec::<String>::new());
     assert!(scene.marker().exists());
@@ -263,16 +287,16 @@ fn a_destination_still_being_created_is_left_to_its_creator() {
         source_root: Some(scene.source.clone()),
         selection: CopySelection::Ignored,
     };
-    let found = crate::worktree_copy_registry::find_created_worktrees(&git_context(), &observation).expect("found");
-    assert!(found.created.is_empty(), "{:?}", found.created);
+    let while_creating = crate::worktree_copy_registry::find_created_worktrees(&git_context(), &observation).expect("found");
+    assert!(while_creating.created.is_empty(), "{:?}", while_creating.created);
     // Git finishes: the lock goes, and the same worktree is now found.
     std::fs::remove_file(locked.as_path()).expect("unlocked");
-    let found = crate::worktree_copy_registry::find_created_worktrees(&git_context(), &observation).expect("found");
-    assert_eq!(found.created, vec![scene.created.clone()]);
+    let once_created = crate::worktree_copy_registry::find_created_worktrees(&git_context(), &observation).expect("found");
+    assert_eq!(once_created.created, vec![scene.created.clone()]);
     // A user's own lock reason does not stop the copy.
     std::fs::write(locked.as_path(), b"added with --lock").expect("locked by the user");
-    let found = crate::worktree_copy_registry::find_created_worktrees(&git_context(), &observation).expect("found");
-    assert_eq!(found.created, vec![scene.created.clone()]);
+    let user_locked = crate::worktree_copy_registry::find_created_worktrees(&git_context(), &observation).expect("found");
+    assert_eq!(user_locked.created, vec![scene.created.clone()]);
     remove(scene.root.as_path());
 }
 
@@ -436,14 +460,13 @@ fn a_pass_leaves_a_live_copy_alone_and_settles_it_after_the_kill() {
     std::fs::create_dir(container.as_path()).expect("stage");
     std::fs::set_permissions(container.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
     std::fs::write(container.join("half"), b"copied so far").expect("partial copy");
-    let mut holder: Child = holder_of(claim_path.as_path());
+    let holder: Holder = Holder::of(claim_path.as_path());
     let mut notices: Vec<u8> = Vec::new();
     recover_pending_worktree_copies(scene.common.as_path(), &mut notices).expect("skipped");
     assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
     assert!(container.exists(), "a live copy keeps its stage");
     assert!(claim_path.exists());
-    holder.kill().expect("killed");
-    holder.wait().expect("reaped");
+    holder.kill_and_reap();
     recover_pending_worktree_copies(scene.common.as_path(), &mut notices).expect("settled");
     assert!(String::from_utf8_lossy(notices.as_slice()).contains("removed the stage"));
     assert_eq!(scene.anything_left(), Vec::<String>::new());
