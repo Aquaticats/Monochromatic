@@ -110,6 +110,25 @@ fn concurrent_callers_end_with_links_to_one_final_file_of_the_build() {
     assert_eq!(identity(&again), identity(&links[0]), "a later ask replaced the final file");
 }
 
+/// A caller that publishes after another has won leaves the winner's file as the stored copy, removes its own partial
+/// file, and succeeds; a caller that publishes first becomes the stored copy.
+#[test]
+fn a_late_publisher_leaves_the_winners_file_in_place() {
+    use std::os::unix::fs::MetadataExt;
+    let created: Fixture = fixture("store-publish");
+    let stored: PathBuf = created.root.join("stored");
+    let (winner, loser): (PathBuf, PathBuf) = (created.root.join("winner"), created.root.join("loser"));
+    std::fs::write(&winner, b"winner bytes").expect("winner");
+    std::fs::write(&loser, b"loser bytes").expect("loser");
+    super::wrapper_store::publish(winner.as_path(), stored.as_path()).expect("the first publisher");
+    let winner_inode: u64 = std::fs::metadata(&stored).expect("stored").ino();
+    assert!(!winner.exists(), "the first publisher removes its partial file");
+    super::wrapper_store::publish(loser.as_path(), stored.as_path()).expect("a late publisher succeeds");
+    assert!(!loser.exists(), "the late publisher removes its partial file");
+    assert_eq!(std::fs::read(&stored).expect("stored bytes"), b"winner bytes");
+    assert_eq!(std::fs::metadata(&stored).expect("stored").ino(), winner_inode, "the stored file was replaced");
+}
+
 /// A copy of an older build leaves the store when the current build is stored.
 #[test]
 fn an_older_builds_copy_leaves_the_store() {

@@ -387,7 +387,15 @@ worktree's own.
 Guards, each shown failing with its fix removed:
 `fixtures_share_one_wrapper_file_with_the_built_executables_bytes` (two fixtures, one file; failed with the link source
 forced back to the build) and `concurrent_callers_end_with_links_to_one_final_file_of_the_build` (several callers link
-the stored copy while an older build's copy is removed, and end with one file; failed with the publish step removed).
+the stored copy while an older build's copy is removed, and end with one file).
+With the publish step broken so that a caller returned its own partial path instead of the stored one, three controls
+failed (the two above and `an_older_builds_copy_leaves_the_store`).
+With `rename` in place of the link the concurrent control failed in 2 of 8 runs only, because it depends on callers
+finishing their copies in a particular order, so it is not the guard for that change;
+`a_late_publisher_leaves_the_winners_file_in_place` is, because it publishes a second file over an existing stored
+copy deterministically.
+The concurrent control's removal of an older copy while other callers link is a weak probe of removing a file another
+caller is linking from: the removed file is never the one being linked.
 An earlier version used an advisory lock; the owner's stance against locks replaced it with the lock-free publish.
 
 ## A wait notice in a diagnostics comparison

@@ -79,16 +79,29 @@ pub fn shared_copy(built: &Path, root: &Path) -> std::io::Result<PathBuf> {
         PARTIALS_STARTED.fetch_add(1, Ordering::SeqCst)
     ));
     super::support::copy_executable(built, partial.as_path());
-    let published: std::io::Result<()> = match std::fs::hard_link(&partial, &stored) {
+    publish(partial.as_path(), stored.as_path())?;
+    remove_other_builds(store.as_path(), stored.as_path());
+    return Ok(stored);
+}
+
+/// What:
+///  Make the finished `partial` file the stored copy unless a stored copy already exists, and remove `partial` either way.
+/// Why:
+///  A hard link fails with `AlreadyExists` when another caller published first, and then that caller's file stays the
+///  stored copy: a rename would replace it under the links the other caller's fixtures already hold. Taking the
+///  winner's file is correct because both are copies of the same build.
+///
+/// # Errors
+///  When the link fails for a reason other than the stored copy existing.
+pub fn publish(partial: &Path, stored: &Path) -> std::io::Result<()> {
+    let published: std::io::Result<()> = match std::fs::hard_link(partial, stored) {
         Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
         _ => Ok(()),
     };
-    if let Err(error) = std::fs::remove_file(&partial) {
+    if let Err(error) = std::fs::remove_file(partial) {
         eprintln!("wrapper store: could not remove {} ({error})", partial.display());
     }
-    published?;
-    remove_other_builds(store.as_path(), stored.as_path());
-    return Ok(stored);
+    return published;
 }
 
 /// Remove every finished copy in the store except `keep`, and partial files old enough to belong to a dead caller;
