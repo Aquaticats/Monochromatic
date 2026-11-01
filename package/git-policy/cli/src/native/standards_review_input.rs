@@ -11,7 +11,7 @@
 //! const plan = classify(names); const input = buildReviewInput({ commit });
 //! ```
 
-use super::standards_review_patch::{OldRange, old_ranges};
+use super::standards_review_patch::{NewSpan, new_spans};
 use super::standards_review_text::{utf16_length, utf16_prefix};
 use std::collections::BTreeMap;
 
@@ -29,6 +29,9 @@ pub const EXCERPT_CONTEXT: i64 = 30;
 
 /// Excerpt lines after which no further file gets an excerpt.
 pub const EXCERPT_LINE_CAP: i64 = 4000;
+
+/// Lines of the head of a file that has no changed line to anchor an excerpt on: the context on both sides and one.
+pub const HEAD_WINDOW: i64 = 2 * EXCERPT_CONTEXT + 1;
 
 /// UTF-16 units of model input.
 pub const INPUT_UNIT_CAP: usize = 24000;
@@ -127,27 +130,27 @@ pub struct ReviewInput {
 
 /// What:
 ///  The excerpt of one file: its header and the text of the window around the changed span.
-///  The window is cut from the old-side ranges, applied to the new-side lines, as the script does.
+///  The window runs from `EXCERPT_CONTEXT` lines before the first changed new-side line to `EXCERPT_CONTEXT` lines
+///  after the last, cut from the new-side file. A file with no changed line to anchor on (a binary file, a mode change,
+///  a pure rename) gets the head of the file instead.
 /// Why:
-///   Returns the window's line count too, which the 4000-line cap adds up.
+///   Returns the window's line count too, which the 4000-line cap adds up. The script cut the window from old-side
+///   numbers, which sit in the wrong place after an earlier insertion, and gave a file without hunks a nonsensical
+///   negative window.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// excerptParts.push(`// candidate excerpt of ${name}, lines ${from} to ${to} of ${fileLines.length}`);
 /// ```
-fn excerpt(name: &str, content: &str, ranges: &[OldRange]) -> (Vec<String>, i64) {
+fn excerpt(name: &str, content: &str, spans: &[NewSpan]) -> (Vec<String>, i64) {
     let file_lines: Vec<&str> = content.split('\n').collect();
     let total: i64 = i64::try_from(file_lines.len()).unwrap_or(i64::MAX);
-    let mut first_hunk: i64 = total;
-    let mut last_hunk: i64 = 1;
-    for range in ranges {
-        let start: i64 = i64::try_from(range.start).unwrap_or(i64::MAX);
-        let end: i64 = start.saturating_add(i64::try_from(range.length).unwrap_or(i64::MAX));
-        first_hunk = first_hunk.min(start);
-        last_hunk = last_hunk.max(end);
-    }
-    let from: i64 = 1.max(first_hunk - EXCERPT_CONTEXT);
-    let to: i64 = total.min(last_hunk + EXCERPT_CONTEXT);
+    let first_changed: Option<i64> = spans.iter().map(|span| return i64::try_from(span.first).unwrap_or(i64::MAX)).min();
+    let last_changed: Option<i64> = spans.iter().map(|span| return i64::try_from(span.last).unwrap_or(i64::MAX)).max();
+    let (from, to) = match (first_changed, last_changed) {
+        (Some(first), Some(last)) => (1.max(first.saturating_sub(EXCERPT_CONTEXT)), total.min(last.saturating_add(EXCERPT_CONTEXT))),
+        _ => (1, total.min(HEAD_WINDOW)),
+    };
     let header: String = format!("// candidate excerpt of {name}, lines {from} to {to} of {total}");
     let begin: usize = usize::try_from(from - 1).unwrap_or(0);
     let end: usize = usize::try_from(to).unwrap_or(0);
@@ -177,8 +180,8 @@ pub fn build_input(commit: &LandedCommit, code_files: &[String]) -> ReviewInput 
         let Some(content) = commit.contents.get(name) else {
             continue;
         };
-        let ranges: Vec<OldRange> = old_ranges(lines.as_slice(), name);
-        let (pieces, covered) = excerpt(name, content, ranges.as_slice());
+        let spans: Vec<NewSpan> = new_spans(lines.as_slice(), name);
+        let (pieces, covered) = excerpt(name, content, spans.as_slice());
         parts.extend(pieces);
         excerpt_lines += covered;
     }

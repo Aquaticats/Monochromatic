@@ -13,6 +13,7 @@
 
 use super::standards_review_request::ROUTE;
 use super::standards_review_input::CAP_LINES;
+use super::standards_review_text::on_one_line;
 use std::io::Write;
 use std::path::Path;
 
@@ -75,7 +76,7 @@ fn short(sha: &str) -> String {
 /// entry('- Skipped:'); entry(`  ${sha.slice(0, 12)} (no code files):`); entry(`  \`${subject}\``);
 /// ```
 pub fn render_skipped(sha: &str, subject: &str) -> String {
-    return format!("- Skipped:\n  {} (no code files):\n  `{subject}`\n", short(sha));
+    return format!("- Skipped:\n  {} (no code files):\n  `{}`\n", short(sha), on_one_line(subject));
 }
 
 /// What:
@@ -99,12 +100,12 @@ pub fn render_review(entry: &ReviewEntry) -> String {
         "- Date:\n  {date}\n  Subject:\n  {sha} `{subject}`\n  Input size:\n  `{files} code files, {lines} diff lines{capped}, luna input {units} chars`\n  Reviewer route:\n  `{ROUTE}`\n  Wall-clock cost:\n  {seconds} s\n  Named superlinear cost:\n{judged}\n  Findings kept:\n    `````text\n    {outcome}\n    `````\n\n",
         date = entry.date,
         sha = short(entry.sha.as_str()),
-        subject = entry.subject,
+        subject = on_one_line(entry.subject.as_str()),
         files = entry.code_files,
         lines = entry.diff_lines,
         units = entry.input_units,
         seconds = entry.seconds,
-        outcome = entry.outcome,
+        outcome = on_one_line(entry.outcome.as_str()),
     );
 }
 
