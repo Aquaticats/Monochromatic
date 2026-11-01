@@ -2170,7 +2170,7 @@ function listedByLabel({ cases, }: { readonly cases: readonly ReadCase[]; }): Re
 
  @param kind - what the list holds, for the finding's text
 
- @param scanned - the scan's own list
+ @param scanned - list the scan holds in its own source
 
  @param cased - names the cases are written for
 
