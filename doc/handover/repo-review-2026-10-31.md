@@ -1902,6 +1902,19 @@ moves to corpus-pass, and troubleshooting and slice-cache keep running):
   troubleshooting at line 71, slice-cache on its unread tests, corpus-pass on
   its package.
 
+Wave-4 forty-seventh checkpoint (2026-11-01, troubleshooting round 3 verified; the other four
+lanes keep running):
+
+- doc/troubleshooting round 3: worklist lines 70 to 72, rows
+  `w2-logger-src-086` to `-091`. My spots: the cargo-nightly doc carries zero
+  URLs, the shallow-publish doc writes cargo-publish.old.yml into the repository
+  root, and checksExecuted appears only in the doc. The unstable row 35 moved to
+  w2-logger-src-concurrent.jsonl with a re-verify note after the README reflowed
+  twice; w2-logger-src.jsonl is now 90 of 90 clean. Next: worklist line 73, id
+  w2-logger-src-092, base rr-ts-380.
+- Active: cc-docs on the deep middles, fm-decision at position 44, slice-cache
+  on its unread tests, corpus-pass on its package, troubleshooting at line 73.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
