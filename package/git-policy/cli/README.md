@@ -209,7 +209,7 @@ The wrapper adds one namespace to Git.
 git cli-git check --all
 git cli-git fix -- docs/ README.md
 git cli-git check --all --policy final-newline
-# List the traditional hooks the repository holds; they are unsupported.
+# List the hook files and configured hooks the repository holds; none of them runs.
 git cli-git doctor
 git cli-git --help
 ```
@@ -217,7 +217,7 @@ git cli-git --help
 The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
 parent process that owns the child (see `doc/planning/cli-git-no-self-invocation.md`).
 A Clippy rule bans `std::env::current_exe` and `src/native/no_self_invocation_tests.rs` scans the source for the rest;
-the hook dispatcher that still reads `argv[0]` is the one listed exception, until it is removed.
+nothing is on its exception list that starts the wrapper.
 
 Exactly one scope is required:
  `--all`,
@@ -255,7 +255,8 @@ It exits 0 when it finds none or only such shims, 1 when it finds any other hook
  the repository.
 Traditional hooks are not supported,
  so a script that still checks something should become a cli-git policy under `policies`.
-It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (events: ...)` line each, exit 1) and
+It also lists the hooks configured with `hook.<name>.event` (one `hook.<name> (events: ...)` line each, exit 1), a
+ `core.fsmonitor` that names a program (it is the hook `fsmonitor-watchman`), and
  notes a `hooks` key in `cli-git.config.jsonc`, which is accepted for older files and ignored.
 A commit does not scan for traditional hooks: it only warns when the configuration sets `core.hooksPath` or defines
  hooks, which it already knows without any extra file system access.
@@ -693,8 +694,8 @@ fractional or non-numeric value is ignored.
    default `1800`.
   How long a command waits for a lock that a live process holds:
    the capture,
-   landing,
-   hook and registry locks,
+   landing
+   and registry locks,
    the landing reservation,
    the worktree-copy settlement and a live `index.lock` holder.
   At the limit it stops with a message that names the holder and every way forward:
@@ -721,7 +722,6 @@ fractional or non-numeric value is ignored.
    and the command reports which one, its class, the bound and how to go on:
    run the command again (the next command of the wrapper finishes or undoes an unfinished commit),
    or raise the bound when the step was only slow.
-  The user's own commit with its hooks is never bounded.
 - `CLI_GIT_WAIT_NOTICE_SECONDS`,
    default `10`.
   How often a waiting command repeats its notice (see "What a waiting command prints").
@@ -756,7 +756,7 @@ Each line names what the command waits for,
  the process that holds it when the wrapper can tell,
  how long the wait has lasted and where it gives up.
 
-- A lock held by a live process (the landing, hook, capture and registry locks),
+- A lock held by a live process (the landing, capture and registry locks),
    as in the sample below.
   The first line of a wait adds a hint,
    and the repeats stay short.

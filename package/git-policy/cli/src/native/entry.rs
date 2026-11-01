@@ -32,7 +32,7 @@ use super::effective_target::default_allowed_worktree_dirs;
 use super::forwarding::{exit_code, replace_process_with_real_git, run_real_git};
 use super::index_writer_forward::{CoordinatedForward, CoordinatedRun, run_coordinated_forward};
 use super::index_writer_commands::is_index_writer;
-use super::forwarded_command::{ResolvedCommand, creates_or_moves_worktrees, resolve_forwarded_command};
+use super::forwarded_command::{ResolvedCommand, Route, creates_or_moves_worktrees, resolve_forwarded_command};
 use super::invocation_config::{config_invalid_event, load_identity_config};
 use super::config_file::LoadedConfig;
 use super::repository_location::RepositoryLocation;
@@ -500,11 +500,17 @@ fn forward_action(
         common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
+    // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
+    //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
+    let forwarded_arguments: Vec<OsString> = match command.route {
+        Route::Alias => command.arguments.clone(),
+        Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
+    };
     let writes_index: bool = is_index_writer(&command);
     if !writes_index && copy_bypassed {
         return Action::Forward {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             stderr,
         };
@@ -516,7 +522,7 @@ fn forward_action(
     if location.identity == WorktreeIdentity::OutsideWorktree {
         return Action::Forward {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             stderr,
         };
@@ -565,14 +571,14 @@ fn forward_action(
         let Some(facts) = copy else {
             return Action::Forward {
                 real_git,
-                arguments,
+                arguments: forwarded_arguments,
                 overlay,
                 stderr,
             };
         };
         return Action::ForwardSettled {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             copy: Box::new(facts),
             stderr,
@@ -584,7 +590,7 @@ fn forward_action(
     return Action::ForwardCoordinated {
         forward: Box::new(CoordinatedForward {
             real_git,
-            arguments,
+            arguments: forwarded_arguments,
             overlay,
             identity: location.identity,
             command,
