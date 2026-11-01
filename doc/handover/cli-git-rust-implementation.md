@@ -6458,3 +6458,33 @@ This block supersedes "State at 2026-10-29 (night, later)".
   service. Also protocol v5 `04f91f1d85`: detached-HEAD compare-and-swap, unborn zero-old compare-and-swap, extra
   parents, and index entries as bytes. Remaining: the other line groups, the 15 push tests, and the full suite with
   `CLI_GIT_TEST_SERVICE=1`.
+- Harness READY `fd1e04672e` (agent `acc6062b235d35966`):
+  - one shared crate list for every snapshot (`bin/native-wrapper-snapshot.ts`, typed so a new path crate fails
+    type-checking), plus a manifest-scan guard (GFP shown);
+  - interop 42 of 42;
+  - the e2e image builds again: 36 runs, 13 pass, 21 fail, 2 skipped, seed 1871738767, log
+    `~/temp/agent/harness/e2e3.log`.
+  Merged onto integ with the review scratch fix `aa3d87fdcd` (the service review sets `common_dir` per work item; test
+  through the real `GitHandlers`). Integ head `75483a8d6e`.
+- e2e findings on 0.5.4 code:
+  - Live index risk (`foreign-index-lock-holder`/`-unproven`): the service moves the ref, then gives up on Git's
+    `index.lock` after 5 x 100 ms, so the index stages replaced content until the next batch. Probe at 12:5x: the main
+    checkout's index had 0 staged entries, so the risk has not hit yet.
+    - Decided: take `index.lock` first (exclusive create), hold it across the compare-and-swap and the index write;
+      wait for a foreign holder with inotify, bounded by the incumbent deadline; fail before anything moves.
+    - Sent to the landings agent `abebb58839c985773` as top priority, for 0.5.5.
+    - Correction: the foreign `index.lock` waiting and holder-evidence family is NOT deletable in 4d part 2; it moves
+      into the service landing.
+  - Editor commits are not rebuilt on a moved tip (`reservation-after-lost-races`, `lint-staged-stash-concurrent`).
+    Decided: rebuild with `-F <saved message>` within the bound. Queued for the same agent. Typical agent lines are
+    unaffected: `opens_editor` treats `-m`/`--message` as no editor.
+  - A rejected service push is never shown (`amend-during-commits`), and raw engine JSON reached a user
+    (`gc-prune-during-commits`). Both sent to a new agent.
+  - The 15 hook-instrument scenarios: the earlier agent's proposal (editor for kill points, declared `postCommit`
+    action for observation, external SIGKILL for service phases) is adopted, and a new agent ports them.
+  - Rollback to 0.5.3 was considered and rejected (advisor): the downgrade would re-stale the unit and strand a 0.5.4
+    service process. Fixing forward.
+- 0.5.5 = the unit hotfix + the review key + the review scratch fix + the index-lock ordering. One install. Run
+  `reset-service-units.ts` before the lock bump.
+- Open question for the owner, not built: the incident showed there is no operator escape hatch to force the native
+  route when the service misbehaves. The owner refused install switches; a debug override would be a different thing.
