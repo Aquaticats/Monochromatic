@@ -5471,3 +5471,20 @@ This block supersedes "State at 2026-10-29 (night, later)".
   tests, e2e suite instrument gone (list in the report). Sent to agent `a21d6fec9d0d04797` with H1 held back for the owner.
 - Decision asked of the owner this turn: where `postCommit.actions` may be declared (options: git directory file, tracked file with a
   trust gate, tracked file accepted and documented). Answer recorded in the next entry.
+
+### CORRECTION: no custom actions, no third-party code; the generic `postCommit.actions` facility is retracted
+
+- User, verbatim, answering the question about where `postCommit.actions` may be declared: "What is going on? I already said we don't
+  allow 3p code and custom actions?" My error: the option label "B: Only hooks we declare, natively" and my brief to agent
+  `a21d6fec9d0d04797` described a config-declared post-commit action run by the wrapper as a direct child with an argv array. That is a
+  custom-action facility: a configuration file naming a program the wrapper executes. It contradicts the owner's standing rule (no
+  other people's programs, no third-party code, no custom actions) and `config_schema.rs:98,148`, which say the configuration
+  deliberately has no command or executable field. The reviewer's security finding H1 was the symptom. The hooks agent's `postCommit.actions`
+  work (`post_commit_action.rs`, `post_commit_template.rs`, `config_post_commit.rs`, tests, docs) is to be DELETED, not fixed; the sections
+  above that call it "ported in" and give its rollout order are superseded. Sent to the agent as a correction; the findings about the
+  facility are moot, the others stand.
+- Remaining owner decision (asked this turn): what replaces the repository's own `hook.standards-review-shadow` after the wrapper stops
+  running configured programs. Facts: the old hook command is `systemd-run --user --unit=standards-review-shadow-$(git rev-parse --short HEAD)
+  --collect --working-directory=$(git rev-parse --show-toplevel) --setenv=PATH=$PATH --setenv=HOME=$HOME mise run shadow-review`; the mise
+  task `shadow-review` (root `mise.toml`) is "Standards-review gate shadow run on the landed commit: appends to
+  `doc/audit/standards-review-gate-shadow.md` and never blocks or fails a landing"; that file is the one every status shows modified.
