@@ -52,7 +52,7 @@ const WINDOW_STRIDE = 32;
  cumulative ratio over a reply that ran healthy for a long time cannot fall
  far enough to trip, no matter how long it then cycles.
  */
-const TRAILING_WINDOWS = 4_096;
+export const TRAILING_WINDOWS = 4_096;
 
 /**
  Windows required before any verdict is offered, which must not exceed
@@ -106,7 +106,7 @@ export const MIN_CHARS_FOR_VERDICT: number = MIN_WINDOWS_FOR_VERDICT * WINDOW_ST
  between 0.1 and 0.99, so this threshold is placed in empty space rather than
  fitted to a boundary.
  */
-const DEGENERATE_RATIO = 0.1;
+export const DEGENERATE_RATIO = 0.1;
 
 /**
  What the detector currently believes about a stream.

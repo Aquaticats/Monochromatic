@@ -46,7 +46,7 @@ const IOPRIO_CLASS_SHIFT: libc::c_long = 13;
 const IOPRIO_CLASS_BEST_EFFORT: libc::c_long = 2;
 
 /// The lowest level inside the best-effort class (level 0 is the highest and level 7 is the lowest).
-const LOWEST_BEST_EFFORT_LEVEL: libc::c_long = 7;
+pub const LOWEST_BEST_EFFORT_LEVEL: libc::c_long = 7;
 
 /// What:
 /// `pub fn lower_disk_priority() -> bool` declares a public function with no inputs that returns true when the

@@ -21,6 +21,7 @@ import {
   slotCountEnvironmentVariable,
   unitTemporarySegment,
 } from './constants.ts';
+import { examinePatternOf } from './campaign-options.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   environmentEntry,
@@ -57,6 +58,8 @@ export type LauncherOptions = {
   readonly unitMemoryMax: string;
   readonly unitCpuQuota: string;
   readonly timeoutSeconds: number;
+  readonly buildTimeoutSeconds?: number;
+  readonly examine: readonly string[];
   readonly attempts: number;
   readonly retryMarker: string;
   readonly memory?: string;
@@ -80,6 +83,8 @@ export const launcherUsage: string = [
   '  --scope-prefix <text>     prepended to each file to form its scope (default: none)',
   `  --scope-flag=<flag>       task flag that takes a scope, written with an equals sign (default: ${defaultScopeFlag})`,
   `  --timeout <seconds>       per-mutant timeout forwarded to the task (default: ${defaultTimeoutSeconds})`,
+  '  --build-timeout <seconds> per-mutant build timeout forwarded to the task when given (default: the task default)',
+  '  --examine <regex>         mutant-name pattern forwarded to the task for every file; repeatable (default: none)',
   '  --memory <size>           container memory limit forwarded to the task when given',
   '  --cpus <count>            container CPU count forwarded to the task when given',
   `  --attempts <count>        runs per file while the baseline fails (default: ${defaultAttempts})`,
@@ -157,6 +162,11 @@ export function parseLauncherOptions({
       'scope-prefix': { type: 'string' },
       'scope-flag': { type: 'string' },
       'timeout': { type: 'string' },
+      'build-timeout': { type: 'string' },
+      'examine': {
+        type: 'string',
+        multiple: true,
+      },
       'memory': { type: 'string' },
       'cpus': { type: 'string' },
       'attempts': { type: 'string' },
@@ -291,6 +301,15 @@ export function parseLauncherOptions({
         option: '--timeout',
         value: values.timeout,
       }),
+    ...(values['build-timeout'] === undefined ? {} : {
+      buildTimeoutSeconds: positiveWholeNumber({
+        option: '--build-timeout',
+        value: values['build-timeout'],
+      }),
+    }),
+    examine: (values.examine ?? []).map(function checkPattern(pattern) {
+      return examinePatternOf(pattern);
+    }),
     attempts: values.attempts === undefined
       ? defaultAttempts
       : positiveWholeNumber({

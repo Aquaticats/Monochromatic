@@ -201,10 +201,16 @@ fn records_grow_by_batch_not_by_entry() {
         &mut recorder,
     )
     .expect("installed");
-    // The manifest holds the directory and 1,100 files; the batches split it at 512.
-    assert_eq!(INSTALL_BATCH_ENTRIES, 512);
-    assert_eq!(recorder.intents, vec![512, 512, 77]);
-    assert_eq!(recorder.creations, vec![512, 512, 77]);
+    // The batches split the manifest at the batch size, one record per batch.
+    let mut expected: Vec<usize> = Vec::new();
+    let mut remaining: usize = entries.len();
+    while remaining > 0 {
+        let batch: usize = remaining.min(INSTALL_BATCH_ENTRIES);
+        expected.push(batch);
+        remaining -= batch;
+    }
+    assert_eq!(recorder.intents, expected);
+    assert_eq!(recorder.creations, expected);
     remove(root.as_path());
 }
 

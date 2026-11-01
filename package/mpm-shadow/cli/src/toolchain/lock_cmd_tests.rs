@@ -13,6 +13,7 @@ use serde_json::Value;
 use super::error::ErrorKind;
 use super::fixtures::{SAMPLE_PLAN, sample_scope_on_disk};
 use super::lock::{parse_lock, render_lock};
+use super::plan::parse_plan;
 use super::lock_cmd::{LockMode, run_lock};
 use super::publish::{acquire_guard, publish_lock, read_revisions, try_acquire_guard, write_atomically};
 
@@ -88,7 +89,8 @@ fn lock_drops_a_tool_removed_from_the_plan() {
     run_lock(&scope, LockMode::Write).expect("a removal projects offline");
     let parsed = parse_lock(&fs::read_to_string(&scope.lock_file).expect("read"), "lock").expect("parses");
     assert!(parsed.lock.tool("pipx:slopo").is_none());
-    assert_eq!(parsed.lock.tools.len(), 10);
+    let planned: super::plan::Plan = parse_plan(&fs::read_to_string(&scope.plan_file).expect("read the plan"), "lock").expect("the plan parses");
+    assert_eq!(parsed.lock.tools.len(), planned.tools.len(), "the lock holds one row per plan tool");
 }
 
 #[test]
@@ -143,7 +145,7 @@ fn a_bad_plan_is_a_configuration_error_with_exit_code_two() {
     fs::write(&scope.plan_file, "{ \"tools\": ").expect("break the plan");
     let error = run_lock(&scope, LockMode::Check).expect_err("the plan is broken");
     assert_eq!(error.kind, ErrorKind::Config);
-    assert_eq!(error.exit_code(), 2);
+    assert_eq!(error.exit_code(), crate::constants::USAGE_EXIT_CODE);
 }
 
 #[test]

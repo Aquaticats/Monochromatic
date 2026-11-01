@@ -17,10 +17,13 @@ const TOKENS: &[&str] = &[
     "C:/rules", ";", "\u{fe0f}",
 ];
 
+/// Maximum tokens one generated rules-list value assembles from fuzz bytes.
+const MAX_TOKENS: usize = 48;
+
 // Builds a rules-list value from token indices, so the fuzzer reaches every grammar branch with short inputs.
 pub fn generated_rules_list(data: &[u8]) -> String {
     let mut value = String::new();
-    for byte in data.iter().take(48) {
+    for byte in data.iter().take(MAX_TOKENS) {
         value.push_str(TOKENS[usize::from(*byte) % TOKENS.len()]);
     }
     return value

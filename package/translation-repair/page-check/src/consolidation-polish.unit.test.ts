@@ -25,6 +25,7 @@ import type {
 } from '@monochromatic-dev/translation-repair-provider';
 import { unflooredFinding, } from '@monochromatic-dev/translation-repair-translate-stage';
 import {
+  CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT,
   polishConsolidation,
   reviewParagraphsOf,
 } from '@monochromatic-dev/translation-repair-consolidate';
@@ -1107,7 +1108,7 @@ await describe({
         },);
         if (polish.kind !== 'settled')
           throw new Error(`expected a settled polish, got ${polish.kind}`,);
-        expect(asked,).toContain('consolidation_polish_gate',);
+        expect(asked,).toContain(CONSOLIDATION_POLISH_GATE_RESPONSE_FORMAT.json_schema.name,);
         expect({
           text: polish.text,
           changed: polish.changed,

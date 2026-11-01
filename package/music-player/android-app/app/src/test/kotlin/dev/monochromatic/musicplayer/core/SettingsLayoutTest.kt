@@ -132,10 +132,10 @@ class SettingsLayoutTest {
     /** Confirms the card width follows the page width with no maximum and never goes negative. */
     @Test
     fun pageMarginsLeaveCardWidthOfPageMinusThirtyTwo() {
-        assertEquals(288f, settingsCardWidthDp(pageWidthDp = 320f), 0f)
-        assertEquals(819.7f, settingsCardWidthDp(pageWidthDp = 851.7f), 0.001f)
-        assertEquals(1172f, settingsCardWidthDp(pageWidthDp = 1204f), 0f)
-        assertEquals(0f, settingsCardWidthDp(pageWidthDp = 20f), 0f)
+        assertEquals(320f - 2f * SETTINGS_PAGE_MARGIN_DP, settingsCardWidthDp(pageWidthDp = 320f), 0f)
+        assertEquals(851.7f - 2f * SETTINGS_PAGE_MARGIN_DP, settingsCardWidthDp(pageWidthDp = 851.7f), 0.001f)
+        assertEquals(1204f - 2f * SETTINGS_PAGE_MARGIN_DP, settingsCardWidthDp(pageWidthDp = 1204f), 0f)
+        assertEquals((20f - 2f * SETTINGS_PAGE_MARGIN_DP).coerceAtLeast(0f), settingsCardWidthDp(pageWidthDp = 20f), 0f)
     }
 
     // What:     `rowIsSeventyTwoDpWithTwoDpBetweenRowsAndSixteenBetweenGroups` checks the stock row height and spacing constants.
@@ -165,8 +165,8 @@ class SettingsLayoutTest {
     @Test
     fun iconCircleIsFortyDpAtThirtyTwoAndTitleAtEightyFour() {
         assertEquals(40f, SETTINGS_ICON_CIRCLE_DP, 0f)
-        assertEquals(32f, settingsIconLeftDp(), 0f)
-        assertEquals(84f, settingsTitleLeftDp(), 0f)
+        assertEquals(SETTINGS_PAGE_MARGIN_DP + SETTINGS_ROW_INNER_PADDING_DP, settingsIconLeftDp(), 0f)
+        assertEquals(SETTINGS_PAGE_MARGIN_DP + SETTINGS_ROW_INNER_PADDING_DP + SETTINGS_ICON_CIRCLE_DP + SETTINGS_ICON_TITLE_GAP_DP, settingsTitleLeftDp(), 0f)
     }
 
     // What:     `iconCircleIsCenteredInASeventyTwoDpRow` checks the circle's top inside a row and the glyph inside the circle.
@@ -179,7 +179,7 @@ class SettingsLayoutTest {
     /** Confirms the circle's top offset in a row of the stock height and the glyph size inside it. */
     @Test
     fun iconCircleIsCenteredInASeventyTwoDpRow() {
-        assertEquals(16f, settingsIconTopDp(rowHeightDp = SETTINGS_ROW_HEIGHT_DP), 0f)
+        assertEquals((SETTINGS_ROW_HEIGHT_DP - SETTINGS_ICON_CIRCLE_DP) / 2f, settingsIconTopDp(rowHeightDp = SETTINGS_ROW_HEIGHT_DP), 0f)
         assertEquals(24f, SETTINGS_ICON_GLYPH_DP, 0f)
         assertEquals(8f, (SETTINGS_ICON_CIRCLE_DP - SETTINGS_ICON_GLYPH_DP) / 2f, 0f)
     }
@@ -195,8 +195,8 @@ class SettingsLayoutTest {
     @Test
     fun groupHeightIsRowsPlusGaps() {
         assertEquals(0f, settingsGroupHeightDp(rowCount = 0), 0f)
-        assertEquals(72f, settingsGroupHeightDp(rowCount = 1), 0f)
-        assertEquals(146f, settingsGroupHeightDp(rowCount = 2), 0f)
+        assertEquals(SETTINGS_ROW_HEIGHT_DP, settingsGroupHeightDp(rowCount = 1), 0f)
+        assertEquals(2f * SETTINGS_ROW_HEIGHT_DP + SETTINGS_ROW_GAP_DP, settingsGroupHeightDp(rowCount = 2), 0f)
     }
 
     // What:     `selectedRowIsAPillWhereverItSits` checks the radii of a chosen row at each position of a group.

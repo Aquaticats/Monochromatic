@@ -39,7 +39,6 @@ fn publication_creates_an_owned_directory_and_derives_the_paths() {
     assert_eq!(workspace.landing.captured_index, workspace.landing.directory.join("captured.index"));
     assert_eq!(workspace.landing.shadow, root.join(".git/cli-git/shadow").join(id));
     assert_eq!(workspace.object_directory, workspace.landing.shadow.join("objects"));
-    assert_eq!(workspace.hooks_directory, workspace.landing.directory.join("hooks"));
     assert!(!workspace.landing.preserved);
     assert_eq!(workspace.git_dir(), root.join(".git"));
     assert_eq!(workspace.registry_root(), root.join(".git/cli-git-transactions"));

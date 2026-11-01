@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::agree::{compare, project, refusal};
 use super::error::ErrorKind;
 use super::fixtures::{SAMPLE_SHA256, sample_lock, sample_plan};
-use super::lock::{Lock, lock_digest, parse_lock, render_lock};
+use super::lock::{DIGEST_PREFIX, LOCK_GENERATED_FROM, LOCK_SCHEMA_VERSION, Lock, lock_digest, parse_lock, render_lock};
 use super::model::{Artifact, Request};
 
 fn rendered_value() -> Value {
@@ -18,7 +18,10 @@ fn rendered_value() -> Value {
 fn the_rendered_lock_is_strict_json_with_two_space_indentation_and_a_trailing_newline() {
     let text = render_lock(&sample_lock());
     assert!(text.ends_with("}\n"));
-    assert!(text.starts_with("{\n  \"schemaVersion\": 1,\n  \"generatedFrom\": \"toolchain.plan.jsonc\",\n  \"tools\": {"));
+    let header: String = format!(
+        "{{\n  \"schemaVersion\": {LOCK_SCHEMA_VERSION},\n  \"generatedFrom\": {LOCK_GENERATED_FROM:?},\n  \"tools\": {{"
+    );
+    assert!(text.starts_with(&header), "the rendered lock starts with the fixed header: {header:?}");
     assert!(serde_json::from_str::<Value>(&text).is_ok());
 }
 
@@ -46,7 +49,7 @@ fn the_digest_is_the_last_field() {
     let value = rendered_value();
     let last = value.as_object().expect("an object").keys().next_back().expect("has keys").clone();
     assert_eq!(last, "digest");
-    assert!(value["digest"].as_str().expect("a string").starts_with("sha256:"));
+    assert!(value["digest"].as_str().expect("a string").starts_with(DIGEST_PREFIX));
 }
 
 #[test]

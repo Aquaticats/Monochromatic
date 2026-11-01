@@ -5,6 +5,8 @@
 //!  Whether `git branch` creates depends on a count of action options that no test
 //!      written by hand covers;
 //!  here Git itself decides every case.
+//!  Each case runs against its own copy of a pristine repository,
+//!  so no case puts anything back and the cases run side by side.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,10 +21,10 @@ use super::{BranchCreationRegion, parse_branch_creation_region};
 use crate::command_branch_table::BRANCH_TABLE;
 use crate::command_checkout_table::{CHECKOUT_TABLE, SWITCH_TABLE};
 use crate::command_options::OptionError;
+use crate::command_test_cases::{across_workers, copy_tree};
 use crate::command_test_completion::{git_completion, render_completion};
 use crate::command_test_support::{
-    assert_table_invariants, fixture, git, git_status, git_with_input, os_arguments, output_text,
-    remove, repository,
+    assert_table_invariants, fixture, git, git_status, os_arguments, remove, repository,
 };
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -69,6 +71,13 @@ struct Tally {
     refused: usize,
 }
 
+/// One worker's disposable space and what its cases found.
+struct Lane {
+    pristine: PathBuf,
+    scratch: PathBuf,
+    tally: Tally,
+}
+
 /// The copied tables match what the binary prints for each command.
 #[test]
 fn tables_match_git() {
@@ -101,11 +110,9 @@ fn heads(root: &Path) -> Vec<String> {
     return names;
 }
 
-/// A repository on `main` with an older branch `other`.
-///  Returns the fixture directory,
-///  the
-/// repository root and the `git update-ref --stdin` lines that put both branches back.
-fn branch_fixture(name: &str) -> (PathBuf, PathBuf, String) {
+/// A repository on `main` with an older branch `other` that no case touches.
+///  Returns the fixture directory and the pristine repository root that every case copies.
+fn branch_fixture(name: &str) -> (PathBuf, PathBuf) {
     let directory: PathBuf = fixture(name);
     let root: PathBuf = repository(directory.as_path(), "repository");
     git(root.as_path(), &["branch", "other"]);
@@ -118,51 +125,41 @@ fn branch_fixture(name: &str) -> (PathBuf, PathBuf, String) {
         root.as_path(),
         &["config", "submodule.propagateBranches", "true"],
     );
-    let restore: String = format!(
-        "update refs/heads/main {}\nupdate refs/heads/other {}\n",
-        output_text(&git(root.as_path(), &["rev-parse", "main"])),
-        output_text(&git(root.as_path(), &["rev-parse", "other"])),
-    );
     // Positive control of the oracle: both branches are visible as loose refs.
     assert_eq!(heads(root.as_path()), ["main", "other"]);
-    return (directory, root, restore);
+    return (directory, root);
 }
 
-/// Run `git branch <arguments>`.
+/// The space of one worker: its own scratch directory and an empty tally.
+fn lane(directory: &Path, pristine: &Path, number: usize) -> Lane {
+    let scratch: PathBuf = directory.join(format!("lane-{number}"));
+    std::fs::create_dir_all(scratch.as_path()).expect("lane directory");
+    return Lane {
+        pristine: pristine.to_path_buf(),
+        scratch,
+        tally: Tally {
+            runs: 0,
+            created: 0,
+            refused: 0,
+        },
+    };
+}
+
+/// Run `git branch <arguments>` in a fresh copy of the pristine repository.
 ///  Report whether a branch appeared beside `main` and `other`
 /// (a rename or a deletion removes one of them) and Git's exit code,
-///  then put both back.
-fn observe(root: &Path, restore: &str, arguments: &[&str]) -> (bool, Option<i32>) {
+///  then drop the copy.
+fn observe(lane: &Lane, arguments: &[&str]) -> (bool, Option<i32>) {
+    let case: PathBuf = lane.scratch.join("case");
+    copy_tree(lane.pristine.as_path(), case.as_path());
     let mut full: Vec<&str> = vec!["branch"];
     full.extend_from_slice(arguments);
-    let output: Output = git_status(root, full.as_slice());
-    let after: Vec<String> = heads(root);
-    if after == ["main", "other"] {
-        return (false, output.status.code());
-    }
-    let mut script: String = restore.to_owned();
-    for name in &after {
-        if name != "main" && name != "other" {
-            script.push_str(format!("delete refs/heads/{name}\n").as_str());
-        }
-    }
+    let output: Output = git_status(case.as_path(), full.as_slice());
+    let after: Vec<String> = heads(case.as_path());
+    remove(case.as_path());
     let kept: bool =
         after.contains(&String::from("main")) && after.contains(&String::from("other"));
-    if !kept {
-        // A rename of the current branch moved `HEAD` with it.
-        git(root, &["symbolic-ref", "HEAD", "refs/heads/main"]);
-    }
-    let restored: Output = git_with_input(
-        root,
-        os_arguments(&["update-ref", "--stdin"]).as_slice(),
-        script.as_bytes(),
-    );
-    assert!(
-        restored.status.success(),
-        "{}",
-        String::from_utf8_lossy(&restored.stderr)
-    );
-    return (kept, output.status.code());
+    return (kept && after != ["main", "other"], output.status.code());
 }
 
 /// Require the parser's answer for one argument list to be what Git did.
@@ -193,9 +190,9 @@ fn joined<'a>(first: &[&'a str], second: &[&'a str]) -> Vec<&'a str> {
 }
 
 /// Run one argument list and compare it.
-fn compare(root: &Path, restore: &str, arguments: &[&str], tally: &mut Tally) {
-    let (created, code): (bool, Option<i32>) = observe(root, restore, arguments);
-    check(arguments, created, code, tally);
+fn compare(lane: &mut Lane, arguments: &[&str]) {
+    let (created, code): (bool, Option<i32>) = observe(lane, arguments);
+    check(arguments, created, code, &mut lane.tally);
 }
 
 /// Compare one option list followed by two names.
@@ -204,16 +201,36 @@ fn compare(root: &Path, restore: &str, arguments: &[&str], tally: &mut Tally) {
 ///  so Git creates in one of the two orders;
 ///  the parser reads
 /// counts and must give both orders that same answer.
-fn compare_two_names(root: &Path, restore: &str, options: &[&str], tally: &mut Tally) {
+fn compare_two_names(lane: &mut Lane, options: &[&str]) {
     let forward: Vec<&str> = joined(options, &["fresh", "other"]);
     let backward: Vec<&str> = joined(options, &["other", "fresh"]);
-    let (created_forward, code_forward): (bool, Option<i32>) =
-        observe(root, restore, forward.as_slice());
-    let (created_backward, code_backward): (bool, Option<i32>) =
-        observe(root, restore, backward.as_slice());
+    let (created_forward, code_forward): (bool, Option<i32>) = observe(lane, forward.as_slice());
+    let (created_backward, code_backward): (bool, Option<i32>) = observe(lane, backward.as_slice());
     let created: bool = created_forward || created_backward;
-    check(forward.as_slice(), created, code_forward, tally);
-    check(backward.as_slice(), created, code_backward, tally);
+    check(forward.as_slice(), created, code_forward, &mut lane.tally);
+    check(backward.as_slice(), created, code_backward, &mut lane.tally);
+}
+
+/// The tallies of all workers as one.
+fn merged(lanes: Vec<Lane>) -> Tally {
+    let mut total: Tally = Tally {
+        runs: 0,
+        created: 0,
+        refused: 0,
+    };
+    for lane in lanes {
+        total.runs += lane.tally.runs;
+        total.created += lane.tally.created;
+        total.refused += lane.tally.refused;
+    }
+    return total;
+}
+
+/// Positive control: the comparison reached creation, refusal and neither.
+fn assert_reached_every_outcome(tally: &Tally) {
+    assert!(tally.created > 0, "no case created a branch");
+    assert!(tally.refused > 0, "no case was refused");
+    assert!(tally.created + tally.refused < tally.runs, "every case created or was refused");
 }
 
 /// Every option alone,
@@ -223,56 +240,39 @@ fn compare_two_names(root: &Path, restore: &str, options: &[&str], tally: &mut T
 ///  creates exactly when the parser says.
 #[test]
 fn single_branch_options_match_git() {
-    let (directory, root, restore): (PathBuf, PathBuf, String) = branch_fixture("branch-single");
-    let mut tally: Tally = Tally {
-        runs: 0,
-        created: 0,
-        refused: 0,
-    };
+    let (directory, pristine): (PathBuf, PathBuf) = branch_fixture("branch-single");
     let entries: Vec<&str> = OPTIONS.split(';').collect();
-    for entry in &entries {
-        let options: Vec<&str> = entry.split_whitespace().collect();
-        let before: Vec<&str> = joined(options.as_slice(), &["fresh"]);
-        // After the name an optional or last-argument value is read differently.
-        let after: Vec<&str> = joined(&["fresh"], options.as_slice());
-        compare(
-            root.as_path(),
-            restore.as_str(),
-            before.as_slice(),
-            &mut tally,
-        );
-        compare(
-            root.as_path(),
-            restore.as_str(),
-            after.as_slice(),
-            &mut tally,
-        );
-        compare_two_names(
-            root.as_path(),
-            restore.as_str(),
-            options.as_slice(),
-            &mut tally,
-        );
-    }
-    for entry in EVERY_COUNT.split(';') {
-        let options: Vec<&str> = entry.split_whitespace().collect();
-        let three: Vec<&str> = joined(options.as_slice(), &["fresh", "other", "extra"]);
-        compare(
-            root.as_path(),
-            restore.as_str(),
-            options.as_slice(),
-            &mut tally,
-        );
-        compare(
-            root.as_path(),
-            restore.as_str(),
-            three.as_slice(),
-            &mut tally,
-        );
-        assert!(entries.contains(&entry), "{entry}");
-    }
-    // Positive control: the comparison reached creation, refusal and neither.
-    assert_eq!((tally.runs, tally.created, tally.refused), (248, 116, 12));
+    let counted: Vec<&str> = EVERY_COUNT.split(';').collect();
+    // Each item says whether the entry is also compared with zero and three names.
+    let items: Vec<(bool, &str)> = entries
+        .iter()
+        .map(|entry| return (false, *entry))
+        .chain(counted.iter().map(|entry| return (true, *entry)))
+        .collect();
+    let lanes: Vec<Lane> = across_workers(
+        &items,
+        |number| return lane(directory.as_path(), pristine.as_path(), number),
+        |&(every_count, entry), lane| {
+            let options: Vec<&str> = entry.split_whitespace().collect();
+            if every_count {
+                let three: Vec<&str> = joined(options.as_slice(), &["fresh", "other", "extra"]);
+                compare(lane, options.as_slice());
+                compare(lane, three.as_slice());
+            } else {
+                let before: Vec<&str> = joined(options.as_slice(), &["fresh"]);
+                // After the name an optional or last-argument value is read differently.
+                let after: Vec<&str> = joined(&["fresh"], options.as_slice());
+                compare(lane, before.as_slice());
+                compare(lane, after.as_slice());
+                compare_two_names(lane, options.as_slice());
+            }
+        },
+    );
+    let tally: Tally = merged(lanes);
+    // Four lists per option entry and two per every-count entry, whatever the entries are.
+    assert_eq!(tally.runs, 4 * entries.len() + 2 * counted.len());
+    assert!(counted.iter().all(|entry| return entries.contains(entry)));
+    assert_reached_every_outcome(&tally);
     remove(directory.as_path());
 }
 
@@ -281,29 +281,29 @@ fn single_branch_options_match_git() {
 ///  before one name.
 #[test]
 fn paired_branch_options_match_git() {
-    let (directory, root, restore): (PathBuf, PathBuf, String) = branch_fixture("branch-paired");
-    let mut tally: Tally = Tally {
-        runs: 0,
-        created: 0,
-        refused: 0,
-    };
-    for partner in PARTNERS.split(';') {
-        for entry in INTERACTING.split(';') {
+    let (directory, pristine): (PathBuf, PathBuf) = branch_fixture("branch-paired");
+    let partners: Vec<&str> = PARTNERS.split(';').collect();
+    let interacting: Vec<&str> = INTERACTING.split(';').collect();
+    let items: Vec<(&str, &str)> = partners
+        .iter()
+        .flat_map(|partner| return interacting.iter().map(|entry| return (*partner, *entry)))
+        .collect();
+    let lanes: Vec<Lane> = across_workers(
+        &items,
+        |number| return lane(directory.as_path(), pristine.as_path(), number),
+        |&(partner, entry), lane| {
             let options: Vec<&str> = entry.split_whitespace().collect();
             let before: Vec<&str> = joined(&[partner], options.as_slice());
             let after: Vec<&str> = joined(options.as_slice(), &[partner]);
             for pair in [before, after] {
                 let arguments: Vec<&str> = joined(pair.as_slice(), &["fresh"]);
-                compare(
-                    root.as_path(),
-                    restore.as_str(),
-                    arguments.as_slice(),
-                    &mut tally,
-                );
+                compare(lane, arguments.as_slice());
             }
-        }
-    }
-    // Positive control: the comparison reached creation, refusal and neither.
-    assert_eq!((tally.runs, tally.created, tally.refused), (310, 72, 10));
+        },
+    );
+    let tally: Tally = merged(lanes);
+    // Both orders for every partner and interacting entry.
+    assert_eq!(tally.runs, 2 * partners.len() * interacting.len());
+    assert_reached_every_outcome(&tally);
     remove(directory.as_path());
 }

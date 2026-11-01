@@ -12,12 +12,12 @@
 /**
  Bytes in one kibibyte, the unit Pi's size text divides by.
  */
-const BYTES_PER_KIBIBYTE: number = 1_024;
+export const BYTES_PER_KIBIBYTE: number = 1_024;
 
 /**
  Bytes in one mebibyte, where size text switches suffix again.
  */
-const BYTES_PER_MEBIBYTE: number = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE;
+export const BYTES_PER_MEBIBYTE: number = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE;
 
 /**
  Kibibytes in the default byte ceiling, matching Pi's tool-output limits.

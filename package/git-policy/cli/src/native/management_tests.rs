@@ -27,6 +27,10 @@ use crate::wrapper_controls::{Controls, no_controls};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+/// Direct runs that select a policy which is off, warns or blocks.
+#[path = "management_off_policy_tests.rs"]
+mod off_policy_cases;
+
 /// Inputs whose PATH holds nothing:
 ///  any attempt to resolve Git fails visibly.
 fn no_git(root: &Path) -> ResolutionInputs {
@@ -251,7 +255,7 @@ fn unknown_selected_policy_is_reported_on_stdout() {
             exit(
                 2,
                 format!(
-                    "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Unknown policy ID: {id}. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
+                    "{{\"schemaVersion\":1,\"sequence\":0,\"type\":\"engine-failure\",\"code\":\"config-invalid\",\"message\":\"Unknown policy ID: {id}. Shipped policies: require-root, linked-worktree-only, branch-worktree-only, add-explicit, final-newline, markdown/autofix, mono/forbidden-root-context, mono/dependent-version-bump, mono/catalog-specifiers, security/forbidden-strings.\",\"hint\":\"Hint: if you just edited cli-git.config.jsonc, fix the key the message names or revert the edit; an unknown key, a wrong type or an unknown policy id fails before any policy runs.\"}}\n"
                 )
                 .as_str(),
                 ""
@@ -292,8 +296,6 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
                 "fix",
                 "--policy",
                 "final-newline",
-                "--policy",
-                "security/forbidden-strings",
                 "--",
                 "a.txt"
             ],
@@ -336,16 +338,25 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
     for arguments in [
         vec!["check", "--all", "--policy", "require-root"],
         vec!["check", "--policy=require-root", "--", "a.txt"],
-        // ... and nothing at all for policies that do not run for a direct command.
-        vec!["check", "--all", "--policy", "linked-worktree-only"],
-        vec!["fix", "--all", "--policy", "require-root"],
-        vec!["fix", "--all", "--policy", "add-explicit"],
     ] {
         assert_eq!(
             plan(arguments.as_slice(), repo.as_path(), &inputs),
             exit(0, "", ""),
             "{arguments:?}"
         );
+    }
+    // ... and a refusal, never a clean exit, for policies that do not run for a direct command.
+    for arguments in [
+        vec!["check", "--all", "--policy", "linked-worktree-only"],
+        vec!["fix", "--all", "--policy", "require-root"],
+        vec!["fix", "--all", "--policy", "add-explicit"],
+    ] {
+        let Action::Exit { code, stdout, stderr } = plan(arguments.as_slice(), repo.as_path(), &inputs) else {
+            panic!("a direct command ends in an exit action");
+        };
+        assert_eq!((code, stderr.as_str()), (2, ""), "{arguments:?}");
+        assert!(stdout.contains("\"code\":\"config-invalid\""), "{stdout}");
+        assert!(stdout.contains("would check nothing and exit clean"), "{stdout}");
     }
     // ... and a finding on standard output, with exit status 1, below the top level.
     assert_eq!(
@@ -356,15 +367,11 @@ fn direct_commands_project_their_scope_and_run_the_policies() {
         ),
         exit(1, not_at_root(0, repo.as_path()).as_str(), "")
     );
-    // A direct fix has no require-root policy to run, wherever it is typed.
-    assert_eq!(
-        plan(
-            &["fix", "--all", "--policy", "require-root"],
-            nested.as_path(),
-            &inputs
-        ),
-        exit(0, "", "")
-    );
+    // A direct fix has no require-root policy to run, wherever it is typed, and says so.
+    let Action::Exit { code: fix_code, .. } = plan(&["fix", "--all", "--policy", "require-root"], nested.as_path(), &inputs) else {
+        panic!("a direct command ends in an exit action");
+    };
+    assert_eq!(fix_code, 2);
     assert_eq!(
         std::fs::read(repo.join(".git/index")).expect("index"),
         index_before,
@@ -648,7 +655,7 @@ fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("unsupported"), "{stderr}");
+    assert!(stderr.contains("never run through cli-git"), "{stderr}");
     remove(root.as_path());
 }
 

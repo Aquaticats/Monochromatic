@@ -66,7 +66,7 @@ fn kinds_keep_their_own_defaults_labels_and_fields() {
     assert_eq!(TemplateKind::TrackRows.default_template(), DEFAULT_TRACK_TEMPLATE);
     assert_eq!(TemplateKind::TrackRows.fields(), track_template_fields());
     assert_eq!(TemplateKind::PlayingTrack.fields(), playing_template_fields());
-    assert_eq!(TemplateKind::PlayingTrack.default_template(), "$mi(track)$ of $mi(total)$ $mi(peak)$");
+    assert_eq!(TemplateKind::PlayingTrack.default_template(), DEFAULT_PLAYING_TEMPLATE);
 }
 
 // What: `fn default_track_template_is_the_reference_text(...)` checks the default line byte for byte.

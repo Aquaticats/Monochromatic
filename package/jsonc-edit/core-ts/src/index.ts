@@ -12,6 +12,7 @@
 
 //region Parse and serialize
 export { parseJsonc, } from './parse-jsonc.ts';
+export { MAX_DEPTH, } from './parse.ts';
 export { emitJsoncValue, } from './stringify.ts';
 export {
   jsoncStringify,

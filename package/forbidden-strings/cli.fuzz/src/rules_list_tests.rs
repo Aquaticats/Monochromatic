@@ -99,5 +99,6 @@ fn the_generator_is_bounded_and_deterministic() {
     let data = vec![0xff_u8; 4096];
     let first = generated_rules_list(&data);
     assert_eq!(first, generated_rules_list(&data));
-    assert!(first.len() <= 48 * 16);
+    let longest: usize = TOKENS.iter().map(|token| token.len()).max().expect("tokens are non-empty");
+    assert!(first.len() <= MAX_TOKENS * longest);
 }

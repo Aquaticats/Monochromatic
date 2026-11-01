@@ -78,14 +78,34 @@ fn an_assume_unchanged_entry_marks_the_index() {
     remove(root.as_path());
 }
 
-/// A skip-worktree entry marks the index, and an intent-to-add entry, which is not a mark that matters, does not.
+/// Whether real Git reports an intent-to-add entry: `git status --porcelain` prints it as ` A` (index unchanged, work tree added).
+fn git_says_intent_to_add(repo: &Path) -> bool {
+    return git_text(repo, &["status", "--porcelain"]).lines().any(|line| { return line.starts_with(" A "); });
+}
+
+/// An intent-to-add entry marks the index, in both entry layouts that carry extended flags, and clearing it unmarks it.
 #[test]
-fn a_skip_worktree_entry_marks_the_index_and_an_intent_to_add_entry_does_not() {
-    let root: PathBuf = fixture("index-flags-skip");
+fn an_intent_to_add_entry_marks_the_index() {
+    let root: PathBuf = fixture("index-flags-intent");
     let repo: PathBuf = populated_repository(root.as_path());
     std::fs::write(repo.join("added.txt"), "new\n").expect("new file");
     git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
-    assert_agrees(repo.as_path(), false);
+    assert!(git_says_intent_to_add(repo.as_path()), "the scenario sets what it says it sets");
+    for version in ["3", "4"] {
+        git(repo.as_path(), &["update-index", "--index-version", version]);
+        assert_eq!(read(repo.as_path()), IndexFlags::Marked, "version {version}");
+    }
+    git(repo.as_path(), &["add", "--", "added.txt"]);
+    assert!(!git_says_intent_to_add(repo.as_path()));
+    assert_eq!(read(repo.as_path()), IndexFlags::Plain);
+    remove(root.as_path());
+}
+
+/// A skip-worktree entry marks the index and clearing it unmarks it.
+#[test]
+fn a_skip_worktree_entry_marks_the_index() {
+    let root: PathBuf = fixture("index-flags-skip");
+    let repo: PathBuf = populated_repository(root.as_path());
     for version in ["3", "4"] {
         git(repo.as_path(), &["update-index", "--index-version", version]);
         git(repo.as_path(), &["update-index", "--skip-worktree", "--", "n"]);

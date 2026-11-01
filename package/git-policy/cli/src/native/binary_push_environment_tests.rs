@@ -211,10 +211,9 @@ fn a_manual_push_probes_and_pushes_with_the_invocation_environment() {
 }
 
 /// A manual push needs no system temporary directory: with `TMPDIR` naming a path that does not exist it still
-/// pushes, the probe's private directory exists in the per-user scratch directory while the dry run is in flight,
-/// and it is gone before the push itself starts and after the command ends.
+/// pushes, and the probe is a dry-run report from Git, so it creates no private directory at all while it is in flight.
 #[test]
-fn a_manual_push_keeps_its_probe_scratch_in_the_per_user_state_directory() {
+fn a_manual_push_needs_no_system_temporary_directory_and_its_probe_creates_no_scratch() {
     let fixture: Fixture = fixture("push-scratch-location");
     let world: PushWorld = push_world(&fixture);
     git(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=second", "a.txt"]);
@@ -231,10 +230,9 @@ fn a_manual_push_keeps_its_probe_scratch_in_the_per_user_state_directory() {
     let scratch: Vec<&str> = started.iter().map(|start| { return start.scratch.as_str(); }).collect();
     assert_eq!(scratch.len(), 3, "probe dry run, confirmation query, push: {started:?}");
     assert!(
-        scratch.first().is_some_and(|names| { return names.starts_with("cli-git-push-facts-"); }),
-        "the dry run sees its probe directory: {started:?}"
+        scratch.iter().all(|names| { return names.is_empty(); }),
+        "no push child sees a probe directory: {started:?}"
     );
-    assert_eq!(scratch.get(2).copied(), Some(""), "the push starts after the probe directory is gone: {started:?}");
     let directory: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
     let left: Vec<std::ffi::OsString> = std::fs::read_dir(&directory)
         .expect("the per-user scratch directory exists")

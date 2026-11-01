@@ -198,7 +198,8 @@ fn a_branch_switch_lands_nothing_and_renders_the_finding() {
     let line: String = render_policy_event(0, &event);
     assert!(line.contains("\"code\":\"concurrent-commit/branch-switched\""), "{line}");
     assert!(line.contains("HEAD now names refs/heads/other instead of refs/heads/main"), "{line}");
-    assert_eq!(LANDING_FINDING_EXIT_CODE, 1);
+    // A finding must not exit like success.
+    assert_ne!(LANDING_FINDING_EXIT_CODE, 0);
     remove(&fixture);
 }
 

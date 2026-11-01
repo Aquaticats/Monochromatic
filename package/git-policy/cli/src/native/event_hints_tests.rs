@@ -69,7 +69,7 @@ fn every_engine_failure_code_has_a_hint() {
 /// Every finding code of every policy has a hint, or its message carries its own and is listed as self-hinted.
 #[test]
 fn every_finding_code_has_a_hint_or_its_own() {
-    let hinted: [(&str, &str); 8] = [
+    let hinted: [(&str, &str); 14] = [
         ("add-explicit", BULK_ADD_CODE),
         ("final-newline", FINAL_NEWLINE_CODE),
         ("markdown/autofix", MARKDOWN_AUTOFIX_CODE),
@@ -77,6 +77,12 @@ fn every_finding_code_has_a_hint_or_its_own() {
         ("mono/forbidden-root-context", ROOT_CONTEXT_CODE),
         ("mono/dependent-version-bump", DEPENDENT_VERSION_STALE_CODE),
         ("mono/dependent-version-bump", DEPENDENT_VERSION_UNSUPPORTED_CODE),
+        ("mono/catalog-specifiers", "unsupported-manifest-format"),
+        ("mono/catalog-specifiers", "invalid-manifest"),
+        ("mono/catalog-specifiers", "malformed-section"),
+        ("mono/catalog-specifiers", "duplicate-key"),
+        ("mono/catalog-specifiers", "non-string-specifier"),
+        ("mono/catalog-specifiers", "disallowed-specifier"),
         ("security/forbidden-strings", FORBIDDEN_STRING_CODE),
     ];
     for (policy, code) in hinted {

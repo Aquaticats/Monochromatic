@@ -133,17 +133,24 @@ fn a_copy_changes_without_touching_the_original() {
 fn wrapped_lines_push_later_lines_down() {
     let map = wrapped_map();
     assert_eq!(map.code_top(0), 0.0);
-    assert_eq!(map.code_top(2), 48.0, "nothing above line 2 moved");
-    assert_eq!(map.code_bottom(2), 48.0 + 3.0 * CODE_ROW);
+    assert_eq!(
+        map.code_top(2),
+        2.0 * CODE_ROW,
+        "nothing above line 2 moved"
+    );
+    assert_eq!(map.code_bottom(2), 2.0 * CODE_ROW + 3.0 * CODE_ROW);
     assert_eq!(
         map.block_top(3),
-        48.0 + 72.0,
+        2.0 * CODE_ROW + 3.0 * CODE_ROW,
         "line 3 starts under line 2's three rows"
     );
-    assert_eq!(map.code_top(3), 120.0 + 26.0);
-    assert_eq!(map.code_bottom(3), 120.0 + 26.0 + 48.0);
-    assert_eq!(map.code_top(4), 194.0);
-    assert_eq!(map.code_top(8), 194.0 + 3.0 * 24.0 + 5.0 * 24.0);
+    assert_eq!(map.code_top(3), map.block_top(3) + 26.0);
+    assert_eq!(map.code_bottom(3), map.code_top(3) + 2.0 * CODE_ROW);
+    assert_eq!(map.code_top(4), map.code_bottom(3));
+    assert_eq!(
+        map.code_top(8),
+        map.code_top(4) + 3.0 * CODE_ROW + 5.0 * CODE_ROW
+    );
     // Ten lines, nine of one row, plus 2 + 1 + 4 extra rows and one block.
     assert_eq!(map.height(), (10.0 + 7.0) * CODE_ROW + 26.0);
     assert_eq!(map.rows_of(7), 5);
@@ -197,7 +204,7 @@ fn a_page_step_counts_visual_rows_with_the_blocks_above_their_first_rows() {
         rows, 5,
         "line 2 takes three rows (72 px), line 3 takes 26 + 24 for its first row and 24 for its second"
     );
-    assert_eq!(pixels, 72.0 + 50.0 + 24.0);
+    assert_eq!(pixels, 3.0 * CODE_ROW + 26.0 + 2.0 * CODE_ROW);
     let (three, taken) = map.page(map.code_top(2), 100.0, true);
     assert_eq!(
         (three, taken),
@@ -218,7 +225,7 @@ fn a_million_lines_stay_cheap() {
     let map = RowMap::plain(1_000_000).with_rows(&rows);
     let copy = map.clone();
     assert!(copy == map);
-    assert_eq!(map.code_top(2000), 2000.0 * 24.0 + 2.0 * 2.0 * 24.0);
+    assert_eq!(map.code_top(2000), 2000.0 * CODE_ROW + 2.0 * 2.0 * CODE_ROW);
     let place = map.locate(map.code_top(777_000) + 30.0);
     assert_eq!(place.line, 777_000);
     assert_eq!(map.rows_of(777_000), 3);

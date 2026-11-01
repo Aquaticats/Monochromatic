@@ -39,7 +39,7 @@ const MS_PER_SECOND = 1_000;
  Seconds before retrying after a refresh that failed outright
  or that found the tunnel without a DNS server.
  */
-const FAILED_REFRESH_RETRY_SECONDS = 30;
+export const FAILED_REFRESH_RETRY_SECONDS = 30;
 
 /**
  Reports the outcome of one refresh.

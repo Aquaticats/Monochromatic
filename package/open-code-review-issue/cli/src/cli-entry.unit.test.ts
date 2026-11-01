@@ -6,7 +6,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { runCli, } from '../dist/final/node/index.mjs';
+import {
+  EXIT_INVOCATION_MISUSE,
+  EXIT_RUNTIME_FAILURE,
+  EXIT_SUCCESS,
+  runCli,
+} from '../dist/final/node/index.mjs';
 
 /**
  Writable capture stream for CLI output assertions.
@@ -60,7 +65,7 @@ await describe({
           arguments: ['--help',],
           cwd: process.cwd(),
           streams: { stdin, stdout, stderr, },
-        },),).toBe(0,);
+        },),).toBe(EXIT_SUCCESS,);
         expect(stdout.text(),).toContain('Usage:',);
         expect(stderr.text(),).toBe('',);
       },
@@ -85,7 +90,7 @@ await describe({
           arguments: [],
           cwd: process.cwd(),
           streams: { stdin, stdout, stderr, },
-        },),).toBe(2,);
+        },),).toBe(EXIT_INVOCATION_MISUSE,);
         expect(stdout.text(),).toBe('',);
         expect(stderr.text(),).toContain('exactly one',);
       },
@@ -115,7 +120,7 @@ await describe({
           ],
           cwd: process.cwd(),
           streams: { stdin, stdout, stderr, },
-        },),).toBe(1,);
+        },),).toBe(EXIT_RUNTIME_FAILURE,);
         expect(stdout.text(),).toBe('',);
         expect(stderr.text(),).toContain('OCR input contains no findings to publish',);
         expect(stderr.text(),).not.toContain('ENOENT',);
@@ -141,7 +146,7 @@ await describe({
           arguments: ['--interactive',],
           cwd: process.cwd(),
           streams: { stdin, stdout, stderr, },
-        },),).toBe(2,);
+        },),).toBe(EXIT_INVOCATION_MISUSE,);
         expect(stdout.text(),).toBe('',);
         expect(stderr.text(),).toContain('requires one positional input',);
       },

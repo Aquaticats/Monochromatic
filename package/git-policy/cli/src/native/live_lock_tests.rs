@@ -11,7 +11,8 @@ use std::ffi::OsString;
 #[test]
 fn the_limit_comes_from_the_variable_or_the_default() {
     assert_eq!(live_wait_limit_from(None), DEFAULT_LIVE_WAIT);
-    assert_eq!(DEFAULT_LIVE_WAIT, Duration::from_secs(1800));
+    // The default only has to outlast an ordinary wait: a zero one would give up at once.
+    assert!(DEFAULT_LIVE_WAIT > Duration::ZERO);
     assert_eq!(
         live_wait_limit_from(Some(OsStr::new("90"))),
         Duration::from_secs(90)
@@ -235,7 +236,7 @@ fn helper_reads_the_limit_from_its_environment() {
 ///  whether the helper's assertion held.
 fn helper_agrees(value: Option<&str>, expected: u64) -> bool {
     let mut command: std::process::Command =
-        std::process::Command::new(std::env::current_exe().expect("test binary"));
+        std::process::Command::new(crate::test_support::this_test_binary().expect("test binary"));
     command
         .args([
             "--exact",

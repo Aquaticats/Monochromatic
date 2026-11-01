@@ -7,15 +7,16 @@ import {
 } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 
 import {
+  branchNameCharacters,
   commitScopeCharacters,
   crateNameCharacters,
   hexadecimalCharacters,
+  manifestFileName,
   maximumShaLength,
   maximumWholeNumberDigits,
   minimumShaLength,
   repositoryPartCharacters,
   systemdValueCharacters,
-  taskNameCharacters,
   unitNameCharacters,
   workflowNameCharacters,
 } from './constants.ts';
@@ -173,6 +174,37 @@ export function parseRepositoryPath({
 }
 
 /**
+ Accept the path of a Cargo manifest inside the repository, because its lockfile is found beside it.
+
+ @param option - option or argument name for the message
+
+ @param value - text under test
+
+ @returns the value unchanged
+
+ @throws CrateReleaseError when the path is not a repository path or does not end in the manifest file name
+
+ @example
+ ```ts
+ parseManifestPath({ option: '--pin-file', value: 'package/a.fuzz/Cargo.toml' });
+ ```
+ */
+export function parseManifestPath({
+  option,
+  value,
+}: TextInput): string {
+  parseRepositoryPath({
+    option,
+    value
+  });
+  if ((value !== manifestFileName) && (!value.endsWith(`/${manifestFileName}`)))
+    throw new CrateReleaseError(
+      `${option} must name a ${manifestFileName} file, because its lockfile is committed beside it, got ${JSON.stringify(value)}.`,
+    );
+  return value;
+}
+
+/**
  Accept a commit scope: letters, digits and the `_ . - /` of a package path, not starting with a slash or holding `..`.
 
  @param option - option or argument name for the message
@@ -266,38 +298,6 @@ export function parseUnitName({
     throw refusal({
       option,
       expectation: 'a unit name that starts with a letter or digit and uses only letters, digits, underscores and hyphens',
-      value
-    });
-  return value;
-}
-
-/**
- Accept a mise task name that mise cannot read as an option.
-
- @param option - option or argument name for the message
-
- @param value - text under test
-
- @returns the value unchanged
-
- @throws CrateReleaseError when the value starts with a hyphen or has characters outside a task path
-
- @example
- ```ts
- parseTaskName({ option: '--lock-task', value: '//package/a/b.fuzz:lock:members' });
- ```
- */
-export function parseTaskName({
-  option,
-  value,
-}: TextInput): string {
-  if ((!usesOnly({
-    text: value,
-    allowed: taskNameCharacters
-  })) || value.startsWith('-'))
-    throw refusal({
-      option,
-      expectation: 'a mise task such as //package/some/crate:lock:members that does not start with a hyphen',
       value
     });
   return value;
@@ -405,6 +405,44 @@ export function parseRepository({
     throw refusal({
       option,
       expectation: 'a repository such as owner/name',
+      value
+    });
+  return value;
+}
+
+/**
+ Accept a branch name: letters, digits and the `_ . - /` of a path, not starting with a hyphen or a slash and without
+ `..`, an empty segment or a trailing slash.
+
+ @param option - option or argument name for the message
+
+ @param value - text under test
+
+ @returns the value unchanged
+
+ @throws CrateReleaseError when the value has other characters or a shape that Git or a command line could misread
+
+ @example
+ ```ts
+ parseBranchName({ option: '--branch', value: 'main' });
+ ```
+ */
+export function parseBranchName({
+  option,
+  value,
+}: TextInput): string {
+  if ((value === '') || (!usesOnly({
+    text: value,
+    allowed: branchNameCharacters
+  }))
+    || value.startsWith('-')
+    || value.startsWith('/')
+    || value.endsWith('/')
+    || value.includes('..')
+    || value.includes('//'))
+    throw refusal({
+      option,
+      expectation: 'a branch name of letters, digits and _ . - / that does not start with a hyphen or slash',
       value
     });
   return value;

@@ -22,6 +22,9 @@ advisor reads the transcript,
 sol reads only what you paste.
 Paste whole files,
 never prose.
+Attach a diff as an `@path` argument, not as prose.
+It is the cross-vendor reviewer:
+a Claude subagent is a second pass.
 `timeout` here takes SECONDS.
 Background it;
 never poll or kill it;
@@ -50,6 +53,10 @@ each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
+
+A command run in its own `systemd-run --user --scope` leaves the shared `claude-code-bash` cgroup,
+and with it the CPU cap `claude-cpu-watch` keeps there;
+that is fine.
 
 # Development guidelines for AI agents
 
@@ -277,8 +284,13 @@ CKB:
  revalidate remedy.
 Use sources,
 commands,
-or separate reviewer;
+or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
+
+IRW:
+ Independent review means a reviewer from another model vendor than the author, or the user.
+A same-vendor subagent is a second pass:
+ label it so, never as independent.
 
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
@@ -378,7 +390,7 @@ GXD:
 RRG:
  Grilling workflows:
  before asking the user to confirm shared understanding,
- have a separate reviewer re-review the current design
+ have a cross-vendor reviewer re-review the current design
  (never the same session),
  and fold its findings in first.
 
@@ -719,13 +731,22 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Host-exhausting risks (heavy memory/process/fd/disk use,
- unbounded loops,
- uncapped fan-outs,
- stress/bench/load):
- run in `podman run --memory --cpus --pids-limit --blkio-weight --rm` or `mvm`,
- sizing every limit to that command each time,
- and stating bounds.
+ Every command an agent does not consider trivial,
+ in every agent:
+ run it in its own cgroup with CPU,
+ memory,
+ process-count and disk-weight limits,
+ each sized to that command,
+ and state the bounds.
+
+RXS:
+ Per-command cgroups:
+ `systemd-run --user --scope` with `CPUQuota`,
+ `MemoryMax`,
+ `TasksMax`,
+ `IOWeight`;
+ host-exhausting risks:
+ `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
 
 NLG:
  Never generate synthetic host load in any session or subagent:

@@ -25,7 +25,7 @@ use crate::types::{Settings, TrustPolicy};
 
 /// pnpm's documented default for `minimumReleaseAge`,
 /// in minutes.
-const DEFAULT_MINIMUM_RELEASE_AGE: u64 = 1_440;
+pub(crate) const DEFAULT_MINIMUM_RELEASE_AGE: u64 = 1_440;
 
 /// The largest whole number a JavaScript number holds exactly,
 /// the bound the TypeScript reader implicitly had.

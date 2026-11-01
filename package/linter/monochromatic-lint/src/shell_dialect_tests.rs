@@ -40,7 +40,7 @@ fn rule_ids_are_distinct() {
         seen.push(id);
         assert!(!construct.token().is_empty());
     }
-    assert_eq!(seen.len(), 8);
+    assert_eq!(seen.len(), CONSTRUCTS.len());
 }
 
 /// The table follows the cited manuals:

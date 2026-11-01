@@ -1,7 +1,7 @@
 //! Search overlay parsing and double-Shift timing are deterministic without a native event loop.
 
 /// The same input rules are used by native capture and query-edit callbacks.
-use ide_app::search_input::{DoubleShift, SearchInput};
+use ide_app::search_input::{DOUBLE_SHIFT_GAP, DoubleShift, SearchInput};
 /// Inject elapsed times so the gesture boundary is measured exactly rather than through sleeps.
 use std::time::Duration;
 
@@ -60,7 +60,7 @@ fn query_trimming_retains_javascript_whitespace_semantics() {
     );
 }
 
-/// The second release must precede the 400ms boundary;
+/// The second release must stay inside the gesture gap;
 ///  successful gestures reset the pair.
 #[test]
 fn double_shift_uses_a_strict_timing_boundary_and_resets() {
@@ -68,10 +68,11 @@ fn double_shift_uses_a_strict_timing_boundary_and_resets() {
     gesture.press(true);
     assert!(!gesture.release(true, Duration::ZERO));
     gesture.press(true);
-    assert!(gesture.release(true, Duration::from_millis(399)));
-    assert!(!gesture.release(true, Duration::from_millis(400)));
-    assert!(!gesture.release(true, Duration::from_millis(800)));
-    assert!(gesture.release(true, Duration::from_millis(900)));
+    assert!(gesture.release(true, DOUBLE_SHIFT_GAP - Duration::from_millis(1)));
+    assert!(!gesture.release(true, DOUBLE_SHIFT_GAP));
+    let doubled = DOUBLE_SHIFT_GAP * 2;
+    assert!(!gesture.release(true, doubled));
+    assert!(gesture.release(true, doubled + DOUBLE_SHIFT_GAP / 2));
 }
 
 /// Other keypresses break the gesture,

@@ -64,9 +64,10 @@ fn the_provenance_margins_follow_the_policy_too_loud_bound_for_both_groups() {
     let unsafe_track = gap_track("lossy.mp3");
     let safe: HashSet<String> = HashSet::from([safe_track.path.clone()]);
     let tracks = [safe_track, unsafe_track];
-    let policy = policy_with_bound(1.25);
+    let bound = 1.25;
+    let policy = policy_with_bound(bound);
     let split = provenance_margin(&policy, &tracks, CANDIDATE, &safe);
-    let expected = under_read_db() - 1.25;
+    let expected = under_read_db() - bound;
     assert!((split.margin_safe_db - expected).abs() < 1.0e-9, "safe margin {}", split.margin_safe_db);
     assert!((split.margin_unsafe_db - expected).abs() < 1.0e-9, "unsafe margin {}", split.margin_unsafe_db);
 }
@@ -74,6 +75,7 @@ fn the_provenance_margins_follow_the_policy_too_loud_bound_for_both_groups() {
 #[test]
 fn the_shipped_policy_gives_the_margin_the_half_decibel_bound_gave() {
     let tracks = [gap_track("a.flac")];
-    let feasible = evaluate_density(&default_policy(), &tracks, CANDIDATE, 1.0e9, -100.0);
-    assert!((feasible.margin_db - (under_read_db() - 0.5)).abs() < 1.0e-9);
+    let policy = default_policy();
+    let feasible = evaluate_density(&policy, &tracks, CANDIDATE, 1.0e9, -100.0);
+    assert!((feasible.margin_db - (under_read_db() - policy.max_too_loud_db)).abs() < 1.0e-9);
 }

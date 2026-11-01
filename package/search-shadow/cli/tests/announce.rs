@@ -31,6 +31,8 @@ use std::os::unix::fs::PermissionsExt;
 /// Imports the borrowed path type.
 use std::path::Path;
 
+/// Imports the shell exit codes the announcements pass through.
+use search_shadow::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE};
 /// Imports `Command` (start a program),
 /// `Output` (its result) and `Stdio` (what its standard streams attach to).
 use std::process::{Command, Output, Stdio};
@@ -301,7 +303,7 @@ fn a_missing_real_tool_still_exits_127_without_an_announcement() {
     let root = make_world();
     let only_shadow = root.path().join("shadow").display().to_string();
     let output = run_tool(root.path(), "rg", &["--version"], root.path(), &only_shadow);
-    assert_eq!(output.status.code(), Some(127));
+    assert_eq!(output.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(output.stdout.is_empty());
 }
 
@@ -312,7 +314,7 @@ fn a_real_tool_that_cannot_start_exits_126_without_an_announcement() {
     let path_text = path_variable(root.path());
     fs::write(root.path().join("real").join("rg"), "#!/nonexistent/interpreter\n").expect("write a script with a bad interpreter");
     let output = run_tool(root.path(), "rg", &["--version"], root.path(), &path_text);
-    assert_eq!(output.status.code(), Some(126));
+    assert_eq!(output.status.code(), Some(EXEC_FAILED_EXIT_CODE));
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("could not start"));
 }

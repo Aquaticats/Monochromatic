@@ -7,6 +7,8 @@ use super::find_tests::{chord, key, reader, selection, settle, status, status_fo
 use super::navigation_tests::row;
 /// Bounded waiting that advances native timers until a state the test checks holds.
 use crate::native::waiting_tests::{NAVIGATION_UNREACHED, Waiting};
+/// The documented query bound the find diagnostic names.
+use ide_app::find::MAX_FIND_QUERY_CHARS;
 /// Real toolkit key events reach the same capture scopes as seat input.
 use slint::{ComponentHandle, Model, platform::Key};
 /// What:
@@ -228,7 +230,8 @@ fn native_find_reports_refused_text_and_clears_for_empty_text() {
             waiting.step(NAVIGATION_UNREACHED);
         }
     }
-    assert!(window.get_find_error().contains("at most 1000 characters"));
+    let bound = format!("at most {MAX_FIND_QUERY_CHARS} characters");
+    assert!(window.get_find_error().contains(&bound));
     assert_eq!(
         window.get_source_matches().row_count(),
         0,

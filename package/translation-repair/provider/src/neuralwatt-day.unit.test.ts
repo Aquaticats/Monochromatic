@@ -24,6 +24,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  NEURALWATT_DAILY_WH,
   NeuralWattAllowanceError,
   neuralWattIsDry,
   neuralWattMeterLevel,
@@ -393,7 +394,7 @@ await describe({
             expect(energies.length,).toBe(3,);
             for (const energy of energies) {
               expect(energy.accountWh,).toBeUndefined();
-              expect(energy.remainingWh,).toBe(550,);
+              expect(energy.remainingWh,).toBe(NEURALWATT_DAILY_WH,);
             }
             expect(lines.filter(function names(line,): boolean {
               return line.includes('/usage/by-model',) && line.includes('period',);
@@ -567,7 +568,7 @@ await describe({
             },);
             expect(outcome.energy?.accountWh,).toBeUndefined();
             expect(outcome.energy?.dayStart,).toBe('2026-10-21T19:15:08.000Z',);
-            expect(outcome.energy?.remainingWh,).toBe(550,);
+            expect(outcome.energy?.remainingWh,).toBe(NEURALWATT_DAILY_WH,);
           },
         },),
 

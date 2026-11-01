@@ -3,7 +3,7 @@
 //! and is ended when it runs past its limit.
 
 /// The command under test.
-use crate::bounded_command::run_bounded;
+use crate::bounded_command::{run_bounded, SECURE_PATH};
 /// Arguments that need not be text.
 use std::ffi::OsString;
 /// Building an argument from bytes.
@@ -32,7 +32,7 @@ fn what_the_command_printed_and_how_it_ended_are_returned() {
 #[test]
 fn the_environment_is_cleared_and_the_search_path_is_fixed() {
     let output = run_bounded("sh", &words(&["-c", "echo \"home=[$HOME] path=[$PATH]\""]), Duration::from_secs(10)).expect("the command ends in time");
-    assert_eq!(output.stdout.trim(), "home=[] path=[/usr/bin:/bin]");
+    assert_eq!(output.stdout.trim(), format!("home=[] path=[{SECURE_PATH}]"));
 }
 
 /// A command that runs past its limit is ended and named.

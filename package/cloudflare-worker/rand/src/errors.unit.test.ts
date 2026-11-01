@@ -12,6 +12,7 @@ import {
 
 import {
   BadRequestError,
+  MAX_RANDOM_LENGTH,
   NotFoundError,
 } from '@monochromatic-dev/cloudflare-worker-rand';
 
@@ -25,7 +26,7 @@ await describe({
          Refusal for input the Worker will not guess at.
          */
         const bad = new BadRequestError('length must be between 1 and 64',);
-        expect(bad.message,).toBe('length must be between 1 and 64',);
+        expect(bad.message,).toBe(`length must be between 1 and ${MAX_RANDOM_LENGTH}`,);
         expect(bad.name,).toBe('BadRequestError',);
         expect(bad,).toBeInstanceOf(Error,);
         /**

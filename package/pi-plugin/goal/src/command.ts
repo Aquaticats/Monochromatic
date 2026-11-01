@@ -13,7 +13,7 @@ import type { ParsedGoalCommand, } from './types.ts';
 /**
  Removed command prefixes reserved for direct rejection.
  */
-const REMOVED_COMMAND_PREFIXES = [
+export const REMOVED_COMMAND_PREFIXES = [
   'status',
   'edit',
   'pause',

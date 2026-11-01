@@ -85,6 +85,9 @@ pub mod management;
 /// The `git cli-git` argument grammar.
 pub mod management_arguments;
 
+/// The refusal of a direct command whose `--policy` selects a policy that is off.
+pub mod management_selection;
+
 /// The fixed registry of shipped policies.
 pub mod policy_registry;
 
@@ -129,6 +132,11 @@ mod command_options_value;
 ///  never in the release build.
 #[cfg(test)]
 mod command_test_support;
+
+/// Per-case copies of a pristine fixture and worker threads for independent test cases;
+///  never in the release build.
+#[cfg(test)]
+mod command_test_cases;
 
 /// Differential harness over `git rev-parse --parseopt`;
 ///  never in the release build.
@@ -407,6 +415,10 @@ pub mod policy_final_newline;
 ///  no top-level `CONTEXT.md` enters the index.
 pub mod policy_root_context;
 
+/// The optional catalog-specifier policy over the shared rule crate:
+///  every dependency in a tracked `package.json` is a catalog or workspace reference.
+pub mod policy_catalog_specifiers;
+
 /// The optional forbidden-strings policy over the linked scanner,
 ///  with redacted findings.
 pub mod policy_forbidden_strings;
@@ -627,14 +639,19 @@ pub mod transaction_git;
 /// The preparation and landing leases nested wrapper invocations inherit.
 pub mod transaction_lease;
 
-/// The dispatch plan of one commit transaction, its JSON spelling and the config reads it makes.
-pub mod hook_dispatch_plan;
+/// Lexical path normalization.
+pub mod lexical_path;
 
-/// The hooks directory of one transaction: its plan and one entry per preparation event.
-pub mod hook_dispatch_entries;
+/// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
+#[cfg(test)]
+#[path = "hook_self_invocation_tests.rs"]
+mod hook_self_invocation_tests;
 
-/// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
-pub mod hook_dispatch;
+/// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
+pub mod doctor_config;
+
+/// The configured external hooks, read from the snapshot, and the loud report that none runs.
+pub mod external_hooks;
 
 /// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;
@@ -642,8 +659,26 @@ pub mod traditional_hook_warning;
 /// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
 pub mod doctor;
 
-/// The Git LFS upload before a push, as a configuration hook the wrapper puts in effect for its own pushes.
+/// When a push needs the Git LFS upload, and the texts the parent prints around it.
 pub mod lfs_pre_push;
+
+/// What the Git LFS upload sends: the remote and the refs, read from the push and the configuration Git would read.
+pub mod lfs_upload_plan;
+
+/// The parent's bounded or interactive run of the Git LFS upload.
+pub mod lfs_upload;
+
+/// The check that `git-lfs` can start, made before a push that is preceded by the upload.
+pub mod lfs_push_precheck;
+
+/// What a waiting notice says about the lock holder: its age, its command and the limits.
+pub mod lock_holder_facts;
+
+/// The auto-push's bounded `git push`, preceded by the upload, its pre-check and its explanation.
+pub mod lfs_bounded_push;
+
+/// The push of a merge that integrated a lost race, planned and run inside the running wrapper.
+pub mod stacked_merge_push;
 
 /// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
 pub mod hooks_off;
@@ -830,9 +865,6 @@ pub mod recovery_landing;
 /// Disposal of a landed transaction: shadow removal, directory removal, then landed-capture pruning.
 pub mod landed_disposal;
 
-/// The post-commit run after a landing: author environment, hook lock, and the hook runner with inherited streams.
-pub mod post_commit_hook;
-
 /// Post-landing completion of one landed commit: worktree copies, disposal, maintenance, then `post-commit`.
 pub mod post_landing;
 
@@ -953,6 +985,9 @@ pub mod child_class;
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;
 
+/// One time budget for everything a lock holder does under the push lock.
+pub mod holder_budget;
+
 /// The auto-push's real `git push` with a deadline, its low-speed abort and the lock wait limit derived from it.
 pub mod bounded_push;
 
@@ -975,6 +1010,9 @@ pub mod auto_push;
 pub mod post_commit;
 
 /// Authoritative manual-push updates discovered by a private dry-run push and confirmed with ls-remote.
+pub mod manual_push_porcelain;
+
+/// The updates a manual `git push` would send, learned from Git's own dry-run report and confirmed against the remote.
 pub mod manual_push_probe;
 
 /// Published-set and range computation for manual-push scans: which pushed commits a remote does not have.
@@ -1048,3 +1086,39 @@ pub mod worktree_copy;
 
 /// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
 pub mod worktree_copy_forward;
+
+/// The standards-review shadow run: JavaScript text behaviors the log depends on (UTF-16 lengths, number text).
+pub mod standards_review_text;
+
+/// The standards-review shadow run: a file's changed old-side ranges read from the patch.
+pub mod standards_review_patch;
+
+/// The standards-review shadow run: which commits get an entry, and the capped model input.
+pub mod standards_review_input;
+
+/// The standards-review shadow run: the Decisions API request body and the answer reading.
+pub mod standards_review_request;
+
+/// The standards-review shadow run: log entry rendering and appending.
+pub mod standards_review_entry;
+
+/// The standards-review shadow run: the in-process HTTPS call to the decisions gateway, with a total deadline.
+pub mod standards_review_client;
+
+/// The standards-review shadow run: the two real-Git reads (patch and file texts) of a landed commit.
+pub mod standards_review_source;
+
+/// The standards-review shadow run, end to end, and its bounded runner. Nothing calls it yet.
+pub mod standards_review_run;
+
+/// A loopback HTTP server for the standards-review tests; never in the release build.
+#[cfg(test)]
+mod standards_review_mock;
+
+/// The durable work-item record for asynchronous work (review, push, maintenance) left for a resident consumer.
+pub mod work_item;
+
+/// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
+#[cfg(test)]
+#[path = "no_self_invocation_tests.rs"]
+mod no_self_invocation_tests;

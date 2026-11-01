@@ -8,6 +8,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { DEFAULT_IO_WEIGHT, PERIOD_USEC, } from './constants.ts';
 import { makeHost, } from './test-fixture.ts';
 
 /**
@@ -38,6 +39,8 @@ await describe({
             ...process.env,
             CPU_WATCH_CAP_FILE: paths.capFile,
             CPU_WATCH_CGROUP_FILE: paths.cgroupFile,
+            CPU_WATCH_IO_WEIGHT_FILE: paths.ioWeightFile,
+            CPU_WATCH_IO_BFQ_WEIGHT_FILE: paths.ioBfqWeightFile,
             CPU_WATCH_HWMON_ROOT: paths.hwmonRoot,
             CPU_WATCH_PROC_ROOT: paths.procRoot,
             CPU_WATCH_SAMPLE_DIR: paths.sampleDir,
@@ -64,8 +67,12 @@ await describe({
         const text = output.join('',);
         expect(text,).toContain('WATCHER-STARTED',);
         expect(text,).toContain('CAP-APPLIED',);
+        expect(text,).toContain('IO-WEIGHT-APPLIED',);
         expect(text,).toContain('WATCHER-STOPPED',);
-        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe(`${28 * PERIOD_USEC} ${PERIOD_USEC}`,);
+        // Both weight files of the fixture were written; the live cgroup is never touched by this test.
+        expect(await readFile(paths.ioBfqWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
+        expect(await readFile(paths.ioWeightFile, 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
       },
     },),
   ],

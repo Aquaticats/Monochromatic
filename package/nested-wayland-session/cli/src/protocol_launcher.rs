@@ -7,7 +7,7 @@
 use super::Command;
 
 /// The number of records `launcher-log` lists when no count is given.
-const DEFAULT_LOG_COUNT: usize = 64;
+pub(super) const DEFAULT_LOG_COUNT: usize = 64;
 
 /// Parse the arguments of a `launcher-log` request (`launcher-log [N]`).
 ///

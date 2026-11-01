@@ -5,6 +5,8 @@
 //! and is killed when it outlives its timeout,
 //! so one hung bus cannot stall the watcher.
 
+/// The search path every child process of the watcher gets.
+use crate::bounded_command::SECURE_PATH;
 /// Syscall and process failures.
 use std::io;
 /// Child process control.
@@ -101,7 +103,7 @@ impl UserClient {
         command
             .args(full_arguments)
             .env_clear()
-            .env("PATH", "/usr/bin:/bin")
+            .env("PATH", SECURE_PATH)
             .env("XDG_RUNTIME_DIR", format!("/run/user/{uid}"))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

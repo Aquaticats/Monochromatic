@@ -15,6 +15,8 @@ use ide_app::document::{Document, ReadingAffinity, ReadingPosition};
 /// The pure Home and End rules,
 /// and the shaped form the key handler calls.
 use ide_app::line_boundary::{CaretPlace, Edge, end, home, moved_to_edge, row_containing};
+/// The height of one code row, which places a point below the rows.
+use ide_app::row_map::CODE_ROW;
 /// Shaper and the rows it produces.
 use ide_app::shaped_text::TextShaper;
 /// The remembered column and the vertical step under test.
@@ -925,7 +927,7 @@ fn a_hanging_blank_at_the_end_of_the_text_leaves_no_empty_row() {
                         caret.x
                     );
                 }
-                let landed = shaped.hit_at(10_000.0, 24.0 * rows.len() as f32 + 100.0, scale);
+                let landed = shaped.hit_at(10_000.0, CODE_ROW * rows.len() as f32 + 100.0, scale);
                 assert_eq!(landed, end, "{label}: a point below the rows is at the end");
             }
         }

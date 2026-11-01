@@ -22,6 +22,9 @@ advisor reads the transcript,
 sol reads only what you paste.
 Paste whole files,
 never prose.
+Attach a diff as an `@path` argument, not as prose.
+It is the cross-vendor reviewer:
+a Claude subagent is a second pass.
 `timeout` here takes SECONDS.
 Background it;
 never poll or kill it;
@@ -50,3 +53,7 @@ each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
+
+A command run in its own `systemd-run --user --scope` leaves the shared `claude-code-bash` cgroup,
+and with it the CPU cap `claude-cpu-watch` keeps there;
+that is fine.

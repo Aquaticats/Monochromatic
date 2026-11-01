@@ -84,16 +84,17 @@ pub fn git_command(
 ) -> Command {
     // `mut` allows the builder to be configured step by step.
     let mut command: Command = Command::new(real_git);
-    // Traditional hooks never run through the wrapper; see `hooks_off`.
-    super::hooks_off::disable_traditional_hooks(&mut command, arguments);
-    // `.args` appends each argument as its own array element, bytes unchanged.
-    command.args(arguments);
+    // No hook runs through the wrapper, and the options follow the caller's globals; see `hooks_off`.
+    super::hooks_off::add_arguments(&mut command, arguments);
     // `for (name, value) in overlay` destructures each borrowed pair.
     for (name, value) in overlay {
         command.env(name, value);
     }
     return command;
 }
+
+/// The base a POSIX shell and Git 2.56.0 `run-command.c` add to a signal number.
+pub const SIGNAL_EXIT_BASE: i32 = 128;
 
 /// What:
 ///  Translate a child's end into this process's exit code.
@@ -116,7 +117,7 @@ pub fn exit_code(outcome: ChildOutcome) -> i32 {
     // ```
     match outcome {
         ChildOutcome::Exited(code) => return code,
-        ChildOutcome::Signaled(signal) => return 128 + signal,
+        ChildOutcome::Signaled(signal) => return SIGNAL_EXIT_BASE + signal,
     }
 }
 

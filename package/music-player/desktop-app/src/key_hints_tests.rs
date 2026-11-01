@@ -23,8 +23,8 @@ const COMMAND: HeldModifiers = HeldModifiers { ctrl: false, meta: true, alt: fal
 #[test]
 fn badges_are_hidden_until_the_modifiers_have_been_held_for_300_ms() {
     let held = KeyHints::default().on_modifiers(CTRL, 1000);
-    assert_eq!(held.on_tick(1299).visible(), None);
-    assert_eq!(held.on_tick(1300).visible(), Some(CTRL));
+    assert_eq!(held.on_tick(1000 + HINT_HOLD_MS - 1).visible(), None);
+    assert_eq!(held.on_tick(1000 + HINT_HOLD_MS).visible(), Some(CTRL));
     assert_eq!(held.on_tick(5000).visible(), Some(CTRL));
 }
 
@@ -38,43 +38,43 @@ fn a_quick_chord_never_shows_badges() {
 #[test]
 fn adding_a_modifier_before_the_badges_show_restarts_the_hold() {
     let hints = KeyHints::default().on_modifiers(CTRL, 0).on_modifiers(CTRL_SHIFT, 200);
-    assert_eq!(hints.on_tick(450).visible(), None);
-    assert_eq!(hints.on_tick(500).visible(), Some(CTRL_SHIFT));
+    assert_eq!(hints.on_tick(200 + HINT_HOLD_MS - 50).visible(), None);
+    assert_eq!(hints.on_tick(200 + HINT_HOLD_MS).visible(), Some(CTRL_SHIFT));
 }
 
 #[test]
 fn shown_badges_narrow_at_once_when_more_modifiers_are_held() {
-    let shown = KeyHints::default().on_modifiers(CTRL, 0).on_tick(300);
+    let shown = KeyHints::default().on_modifiers(CTRL, 0).on_tick(HINT_HOLD_MS);
     assert_eq!(shown.visible(), Some(CTRL));
     assert_eq!(shown.on_modifiers(CTRL_SHIFT, 400).visible(), Some(CTRL_SHIFT));
 }
 
 #[test]
 fn releasing_one_required_modifier_keeps_the_rest_and_releasing_all_hides_and_resets() {
-    let shown = KeyHints::default().on_modifiers(CTRL_SHIFT, 0).on_tick(300);
+    let shown = KeyHints::default().on_modifiers(CTRL_SHIFT, 0).on_tick(HINT_HOLD_MS);
     let one_released = shown.on_modifiers(CTRL, 500);
     assert_eq!(one_released.visible(), Some(CTRL));
     let all_released = one_released.on_modifiers(NONE, 600);
     assert_eq!(all_released.visible(), None);
     let held_again = all_released.on_modifiers(CTRL, 700);
-    assert_eq!(held_again.on_tick(900).visible(), None, "the hold time starts over after a full release");
-    assert_eq!(held_again.on_tick(1000).visible(), Some(CTRL));
+    assert_eq!(held_again.on_tick(700 + HINT_HOLD_MS - 100).visible(), None, "the hold time starts over after a full release");
+    assert_eq!(held_again.on_tick(700 + HINT_HOLD_MS).visible(), Some(CTRL));
 }
 
 #[test]
 fn an_unchanged_held_set_keeps_its_start_time() {
     let hints = KeyHints::default().on_modifiers(CTRL, 0).on_modifiers(CTRL, 250);
-    assert_eq!(hints.on_tick(300).visible(), Some(CTRL));
+    assert_eq!(hints.on_tick(HINT_HOLD_MS).visible(), Some(CTRL));
 }
 
 #[test]
 fn wait_ms_counts_down_to_the_hold_time_and_ends_once_shown() {
     let hints = KeyHints::default().on_modifiers(CTRL, 100);
     assert_eq!(KeyHints::default().wait_ms(0), None);
-    assert_eq!(hints.wait_ms(100), Some(300));
-    assert_eq!(hints.wait_ms(250), Some(150));
-    assert_eq!(hints.wait_ms(900), Some(0));
-    assert_eq!(hints.on_tick(400).wait_ms(400), None);
+    assert_eq!(hints.wait_ms(100), Some(HINT_HOLD_MS));
+    assert_eq!(hints.wait_ms(250), Some(HINT_HOLD_MS - (250 - 100)));
+    assert_eq!(hints.wait_ms(100 + HINT_HOLD_MS), Some(0));
+    assert_eq!(hints.on_tick(100 + HINT_HOLD_MS).wait_ms(100 + HINT_HOLD_MS), None);
 }
 
 #[test]

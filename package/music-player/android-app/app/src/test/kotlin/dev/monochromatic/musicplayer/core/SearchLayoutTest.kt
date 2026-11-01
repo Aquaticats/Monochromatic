@@ -10,6 +10,7 @@
 // ```
 package dev.monochromatic.musicplayer.core
 
+import dev.monochromatic.musicplayer.SEARCH_EDGE_INSET
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -44,13 +45,15 @@ class SearchLayoutTest {
     /** On the cover the shape starts 8 dp from the edges and the content keeps the 16 dp insets (D58). */
     @Test
     fun coverRowShapeStartsBeforeTheContentWithoutMovingIt() {
+        /** Depth of the content inset from the page edge. */
+        val contentInsetDp = SEARCH_EDGE_INSET.value
         /** Insets of a cover row. */
-        val insets = searchRowInsets(startInsetDp = 16f, endInsetDp = 16f)
-        assertEquals(8f, insets.outerStartDp, 0f)
-        assertEquals(8f, insets.outerEndDp, 0f)
-        assertEquals(8f, insets.innerDp, 0f)
-        assertEquals(16f, insets.outerStartDp + insets.innerDp, 0f)
-        assertEquals(16f, insets.outerEndDp + insets.innerDp, 0f)
+        val insets = searchRowInsets(startInsetDp = contentInsetDp, endInsetDp = contentInsetDp)
+        assertEquals(SEARCH_ROW_SHAPE_MARGIN_DP, insets.outerStartDp, 0f)
+        assertEquals(SEARCH_ROW_SHAPE_MARGIN_DP, insets.outerEndDp, 0f)
+        assertEquals(SEARCH_ROW_SHAPE_MARGIN_DP, insets.innerDp, 0f)
+        assertEquals(contentInsetDp, insets.outerStartDp + insets.innerDp, 0f)
+        assertEquals(contentInsetDp, insets.outerEndDp + insets.innerDp, 0f)
     }
 
     /** On the inner panel the content keeps the crease half plus 16 dp, and the shape stays outside the clear zone. */
@@ -58,22 +61,28 @@ class SearchLayoutTest {
     fun innerRowShapeStaysOutsideTheCreaseClearZone() {
         /** Half the crease clear zone in dp. */
         val halfCrease = 13.5f
+        /** Depth of the content inset from the pane edge. */
+        val contentInsetDp = SEARCH_EDGE_INSET.value
         /** Insets of an inner-panel row. */
-        val insets = searchRowInsets(startInsetDp = halfCrease + 16f, endInsetDp = 16f)
-        assertEquals(halfCrease + 16f, insets.outerStartDp + insets.innerDp, 0f)
+        val insets = searchRowInsets(startInsetDp = halfCrease + contentInsetDp, endInsetDp = contentInsetDp)
+        assertEquals(halfCrease + contentInsetDp, insets.outerStartDp + insets.innerDp, 0f)
         assertTrue(insets.outerStartDp >= halfCrease)
-        assertEquals(halfCrease + 8f, insets.outerStartDp, 0f)
+        assertEquals(halfCrease + SEARCH_ROW_SHAPE_MARGIN_DP, insets.outerStartDp, 0f)
     }
 
     /** A page inset smaller than the margin shrinks the margin, so the shape never leaves the page. */
     @Test
     fun smallInsetShrinksTheMargin() {
-        /** Insets of a row whose start inset is only 3 dp. */
-        val insets = searchRowInsets(startInsetDp = 3f, endInsetDp = 16f)
+        /** Start inset narrower than the standard row margin. */
+        val startInsetDp = 3f
+        /** End inset the page gives a row. */
+        val endInsetDp = SEARCH_EDGE_INSET.value
+        /** Insets of a row whose start inset is only [startInsetDp]. */
+        val insets = searchRowInsets(startInsetDp = startInsetDp, endInsetDp = endInsetDp)
         assertEquals(0f, insets.outerStartDp, 0f)
-        assertEquals(3f, insets.innerDp, 0f)
-        assertEquals(13f, insets.outerEndDp, 0f)
-        assertEquals(16f, insets.outerEndDp + insets.innerDp, 0f)
+        assertEquals(startInsetDp, insets.innerDp, 0f)
+        assertEquals(endInsetDp - startInsetDp, insets.outerEndDp, 0f)
+        assertEquals(endInsetDp, insets.outerEndDp + insets.innerDp, 0f)
     }
 
     /** A zero inset gives a zero margin, and the content stays where the inset puts it. */

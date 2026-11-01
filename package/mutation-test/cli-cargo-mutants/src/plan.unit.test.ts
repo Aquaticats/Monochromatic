@@ -4,6 +4,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { shellQuote } from '@monochromatic-dev/shell-argument-core/ts/shell-quote.ts';
+
+import {
+  buildTimeoutFlag,
+  examineFlag,
+} from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   type Environment,
@@ -93,6 +99,40 @@ await describe({
           fn: async () => {
             const [plan] = planUnits(options({ argv: ['--memory', '4g', '--cpus', '3', 'w5', 'a.rs'] }));
             expect(plan?.systemdRunArguments.at(-1)).toContain(`'--file' 'a.rs' '--memory' '4g' '--cpus' '3' >> `);
+          },
+        }),
+        it({
+          name: 'forwards no build timeout and no pattern to the task when none is given',
+          fn: async () => {
+            const [plan] = planUnits(options({ argv: ['w5', 'a.rs'] }));
+            expect(plan?.systemdRunArguments.at(-1)).not.toContain(buildTimeoutFlag);
+            expect(plan?.systemdRunArguments.at(-1)).not.toContain(examineFlag);
+          },
+        }),
+        it({
+          name: 'forwards the build timeout and every pattern to the task of every unit, in order',
+          fn: async () => {
+            const buildTimeout = 450;
+            const patterns = ['read_regular_file', 'replace a|b'];
+            const files = ['one.rs', 'two.rs', 'three.rs'];
+            const plans = planUnits(options({
+              argv: [
+                '--build-timeout', String(buildTimeout),
+                ...patterns.flatMap((pattern) => ['--examine', pattern]),
+                'w5',
+                ...files,
+              ],
+            }));
+            expect(plans).toHaveLength(files.length);
+            for (const plan of plans) {
+              const body = plan.systemdRunArguments.at(-1) ?? '';
+              const words = [
+                buildTimeoutFlag,
+                String(buildTimeout),
+                ...patterns.flatMap((pattern) => [examineFlag, pattern]),
+              ].map((word) => shellQuote(word)).join(' ');
+              expect(body).toContain(words);
+            }
           },
         }),
         it({

@@ -3,6 +3,15 @@ import {
   isPositiveWholeNumber,
   usesOnly,
 } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
+import {
+  buildTimeoutFlag,
+  examineFlag,
+  timeoutFlag,
+} from './constants.ts';
+import {
+  defaultBuildTimeoutSeconds,
+  maximumBuildTimeoutSeconds,
+} from './campaign-files.ts';
 import { CargoMutantsToolingError } from './error.ts';
 
 /**
@@ -37,23 +46,35 @@ export type TimeoutRules = {
    Largest test timeout, in seconds, a `--timeout` option may request.
    */
   readonly maximumTimeoutSeconds: number;
+  /**
+   Build timeout, in seconds, that applies to each mutant when no `--build-timeout` option is given; the shared
+   default when absent.
+   */
+  readonly defaultBuildTimeoutSeconds?: number;
+  /**
+   Largest build timeout, in seconds, a `--build-timeout` option may request; the shared maximum when absent.
+   */
+  readonly maximumBuildTimeoutSeconds?: number;
 };
 
 /**
- Parsed `--timeout` and `--examine` options and the arguments left over.
+ Parsed `--timeout`, `--build-timeout` and `--examine` options and the arguments left over.
  */
 export type TimeoutAndExamine = {
   readonly timeoutSeconds: number;
+  readonly buildTimeoutSeconds: number;
   readonly examine: readonly string[];
   readonly scopeOptions: readonly string[];
 };
 
 /**
- Read one `--timeout` value.
+ Read one timeout value, whichever flag carried it.
 
+ @param flag - the flag that carried the value, named in the message
+ 
  @param value - text after the flag
  
- @param maximumTimeoutSeconds - largest accepted timeout
+ @param maximumSeconds - largest accepted timeout
  
  @returns the whole number of seconds it names
  
@@ -61,33 +82,59 @@ export type TimeoutAndExamine = {
  
  @example
  ```ts
- timeoutOf({ value: '60', maximumTimeoutSeconds: 3600 });
+ secondsOf({ flag: '--timeout', value: '60', maximumSeconds: 3600 });
  ```
  */
-function timeoutOf({
+function secondsOf({
+  flag,
   value,
-  maximumTimeoutSeconds,
+  maximumSeconds,
 }: {
+  readonly flag: string;
   readonly value?: string;
-  readonly maximumTimeoutSeconds: number;
+  readonly maximumSeconds: number;
 }): number {
   if ((value === undefined) || (!isPositiveWholeNumber({
     text: value,
     maximumDigits: Number.POSITIVE_INFINITY,
   }))
-    || (Number(value) > maximumTimeoutSeconds))
-    throw new CargoMutantsToolingError(`--timeout must be a whole number of seconds from 1 to ${maximumTimeoutSeconds}, got ${value}.`);
+    || (Number(value) > maximumSeconds))
+    throw new CargoMutantsToolingError(`${flag} must be a whole number of seconds from 1 to ${maximumSeconds}, got ${value}.`);
   return Number(value);
 }
 
 /**
- Split `--timeout <seconds>` and the repeated `--examine <regex>` from the other options; the last `--timeout` wins.
+ Check one `--examine` pattern, for the campaign parser and the launcher alike.
+
+ @param value - text after the flag
+ 
+ @returns the pattern, unchanged
+ 
+ @throws CargoMutantsToolingError when the value is absent or holds a character outside the plain set
+ 
+ @example
+ ```ts
+ examinePatternOf('replace foo|bar');
+ ```
+ */
+export function examinePatternOf(value?: string): string {
+  if ((value === undefined) || (!usesOnly({
+    text: value,
+    allowed: examineCharacters,
+  })))
+    throw new CargoMutantsToolingError(`${examineFlag} must be a regular expression of plain characters, got ${value}.`);
+  return value;
+}
+
+/**
+ Split `--timeout <seconds>`, `--build-timeout <seconds>` and the repeated `--examine <regex>` from the other options;
+ the last `--timeout` and the last `--build-timeout` win.
 
  @param options - command-line arguments after the script path
  
- @param rules - the product's default and maximum timeout
+ @param rules - the product's default and maximum timeouts
  
- @returns timeout, the mutant-name patterns of the repeated `--examine <regex>` options (only matching mutants are
+ @returns the test timeout, the build timeout, the mutant-name patterns of the repeated `--examine <regex>` options (only matching mutants are
  tried), and the arguments left for the scope parser
  
  @throws CargoMutantsToolingError when a timeout or pattern is malformed
@@ -109,6 +156,10 @@ export function parseTimeoutAndExamine({
    */
   const timeouts: number[] = [];
   /**
+   Every `--build-timeout` value in order, of which the last wins.
+   */
+  const buildTimeouts: number[] = [];
+  /**
    Arguments that are not `--timeout` or `--examine`, left for the scope parser to accept or reject.
    */
   const scopeOptions: string[] = [];
@@ -125,17 +176,19 @@ export function parseTimeoutAndExamine({
      The text after the flag, absent when the flag ends the arguments.
      */
     const value = options[index + 1];
-    if (flag === '--examine') {
-      if ((value === undefined) || (!usesOnly({
-        text: value,
-        allowed: examineCharacters,
-      })))
-        throw new CargoMutantsToolingError(`--examine must be a regular expression of plain characters, got ${value}.`);
-      examine.push(value);
-    } else if (flag === '--timeout')
-      timeouts.push(timeoutOf({
+    if (flag === examineFlag)
+      examine.push(examinePatternOf(value));
+    else if (flag === timeoutFlag)
+      timeouts.push(secondsOf({
+        flag: timeoutFlag,
         ...(value === undefined ? {} : { value }),
-        maximumTimeoutSeconds: rules.maximumTimeoutSeconds,
+        maximumSeconds: rules.maximumTimeoutSeconds,
+      }));
+    else if (flag === buildTimeoutFlag)
+      buildTimeouts.push(secondsOf({
+        flag: buildTimeoutFlag,
+        ...(value === undefined ? {} : { value }),
+        maximumSeconds: rules.maximumBuildTimeoutSeconds ?? maximumBuildTimeoutSeconds,
       }));
     else
       scopeOptions.push(
@@ -143,8 +196,13 @@ export function parseTimeoutAndExamine({
         value ?? '',
       );
   }
+  /**
+   Build timeout of the product when no `--build-timeout` option is given.
+   */
+  const fallbackBuildTimeout = rules.defaultBuildTimeoutSeconds ?? defaultBuildTimeoutSeconds;
   return {
     timeoutSeconds: timeouts.at(-1) ?? rules.defaultTimeoutSeconds,
+    buildTimeoutSeconds: buildTimeouts.at(-1) ?? fallbackBuildTimeout,
     examine,
     scopeOptions,
   };

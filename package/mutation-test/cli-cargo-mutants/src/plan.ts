@@ -130,6 +130,8 @@ export function planUnits(options: LauncherOptions): readonly UnitPlan[] {
           scopeFlag: options.scopeFlag,
           scope: `${options.scopePrefix}${file}`,
           timeoutSeconds: options.timeoutSeconds,
+          ...(options.buildTimeoutSeconds === undefined ? {} : { buildTimeoutSeconds: options.buildTimeoutSeconds }),
+          examine: options.examine,
           ...(options.memory === undefined ? {} : { memory: options.memory }),
           ...(options.cpus === undefined ? {} : { cpus: options.cpus }),
         }),

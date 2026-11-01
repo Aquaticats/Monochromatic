@@ -19,7 +19,8 @@ use ide_app::{
     document::Document,
     line_rows::LineRows,
     minimap::{
-        BAND, Geometry, Input, LineCache, Source, build, chunk_rows, cut, slice_items, text_span,
+        BAND, CHUNK_ROWS, Geometry, Input, LineCache, Source, build, chunk_rows, cut, slice_items,
+        text_span,
     },
     row_map::{CODE_ROW, RowMap},
     shaped_text::TextShaper,
@@ -179,7 +180,11 @@ fn chunks_stacked_equal_one_render_of_the_picture() {
         let (chunks, rows) = scenes(scale, bands, Mode::Product);
         let (whole, whole_rows) = scenes(scale, bands, Mode::Unsplit);
         assert_eq!(rows, whole_rows);
-        assert_eq!(chunks.len(), rows.div_ceil(512), "scale {scale}");
+        assert_eq!(
+            chunks.len(),
+            rows.div_ceil(CHUNK_ROWS as usize),
+            "scale {scale}"
+        );
         assert!(
             chunks.len() >= 3,
             "only {} chunks at scale {scale}",

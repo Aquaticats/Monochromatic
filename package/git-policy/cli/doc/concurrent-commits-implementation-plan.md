@@ -565,6 +565,9 @@ the shadow repository keeps branch-name-aware hooks working as well.
 
 ### Hook dispatcher shim
 
+Superseded for the native wrapper: it supports no external hook at all, so there is no dispatcher, hook lock or lease
+(`doc/planning/cli-git-no-self-invocation-dispatcher.md`). The text below records the original design.
+
 The shim is a runtime-generated Node program,
 not a shell script,
 so the single-artifact rule (`SPEC.md` "Single artifact and shipped optional policies") still holds:

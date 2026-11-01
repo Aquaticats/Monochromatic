@@ -25,7 +25,7 @@ private const val PRIMARY_VOLUME_ID: String = "primary"
 // const PRIMARY_VOLUME_NAME = "Internal storage";
 // ```
 /** Name shown for a folder at the root of the internal shared storage. */
-private const val PRIMARY_VOLUME_NAME: String = "Internal storage"
+internal const val PRIMARY_VOLUME_NAME: String = "Internal storage"
 
 // What:     `private const val UNNAMED_FOLDER_NAME: String = "Selected folder"` is the last-resort name.
 // Why:      A document id with neither a path segment nor a volume id must still give the copy a non-blank name.
@@ -35,7 +35,7 @@ private const val PRIMARY_VOLUME_NAME: String = "Internal storage"
 // const UNNAMED_FOLDER_NAME = "Selected folder";
 // ```
 /** Name used when a tree document id names neither a folder nor a volume. */
-private const val UNNAMED_FOLDER_NAME: String = "Selected folder"
+internal const val UNNAMED_FOLDER_NAME: String = "Selected folder"
 
 // What:     `private const val VOLUME_SEPARATOR: Char = ':'` splits the volume id from the path.
 // Why:      Tree document ids have the form `volume:path`, so the separator is named once.
@@ -102,7 +102,7 @@ fun folderNameFromDocumentId(documentId: String): String {
 // const SYSTEM_LIBRARY_NAME = "Music library";
 // ```
 /** Plain-words heading of the library that Android's system audio index provides when no folder is held. */
-private const val SYSTEM_LIBRARY_NAME: String = "Music library"
+internal const val SYSTEM_LIBRARY_NAME: String = "Music library"
 
 // What:     `fun libraryDisplayName(heldFolderName: String?): String` names the source the library was read from.
 // Why:      The unfolded left pane is headed by the name of the opened folder; when no folder is held the library is

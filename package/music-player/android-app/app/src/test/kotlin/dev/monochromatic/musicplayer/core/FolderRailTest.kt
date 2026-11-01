@@ -74,8 +74,8 @@ class FolderRailTest {
         /** The rail built from one hiragana, one katakana, and one kanji name. */
         val section = singleSection(listOf("漢字", "あいさつ", "カラオケ"))
         assertEquals(RailScript.JAPANESE, section.script)
-        assertEquals("あ", section.label)
-        assertEquals(listOf("あ", "か", "漢"), section.cells.map { cell -> cell.label })
+        assertEquals(KANA_ROWS[0].first, section.label)
+        assertEquals(KANA_ROWS.take(2).map { row -> row.first } + KANJI_LABEL, section.cells.map { cell -> cell.label })
         assertEquals(listOf("あいさつ"), section.cells[0].names)
         assertEquals(listOf("カラオケ"), section.cells[1].names)
         assertEquals(listOf("漢字"), section.cells[2].names)
@@ -142,7 +142,7 @@ class FolderRailTest {
         /** One name per row, supplied out of order, plus one kanji name. */
         val names = listOf("わたし", "らくだ", "やさい", "まど", "なつ", "はる", "さくら", "たぬき", "かさ", "あさ", "漢字")
         assertEquals(
-            listOf("あ", "か", "さ", "た", "な", "は", "ま", "や", "ら", "わ", "漢"),
+            KANA_ROWS.map { row -> row.first } + KANJI_LABEL,
             singleSection(names).cells.map { cell -> cell.label },
         )
     }

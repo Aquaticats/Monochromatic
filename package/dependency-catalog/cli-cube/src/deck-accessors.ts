@@ -35,11 +35,11 @@ import type { AppState, } from './script/state.ts';
 /**
  Alpha channel value when a probe passes every filter.
  */
-const ALPHA_VISIBLE = 255;
+export const ALPHA_VISIBLE = 255;
 /**
  Alpha channel value when a probe is filtered out (≈ 5% opacity).
  */
-const ALPHA_FILTERED = 13;
+export const ALPHA_FILTERED = 13;
 /**
  Low end of the colour ramp (t = 0). Perceptually red; chroma kept
  under sRGB gamut limits for the chosen lightness.
@@ -62,7 +62,7 @@ const COLOR_RAMP_HIGH: Oklch = {
 /**
  Per-RGB-channel grey level (0xff/2 ≈ 50% lightness) used for unknown color values.
  */
-const COLOR_UNKNOWN_GREY = 136;
+export const COLOR_UNKNOWN_GREY = 136;
 /**
  Mid-grey used for unknown color values.
  */
@@ -78,11 +78,11 @@ const COLOR_UNKNOWN: readonly [
 /**
  Minimum glyph radius in pixels.
  */
-const RADIUS_MIN_PX = 3;
+export const RADIUS_MIN_PX = 3;
 /**
  Maximum glyph radius in pixels.
  */
-const RADIUS_MAX_PX = 30;
+export const RADIUS_MAX_PX = 30;
 /**
  Minimum glyph radius in world units, as a fraction of the bounds diagonal.
  

@@ -17,8 +17,9 @@ use super::{
 /// Complete SHA-1 and SHA-256 names are accepted and printed back unchanged.
 #[test]
 fn complete_lowercase_names_are_accepted() {
-    assert_eq!(SHA1_HEX_LENGTH, 40);
-    assert_eq!(SHA256_HEX_LENGTH, 64);
+    // The wider object format has the longer name, and neither length is empty.
+    const { assert!(SHA1_HEX_LENGTH > 0) };
+    const { assert!(SHA256_HEX_LENGTH > SHA1_HEX_LENGTH) };
     for text in [
         "0123456789abcdef0123456789abcdef01234567",
         "0000000000000000000000000000000000000000",

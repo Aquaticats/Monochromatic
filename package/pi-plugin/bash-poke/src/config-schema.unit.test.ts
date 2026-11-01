@@ -206,21 +206,25 @@ await describe({
         it({
           name: 'falls back when absent and rejects a wrong kind',
           fn: async () => {
+            /**
+             Fallback shared by the absent and wrong-kind cases.
+             */
+            const fallback = 2_000;
             expect(
               readNumberSetting({
                 record: {},
                 key: 'pokeHeadChars',
-                fallback: 2_000,
+                fallback,
                 fileName: FILE_NAME,
               }, ),
-            ).toBe(2_000);
+            ).toBe(fallback);
 
             let caught: unknown;
             try {
               readNumberSetting({
                 record: { pokeHeadChars: '2000', },
                 key: 'pokeHeadChars',
-                fallback: 2_000,
+                fallback,
                 fileName: FILE_NAME,
               }, );
             }
@@ -276,8 +280,11 @@ await describe({
         it({
           name: 'lists every documented key exactly once',
           fn: async () => {
-            expect(SETTING_KEYS, ).toHaveLength(8);
-            expect(new Set(SETTING_KEYS, ).size, ).toBe(8);
+            // A duplicate would let one key be read two ways and never default.
+            expect(new Set(SETTING_KEYS, ).size, ).toBe(SETTING_KEYS.length,);
+            // The inventory and the defaults record must name the same settings.
+            expect(Object.keys(DEFAULT_SETTINGS, ).toSorted(), )
+              .toEqual([...SETTING_KEYS].toSorted(), );
             expect(SETTING_KEY_SET.has('killGraceMs', ), ).toBe(true);
             expect(SETTING_KEY_SET.has('shell', ), ).toBe(false);
           },

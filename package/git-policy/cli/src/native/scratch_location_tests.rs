@@ -212,10 +212,13 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     remove(root.as_path());
 }
 
-/// The staleness bound is exactly one day: a changed factor would sweep live files early or keep dead ones for years.
+/// The staleness bound outlasts every wait the wrapper runs: a live process must never lose its file.
 #[test]
-fn the_staleness_bound_is_exactly_one_day() {
-    assert_eq!(SCRATCH_STALE_AFTER, Duration::from_secs(86_400));
+fn the_staleness_bound_outlasts_the_longest_wait() {
+    for class in [crate::child_class::ChildClass::Plumbing, crate::child_class::ChildClass::Object] {
+        assert!(SCRATCH_STALE_AFTER > class.default_limit(), "{class:?}");
+    }
+    assert!(SCRATCH_STALE_AFTER > crate::live_lock::DEFAULT_LIVE_WAIT);
 }
 
 /// An entry exactly as old as the bound is kept; one a second older goes.

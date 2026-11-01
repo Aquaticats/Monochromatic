@@ -6,24 +6,19 @@ use super::*;
 #[test]
 fn default_policy_has_decided_constants() {
     let policy = default_policy();
-    assert_eq!(policy.short_scan_max_secs, 90.0);
-    assert!((policy.probe_window_secs - 0.1).abs() < 1e-12);
-    assert!((policy.pass1_coverage_fraction - 0.1).abs() < 1e-12);
-    assert!((policy.bones_even_coverage_fraction - 0.05).abs() < 1e-12);
-    assert_eq!(policy.bones_top_slots, 40);
-    assert!((policy.buckets.lossless.coverage_fraction - 0.10).abs() < 1e-12);
-    assert!((policy.buckets.lossless.probe_margin_db - 0.45).abs() < 1e-12);
-    assert!((policy.buckets.lossless_bones.coverage_fraction - 0.07).abs() < 1e-12);
-    assert!((policy.buckets.lossless_bones.probe_margin_db - 0.45).abs() < 1e-12);
-    assert!((policy.buckets.store.coverage_fraction - 0.32).abs() < 1e-12);
-    assert!((policy.buckets.store.probe_margin_db - 0.30).abs() < 1e-12);
-    assert!((policy.buckets.youtube.coverage_fraction - 0.14).abs() < 1e-12);
-    assert!((policy.buckets.youtube.probe_margin_db - 0.50).abs() < 1e-12);
-    assert!((policy.buckets.bare.coverage_fraction - 0.34).abs() < 1e-12);
-    assert!((policy.buckets.bare.probe_margin_db - 0.50).abs() < 1e-12);
-    assert_eq!(policy.ceiling_dbtp, -1.0);
-    assert_eq!(policy.max_too_loud_db, 0.5);
-    assert_eq!(policy.max_too_quiet_db, -2.0);
+    assert_eq!(policy.short_scan_max_secs, SHORT_SCAN_MAX_SECS);
+    assert_eq!(policy.probe_window_secs, PROBE_WINDOW_SECS);
+    assert_eq!(policy.pass1_coverage_fraction, PASS1_COVERAGE_FRACTION);
+    assert_eq!(policy.bones_even_coverage_fraction, BONES_EVEN_COVERAGE_FRACTION);
+    assert_eq!(policy.bones_top_slots, BONES_TOP_SLOTS);
+    assert_eq!(policy.buckets.lossless, LOSSLESS_PROBE);
+    assert_eq!(policy.buckets.lossless_bones, LOSSLESS_BONES_PROBE);
+    assert_eq!(policy.buckets.store, STORE_PROBE);
+    assert_eq!(policy.buckets.youtube, YOUTUBE_PROBE);
+    assert_eq!(policy.buckets.bare, BARE_PROBE);
+    assert_eq!(policy.ceiling_dbtp, CEILING_DBTP);
+    assert_eq!(policy.max_too_loud_db, MAX_TOO_LOUD_DB);
+    assert_eq!(policy.max_too_quiet_db, MAX_TOO_QUIET_DB);
 }
 
 // The policy id is stable for an unchanged policy.

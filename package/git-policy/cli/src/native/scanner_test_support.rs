@@ -49,7 +49,7 @@ pub(crate) fn run_isolated(test_path: &str, name: &str, body: fn(&Path)) {
     std::fs::create_dir(&home).expect("disposable home");
     let work: PathBuf = root.join("work");
     std::fs::create_dir(&work).expect("control directory");
-    let output: Output = Command::new(std::env::current_exe().expect("test executable"))
+    let output: Output = Command::new(crate::test_support::this_test_binary().expect("test executable"))
         .args(["--exact", test_path, "--nocapture", "--test-threads=1"])
         .env(ISOLATED_FIXTURE_VARIABLE, &work)
         .env("HOME", &home)

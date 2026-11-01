@@ -11,6 +11,7 @@
 
 /// Import production parsing,
 ///  preparation and result types.
+use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use super::{FileConfiguration, PreparedConfiguration, prepare_configuration};
 use crate::config_lookup::{CONFIG_NAME, ConfigurationSource};
 use crate::configuration::parse_configuration;
@@ -152,7 +153,10 @@ fn rule_defaults_do_not_enable_absent_rules() {
         r#"[{"files":["**/*"],"rules":{"rust/max-lines":{"severity":"off"},"markdown/lfs-image-url":{"severity":"warn"}}}]"#,
     );
     let actual = rules(&selected, "file.rs");
-    let expected = parse_jsonc(r#"{"rust/max-lines":{"severity":"off","max":300},"markdown/lfs-image-url":{"severity":"warn","exclude":[]}}"#).expect("defaults");
+    let expected_source: String = format!(
+        r#"{{"rust/max-lines":{{"severity":"off","max":{DEFAULT_MAX_LINES}}},"markdown/lfs-image-url":{{"severity":"warn","exclude":[]}}}}"#
+    );
+    let expected = parse_jsonc(expected_source.as_str()).expect("defaults");
     assert_eq!(actual, expected);
 }
 

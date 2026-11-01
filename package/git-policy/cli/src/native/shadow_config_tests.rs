@@ -14,6 +14,24 @@ fn quoting_escapes_only_what_git_requires() {
     assert_eq!(quote_git_config_value(""), r#""""#);
 }
 
+/// The config lines that switch every hook event off.
+fn hook_switches() -> String {
+    return HOOK_EVENTS.iter().map(|event| { return format!("[hook \"{event}\"]\n\tenabled = false\n"); }).collect();
+}
+
+/// Every hook event is switched off in the shadow's config, after the include, so the real config cannot turn one on.
+#[test]
+fn the_shadow_config_switches_every_hook_event_off_after_the_include() {
+    let format: RepositoryFormat = RepositoryFormat { version: String::from("0"), extensions: Vec::new() };
+    let text: String = format_shadow_config(&format, Path::new("/r/.git"), Path::new("/r"));
+    let include: usize = text.find("[include]").expect("include");
+    for event in HOOK_EVENTS {
+        let section: String = format!("[hook \"{event}\"]\n\tenabled = false\n");
+        let found: usize = text.find(section.as_str()).unwrap_or_else(|| panic!("{event} is not switched off"));
+        assert!(found > include, "{event} must follow the include");
+    }
+}
+
 /// A repository without extensions writes the fixed layout with no extensions section.
 #[test]
 fn config_without_extensions_has_the_fixed_layout() {
@@ -40,6 +58,8 @@ fn config_without_extensions_has_the_fixed_layout() {
             "[maintenance]\n",
             "\tauto = false\n",
         )
+        .to_string()
+            + hook_switches().as_str()
     );
 }
 

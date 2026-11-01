@@ -12,10 +12,8 @@ use super::update_github_assets::pick_asset;
 use super::update_go_zig::{resolve_go_module, resolve_go_runtime, resolve_zig};
 use super::update_java_aws::{resolve_aws, resolve_java};
 use super::update_registry::{registry_path_name, resolve_crate, resolve_npm, resolve_pypi};
-use super::update_resolve::{ResolveError, resolve_tool};
+use super::update_resolve::{LINUX_PLATFORMS, ResolveError, resolve_tool};
 use super::update_rust_node::{parse_shasums, resolve_node, resolve_rust, resolve_rustup};
-
-const LINUX: [&str; 4] = ["linux-arm64", "linux-arm64-musl", "linux-x64", "linux-x64-musl"];
 
 /// The platform ids of a resolution's rows.
 fn platforms(rows: &[(String, Artifact)]) -> Vec<&str> {
@@ -132,7 +130,7 @@ fn a_wheel_bootstrap_records_the_wheel_url_and_hash_for_the_four_linux_platforms
     let declaration = rig.tool("pipx:slopo").declaration;
     let resolution = resolve_pypi(&rig.context(), &declaration, "slopo", Some("8.2.0")).expect("resolved");
     assert_eq!(resolution.version, "8.2.0");
-    assert_eq!(platforms(&resolution.artifacts), LINUX.to_vec());
+    assert_eq!(platforms(&resolution.artifacts), LINUX_PLATFORMS.to_vec());
     assert_eq!(row(&resolution.artifacts, "linux-x64").sha256, wheel_hash);
     rig.http.serve("https://pypi.org/pypi/slopo/json", b"{\"info\": {\"version\": \"1.0.0\"}, \"urls\": []}");
     let error = resolve_pypi(&rig.context(), &declaration, "slopo", None).expect_err("no wheel");
@@ -188,7 +186,7 @@ fn node_follows_the_latest_stable_release_and_builds_the_four_rows_from_the_vers
     serve_node(&rig.http, "26.14.0");
     let resolution = resolve_node(&rig.context(), None).expect("resolved");
     assert_eq!(resolution.version, "26.14.0");
-    assert_eq!(platforms(&resolution.artifacts), LINUX.to_vec());
+    assert_eq!(platforms(&resolution.artifacts), LINUX_PLATFORMS.to_vec());
     assert_eq!(row(&resolution.artifacts, "linux-x64").url, "https://nodejs.org/dist/v26.14.0/node-v26.14.0-linux-x64.tar.gz");
     assert_eq!(row(&resolution.artifacts, "linux-x64").sha256, sha256_hex(b"official-x64"));
     assert_eq!(row(&resolution.artifacts, "linux-arm64-musl").url, "https://unofficial-builds.nodejs.org/download/release/v26.14.0/node-v26.14.0-linux-arm64-musl.tar.gz");
@@ -333,7 +331,7 @@ fn android_takes_the_newest_package_or_the_wanted_revision_and_hashes_the_archiv
     rig.http.serve("https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip", b"older zip");
     let newest = resolve_android(&rig.context(), None).expect("resolved");
     assert_eq!(newest.version, "23.0");
-    assert_eq!(platforms(&newest.artifacts), LINUX.to_vec());
+    assert_eq!(platforms(&newest.artifacts), LINUX_PLATFORMS.to_vec());
     assert_eq!(row(&newest.artifacts, "linux-arm64").sha256, sha256_hex(b"newest zip"));
     let older = resolve_android(&rig.context(), Some("12.0")).expect("resolved");
     assert_eq!(older.version, "12.0");
@@ -387,7 +385,7 @@ fn assets_of(names: &[&str]) -> Vec<serde_json::Value> {
 fn chosen(names: &[&str], hint: Option<&str>) -> Vec<String> {
     let assets = assets_of(names);
     let mut picked: Vec<String> = Vec::new();
-    for platform in LINUX {
+    for platform in LINUX_PLATFORMS {
         let asset = pick_asset(&assets, platform, hint, "o/r", "v1").expect("no tie");
         picked.push(asset.and_then(|found| return found["name"].as_str()).unwrap_or("-").to_string());
     }
@@ -484,7 +482,7 @@ fn a_github_tool_resolves_from_its_repository_alone() {
     rig.http.serve("https://api.github.com/repos/o/r/releases/latest", release_json("v1.3.0", &names).as_bytes());
     let resolution = resolve_github(&rig.context(), &declaration, "o/r", None).expect("resolved");
     assert_eq!(resolution.version, "1.3.0");
-    assert_eq!(platforms(&resolution.artifacts), LINUX.to_vec());
+    assert_eq!(platforms(&resolution.artifacts), LINUX_PLATFORMS.to_vec());
     assert_eq!(row(&resolution.artifacts, "linux-x64-musl").url, "https://github.com/o/r/releases/download/v1.3.0/tool-1.3.0-linux-x64.tar.gz");
     assert_eq!(row(&resolution.artifacts, "linux-x64").sha256, sha256_hex(names[0].as_bytes()));
     assert_eq!(rig.http.requests(), vec!["https://api.github.com/repos/o/r/releases/latest".to_string()]);
@@ -539,7 +537,7 @@ fn a_brand_new_downloaded_tool_resolves_with_no_lock_at_all() {
     rig.http.serve("https://api.github.com/repos/o/r/releases/latest", release_json("v2.0.0", &["tool-linux-amd64.tar.gz", "tool-linux-arm64.tar.gz"]).as_bytes());
     let resolution = resolve_tool(&rig.context(), &declaration, None).expect("no previous lock row is needed");
     assert_eq!(resolution.version, "2.0.0");
-    assert_eq!(resolution.artifacts.len(), 4);
+    assert_eq!(resolution.artifacts.len(), LINUX_PLATFORMS.len());
 }
 
 //endregion github

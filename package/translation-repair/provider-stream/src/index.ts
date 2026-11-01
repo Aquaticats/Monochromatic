@@ -64,8 +64,10 @@ export {
   type StreamOutcome,
 } from './stream-cut.ts';
 export {
+  DEGENERATE_RATIO,
   type DegenerationDetector,
   type DegenerationVerdict,
+  TRAILING_WINDOWS,
   watchForDegeneration,
 } from './stream-degeneration.ts';
 export { deliveredCharsOf, } from './stream-delivered-chars.ts';
@@ -100,6 +102,7 @@ export {
   watchForRecurrence,
 } from './stream-recurrence-watch.ts';
 export {
+  CONTENT_OVERRUN_CAP,
   type RunawayVerdict,
   type RunawayWatch,
   StreamDegenerateError,

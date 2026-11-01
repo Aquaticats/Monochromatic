@@ -20,8 +20,8 @@
 //! export function dispatch(name: string, matches: ParsedArgs): number | undefined
 //! ```
 
-/// Imports the `clap` types for describing arguments and reading what was typed.
-use clap::{Arg, ArgAction, ArgMatches, Command};
+/// Imports the `clap` type for reading a parsed command line and starting a command.
+use clap::{ArgMatches, Command};
 
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
@@ -60,18 +60,13 @@ use super::verify_archive::run_verify_archive;
 /// Imports what this module uses from `super::update`.
 use super::update::{format_update_report, run_update_for};
 
-/// The `--global` flag every toolchain verb accepts:
-/// act on the machine-global plan and lock.
-fn global_flag() -> Arg {
-    return Arg::new("global")
-        .long("global")
-        .short('g')
-        .action(ArgAction::SetTrue)
-        .help("Act on the machine-global toolchain (the plan and lock under the per-user config directory)");
-}
+/// Re-exports the verb declarations from `super::verb_grammar`,
+/// so `cli.rs` and the tests keep reading the grammar through this module.
+pub use super::verb_grammar::{Verb, VERBS};
 
 /// What:
-/// The toolchain subcommands for `mpm-shadow --help`.
+/// The toolchain subcommands for `mpm-shadow --help`,
+/// built from the `VERBS` declaration.
 /// Why:
 /// Each verb is a plain `clap` command;
 /// the grammar is data the tests can inspect.
@@ -81,76 +76,13 @@ fn global_flag() -> Arg {
 /// export function subcommands(): Command[]
 /// ```
 pub fn subcommands() -> Vec<Command> {
-    let install: Command = Command::new("install")
-        .visible_alias("i")
-        .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory; a plan entry the lock lacks is resolved and locked alone first, unless frozen")
-        .arg(
-            Arg::new("frozen-lockfile")
-                .long("frozen-lockfile")
-                .action(ArgAction::SetTrue)
-                .conflicts_with("no-frozen-lockfile")
-                .help("Never resolve: refuse a plan that is ahead of the lock and name `mpm-shadow update <ids>`; with --lockfile-only, only check (the default in CI when a lock exists, like pnpm)"),
-        )
-        .arg(
-            Arg::new("no-frozen-lockfile")
-                .long("no-frozen-lockfile")
-                .action(ArgAction::SetTrue)
-                .help("Resolve a plan that is ahead of the lock even in CI"),
-        )
-        .arg(
-            Arg::new("lockfile-only")
-                .long("lockfile-only")
-                .action(ArgAction::SetTrue)
-                .help("Only bring toolchain.lock.json up to date; install nothing"),
-        )
-        .arg(
-            Arg::new("offline")
-                .long("offline")
-                .action(ArgAction::SetTrue)
-                .requires("lockfile-only")
-                .help("Use no network: rewrite the lock's declaration fields from the plan, keeping every resolved version; refuse an entry that needs resolving"),
-        )
-        .arg(global_flag());
-    let bin: Command = Command::new("bin")
-        .about("Print the directory the toolchain's executables are linked into (read-only, offline)")
-        .arg(
-            Arg::new("json")
-                .long("json")
-                .action(ArgAction::SetTrue)
-                .help("Print the program directories and exposed binaries as JSON instead (for the IDE launcher)"),
-        )
-        .arg(global_flag());
-    let update: Command = Command::new("update")
-        .about("Resolve the plan's tools (all, or only the named ones) and write toolchain.lock.json (looks versions up on the network)")
-        .arg(tool_names_arg())
-        .arg(global_flag());
-    let outdated: Command = Command::new("outdated")
-        .about("Report which tools `update` would move, writing and installing nothing; exits 1 when any tool is outdated, like pnpm outdated")
-        .arg(tool_names_arg())
-        .arg(global_flag());
-    let verify_archive: Command = Command::new("verify-archive")
-        .about("Check a downloaded archive's SHA-256 against the lock's row for a tool on a platform (the bootstrap check)")
-        .arg(Arg::new("tool").required(true).help("The tool id in the lock, for example cargo:monochromatic-mpm-shadow"))
-        .arg(Arg::new("file").required(true).help("The downloaded file"))
-        .arg(
-            Arg::new("platform")
-                .long("platform")
-                .help("The lock's platform id (default: this machine's, for example linux-x64)"),
-        )
-        .arg(global_flag());
-    let list: Command = Command::new("list")
-        .visible_alias("ls")
-        .about("Compare the installed tools with the lock (read-only; exits 1 on drift or when the plan and lock disagree)")
-        .arg(global_flag());
-    return vec![install, update, outdated, list, verify_archive, bin];
-}
-
-/// The tool-id patterns `update` and `outdated` take.
-fn tool_names_arg() -> Arg {
-    return Arg::new("tool")
-        .num_args(0..)
-        .value_name("TOOL")
-        .help("Tool ids of the plan, `*` matches any run of characters and a leading `!` excludes (default: every tool); the other rows keep their versions");
+    let mut commands: Vec<Command> = Vec::new();
+    for verb in VERBS {
+        // `verb.build` is the declared argument builder; calling it through the declaration
+        // keeps the parsed name and the argument grammar in one place.
+        commands.push((verb.build)(verb));
+    }
+    return commands;
 }
 
 /// Prints a success line to standard output.

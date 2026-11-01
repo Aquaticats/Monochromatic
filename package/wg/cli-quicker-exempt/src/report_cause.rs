@@ -20,7 +20,7 @@
 //! such as unit names.
 
 /// Characters of a normalized line that make up its cause.
-const MAX_CAUSE_CHARS: usize = 1024;
+pub const MAX_CAUSE_CHARS: usize = 1024;
 
 /// What a user-chosen name is replaced with.
 const NAME_PLACEHOLDER: &str = "<name>";

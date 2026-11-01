@@ -502,6 +502,9 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
      `package/crate-release/cli/bin/release.ts` moves only inline `name = { ... version = "=x" }` lines, not table-style
      `[dependencies.name]`) and its own `release` and `release:wait` mise tasks like `package/forbidden-strings/cli/mise.toml`.
   2. 7a releases the wrapper (`native:release`, `native:release:wait`) once the policy, its tests and the mutation and fuzz gates pass.
+     Since 2026-11-01 those tasks only dispatch the `crate-release` workflow and follow its run, and nothing compiles on the
+     developer machine (`doc/decision/releases-run-in-ci.md`); the shared crate of step 1 also needs an entry in
+     `package/crate-release/cli/releasable-crates.json` and in the `crate` choices of `.github/workflows/crate-release.yml`.
   3. `toolchain:update` bumps the wrapper in `toolchain.lock.json`; it has no per-tool filter, so it also moves every other floating
      tool, and the user decides each time.
   4. `toolchain:sync` installs it as the production `git`.
@@ -793,29 +796,71 @@ The user confirmed the shared understanding and the order below, after the third
   Consequence for the waiter `~/temp/agent/wait-cli-git-release.ts`: it fires on any version above 0.4.6, so it will fire on 0.4.7,
   which is not the signal wanted; the agent restarts a waiter that ignores 0.4.7, and acts on 7a's message rather than on the waiter.
 
+- 2026-11-01, waiter result: the four-hour waiter ended at its deadline with crates.io still at 0.4.6, so not even the 0.4.7 wrapper
+  had been published. A waiter that ignores a wrapper release without the policy replaced it:
+  `~/temp/agent/wait-cli-git-policy-release.ts` ends only when a version above 0.4.6 is on crates.io and its source archive
+  contains the text `mono/catalog-specifiers` (eight-hour deadline). The last twelve releases of the crate came 25 minutes to about
+  24.5 hours apart (measured from crates.io), so no completion time can be forecast; 7a has given none.
+
+- 2026-11-01, `monochromatic-8c` status (a peer's report, now the session sending cli-git release news):
+  the wrapper branch for `mono/catalog-specifiers` (against `monochromatic-catalog-specifier` 0.1.0, `off_unless_listed`, default
+  severity `error`, no options, not listed in `cli-git.config.jsonc`) is being merged to main after fixing a gap (a selected policy
+  that is on but not run for the command still exited 0).
+  The 0.4.7 cut was abandoned; the policy ships in the next wrapper release with the 30-second push deadline, the commit-path
+  stat-index and timeout fixes, the layered gate image, and, when they merge, the LFS rework, the removal of external hook support
+  and the in-process linter. 8c will message the version and release commit once it is on crates.io with archives.
+  8c asked who owns the crate-release path; the answer sent: git history names only the author Aquaticat, and
+  `doc/decision/releases-run-in-ci.md` records the owner's choice "Release from CI", with `native:release` dispatching the workflow.
+
+- 2026-11-01, `monochromatic-8c` after reading all of `doc/decision/releases-run-in-ci.md` (a peer's report): `native:release` dispatches
+  the CI workflow and `native:release:wait` follows it through `cargo-publish.yml` to crates.io and the GitHub release.
+  The workflow has never run on a runner (the first release is its first run), and three things are unproven: that a runner
+  compiles the crates, that the token may call `createCommitOnBranch` on the protected branch, and that GitHub signs that commit
+  under `GITHUB_TOKEN`. 8c dry-runs first, so the first real wrapper release may need a retry.
+  The linter crate is not in `releasable-crates.json` (only forbidden-strings and the wrapper are); if the wrapper embeds the linter,
+  the linter publishes first by the old route. Consequence for my wait: no release time can be forecast, and a retry may delay it.
+
+- 2026-11-01, `monochromatic-8c` relaying `monochromatic-6e` (file-enforcer and toolchain verbs), a peer's advice that I checked against the repo:
+  scope the update to the wrapper's row, `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`, because the task appends its
+  arguments to `mpm-shadow update` (read in `mise.toml`, task `toolchain:update`, `usage ... var=#true`) and an unscoped run moves every
+  `@latest` and channel tool (rule `UPN` names the tool). The row id exists in `toolchain.plan.jsonc` (`request`
+  `cargo:monochromatic-git-policy-cli@latest`, route `cargo-binstall`).
+  Adopted: this narrows the earlier plan of an unscoped `toolchain:update`; the user's delegation ("I decide? No, just do it.")
+  still covers running it. Steps: the scoped update, `mise run toolchain:install`, review the `toolchain.lock.json` diff, commit only
+  that file by explicit pathspec, and report separately any other row the diff shows.
+  Also from 6e: the CI release workflow has a known bug (the bump commit is refused when main moves during the run, seen on
+  forbidden-strings run 41303293802; nothing pushed) and a fix is in progress, so the wrapper release waits for it.
+
+- 2026-11-01, `monochromatic-8c` result report (a peer's report; the policy is merged to main, not released): id
+  `mono/catalog-specifiers`, default severity `error`, no options, `off_unless_listed: true`, not listed in this repository's
+  `cli-git.config.jsonc`, older configs load unchanged.
+  It reads staged or index bytes (never the worktree) of every `package.json`; the allowed specifiers match the agreed policy;
+  tracked `package.json5`, `package.yaml` and `package.yml` are reported by file name without being read.
+  JSONL codes are `mono/catalog-specifiers/<code>`; the six codes it lists equal the six `as_str()` values in
+  `package/catalog-specifier/core-rust/src/finding.rs` lines 96 to 101 (checked), so nothing differs from the specification.
+  It runs at commit and add, after a landed commit, on a manual push and for `check`, never for `fix`;
+  `--no-enforce-mono/catalog-specifiers` skips it. A direct `git cli-git check|fix --policy <id>` that would run nothing now exits 2
+  with a `config-invalid` event. It depends on `monochromatic-catalog-specifier` `=0.1.0` by path plus exact pin.
+  The release waits for the LFS and hook-removal branches and the CI release fix.
+  Consequence for the CI workflow: the check reads index bytes, so the negative-control fixture must be staged (`git add`) in a
+  throwaway repository before `check --all --policy mono/catalog-specifiers`; an unstaged file proves nothing. The CI run on a
+  checkout reads the real index, which equals the worktree there. Both must be exercised when the workflow is written.
+
 ## Open items
 
-- Nothing below was asked after the confirmation; the earlier list is kept for the record.
-- The third review (rule `RRG`) is folded in above.
-- Decisions the third review needs from the user: the CI bootstrap model (install a pinned native release, or build from committed
-  sources); whether CI guarantees detection only or prevention through a required PR check (branch protection is the owner's
-  setting); whether the policy also rejects tracked `package.json5` and `package.yaml` files; whether the wrapper ships after the
-  commit policy and CI instead of alongside them; whether the `zod` catalog entry keeps `>=4.6.7` (repository convention, 155 of
-  156 entries are floors) or `^4.6.7`.
-- Adopted without asking, veto open: scan failures in the wrapper are advisory diagnostics followed by delegation to pnpm, a missing
-  workspace root means delegation, child status and signals are preserved, only a missing real pnpm is fatal; `--dir` and `-C` are
-  not parsed, so the wrapper checks the tree of its own current directory (a documented limit, since `pnpm --dir /other` from a
-  different tree scans the wrong one); the byte-to-findings contract is written before implementation; the guarantee is documented
-  as a source-`package.json` reference-syntax rule, not resolution enforcement; the wrapper is described as a separate
-  advisory scope, not the same repository check.
-- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder`
-  scope against the policy scope; whether branch protection exists.
-- Whether the `updateConfig` hook is kept as a second layer later is open; nothing is built.
+- Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
+- After that release: run `toolchain:update`, review the `toolchain.lock.json` diff, confirm the lock names the new cli-git version,
+  then write the separate always-run CI workflow (lock-pinned cargo-binstall, binstall of the pinned cli-git, the check, and a
+  negative-control fixture that must exit nonzero).
+- Then tell 7a the CI step is ready so the policy is listed in `cli-git.config.jsonc` at severity `error`.
+- Last: the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
+  invocation, no skip switch, advisory diagnostics then delegation to pnpm.
+- Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
+  pattern matched twice.
+- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder` scope
+  against the policy scope; whether branch protection exists.
 
 ## Next action
 
-Ask the user to confirm the shared understanding and to decide the review-driven items above.
-After confirmation: tell `monochromatic-7a` to build the policy from the draft spec (after the library contract is fixed and the
-library is published, per its release order), fix `zod` first, build the library crate, then the CI workflow once the wrapper release
-is installed from the lock, then the pnpm wrapper.
-Nothing is implemented before that confirmation.
+Wait for 7a's message or for the waiter (`~/temp/agent/wait-cli-git-policy-release.ts`), then follow the order in Open items.
+Nothing else is runnable before the release.

@@ -12,6 +12,7 @@
 /// Import the actual interface and rule settings used by executable integration.
 use super::{ProcessorLanguage, VirtualSource, extract};
 /// Inspect original-host wire findings and apply real atomic groups.
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::diagnostic::{Diagnostic, Severity};
 /// Fix application is always the production grouped edit implementation.
 use crate::edits::{Edit, Fix, apply_fixes};
@@ -223,7 +224,7 @@ fn processors_refuse_semantic_guessing_even_for_a_valid_virtual_method_call() {
         .expect("explicit failure record");
     assert_eq!(findings.len(), 1);
     assert!(findings[0].processing_failure);
-    assert_eq!(findings[0].code, "core/processing-failure");
+    assert_eq!(findings[0].code, PROCESSING_FAILURE);
     assert_eq!(findings[0].filename, "host");
 }
 

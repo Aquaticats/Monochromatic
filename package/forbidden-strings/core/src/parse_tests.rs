@@ -11,6 +11,7 @@
 // ```
 
 use super::parse;
+use crate::parse::repeat::REPEAT_CAP;
 use crate::error::CompileError;
 
 // What:    Asserts a pattern parses successfully.
@@ -161,8 +162,10 @@ fn repetition_count_at_the_cap_is_allowed_but_beyond_is_rejected() {
     // ```ts
     // // Same step as the Rust statement below, written with ordinary TS objects/functions.
     // ```
-    ok("a{1024}");
-    syntax_err("a{1025}");
+    let at_cap: String = format!("a{{{REPEAT_CAP}}}");
+    ok(at_cap.as_str());
+    let beyond_cap: String = format!("a{{{}}}", REPEAT_CAP + 1);
+    syntax_err(beyond_cap.as_str());
     // What:    the upper bound is also capped.
     // Why:     The nearby assertion or value needs this note so the test records the exact
     //          behavior being pinned.
@@ -171,7 +174,8 @@ fn repetition_count_at_the_cap_is_allowed_but_beyond_is_rejected() {
     // ```ts
     // // Same assertion or value, with the important expectation named above.
     // ```
-    syntax_err("a{1,1025}");
+    let beyond_upper: String = format!("a{{1,{}}}", REPEAT_CAP + 1);
+    syntax_err(beyond_upper.as_str());
 }
 
 #[test]

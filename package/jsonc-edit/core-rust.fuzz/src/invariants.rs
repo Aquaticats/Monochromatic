@@ -24,7 +24,7 @@ use monochromatic_jsonc_edit::{emit_jsonc_value, parse_jsonc, JsoncKind, JsoncVa
 /// Why:
 ///       It is part of the published contract and the shared fixtures,
 ///           so the bound is asserted here rather than trusted.
-const ACCEPTED_DEPTH: usize = 512;
+pub(crate) const ACCEPTED_DEPTH: usize = 512;
 
 /// What:
 ///      Parse one source,

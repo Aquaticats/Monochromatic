@@ -40,7 +40,7 @@ use crate::constants::USAGE_EXIT_CODE;
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
 /// Imports the toolchain verbs' grammar and dispatch.
-use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
+use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands, Verb, VERBS as TOOLCHAIN_VERBS};
 /// Imports the environment view and the toolchain roots.
 use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports the owned path type.
@@ -49,24 +49,28 @@ use std::path::PathBuf;
 use crate::toolchain::prune_cargo::run_prune_command;
 
 /// What:
-/// `pub fn build_command() -> Command` declares a public function returning the grammar description.
+/// The root verb `prune`:
+/// the only top-level verb whose arguments this module owns.
 /// Why:
-/// Both the real run and the tests need the grammar.
+/// The grammar,
+/// `--help` and the help test read the same declaration,
+/// so the verb name and its visible aliases have one owner.
+pub const PRUNE: Verb = Verb {
+    name: "prune",
+    aliases: &[],
+    build: prune_command,
+};
+
+/// Describes the `prune` subcommand:
+/// its options and its help text.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function buildCommand(): Command
+/// function pruneCommand(): Command
 /// ```
-pub fn build_command() -> Command {
-    // What:     `Command::new("prune").about(...)` starts a subcommand description; each method call returns the
-    //           updated description (method chaining, like a TS builder).
-    // Why:      `--help` for the subcommand comes from it.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const prune = new Command('prune').description('...');
-    // ```
-    let prune_command: Command = Command::new("prune")
+fn prune_command(verb: &Verb) -> Command {
+    return verb
+        .command()
         .about("Delete the superseded cached versions of this repository's own crates from cargo's registry")
         .arg(
             Arg::new("toolchain")
@@ -98,10 +102,21 @@ pub fn build_command() -> Command {
                 .requires("toolchain")
                 .help("With --toolchain: another toolchain.lock.json whose versions must be kept (repeatable), for example a clone git does not list"),
         );
+}
 
-    // What:     `env!("CARGO_PKG_VERSION")` is a compile-time macro (the `!`) that pastes in the version from
-    //           `Cargo.toml`. `subcommand_required(true)` makes a bare `mpm-shadow` print the help instead.
-    // Why:      `--help` and `--version` come for free from this description.
+/// What:
+/// `pub fn build_command() -> Command` declares a public function returning the grammar description.
+/// Why:
+/// Both the real run and the tests need the grammar.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function buildCommand(): Command
+/// ```
+pub fn build_command() -> Command {
+    // What:     `Command::new("mpm-shadow")` starts the root description; each method call returns the
+    //           updated description (method chaining, like a TS builder).
+    // Why:      `--help` and `--version` come for free from it.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -109,11 +124,34 @@ pub fn build_command() -> Command {
     // ```
     return Command::new("mpm-shadow")
         .about("A shadow of mpm: invoked as `mpm` it runs the real mpm, then deletes the superseded cached versions of this repository's own crates. Invoked as mpm-shadow it owns the toolchain plan and lock with pnpm's commands (install, update, outdated, list, bin).")
+        // `env!("CARGO_PKG_VERSION")` is a compile-time macro (the `!`) that pastes in the version from
+        // `Cargo.toml`; `subcommand_required(true)` makes a bare `mpm-shadow` print the help instead.
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .subcommand(prune_command)
+        // Both lines build the surface from declarations, so the grammar cannot hold a verb the
+        // help test does not read.
+        .subcommand((PRUNE.build)(&PRUNE))
         .subcommands(toolchain_subcommands());
+}
+
+/// What:
+/// Every top-level subcommand `--help` lists,
+/// in render order:
+/// `prune` followed by the toolchain verbs.
+/// Why:
+/// `build_command` and the help test read this one surface,
+/// so a verb registered in the grammar is always asserted against the rendered help.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function declaredVerbs(): Verb[]
+/// ```
+pub fn declared_verbs() -> Vec<&'static Verb> {
+    // The root verb comes first in the rendered help, then the toolchain verbs.
+    let mut verbs: Vec<&'static Verb> = vec![&PRUNE];
+    verbs.extend(TOOLCHAIN_VERBS);
+    return verbs;
 }
 
 /// What:

@@ -24,11 +24,27 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+/// The declared long options of the command grammar,
+///  the help summary it renders,
+///  and the program name its output carries.
+use monochromatic_lint::cli_options::{ABOUT, long_options};
+/// The configuration filename the executable discovers.
+use monochromatic_lint::config_lookup::CONFIG_NAME;
+/// The lockfile name, table header and diagnostic codes the controls expect,
+///  re-exported by the library for its executable tests.
+use monochromatic_lint::{LOCK_NAME, NON_SUPPRESSIBLE, TOOL_TABLE, UNUSED};
+/// The shipped rule registry the listing controls compare against.
+use monochromatic_lint::run_modes::RULES as REGISTRY;
+/// The core diagnostic codes the controls expect.
+use monochromatic_lint::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
+/// The program name the executable's output carries.
+use monochromatic_lint::run_finish::PROGRAM;
+
 /// The path of the executable Cargo built for this test run.
 const BINARY: &str = env!("CARGO_BIN_EXE_monochromatic-lint");
 
 /// The configuration file name the executable looks up.
-const CONFIG: &str = "monochromatic-lint.config.jsonc";
+const CONFIG: &str = CONFIG_NAME;
 
 /// A configuration selecting the syntax-only Rust rules and the Markdown rules that need no repository.
 const RULES: &str = r#"[
@@ -146,6 +162,24 @@ fn records(text: &str) -> Vec<serde_json::Value> {
     return values;
 }
 
+/// The `--rules` rows agree with the shipped registry,
+///  in order and in every capability.
+fn assert_listing_matches_registry(listed: &[serde_json::Value]) {
+    assert_eq!(listed.len(), REGISTRY.len());
+    for (row, rule) in listed.iter().zip(REGISTRY) {
+        assert_eq!(row["id"], rule.id);
+        assert_eq!(row["fixable"], rule.fixable);
+        assert_eq!(row["suppressible"], rule.suppressible);
+        let options: Vec<&str> = row["options"]
+            .as_array()
+            .expect("options")
+            .iter()
+            .map(|option| return option.as_str().expect("option name"))
+            .collect();
+        assert_eq!(options, rule.options);
+    }
+}
+
 /// `filename code line column` for every record,
 ///  in output order.
 fn located(text: &str) -> Vec<String> {
@@ -187,34 +221,21 @@ fn help_version_and_usage_errors_use_the_documented_statuses() {
     assert_eq!(help.status, 0);
     assert!(
         help.stdout.starts_with(
-            "Lint Rust, Markdown and MDX with repository-owned policies.\n\nUsage: monochromatic-lint [OPTIONS] [PATH]..."
+            format!("{ABOUT}\n\nUsage: {PROGRAM} [OPTIONS] [PATH]...").as_str()
         ),
         "{}",
         help.stdout
     );
-    for flag in [
-        "--config",
-        "--fix",
-        "--stdin",
-        "--stdin-filename",
-        "--max-warnings",
-        "--quiet",
-        "--silent",
-        "--print-config",
-        "--init",
-        "--rules",
-        "--concurrency",
-        "--ignore-pattern",
-        "--ignore-path",
-        "--no-ignore",
-        "--no-error-on-unmatched-pattern",
-        "--debug",
-    ] {
-        assert!(help.stdout.contains(flag), "{flag}");
+    for option in long_options() {
+        assert!(
+            help.stdout.contains(&option),
+            "{option} is missing from:\n{}",
+            help.stdout
+        );
     }
     assert_eq!(help.stderr, "");
     // Read the version from the manifest so a release bump cannot leave this assertion stale.
-    let expected_version: String = format!("monochromatic-lint {}\n", env!("CARGO_PKG_VERSION"));
+    let expected_version: String = format!("{PROGRAM} {}\n", env!("CARGO_PKG_VERSION"));
     let version: Run = run(&fixture.path, &["--version"], b"");
     assert_eq!(
         (
@@ -259,7 +280,7 @@ fn exit_statuses_and_streams_follow_the_contract() {
     assert!(
         unconfigured
             .stderr
-            .starts_with("monochromatic-lint: No monochromatic-lint.config.jsonc was found"),
+            .starts_with(format!("{PROGRAM}: No {CONFIG_NAME} was found").as_str()),
         "{}",
         unconfigured.stderr
     );
@@ -283,7 +304,7 @@ fn exit_statuses_and_streams_follow_the_contract() {
     assert_eq!(located(incomplete.stdout.as_str()).len(), 1);
     assert_eq!(
         records(incomplete.stdout.as_str())[0]["code"],
-        "core/processing-failure"
+        PROCESSING_FAILURE
     );
     assert_eq!(
         records(incomplete.stdout.as_str())[0]["filename"],
@@ -295,7 +316,7 @@ fn exit_statuses_and_streams_follow_the_contract() {
     assert!(
         malformed
             .stderr
-            .starts_with("monochromatic-lint: Configuration "),
+            .starts_with(format!("{PROGRAM}: Configuration ").as_str()),
         "{}",
         malformed.stderr
     );
@@ -553,7 +574,7 @@ fn a_configuration_naming_the_removed_anonymous_function_rule_is_a_setup_error()
     assert!(
         stale
             .stderr
-            .starts_with("monochromatic-lint: Configuration "),
+            .starts_with(format!("{PROGRAM}: Configuration ").as_str()),
         "{}",
         stale.stderr
     );
@@ -586,13 +607,13 @@ fn a_configuration_naming_the_removed_anonymous_function_rule_is_a_setup_error()
 #[test]
 fn configuration_rejection_diagnostics_identify_the_running_binary() {
     // Read the version from the manifest so a release bump cannot leave this assertion stale.
-    let identity: String = format!("(monochromatic-lint {})", env!("CARGO_PKG_VERSION"));
+    let identity: String = format!("({PROGRAM} {})", env!("CARGO_PKG_VERSION"));
     let fixture: Fixture = Fixture::new();
     fixture.write("a.rs", "fn main() {}\n");
     fixture.write(
-        "mise.lock",
+        LOCK_NAME,
         format!(
-            "[[tools.\"cargo:monochromatic-lint\"]]\nversion = \"{}\"\n",
+            "{TOOL_TABLE}\nversion = \"{}\"\n",
             env!("CARGO_PKG_VERSION")
         )
         .as_str(),
@@ -667,22 +688,28 @@ fn a_newer_repository_pin_adds_the_stale_binary_hint() {
     let fixture: Fixture = Fixture::new();
     fixture.write("a.rs", "fn main() {}\n");
     fixture.write(
-        "mise.lock",
-        format!("[[tools.\"cargo:monochromatic-lint\"]]\nversion = \"{pin}\"\n").as_str(),
+        LOCK_NAME,
+        format!("{TOOL_TABLE}\nversion = \"{pin}\"\n").as_str(),
     );
     fixture.write(
         CONFIG,
         r#"[{ "files": ["**/*.rs"], "rules": { "rust/no-anonymous-functions": { "severity": "off" } } }]"#,
     );
+    let tool_id: &str = TOOL_TABLE
+        .strip_prefix("[[tools.\"")
+        .and_then(|rest| return rest.strip_suffix("\"]]"))
+        .expect("the tool table header wraps the tool identity");
     let stale: Run = run(&fixture.path, &[], b"");
     assert_eq!((stale.status, stale.stdout.as_str()), (2, ""));
     assert_eq!(
         stale.stderr,
         format!(
-            "monochromatic-lint: Configuration {0}/{1}: Unknown built-in rule rust/no-anonymous-functions. (monochromatic-lint {2}) The resolved binary may be stale: {0}/mise.lock pins cargo:monochromatic-lint {pin}, newer than this binary.\n",
+            "{PROGRAM}: Configuration {0}/{1}: Unknown built-in rule rust/no-anonymous-functions. ({PROGRAM} {2}) The resolved binary may be stale: {0}/{3} pins {4} {pin}, newer than this binary.\n",
             fixture.path.display(),
             CONFIG,
-            env!("CARGO_PKG_VERSION")
+            env!("CARGO_PKG_VERSION"),
+            LOCK_NAME,
+            tool_id
         )
     );
 }
@@ -700,8 +727,8 @@ fn an_older_repository_pin_adds_no_stale_binary_hint() {
     let fixture: Fixture = Fixture::new();
     fixture.write("a.rs", "fn main() {}\n");
     fixture.write(
-        "mise.lock",
-        "[[tools.\"cargo:monochromatic-lint\"]]\nversion = \"0.0.0\"\n",
+        LOCK_NAME,
+        format!("{TOOL_TABLE}\nversion = \"0.0.0\"\n").as_str(),
     );
     fixture.write(
         CONFIG,
@@ -805,10 +832,7 @@ fn fixing_writes_atomically_and_keeps_the_file_mode() {
     }
     assert_eq!(
         refused_codes,
-        [
-            "core/fix-refused",
-            "markdown/link-image-reference-definitions"
-        ]
+        [FIX_REFUSED, "markdown/link-image-reference-definitions"]
     );
     assert_eq!(refusal.read("a.md"), "[unused]: https://example.com\n");
     assert_eq!(
@@ -959,7 +983,7 @@ fn standard_input_fixing_separates_source_from_findings() {
     assert!(
         invalid
             .stderr
-            .starts_with("monochromatic-lint: Standard input is not valid UTF-8"),
+            .starts_with(format!("{PROGRAM}: Standard input is not valid UTF-8").as_str()),
         "{}",
         invalid.stderr
     );
@@ -981,10 +1005,7 @@ fn standard_input_fixing_separates_source_from_findings() {
     for record in records(broken.stderr.as_str()) {
         broken_codes.push(String::from(record["code"].as_str().expect("code")));
     }
-    assert_eq!(
-        broken_codes,
-        ["core/fix-refused", "core/processing-failure"]
-    );
+    assert_eq!(broken_codes, [FIX_REFUSED, PROCESSING_FAILURE]);
 }
 
 /// The commit-time shape:
@@ -1089,10 +1110,7 @@ fn rules_init_print_config_and_debug_modes() {
     let rules: Run = run(&fixture.path, &["--rules"], b"");
     assert_eq!((rules.status, rules.stderr.as_str()), (0, ""));
     let listed: Vec<serde_json::Value> = records(rules.stdout.as_str());
-    assert_eq!(listed.len(), 27);
-    assert_eq!(listed[0]["id"], "rust/max-lines");
-    assert_eq!(listed[17]["id"], "markdown/lfs-image-url");
-    assert_eq!(listed[26]["id"], "shell/no-ampersand");
+    assert_listing_matches_registry(listed.as_slice());
     let init: Run = run(&fixture.path, &["--init"], b"");
     assert_eq!((init.status, init.stderr.as_str()), (0, ""));
     assert_eq!(
@@ -1105,7 +1123,7 @@ fn rules_init_print_config_and_debug_modes() {
     assert!(
         again
             .stderr
-            .starts_with("monochromatic-lint: Cannot create "),
+            .starts_with(format!("{PROGRAM}: Cannot create ").as_str()),
         "{}",
         again.stderr
     );
@@ -1128,7 +1146,7 @@ fn rules_init_print_config_and_debug_modes() {
     assert_eq!(debug.status, 1);
     assert!(!debug.stderr.is_empty());
     for line in debug.stderr.lines() {
-        assert!(line.starts_with("monochromatic-lint: debug: "), "{line}");
+        assert!(line.starts_with(format!("{PROGRAM}: debug: ").as_str()), "{line}");
     }
     assert_eq!(fixture.read("a.md"), "# Title.\n");
 }
@@ -1152,7 +1170,7 @@ fn debug_streams_workspace_progress_and_plain_runs_stay_silent() {
     assert!(
         debug
             .stderr
-            .contains("monochromatic-lint: debug: discovering sysroot\n"),
+            .contains(format!("{PROGRAM}: debug: discovering sysroot\n").as_str()),
         "{}",
         debug.stderr
     );
@@ -1163,7 +1181,7 @@ fn debug_streams_workspace_progress_and_plain_runs_stay_silent() {
     for output in [&debug, &plain] {
         assert_eq!(
             located(output.stdout.as_str()),
-            ["src/lib.rs core/processing-failure 1 1"]
+            [format!("src/lib.rs {PROCESSING_FAILURE} 1 1")]
         );
     }
 }
@@ -1355,7 +1373,7 @@ fn directives_through_the_executable() {
     assert_eq!((plain.status, plain.stderr.as_str()), (1, ""));
     assert_eq!(
         located(plain.stdout.as_str()),
-        ["lib.rs directive/non-suppressible 2 41"]
+        [format!("lib.rs {NON_SUPPRESSIBLE} 2 41")]
     );
     // An unused directive is a warning on request, an error with the severity option.
     fixture.write("lib.rs", "//! Docs.\n");
@@ -1372,10 +1390,7 @@ fn directives_through_the_executable() {
         b"",
     );
     assert_eq!(error.status, 1);
-    assert_eq!(
-        records(error.stdout.as_str())[0]["code"],
-        "directive/unused"
-    );
+    assert_eq!(records(error.stdout.as_str())[0]["code"], UNUSED);
     // Giving both spellings, or an unknown severity, is a usage error.
     for arguments in [
         vec![
@@ -1411,17 +1426,15 @@ fn directives_through_the_executable() {
     );
     assert_eq!(
         located(piped.stdout.as_str()),
-        ["n.md directive/unused 3 43"]
+        [format!("n.md {UNUSED} 3 43")]
     );
     // The listing declares which rules refuse directives.
     let rules: Run = run(&fixture.path, &["--rules"], b"");
     let listed: Vec<serde_json::Value> = records(rules.stdout.as_str());
-    assert_eq!(listed[0]["id"], "rust/max-lines");
-    assert_eq!(listed[0]["suppressible"], false);
-    assert_eq!(listed[1]["suppressible"], false);
-    assert_eq!(listed[2]["suppressible"], true);
+    assert_listing_matches_registry(listed.as_slice());
 }
 
-/// The unit-test scratch root, shared with the library test build and placed in the build directory.
+/// The unit-test scratch root,
+/// shared with the library test build and placed in the build directory.
 #[path = "test_scratch.rs"]
 mod test_scratch;

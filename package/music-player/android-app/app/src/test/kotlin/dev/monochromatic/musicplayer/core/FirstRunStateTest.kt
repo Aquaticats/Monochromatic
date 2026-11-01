@@ -73,8 +73,8 @@ class FirstRunStateTest {
     @Test
     fun declinedOffersAllowAccessFirst() {
         val copy: FirstRunCopy = firstRunCopy(state = FirstRunState.DECLINED, folderName = null)
-        assertEquals("Allow access", copy.primaryAction)
-        assertEquals(listOf("Open a folder", "Settings"), copy.secondaryActions)
+        assertEquals(ALLOW_ACCESS_LABEL, copy.primaryAction)
+        assertEquals(listOf(OPEN_FOLDER_LABEL, SETTINGS_LABEL), copy.secondaryActions)
     }
 
     // What:     `declinedExplainsAnalysis` checks that only the declined state carries the explanation.
@@ -133,8 +133,8 @@ class FirstRunStateTest {
     @Test
     fun systemNoAudioOffersFolderThenSettings() {
         val copy: FirstRunCopy = firstRunCopy(state = FirstRunState.SYSTEM_NO_AUDIO, folderName = null)
-        assertEquals("Open a folder", copy.primaryAction)
-        assertEquals(listOf("Settings"), copy.secondaryActions)
+        assertEquals(OPEN_FOLDER_LABEL, copy.primaryAction)
+        assertEquals(listOf(SETTINGS_LABEL), copy.secondaryActions)
     }
 
     // What:     `folderNoAudioInsertsFolderName` checks that the chosen folder name appears in the headline.
@@ -198,8 +198,8 @@ class FirstRunStateTest {
     @Test
     fun folderNoAudioOffersFolderThenSettings() {
         val copy: FirstRunCopy = firstRunCopy(state = FirstRunState.FOLDER_NO_AUDIO, folderName = "Albums")
-        assertEquals("Open a folder", copy.primaryAction)
-        assertEquals(listOf("Settings"), copy.secondaryActions)
+        assertEquals(OPEN_FOLDER_LABEL, copy.primaryAction)
+        assertEquals(listOf(SETTINGS_LABEL), copy.secondaryActions)
     }
 
     // What:     `folderNoAudioRejectsMissingName` checks that a null folder name throws.

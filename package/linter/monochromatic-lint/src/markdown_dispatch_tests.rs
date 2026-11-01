@@ -19,27 +19,24 @@ use crate::markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings
 use crate::markdown_source::MarkdownSource;
 use monochromatic_jsonc_edit::parse_jsonc;
 use std::collections::BTreeMap;
+use crate::configuration_rules::RULE_IDS;
 use std::path::PathBuf;
+
+/// The Markdown LFS rule, which needs an LFS context the other rules never read.
+const LFS_RULE: &str = "markdown/lfs-image-url";
 
 /// One document that violates every Markdown rule except the LFS rule at least once.
 const DOCUMENT: &str = "# One\n\n### Skipped level.\n\n# One\n\n**Emphasis as heading**\n\n```sh\n$ ls\n```\n\n```\nunlabeled\n```\n\nSee https://example.com and [shortcut] here. Second sentence follows on one line.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n![shot](asset/shot.png)\n\n[shortcut]: https://example.com/a\n[unused]: https://example.com/b\n";
 
 /// Rule identifiers in registry order,
-///  excluding the LFS rule.
-const IDS: [&str; 12] = [
-    "markdown/heading-increment",
-    "markdown/commands-show-output",
-    "markdown/no-duplicate-heading",
-    "markdown/single-h1",
-    "markdown/no-trailing-punctuation",
-    "markdown/no-bare-urls",
-    "markdown/no-emphasis-as-heading",
-    "markdown/fenced-code-language",
-    "markdown/link-image-reference-definitions",
-    "markdown/link-image-style",
-    "markdown/no-pipe-tables",
-    "markdown/semantic-line-breaks",
-];
+///  excluding the LFS rule, which the tests exercise separately with a context.
+fn ids() -> Vec<&'static str> {
+    return RULE_IDS
+        .iter()
+        .copied()
+        .filter(|id| return id.starts_with("markdown/") && *id != LFS_RULE)
+        .collect()
+}
 
 /// Parse the shared fixture.
 fn document() -> MarkdownSource {
@@ -100,7 +97,7 @@ fn nothing_selected_reports_nothing() {
 #[test]
 fn each_selected_rule_runs_alone() {
     let parsed: MarkdownSource = document();
-    for id in IDS {
+    for id in ids() {
         let selected: MarkdownRuleSettings =
             settings(format!("{{\"{id}\":{{\"severity\":\"warn\"}}}}").as_str());
         let findings: Vec<Diagnostic> = check_markdown_rules(&parsed, &selected, false, None);
@@ -116,7 +113,7 @@ fn each_selected_rule_runs_alone() {
 #[test]
 fn all_selected_rules_report_in_registry_order() {
     let mut source: String = String::from("{");
-    for id in IDS {
+    for id in ids() {
         source.push_str(format!("\"{id}\":{{\"severity\":\"error\"}},").as_str());
     }
     source.push_str("\"markdown/lfs-image-url\":{\"severity\":\"error\"}}");
@@ -124,8 +121,8 @@ fn all_selected_rules_report_in_registry_order() {
     let context: LfsImageContext = lfs();
     let findings: Vec<Diagnostic> =
         check_markdown_rules(&document(), &selected, false, Some(&context));
-    let mut expected: Vec<&str> = Vec::<&str>::from(IDS);
-    expected.push("markdown/lfs-image-url");
+    let mut expected: Vec<&str> = ids();
+    expected.push(LFS_RULE);
     assert_eq!(distinct_codes(findings.as_slice()), expected);
 }
 

@@ -61,6 +61,9 @@ use std::process::{Command, Output, Stdio};
 /// import { SHADOWED_NAMES } from 'search_shadow/constants';
 /// ```
 use search_shadow::constants::SHADOWED_NAMES;
+/// Imports the exit code for a missing real tool and the priority level the shim uses.
+use search_shadow::constants::NOT_FOUND_EXIT_CODE;
+use search_shadow::priority::LOWEST_BEST_EFFORT_LEVEL;
 
 /// What:
 /// `const SHADOW_EXECUTABLE: &str = env!("CARGO_BIN_EXE_search-shadow");` pastes in at compile time
@@ -202,7 +205,8 @@ fn runs_the_real_tool_with_the_arguments_at_the_lowest_best_effort_priority() {
     assert!(stdout.contains("REAL foo bar"), "arguments did not arrive: {stdout}");
     // Only assert the class where `ionice` exists, since the shim runs the tool at normal priority without it.
     if Path::new("/usr/bin/ionice").exists() {
-        assert!(stdout.contains("best-effort: prio 7"), "the tool did not run at best-effort level 7: {stdout}");
+        let expected = format!("best-effort: prio {LOWEST_BEST_EFFORT_LEVEL}");
+        assert!(stdout.contains(&expected), "the tool did not run at {expected}: {stdout}");
     }
 }
 
@@ -215,7 +219,8 @@ fn the_fake_tool_alone_does_not_run_at_level_seven() {
     }
     let (root, _path_variable) = make_world();
     let direct = Command::new(root.path().join("real").join("rg")).env("PATH", "/usr/bin:/bin").output().expect("run the script");
-    assert!(!String::from_utf8_lossy(&direct.stdout).contains("prio 7"));
+    let seventh = format!("prio {LOWEST_BEST_EFFORT_LEVEL}");
+    assert!(!String::from_utf8_lossy(&direct.stdout).contains(&seventh));
 }
 
 /// The policy refusal:
@@ -286,7 +291,7 @@ fn exits_127_when_the_real_tool_is_missing() {
 
     let output = run_rg(root.path(), &texts(&["foo"]), root.path(), &only_shadow, &[]);
 
-    assert_eq!(output.status.code(), Some(127));
+    assert_eq!(output.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(String::from_utf8_lossy(&output.stderr).contains("no real `rg`"));
 }
 

@@ -22,11 +22,12 @@ import {
   neuralWattLedgerPathFrom,
 } from './neuralwatt-ledger-config.ts';
 import {
+  NEURALWATT_ABANDONED_ESTIMATE,
+  NEURALWATT_UNREPORTED_ESTIMATE,
   type NeuralWattLedgerEntry,
   neuralWattEntryOf,
   type NeuralWattReckoning,
 } from './neuralwatt-ledger-entry.ts';
-
 //region NeuralWatt ledger
 // THE METER FOR THE DAILY FREE ENERGY, kept here because nobody else keeps it.
 //
@@ -511,7 +512,7 @@ export function createNeuralWattLedger(
       void releasing;
       await note(entryFor({
         wh: measuredWh ?? estimateWh,
-        ...((measuredWh === undefined) ? { estimated: 'unreported-estimate' as const, } : {}),
+        ...((measuredWh === undefined) ? { estimated: NEURALWATT_UNREPORTED_ESTIMATE, } : {}),
       },),);
     }
 
@@ -522,7 +523,7 @@ export function createNeuralWattLedger(
     async function noteAbandoned(): Promise<void> {
       await note(entryFor({
         wh: estimateWh,
-        estimated: 'abandoned-estimate',
+        estimated: NEURALWATT_ABANDONED_ESTIMATE,
       },),);
     }
 

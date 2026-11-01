@@ -17,6 +17,7 @@ import { infoLinesDuring, } from '@monochromatic-dev/translation-repair-typograp
 import {
   limitsLoggerOnce,
   RATE_LIMIT_HEADER_PREFIX,
+  RETRY_AFTER_HEADER,
 } from '../dist/final/node/index.mjs';
 
 await describe({
@@ -35,7 +36,7 @@ await describe({
             logLimits({
               status: 200,
               bodyText: '',
-              headers: { [`${RATE_LIMIT_HEADER_PREFIX}requests-limit`]: '1000', 'retry-after': '1', },
+              headers: { [`${RATE_LIMIT_HEADER_PREFIX}requests-limit`]: '1000', [RETRY_AFTER_HEADER]: '1', },
             },);
             logLimits({
               status: 200,
@@ -46,8 +47,8 @@ await describe({
         },);
         expect(logged.length,).toBe(1,);
         expect(logged[0],).toContain('[the-cat-client]',);
-        expect(logged[0],).toContain('rate limits on the first reply: anthropic-ratelimit-requests-limit=1000',);
-        expect(logged[0],).not.toContain('retry-after',);
+        expect(logged[0],).toContain(`rate limits on the first reply: ${RATE_LIMIT_HEADER_PREFIX}requests-limit=1000`,);
+        expect(logged[0],).not.toContain(RETRY_AFTER_HEADER,);
       },
     },),
   ],

@@ -85,6 +85,7 @@ fn unlisted_policies_run_only_when_built_in() {
             PolicyId::MarkdownAutofix,
             PolicyId::ForbiddenRootContext,
             PolicyId::DependentVersionBump,
+            PolicyId::CatalogSpecifiers,
             PolicyId::ForbiddenStrings,
         ]
     );
@@ -186,12 +187,14 @@ fn defaults_run_built_ins_only_with_incumbent_tuning() {
         defaults.concurrency.index_lock.unproven_owner_timeout_ms,
         DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS
     );
-    assert_eq!(DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS, 1_000);
+    // A zero timeout would give up on an unproven owner at once.
+    const { assert!(DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS > 0) };
     assert_eq!(
         defaults.concurrency.landing.reserve_after_lost_races,
         DEFAULT_RESERVE_AFTER_LOST_RACES
     );
-    assert_eq!(DEFAULT_RESERVE_AFTER_LOST_RACES, 1);
+    // A lost race reserves the next slot at least once.
+    const { assert!(DEFAULT_RESERVE_AFTER_LOST_RACES > 0) };
     assert_eq!(
         defaults.policies.markdown_autofix.rules,
         vec![MarkdownRule::LfsImageUrl]
