@@ -867,9 +867,18 @@ every `install` removes the older managed copies of this repository's tools:
 - The emptied root keeps its `current` link,
   which now forwards to the other root's `current`:
   a launcher record or a link that names the emptied root's `current` keeps running the newest copy and never dangles.
+  The forward is made before the versions go,
+  and only if the root still holds no finished version outside the ones being removed when the plan is applied
+  (another tree may have installed a newer one meanwhile,
+  and it owns its `current`).
 - When the emptied root's scope installs a newer version,
   its `current` becomes a real link again and the other root forwards instead.
-- `prune --toolchain` leaves a crate directory that holds only such a forward.
+- `prune --toolchain` leaves a crate directory that holds only such a forward,
+  and never removes a cargo version that the other root's `current` forwards to (it reads only this scope's locks).
+- Every `install`,
+  in either scope,
+  that finds the tool already installed points the winning root's `current` at that root's newest finished version first,
+  so a link left stale there by a run killed between the completion marker and the link cannot make another scope run an older copy.
 - The older copy is never the only working one:
   it is kept when the tool's own install failed in this run,
   or when the newest copy's program for a bin is missing or not executable.
@@ -1020,8 +1029,20 @@ exposure directory and postinstall commands are done:
 - Only when no link that could be seen resolves to the copy any more,
   and the managed copy is still an executable file,
   the copy is removed:
-  with `cargo uninstall --root <cargo home> --bin <bin> <crate>` when `.crates.toml` names the bin (which updates cargo's records and leaves every other bin of that crate alone),
+  with `cargo uninstall --root <cargo home> --bin <bin> -- <crate>` when `.crates.toml` names the bin (which updates cargo's records and leaves every other bin of that crate alone),
   otherwise the file itself.
+- The crate name comes from a file this program did not write,
+  so it is read again at removal,
+  must still start with `monochromatic-`,
+  and follows `--` so cargo never reads it as an option.
+- A copy that another run already removed (the file,
+  or the file and its record after a `cargo uninstall` that failed on the lock) counts as done,
+  not as a failure.
+- A copy that `.crates.toml` does not name at all (placed by hand,
+  or from a release archive) is removed the same way after its links moved,
+  by the owner's answer of 2026-11-01 to "delete it or keep it":
+  "Keep it as built:
+  any unrecorded copy with a declared bin name is removed after its links are re-pointed."
 - Each action is printed after the counts line,
   as `toolchain install: re-pointed <link> -> <managed copy>` and `toolchain install: removed <copy> (...)`.
 - A second `install` finds nothing to do and prints nothing.
@@ -1033,6 +1054,10 @@ and the launchers it made were made before the removal.
 #### Known places
 
 - `~/.local/bin` (the global scope's link directory) and the global exposure directory (`<data home>/monochromatic-dev/toolchain-global/exposure`).
+- The shared cargo bin directory itself,
+  because a link beside the copy (`git` to its sibling `cli-git-native`,
+  relative) would dangle once the copy is gone;
+  rustup's proxies and links to other programs there are never touched.
 - Every directory under `.cache` whose name ends in `-bin` (`cli-git-bin`,
   `mpm-shadow-bin`,
   `search-shadow-bin`,
@@ -1121,6 +1146,8 @@ Measured on 2026-11-01 (UTC) with cargo 1.101.0-nightly in disposable homes that
   and so is a crate named in neither record,
   so `.crates.toml` decides whether cargo is asked.
 - `--bin <name>` on a crate with several bins removed that bin only and rewrote the entry with the others.
+- `cargo uninstall --root <cargo home> --bin <name> -- <crate>` is accepted:
+  `--` before the crate name changes nothing for a real name.
 - An unparseable `.crates2.json` made `cargo uninstall` fail with a message naming the file,
   in a run of the built binary against a disposable tree.
 
