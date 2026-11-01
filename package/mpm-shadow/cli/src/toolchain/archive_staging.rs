@@ -39,6 +39,8 @@ use std::path::{Path, PathBuf};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `is_finished` from `super::published_archive`.
+use super::published_archive::is_finished;
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -90,21 +92,29 @@ pub fn discard_path(path: &Path) {
 
 /// What:
 /// Makes the staged install the version directory.
-/// A copy already at the version's name that carries the marker is kept
-/// (another run installed the same verified release meanwhile) and the staging directory is discarded;
+/// A copy already at the version's name that is finished
+/// (it carries the marker and still holds `first_bin` as an executable file,
+/// as `is_finished` checks)
+/// is kept,
+/// because another run installed the same verified release meanwhile,
+/// and the staging directory is discarded;
 /// any other copy is moved aside first,
 /// so a failed rename puts it back,
 /// and removed once the new one is in place.
 /// Why:
-/// The rename is atomic, so a reader sees no version directory or a whole one,
+/// The rename is atomic,
+/// so a reader sees no version directory or a whole one,
 /// and a copy that was working is never deleted before its replacement is in place.
+/// A marker alone is not enough to keep the old copy:
+/// a person who deleted or made non-executable the program in a marked directory
+/// would otherwise see every later install discard the good copy and report success.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function publishStaged(staging: string, finalDir: string): void  // throws
+/// export function publishStaged(staging: string, finalDir: string, firstBin: string): void  // throws
 /// ```
-pub fn publish_staged(staging: &Path, final_dir: &Path) -> Result<(), ToolchainError> {
-    if has_complete_marker(final_dir) {
+pub fn publish_staged(staging: &Path, final_dir: &Path, first_bin: &str) -> Result<(), ToolchainError> {
+    if is_finished(final_dir, first_bin) {
         discard_path(staging);
         return Ok(());
     }

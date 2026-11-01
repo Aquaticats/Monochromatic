@@ -147,10 +147,23 @@ fn only_an_archive_tool_with_a_repository_tag_prefix_is_repository_published() {
     assert!(!is_published_archive(&other_repository), "the prefix of another repository's tool does not make it this repository's");
     assert!(!is_repository_published(&other_repository));
 
-    for spelling in ["github:aquaticats/monochromatic@latest", "github:Aquaticats/Monochromatic-fork@latest", "github:Aquaticats/Monochromatic2@latest"] {
+    // GitHub owner and repository names are case-insensitive, so another spelling of this repository still counts.
+    for spelling in ["github:aquaticats/monochromatic@latest", "github:AQUATICATS/MONOCHROMATIC@latest", "github:aquaticats/Monochromatic@0.2.0"] {
+        let mut respelled = release_tool(&rig, "0.2.0");
+        respelled.declaration.request = Request::parse(spelling).expect("parses");
+        assert!(is_published_archive(&respelled), "{spelling}: the same repository in another letter case");
+        assert!(is_repository_published(&respelled), "{spelling}");
+    }
+    for spelling in [
+        "github:Aquaticats/Monochromatic-fork@latest",
+        "github:Aquaticats/Monochromatic2@latest",
+        "github:Aquaticats/Monochromati@latest",
+        "github:Aquaticats2/Monochromatic@latest",
+        "github:aquaticats/monochromatic/x@latest",
+    ] {
         let mut near_miss = release_tool(&rig, "0.2.0");
         near_miss.declaration.request = Request::parse(spelling).expect("parses");
-        assert!(!is_published_archive(&near_miss), "{spelling}: the repository is matched exactly as the plan writes it");
+        assert!(!is_published_archive(&near_miss), "{spelling}: a different repository, whatever its letter case");
     }
     let mut pinned = release_tool(&rig, "0.2.0");
     pinned.declaration.request = Request::parse("github:Aquaticats/Monochromatic@0.2.0").expect("parses");
@@ -364,6 +377,11 @@ fn a_lock_names_only_the_release_archives_of_this_repository() {
     assert_eq!(named[ID].versions.iter().cloned().collect::<Vec<_>>(), vec!["0.2.1".to_string()]);
     assert_eq!(named[ID].first_bin, BIN);
 
+    for spelling in ["aquaticats/monochromatic", "AQUATICATS/MONOCHROMATIC"] {
+        let respelled = named_lock("0.2.1").replace("Aquaticats/Monochromatic", spelling);
+        let in_other_case = named_archives(&respelled, "the lock").expect("reads");
+        assert_eq!(in_other_case.keys().cloned().collect::<Vec<_>>(), vec![ID.to_string()], "{spelling}: the same repository in another letter case");
+    }
     let other_repository = named_lock("0.2.1").replace("Aquaticats/Monochromatic", "other/repo");
     assert!(named_archives(&other_repository, "the lock").expect("reads").is_empty(), "a prefix of this repository's style on another repository's tool");
     let no_request = named_lock("0.2.1").replace("\"request\":\"github:Aquaticats/Monochromatic@latest\",", "");
@@ -467,4 +485,27 @@ fn a_tool_of_another_repository_with_this_repositorys_style_of_prefix_keeps_its_
     rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
     assert!(prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned").is_empty());
     assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.0").is_dir());
+}
+
+#[test]
+fn a_tool_whose_request_spells_this_repository_in_another_case_is_kept_newest_only() {
+    let rig = Rig::new();
+    serve_releases(&rig, &["0.2.0", "0.2.1"]);
+    let root = rig.scope.toolchain_root.clone();
+    let respelled = |version: &str| {
+        let mut tool = release_tool(&rig, version);
+        tool.declaration.request = Request::parse("github:aquaticats/monochromatic@latest").expect("parses");
+        return Lock { tools: vec![tool] };
+    };
+    let old_lock = respelled("0.2.0");
+    let new_lock = respelled("0.2.1");
+    sync_tools(&context_of(&rig, &rig.scope, &old_lock), None);
+    let report = sync_tools(&context_of(&rig, &rig.scope, &new_lock), None);
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists(), "installing 0.2.1 removed 0.2.0");
+    assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.1"));
+
+    // A tree pinning the older version is warned, as for the exact spelling.
+    let warnings = older_lock_warnings(&rig.scope, &old_lock.tools, Some(OsFamily::Linux));
+    assert_eq!(warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")]);
 }

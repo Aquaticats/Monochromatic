@@ -275,7 +275,8 @@ or a Java major line such as `21`).
   (`1.2.3` or `1.2.3-rc.1`;
   a `v` in front of it only when the prefix does not end in `v`);
   the version is that rest of the tag.
-  The list is ordered by creation, not by version:
+  The list is ordered by creation,
+  not by version:
   a backport released later sits ahead of the newer line,
   so the first match is not necessarily the highest version.
   A tag such as `monochromatic-foo-2-v1.0.0` is a release of another program and never matches
@@ -287,6 +288,15 @@ or a Java major line such as `21`).
   a tag that does not continue the prefix with a version is refused.
   A list with no such release is an error that names the prefix,
   and says so when the search stopped at its cap of ten pages.
+  Taking the highest version means reading every page until a short one (up to ten),
+  so one lookup can cost ten API requests,
+  each on a new connection because the client keeps none open.
+  GitHub's primary limit for unauthenticated requests is 60 an hour
+  (see
+  [the REST API rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)),
+  and the resolver sends the token of `GITHUB_TOKEN`,
+  or of a logged-in `gh`,
+  when there is one.
   Changing the prefix is a resolution-affecting edit:
   it needs `mpm-shadow update`.
   Characters other than letters,
@@ -665,18 +675,41 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   checked against the lock's SHA-256,
   and only then unpacked with `tar` or `unzip`.
   A file that does not match is deleted and nothing is installed from it.
+  Every `archive` tool,
+  not only the ones this repository publishes,
+  is unpacked into a hidden staging directory,
+  marked complete,
+  and renamed to the version's name (see "Repository-published tools keep only the newest version");
+  only a release archive of this repository is also checked for its first program,
+  and only for it does the marker decide whether a version counts as installed.
 - `bin-sourced` tools go through the `bin` CLI.
-- A name taken from the plan, the lock or a release tag is joined onto the toolchain root,
+- A name taken from the plan,
+  the lock or a release tag is joined onto the toolchain root,
   so each must be one plain directory name:
-  a tool id (after `/`, `:` and `@` are turned into `-`) and a version must not be empty, `.` or `..`,
-  hold `/`, `\` or NUL, or start with a dot,
+  a tool id (after `/`,
+  `:` and `@` are turned into `-`) and a version must not be empty,
+  `.` or `..`,
+  hold `/`,
+  `\` or NUL,
+  or start with a dot,
   a version must not be `current`,
   and a tool id must not map to a directory the toolchain root keeps for something else
-  (`cargo`, `downloads`, `exposure`, `launchers`, `bin.config.json`;
-  the ids `bin` and `node` stay allowed, because the shipped lock owns them).
-  A bin name must not be empty, `.` or `..`, or hold `/`, `\` or NUL.
-  The plan and lock decoders, the reader of other worktrees' locks, `update` (for a version taken from a release tag)
-  and the path builders all refuse such a name, and the message names it.
+  (`cargo`,
+  `downloads`,
+  `exposure`,
+  `launchers`,
+  `bin.config.json`;
+  the ids `bin` and `node` stay allowed,
+  because the shipped lock owns them).
+  A bin name must not be empty,
+  `.` or `..`,
+  or hold `/`,
+  `\` or NUL.
+  The plan and lock decoders,
+  the reader of other worktrees' locks,
+  `update` (for a version taken from a release tag)
+  and the path builders all refuse such a name,
+  and the message names it.
   Entries in the plan's `postinstall` are not checked this way.
 - mpm is never asked to install or look up a version:
   mpm 8.2.0 ignores a pinned version for cargo and pnpm,
@@ -711,13 +744,16 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --versi
   each tree's `.cache/toolchain-bin` links the version its own lock names.
 - A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
   repository's own crates) is repository-published.
-  So is an `archive` tool whose request names `github:Aquaticats/Monochromatic` (written exactly so)
+  So is an `archive` tool whose request names `github:Aquaticats/Monochromatic`
+  (in any letter case,
+  because GitHub owner and repository names are case-insensitive)
   and whose `options.tagPrefix` starts with `monochromatic-`:
   a release archive of this repository,
   such as `mpm-shadow` itself,
   whose plan entry is `github:Aquaticats/Monochromatic@latest` with `"tagPrefix": "monochromatic-mpm-shadow-v"`
   so that the lock records the archive's SHA-256 for the bootstrap.
-  A tool of any other repository is never judged by this rule, whatever its tag prefix.
+  A tool of any other repository is never judged by this rule,
+  whatever its tag prefix.
   The plan and lock carry no second list of them.
   See the next section.
 
@@ -743,10 +779,13 @@ whichever route installed them.
   at the version's name,
   count as finished and cause the working older version to be deleted.
   A failed install removes its staging directory and touches no copy that was already there.
-  A directory without the marker (one an earlier release unpacked in place, or one cut short) is never finished:
-  it is never the newest, so it never causes a deletion or moves `current`,
+  A directory without the marker (one an earlier release unpacked in place,
+  or one cut short) is never finished:
+  it is never the newest,
+  so it never causes a deletion or moves `current`,
   and the next install of that version replaces it.
-  A run killed without cleanup leaves its staging directory behind; nothing reads it and it can be deleted by hand.
+  A run killed without cleanup leaves its staging directory behind;
+  nothing reads it and it can be deleted by hand.
 - Downloaded archives are kept in `<toolchain root>/downloads/<tool>/<version>/`
   and removed with their version.
 - `<toolchain root>/cargo/<crate>/current` (for a release archive,
@@ -830,13 +869,16 @@ It runs only when asked;
   when git cannot list the worktrees,
   when a listed worktree's directory is missing and not marked prunable,
   or when a known lock exists but cannot be read,
-  or when a known lock names a release archive of this repository under an id, version or first bin that is not one
+  or when a known lock names a release archive of this repository under an id,
+  version or first bin that is not one
   plain directory name.
   A lock in the TypeScript tool's format is read for `tools.<id>.version`,
   `route` and `packageId` only.
 - When two known locks name the same release archive with different first bins,
   the lock read last decides which program shows an install finished
-  (this scope's lock first, then the worktrees', then each `--lock` file).
+  (this scope's lock first,
+  then the worktrees',
+  then each `--lock` file).
 - A `--lock` is the only way to protect a tree that git does not list.
 
 ### Migration from the shared `$CARGO_HOME/bin`
