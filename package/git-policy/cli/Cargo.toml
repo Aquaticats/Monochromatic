@@ -28,6 +28,12 @@ path = "src/native/lib.rs"
 name = "cli-git-native"
 path = "src/native/main.rs"
 
+# The resident commit service (doc/planning/cli-git-resident-service.md): a separate program the operating system starts
+# on demand through socket activation; the wrapper never starts it.
+[[bin]]
+name = "cli-git-service"
+path = "src/native/service_main.rs"
+
 # cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version},
 # but this repository tags each crate's release monochromatic-git-policy-cli-v<version> and names the archive
 # monochromatic-git-policy-cli-<version>-<target>, so without this table mise falls back to compiling from source.

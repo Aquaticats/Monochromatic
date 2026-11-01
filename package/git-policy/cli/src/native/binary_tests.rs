@@ -209,6 +209,10 @@ mod fault_filesystem;
 #[path = "binary_lfs_hang_tests.rs"]
 mod lfs_hang;
 
+/// The resident commit service as a real process: kills at each point of a batch, requests sent again, late and older services.
+#[path = "binary_service_tests.rs"]
+mod service;
+
 /// A Git step past its class bound is stopped, named with its class, and the repository recovers.
 #[path = "binary_child_bound_tests.rs"]
 mod child_bound;
