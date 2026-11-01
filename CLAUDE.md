@@ -1351,6 +1351,13 @@ TRV:
  A green test run counts only when its output contains the expected suite and test names;
  an unawaited lazy suite exits 0 while running nothing.
 
+MGN:
+ Tests never assert magic numbers or magic lists;
+ derive expectations from the named constant,
+ the input,
+ or the relation under test,
+ so a legitimate change breaks no test.
+
 GFP:
  A guard test proves nothing until shown to fail:
  commit it,
