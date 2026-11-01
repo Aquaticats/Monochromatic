@@ -843,6 +843,25 @@ The wrapper, its recovery paths and its tests are expected to work under these c
 - slow fsync and unusual filesystems;
 - DNS or mirror trouble, where the wrapper recovers or falls back instead of wedging.
 
+### Latency requirements
+
+Two requirements bound the latency the wrapper adds, and `native:perf` enforces both:
+
+- A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
+- Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git
+  (each commit, not a percentile of them).
+
+No wrapped command is required to finish within a fixed time, and there is no 5-second bound on wrapped commands.
+The owner's words (2026-11-01):
+
+> " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
+> The measure is always just commits vs native git should not take 5s longer.
+
+The 5-second `timeout --signal=KILL` of the binary tests is a hang guard of the test harness
+(`TIME_BOUND_SECONDS` in `src/native/binary_support.rs`), short so that a mutant that loops fails every affected control
+quickly.
+It says nothing about how long a correct wrapped command may take.
+
 ### What pins each condition
 
 Each condition has permanent controls that start the built executable on real Git fixtures.
@@ -888,8 +907,9 @@ What the faults found, and the change for each, is in
   `CLI_GIT_PUSH_DEADLINE_SECONDS`) and a `git-lfs` that never exits, and requires that the commit stays, the failure is
   worded, no lock is held and no process the push started is left running; `binary_push_environment_tests.rs`,
   `binary_lfs_pre_push_tests.rs` and `binary_lfs_server_tests.rs` cover the stalled push and the failing upload.
-- High CPU load, memory pressure and slow I/O: the shared bound and the byte copy of the wrapper
-  (the troubleshooting note below); no control injects memory pressure.
+- High CPU load, memory pressure and slow I/O: the test harness's 5-second hang guard, which loaded hosts have tripped,
+  and the byte copy of the wrapper that keeps a cold start inside it (the troubleshooting note below);
+  no control injects memory pressure.
   `RLIMIT_AS` is the only privilege-free candidate and was not tried: the address-space cap it sets is hit by Rust and
   Git allocations alike at points that depend on the build, so it is not expected to tell a wrapper defect from an
   allocator abort.
@@ -900,7 +920,8 @@ but not swept call by call; the Git steps of a commit that the wrapper bounds ar
 them.
 
 Tests therefore never wait for a quiet host.
-The shared 5-second bound on one wrapped command is deliberate;
+The 5-second hang guard on one wrapped command in the binary tests is deliberate,
+and is not a requirement on the wrapper;
 its measurements and the evidence needed to change it are in
 [the troubleshooting note](../../../doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md).
 
@@ -992,10 +1013,18 @@ mise run //package/git-policy/cli:native:test:container
   - Every build step costs a fixed amount on a busy host (measured as tens of seconds, up to minutes, for a step that
     does no work), so the Containerfile keeps its step count low and puts the steps that rarely change first.
 - `native:perf` builds the release executable and measures the latency it adds to forwarded Git commands and to
-  explicit-path commits, with paired direct-Git samples in disposable repositories.
+  commits (explicit-path and service, unsigned and SSH-signed),
+  with paired direct-Git samples in disposable repositories.
   It reports the median, p95 and median absolute deviation of both sides and the added delta,
-  fails when a forwarded command's added p95 reaches the 2,000 ms bound or any sample fails,
-  and `-- --output <file>` stores the raw samples (baselines live in `perf/`).
+  and for each commit the median, p95 and maximum of the paired deltas (the wrapped time minus the direct time of the
+  same round).
+  It fails when a forwarded command's added p95 reaches the 2,000 ms bound,
+  when any commit's paired delta reaches the 5,000 ms bound (the owner's measure, see "Latency requirements"),
+  or when any sample fails.
+  `-- --output <file>` stores the raw samples (baselines live in `perf/`; `schemaVersion` 2 adds the paired deltas and
+  names each scenario's `kind`).
+  The judging lives in `bin/native-perf-judge.ts`, and `bin/native-perf-judge.unit.test.ts` runs it on the recorded
+  baseline, edited to break each bound.
 - `native:lock:members` records a changed dependency list or version in `Cargo.lock` without moving any other locked
   version.
 

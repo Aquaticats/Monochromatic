@@ -168,3 +168,83 @@ export function summary(samples: readonly number[]): {
     medianAbsoluteDeviation: medianAbsoluteDeviation(samples),
   };
 }
+
+/**
+ One successful sample: the round it was taken in and its elapsed milliseconds.
+ */
+export type RoundSample = {
+  readonly sample: number;
+  readonly elapsed: number;
+};
+
+/**
+ Wrapped minus direct milliseconds for every round in which both sides succeeded, in round order.
+ A round where either side failed contributes nothing, so a failure never shifts the pairing of the later rounds.
+
+ @param direct - successful direct samples with their rounds
+
+ @param wrapped - successful wrapped samples with their rounds
+
+ @returns one delta per round that has both samples
+
+ @example
+ ```ts
+ pairedDeltas({ direct: [{ sample: 0, elapsed: 4 }], wrapped: [{ sample: 0, elapsed: 9 }] });
+ ```
+ */
+export function pairedDeltas({
+  direct,
+  wrapped,
+}: {
+  readonly direct: readonly RoundSample[];
+  readonly wrapped: readonly RoundSample[];
+}): readonly number[] {
+  /**
+   Direct elapsed milliseconds by round.
+   */
+  const directByRound = new Map(direct.map(function byRound(entry) {
+    return [
+      entry.sample,
+      entry.elapsed,
+    ] as const;
+  }));
+  return wrapped.flatMap(function deltaOf(entry): readonly number[] {
+    /**
+     Direct sample of the same round, absent when the direct side failed in it.
+     */
+    const partner = directByRound.get(entry.sample);
+    return partner === undefined ? [] : [entry.elapsed - partner];
+  });
+}
+
+/**
+ Median, p95 and maximum of the paired deltas of a scenario, the shape the report stores for the commit measure.
+
+ @param deltas - paired deltas in milliseconds, at least one
+
+ @returns the three statistics; the maximum is reported because the owner's measure is about any one commit
+
+ @example
+ ```ts
+ pairedDeltaSummary([1, 2, 3]);
+ ```
+ */
+export function pairedDeltaSummary(deltas: readonly number[]): {
+  readonly median: number;
+  readonly p95: number;
+  readonly maximum: number;
+} {
+  return {
+    median: median(deltas),
+    p95: percentile95(deltas),
+    maximum: deltas.reduce(function larger(
+      most,
+      delta,
+    ) {
+      return Math.max(
+        most,
+        delta,
+      );
+    }),
+  };
+}
