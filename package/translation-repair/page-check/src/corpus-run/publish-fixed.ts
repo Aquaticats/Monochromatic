@@ -177,6 +177,10 @@ export function fixedPagePath(
  @param readGrammar - the grammar's reading of a page, the package's by default; a case plants another to make a page
  the strict grammar refuses
 
+ @param mayWrite - asked once the page is composed and its checks have run, with the slices the grammar put back to the
+ archive, and before anything is written or logged as shipped; false leaves the page standing at its path untouched
+ (an interim page that would replace a better page, B1242). Absent means write.
+
  @returns Path written, and what the page carries of the source's destinations
 
  @throws {@link UnansweredContestSliceError} when a slice the contest was
@@ -199,6 +203,7 @@ export async function publishFixedPage(
     archiveOriginalSpans = [],
     carried = [],
     readGrammar,
+    mayWrite,
   }: {
     readonly artifact: WouldShipSource;
     readonly slices: readonly ChunkPair[];
@@ -210,12 +215,15 @@ export async function publishFixedPage(
     readonly archiveOriginalSpans?: readonly ArchiveOriginalSpan[];
     readonly carried?: readonly CarriedInsertion[];
     readonly readGrammar?: Parameters<typeof pageThatParses>[0]['readGrammar'];
+    readonly mayWrite?: (composed: { readonly keptArchiveAt: readonly number[]; },) => boolean;
   },
 ): Promise<{
   readonly path: string;
   readonly pageText: string;
   readonly destinations: DestinationCheck;
   readonly defects: readonly PublishDefect[];
+  readonly keptArchiveAt: readonly number[];
+  readonly written: boolean;
 }> {
   /**
    This entry's page as the deciders settled it, with the original of every untranslated passage under its note and the
@@ -445,12 +453,6 @@ export async function publishFixedPage(
     // yulianNyanner page of 2026-09-06 carried a curled JSX string literal that way (page-grammar.ts).
     ...parsing.defects,
   ];
-  for (const {
-    check,
-    message,
-  } of defects)
-    l.warn(`publish: shipping with defect ${check}: ${message}`,);
-
   /**
    Where the page goes, once every check has reported.
    */
@@ -458,6 +460,21 @@ export async function publishFixedPage(
     publishDir,
     entryId,
   },);
+  if ((mayWrite !== undefined) && (!mayWrite({ keptArchiveAt: parsing.keptArchiveAt, },))) {
+    return {
+      path,
+      pageText,
+      destinations,
+      defects,
+      keptArchiveAt: parsing.keptArchiveAt,
+      written: false,
+    };
+  }
+  for (const {
+    check,
+    message,
+  } of defects)
+    l.warn(`publish: shipping with defect ${check}: ${message}`,);
   await mkdir(
     dirname(path,),
     { recursive: true, },
@@ -496,6 +513,8 @@ export async function publishFixedPage(
     pageText,
     destinations,
     defects,
+    keptArchiveAt: parsing.keptArchiveAt,
+    written: true,
   };
 }
 

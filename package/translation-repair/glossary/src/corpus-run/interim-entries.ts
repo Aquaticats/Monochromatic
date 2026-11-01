@@ -47,9 +47,10 @@ const RECORD_SUFFIX = '.json';
  Why a page was shipped before its entry settled: every provider went dry (the owner's answer of 2026-10-29, "Ship
  interim, resumable"), a stage heard no voice at all, which is an outage the same rule covers (B1183), or any other
  error ended the entry's work, which "no matter what, we must ship" covers (B1220); the record's `errorClass` then
- names the error.
+ names the error. A stop signal the pass was sent (`SIGINT`, `SIGTERM`) ended the entry in flight on purpose, which
+ the reason `stop-signal` says and the hard ceiling of an entry does not (B1247).
  */
-export type InterimReason = 'dry-stop' | 'entry-error' | 'provider-unavailable';
+export type InterimReason = 'dry-stop' | 'entry-error' | 'provider-unavailable' | 'stop-signal';
 
 /**
  What an interim record carries.
@@ -292,7 +293,7 @@ function isInterimRecord(fields: Readonly<Record<string, unknown>>,): fields is 
     && ((typeof fields.corpusSha) === 'string')
     && ((typeof fields.timestamp) === 'string')
     && ((fields.reason === 'dry-stop') || (fields.reason === 'entry-error')
-      || (fields.reason === 'provider-unavailable'))
+      || (fields.reason === 'provider-unavailable') || (fields.reason === 'stop-signal'))
     && ((fields.errorClass === undefined) || ((typeof fields.errorClass) === 'string'))
     && isCount(fields.settledSlices,)
     && isCount(fields.archiveSlices,)
@@ -494,6 +495,41 @@ async function readRecordFile(
     kind: 'record',
     record: parsed,
   };
+}
+
+/**
+ Reads one entry's interim record, for the pass that is about to ship another page for that entry (B1242).
+
+ @param interimDir - directory of interim records, which may be absent
+
+ @param entryId - entry whose record to read
+
+ @returns The record, or nothing where the entry has none, its file is damaged or the directory is absent
+
+ @throws What the read raises for any failure but an absent file
+
+ @example
+ ```ts
+ const record = await readInterimEntry({ interimDir, entryId: 'Kitten', },);
+ ```
+ */
+export async function readInterimEntry(
+  {
+    interimDir,
+    entryId,
+  }: {
+    readonly interimDir: string;
+    readonly entryId: string;
+  },
+): Promise<InterimEntryRecord | undefined> {
+  /**
+   What reading the file came to.
+   */
+  const read = await readRecordFile({
+    interimDir,
+    entryId,
+  },);
+  return (read.kind === 'record') ? read.record : undefined;
 }
 
 /**

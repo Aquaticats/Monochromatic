@@ -377,6 +377,9 @@ export async function runEntryPipeline(
     },);
     progress.prepared = prepared;
     progress.archiveText = settledArchiveText;
+    // FROM HERE A SOURCE-ONLY PASSAGE THAT IS STILL A GAP is one the lanes owe, and a stop ships its original under the
+    // note; before it, no admission has been read and such a passage ships nothing (B1244).
+    progress.folded = true;
 
     /**
      What both lanes made of that slicing, with neither preferred, on the

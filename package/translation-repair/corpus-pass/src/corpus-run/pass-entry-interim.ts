@@ -29,6 +29,7 @@ import { endsTheRun, } from '@monochromatic-dev/translation-repair-stage/ts';
 import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { shipPageOfStop, } from './pass-entry-interim-page.ts';
+import { pageStandingOf, } from './pass-entry-page-standing.ts';
 
 //region Pass entry interim
 // THE PART OF AN ENTRY'S PIPELINE THAT SURVIVES ITS STOP. `runEntryPipeline` keeps the slicing, the lanes, the contest
@@ -76,6 +77,12 @@ export type EntryProgress = {
    with the worse and leave an interim record beside the entry's page (B1220).
    */
   settledPageWritten?: true;
+
+  /**
+   Set once the fold of carried passages has run on the slicing in `prepared`. Before it, the admission of the source-only
+   passages has not been read, so such a passage ships nothing: the archive may already render it (B1244).
+   */
+  folded?: true;
 };
 
 /**
@@ -236,6 +243,15 @@ export async function shipInterimOnStop(
   }
   try {
     /**
+     The page that stands where this one would go, which a better page keeps (B1242, B1243).
+     */
+    const standing = await pageStandingOf({
+      publishDir,
+      interimDir,
+      entryId,
+      l,
+    },);
+    /**
      The page as written and what each of its slices carries.
      */
     const shipped = await shipPageOfStop({
@@ -244,8 +260,23 @@ export async function shipInterimOnStop(
       targetText,
       entryId,
       publishDir,
+      standing,
       l,
     },);
+    if (!shipped.written) {
+      l.warn(
+        (standing.kind === 'interim')
+          ? `entry ${entryId}: ${stopped}, and an interim page with more settled slices (${
+            String(standing.settledSlices,)
+          }) stands than this attempt settled (${
+            String(shipped.settledSlices,)
+          }), so that page and its record stay (class=${errorClass})`
+          : `entry ${entryId}: ${stopped}, and the settled page of an earlier attempt stands (a page no interim record `
+            + `describes, whose artifact is not written), so that page stays and no interim record is written `
+            + `(class=${errorClass})`,
+      );
+      return;
+    }
     // THE RECORD AFTER THE PAGE it describes, so it never names a page that was not written.
     await writeInterimEntry({
       interimDir,

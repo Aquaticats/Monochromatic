@@ -98,6 +98,8 @@ export {
   type InterimCounts,
   type InterimShip,
   type InterimStop,
+  type PageStanding,
+  standingStays,
 } from './corpus-run/interim-page.ts';
 
 //endregion Public index of the reading comparison and the fresh tails
