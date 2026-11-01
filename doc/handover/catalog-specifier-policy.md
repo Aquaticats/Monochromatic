@@ -655,6 +655,24 @@ The user confirmed the shared understanding and the order below, after the third
   The policy scan (`~/temp/agent/scan-specifiers.ts`) now finds 257 manifests and zero violations.
   Not run: a full `pnpm install` into `node_modules` and any test of `cost-dismissal`.
 
+- 2026-11-01, step 2 started: the contract is written as the README of `package/catalog-specifier/core-rust` with its executable
+  vectors in `fixtures/vectors.json`, before any code.
+  Decisions I made while writing it, veto open (small, all about syntax the user did not specify):
+  duplicate dependency names and duplicate checked sections are findings and every copy is still checked; a catalog name is
+  `[A-Za-z0-9._-]+`, deliberately narrower than pnpm (which trims and takes any text); a leading byte order mark is removed; the
+  parser is `parse_jsonc` from `monochromatic-jsonc-edit` (it keeps duplicates visible and accepts comments and trailing commas,
+  which pnpm itself may reject); the path check refuses `package.json5`, `package.yaml` and `package.yml` by last segment, case sensitive.
+- 2026-11-01, `monochromatic-7a` answered on `--policy` (measured on wrapper 0.4.6 and read from `management.rs` and `policy_engine.rs`; a
+  peer's report, not re-measured here): an unknown id exits 2; for a shipped policy `--policy` only filters, so an `off` or absent
+  optional policy runs nothing and exits 0 with no output (measured with `mono/forbidden-root-context` in a repository whose config
+  did not list it), so a bare `--policy` run can pass vacuously today.
+  Unlisted policies get severity `off` when their registry row has `off_unless_listed: true` (the four optional ones), else their
+  default; `warn` runs and reports without failing.
+  Consequences 7a recorded: `mono/catalog-specifiers` is registered with `off_unless_listed: true`, so shipping it does not activate
+  it and an older `cli-git.config.jsonc` keeps working; a direct `--policy <id>` run whose policy is `off` will exit 2 with a message
+  naming the config key (this lands with the policy work); lifecycle runs keep skipping `off` policies.
+  This answers the third review's vacuous-pass finding for the planned CI step once that change lands.
+
 ## Open items
 
 - Nothing below was asked after the confirmation; the earlier list is kept for the record.
