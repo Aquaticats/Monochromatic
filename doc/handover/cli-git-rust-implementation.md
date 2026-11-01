@@ -6745,6 +6745,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the repository into `~/temp/agent` fail with `Invalid cross-device link`. btrfs probes must run on `/var/home`.
 - Doctor (owner): say that a subvolume repository root speeds up `git worktree add`, and show the user the exact
   commands for `user_subvol_rm_allowed` (runtime and persistent) and for the migration. Sent to `abc58339444bd7c9d`.
+- 0.5.5 PUBLISHED 2026-11-01T20:51:38Z (run `41348325395`, publish run `41348865252`, release commit `e6c6799185`
+  in main). Lock bump `a0d8517d55` (signed `G`, pushed) WITHOUT the manual reset: `bump-and-verify.ts 0.5.5` printed
+  "Updating the commit service...", the commit took 3617 ms, the service restarted (start 12:19:30 to 16:11:59 EST),
+  and the unit's `ExecStart` names `.../0.5.5/bin/cli-git-service`. The self-heal is verified at the user boundary.
+  `pending` and `claimed` were empty just before. The old service's log showed two 0.5.4-only review failures ("no
+  repository scratch directory"), the bug `aa3d87fdcd` fixed.
 - Main checkout migration to a subvolume: not started. Facts: unprivileged `btrfs subvolume create` works; `mv
   --exchange` (atomic swap) and `rsync` exist; files cannot be renamed into a subvolume (`EXDEV`), so everything moved
   in is a reflink copy; `.claude/worktrees` holds 85 worktrees inside the repository root; a full walk is refused by
