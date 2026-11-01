@@ -6253,3 +6253,20 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Merged onto `integ-20261101` (fast-forwarded to main first) as `f1db4e7d2c`; gate 14 runs there (unit
   `gpc-main-gate14`). Next: merge to main, then `native:release -- 0.5.1 0.5.2 "<note>"`. Hold every merge touching the
   wrapper or its path crates until the bump commit is on main. Then 6e bumps the lock and I verify a real push.
+- Gate 14 GREEN on `f1db4e7d2c` (hotfix on the integration branch): 3072 of 3072 passed, 8 skipped. Merged into main as
+  `7a24a8d9dc`, pushed (checked script; no LFS-tracked path). 0.5.2 dispatched from main: run `41323353595`, followed
+  by `native:release:wait` (log `~/temp/agent/release-052-wait.log`). HOLD every merge touching the wrapper or its path
+  crates until the bump commit is on main. After PUBLISHED: message `monochromatic-6e` for the lock bump, then verify a
+  real push through 0.5.2 (no git-lfs start for a push without new pointers).
+- Reads follow-ups READY `97c5cad2c8` (agent `a7439531e8536aa87`). HELD until the 0.5.2 bump lands.
+  - Typed config validation (`repo_read_config_typed.rs`), swept over about 1000 documented keys against real Git; also
+    fixed a bare `core.repositoryformatversion`, invalid refspecs and a bare `tagOpt`.
+  - System config path learned from `git var GIT_CONFIG_SYSTEM` once per Git build (`git_system_config.rs`).
+  - Real sparse index declined.
+  - `miniz_oxide` 0.9.1 and `adler2` vetted, no gate failed (`doc/audit/tech-miniz-oxide-0-9-1-and-adler2-2-0-1-vet-
+    2026-11-01.md`). The audit's three findings in our code are fixed: garbage after a loose stream, an inflate input
+    bound, and a panic guard at the hook.
+  - `native:perf` cleanup race fixed (it waits for detached `git maintenance`).
+  The agent's end-to-end `native:perf` run showed commit added latency of 130 ms, against 70 ms measured earlier today
+  on its own branch. That is one run, not established. Sent to the perf agent `ae5d0d69af19e9c8c` for paired
+  measurement and attribution, because 0.5.2 ships that code.
