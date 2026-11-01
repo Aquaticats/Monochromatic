@@ -72,7 +72,7 @@ pub struct CommitWorkspace {
     pub landing: LandingWorkspace,
     /// Shadow object store receiving every object the transaction writes before landing migrates them.
     pub object_directory: PathBuf,
-    /// Hook dispatcher directory.
+    /// Directory holding the plan record, which carries the preparation lease.
     pub hooks_directory: PathBuf,
     /// Git directory of the owning worktree, holding the capture store.
     git_dir: PathBuf,

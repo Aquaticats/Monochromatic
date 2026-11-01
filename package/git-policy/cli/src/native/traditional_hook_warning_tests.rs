@@ -96,16 +96,14 @@ fn the_last_entry_decides_and_empty_entries_name_no_directory() {
 /// The wrapper's own per-transaction overrides are not the user's choice and never warn; lookalikes still do.
 #[test]
 fn the_wrappers_own_overrides_do_not_warn() {
-    for own in [
-        format!("/repo/.git/cli-git-transactions/{TRANSACTION}/no-hooks"),
-        format!("/repo/.git/cli-git-transactions/{TRANSACTION}/hooks"),
-    ] {
+    for own in [format!("/repo/.git/cli-git-transactions/{TRANSACTION}/no-hooks")] {
         assert!(is_wrapper_hooks_path(own.as_str()), "{own}");
         let snapshot: ConfigSnapshot = listing_snapshot(&[("command", format!("core.hookspath\n{own}").as_str())]);
         assert_eq!(traditional_hooks_warning(Some(&snapshot)), None, "{own}");
     }
     for other in [
         format!("/repo/.git/cli-git-transactions/{TRANSACTION}/elsewhere"),
+        format!("/repo/.git/cli-git-transactions/{TRANSACTION}/hooks"),
         format!("/repo/.git/other-root/{TRANSACTION}/no-hooks"),
         String::from("/repo/.git/cli-git-transactions/not-a-transaction/hooks"),
         String::from("/repo/.git/hooks"),

@@ -1,5 +1,5 @@
 /**
- Planted guard removals in the entry point, configuration, index locks and hook dispatch.
+ Planted guard removals in the entry point, configuration, index locks and hook runs.
 
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
@@ -8,14 +8,14 @@
 import type { PlantedControl } from './native-planted-controls.ts';
 
 /**
- Controls for guards in the entry point, configuration, index locks and hook dispatch.
+ Controls for guards in the entry point, configuration, index locks and hook runs.
  */
 export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: "post-commit disabled event runs nothing",
     file: "src/native/post_commit_hook.rs",
-    from: "    if request.plan.disabled_events.iter().any(|name| {",
-    to: "    if false && request.plan.disabled_events.iter().any(|name| {",
+    from: '    if event_disabled(request.plan, "post-commit") {',
+    to: '    if false && event_disabled(request.plan, "post-commit") {',
     failing: "post_commit_hook::tests::disabled_post_commit_runs_nothing",
   },
   {
@@ -138,39 +138,39 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     failing: 'process_start::tests::a_start_tick_beyond_the_safe_integers_is_refused',
   },
   {
-    name: 'hook entry recognized outside a transaction',
-    file: 'src/native/hook_dispatch.rs',
-    from: '    if transaction.parent()?.file_name()? != TRANSACTION_ROOT_NAME {',
-    to: '    if false {',
-    failing: 'hook_dispatch::tests::every_other_start_name_is_not_a_dispatch',
+    name: 'native commit holds no hook lock',
+    file: 'src/native/commit_preparation.rs',
+    from: '    let _hook_lock = hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS)',
+    to: '    let _hook_lock = hold_hook_lock(request.hooks, &[])',
+    failing: 'commit_preparation::tests::a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease',
   },
   {
-    name: 'disabled events still start Git',
-    file: 'src/native/hook_dispatch.rs',
-    from: '    if plan.disabled_events.iter().any(|name| { return name == target.event; }) {',
-    to: '    if false {',
-    failing: 'hook_dispatch::tests::a_disabled_event_succeeds_without_starting_git',
+    name: 'native commit does not carry the preparation lease',
+    file: 'src/native/commit_preparation.rs',
+    from: '        .env(lease_name, lease_value);\n    for name in NATIVE_UNSET_VARIABLES {',
+    to: '        .env(lease_name, "");\n    for name in NATIVE_UNSET_VARIABLES {',
+    failing: 'commit_preparation::tests::a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease',
+  },
+  {
+    name: 'native commit leaves post-commit to Git',
+    file: 'src/native/commit_preparation.rs',
+    from: '    arguments.push(String::from("hook.post-commit.enabled=false"));',
+    to: '    arguments.push(String::from("hook.post-commit.enabled=true"));',
+    failing: 'commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_the_unrun_hooks_off',
+  },
+  {
+    name: 'pre-commit re-run ignores the hook lock',
+    file: 'src/native/commit_revalidation.rs',
+    from: '    let _hook_lock = hold_hook_lock(hooks, &["pre-commit"])',
+    to: '    let _hook_lock = hold_hook_lock(hooks, &[])',
+    failing: 'commit_revalidation::tests::a_passing_hook_sees_the_replayed_index_no_editor_the_lease_and_the_lock',
   },
   {
     name: 'hook lock skip flag ignored',
-    file: 'src/native/hook_dispatch.rs',
-    from: '    let lock: Option<OwnerLock> = if plan.skip_hook_lock {',
-    to: '    let lock: Option<OwnerLock> = if false {',
-    failing: 'hook::two_dispatches_overlap_with_concurrent_commits',
-  },
-  {
-    name: 'hook status not propagated',
-    file: 'src/native/hook_dispatch.rs',
-    from: '    return finished.code().unwrap_or(1);',
-    to: '    return finished.code().unwrap_or(1).min(1);',
-    failing: 'hook::a_failing_hook_propagates_its_status',
-  },
-  {
-    name: 'stale config parameters kept',
-    file: 'src/native/hook_dispatch.rs',
-    from: '        let overridden: bool = name == CONFIG_PARAMETERS_VARIABLE',
-    to: '        let overridden: bool = name == WORK_TREE_VARIABLE',
-    failing: 'hook_dispatch::tests::the_dispatched_environment_carries_the_plan',
+    file: 'src/native/hook_run.rs',
+    from: '    if plan.skip_hook_lock || !events.iter()',
+    to: '    if !events.iter()',
+    failing: 'hook_run::tests::the_lock_is_held_only_when_a_run_can_find_a_hook',
   },
   {
     name: 'concurrent commits do not skip the hook lock',
@@ -180,18 +180,11 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     failing: 'hook_dispatch_plan::tests::plans_read_real_git_configuration',
   },
   {
-    name: 'repeated dash c pairing skipped',
-    file: 'src/native/hook_dispatch_plan.rs',
-    from: '        if token != "-c" {',
-    to: '        if false {',
-    failing: 'hook_dispatch_plan::tests::global_overrides_pair_each_dash_c_with_its_next_token',
-  },
-  {
     name: 'existing hooks directory reused',
-    file: 'src/native/hook_dispatch_entries.rs',
+    file: 'src/native/hook_plan_record.rs',
     from: '    create_private_directory(hooks_directory).map_err(|error| {',
     to: '    std::fs::create_dir_all(hooks_directory).map_err(|error| {',
-    failing: 'hook_dispatch_entries::tests::an_existing_hooks_directory_is_refused',
+    failing: 'hook_plan_record::tests::an_existing_hooks_directory_is_refused',
   },
 
 ];

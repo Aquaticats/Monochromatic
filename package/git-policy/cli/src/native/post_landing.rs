@@ -18,7 +18,7 @@
 //! ```
 
 use super::diagnostic_log::{debug, warn};
-use super::hook_dispatch_entries::transaction_no_hooks_directory;
+use super::hook_run::transaction_no_hooks_directory;
 use super::hook_dispatch_plan::HookDispatchPlan;
 use super::landed_disposal::{LandedTransactionPaths, dispose_landed_transaction};
 use super::config_snapshot::ConfigSnapshot;

@@ -360,8 +360,8 @@ impl ConfigSnapshot {
     /// What:
     ///  Whether any entry defines a hook by name: a `hook.<name>.event` or `hook.<name>.command` key.
     /// Why:
-    ///   Git runs such a hook for its event whatever the hooks directory holds, so a repository with one keeps
-    ///  every dispatcher entry.
+    ///   Git runs such a hook for its event, so only a repository with one needs the hook lock and a `post-commit`
+    ///  run; every other configuration has no hook to run, because traditional hooks are unsupported.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

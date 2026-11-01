@@ -37,29 +37,26 @@ pub const TRADITIONAL_HOOKS_UNSUPPORTED_CODE: &str = "traditional-hooks-unsuppor
 /// Canonical (lowercase) snapshot key of the setting that triggers the warning.
 const HOOKS_PATH_KEY: &str = "core.hookspath";
 
-/// Name of the dispatcher directory inside a transaction directory.
-const DISPATCHER_DIRECTORY_NAME: &str = "hooks";
-
 /// Module tag for diagnostics.
 const TAG: &str = "traditionalHookWarning";
 
 /// What:
 ///  Whether a `core.hooksPath` value is one of the wrapper's own per-transaction overrides.
 /// Why:
-///   The wrapper passes `core.hooksPath=<tx>/hooks` and `core.hooksPath=<tx>/no-hooks` to the Git processes it
-///  starts, and those reach hooks the user configured as `-c` values in `GIT_CONFIG_PARAMETERS`.
+///   The wrapper passes `core.hooksPath=<tx>/no-hooks` to the Git process that runs the post-landing `post-commit`,
+///  and that reaches hooks the user configured as a `-c` value in `GIT_CONFIG_PARAMETERS`.
 ///  A command such as `git commit` run by such a hook must not warn about a path the user never chose.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// /\/cli-git-transactions\/[0-9a-f-]{36}\/(hooks|no-hooks)$/.test(value)
+/// /\/cli-git-transactions\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
 pub fn is_wrapper_hooks_path(value: &str) -> bool {
     let path: &Path = Path::new(value);
     let Some(name) = path.file_name().and_then(OsStr::to_str) else {
         return false;
     };
-    if name != NO_HOOKS_DIRECTORY && name != DISPATCHER_DIRECTORY_NAME {
+    if name != NO_HOOKS_DIRECTORY {
         return false;
     }
     let Some(transaction) = path.parent() else {

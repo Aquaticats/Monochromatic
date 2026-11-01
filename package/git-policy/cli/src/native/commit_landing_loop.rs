@@ -21,6 +21,7 @@ use super::commit_revalidation::{Revalidation, RevalidationContext, revalidate_r
 use super::commit_transaction::{CommitInvocation, TransactionStop, failed};
 use super::commit_workspace::CommitWorkspace;
 use super::commit_worktree_records::{HookChanges, settled_entry};
+use super::hook_dispatch_plan::HookDispatchPlan;
 use super::diagnostic_log::debug;
 use super::event_path::EventPath;
 use super::landing_attempt::{LandingOutcome, LandingPayload, LandingRequest, land_transaction};
@@ -111,8 +112,8 @@ pub struct LoopInput<'a, F: RepositoryFacts> {
     pub global_args: &'a [String],
     /// Whether interactive or include selection forbids automatic patches.
     pub read_only_selection: bool,
-    /// Whether the dispatch plan wrote hook entries, so a replay has a `pre-commit` entry to re-run.
-    pub named_hooks_possible: bool,
+    /// The hook plan, which says whether a replay has a `pre-commit` hook to re-run and under which lock.
+    pub hooks: &'a HookDispatchPlan,
     /// The paths an explicit-path commit carries.
     pub committed_paths: Vec<Vec<u8>>,
     /// The policy-added paths.
@@ -322,7 +323,7 @@ fn replay_candidate<F: RepositoryFacts>(
             read_only_selection: input.read_only_selection,
             global_args: input.global_args,
             no_verify: input.options.no_verify,
-            named_hooks_possible: input.named_hooks_possible,
+            hooks: input.hooks,
         };
         revalidate_replay(
             &context,

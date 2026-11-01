@@ -92,7 +92,7 @@ pub struct CommitInvocation<'a> {
     pub controls: &'a Controls,
     /// Whether this invocation runs under a valid outer preparation lease.
     pub inherited_lease_valid: bool,
-    /// This executable, which the hook entries link to.
+    /// This executable, which the LFS pre-push hook command names.
     pub executable: &'a Path,
 }
 

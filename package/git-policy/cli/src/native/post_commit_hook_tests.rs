@@ -3,22 +3,18 @@
 
 use super::*;
 use crate::owner_lock::{DEFAULT_POLL_DELAY, SilentWait, acquire_owner_lock};
-use crate::hook_dispatch_plan::ConfigParameters;
 use crate::test_support::{executable, fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
 /// Builds a plan whose only meaningful fields are the disabled events and the hook lock.
 fn plan(lock: &Path, skip_lock: bool, disabled: &[&str]) -> HookDispatchPlan {
     return HookDispatchPlan {
-        git_path: String::from(crate::test_support::REAL_GIT),
         disabled_events: disabled
             .iter()
             .map(|name| {
                 return String::from(*name);
             })
             .collect(),
-        config_parameters: ConfigParameters::Absent,
-        worktree_root: String::new(),
         lease: String::new(),
         hook_lock_path: lock.display().to_string(),
         skip_hook_lock: skip_lock,

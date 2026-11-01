@@ -14,8 +14,8 @@
 use super::diagnostic_log::debug;
 use super::forwarding::git_command;
 use super::hook_dispatch_plan::HookDispatchPlan;
+use super::hook_run::{HookLockError, acquire_hook_lock, event_disabled};
 use super::start_retry::RetryStart;
-use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
 use super::transaction_git::{GitContext, GitRequest, run_git};
 use std::ffi::OsString;
@@ -91,9 +91,7 @@ pub struct PostCommitHookRequest<'a> {
 pub fn run_post_commit_hook(
     request: PostCommitHookRequest,
 ) -> Result<PostCommitHookOutcome, PostCommitHookError> {
-    if request.plan.disabled_events.iter().any(|name| {
-        return name.as_str() == "post-commit";
-    }) {
+    if event_disabled(request.plan, "post-commit") {
         debug(
             "runPostCommitHook",
             "post-commit disabled by hook.post-commit.enabled=false",
@@ -115,7 +113,7 @@ pub fn run_post_commit_hook(
     let lock: Option<OwnerLock> = if request.plan.skip_hook_lock {
         None
     } else {
-        Some(acquire_hook_lock(request.plan.hook_lock_path.as_str())?)
+        Some(acquire_hook_lock(request.plan.hook_lock_path.as_str()).map_err(post_commit_lock_error)?)
     };
     let status: i32 = run_hook(request.context, request.worktree, request.no_hooks_directory, environment.as_slice())?;
     if let Some(held) = lock {
@@ -126,24 +124,16 @@ pub fn run_post_commit_hook(
 }
 
 /// What:
-///  Take the hook lock for the post-commit run, waiting silently while a live owner holds it.
+///  The post-commit failure for a hook lock that could not be taken.
 /// Why:
-///   The incumbent's `acquireOwnerLock` on `plan.hookLockPath`, shared with the preparation dispatchers.
+///   The caller reports the message and exits 1, as for every other failure of the run.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await acquireOwnerLock({ lockDirectory: plan.hookLockPath });
+/// new PostCommitHookError(error.message)
 /// ```
-fn acquire_hook_lock(lock_path: &str) -> Result<OwnerLock, PostCommitHookError> {
-    let directory: &Path = Path::new(lock_path);
-    // The incumbent creates the lock's parents recursively; the native owner lock creates one level only.
-    if let Some(parent) = directory.parent() {
-        std::fs::create_dir_all(parent).map_err(|error| {
-            return PostCommitHookError(format!("creating {} failed: {error}", parent.display()));
-        })?;
-    }
-    return acquire_live_owner_lock(directory, "the hook lock")
-        .map_err(|error| return PostCommitHookError(error.to_string()));
+fn post_commit_lock_error(error: HookLockError) -> PostCommitHookError {
+    return PostCommitHookError(error.to_string());
 }
 
 /// What:

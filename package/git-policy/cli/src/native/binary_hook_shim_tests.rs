@@ -1,10 +1,10 @@
-//! Differential controls for the hook entries of a wrapped commit:
+//! Differential controls for the hooks of a wrapped commit:
 //!  a wrapped `git commit` and a direct one show the same output, run the same hooks and make the same commit, in
-//!  every shape of configured hook the user can have, whether or not the wrapper wrote an entry for the event.
+//!  every shape of configured hook the user can have.
 //! Why:
-//!  A configuration that defines no hook by name has no dispatcher entry and no `post-commit` run, which saves
-//!  process starts and synced lock candidates; each shape below is one way the omission could change what a user
-//!  sees.
+//!  Git runs the preparation hooks itself inside the native commit, and a configuration that defines no hook by name
+//!  has no hook lock and no `post-commit` run, which saves process starts and synced lock candidates; each shape
+//!  below is one way those omissions could change what a user sees.
 //!  Real Git is the oracle, so the controls run the same commit directly and compare.
 //!  Traditional hooks (executable scripts in a hooks directory) are unsupported, so they appear only in the
 //!  controls that pin that the wrapper does not run them.
@@ -352,20 +352,21 @@ fn a_commit_with_no_hooks_starts_no_hook_runner_and_one_config_read() {
     assert_eq!(starts_of(commands.as_slice(), "config"), 1, "{commands:#?}");
 }
 
-/// The budget of a commit with all four configured hooks: one runner for each event, and one configuration read.
+/// The budget of a commit with all four configured hooks: Git runs the three preparation hooks inside the one native
+///  commit, so the only hook runner the wrapper starts is the post-landing `post-commit`, and one configuration read.
 #[test]
-fn a_commit_with_four_hooks_starts_four_hook_runners() {
+fn a_commit_with_four_hooks_starts_one_hook_runner() {
     let commands: Vec<String> = traced_commit("four", Shape::AllConfigHooks);
-    assert_eq!(hook_runner_starts(commands.as_slice()), 4, "{commands:#?}");
+    assert_eq!(hook_runner_starts(commands.as_slice()), 1, "{commands:#?}");
     assert_eq!(starts_of(commands.as_slice(), "config"), 1, "{commands:#?}");
 }
 
-/// The budget of a commit with one configured hook: the configuration defines a hook by name, so every commit event
-///  keeps its entry (three preparation events, one runner each) and `post-commit` runs once, four runners in all.
+/// The budget of a commit with one configured hook: the configuration defines a hook by name, so `post-commit` runs
+///  once through Git's runner (one runner in all), and the preparation hooks need no runner of the wrapper's.
 #[test]
-fn a_commit_with_one_configured_hook_starts_a_runner_for_each_event() {
+fn a_commit_with_one_configured_hook_starts_one_hook_runner() {
     let commands: Vec<String> = traced_commit("one", Shape::OneConfigHook);
-    assert_eq!(hook_runner_starts(commands.as_slice()), 4, "{commands:#?}");
+    assert_eq!(hook_runner_starts(commands.as_slice()), 1, "{commands:#?}");
 }
 
 /// The budget of a commit that has only traditional hooks: they are unsupported, so no runner starts for them.

@@ -1,53 +1,45 @@
 //! What:
-//!  The dispatch plan of one commit transaction:
-//!  which hooks run, how they run, and under which lock.
+//!  The hook plan of one commit transaction:
+//!  which commit events the user disabled, whether the configuration can define a hook at all, the hook lock,
+//!  and the preparation lease.
 //! Why:
-//!  Inside native `git commit` the hook entries see only the transaction's overrides,
-//!  so the plan is computed by the wrapper from the real repository and the caller's environment.
-//!  The incumbent (`src/hook-dispatch/hook-dispatch-plan.ts`) and both dispatchers read the same
-//!  `plan.json`, so its field order and spelling are part of the on-disk format.
+//!  Git runs the configured hooks of the preparation events itself inside the native `git commit`, and the wrapper
+//!  runs `post-commit` itself after landing, so the plan only carries what the wrapper must decide around those
+//!  runs.
+//!  `<tx>/hooks/plan.json` is the durable record of the lease: a nested wrapper invocation validates its inherited
+//!  lease against it (`transaction_lease.rs`), and the tearing table pins its recovery.
+//!  No plan names an executable that Git would start.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const plan: HookDispatchPlan = await computeHookDispatchPlan({ gitPath, cwd, globalArgs, commonDir, ... });
+//! const plan: HookDispatchPlan = await computeHookDispatchPlan({ cwd, commonDir, lease, ... });
 //! ```
 
 /// The one configuration read, and its lookup answers.
 use super::config_snapshot::{ConfigSnapshot, Lookup};
 /// Config reads and the per-transaction Git context.
 use super::transaction_git::{GitContext, GitRequest, run_git};
-/// Lenient typed readers over the plan's JSON object.
-use super::json_record::{ObjectWriter, parse_object, safe_integer_field, string_array, string_field};
+/// Typed writers over the plan's JSON object.
+use super::json_record::{ObjectWriter, string_array};
 /// Unguessable tokens for preparation leases.
 use super::random_id::random_uuid;
 /// Lease spelling shared with the transaction lease validator.
 use super::transaction_lease::format_preparation_lease;
-/// `OsString` is owned operating-system text of raw bytes.
-use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Component, Path, PathBuf};
 
-/// Plan schema version written and required on read.
+/// Plan schema version written.
 pub const PLAN_SCHEMA_VERSION: i64 = 1;
 
 /// Name of the plan inside a transaction's `hooks` directory.
 pub const PLAN_FILENAME: &str = "plan.json";
 
-/// Events the shim dispatches during preparation; `post-commit` runs once after landing instead.
+/// Events Git runs inside the native commit; `post-commit` runs once after landing instead.
 pub const PREPARATION_HOOK_EVENTS: [&str; 3] = ["pre-commit", "prepare-commit-msg", "commit-msg"];
 
-/// Every commit event the transaction silences inside native `git commit`.
+/// Every commit event whose user switch (`hook.<event>.enabled`) the plan records.
 pub const SILENCED_HOOK_EVENTS: [&str; 4] =
     ["pre-commit", "prepare-commit-msg", "commit-msg", "post-commit"];
-
-/// Environment variable that carries Git's config parameters into hooks.
-pub const CONFIG_PARAMETERS_VARIABLE: &str = "GIT_CONFIG_PARAMETERS";
-
-/// Environment variable naming the worktree root for hooks.
-pub const WORK_TREE_VARIABLE: &str = "GIT_WORK_TREE";
-
-/// Largest plan a dispatcher reads.
-pub const PLAN_LIMIT: u64 = 1024 * 1024;
 
 /// What:
 ///  Why planning or encoding a plan failed.
@@ -96,63 +88,40 @@ impl std::fmt::Display for HookPlanError {
 }
 
 /// What:
-///  The value the dispatcher restores as `GIT_CONFIG_PARAMETERS`, or its absence.
-/// Why:
-///   Git reads the variable as text; an absent variable must stay absent in hooks.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type ConfigParameters = { kind: 'absent' } | { kind: 'present'; value: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ConfigParameters {
-    /// No config parameters were inherited or given.
-    Absent,
-    /// The combined parameter text.
-    Present(String),
-}
-
-/// What:
 ///  The plan written to `<transaction>/hooks/plan.json`.
 /// Why:
-///   Both dispatchers and the lease validator read this one record,
-///  so every field keeps the incumbent's name and meaning.
+///   The wrapper decides from it whether the native commit and the `post-commit` run need the hook lock, and the
+///  lease validator reads the lease back from the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HookDispatchPlan = { schemaVersion: 1; gitPath: string; disabledEvents: string[]; ... };
+/// type HookDispatchPlan = { schemaVersion: 1; disabledEvents: string[]; lease: string; ... };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HookDispatchPlan {
-    /// Absolute real Git executable the dispatcher runs `git hook run` with.
-    pub git_path: String,
     /// Events the user disabled with `hook.<event>.enabled=false`, in the silenced list's order.
     pub disabled_events: Vec<String>,
-    /// Caller's config parameters including its global `-c` options.
-    pub config_parameters: ConfigParameters,
-    /// Absolute worktree root exported as `GIT_WORK_TREE`.
-    pub worktree_root: String,
-    /// Preparation lease exported to hook descendants.
+    /// Preparation lease exported to the native commit and the hooks it runs.
     pub lease: String,
     /// Absolute hook lock directory.
     pub hook_lock_path: String,
-    /// Whether hooks skip the hook lock.
+    /// Whether hook runs skip the hook lock.
     pub skip_hook_lock: bool,
     /// Whether the configuration may define hooks by name (`hook.<name>.event` or `.command`), which run for their
     ///  event whatever the hooks directory holds; `true` when the configuration was not inspected.
-    ///  Not recorded in `plan.json`: the dispatchers never read it, and a plan read back says `true`.
+    ///  Not recorded in `plan.json`: nothing reads a plan back but the lease check.
     pub named_hooks_possible: bool,
 }
 
 /// What:
 ///  The inputs of one plan computation.
 /// Why:
-///   Named fields keep the many inputs apart; the context carries the caller's global options
+///   Named fields keep the inputs apart; the context carries the caller's global options
 ///  as its global prefix, so every config read sees them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// computeHookDispatchPlan({ gitPath, cwd, globalArgs, commonDir, worktreeRoot, lease, ... });
+/// computeHookDispatchPlan({ cwd, commonDir, lease, ... });
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct HookPlanInputs<'a> {
@@ -160,132 +129,17 @@ pub struct HookPlanInputs<'a> {
     pub context: &'a GitContext,
     /// Owning worktree directory where the config reads run.
     pub cwd: &'a Path,
-    /// Caller's global options, whose `-c` values join the config parameters.
-    pub global_arguments: &'a [OsString],
     /// Absolute common Git directory.
     pub common_directory: &'a Path,
-    /// Absolute worktree root.
-    pub worktree_root: &'a Path,
     /// Preparation lease token text, formatted by `new_preparation_lease`.
     pub lease: &'a str,
     /// `hooks.concurrentCommits`.
     pub concurrent_commits: bool,
     /// Whether this invocation runs under a valid outer preparation lease.
     pub inherited_lease_valid: bool,
-    /// Caller environment, whose `GIT_CONFIG_PARAMETERS` is inherited.
-    pub environment: &'a [(OsString, OsString)],
     /// The configuration read once with the caller's global options;
     ///  `None` makes each key start its own `git config`.
     pub snapshot: Option<&'a ConfigSnapshot>,
-}
-
-/// What:
-///  Quote one `key=value` entry for Git's `GIT_CONFIG_PARAMETERS`.
-/// Why:
-///   Git's `sq_quote_buf` closes the quote around `'` and `!`;
-///  the parser accepts that form in every supported version.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// quoteConfigParameter("user.name=O'Brien"); // "'user.name=O'\\''Brien'"
-/// ```
-pub fn quote_config_parameter(value: &str) -> String {
-    // `mut` lets the quoted text grow one character at a time.
-    let mut body: String = String::with_capacity(value.len() + 2);
-    body.push('\'');
-    for character in value.chars() {
-        match character {
-            '\'' => body.push_str("'\\''"),
-            '!' => body.push_str("'\\!'"),
-            other => body.push(other),
-        }
-    }
-    body.push('\'');
-    return body;
-}
-
-/// What:
-///  Collect the value of every global `-c` option, in order.
-/// Why:
-///   The incumbent pairs each `-c` with the token after it, even when that token is itself `-c`.
-///  A non-UTF-8 value cannot be recorded, so it is refused.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// globalArgs.flatMap((token, i) => (token === '-c') && globalArgs[i + 1] !== undefined ? [globalArgs[i + 1]] : []);
-/// ```
-pub fn global_config_overrides(global_arguments: &[OsString]) -> Result<Vec<String>, HookPlanError> {
-    // `mut` lets the list grow one value at a time.
-    let mut values: Vec<String> = Vec::new();
-    for (index, token) in global_arguments.iter().enumerate() {
-        let Some(next) = global_arguments.get(index + 1) else {
-            continue;
-        };
-        if token != "-c" {
-            continue;
-        }
-        let Some(text) = next.to_str() else {
-            return Err(HookPlanError::NotUtf8("global -c option"));
-        };
-        values.push(String::from(text));
-    }
-    return Ok(values);
-}
-
-/// What:
-///  Read the caller's inherited `GIT_CONFIG_PARAMETERS`, last entry winning.
-/// Why:
-///   An empty value counts as none, as the incumbent's `?? ''` and the joining rule do.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// environment.GIT_CONFIG_PARAMETERS ?? ''
-/// ```
-pub fn inherited_config_parameters(
-    environment: &[(OsString, OsString)],
-) -> Result<String, HookPlanError> {
-    // `Option` starts absent; each matching entry replaces the earlier one.
-    let mut found: Option<&OsString> = None;
-    for (name, value) in environment {
-        if name == CONFIG_PARAMETERS_VARIABLE {
-            found = Some(value);
-        }
-    }
-    let Some(value) = found else {
-        return Ok(String::new());
-    };
-    let Some(text) = value.to_str() else {
-        return Err(HookPlanError::NotUtf8("inherited GIT_CONFIG_PARAMETERS"));
-    };
-    return Ok(String::from(text));
-}
-
-/// What:
-///  Join the inherited parameters and the quoted global `-c` values.
-/// Why:
-///   Git hands hooks the inherited entries first, then the command-line options;
-///  no entry means the variable is absent.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// combineConfigParameters({ inherited, overrides });
-/// ```
-pub fn combine_config_parameters(
-    inherited: &str,
-    overrides: &[String],
-) -> Result<ConfigParameters, HookPlanError> {
-    // `mut` lets the entry list grow in order.
-    let mut entries: Vec<String> = Vec::new();
-    if !inherited.is_empty() {
-        entries.push(String::from(inherited));
-    }
-    for value in overrides {
-        entries.push(quote_config_parameter(value.as_str()));
-    }
-    if entries.is_empty() {
-        return Ok(ConfigParameters::Absent);
-    }
-    return Ok(ConfigParameters::Present(entries.join(" ")));
 }
 
 /// What:
@@ -430,12 +284,11 @@ fn snapshot_disabled_events(snapshot: &ConfigSnapshot) -> Option<Vec<String>> {
 }
 
 /// What:
-///  Compute the dispatch plan of one transaction from the real repository.
+///  Compute the hook plan of one transaction from the real repository.
 /// Why:
-///   The incumbent's `computeHookDispatchPlan`, minus its hooks-path resolution, because traditional hooks are not
-///  supported:
-///  the event switches (only the exact value `false` disables an event),
-///  the combined config parameters, the lock path and whether the lock is skipped.
+///   The event switches (only the exact value `false` disables an event),
+///  whether the configuration can define a hook by name, the lock path and whether the lock is skipped;
+///  traditional hooks are unsupported, so no hooks path is resolved.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -448,17 +301,8 @@ pub fn compute_hook_dispatch_plan(
         Some(events) => events,
         None => read_disabled_events(inputs.context, inputs.cwd)?,
     };
-    let inherited: String = inherited_config_parameters(inputs.environment)?;
-    let overrides: Vec<String> = global_config_overrides(inputs.global_arguments)?;
-    let config_parameters: ConfigParameters = combine_config_parameters(
-        inherited.as_str(),
-        overrides.as_slice(),
-    )?;
     let plan: HookDispatchPlan = HookDispatchPlan {
-        git_path: path_text(inputs.context.real_git.as_path(), "real Git path")?,
         disabled_events,
-        config_parameters,
-        worktree_root: path_text(inputs.worktree_root, "worktree root")?,
         lease: String::from(inputs.lease),
         hook_lock_path: path_text(
             hook_lock_directory(inputs.common_directory).as_path(),
@@ -489,8 +333,7 @@ fn path_text(path: &Path, what: &'static str) -> Result<String, HookPlanError> {
 /// What:
 ///  Spell a plan as `JSON.stringify` writes it, without the trailing newline.
 /// Why:
-///   The incumbent writes `JSON.stringify(plan)` followed by one newline,
-///  and both dispatchers and the lease validator read the same bytes.
+///   The lease validator reads the `lease` field back from these bytes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -500,88 +343,14 @@ pub fn encode_hook_dispatch_plan(plan: &HookDispatchPlan) -> String {
     // `mut` allows appending one field at a time.
     let mut writer: ObjectWriter = ObjectWriter::new();
     writer.integer("schemaVersion", PLAN_SCHEMA_VERSION);
-    writer.string("gitPath", plan.git_path.as_str());
     writer.raw(
         "disabledEvents",
         string_array(plan.disabled_events.as_slice()).as_str(),
     );
-    writer.raw(
-        "configParameters",
-        encode_config_parameters(&plan.config_parameters).as_str(),
-    );
-    writer.string("worktreeRoot", plan.worktree_root.as_str());
     writer.string("lease", plan.lease.as_str());
     writer.string("hookLockPath", plan.hook_lock_path.as_str());
     writer.boolean("skipHookLock", plan.skip_hook_lock);
     return writer.finish();
-}
-
-/// What:
-///  Spell the config parameters as the incumbent's tagged object.
-/// Why:
-///   The dispatcher distinguishes an absent variable from an empty one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// configParameters.kind === 'absent' ? { kind: 'absent' } : { kind: 'present', value }
-/// ```
-fn encode_config_parameters(parameters: &ConfigParameters) -> String {
-    // `match` picks the spelling by variant.
-    match parameters {
-        ConfigParameters::Absent => {
-            let mut writer: ObjectWriter = ObjectWriter::new();
-            writer.string("kind", "absent");
-            return writer.finish();
-        }
-        ConfigParameters::Present(value) => {
-            let mut writer: ObjectWriter = ObjectWriter::new();
-            writer.string("kind", "present").string("value", value.as_str());
-            return writer.finish();
-        }
-    }
-}
-
-/// What:
-///  Read a plan from its JSON text, refusing any other shape.
-/// Why:
-///   The dispatcher and the lease validator must agree on what a plan is;
-///  an unknown event or schema makes the plan unusable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const plan = JSON.parse(text) as HookDispatchPlan; // checked fields
-/// ```
-pub fn parse_hook_dispatch_plan(text: &str) -> Option<HookDispatchPlan> {
-    let object = parse_object(text)?;
-    if safe_integer_field(&object, "schemaVersion") != Some(PLAN_SCHEMA_VERSION) {
-        return None;
-    }
-    let events_value = object.get("disabledEvents")?.as_array()?;
-    // `mut` lets the event list grow in file order.
-    let mut disabled_events: Vec<String> = Vec::new();
-    for item in events_value {
-        let name: &str = item.as_str()?;
-        if !SILENCED_HOOK_EVENTS.contains(&name) {
-            return None;
-        }
-        disabled_events.push(String::from(name));
-    }
-    let parameters = object.get("configParameters")?.as_object()?;
-    let config_parameters: ConfigParameters = match string_field(parameters, "kind")? {
-        "absent" => ConfigParameters::Absent,
-        "present" => ConfigParameters::Present(String::from(string_field(parameters, "value")?)),
-        _ => return None,
-    };
-    return Some(HookDispatchPlan {
-        git_path: String::from(string_field(&object, "gitPath")?),
-        disabled_events,
-        config_parameters,
-        worktree_root: String::from(string_field(&object, "worktreeRoot")?),
-        lease: String::from(string_field(&object, "lease")?),
-        hook_lock_path: String::from(string_field(&object, "hookLockPath")?),
-        skip_hook_lock: object.get("skipHookLock")?.as_bool()?,
-        named_hooks_possible: true,
-    });
 }
 
 /// What:

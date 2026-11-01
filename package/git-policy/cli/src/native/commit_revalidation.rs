@@ -23,7 +23,8 @@ use super::commit_worktree_records::{HookChanges, describe_hook_changes};
 use super::diagnostic_log::debug;
 use super::forwarding::{exit_code, git_command};
 use super::signal_relay::SignalGuard;
-use super::hook_dispatch_plan::SILENCED_HOOK_EVENTS;
+use super::hook_dispatch_plan::HookDispatchPlan;
+use super::hook_run::{event_may_run, hold_hook_lock, lease_variable};
 use super::policy_checks::ShippedChecks;
 use super::policy_content::{ContentState, LifecycleContent};
 use super::policy_engine::{StageRequest, pass_exit_code};
@@ -78,7 +79,7 @@ pub enum Revalidation {
 /// What:
 ///  What revalidation reads besides the policies.
 /// Why:
-///   The hook re-run needs the kept global options and the shim; the policies need the capture.
+///   The hook re-run needs the kept global options and the hook plan; the policies need the capture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -95,56 +96,55 @@ pub struct RevalidationContext<'a> {
     pub global_args: &'a [String],
     /// Whether the invocation bypassed `pre-commit` with `--no-verify`.
     pub no_verify: bool,
-    /// Whether the dispatch plan wrote hook entries; without them no hook can run, so the re-run starts nothing.
-    pub named_hooks_possible: bool,
+    /// The hook plan: it says whether a `pre-commit` hook can run, under which lock, and with which lease.
+    pub hooks: &'a HookDispatchPlan,
 }
 
 /// What:
-///  Re-run `pre-commit` against a replayed private index through the dispatcher shim.
+///  Re-run `pre-commit` against a replayed private index with Git's `hook run`, under the hook lock.
 /// Why:
-///   It runs exactly as native preparation ran it, so the shim takes the hook lock and restores the caller's
-///  configuration; `prepare-commit-msg` and `commit-msg` do not re-run because the message is fixed.
-///  Without hook entries nothing runs, and nothing is started.
+///   Native preparation ran the hook inside `git commit`; the replay has no commit to run, so the wrapper starts
+///  Git's hook runner itself, in the shadow with the replayed index, the editor Git gives `pre-commit` when no editor
+///  runs and the preparation lease.
+///  `prepare-commit-msg` and `commit-msg` do not re-run because the message is fixed.
+///  Git's runner reads the user's `hook.pre-commit.enabled` switch itself, and nothing is started when the
+///  configuration can define no hook or the user disabled the event.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await rerunPreCommit({ gitPath, worktreeRoot, globalArgs, shadowPath, hooksDirectory, indexPath });
+/// await rerunPreCommit({ gitPath, worktreeRoot, globalArgs, shadowPath, hookPlan, indexPath });
 /// ```
 fn rerun_pre_commit(
     context: &GitContext,
     worktree_root: &Path,
     global_args: &[String],
     shadow: &Path,
-    hooks_directory: &Path,
-    named_hooks_possible: bool,
+    hooks: &HookDispatchPlan,
     index: &Path,
 ) -> Result<(), TransactionStop> {
-    // A configuration with no hook defined by name has no dispatcher entry, so `git hook run` would find nothing.
-    if !named_hooks_possible {
-        debug(TAG, "the configuration defines no hook by name; the re-run is skipped");
+    if !event_may_run(hooks, "pre-commit") {
+        debug(TAG, "no pre-commit hook can run; the re-run is skipped");
         return Ok(());
     }
     let mut arguments: Vec<OsString> = global_args.iter().map(OsString::from).collect();
     arguments.push(OsString::from(format!("--git-dir={}", shadow.display())));
-    arguments.push(OsString::from(format!("--work-tree={}", worktree_root.display())));
-    arguments.push(OsString::from("-c"));
-    arguments.push(OsString::from(format!("core.hooksPath={}", hooks_directory.display())));
-    for event in SILENCED_HOOK_EVENTS {
-        arguments.push(OsString::from("-c"));
-        arguments.push(OsString::from(format!("hook.{event}.enabled=false")));
-    }
     for word in ["hook", "run", "--ignore-missing", "pre-commit"] {
         arguments.push(OsString::from(word));
     }
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
+    let (lease_name, lease_value): (OsString, OsString) = lease_variable(hooks);
     command
         .current_dir(worktree_root)
         .env("GIT_INDEX_FILE", index)
+        .env(lease_name, lease_value)
         // Native Git gives pre-commit `GIT_EDITOR=:` when no editor runs, and a replay never opens one.
         .env("GIT_EDITOR", ":");
     for name in NATIVE_UNSET_VARIABLES {
         command.env_remove(name);
     }
+    // Held until this function returns, so every exit releases it.
+    let _hook_lock = hold_hook_lock(hooks, &["pre-commit"])
+        .map_err(|error| { return failed(error.to_string()); })?;
     let guard: SignalGuard = install_guard_when_free()
         .map_err(|error| { return failed(format!("installing the signal guard failed: {error}")); })?;
     let outcome = guard
@@ -232,8 +232,7 @@ pub fn revalidate_replay<F: RepositoryFacts>(
             root,
             context.global_args,
             workspace.landing.shadow.as_path(),
-            workspace.hooks_directory.as_path(),
-            context.named_hooks_possible,
+            context.hooks,
             index.as_path(),
         )?;
     }

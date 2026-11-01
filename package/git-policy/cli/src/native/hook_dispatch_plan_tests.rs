@@ -1,21 +1,13 @@
-//! Controls for the dispatch plan: quoting, config combination, the JSON spelling and real-Git reads.
+//! Controls for the hook plan: the JSON spelling, the lock path and the configuration reads.
 
 use super::*;
 use crate::config_snapshot::read_config_snapshot;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 
-/// One environment pair.
-fn pair(name: &str, value: &str) -> (OsString, OsString) {
-    return (OsString::from(name), OsString::from(value));
-}
-
 /// A plan with fixed values, for spelling tests.
-fn sample_plan(config_parameters: ConfigParameters, skip_hook_lock: bool) -> HookDispatchPlan {
+fn sample_plan(skip_hook_lock: bool) -> HookDispatchPlan {
     return HookDispatchPlan {
-        git_path: String::from("/usr/bin/git"),
         disabled_events: vec![String::from("commit-msg")],
-        config_parameters,
-        worktree_root: String::from("/repo"),
         lease: String::from("{\"directory\":\"/d\",\"token\":\"t\"}"),
         hook_lock_path: String::from("/repo/.git/cli-git/hook.lock"),
         skip_hook_lock,
@@ -23,133 +15,22 @@ fn sample_plan(config_parameters: ConfigParameters, skip_hook_lock: bool) -> Hoo
     };
 }
 
-/// Single quotes close around each `'` and `!`, as Git's `sq_quote_buf` does.
+/// The plan spells its fields in order with `JSON.stringify` escapes, and records no executable, no hooks path and
+///  no config parameters: Git never starts the wrapper for a hook, so nothing needs them.
 #[test]
-fn quoting_closes_the_quote_around_quotes_and_bangs() {
-    assert_eq!(quote_config_parameter("user.name=O'Brien"), "'user.name=O'\\''Brien'");
-    assert_eq!(quote_config_parameter("a.b=x!y"), "'a.b=x'\\!'y'");
-    assert_eq!(quote_config_parameter("a.b=1"), "'a.b=1'");
-}
-
-/// Every `-c` value is collected, including a `-c` that is itself a value.
-#[test]
-fn global_overrides_pair_each_dash_c_with_its_next_token() {
-    let arguments: Vec<OsString> = vec![
-        OsString::from("-c"),
-        OsString::from("a.b=1"),
-        OsString::from("--no-pager"),
-    ];
-    assert_eq!(global_config_overrides(arguments.as_slice()), Ok(vec![String::from("a.b=1")]));
-    let repeated: Vec<OsString> = vec![
-        OsString::from("-c"),
-        OsString::from("-c"),
-        OsString::from("x"),
-    ];
+fn plans_spell_the_lease_record_in_order() {
+    let spelled: String = encode_hook_dispatch_plan(&sample_plan(false));
     assert_eq!(
-        global_config_overrides(repeated.as_slice()),
-        Ok(vec![String::from("-c"), String::from("x")])
-    );
-    let dangling: Vec<OsString> = vec![OsString::from("-c")];
-    assert_eq!(global_config_overrides(dangling.as_slice()), Ok(Vec::new()));
-}
-
-/// A non-UTF-8 override cannot be written into JSON, so it is refused.
-#[cfg(unix)]
-#[test]
-fn global_overrides_refuse_non_utf8_values() {
-    use std::os::unix::ffi::OsStringExt;
-    let arguments: Vec<OsString> = vec![
-        OsString::from("-c"),
-        OsString::from_vec(vec![0xff, 0xfe]),
-    ];
-    assert_eq!(
-        global_config_overrides(arguments.as_slice()),
-        Err(HookPlanError::NotUtf8("global -c option"))
-    );
-}
-
-/// Inherited text comes first, an empty inherited value counts as none, and no entry means absence.
-#[test]
-fn combined_parameters_keep_git_order_and_absence() {
-    assert_eq!(
-        combine_config_parameters("", &[]),
-        Ok(ConfigParameters::Absent)
-    );
-    assert_eq!(
-        combine_config_parameters("", &[String::from("a.b=1")]),
-        Ok(ConfigParameters::Present(String::from("'a.b=1'")))
-    );
-    assert_eq!(
-        combine_config_parameters("'x=1'", &[String::from("a.b=1")]),
-        Ok(ConfigParameters::Present(String::from("'x=1' 'a.b=1'")))
-    );
-    assert_eq!(
-        combine_config_parameters("'x=1'", &[]),
-        Ok(ConfigParameters::Present(String::from("'x=1'")))
-    );
-}
-
-/// The plan's environment value is read from the injected environment, last entry winning.
-#[test]
-fn inherited_parameters_come_from_the_injected_environment() {
-    let environment: Vec<(OsString, OsString)> = vec![
-        pair("GIT_CONFIG_PARAMETERS", "'old=1'"),
-        pair("GIT_CONFIG_PARAMETERS", "'x=1'"),
-    ];
-    assert_eq!(
-        inherited_config_parameters(environment.as_slice()),
-        Ok(String::from("'x=1'"))
-    );
-    assert_eq!(inherited_config_parameters(&[]), Ok(String::new()));
-}
-
-/// The plan spells fields in the incumbent's order, with `JSON.stringify` escapes and a parameter kind.
-#[test]
-fn plans_spell_the_incumbent_fields_in_order() {
-    let absent: String = encode_hook_dispatch_plan(&sample_plan(ConfigParameters::Absent, false));
-    assert_eq!(
-        absent,
-        "{\"schemaVersion\":1,\"gitPath\":\"/usr/bin/git\",\
-         \"disabledEvents\":[\"commit-msg\"],\"configParameters\":{\"kind\":\"absent\"},\
-         \"worktreeRoot\":\"/repo\",\"lease\":\"{\\\"directory\\\":\\\"/d\\\",\\\"token\\\":\\\"t\\\"}\",\
+        spelled,
+        "{\"schemaVersion\":1,\
+         \"disabledEvents\":[\"commit-msg\"],\
+         \"lease\":\"{\\\"directory\\\":\\\"/d\\\",\\\"token\\\":\\\"t\\\"}\",\
          \"hookLockPath\":\"/repo/.git/cli-git/hook.lock\",\"skipHookLock\":false}"
     );
-    let present: String = encode_hook_dispatch_plan(&sample_plan(
-        ConfigParameters::Present(String::from("'a.b=\"1\"'")),
-        true,
-    ));
-    assert!(present.contains(
-        "\"configParameters\":{\"kind\":\"present\",\"value\":\"'a.b=\\\"1\\\"'\"}"
-    ));
-    assert!(present.ends_with("\"skipHookLock\":true}"));
-}
-
-/// Parsing reads back what encoding wrote and refuses plans of another shape.
-#[test]
-fn plans_round_trip_and_refuse_other_shapes() {
-    let plan: HookDispatchPlan = sample_plan(ConfigParameters::Present(String::from("'x'")), false);
-    assert_eq!(parse_hook_dispatch_plan(encode_hook_dispatch_plan(&plan).as_str()), Some(plan));
-    let other_version: String = encode_hook_dispatch_plan(&sample_plan(ConfigParameters::Absent, false))
-        .replace("\"schemaVersion\":1", "\"schemaVersion\":2");
-    assert_eq!(parse_hook_dispatch_plan(other_version.as_str()), None);
-    let unknown_event: String = encode_hook_dispatch_plan(&sample_plan(ConfigParameters::Absent, false))
-        .replace("\"commit-msg\"", "\"pre-push\"");
-    assert_eq!(parse_hook_dispatch_plan(unknown_event.as_str()), None);
-    assert_eq!(parse_hook_dispatch_plan("{}"), None);
-    assert_eq!(parse_hook_dispatch_plan("not json"), None);
-}
-
-/// A plan written before the hooks path was dropped still parses, and a new plan records no hooks path.
-#[test]
-fn plans_with_a_legacy_hooks_path_field_still_parse() {
-    let current: String = encode_hook_dispatch_plan(&sample_plan(ConfigParameters::Absent, false));
-    assert!(!current.contains("hooksPath"), "{current}");
-    let legacy: String = current.replace("\"gitPath\":\"/usr/bin/git\",", "\"gitPath\":\"/usr/bin/git\",\"hooksPath\":\"/repo/.git/hooks\",");
-    assert!(legacy.contains("hooksPath"));
-    assert_eq!(
-        parse_hook_dispatch_plan(legacy.as_str()),
-        Some(sample_plan(ConfigParameters::Absent, false))
-    );
+    for forbidden in ["gitPath", "hooksPath", "configParameters", "worktreeRoot"] {
+        assert!(!spelled.contains(forbidden), "{forbidden} in {spelled}");
+    }
+    assert!(encode_hook_dispatch_plan(&sample_plan(true)).ends_with("\"skipHookLock\":true}"));
 }
 
 /// The hook lock sits under the common directory, and paths normalize like Node's `path`.
@@ -166,7 +47,7 @@ fn lock_and_paths_normalize_lexically() {
     assert_eq!(normalized_path(Path::new("/repo/../../x/")), PathBuf::from("/x"));
 }
 
-/// Real Git supplies the switches and the caller's `-c` values.
+/// Real Git supplies the switches.
 #[test]
 fn plans_read_real_git_configuration() {
     let root: PathBuf = fixture("hook-plan-reads");
@@ -183,18 +64,14 @@ fn plans_read_real_git_configuration() {
     let plan: HookDispatchPlan = compute_hook_dispatch_plan(&HookPlanInputs {
         context: &git_context(),
         cwd: repository_root.as_path(),
-        global_arguments: &[OsString::from("-c"), OsString::from("x.y=2")],
         common_directory: common.as_path(),
-        worktree_root: repository_root.as_path(),
         lease: "{\"directory\":\"/d\",\"token\":\"t\"}",
         concurrent_commits: true,
         inherited_lease_valid: false,
-        environment: &[],
         snapshot: None,
     })
     .expect("plan");
     assert_eq!(plan.disabled_events, vec![String::from("pre-commit")]);
-    assert_eq!(plan.config_parameters, ConfigParameters::Present(String::from("'x.y=2'")));
     assert!(plan.skip_hook_lock);
     assert_eq!(plan.hook_lock_path, common.join("cli-git").join("hook.lock").to_str().expect("UTF-8"));
     remove(root.as_path());
@@ -205,13 +82,10 @@ fn plan_inputs<'a>(context: &'a GitContext, repository_root: &'a Path) -> HookPl
     return HookPlanInputs {
         context,
         cwd: repository_root,
-        global_arguments: &[],
         common_directory: repository_root,
-        worktree_root: repository_root,
         lease: "lease",
         concurrent_commits: false,
         inherited_lease_valid: false,
-        environment: &[],
         snapshot: None,
     };
 }
@@ -272,18 +146,14 @@ fn plans_skip_the_lock_for_inherited_leases() {
     let plan: HookDispatchPlan = compute_hook_dispatch_plan(&HookPlanInputs {
         context: &git_context(),
         cwd: repository_root.as_path(),
-        global_arguments: &[],
         common_directory: repository_root.join(".git").as_path(),
-        worktree_root: repository_root.as_path(),
         lease: "lease",
         concurrent_commits: false,
         inherited_lease_valid: true,
-        environment: &[],
         snapshot: None,
     })
     .expect("plan");
     assert!(plan.skip_hook_lock);
-    assert_eq!(plan.config_parameters, ConfigParameters::Absent);
     remove(root.as_path());
 }
 
@@ -296,13 +166,10 @@ fn a_failing_config_read_stops_planning() {
     let result = compute_hook_dispatch_plan(&HookPlanInputs {
         context: &git_context(),
         cwd: repository_root.as_path(),
-        global_arguments: &[],
         common_directory: repository_root.join(".git").as_path(),
-        worktree_root: repository_root.as_path(),
         lease: "lease",
         concurrent_commits: false,
         inherited_lease_valid: false,
-        environment: &[],
         snapshot: None,
     });
     assert!(matches!(result, Err(HookPlanError::ConfigRead(_))));

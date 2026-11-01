@@ -627,14 +627,19 @@ pub mod transaction_git;
 /// The preparation and landing leases nested wrapper invocations inherit.
 pub mod transaction_lease;
 
-/// The dispatch plan of one commit transaction, its JSON spelling and the config reads it makes.
+/// The hook plan of one commit transaction, its JSON spelling and the config reads it makes.
 pub mod hook_dispatch_plan;
 
-/// The hooks directory of one transaction: its plan and one entry per preparation event.
-pub mod hook_dispatch_entries;
+/// The hooks directory of one transaction: its plan record, which holds the preparation lease.
+pub mod hook_plan_record;
 
-/// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
-pub mod hook_dispatch;
+/// The hook lock and the preparation lease around the hooks Git runs or the wrapper runs for a commit.
+pub mod hook_run;
+
+/// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
+#[cfg(test)]
+#[path = "hook_self_invocation_tests.rs"]
+mod hook_self_invocation_tests;
 
 /// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;

@@ -4,15 +4,15 @@
 //!       and `prepared.json`.
 //! Why:
 //!  Git owns the hooks, the editor, the templates, the message cleanup and the signing;
-//!  this module only points Git at the shadow, the private index and the hooks directory.
-//!  The hooks directory and the silenced hook events come from the hook dispatcher,
-//!  which this lane does not build: they arrive through [`PreparationHooks`].
+//!  this module only points Git at the shadow and the private index, keeps `post-commit` for the post-landing run,
+//!  and holds the hook lock around the one Git child that may run the configured preparation hooks.
+//!  No hook entry names the wrapper: Git starts the user's configured hook commands itself.
 //!  A failing preparation removes the shadow so no shadow outlives the failure
 //!  (`src/policy-engine/commit-preparation-native.ts`, `src/shadow-repository/shadow-repository.ts`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await runNativePreparation({ gitPath, cwd, globalArgs, commitArgs, shadowPath, worktreeRoot, hooksDirectory, commitIndexPath });
+//! await runNativePreparation({ gitPath, cwd, globalArgs, commitArgs, shadowPath, hookPlan, commitIndexPath });
 //! ```
 
 /// Private file write for the journal record.
@@ -22,6 +22,11 @@ use super::transaction_journal::{AddedPath, PreparedRecord};
 use super::transaction_journal_encode::encode_prepared;
 /// Invocation capture facts the shadow was built from.
 use super::capture_invocation::InvocationCapture;
+/// Hook facts: the plan, the lock held around the native commit and the lease hooks inherit.
+use super::hook_dispatch_plan::{HookDispatchPlan, PREPARATION_HOOK_EVENTS};
+use super::hook_run::{HookLockError, hold_hook_lock, lease_variable};
+/// The hooks-off value Git is given again after the caller's options.
+use super::hooks_off::NO_HOOKS_DIRECTORY;
 /// Shadow removal, so a failed preparation leaves no shadow.
 use super::shadow_git::remove_shadow_repository;
 /// The shadow request and the real-Git command builder.
@@ -33,34 +38,13 @@ use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked}
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Variables native Git must not inherit, so every object it writes lands in the shadow store.
 pub const NATIVE_UNSET_VARIABLES: [&str; 4] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY"];
 
 /// Name of the journal record a preparation writes.
 pub const PREPARED_FILENAME: &str = "prepared.json";
-
-/// What:
-///  The hook dispatcher facts preparation needs:
-///       the directory holding the dispatcher shim,
-///       and the events whose hooks the shim runs instead of Git.
-/// Why:
-///   The dispatcher is built by another lane.
-///  This seam keeps the preparation code independent of that lane,
-///  and the incumbent's silenced events are supplied by the caller, not duplicated here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// { hooksDirectory: string; silencedEvents: readonly string[] } // from computeHookDispatchPlan and writeHookShim
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PreparationHooks {
-    /// Directory Git reads hooks from, passed as `core.hooksPath`.
-    pub directory: PathBuf,
-    /// Events whose native hook is disabled with `hook.<event>.enabled=false`.
-    pub silenced_events: Vec<String>,
-}
 
 /// What:
 ///  Everything one native preparation needs from its transaction.
@@ -77,8 +61,8 @@ pub struct PreparationRequest<'request> {
     pub capture: &'request InvocationCapture,
     /// Shadow repository of the transaction.
     pub shadow: &'request Path,
-    /// Hook dispatcher facts.
-    pub hooks: &'request PreparationHooks,
+    /// The hook plan: its lock is held around the native commit and its lease reaches the hooks Git runs.
+    pub hooks: &'request HookDispatchPlan,
     /// Private commit index.
     pub commit_index: &'request Path,
     /// Kept global options of the invocation.
@@ -105,6 +89,8 @@ pub enum PreparationError {
     },
     /// A Git step around the commit failed.
     Git(GitFailure),
+    /// The hook lock around the native commit could not be taken or released.
+    HookLock(HookLockError),
     /// `prepared.json` could not be written.
     Write(String),
 }
@@ -117,6 +103,7 @@ impl std::fmt::Display for PreparationError {
                 write!(formatter, "git commit exited {exit_code} during private preparation; nothing landed.")
             }
             Self::Git(error) => write!(formatter, "{error}"),
+            Self::HookLock(error) => write!(formatter, "{error}"),
             Self::Write(text) => formatter.write_str(text.as_str()),
         };
     }
@@ -147,23 +134,26 @@ pub struct PreparedCommit {
 /// What:
 ///  Builds the arguments of native `git commit` in the shadow.
 /// Why:
-///   The shadow repository, the work tree, the hooks directory and the silenced events
-///  come before the `commit` subcommand, and the kept global options come first.
+///   The kept global options come first, then the shadow, then the options that keep Git from running what the
+///  wrapper runs itself or does not support: traditional hooks (a hooks directory that cannot exist, which also beats
+///  a `-c core.hooksPath` of the caller) and `post-commit`, which runs once after landing.
+///  The configured `pre-commit`, `prepare-commit-msg` and `commit-msg` hooks stay enabled, so Git runs them with its
+///  own message file protocol.
+///  No `--work-tree` is passed: the shadow's own config names the work tree, and Git then leaves `GIT_WORK_TREE` unset
+///  for hooks instead of the relative `.` that breaks a hook which changes directory
+///  (`doc/troubleshooting/git-private-admin-dir-hook-environment.md`, Behavior B).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...globalArgs, `--git-dir=${shadowPath}`, `--work-tree=${worktreeRoot}`, '-c', `core.hooksPath=${hooksDirectory}`, ...silenced, 'commit', ...commitArgs]
+/// [...globalArgs, `--git-dir=${shadowPath}`, '-c', `core.hooksPath=${NO_HOOKS}`, '-c', 'hook.post-commit.enabled=false', 'commit', ...commitArgs]
 /// ```
 fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
     let mut arguments: Vec<String> = request.global_args.to_vec();
     arguments.push(format!("--git-dir={}", request.shadow.display()));
-    arguments.push(format!("--work-tree={}", request.capture.layout.repository_root.display()));
     arguments.push(String::from("-c"));
-    arguments.push(format!("core.hooksPath={}", request.hooks.directory.display()));
-    for event in &request.hooks.silenced_events {
-        arguments.push(String::from("-c"));
-        arguments.push(format!("hook.{event}.enabled=false"));
-    }
+    arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
+    arguments.push(String::from("-c"));
+    arguments.push(String::from("hook.post-commit.enabled=false"));
     arguments.push(String::from("commit"));
     arguments.extend(request.commit_args.iter().cloned());
     return arguments;
@@ -221,6 +211,9 @@ pub fn retry_while_active<Value>(
 /// Why:
 ///   The editor and hook output reach the user unchanged,
 ///  so the child inherits standard streams.
+///  Git runs the configured preparation hooks inside this child, so the hook lock is held around the whole child,
+///  an open message editor included (`doc/planning/cli-git-no-self-invocation-dispatcher.md` records why no finer
+///  scope exists without Git starting the wrapper).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -233,12 +226,17 @@ pub fn run_native_commit(
 ) -> Result<i32, PreparationError> {
     let arguments: Vec<OsString> = native_commit_arguments(request).iter().map(OsString::from).collect();
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
+    let (lease_name, lease_value): (OsString, OsString) = lease_variable(request.hooks);
     command
         .current_dir(cwd)
-        .env("GIT_INDEX_FILE", request.commit_index);
+        .env("GIT_INDEX_FILE", request.commit_index)
+        .env(lease_name, lease_value);
     for name in NATIVE_UNSET_VARIABLES {
         command.env_remove(name);
     }
+    // Held until this function returns, so every exit releases it; an editor that stays open keeps it.
+    let _hook_lock = hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS)
+        .map_err(PreparationError::HookLock)?;
     // A signal sent to the wrapper while Git runs reaches Git when a process sent it; Git's ending decides the status.
     let guard: SignalGuard = install_guard_when_free().map_err(|error| {
         return PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}")));

@@ -2,7 +2,6 @@
 //! and the maintenance exemption from failing the landed commit.
 
 use super::*;
-use crate::hook_dispatch_plan::ConfigParameters;
 use crate::recovery_landing::tests::Scene;
 use crate::test_support::{executable, git_context, git_text};
 use std::ffi::OsString;
@@ -28,13 +27,10 @@ fn logging_git(root: &std::path::Path, config_exit: u8) -> (PathBuf, PathBuf) {
 /// A plan whose hook lock sits at `lock`, with the given disabled events.
 fn plan(lock: &std::path::Path, disabled: &[&str]) -> HookDispatchPlan {
     return HookDispatchPlan {
-        git_path: String::from(crate::test_support::REAL_GIT),
         disabled_events: disabled
             .iter()
             .map(|name| return String::from(*name))
             .collect(),
-        config_parameters: ConfigParameters::Absent,
-        worktree_root: String::new(),
         lease: String::new(),
         hook_lock_path: lock.display().to_string(),
         skip_hook_lock: false,

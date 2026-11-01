@@ -2,7 +2,7 @@
 //!  The parts of revalidation after a replay that need no policy and no hook:
 //!       the replayed index, the shadow `HEAD` move the policies see, and the decision whether `pre-commit` must re-run.
 //! Why:
-//!  Policies and the `pre-commit` re-run belong to the integrator, which owns the policy engine and the hook dispatcher;
+//!  Policies and the `pre-commit` re-run belong to the integrator, which owns the policy engine and the hook runs;
 //!       these three steps are pure Git work the integrator calls before it.
 //!
 //! In TS you'd write (pseudocode):

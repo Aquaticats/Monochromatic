@@ -76,7 +76,10 @@ const NO_HOOKS: Budget = Budget {
 };
 
 /// A commit with one hook defined in the configuration (`hook.early.event` and `hook.early.command`):
-///  the hook runs under `sh`, and each of the four events has a `hook run` start.
+///  the hook runs under `sh`, Git runs the preparation hooks inside the one native commit (no `hook run` start of the
+///  wrapper's), and the post-landing `post-commit` is the one `hook run` start. The commit holds the hook lock around
+///  the native commit and again around `post-commit`: two lock syncs, where the former dispatcher took the lock once per
+///  event in processes of its own (four `hook run` starts, four lock syncs).
 const ONE_CONFIG_HOOK: Budget = Budget {
     git_starts: &[
         ("add", 1),
@@ -88,7 +91,7 @@ const ONE_CONFIG_HOOK: Budget = Budget {
         ("diff-tree", 1),
         ("for-each-ref", 1),
         ("hash-object", 0),
-        ("hook run", 4),
+        ("hook run", 1),
         ("index-pack", 1),
         ("init", 1),
         ("ls-files", 4),
@@ -106,7 +109,7 @@ const ONE_CONFIG_HOOK: Budget = Budget {
         ("write-tree", 1),
     ],
     other_starts: &[("findmnt", 0), ("sh", 1), ("stat", 0)],
-    wrapper_syncs: 23,
+    wrapper_syncs: 21,
     git_syncs: &[("index-pack", 0)],
 };
 
