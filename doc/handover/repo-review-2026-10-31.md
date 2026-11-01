@@ -1518,6 +1518,91 @@ recording):
   p-memoize.fuzz), `w4-fm-variant-qt` (turn 32, doc/decision), `w4-mp-design` (turn
   56, design/). `w4-fe-core-tests` complete and released.
 
+Wave-4 thirty-fifth checkpoint (2026-11-01, all rows re-verified against the tree before
+recording; the four undercounted cc rows are flagged for amendment):
+
+- Lane milestone: `w4-mp-design` COMPLETE and released. The design/ closure is 586
+  tracked files: 9 text (README.md, 3 questions HTML, 3 capture-record.json,
+  soft-wrap-shots.ts, wrap-annotation-shots.ts) plus 577 png. My recount via
+  `git ls-files` matches 586; the 577 png count matches the directory walk. Rows
+  `w4-ide-app-025` to `-027` verified with spots: README.md line 944 is the only
+  BUILD_COMMIT placeholder (control `feat/ide-hint-rows` returns 5 hits);
+  soft-wrap-shots.ts line 87 says drag while lines 91 to 95 press Shift, click,
+  release Shift, and README.md line 1725 records the switch; the batch-3b record
+  names 96 targets with exactly 8 zone-width outside frames missing while the
+  sibling records report 48 of 48 and 14 of 14; the directory holds 176 png
+  (88 full frames plus 88 -crop variants) and the question page references 176
+  png, none outside. w4-ide-app.jsonl 27 of 27 by my run. Lane released.
+- `w4-cc-statusline` turns 61 to 64 recorded. The new stale-config family: dry.md
+  line 72 links the deleted root file-enforcer.config.ts; deletion commit
+  e7b5130459 removes 2170 lines, and file-enforcer.config.jsonc is the live
+  control. The AGENTS.md WC2 flag is retracted: the live rule at line 898 already
+  names the jsonc file and the .ts name has zero hits. The bench-compile-vs-match
+  table exception is documented in doc/decision/zstd-cli-to-node-zlib.md lines 2
+  to 4; turn 63 returned zero rows. Turn 64 filed rows `w4-docs-014` to `-023`,
+  all verified by my run (w4-docs.jsonl 23 of 23). My spots: the line lists exist,
+  the commit timestamps for row 015 are 02:33:58 and 02:37:10 against deletion
+  01:56:13, and row 023's docs-planning-audit-037 cross-reference is live.
+  Count audit pending: a whole-line caps sweep finds 18, 24, 8 and 23 lines for
+  rows 014, 018, 019 and 022 against the claimed 13, 17, 7 and 13, and row 014's
+  own ran field says 14. Amend those four `what` fields after the lane returns,
+  before batch 4.
+- `w4-git-policy-b` turns 58 to 64 recorded. Turn 58 returned zero rows (explicit
+  third argument; SELF_MATCH three entries at scanner_selection.rs line 82).
+  Turn 59 filed b-062 to b-065; turns 60 and 61 closed lead 10 with b-066 and
+  b-067 and amended b-064 in place after concurrent commit ac97d3b4f3 moved the
+  line. Turn 62 filed b-068 (SIG_IGN inherited-ignore arm; counted absence three
+  hits with the SignalGuard controls); turn 63 closed lead 4 (b-036's
+  transaction_git half; succeeded at lines 165 to 166, run_git at 328); turn 64
+  filed b-069 and b-070. My spots: transaction_journal_parse.rs line 8 and
+  transaction_journal.rs lines 10 to 11 are verbatim; cutover commit 642b6d72cb
+  lists the deleted journal-parse, journal-reader, journal-states and journal .ts
+  files; `git ls-files` counts zero for each removed name and for the
+  policy-engine prefix, with the two citing files as positive controls. The
+  ledger is 70 rows. The verifier now reports 62 of 70: eight older rows (`-001`,
+  `-005`, `-006`, `-008`, `-009`, `-025`, `-027`, `-062`) went stale under the
+  concurrent session's commits at 07:29, 07:58 and 08:07 (manual_push_probe.rs
+  shrank to 316 lines, post_commit_hook.rs is no longer tracked,
+  shadow_config.rs and policy_registry_tests.rs moved). These are tree-movement
+  failures, not new findings; the batch-4 verify must repair or route them to the
+  manual queue. The latest rows 069 and 070 are clean.
+- `w4-desktop-app` turns 49 to 55 recorded. p-map closed at 42 of 42 and
+  p-map.fuzz at 48 of 48; family at 14 of 16 subpackages. Rows 039 to 042 cover
+  the p-map coverage driver, the README suppression count, the task.ts omission
+  and the export-surface error-class gap. Turn 55 filed rows
+  `w4-upstream-fork-043` to `-048`; my spots confirm the SOURCE_MARKER slice
+  yields p-map.ts not parse.ts, the Object-literal checkBaseline example against
+  the ReadonlyMap signature, the streaming-by-id versus concurrent-by-index
+  fallbacks, both adapter doc omissions, InvalidKeyedInputError at
+  p-map-keyed.ts line 414 against the README's five-error list, and the stale
+  css-edit.fuzz and jsonc-edit.fuzz names (zero tracked; 25
+  core-edit.fuzz/core-ts.fuzz controls). w4-upstream-fork.jsonl 48 of 48 by my
+  run.
+- `w4-fm-variant-qt` doc/decision lane: rows `w4-docs-decision-001` to `-018`
+  verified at 18 of 18 by my run. Rows 013 to 018 landed after checkpoint 34 and
+  were unrecorded: stale in-tree references in accumulation-generation-restart
+  (pipeline-barrel.ts zero, controls one each) and artifact-stores-the-block-pairing
+  (artifact-v2-read.ts and the three V2 names zero; discardSliceCache now matches
+  six files, five sources plus the README, none pass-entry.ts); the js-yaml stub
+  claim (zero pnpm-override-stub-throwing hits, three override controls); the
+  117-package count against 240 package.json files at package/*/* depth; the MD4
+  census, which I reproduced exactly (9 URL-file pairs, 6 files, 18 occurrences,
+  zero URLs inlined 3 or more times); and cargo-build-dir-host-cache (the doc says
+  19 Cargo manifests, the tree has 33; .ts configs zero with the two .jsonc
+  successors as controls; the wg test zero with two controls; the music-player
+  .cargo config has no linker key and three rustflags assignments). The minor
+  count drift in row 014 is noted, not re-filed.
+- Wave-4 workers relaunched in a new harness after the 2026-11-01 07:32 budget stop
+  killed the vibe children: cc-docs (doc/audit prose from w4-docs-024, base
+  rr-gp-330), android-native (git-policy native positions 531 to 585 from
+  w4-git-policy-b-071, base rr-gpb-070), desktop-fork (conf 59 plus conf.fuzz 17
+  from w4-upstream-fork-049, base rr-desktop-084), fm-decision (doc/decision deep
+  reads from w4-docs-decision-019, base rr-fmv-57). Each has the standing block;
+  their returns go through verify-findings plus row spots before re-briefing.
+- Next: process the four worker returns; amend the four undercounted cc rows
+  before batch 4; repair the stale git-policy rows; batch-4 pipeline when wave 4
+  completes.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
