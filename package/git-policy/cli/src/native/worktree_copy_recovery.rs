@@ -19,6 +19,7 @@ use super::worktree_copy_claim::{
     ADOPTED_KEY_PREFIX, Claim, Examination, claims_exist, examine_claim, list_claims, publish_claim,
     remove_abandoned_temporaries,
 };
+use super::worktree_copy_registry::mark_copied;
 use super::worktree_copy_stage::StagedSnapshot;
 use super::worktree_copy_transaction::{Outcome, complete_journal, snapshot_from_journal};
 use crate::worktree_copy_journal::{
@@ -276,6 +277,19 @@ pub fn settle_claim(common_dir: &Path, claim: Claim) -> Result<RecoveryReport, W
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(raw_failure(&error)),
         }
+    }
+    // A copy whose journal reached an end is over for that registration, so a command that sees the worktree later
+    // must not stage it again. A copy that died before its journal left the worktree uncopied for a survivor to fill.
+    // An adopted journal's key names no registration.
+    let key: String = claim
+        .path()
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    let marks_registration: bool = has_journal && !key.starts_with(ADOPTED_KEY_PREFIX);
+    if marks_registration {
+        mark_copied(common_dir.join("worktrees").as_path(), key.as_str())?;
     }
     claim.release()?;
     return Ok(report);

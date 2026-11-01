@@ -512,7 +512,9 @@ The winner keeps the file open until the copy ends and removes the claim last,
 after the journal and the stage,
 then marks the registration copied with `worktrees/<administrative name>/cli-git-copied`
 (Git deletes the marker with the registration),
-so a command that sees the worktree later does not copy it again.
+so a command that sees the worktree later does not copy it again;
+a recovery pass that ends a copy which reached its journal marks it too,
+and a copy that died before its journal leaves no marker, so a surviving command fills that worktree.
 Nothing waits and nothing polls.
 A command that finds a published claim asks the process table whether any process has that file open
 (`/proc/<pid>/fd`, compared by device and inode):

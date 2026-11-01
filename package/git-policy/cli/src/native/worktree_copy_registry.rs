@@ -466,7 +466,7 @@ pub fn is_initializing(admin_root: &Path, admin_id: &str) -> Result<bool, Worktr
     match std::fs::read_to_string(admin_root.join(admin_id).join(LOCKED_NAME)) {
         Ok(text) => return Ok(text.trim() == INITIALIZING_TEXT),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) if error.raw_os_error() == Some(libc::ENOTDIR) => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(false),
         Err(error) => return Err(inspect_failure(admin_root, &error)),
     }
 }
@@ -485,7 +485,7 @@ pub fn copied_marker_exists(admin_root: &Path, admin_id: &str) -> Result<bool, W
     match std::fs::symlink_metadata(admin_root.join(admin_id).join(COPIED_MARKER_NAME)) {
         Ok(_) => return Ok(true),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(error) if error.raw_os_error() == Some(libc::ENOTDIR) => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(false),
         Err(error) => return Err(inspect_failure(admin_root, &error)),
     }
 }

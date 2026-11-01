@@ -87,8 +87,10 @@ It carries no process identifier.
   Overlapping creating commands may both see a new worktree.
   Whoever wins its claim copies it, from its own source worktree; the other yields with one notice line.
   A worktree whose `locked` file still says `initializing` is left to its creator.
-  A marker `worktrees/<id>/cli-git-copied`, written when the claim holder finishes (installed or failed), makes later
-  arrivals skip a destination that is already done; Git deletes it with the registration.
+  A marker `worktrees/<id>/cli-git-copied`, written when the claim holder finishes (installed or failed) or when a
+  recovery pass ends a copy that reached its journal, makes later arrivals skip a destination that is already done; Git
+  deletes it with the registration.
+  A copy that died before its journal leaves no marker, so a surviving command fills that worktree.
 - Recovery against a live copy.
   A recovery pass only acts on a claim that has no holder, and on a journal that no claim names (journals an older
   release wrote), which it first adopts with a claim of its own.

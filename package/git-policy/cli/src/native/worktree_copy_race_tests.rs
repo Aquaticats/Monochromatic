@@ -375,6 +375,10 @@ fn a_copy_killed_while_staging_loses_its_stage_with_a_notice() {
     recover_pending_worktree_copies(scene.common.as_path(), &mut notices).expect("settled");
     assert!(String::from_utf8_lossy(notices.as_slice()).contains("removed the stage"));
     assert_eq!(scene.anything_left(), Vec::<String>::new());
+    // The copy never reached its journal, so nothing marks the registration: a surviving command fills the worktree.
+    assert!(!scene.marker().exists());
+    let (survivor, _survivor_notices) = scene.synchronize();
+    assert_eq!(survivor.expect("copied"), Synchronized::Copied(COPIED_ENTRIES));
     remove(scene.root.as_path());
 }
 
@@ -401,6 +405,12 @@ fn a_copy_killed_after_its_journal_is_finished_by_the_next_pass() {
     );
     assert_eq!(cache_tree(scene.created.root.as_path()), vec!["cache", "cache/deep", "cache/deep/data", "cache/top"]);
     assert_eq!(scene.anything_left(), Vec::<String>::new());
+    // The pass ended the copy, so it marks the registration and a command that arrives later stages nothing.
+    assert!(scene.marker().exists());
+    let mut checkpoints: Vec<Checkpoint> = Vec::new();
+    let (late, _late_notices) = scene.synchronize_at(&mut |checkpoint| checkpoints.push(checkpoint));
+    assert_eq!(late.expect("late copy"), Synchronized::AlreadyCopied);
+    assert!(checkpoints.is_empty(), "{checkpoints:?}");
     remove(scene.root.as_path());
 }
 

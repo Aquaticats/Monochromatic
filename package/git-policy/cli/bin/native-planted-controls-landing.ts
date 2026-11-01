@@ -89,6 +89,13 @@ export const plantedLandingControls: readonly PlantedControl[] = [
     failing: 'worktree_copy_transaction::race_tests::a_worktree_removed_while_staging_is_not_filled',
   },
   {
+    name: 'worktree copy recovery marks the registration it finished',
+    file: 'src/native/worktree_copy_recovery.rs',
+    from: 'if marks_registration {',
+    to: 'if false {',
+    failing: 'worktree_copy_transaction::race_tests::a_copy_killed_after_its_journal_is_finished_by_the_next_pass',
+  },
+  {
     name: 'worktree copy leaves a worktree Git is still creating',
     file: 'src/native/worktree_copy_registry.rs',
     from: 'if !is_initializing(observation.admin_root.as_path(), admin_id.as_str())? {',
