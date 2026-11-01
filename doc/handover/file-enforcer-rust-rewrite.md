@@ -587,6 +587,24 @@ each finished branch is reviewed and merged into `main`):
   the pooling doc lacks its hyper-util `pool.rs` citation.
   A fresh agent is fixing all of them on the same branch (version stays 0.2.1);
   the same reviewer re-checks the delta before the merge.
+  Fixed 2026-11-01,
+  tip `8e017174ea` (12 commits on `98541bde6c`;
+  403 tests passed;
+  each new guard shown to fail a named test when removed):
+  names checked as one plain segment at decode,
+  in the cleanup and in the path builders;
+  archive installs unpack into a staging directory,
+  are checked,
+  then marked finished with `.mpm-shadow-installed`;
+  repository-published means `github:Aquaticats/Monochromatic` plus the `monochromatic-` prefix;
+  the highest whole version wins,
+  with a message when the 10-page cap stops the search;
+  downloads kept per version.
+  Behaviour changes the author named:
+  an unmarked archive directory from 0.2.0 or earlier is reinstalled once;
+  `bin` and `node` stay usable as tool ids.
+  The same reviewer is re-checking `98541bde6c..8e017174ea`,
+  plus the crate's lint gate and what `cargo-publish.yml` runs before publishing.
 - Second separate wg review (2026-10-31,
   range `8dbd3e47da..0174850d6d`):
   no blocker.
@@ -722,6 +740,41 @@ each finished branch is reviewed and merged into `main`):
   as before this branch;
   the branch had made it continue with a loud error,
   which the owner never decided).
+- Separate review of the switch branch (2026-11-01,
+  `82bc287a8c..cc96e34a54`):
+  no new blocker.
+  Verified clean:
+  `file-enforcer 0.1.1 check --outputs committed` on an export exits 0,
+  every old generator has a disposition,
+  all 63 old tools carried with nothing this repository publishes pinned,
+  no secret echoed in CI,
+  the lock's archive checksums match the releases.
+  Should-fix,
+  sent to the switch agent:
+  an existing checkout's `.cache/toolchain-bin/mpm-shadow` links to `~/.cargo/bin/mpm-shadow` 0.2.0,
+  which exits 2 on the plan's `tagPrefix` even after the lock names 0.2.1,
+  so the README needs an existing-checkout path;
+  the branch's own tagPrefix and pooling commits duplicate the reviewed 0.2.1 code,
+  so its `package/mpm-shadow` resolves to `main`'s in the item 3 merge;
+  references to the Playwright workflow and runbook require `playwright-image-publish` to merge first;
+  stale instruction-bearing docs;
+  drift steps are `continue-on-error`,
+  although the decision calls them a gate;
+  `FILE_ENFORCER_IDLE_SECONDS` unset in CI and the Dockerfile.
+  Also noted:
+  `config.yaml` changes three lines (header,
+  package count 170 to 169,
+  the deleted `file-enforcer-core` leaves the trust list),
+  so the merge redeploys pnpr and starts its publish run.
+  Post-merge steps for this session,
+  from the review:
+  in `main`,
+  run the released 0.2.1 by absolute path for the first `install`
+  (the stale link otherwise runs 0.2.0);
+  then remove orphaned older repository-published binaries such as `~/.cargo/bin/mpm-shadow` 0.2.0,
+  per the owner's "No older repo-maintained tools should ever exist when newer is present.",
+  leaving the git wrapper in `~/.cargo/bin` until the global plan owns it;
+  check whether the Coolify app for `docker-compose.yml` auto-deploys on push.
 - Separate review of `playwright-image-publish` (2026-11-01,
   `658b372099..590a8a5b4a`):
   no blocker.
