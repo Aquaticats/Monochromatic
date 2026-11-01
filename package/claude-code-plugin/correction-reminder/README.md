@@ -38,7 +38,9 @@ The hook fires on any of the following patterns in user input (case-insensitive,
 - "why would you"
 - "that's wrong" / "this is wrong"
 - "you got that/this/it wrong"
+- "you're not feeling well" / "you're not paying attention" (and the no-apostrophe "youre" spellings)
 - "please be more careful"
+- "are you paying attention" / "aren't you paying attention" (and the "not" and no-apostrophe "arent" forms)
 
 ## Why this hook exists
 
