@@ -1761,6 +1761,21 @@ relaunched cc and desktop lanes are still running):
 - Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
   fm-decision from position 20, troubleshooting from unread.txt.
 
+Wave-4 forty-first checkpoint (2026-11-01, troubleshooting first turn verified; cc, desktop and
+fm are still running):
+
+- doc/troubleshooting lane (first turn): worklist lines 61 to 66 read in full, rows
+  `w2-logger-src-072` to `-076`. My spots: four Containerfile RUST_TOOLCHAIN
+  defaults still read nightly-2026-10-29 while toolchain.lock.json pins
+  nightly-2026-11-01 (b896deca0d); the cac doc's scratch uses `mktemp --directory`
+  in /tmp; the two deleted file-enforcer TypeScript citations and the
+  cargo-about section gaps quote live lines. The pre-existing row 35 went
+  quote-bad again when the README reflowed at 08:21; I re-repaired it to the live
+  escape lines 306 and 308 and marked it concurrent. w2-logger-src.jsonl is 76
+  of 76 clean. Next: worklist line 67, id w2-logger-src-077, base rr-ts-375.
+- Active: cc-docs at positions 362 to 412, desktop-fork on the deepmerge tail,
+  fm-decision from position 20, troubleshooting from line 67.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
