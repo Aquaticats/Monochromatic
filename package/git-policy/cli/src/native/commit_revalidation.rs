@@ -25,6 +25,7 @@ use super::forwarding::{exit_code, git_command};
 use super::signal_relay::SignalGuard;
 use super::hook_dispatch_plan::HookDispatchPlan;
 use super::hook_run::{event_may_run, hold_hook_lock, lease_variable};
+use super::owner_lock::OwnerLock;
 use super::policy_checks::ShippedChecks;
 use super::policy_content::{ContentState, LifecycleContent};
 use super::policy_engine::{StageRequest, pass_exit_code};
@@ -142,8 +143,8 @@ fn rerun_pre_commit(
     for name in NATIVE_UNSET_VARIABLES {
         command.env_remove(name);
     }
-    // Held until this function returns, so every exit releases it.
-    let _hook_lock = hold_hook_lock(hooks, &["pre-commit"])
+    // Held across the run; a failure before the release drops it.
+    let hook_lock: Option<OwnerLock> = hold_hook_lock(hooks, &["pre-commit"])
         .map_err(|error| { return failed(error.to_string()); })?;
     let guard: SignalGuard = install_guard_when_free()
         .map_err(|error| { return failed(format!("installing the signal guard failed: {error}")); })?;
@@ -151,6 +152,9 @@ fn rerun_pre_commit(
         .run_child(&mut command)
         .map_err(|error| { return TransactionStop::Message(format!("git hook run could not start: {error}")); })?;
     debug(TAG, format!("pre-commit re-run ended {outcome:?}").as_str());
+    if let Some(held) = hook_lock {
+        held.release().map_err(|error| { return failed(error.to_string()); })?;
+    }
     if exit_code(outcome) != 0 {
         return Err(TransactionStop::NativeExit(HOOK_REJECTION_EXIT));
     }

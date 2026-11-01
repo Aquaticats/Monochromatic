@@ -39,6 +39,8 @@ enum Shape {
     FailingPreCommit,
     /// Executable traditional hooks for all four events and no configured hook; the wrapper must not run them.
     AllTraditional,
+    /// Configured hooks for all four events and `--no-verify`, which skips `pre-commit` and `commit-msg` only.
+    NoVerify,
 }
 
 /// The script of one hook: it logs its name and argument count, and the message hooks edit the message.
@@ -100,6 +102,8 @@ struct Side {
     log: PathBuf,
     /// Arguments in front of `commit`.
     global: Vec<String>,
+    /// Options added after `commit`.
+    options: Vec<String>,
 }
 
 /// Build one side of a shape: a repository, its hooks and configuration.
@@ -108,6 +112,7 @@ fn build(fixture: &Fixture, side: &str, shape: Shape) -> Side {
     let log: PathBuf = fixture.root.join(format!("{side}.log"));
     let hooks: PathBuf = repo.join(".git").join("hooks");
     let mut commit_in: PathBuf = repo.clone();
+    let mut options: Vec<String> = Vec::new();
     match shape {
         Shape::NoHooks => {}
         Shape::AllConfigHooks => configure_script_hooks(fixture, repo.as_path(), log.as_path(), &EVENTS, 0),
@@ -143,19 +148,25 @@ fn build(fixture: &Fixture, side: &str, shape: Shape) -> Side {
             commit_in = linked;
         }
         Shape::FailingPreCommit => configure_script_hooks(fixture, repo.as_path(), log.as_path(), &["pre-commit"], 1),
+        Shape::NoVerify => {
+            configure_script_hooks(fixture, repo.as_path(), log.as_path(), &EVENTS, 0);
+            options.push(String::from("--no-verify"));
+        }
         Shape::AllTraditional => {
             for event in EVENTS {
                 install(hooks.as_path(), event, log.as_path(), 0);
             }
         }
     }
-    return Side { commit_in, log, global: Vec::new() };
+    return Side { commit_in, log, global: Vec::new(), options };
 }
 
 /// The commit arguments of one side, with the global options in front.
 fn commit_arguments(side: &Side) -> Vec<String> {
     let mut arguments: Vec<String> = side.global.clone();
-    arguments.extend(["commit", "--quiet", "--message=second", "--", "a.txt"].map(String::from));
+    arguments.extend(["commit", "--quiet", "--message=second"].map(String::from));
+    arguments.extend(side.options.iter().cloned());
+    arguments.extend(["--", "a.txt"].map(String::from));
     return arguments;
 }
 
@@ -268,6 +279,14 @@ fn disabled_events_without_hooks_show_what_direct_git_shows() {
 fn a_disabled_configured_hook_is_skipped_as_it_is_directly() {
     let log: Vec<String> = require_same("disabled-config-hooks", Shape::DisabledConfigHooks);
     assert_eq!(log, vec![String::from("commit-msg 1")]);
+}
+
+/// `--no-verify` skips `pre-commit` and `commit-msg` and keeps `prepare-commit-msg` and `post-commit`, as it does
+/// directly: Git applies the rule inside the native commit, so the wrapper adds none of its own.
+#[test]
+fn no_verify_skips_only_the_verifying_hooks_as_it_does_directly() {
+    let log: Vec<String> = require_same("no-verify", Shape::NoVerify);
+    assert_eq!(log, vec![String::from("prepare-commit-msg 2"), String::from("post-commit 0")]);
 }
 
 /// Configured hooks in the common configuration run for a commit made in a linked worktree.

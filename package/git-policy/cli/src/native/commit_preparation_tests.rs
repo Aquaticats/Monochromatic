@@ -272,9 +272,9 @@ fn a_nothing_to_commit_failure_removes_the_shadow() {
     remove(root.as_path());
 }
 
-/// The native command names the shadow, turns traditional hooks and `post-commit` off, and names no work tree.
+/// The native command names the shadow, turns traditional hooks off, and names no work tree and no `post-commit` switch.
 #[test]
-fn native_commit_arguments_name_the_shadow_and_turn_the_unrun_hooks_off() {
+fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
     let capture_root: PathBuf = fixture("commit-preparation-arguments");
     let repo: PathBuf = repository(capture_root.as_path(), "repo");
     let context = git_context();
@@ -305,8 +305,6 @@ fn native_commit_arguments_name_the_shadow_and_turn_the_unrun_hooks_off() {
             "--git-dir=/s",
             "-c",
             "core.hooksPath=/dev/null/cli-git-no-hooks",
-            "-c",
-            "hook.post-commit.enabled=false",
             "commit",
             "-m",
             "x",

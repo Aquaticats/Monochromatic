@@ -39,6 +39,8 @@ fn config_without_extensions_has_the_fixed_layout() {
             "\tauto = 0\n",
             "[maintenance]\n",
             "\tauto = false\n",
+            "[hook \"post-commit\"]\n",
+            "\tenabled = false\n",
         )
     );
 }

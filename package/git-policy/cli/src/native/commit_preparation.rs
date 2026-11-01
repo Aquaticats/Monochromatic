@@ -25,6 +25,7 @@ use super::capture_invocation::InvocationCapture;
 /// Hook facts: the plan, the lock held around the native commit and the lease hooks inherit.
 use super::hook_dispatch_plan::{HookDispatchPlan, PREPARATION_HOOK_EVENTS};
 use super::hook_run::{HookLockError, hold_hook_lock, lease_variable};
+use super::owner_lock::OwnerLock;
 /// The hooks-off value Git is given again after the caller's options.
 use super::hooks_off::NO_HOOKS_DIRECTORY;
 /// Shadow removal, so a failed preparation leaves no shadow.
@@ -135,8 +136,10 @@ pub struct PreparedCommit {
 ///  Builds the arguments of native `git commit` in the shadow.
 /// Why:
 ///   The kept global options come first, then the shadow, then the options that keep Git from running what the
-///  wrapper runs itself or does not support: traditional hooks (a hooks directory that cannot exist, which also beats
-///  a `-c core.hooksPath` of the caller) and `post-commit`, which runs once after landing.
+///  wrapper does not support: traditional hooks (a hooks directory that cannot exist, which also beats a
+///  `-c core.hooksPath` of the caller).
+///  `post-commit`, which the wrapper runs once after landing, is switched off in the shadow's own config, so no
+///  `-c` option leaks into the hooks' `GIT_CONFIG_PARAMETERS`.
 ///  The configured `pre-commit`, `prepare-commit-msg` and `commit-msg` hooks stay enabled, so Git runs them with its
 ///  own message file protocol.
 ///  No `--work-tree` is passed: the shadow's own config names the work tree, and Git then leaves `GIT_WORK_TREE` unset
@@ -145,15 +148,13 @@ pub struct PreparedCommit {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [...globalArgs, `--git-dir=${shadowPath}`, '-c', `core.hooksPath=${NO_HOOKS}`, '-c', 'hook.post-commit.enabled=false', 'commit', ...commitArgs]
+/// [...globalArgs, `--git-dir=${shadowPath}`, '-c', `core.hooksPath=${NO_HOOKS}`, 'commit', ...commitArgs]
 /// ```
 fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
     let mut arguments: Vec<String> = request.global_args.to_vec();
     arguments.push(format!("--git-dir={}", request.shadow.display()));
     arguments.push(String::from("-c"));
     arguments.push(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
-    arguments.push(String::from("-c"));
-    arguments.push(String::from("hook.post-commit.enabled=false"));
     arguments.push(String::from("commit"));
     arguments.extend(request.commit_args.iter().cloned());
     return arguments;
@@ -234,14 +235,31 @@ pub fn run_native_commit(
     for name in NATIVE_UNSET_VARIABLES {
         command.env_remove(name);
     }
-    // Held until this function returns, so every exit releases it; an editor that stays open keeps it.
-    let _hook_lock = hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS)
-        .map_err(PreparationError::HookLock)?;
-    // A signal sent to the wrapper while Git runs reaches Git when a process sent it; Git's ending decides the status.
+    // Held across the child, so an editor that stays open keeps it; a failure before the release drops it.
+    let hook_lock: Option<OwnerLock> =
+        hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS).map_err(PreparationError::HookLock)?;
+    let status: i32 = run_guarded_child(&mut command)?;
+    if let Some(held) = hook_lock {
+        held.release()
+            .map_err(|error| { return PreparationError::HookLock(HookLockError(error.to_string())); })?;
+    }
+    return Ok(status);
+}
+
+/// What:
+///  Run the native commit under the signal guard and return its exit code.
+/// Why:
+///   A signal sent to the wrapper while Git runs reaches Git when a process sent it; Git's ending decides the status.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// using guard = installSignalGuard(); return exitCode(await guard.runChild(command));
+/// ```
+fn run_guarded_child(command: &mut std::process::Command) -> Result<i32, PreparationError> {
     let guard: SignalGuard = install_guard_when_free().map_err(|error| {
         return PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}")));
     })?;
-    let outcome = guard.run_child(&mut command).map_err(|error| {
+    let outcome = guard.run_child(command).map_err(|error| {
         return PreparationError::Git(GitFailure(format!("git commit could not start: {error}")));
     })?;
     return Ok(super::forwarding::exit_code(outcome));

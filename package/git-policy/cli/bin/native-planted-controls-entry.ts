@@ -140,8 +140,8 @@ export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: 'native commit holds no hook lock',
     file: 'src/native/commit_preparation.rs',
-    from: '    let _hook_lock = hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS)',
-    to: '    let _hook_lock = hold_hook_lock(request.hooks, &[])',
+    from: '        hold_hook_lock(request.hooks, &PREPARATION_HOOK_EVENTS).map_err(PreparationError::HookLock)?;',
+    to: '        hold_hook_lock(request.hooks, &[]).map_err(PreparationError::HookLock)?;',
     failing: 'commit_preparation::tests::a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease',
   },
   {
@@ -152,17 +152,17 @@ export const plantedEntryControls: readonly PlantedControl[] = [
     failing: 'commit_preparation::tests::a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease',
   },
   {
-    name: 'native commit leaves post-commit to Git',
-    file: 'src/native/commit_preparation.rs',
-    from: '    arguments.push(String::from("hook.post-commit.enabled=false"));',
-    to: '    arguments.push(String::from("hook.post-commit.enabled=true"));',
-    failing: 'commit_preparation::tests::native_commit_arguments_name_the_shadow_and_turn_the_unrun_hooks_off',
+    name: 'shadow leaves post-commit to Git',
+    file: 'src/native/shadow_config.rs',
+    from: '    lines.push(String::from("\\tenabled = false"));',
+    to: '    lines.push(String::from("\\tenabled = true"));',
+    failing: 'shadow_config::tests::config_without_extensions_has_the_fixed_layout',
   },
   {
     name: 'pre-commit re-run ignores the hook lock',
     file: 'src/native/commit_revalidation.rs',
-    from: '    let _hook_lock = hold_hook_lock(hooks, &["pre-commit"])',
-    to: '    let _hook_lock = hold_hook_lock(hooks, &[])',
+    from: '    let hook_lock: Option<OwnerLock> = hold_hook_lock(hooks, &["pre-commit"])',
+    to: '    let hook_lock: Option<OwnerLock> = hold_hook_lock(hooks, &[])',
     failing: 'commit_revalidation::tests::a_passing_hook_sees_the_replayed_index_no_editor_the_lease_and_the_lock',
   },
   {
