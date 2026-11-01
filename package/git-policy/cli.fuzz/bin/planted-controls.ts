@@ -82,6 +82,10 @@ const inputs = [
   'package/jsonc-edit/core-rust/Cargo.lock',
   'package/jsonc-edit/core-rust/src',
   'package/jsonc-edit/core-rust/fixtures',
+  'package/catalog-specifier/core-rust/Cargo.toml',
+  'package/catalog-specifier/core-rust/Cargo.lock',
+  'package/catalog-specifier/core-rust/src',
+  'package/catalog-specifier/core-rust/fixtures',
   // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
   'package/forbidden-strings/cli/Cargo.toml',
   'package/forbidden-strings/cli/Cargo.lock',

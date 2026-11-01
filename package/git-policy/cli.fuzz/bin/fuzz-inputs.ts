@@ -164,6 +164,17 @@ export async function copyInputs({
         'fixtures',
       ],
     },
+    // The subject links the catalog specifier rule behind the `mono/catalog-specifiers` policy.
+    {
+      from: '../../catalog-specifier/core-rust',
+      to: 'package/catalog-specifier/core-rust',
+      names: [
+        'Cargo.toml',
+        'Cargo.lock',
+        'src',
+        'fixtures',
+      ],
+    },
     // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
     {
       from: '../../forbidden-strings/cli',
