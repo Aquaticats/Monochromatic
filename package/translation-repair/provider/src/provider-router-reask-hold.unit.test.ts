@@ -15,18 +15,37 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
-import type {
-  ProviderName,
-  RosterModelId,
+import {
+  NoProviderForModelError,
+  refusedBeforeAnyExchange,
+} from '@monochromatic-dev/translation-repair-markup';
+import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
+import {
+  createSlotLedger,
+  type ProviderName,
+  type RosterModelId,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
-import type { ReaskSeat, } from '../dist/final/node/index.mjs';
+import {
+  SYNTHETIC_WET_ONLY,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/dryness-readings.test-fixture.ts';
+import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  type ChatTextReply,
+  createRoutingClient,
+  type ReaskSeat,
+  type RoutedCore,
+  routedTextElsewhere,
+} from '../dist/final/node/index.mjs';
 import { routerRecordingProviders, } from './provider-router-recording.test-fixture.ts';
-import { readOlderProvidersWet, } from './provider-router-wet-budgets.test-fixture.ts';
+import {
+  holdNothing,
+  markNothingRefused,
+  readOlderProvidersWet,
+} from './provider-router-wet-budgets.test-fixture.ts';
 
 /**
  Abort signal every routed call carries.
@@ -68,6 +87,29 @@ async function reaskedElsewhere(
   catch (error) {
     return { refusal: error, reached, };
   }
+}
+
+/**
+ Slots every provider grants, so the ledger of a case that is no test of the slots never saturates.
+ */
+const UNLIMITED_SLOTS = {
+  neuralwatt: Number.POSITIVE_INFINITY,
+  synthetic: Number.POSITIVE_INFINITY,
+  hyper: Number.POSITIVE_INFINITY,
+  bedrock: Number.POSITIVE_INFINITY,
+  deepseek: Number.POSITIVE_INFINITY,
+  xiaomi: Number.POSITIVE_INFINITY,
+  anthropic: Number.POSITIVE_INFINITY,
+  openrouter: Number.POSITIVE_INFINITY,
+} as const;
+
+/**
+ Caller that is never reached: any call here fails the case that built it.
+
+ @returns Nothing, since it always rejects
+ */
+function refusedNowhere(): Promise<ChatTextReply> {
+  return Promise.reject(new Error('this provider must not be asked',),);
 }
 
 await describe({
@@ -124,7 +166,20 @@ await describe({
           reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
         },);
         expect(reached,).toEqual(['synthetic',],);
-        expect(outcome.kind,).not.toBe('ok',);
+        // THE ANSWER KEPT IS THE FIRST ONE (ledger B1377): the text Synthetic gave, whole, and not another outcome that
+        // is merely not ok, which a refusal that threw the first answer away would also be.
+        /**
+         The text a plain first ask of the same model is answered with, the stub's reply of Synthetic.
+         */
+        const { client: control, } = routerRecordingProviders({ read: readOlderProvidersWet, },);
+        const firstText = (await control.chatText({
+          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          messages: MESSAGES,
+          signal: SIGNAL,
+          reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
+        },)).text;
+        expect(outcome.kind,).toBe('schema-mismatch',);
+        expect(outcome.kind === 'schema-mismatch' ? outcome.rawText : undefined,).toBe(firstText,);
       },
     },),
 
@@ -142,6 +197,160 @@ await describe({
         },);
         expect(measured.servedBy,).toBe('hyper',);
         expect(seated.refusal,).toBeInstanceOf(NoProviderForModelError,);
+      },
+    },),
+
+    it({
+      name: 'SKIPS THE HELD PROVIDER AND TAKES THE NEXT ONE THAT SERVES THE MODEL (ledger B1377): with a third provider '
+        + 'serving Qwen3.8-27B, the editor re-ask after Synthetic goes to the third and not to Hyper, and is not refused, '
+        + 'which a router that refuses whenever any provider is held would fail',
+      fn: async () => {
+        /**
+         Providers the stub core called, in order.
+         */
+        const called: ProviderName[] = [];
+        /**
+         The router's lent core, with a model that Synthetic, Hyper and OpenRouter all serve, all with budget, since no
+         roster card with a hold has a third provider.
+         */
+        const core: RoutedCore = {
+          reachFor: () => ({
+            neuralwatt: false,
+            synthetic: true,
+            hyper: true,
+            bedrock: false,
+            deepseek: false,
+            xiaomi: false,
+            anthropic: false,
+            openrouter: true,
+          }),
+          budgets: {
+            read: readOlderProvidersWet,
+            markRefused: markNothingRefused,
+            holds: holdNothing,
+          },
+          ledger: createSlotLedger({ limits: UNLIMITED_SLOTS, },),
+          callOn: function callOn({ provider, },): Promise<ChatTextReply> {
+            called.push(provider,);
+            return Promise.resolve({ text: `${provider} answers`, },);
+          },
+          routedText: function routedTextUnused(): never {
+            throw new Error('the first ask is not routed here',);
+          },
+        };
+        const served = await routedTextElsewhere({
+          core,
+          request: {
+            modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+            messages: MESSAGES,
+            signal: SIGNAL,
+            reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
+          },
+          otherThan: 'synthetic',
+        },);
+        expect(served.provider,).toBe('openrouter',);
+        expect(called,).toEqual(['openrouter',],);
+      },
+    },),
+
+    it({
+      name: 'HONOURS THE HINT AND THE HOLDS IN A JSON EXCHANGE AS IN A TEXT EXCHANGE (ledger B1379): a chatJson of a held '
+        + 'model that names no seat and is hinted off Synthetic is refused and reaches no provider, and the same request '
+        + 'as a measurement is served on Hyper',
+      fn: async () => {
+        /**
+         Asks a JSON exchange hinted off Synthetic, as the router's own text exchange is by the nudged re-ask.
+
+         @param reaskSeat - seat the request names, when it names one
+
+         @returns Providers the exchange reached first and the refusal it was given, if any
+         */
+        async function jsonHintedOffSynthetic(
+          reaskSeat?: ReaskSeat,
+        ): Promise<{ readonly reached: readonly ProviderName[]; readonly refusal?: unknown; }> {
+          const { client, reached, } = routerRecordingProviders({ read: readOlderProvidersWet, },);
+          try {
+            await client.chatJson({
+              modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+              messages: MESSAGES,
+              signal: SIGNAL,
+              otherThan: 'synthetic',
+              validate: function acceptsNothingParsed(value: unknown,): value is never {
+                return (typeof value) === 'symbol';
+              },
+              ...((reaskSeat === undefined) ? {} : { reaskSeat, }),
+            },);
+            return { reached, };
+          }
+          catch (error) {
+            return { reached, refusal: error, };
+          }
+        }
+        const unseated = await jsonHintedOffSynthetic();
+        const measured = await jsonHintedOffSynthetic({ role: 'editor', bench: [], reask: 'measured-model', },);
+        expect(unseated.refusal,).toBeInstanceOf(NoProviderForModelError,);
+        expect(unseated.reached,).toEqual([],);
+        expect(measured.reached.at(0,),).toBe('hyper',);
+      },
+    },),
+
+    it({
+      name: 'MARKS THE REFUSAL OF A RE-ASK THAT REACHED A PROVIDER AS RAISED AFTER AN EXCHANGE (ledger B1380): Kimi-K3 '
+        + 're-asked off Hyper, Synthetic the one provider left, answers 429; the call was made, so a reader that gives a '
+        + 'claim back only for a refusal before any exchange keeps it, and a re-ask that found nowhere to go does not',
+      fn: async () => {
+        /**
+         Router whose Synthetic refuses on budget and whose other callers answer.
+         */
+        const client = createRoutingClient({
+          callers: {
+            neuralwatt: { chatText: refusedNowhere, },
+            synthetic: {
+              chatText: function refuses(): Promise<ChatTextReply> {
+                return Promise.reject(new ProviderHttpError({ provider: 'synthetic', status: 429, bodyText: 'refused', },),);
+              },
+            },
+            hyper: { chatText: refusedNowhere, },
+            openrouter: { chatText: refusedNowhere, },
+          },
+          budgets: {
+            read: async function readSyntheticWet() {
+              return SYNTHETIC_WET_ONLY;
+            },
+            markRefused: markNothingRefused,
+            holds: holdNothing,
+          },
+          l: levelCapturingLogger({ lines: [], },),
+        },);
+        /**
+         What a re-ask of Kimi-K3 off a provider came to.
+
+         @param otherThan - provider the hint rules out
+
+         @returns The refusal thrown, or undefined when the exchange was served
+         */
+        async function reaskedOff(otherThan: ProviderName,): Promise<unknown> {
+          try {
+            await client.chatText({
+              modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
+              messages: MESSAGES,
+              signal: SIGNAL,
+              otherThan,
+              reaskSeat: { role: 'editor', bench: [], reask: 'other-model', },
+            },);
+            return undefined;
+          }
+          catch (error) {
+            return error;
+          }
+        }
+        const reached = await reaskedOff('hyper',);
+        const nowhere = await reaskedOff('synthetic',);
+        expect(reached,).toBeInstanceOf(NoProviderForModelError,);
+        expect(nowhere,).toBeInstanceOf(NoProviderForModelError,);
+        expect(reached instanceof NoProviderForModelError ? reached.afterExchange : undefined,).toBe(true,);
+        expect(refusedBeforeAnyExchange({ error: reached, },),).toBe(false,);
+        expect(refusedBeforeAnyExchange({ error: nowhere, },),).toBe(true,);
       },
     },),
 

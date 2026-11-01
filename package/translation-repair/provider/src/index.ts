@@ -228,6 +228,7 @@ export {
 export {
   type RoutedCore,
   routedJson,
+  routedTextElsewhere,
   secondOpinionsFrom,
 } from './provider-router-reask.ts';
 export { type ProviderCallers, } from './provider-callers.ts';
