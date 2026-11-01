@@ -363,6 +363,26 @@ pub fn without_hint_fields(bytes: &[u8]) -> Vec<u8> {
     return kept;
 }
 
+/// How every wait notice of the wrapper begins (`wait_progress.rs`, `live_lock.rs`, `replay_reservation.rs`).
+pub const WAIT_NOTICE_PREFIX: &[u8] = b"cli-git: still waiting for ";
+
+/// What:
+///  The bytes without the lines that are wait notices.
+/// Why:
+///  A step that outlasts its notice grace (5 seconds for a query, 10 for a bulk step) prints a notice on standard
+///  error however healthy it is, and a loaded host stretches any step past that. A control that compares the
+///  wrapper's diagnostics with native Git's words means the words, not that the host was fast, so it compares what
+///  is left. Only a line that starts with the notice prefix goes; every other line stays, and a control that
+///  asserts a notice reads the raw bytes.
+pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
+    return bytes
+        .split_inclusive(|byte| { return *byte == b'\n'; })
+        .filter(|line| { return !line.starts_with(WAIT_NOTICE_PREFIX); })
+        .flatten()
+        .copied()
+        .collect();
+}
+
 /// Run a command to completion and observe it without its hint fields,
 ///  feeding `input` to its standard input.
 pub fn observe(command: &mut Command, input: &[u8]) -> Observed {

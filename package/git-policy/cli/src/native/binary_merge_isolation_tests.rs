@@ -15,7 +15,10 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, Observed, direct, executable, fixture, git, observe, pseudo_terminal_slave_name, repository};
+use super::support::{
+    Fixture, Observed, WAIT_NOTICE_PREFIX, direct, executable, fixture, git, observe, pseudo_terminal_slave_name,
+    repository, without_wait_notices,
+};
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use std::ffi::OsStr;
 use std::os::unix::process::ExitStatusExt;
@@ -96,9 +99,25 @@ fn wrapped_in(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Command {
     return wrapped_commit(fixture, repo, arguments);
 }
 
-/// Run a wrapped command to its end.
+/// Run a wrapped command to its end, without the wait notices a slow step may print (`without_wait_notices`):
+///  these controls compare the merge's diagnostics with native Git's words, which a loaded host does not change.
 fn run(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> Observed {
-    return observe(&mut wrapped_in(fixture, repo, arguments), b"");
+    let observed: Observed = observe(&mut wrapped_in(fixture, repo, arguments), b"");
+    return Observed { stderr: without_wait_notices(observed.stderr.as_slice()), ..observed };
+}
+
+/// Wait notices go and nothing else does, so the comparisons above still see every other diagnostic.
+#[test]
+fn only_wait_notice_lines_are_left_out_of_the_diagnostics() {
+    let notice: String = format!(
+        "{}git commit-tree (process 7) after 10 seconds; stopping it after 300 seconds.\n",
+        String::from_utf8_lossy(WAIT_NOTICE_PREFIX)
+    );
+    let other: &str = "cli-git: copied 1 ignored filesystem entry\nHint: still waiting for nothing\n";
+    let mixed: String = format!("{notice}{other}{notice}");
+    assert_eq!(without_wait_notices(mixed.as_bytes()), other.as_bytes());
+    assert_eq!(without_wait_notices(other.as_bytes()), other.as_bytes());
+    assert_eq!(without_wait_notices(b"no newline at the end"), b"no newline at the end");
 }
 
 /// Run native Git directly, whatever its exit status.
@@ -509,6 +528,46 @@ fn a_signing_repository_gets_a_signed_merge() {
     let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     assert_eq!(observed.code, Some(0), "{}", text(&observed.stderr));
     assert!(git_text(&fixture, repo.as_path(), &["cat-file", "commit", "HEAD"]).contains("\ngpgsig "), "signed");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A healthy `git commit-tree` that outlasts the notice grace makes the wrapper print its wait notice, and the
+///  controls that compare diagnostics leave that notice out.
+/// Why:
+///  A loaded host makes any step slow, so the notice is correct behaviour and its absence cannot be asserted. The
+///  signer stand-in sleeps one second longer than the notice interval, which also sets the grace, so the notice is
+///  certain on every host.
+#[test]
+fn a_slow_commit_tree_prints_a_wait_notice_that_the_comparison_leaves_out() {
+    /// The notice interval, in seconds, and so the grace of the first notice.
+    const NOTICE_SECONDS: u64 = 1;
+    let fixture: Fixture = fixture("merge-slow-signer");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let program: PathBuf = fixture.root.join("slow-gpg");
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\ncat > /dev/null\nsleep {}\necho '[GNUPG:] SIG_CREATED ' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nplaceholder\\n-----END PGP SIGNATURE-----\\n'\n",
+            NOTICE_SECONDS + 1
+        )
+        .as_bytes(),
+    );
+    git(&fixture, repo.as_path(), &["config", "gpg.program", program.to_str().expect("UTF-8")]);
+    git(&fixture, repo.as_path(), &["config", "commit.gpgsign", "true"]);
+    stage_unrelated_work(&fixture, repo.as_path());
+    let raw: Observed = observe(
+        wrapped_in(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"])
+            .env("CLI_GIT_WAIT_NOTICE_SECONDS", NOTICE_SECONDS.to_string()),
+        b"",
+    );
+    assert_eq!(raw.code, Some(0), "{}", text(&raw.stderr));
+    assert!(
+        text(&raw.stderr).contains("cli-git: still waiting for git commit-tree"),
+        "the slow step announces itself: {}",
+        text(&raw.stderr)
+    );
+    assert_eq!(text(&without_wait_notices(raw.stderr.as_slice())), "", "nothing else was said");
     remove_settled(&fixture);
 }
 
