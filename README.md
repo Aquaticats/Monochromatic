@@ -192,34 +192,38 @@ See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
 A fresh machine has neither `mpm-shadow` nor `file-enforcer`.
-Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platform,
+Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platform into a throwaway directory,
 check it against the SHA-256 recorded beside it,
-and put the binary on `PATH`
+run its `install` from the repository root,
+and remove the throwaway copy
 (the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI and in the `Dockerfile`):
 
 ```sh
 # Run from the repository root; platform is linux-x64 or linux-arm64.
 platform=linux-x64
+work="$(mktemp --directory)"
 url="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].url' toolchain.lock.json)"
 sum="$(jq --raw-output --arg platform "${platform}" '.tools["mpm-shadow"].artifacts[$platform].sha256' toolchain.lock.json)"
-curl --fail --silent --show-error --location --output /tmp/mpm-shadow.tar.gz "${url}"
-echo "${sum}  /tmp/mpm-shadow.tar.gz" | sha256sum --check
-mkdir --parents "${HOME}/.local/bin"
-tar --extract --gzip --file /tmp/mpm-shadow.tar.gz --wildcards --strip-components=1 \
-  --directory "${HOME}/.local/bin" '*/mpm-shadow'
+curl --fail --silent --show-error --location --output "${work}/mpm-shadow.tar.gz" "${url}"
+echo "${sum}  ${work}/mpm-shadow.tar.gz" | sha256sum --check
+tar --extract --gzip --file "${work}/mpm-shadow.tar.gz" --wildcards --strip-components=1 \
+  --directory "${work}" '*/mpm-shadow'
+"${work}/mpm-shadow" install
+rm --recursive --force "${work}"
 ```
 
-Then provision the toolchain,
-converging every tool to the versions `toolchain.lock.json` records
-(that installs Node and `file-enforcer` too).
-The first run is by the binary's path,
+That `install` converges every tool to the versions `toolchain.lock.json` records,
+Node and `file-enforcer` among them,
+and installs the managed `mpm-shadow` into the toolchain root
+(`<data home>/monochromatic-dev/toolchain/mpm-shadow/<version>/`) and links it into `.cache/toolchain-bin`.
+The first run is by this binary and not by a task,
 because the `toolchain:*` tasks need Node 24 or newer
 (the entry uses `import.meta.main` and `Error.isError`),
-and this install is what provides it (the Node that the lock names is newer than that):
-
-```sh
-"${HOME}/.local/bin/mpm-shadow" install
-```
+and this install is what provides it (the Node that the lock names is newer than that).
+The downloaded copy is not kept:
+nothing scans or updates a copy left in `~/.local/bin`,
+so one placed there would become an older repository copy after the next lock bump,
+and no older copy of this repository's tools stays when a newer one is present.
 
 From then on,
 and in any existing checkout,
@@ -233,13 +237,17 @@ Every `toolchain:*` task runs an `mpm-shadow` at least at the version that `tool
 and never the one on `PATH`:
 it runs the newest installed copy
 (`.cache/toolchain-bin/mpm-shadow`,
-or a finished version folder under the toolchain root's `mpm-shadow` folder)
+or a finished version folder under the `mpm-shadow` folder of either toolchain root,
+`toolchain` or `toolchain-global`:
+the newest copy wins wherever it is)
 whose version is at or above the lock's,
 and says `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` when that copy is newer.
 Only when there is none does the task download the lock's archive,
 check its SHA-256 against the lock,
 and install it into the toolchain root as `mpm-shadow install` would.
-A copy older than the lock never runs.
+A copy older than the lock never runs;
+on a platform for which the lock has no archive row,
+the `mpm-shadow` on `PATH` is used only when it is at or above the lock's version.
 So a checkout whose `mpm-shadow` is older than the lock needs no extra step
 (an old copy would stop on `tools.mpm-shadow.options.tagPrefix is not a known field`,
 see `doc/troubleshooting/mpm-shadow-0-2-0-rejects-the-tagprefix-plan-field-in-an-existing-checkout.md`).

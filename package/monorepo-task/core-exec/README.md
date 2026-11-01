@@ -227,7 +227,10 @@ searched upward from the current directory)
 and runs the newest installed copy of this repository's `mpm-shadow` whose `--version` is at or above the lock's version
 for the `mpm-shadow` tool,
 looking at `.cache/toolchain-bin/mpm-shadow` and at every finished version folder of
-`<data home>/monochromatic-dev/toolchain/mpm-shadow/` (a folder with the `.mpm-shadow-installed` marker and the program),
+`<data home>/monochromatic-dev/toolchain/mpm-shadow/` and `<data home>/monochromatic-dev/toolchain-global/mpm-shadow/`
+(a folder with the `.mpm-shadow-installed` marker and the program;
+this repository's tools are one set across both roots,
+and the newest copy wins wherever it is),
 and saying `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` on standard error when that copy is newer.
 A copy older than the lock never runs.
 Only when no copy is at or above the lock's version does it download the lock's archive for the platform,
@@ -240,12 +243,21 @@ point `current` at the newest finished version and remove the older version fold
 which is how `mpm-shadow install` lays out an archive-route tool that this repository publishes
 (a folder at the version's name that is not finished,
 or whose program prints another version,
-is replaced;
-staging folders and downloads that a killed task left are removed).
+is replaced,
+and one that another task finished meanwhile is used;
+staging folders and downloads that a killed task left are removed once their process is gone and they are ten minutes old:
+a process id unknown here can belong to a live task in another process id namespace that shares the data home,
+so the age is checked as well).
 It then runs that copy with the arguments given and exits with its status;
 the `mpm-shadow` on `PATH` is never run,
 except on a platform for which the lock has no archive row and no installed copy,
-where a note on standard error says so.
+where it is asked for its version first and runs only when that is at or above the lock's
+(a note on standard error says so,
+and an older one is refused in one line).
+Versions are ordered by numeric core,
+then a release above its pre-release,
+then pre-releases by SemVer 2.0.0 precedence
+(`rc.2` below `rc.10`).
 A failure the command reports itself (an unreadable lock,
 a failed download or checksum,
 a copy that does not run)
