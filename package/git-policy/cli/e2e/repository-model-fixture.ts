@@ -71,6 +71,11 @@ export type ScenarioRepository = Readonly<{
    */
   commonDir: string;
   /**
+   The own Git directory of the worktree commands run in, which holds the work records and the notices of its service:
+   `.git` of the main worktree, `.git/worktrees/<id>` of a linked one.
+   */
+  gitDir: string;
+  /**
    Local bare remote.
    */
   remote: string;

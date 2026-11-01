@@ -206,7 +206,7 @@ const sigkillAfterLanding: ScenarioDefinition = {
       mode: 'explicit',
     },)).finished;
     await settleServiceWork(context.repository
-      .commonDir,);
+      .gitDir,);
     /**
      The killed commit, which the landing put on the branch.
      */
