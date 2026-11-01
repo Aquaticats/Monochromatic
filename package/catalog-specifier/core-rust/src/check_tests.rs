@@ -146,6 +146,18 @@ fn findings_carry_path_name_and_specifier() {
     assert_eq!(findings[0].specifier.as_deref(), Some("^4.6.7"));
 }
 
+/// A non-string specifier finding names the path, the section and the dependency, and holds no specifier text.
+#[test]
+fn non_string_findings_carry_path_section_and_name() {
+    let findings = check_manifest_bytes("package/x/package.json", b"{\"optionalDependencies\":{\"a\":[\"catalog:team\"]}}");
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].kind, FindingKind::NonStringSpecifier);
+    assert_eq!(findings[0].path, "package/x/package.json");
+    assert_eq!(findings[0].section.as_deref(), Some("optionalDependencies"));
+    assert_eq!(findings[0].name.as_deref(), Some("a"));
+    assert_eq!(findings[0].specifier, None);
+}
+
 /// A large dependency list with a single bad entry in the middle yields exactly one finding, in linear time.
 #[test]
 fn a_large_section_with_one_bad_entry_yields_one_finding() {
