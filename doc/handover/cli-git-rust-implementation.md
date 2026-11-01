@@ -7171,3 +7171,12 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
 - Queued (found by that agent): `read_layout` declines this repository because it sets `extensions.worktreeConfig`,
   so every in-process reader falls back to starting Git here. Supporting `config.worktree` in the layout reader would
   remove those starts ("Invoke real git as rarely as possible"). Not started.
+- fault_signal agent `adeb13378ed850a34` PAUSED at `0fb7cd42d0` (branch `worktree-agent-adeb13378ed850a34`, test commit
+  `7a44428814` announces the editor through a named pipe). Proven cause of the interrupt failure: the test editor
+  `touch marker; sleep 60` (`stalling_editor`, `binary_support.rs`); bash ignores SIGINT and SIGQUIT while waiting on a
+  foreground child that exits normally, so a signal landing while it reaps `touch` lets `sleep 60` run, Git aborts on
+  the empty message and the wrapper exits 1 (12 of 300 standalone runs with the old shape, 0 of 300 with
+  `printf started > marker; exec sleep 60`). Test bug, not product. Open: `a_quit_during_the_editor_ends_the_commit_and_
+  leaves_nothing` now fails every time (61.5 s, exit 1, expected 131) even with the fixed editor; cause unknown
+  (candidates: a Git or wrapper path for SIGQUIT, core-dump handling through `systemd-coredump`). Resumes after the
+  migration.
