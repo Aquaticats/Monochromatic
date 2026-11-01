@@ -16,8 +16,13 @@ const MAX_UINT32 = 0xFF_FF_FF_FF;
 /**
  Attributes of a displayed default route that carry a value and that the bypass table does not need:
  the preferred source address, the IPv6 router preference, the scope, the path metrics and the expiry.
- Dropping them changes which source the kernel picks for an unbound socket at most,
- never which route a marked socket takes.
+ Dropping them is not free, in two ways:
+ an IPv6 default with `pref high` or `pref low` is copied as `medium`,
+ and the kernel ranks IPv6 defaults of the same metric by that preference;
+ and without `src` a marked socket that is not bound to an address, on an interface that has several addresses,
+ gets the interface's primary source address instead of the preferred source the physical route named.
+ The scope and the path metrics (`mtu`, `hoplimit`, `advmss`) are not copied either,
+ so the copy does not carry the path's MTU or hop limit.
  */
 const DROPPED_WITH_VALUE: ReadonlySet<string> = new Set([
   'src',

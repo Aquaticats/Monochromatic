@@ -42,8 +42,19 @@ and `table <claimed table>` and `proto 201`, each at most once and in that one s
 The claimed table must be at least the first table the allocator hands out (52000).
 A route copied by an earlier version with a preferred source or a router preference is read with those dropped;
 any other route is refused.
-The bypass table copies only those attributes of a physical default route,
-so a physical default route with another form (such as a nexthop object) stops the application bypass with an error that names it.
+The bypass table copies only those attributes of a physical default route.
+It drops `src`, `pref`, `scope`, `mtu`, `hoplimit`, `advmss`, `linkdown` and `dead`.
+That is not free:
+an IPv6 default with `pref high` or `pref low` is copied as `medium`, and the kernel ranks IPv6 defaults of the same metric by it;
+a marked socket that is not bound to an address, on an interface with several addresses,
+gets the interface's primary source address, not the preferred source the physical route named;
+and the copy does not carry the path's MTU or hop limit.
+A physical default route that carries any other attribute (for example `features ecn`, `initcwnd`, `realm`, `tos`, `nhid` or `nexthop`)
+is outside the grammar and the dropped set.
+It stops the application bypass with a `BypassRouteError` that names the route,
+before any state changes: `up` installs nothing, and the route watcher leaves the bypass table as it is.
+It fails closed.
+A state file written by an older build that holds such a form fails to parse, and the error names the state file.
 The other places that read a name back do not trust it either:
 the OpenSnitch state compares the name it holds with the one asked for and refuses a difference,
 and every other name comes from the config,
