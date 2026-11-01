@@ -41,8 +41,11 @@ pub const REPOSITORY_REDIRECT_VARIABLES: [&str; 5] = [
     "GIT_INDEX_FILE",
 ];
 
-/// Absent shadow directory named as the hooks path of cli-git's own shadow commands.
-pub const NO_HOOKS_DIRECTORY: &str = "no-hooks";
+/// Name of the absent directory inside a shadow, named as the hooks path of cli-git's own shadow commands.
+pub const SHADOW_NO_HOOKS_NAME: &str = "no-hooks";
+
+/// Name of the directory under `<git-common-dir>/cli-git` that holds one shadow repository per transaction.
+pub const SHADOW_ROOT_NAME: &str = "shadow";
 
 /// What:
 ///  The shadow repository path of a transaction.
@@ -57,7 +60,7 @@ pub const NO_HOOKS_DIRECTORY: &str = "no-hooks";
 pub fn shadow_repository_path(common_dir: &Path, transaction_id: &str) -> PathBuf {
     return common_dir
         .join("cli-git")
-        .join("shadow")
+        .join(SHADOW_ROOT_NAME)
         .join(transaction_id);
 }
 
@@ -85,7 +88,7 @@ pub fn shadow_request<S: AsRef<std::ffi::OsStr>>(
     let mut git_dir: OsString = OsString::from("--git-dir=");
     git_dir.push(shadow.as_os_str());
     let mut hooks: OsString = OsString::from("core.hooksPath=");
-    hooks.push(shadow.join(NO_HOOKS_DIRECTORY).as_os_str());
+    hooks.push(shadow.join(SHADOW_NO_HOOKS_NAME).as_os_str());
     let mut full: Vec<OsString> = vec![git_dir, OsString::from("-c"), hooks];
     for argument in arguments {
         full.push(argument.as_ref().to_os_string());

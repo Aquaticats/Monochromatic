@@ -1,11 +1,13 @@
 //! What:
-//!  `git cli-git doctor`: list the traditional hooks a repository holds.
+//!  `git cli-git doctor`: list the traditional hooks a repository holds and the external hooks its Git
+//!  configuration defines, and note the retired `hooks.concurrentCommits` key.
 //! Why:
 //!  Traditional hooks (executable scripts in `<git-common-dir>/hooks` or in a `core.hooksPath` directory) are
 //!  unsupported, and their behavior with the wrapper is undefined.
 //!  The commit path warns when `core.hooksPath` is configured but never scans a directory, because a scan costs
 //!  file system calls on every commit; this command is where the scan happens, on request.
-//!  Exit status 0 means none were found, 1 means at least one was, and 2 means the repository could not be located.
+//!  Exit status 0 means none were found, 1 means at least one was (a configured hook counts), and 2 means the
+//!  repository could not be located.
 //!  A hook file that is byte for byte the shim `git lfs` writes for its own name is expected and harmless, because the
 //!  wrapper does the Git LFS upload itself and starts Git with traditional hooks off; it is explained apart from the
 //!  other hooks and does not make the exit status 1.
@@ -18,8 +20,10 @@
 
 /// The decision this command ends in.
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE};
+/// Configured external hooks and the retired `hooks` key.
+use super::doctor_config::{ConfigFindings, config_findings, render_hook_lines, render_notes};
 /// Lexical path normalization, so one directory named two ways is scanned once.
-use super::hook_dispatch_plan::normalized_path;
+use super::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
 use super::transaction_git::{GitContext, GitRequest, run_git};
 /// `ErrorKind` tells a missing hooks directory from one that cannot be read.
@@ -179,9 +183,9 @@ pub fn render_hooks(hooks: &[PathBuf]) -> String {
 /// ```ts
 /// const explanation: string;
 /// ```
-const FOUND_EXPLANATION: &str = "git cli-git doctor: the traditional hooks listed on standard output are unsupported, \
-and their behavior with cli-git is undefined. Move each into a config hook (`hook.<name>.event` with \
-`hook.<name>.command`) and delete the script.\n";
+const FOUND_EXPLANATION: &str = "git cli-git doctor: the traditional hooks listed on standard output never run through \
+cli-git, which supports no external hook program and runs no program named by any configuration. Delete each script, \
+or express what it checked as a policy under policies in cli-git.config.jsonc.\n";
 
 /// What:
 ///  Run one Git query in `cwd` and return its standard output as text.
@@ -369,17 +373,20 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
     let (shims, hooks): (Vec<PathBuf>, Vec<PathBuf>) =
         found.into_iter().partition(|path| { return is_lfs_shim(path.as_path()); });
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
-    if hooks.is_empty() {
+    let findings: ConfigFindings = config_findings(context, cwd);
+    let notes: String = render_notes(&findings);
+    if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,
             stdout: String::new(),
-            stderr: shim_report,
+            stderr: format!("{shim_report}{notes}"),
         };
     }
+    let explanation: &str = if hooks.is_empty() { "" } else { FOUND_EXPLANATION };
     return Action::Exit {
         code: HOOKS_FOUND_EXIT_CODE,
-        stdout: render_hooks(hooks.as_slice()),
-        stderr: format!("{FOUND_EXPLANATION}{shim_report}"),
+        stdout: format!("{}{}", render_hooks(hooks.as_slice()), render_hook_lines(&findings)),
+        stderr: format!("{explanation}{shim_report}{notes}"),
     };
 }
 

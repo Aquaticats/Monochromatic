@@ -72,8 +72,6 @@ pub struct CommitWorkspace {
     pub landing: LandingWorkspace,
     /// Shadow object store receiving every object the transaction writes before landing migrates them.
     pub object_directory: PathBuf,
-    /// Hook dispatcher directory.
-    pub hooks_directory: PathBuf,
     /// Git directory of the owning worktree, holding the capture store.
     git_dir: PathBuf,
     /// Transaction registry root.
@@ -116,7 +114,6 @@ pub fn create_commit_workspace(layout: &InvocationLayout) -> Result<CommitWorksp
             preserved: false,
         },
         object_directory: shadow.join("objects"),
-        hooks_directory: directory.join("hooks"),
         git_dir: layout.git_dir.clone(),
         registry_root: layout.registry_root.clone(),
         disposed: false,

@@ -388,21 +388,25 @@ fn a_nested_command_with_a_foreign_lease_still_runs() {
     remove(&fixture);
 }
 
-/// Git runs a hook of the new worktree while the settlement lock is held;
-///  a worktree that hook creates through the wrapper inherits the lease instead of waiting for the lock it is inside.
+/// Git runs a smudge filter while it checks out the new worktree and the settlement lock is held;
+///  a worktree that filter creates through the wrapper inherits the lease instead of waiting for the lock it is inside.
+///  (A hook used to play this part; the wrapper supports no external hook program, and a filter is a program Git starts
+///  with the same environment.)
 #[test]
-fn a_hook_that_creates_a_worktree_runs_under_the_inherited_lease() {
-    let fixture: Fixture = fixture("copy-hook-lease");
+fn a_filter_that_creates_a_worktree_runs_under_the_inherited_lease() {
+    let fixture: Fixture = fixture("copy-filter-lease");
     let repo: PathBuf = repository_with_rules(&fixture, true);
-    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
-    let hook: PathBuf = fixture.root.join("post-checkout-hook");
+    let filter: PathBuf = fixture.root.join("smudge-filter");
     super::support::executable(
-        hook.as_path(),
-        b"#!/bin/sh\nif [ -n \"$CLI_GIT_WORKTREE_COPY_LEASE\" ] && [ ! -e ../nested ]; then\n  printf 'leased' > ../hook-saw-lease\n  \"$CLI_GIT_TEST_WRAPPER\" worktree add --quiet -b nested ../nested || exit 1\nfi\n",
+        filter.as_path(),
+        b"#!/bin/sh\ncat\nif [ -n \"$CLI_GIT_WORKTREE_COPY_LEASE\" ] && [ ! -e ../nested ]; then\n  printf 'leased' > ../hook-saw-lease\n  \"$CLI_GIT_TEST_WRAPPER\" worktree add --quiet -b nested ../nested >&2 || exit 1\nfi\n",
     );
-    super::support::git(&fixture, repo.as_path(), &["config", "hook.control.event", "post-checkout"]);
-    super::support::git(&fixture, repo.as_path(), &["config", "hook.control.command", hook.to_str().expect("UTF-8")]);
-    // Git puts its own directory first on a hook's PATH, so the hook names the wrapper explicitly.
+    std::fs::write(repo.join(".gitattributes"), b"*.probe filter=probe\n").expect("attributes");
+    std::fs::write(repo.join("x.probe"), b"probe\n").expect("probe file");
+    super::support::git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "x.probe"]);
+    super::support::git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=probe"]);
+    super::support::git(&fixture, repo.as_path(), &["config", "filter.probe.smudge", filter.to_str().expect("UTF-8")]);
+    // Git puts its own directory first on a child's PATH, so the filter names the wrapper explicitly.
     let created: Observed = observe(
         wrapped(&fixture)
             .current_dir(&repo)
@@ -412,7 +416,7 @@ fn a_hook_that_creates_a_worktree_runs_under_the_inherited_lease() {
     );
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     assert_eq!(
-        std::fs::read(fixture.root.join("hook-saw-lease")).expect("the hook saw the lease"),
+        std::fs::read(fixture.root.join("hook-saw-lease")).expect("the filter saw the lease"),
         b"leased"
     );
     assert!(fixture.root.join("nested/.git").exists(), "the nested creation ran");

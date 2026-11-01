@@ -426,14 +426,12 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
-/// Define a `pre-commit` hook in the repository's configuration that runs `script`.
-///  The script sits in the fixture root, outside the worktree, so it never shows up as a change.
-///  Traditional hooks (scripts in the hooks directory) are unsupported, so controls of hook behavior use this.
-pub fn configure_pre_commit_hook(fixture: &Fixture, repo: &Path, script: &[u8]) {
-    let path: PathBuf = fixture.root.join("pre-commit-hook-script");
-    executable(path.as_path(), script);
-    git(fixture, repo, &["config", "hook.control.event", "pre-commit"]);
-    git(fixture, repo, &["config", "hook.control.command", path.to_str().expect("UTF-8")]);
+/// An editor that records that it started and then waits for a minute, so a commit that opens it sits inside native
+///  `git commit` until a signal arrives. Hooks are unsupported, so controls that need the commit to stand still use this.
+pub fn stalling_editor(fixture: &Fixture, started: &Path) -> PathBuf {
+    let path: PathBuf = fixture.root.join("stalling-editor");
+    executable(path.as_path(), format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes());
+    return path;
 }
 
 /// Run real Git directly inside a fixture and require success.

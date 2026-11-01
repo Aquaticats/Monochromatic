@@ -27,7 +27,6 @@ use super::policy_trigger::Trigger;
 use super::post_commit::{PostCommitOutcome, PostCommitRequest, run_post_commit};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::GitContext;
-use super::transaction_lease::has_valid_preparation_lease;
 use super::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
@@ -165,19 +164,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     }
     let start: PathBuf = std::env::current_dir().unwrap_or_else(|_| { return PathBuf::from("."); });
     let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
-    // The commit hook dispatcher still names this executable; phase 2 of doc/planning/cli-git-no-self-invocation.md
-    //  removes it together with this lookup.
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "names the executable for the commit hook dispatcher, which phase 2 of the no-self-invocation plan removes"
-    )]
-    let executable: PathBuf = match std::env::current_exe() {
-        Ok(found) => found,
-        Err(error) => {
-            write_stderr(format!("cli-git: cannot determine this executable: {error}\n").as_str());
-            return CommitEnding { code: 2 };
-        }
-    };
     let invocation: CommitInvocation<'_> = CommitInvocation {
         context: command.context,
         environment: command.environment,
@@ -187,8 +173,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
         region: command.region,
         config: command.config,
         controls: command.controls,
-        inherited_lease_valid: has_valid_preparation_lease(command.environment),
-        executable: executable.as_path(),
     };
     let request: StageRequest = StageRequest {
         trigger: Trigger::PreForward,

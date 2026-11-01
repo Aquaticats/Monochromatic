@@ -436,24 +436,6 @@ fn a_no_change_normalization_of_a_name_that_is_not_utf8_reports_the_exact_bytes(
     remove_settled(&fixture);
 }
 
-/// A configured `pre-commit` hook that re-stages a name that is not UTF-8 has its change kept in the commit.
-#[test]
-fn a_pre_commit_hook_restaging_a_name_that_is_not_utf8_is_kept() {
-    let fixture: Fixture = fixture("event-path-hook");
-    let repo: PathBuf = tracked(&fixture, bad_name().as_os_str(), b"one\ntwo\n");
-    super::support::configure_pre_commit_hook(
-        &fixture,
-        repo.as_path(),
-        b"#!/bin/sh\nname=$(printf 'bad\\377.txt')\nprintf 'hooked\\n' >> \"$name\"\ngit add -- \"$name\"\n",
-    );
-    let landed: Observed = run_os(&fixture, repo.as_path(), &commit_arguments(&["--message=hooked"], bad_name().as_os_str()));
-    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
-    assert_eq!(head_blob(&fixture, repo.as_path()), b"one\ntwo\nhooked\n");
-    assert_eq!(porcelain(&fixture, repo.as_path()), "");
-    assert_nothing_left(&fixture, repo.as_path());
-    remove_settled(&fixture);
-}
-
 /// An amend replaces the head commit with the exact bytes of a name that is not UTF-8.
 #[test]
 fn an_amend_of_a_name_that_is_not_utf8_lands_it() {

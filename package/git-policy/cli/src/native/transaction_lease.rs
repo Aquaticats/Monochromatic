@@ -1,66 +1,33 @@
 //! What:
-//!  The preparation and landing leases:
-//!  capabilities a running wrapper passes to the
+//!  The landing lease:
+//!  a capability a running wrapper passes to the
 //!       Git it starts,
-//!  so a nested wrapper invocation from a hook or `rebase --exec` proceeds
+//!  so a nested wrapper invocation from `rebase --exec` proceeds
 //!       under its ancestor instead of waiting for it.
 //! Why:
-//!  Without a lease a nested invocation would wait for the hook lock or landing lock its own
+//!  Without a lease a nested invocation would wait for the landing lock its own
 //!      ancestor holds,
 //!  forever.
-//!  Both wrappers format and validate the same leases
-//!      (`src/hook-dispatch/preparation-lease.ts`,
-//!  `src/index-lock/landing-lease.ts`),
-//!  because a
-//!      hook started by one wrapper may run the other.
+//!  Both wrappers format and validate the same lease
+//!      (`src/index-lock/landing-lease.ts`).
+//!  The wrapper runs no external hook, so it passes no preparation lease any more.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (await hasValidInheritedLease(process.env)) { /* skip recovery and the hook lock */ }
+//! if (await hasValidLandingLease({ environment, lockDirectory })) { /* skip the landing lock */ }
 //! ```
 
 /// Record readers and the ordered writer.
-use super::json_record::{ObjectWriter, decode_fatal, parse_object, string_field};
+use super::json_record::{ObjectWriter, parse_object, string_field};
 /// Owner records of published locks.
 use super::owner_lock_record::{PublishedOwner, read_owner_lock_record};
-/// Bounded no-follow reads.
-use super::private_storage::read_regular_file;
-/// Transaction owner records and their liveness.
-use super::transaction_owner::{
-    OwnerLiveness, classify_transaction_owner_record, parse_transaction_owner,
-};
-/// The owner record filename of a transaction directory.
-use super::transaction_registry::OWNER_FILENAME;
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-
-/// Environment variable carrying the preparation lease to hook descendants.
-pub const PREPARATION_LEASE_VARIABLE: &str = "CLI_GIT_PREPARATION_LEASE";
+use std::path::Path;
 
 /// Environment variable carrying the landing lease to a forwarded index writer.
 pub const LANDING_LEASE_VARIABLE: &str = "CLI_GIT_LANDING_LEASE";
-
-/// Largest plan or owner record a lease check reads.
-const LEASE_RECORD_LIMIT: u64 = 1024 * 1024;
-
-/// What:
-///  Format a preparation lease naming the transaction directory and a fresh token.
-/// Why:
-///   `formatPreparationLease`:
-///  `JSON.stringify({ directory, token })`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// formatPreparationLease({ directory, token })
-/// ```
-pub fn format_preparation_lease(directory: &str, token: &str) -> String {
-    // `mut` allows appending one field at a time.
-    let mut writer: ObjectWriter = ObjectWriter::new();
-    writer.string("directory", directory).string("token", token);
-    return writer.finish();
-}
 
 /// What:
 ///  Format a landing lease naming the held lock directory and its owner token.
@@ -105,75 +72,6 @@ fn nonempty_variable(environment: &[(OsString, OsString)], name: &str) -> Option
         return None;
     }
     return Some(String::from(text));
-}
-
-/// What:
-///  Read a small record as text,
-///  or nothing when it is missing,
-///  unsafe or not UTF-8.
-/// Why:
-///   Every failure to read makes a lease invalid;
-///  it is never an error of the command.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// try { return await readFile(path, 'utf8'); } catch { return undefined; }
-/// ```
-fn read_text(path: &Path) -> Option<String> {
-    let bytes: Vec<u8> = read_regular_file(path, LEASE_RECORD_LIMIT).ok()?;
-    return Some(String::from(decode_fatal(bytes.as_slice())?));
-}
-
-/// What:
-///  Whether the environment carries a valid preparation lease of a live outer transaction.
-/// Why:
-///   The incumbent's `hasValidInheritedLease`:
-///  the lease names a directory whose
-///       `hooks/plan.json` still carries exactly this lease,
-///  and whose owner is alive.
-///  Any
-///       malformed,
-///  stale or foreign lease is invalid,
-///  never an error.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function hasValidInheritedLease(environment): Promise<boolean>;
-/// ```
-pub fn has_valid_preparation_lease(environment: &[(OsString, OsString)]) -> bool {
-    let Some(lease) = nonempty_variable(environment, PREPARATION_LEASE_VARIABLE) else {
-        return false;
-    };
-    let Some(value) = parse_object(lease.as_str()) else {
-        return false;
-    };
-    let Some(directory) = string_field(&value, "directory") else {
-        return false;
-    };
-    let transaction: PathBuf = PathBuf::from(directory);
-    let Some(plan_text) = read_text(transaction.join("hooks").join("plan.json").as_path()) else {
-        return false;
-    };
-    let Some(plan) = parse_object(plan_text.as_str()) else {
-        return false;
-    };
-    if string_field(&plan, "lease") != Some(lease.as_str()) {
-        return false;
-    }
-    let owner_path: PathBuf = transaction.join(OWNER_FILENAME);
-    let Ok(owner_bytes) = read_regular_file(
-        owner_path.as_path(),
-        LEASE_RECORD_LIMIT,
-    ) else {
-        return false;
-    };
-    let Some(owner) = parse_transaction_owner(owner_bytes.as_slice()) else {
-        return false;
-    };
-    return matches!(
-        classify_transaction_owner_record(&owner, owner_path.as_path()),
-        Ok(OwnerLiveness::Alive)
-    );
 }
 
 /// What:

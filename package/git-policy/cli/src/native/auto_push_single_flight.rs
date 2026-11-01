@@ -229,14 +229,26 @@ pub struct PushGit {
 /// ```
 pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
     let mut command = Command::new(&git.real_git);
-    super::hooks_off::disable_traditional_hooks(&mut command, arguments);
+    super::hooks_off::add_arguments(&mut command, arguments);
+    return in_push_environment(command, git);
+}
+
+/// What:
+///  Give `command` the push's working directory and its exact environment.
+/// Why:
+///   Both builders of push Git commands run in the same place with the same environment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// { ...command, cwd: git.cwd, env: git.environment }
+/// ```
+fn in_push_environment(mut command: Command, git: &PushGit) -> Command {
     command
         .current_dir(&git.cwd)
         .env_clear()
         .envs(git.environment.iter().map(|pair| {
             return (&pair.0, &pair.1);
-        }))
-        .args(arguments);
+        }));
     return command;
 }
 

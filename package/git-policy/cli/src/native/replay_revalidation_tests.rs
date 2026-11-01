@@ -1,17 +1,7 @@
-//! Controls for the revalidation steps that need no policy: the replayed index, the shadow `HEAD` move,
-//!  and the `pre-commit` decision.
+//! Controls for the revalidation steps that need no policy: the replayed index and the shadow `HEAD` move.
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
-
-/// The re-run decision: hooks not bypassed and a changed tree.
-#[test]
-fn pre_commit_reruns_only_for_a_changed_tree_without_no_verify() {
-    assert!(pre_commit_rerun_required(false, "aaa", "bbb"));
-    assert!(!pre_commit_rerun_required(false, "aaa", "aaa"));
-    assert!(!pre_commit_rerun_required(true, "aaa", "bbb"));
-    assert!(!pre_commit_rerun_required(true, "aaa", "aaa"));
-}
 
 /// The replayed index lives under its replay's directory.
 #[test]

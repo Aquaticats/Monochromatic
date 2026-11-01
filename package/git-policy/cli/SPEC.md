@@ -85,7 +85,7 @@ An executable that predates the policy refuses a configuration that lists it,
 After a clean replay,
  revalidation converges all policies again over the replayed tree and the shadow `HEAD` at the
 replay parent,
- and re-runs `pre-commit` whenever the tree differs from the one it last approved.
+ and starts no hook.
 No recorded policy run is reused:
  the executable keeps no per-policy read sets or input fingerprints.
 The retired TypeScript wrapper reused a run when its declared inputs and recorded reads were unchanged;
@@ -208,8 +208,8 @@ no configuration key or environment variable opts out of it.
 - `hooks.concurrentCommits`:
   boolean,
   default `false`.
-  `false` serializes preparation hooks and the post-landing `post-commit` hook through the hook lock;
-  `true` lets them overlap.
+  Retired: it tuned the hook lock, and the wrapper runs no external hook, so no lock exists.
+  An older file that sets it still loads: the value is checked and ignored, and `git cli-git doctor` says so.
 - `indexLock.unprovenOwnerTimeoutMs`:
   non-negative safe integer,
   default `1000`.
@@ -320,7 +320,7 @@ The escape `--no-enforce-<policy>` written for a selected policy is not refused.
 ### Doctor
 
 `git cli-git doctor` lists the traditional hooks a repository holds.
-Traditional hooks are unsupported (see "Hook dispatcher shim"),
+Traditional hooks are unsupported (see "Commit hooks"),
 and this command is where they are found:
 the commit path only warns when `core.hooksPath` is configured and never scans a directory.
 
@@ -567,7 +567,7 @@ preserve its status after writing the successful copy summary.
 ### Post-commit
 
 After a successful non-dry-run commit lands
-and the `post-commit` hook has run
+and the landing is complete
 (see "Post-landing"),
 use the OID the landing wrote by compare-and-swap.
 Never re-read live `HEAD`:
@@ -790,37 +790,38 @@ open divergence.
 
 ### Real Git starts with traditional hooks off
 
-Traditional hooks are not only unsupported: no start of the real Git by the wrapper runs them.
+External hooks are not only unsupported: no start of the real Git by the wrapper runs one.
 Every such start, forwarded commands as well as the wrapper's own children (queries, the commit's native steps,
 the auto-push, the reconcile and integration pushes, maintenance), carries
-`-c core.hooksPath=/dev/null/cli-git-no-hooks` ahead of its arguments.
+`-c core.hooksPath=/dev/null/cli-git-no-hooks` after the caller's global options and before the subcommand.
 The directory is below a device, so nothing can create it, and Git finds no hook file there.
-Hooks defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) still run, the LFS upload hook
-and the commit dispatcher included; the dispatcher keeps its own `-c core.hooksPath=<tx>/no-hooks`.
+The same prefix carries `-c hook.<event>.enabled=false` for every hook event Git knows except `pre-push`, so a hook
+defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) does not run either.
+The wrapper injects no hook of its own, so `pre-push` is switched off like every other event.
 
 - The option is part of the argument vector, so it adds no system call and no process start.
   The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
-- It comes first, so a `-c core.hooksPath=<directory>` written by the caller, later on the command line, wins for that
-  command, and so does any later `-c` of the commit path (`<tx>/hooks`).
+- It follows every global option of the caller and precedes the subcommand, so no `-c core.hooksPath=<directory>`,
+  `-c hook.<event>.enabled=true` or `--config-env` of the caller can bring a hook back, and the native commit repeats
+  the options after the caller's (see "External hooks").
+  The push probe is the exception: its arguments carry their own hooks directory for the wrapper's recording hook.
 - `git config` starts go without it, because they report what the repository configures and the wrapper reads
   `core.hooksPath` that way (the commit warning, `doctor`); a command reached through an alias of `config` is not
   recognized and gets the option.
-- A child of Git inherits the setting through `GIT_CONFIG_PARAMETERS`, so a config hook that starts `/usr/bin/git`
-  runs it with hooks off as well; a local-path remote's `receive-pack` does not inherit it (measured by
+- A child of Git inherits the settings through `GIT_CONFIG_PARAMETERS`, so a program Git starts (a filter, an editor) that
+  starts `/usr/bin/git` runs it with hooks off as well; a local-path remote's `receive-pack` does not inherit it (measured by
   `a_local_remotes_server_side_hook_still_runs`), so server-side hooks of such a remote still run.
   A script that starts Git outside any wrapper-started Git still runs traditional hooks.
 - git-lfs reads the same setting when it picks the directory for its shims: a clean filter started inside a
   wrapper-started Git finds no directory it can write and writes none (measured with git-lfs 3.8.0;
   `binary_hooks_off_tests.rs` has the positive control, a direct `git add` that writes all four).
 - The wrapper's dry-run push probes (the scope probe of a manual push, the integration probe after a rejected push, and
-  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` and a hooks directory that never exists.
-  That turns configured and traditional `pre-push` hooks off for the one probe (measured on Git 2.56.0); a
-  `--dry-run --porcelain` push reports its updates without any hook.
-  A configured `pre-push` hook therefore runs once per push that publishes: once for a normal push or an auto-push,
-  twice for a push that lost a race (the rejected push and the stacked merge push), and never for a probe.
-  The real push, the stacked push, the lost-race merge push and the reconcile pushes run configured hooks as Git does.
+  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` and a hooks directory that never exists,
+  and a `--dry-run --porcelain` push reports its updates without any hook.
+  No push runs a configured `pre-push` hook: the event is switched off like every other, and the wrapper injects no
+  hook of its own.
 - Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
-  A missing `core.hooksPath` directory is the case the commit dispatcher already relies on (`<tx>/no-hooks`),
+  A missing `core.hooksPath` directory is the case the shadow commands already rely on (`<shadow>/no-hooks`),
   and the container end-to-end suite runs that on Git 2.39.5.
 
 ### Git LFS upload before a push
@@ -1025,8 +1026,8 @@ export type EventBase = {
 ```
 
 `sequence` starts at `0` for each batch of events and increments by one in emission order.
-A commit invocation can emit up to three batches (the traditional-hooks warning, the pre-commit run and the
-post-commit run), each starting at `0`.
+A commit invocation can emit up to three batches (the traditional-hooks and external-hooks warnings, the policy run and the
+post-commit policy run), each starting at `0`.
 
 ### Finding event
 
@@ -1350,9 +1351,6 @@ the native `git commit` that runs during private preparation is the real Git run
   signing,
   or Git itself)
   preserves its exit code and lands nothing;
-- a `pre-commit` hook that fails when re-run after a replay exits `1`,
-  like native Git's hook rejection,
-  and lands nothing;
 - a `concurrent-commit` core finding exits `1`;
 - a landing,
   replay,
@@ -1400,7 +1398,6 @@ Each transaction passes through four phases:
     outside both locks,
     complete worktree copies,
     run automatic maintenance,
-    run `post-commit` once,
     run post-commit policies,
     and auto-push.
 
@@ -1489,7 +1486,6 @@ recovery never recovers one whose owner is dead and leaves it in place for diagn
     landing-<n>.json       one per landing attempt inside the critical section
     ref-updated.json       exact landed OID
     index-installed        empty completion marker
-    hooks/                 plan.json and one entry per preparation event, each a link to the executable
     captured.index         real index at invocation
     commit.index           private commit index native preparation commits
     pre-landing-<n>.index  exact copy of the real index attempt <n> computed against
@@ -1521,7 +1517,7 @@ before the private index exists
 State files are created exclusively and never rewritten,
 so a crash leaves the newest complete state readable.
 Per-transaction state records use schema version 2;
-landed-capture records and `plan.json` use schema version 1.
+landed-capture records use schema version 1.
 Directories are mode `0700`,
 files are mode `0600`,
 and every read uses no-follow checks that reject symbolic links,
@@ -1611,10 +1607,8 @@ After policy evaluation settles,
 preparation runs native `git commit` with inherited stdio as:
 
 ```text
-git --git-dir=<shadow> --work-tree=<worktree root>
-    -c core.hooksPath=<tx>/hooks
-    -c hook.pre-commit.enabled=false -c hook.prepare-commit-msg.enabled=false
-    -c hook.commit-msg.enabled=false -c hook.post-commit.enabled=false
+git <caller global options> --git-dir=<shadow>
+    -c core.hooksPath=/dev/null/cli-git-no-hooks
     commit <private commit args>
 ```
 
@@ -1641,12 +1635,7 @@ Native `commit -a` updates only the private index copy.
 After Git succeeds,
 the prepared OID is the value of the shadow `HEAD`,
 and preparation records `prepared.json`.
-A commit hook may change the private index while it runs,
-as a lint-staged-style formatter rewrites and re-stages files;
-native `git commit` commits whatever the hook staged,
-and so does the transaction:
-the prepared tree is accepted even when it differs from the policy-settled intended tree
-(see "Hook-staged changes").
+No hook runs in the shadow, so the prepared tree is the policy-settled intended tree.
 A preparation failure removes the shadow repository and then the transaction directory,
 and leaves real index,
 worktree,
@@ -1736,6 +1725,8 @@ The shadow `config` has this layout:
   auto = 0
 [maintenance]
   auto = false
+[hook "post-commit"]
+  enabled = false
 ```
 
 - `core.repositoryformatversion` and every `extensions.*` key are copied explicitly,
@@ -1749,6 +1740,10 @@ The shadow `config` has this layout:
   so native `git commit`'s automatic maintenance
   (`run_auto_maintenance` in Git's `builtin/commit.c`)
   never runs in the shadow.
+- `hook.post-commit.enabled` follows the include,
+  so the native commit never runs `post-commit` in the shadow;
+  the wrapper runs it after landing.
+  It is a file value, not a `-c` option, so no hook inherits it through `GIT_CONFIG_PARAMETERS`.
 
 Cli-git writes the file itself,
 quoting every path value under git-config value syntax at the final interpolation.
@@ -1758,10 +1753,10 @@ quoting every path value under git-config value syntax at the final interpolatio
 A prototype in disposable repositories with Git 2.55.0 chose the shadow repository
 ("Private `HEAD` shape:
  shadow repository with alternates" in `doc/decision/cli-git-concurrent-commits.md`).
-It ran a `pre-commit` hook that reads the branch name,
+It ran a probe program that read the branch name,
 the upstream,
 and an `includeIf "onbranch:"` value,
-and rejects commits to `main`.
+and rejected commits to `main`.
 
 - For a symbolic target,
   the shadow `HEAD` is symbolic to the target branch's own ref name,
@@ -1823,101 +1818,43 @@ reftable,
 and SHA-256 repositories
 (see "Container end-to-end suite").
 
-#### Hook dispatcher shim
+#### External hooks
 
+The wrapper supports no external hook program.
 Traditional hooks,
 executable scripts in `.git/hooks` or in a `core.hooksPath` directory,
-are not supported.
-Any use of them with the wrapper is undefined behavior:
-nothing here promises their order, environment, locking or exit-status handling,
-and no user-facing requirement is written for them.
-Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
-The Git processes the wrapper starts on the commit path name a hooks directory that holds no hook
-(`<tx>/no-hooks`, below), so none of them starts a traditional hook;
-controls pin that because the dispatcher must never start its own entries again,
-and it is an implementation property, not a promise to users.
-`git cli-git doctor` lists the traditional hooks a repository holds.
+are not supported,
+and neither are hooks configured with `hook.<name>.event` and `hook.<name>.command`.
+Nothing here promises their order, environment, locking or exit-status handling,
+and the wrapper starts none of them.
+Git never starts the wrapper for a hook:
+the wrapper writes no hook entry,
+passes no hooks path of a directory it made,
+and the executable does not read the name it was started under.
 
-The dispatcher of this section ("Hook dispatcher shim") is the one remaining place where the wrapper is started
-because of something it arranged (`argv[0]` dispatch and shim entries naming the executable).
-The rule is that the wrapper never starts itself, never writes shell text or scripts, and
-explains failures from the parent that owns the child; the leftover is on the allow-list of
-`src/native/no_self_invocation_tests.rs` and is removed by the follow-up change named in
-`doc/planning/cli-git-no-self-invocation.md`.
+- Every real-Git start of the wrapper carries `-c core.hooksPath=/dev/null/cli-git-no-hooks` and
+  `-c hook.<event>.enabled=false` for every hook event Git 2.56.0 knows (`HOOK_EVENTS` in `hooks_off.rs`, checked
+  against the host Git by a control), after the caller's global options and before the subcommand.
+  `hook.<event>.enabled=false` switches off every configured hook of the event whatever its name
+  (`doc/troubleshooting/git-hook-disable-switches.md`), and `core.hooksPath` switches off the hook files.
+- The shadow's `config` switches every hook event off after its include, so no hook runs in the shadow whatever the
+  real config defines, and the native commit repeats the hooks-off hooks path after the caller's global options.
+- The native commit runs `git <caller global options> --git-dir=<shadow> -c core.hooksPath=/dev/null/cli-git-no-hooks
+  commit ...` with no `--work-tree`: the shadow's `config` names the work tree.
+- A repository that configures hooks gets one `configuration-warning` event (code `external-hooks-unsupported`) on
+  each commit, decided from the configuration snapshot the commit already holds: it names the `hook.<name>` keys, their
+  events and the ways forward (remove the keys, or express what the hook checked as a cli-git policy under `policies`
+  in `cli-git.config.jsonc`).
+  `git cli-git doctor` lists the same hooks, one `hook.<name> (events: ...)` line each, and exits 1 while any remain.
+  A push prints the same warning, from the snapshot it already reads for the LFS decision.
+  A forwarded command other than a commit or a push prints no warning, because it reads no configuration snapshot.
+- `hooks.concurrentCommits` is retired: an older file that sets it loads, the value is ignored, and doctor says so.
 
-Hooks run through a dispatcher shim passed with `-c core.hooksPath=<tx>/hooks`
-plus `-c hook.<event>.enabled=false` for each event.
-`hook.<event>.enabled=false` suppresses config-based hooks but not the hookdir hook,
-and `core.hooksPath` alone does not disable config-based hooks
-(`doc/troubleshooting/git-hook-disable-switches.md`),
-so both are required.
-
-- Each hook entry is the native executable itself.
-  `<tx>/hooks/plan.json` holds the dispatch plan,
-  encoded at the final interpolation,
-  and Git starts the entry under the event's name,
-  so the executable dispatches by the name it was started under.
-  Nothing new ships beyond the executable.
-- `<tx>/hooks/pre-commit`,
-  `prepare-commit-msg`,
-  and `commit-msg` are those entries (symbolic links on Unix;
-  on Windows, which has not been run, hard links or copies named `<event>.exe`).
-  `post-commit` is intentionally absent,
-  so it never runs during preparation.
-- The plan records the events the user disabled through `hook.<event>.enabled`,
-  the config parameters native Git would hand its hooks or their absence,
-  the real Git path,
-  the absolute worktree root,
-  the preparation lease,
-  the hook lock path,
-  and whether the hook lock is skipped.
-  It records no hooks path.
-  The config parameters are the caller's inherited `GIT_CONFIG_PARAMETERS` followed by the caller's global `-c` options,
-  each quoted in Git's `sq_quote` form
-  (`'` and `!` close and reopen the quote);
-  they are absent when the caller had neither,
-  so cli-git's own `core.hooksPath` and `hook.<event>.enabled` overrides never reach a hook.
-- The program restores those config parameters,
-  exports `GIT_WORK_TREE` as the absolute worktree root
-  (Git otherwise rewrites it to `.` for hooks,
-  `doc/troubleshooting/git-private-admin-dir-hook-environment.md`),
-  skips user-disabled events,
-  takes the hook lock
-  (see "Hook lock"),
-  runs
-  `git -c hook.<event>.enabled=true -c core.hooksPath=<tx>/no-hooks hook run --ignore-missing <event> -- <args>`,
-  releases the hook lock,
-  and propagates the exit status.
-- `<tx>/no-hooks` is a path inside the transaction that is never created.
-  Git finds no hook in a missing hooks directory,
-  so the inner run starts only the hooks the configuration defines by name,
-  never a traditional hook and never the transaction's own entries again.
-  The `post-commit` run in the real worktree passes the same `-c core.hooksPath=<tx>/no-hooks`.
-- A configuration that defines no hook by name (`hook.<name>.event` or `hook.<name>.command`)
-  gets no entry and no `post-commit` run:
-  the entries and the run would find nothing to start.
-  The answer comes from the configuration snapshot, so it costs no file system call.
-  A `pre-commit` re-run after a replay follows the same answer.
-- The program exports `CLI_GIT_PREPARATION_LEASE`.
-  A nested wrapper invocation that inherits a valid lease skips startup transaction recovery and hook-lock acquisition,
-  and an index writer whose `GIT_INDEX_FILE` names the transaction's private index
-  never takes the landing lock.
-
-Hooks observe the branch state listed in "Private `HEAD` shape".
-A `pre-commit` hook that runs `git stash` writes its entry to the shadow's private `refs/stash`
-but still transiently touches the shared worktree;
-the hook lock serializes only cli-git's own hook runs.
-
-#### Hook lock
-
-The hook lock is an owner lock at `<git-common-dir>/cli-git/hook.lock`.
-The dispatcher shim takes it around each preparation hook event,
-so an open message editor never holds it.
-The re-run of `pre-commit` after a replay goes through the same shim,
-so the shim takes it there too,
-and cli-git takes it around the post-landing `post-commit`.
-It is skipped when `hooks.concurrentCommits` is `true`
-and when a valid preparation lease is inherited.
+The wrapper executes no program that any configuration names: not a Git config key, not `cli-git.config.jsonc`, not the
+git directory, not the environment.
+`cli-git.config.jsonc` is data: it has no command or executable field, and a `postCommit` key is a configuration error
+(`Configuration key postCommit is not supported: cli-git runs no program named by any configuration ...`).
+What a hook checked belongs in a cli-git policy.
 
 ### Policy evaluation during preparation
 
@@ -1980,7 +1917,7 @@ and revert conclusions use index-commit semantics only.
 
 A commit transaction adds no paths of its own:
 its prepared record carries an empty list of added paths,
-and only the selected paths and the hook-staged changes below reach the landing.
+and only the selected paths reach the landing.
 The record field remains from the retired design,
 in which policy patches could add tracked files to the commit.
 
@@ -1993,35 +1930,6 @@ converged bytes of added paths join the direct-fix worktree installation.
 Precondition failures are `patch-conflict` with direct-fix remedies
 (include the path in the pathspecs,
 or restore it to `HEAD`).
-
-#### Hook-staged changes
-
-A `pre-commit` hook that edits files and re-stages them,
-as lint-staged does,
-changes the private index native Git commits.
-The transaction keeps that tree,
-as native Git keeps it,
-and diffs the policy-settled tree against the committed tree
-(`git diff-tree -r --raw --no-renames`)
-to learn the hook's paths:
-
-- Explicit-path commits reset each hook path outside the selection in the post-index to the landed entry
-  only while its real index entry still equals the one captured at invocation;
-  an entry restaged since then is kept,
-  with a warning naming the path.
-  Selected paths are reset as always.
-- Index commits need nothing extra:
-  the landed index is the hook's private index,
-  and the per-path merge of "Real index at landing" already takes landed entries only for unchanged paths.
-- A path modified in place as an ordinary file joins the worktree completions of `prepared.json`
-  with its pre-hook blob as the original and its committed blob as the intended bytes,
-  under the "Added paths" comparison:
-  a worktree copy still holding the pre-hook bytes receives the committed bytes,
-  one already holding them is left alone,
-  and any other bytes are kept with a warning.
-
-A `pre-commit` re-run after a replay is handled the same way
-(see "Revalidation after replay").
 
 ### Landing
 
@@ -2104,8 +2012,7 @@ a disposable fixture verifies that the chosen `update-ref` form writes both.
 The landing critical section never runs hooks,
 the editor,
 signing,
-network operations,
-or the hook lock.
+or network operations.
 Every landing-lock acquisition first recovers dead transactions that hold a landing record
 (see "Recovery"),
 so a crashed landing is resolved before another landing moves the ref or index.
@@ -2135,7 +2042,6 @@ and never stages a revert of landed content.
   because an index read from a tree carries no stat data,
   skip-worktree bits,
   or intent-to-add entries.
-- Hook-staged paths follow "Hook-staged changes".
 
 Every copy and install keeps the source index timestamps.
 
@@ -2405,25 +2311,6 @@ in a private directory `<tx>/replay-<r>/`:
     and policy-added paths follow "Added paths",
     checked against the real index captured at invocation.
     A blocking finding or engine failure lands nothing and returns that result.
-4.  When the tree after policies differs from the tree `pre-commit` last approved
-    (the prepared tree at the first replay)
-    and the invocation did not pass `--no-verify` or `-n`,
-    re-run `pre-commit` against `replay-<r>/commit.index`:
-    `git <caller global options> --git-dir=<shadow> --work-tree=<worktree root> -c core.hooksPath=<tx>/hooks`
-    with every commit event's `hook.<event>.enabled=false`,
-    `hook run --ignore-missing pre-commit`,
-    `GIT_INDEX_FILE` naming the replayed index,
-    and `GIT_EDITOR=:`,
-    as native Git runs `pre-commit` when no editor is used.
-    The dispatcher shim takes the hook lock and runs the repository's hooks.
-    `prepare-commit-msg` and `commit-msg` do not re-run,
-    because the message is fixed.
-    A failing `pre-commit` lands nothing,
-    removes the shadow repository and the transaction,
-    and exits `1` without a JSONL event,
-    like native Git's hook rejection.
-    Changes the hook staged are kept
-    (see "Hook-staged changes").
 5.  Build the replayed commit from the prepared commit on the resulting tree
     (see "Replay").
 
@@ -2691,19 +2578,9 @@ After both locks are released:
     since Git 2.54 the default `geometric` maintenance strategy merges packs whose sizes break a geometric progression,
     and under the `gc` strategy or an older Git,
     `gc --auto` repacks once the count exceeds `gc.autoPackLimit`.
-3.  Run `post-commit` once through `git -c core.hooksPath=<tx>/no-hooks hook run post-commit` in the real worktree,
-    when the configuration defines a hook by name,
-    under the hook lock unless `hooks.concurrentCommits` is `true`,
-    with native-equivalent `GIT_INDEX_FILE`,
-    `GIT_AUTHOR_NAME`,
-    `GIT_AUTHOR_EMAIL`,
-    `GIT_AUTHOR_DATE`,
-    and `GIT_EDITOR=:`.
-    Its exit status is ignored,
-    as in native Git.
-4.  Run post-commit policies with the landed OID
+3.  Run post-commit policies with the landed OID
     (see "Post-commit").
-5.  Auto-push
+4.  Auto-push
     (see "Auto-push").
 
 ### Starvation reservation
@@ -2764,9 +2641,6 @@ is retired by the next acquirer.
 - Reservation lock,
   `<git-dir>/cli-git-transactions/reservation.lock`:
   a wait while its owner lives, bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800).
-- Hook lock,
-  `<git-common-dir>/cli-git/hook.lock`:
-  a wait while its owner lives, bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800).
 - Capture lock,
   `<git-dir>/cli-git-captures/capture.lock`:
   a wait while its owner lives, bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800),
@@ -2791,15 +2665,11 @@ and inside a container whose PID 1 does not reap orphans,
 such as a Node process,
 the zombies a `SIGKILL`ed process group leaves are never reaped,
 so treating them as alive made every later acquirer wait forever.
-The hook dispatcher shim applies the same rule to the hook lock.
-A hook process orphaned by a killed wrapper but still running keeps the hook lock until it exits:
-it may still rewrite worktree files,
-which is what the lock serializes.
 
 Lock order is reservation check,
 landing lock,
 then real `index.lock`.
-No process takes the hook lock or a push lock while holding the landing lock,
+No process takes a push lock while holding the landing lock,
 and no process takes any other lock while holding the capture lock.
 
 Cli-git never deletes a foreign lock.
@@ -2859,7 +2729,7 @@ by appending it through `GIT_CONFIG_COUNT`,
 `GIT_CONFIG_KEY_<n>`,
 and `GIT_CONFIG_VALUE_<n>` while preserving existing entries,
 so native Git leaves an owner PID file beside each lock
-and the shim's restoration of `GIT_CONFIG_PARAMETERS` does not remove the setting.
+and nothing in the commit path restores `GIT_CONFIG_PARAMETERS` over it.
 The wrapper adds the entry to the environment of each child it forwards or spawns,
 not to its own environment.
 Nothing is appended when the last numbered `core.lockfilePid` entry already reads as true,
@@ -3260,10 +3130,10 @@ Private preparation:
   every other real ref,
   reflogs,
   and real index bytes stay unchanged during preparation;
-- a `pre-commit` hook sees the real branch name,
+- the shadow shows the real branch name,
   the upstream,
-  and a matching `includeIf "onbranch:"` value,
-  and a hook that rejects commits to `main` rejects one;
+  and a matching `includeIf "onbranch:"` value;
+- a configured hook for every hook event, whatever its name, does not run in the shadow;
 - a real `git prune --expire=now` and `gc --prune=now` during preparation keep the prepared commit,
   and `git prune --expire=now` inside the shadow keeps objects reachable only from real refs;
 - a real `core.hooksPath` runs no traditional hook and prints the `traditional-hooks-unsupported` warning,
@@ -3283,9 +3153,7 @@ Private preparation:
   cherry-pick,
   and revert conclusions produce native parents and messages,
   byte-identical to native Git for the conclusions;
-- shim plan with user-disabled events,
-  caller `GIT_CONFIG_PARAMETERS` present and absent,
-  and adversarial paths with quotes,
+- adversarial paths with quotes,
   newlines,
   and spaces;
 - `git worktree list` output unchanged by the shadow repository;
@@ -3344,23 +3212,10 @@ Landing and replay:
 - the target reflog and the `HEAD` reflog each contain the nonce entry exactly once;
 - a non-UTF-8 `i18n.commitEncoding` commit replays with its encoding header and exact message bytes,
   signed and unsigned;
-- `post-commit` runs once with `GIT_INDEX_FILE`,
-  `GIT_AUTHOR_*`,
-  and `GIT_EDITOR=:`;
-- `pre-commit` re-runs against the replayed tree,
-  is skipped under `--no-verify`,
-  and a failing re-run lands nothing;
 - policies re-run against the replayed tree and a revalidation patch lands;
 - 2,
   3,
   and 8 commits started together each land exactly once with their captured bytes;
-- a `pre-commit` hook that stages another path,
-  rewrites and re-stages a selected file,
-  or stages a formatted blob without touching the worktree lands what it staged,
-  with the real index and worktree reconciled,
-  and a worktree edit or real-index restage made after the hook ran is kept;
-- a staged blob is absent from the real object store while the commit is held in `pre-commit`,
-  and a real `gc --prune=now` then keeps the commit whole;
 
 Capture order:
 
@@ -3407,7 +3262,6 @@ and configuration:
   when the holder is killed,
   and when the holder is a zombie;
 - two preparations serialize their hooks by default and overlap with `hooks.concurrentCommits: true`;
-- an open message editor does not hold the hook lock;
 - concurrency config defaults,
   each valid value,
   zero,
@@ -3423,7 +3277,6 @@ and configuration:
   no PID file,
   and a lock held open by a child process;
 - a lock whose owner is a zombie is retired by the owner-lock acquirer,
-  the hook dispatcher shim,
   and the transaction-owner liveness check;
 - a wait released when the holder exits (and abandoned after `CLI_GIT_LOCK_WAIT_SECONDS`),
   and a leftover lock from a killed Git producing `index-lock-unproven-owner` after the timeout with the lock retained;
@@ -3495,9 +3348,6 @@ so this suite is an inherent part of the transaction protocol.
   - a scenario catalog of concurrent agent behavior:
     shared-file edits with overlapping and non-overlapping hunks,
     interleaved index writers,
-    config-based hooks,
-    lint-staged-style stash hooks,
-    `commit-msg` and `post-commit` hooks,
     SSH signing,
     amend attempts,
     branch switches,

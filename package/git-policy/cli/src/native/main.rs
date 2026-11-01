@@ -51,14 +51,7 @@ fn main() {
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
     // `vars_os` yields every environment entry as an undecoded name/value pair.
     let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    // What: `argv[0]` is the start name; a hook entry is recognized by it, and Git starts hooks by their path.
-    // Why:  `current_exe` resolves symbolic links and would lose the hooks directory.
-    let start_name: Option<OsString> = std::env::args_os().next();
     // `i32` is the signed 32-bit type of process exit codes.
-    let code: i32 = git_policy_cli::hook_dispatch::run_executable(
-        start_name.as_deref(),
-        arguments.as_slice(),
-        environment.as_slice(),
-    );
+    let code: i32 = git_policy_cli::entry::run_process(arguments.as_slice(), environment.as_slice());
     std::process::exit(code);
 }
