@@ -814,6 +814,32 @@ A outranks C because A works today with no new maintenance,
 while C waits on an upstream change or a fork to maintain.
 The choice belongs to the repository owner.
 
+### Decision and outcome
+
+The owner chose on 2026-11-01,
+in the question tool,
+"uutils timeout (Recommended)",
+a fourth option offered then:
+replace `cargo:timeout-cli` with `cargo:uu_timeout` (uutils,
+bin `timeout`).
+It keeps a cross-platform binary and parses like GNU `timeout`.
+Applied the same day:
+the repository plan entry is now `cargo:uu_timeout`,
+the lock moved one row (`timeout-cli` 0.1.0 out,
+`uu_timeout` 0.12.0 in),
+and `toolchain:install` reported 1 installed,
+63 unchanged,
+0 failed.
+`.cache/toolchain-bin/timeout` now resolves to `toolchain/cargo/uu_timeout/0.12.0/bin/timeout`.
+Positive check against `/usr/bin/timeout`:
+`timeout 5 echo --version`,
+`timeout 5 df -h /`,
+`timeout 5 grep -v x <file>`
+and `timeout 5 du -k <file>`
+each gave the same exit status and output as GNU coreutils 9.10.
+The owner also chose "Don't file (Recommended)" for the upstream report,
+so the draft in this document stays unposted.
+
 ## Verified workarounds
 
 All tested on 2026-11-01 with the harness `workaround` group,

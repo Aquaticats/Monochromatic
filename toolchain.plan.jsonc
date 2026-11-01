@@ -211,8 +211,11 @@
         "cargo-binstall"
       ]
     },
-    "cargo:timeout-cli": {
-      "request": "cargo:timeout-cli@latest",
+    // uutils' timeout replaced timeout-cli (owner 2026-11-01: "uutils timeout"): timeout-cli parsed its own
+    // flags when they came right after the wrapped command (`timeout 5 grep -v x` ran grep without -v);
+    // doc/troubleshooting/timeout-cli-consumes-flags-right-after-command.md.
+    "cargo:uu_timeout": {
+      "request": "cargo:uu_timeout@latest",
       "route": "cargo-binstall",
       "bins": [
         "timeout"
