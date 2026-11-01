@@ -37,6 +37,8 @@ use super::transaction_git::GitContext;
 /// The owner lock and its silent wait.
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
+/// The wait for the commit service's own hold on the index.
+use super::service_index_wait::{Waited, wait_for_service_hold_here};
 /// The landing lease and its variable.
 use super::transaction_lease::{LANDING_LEASE_VARIABLE, format_landing_lease, has_valid_landing_lease};
 /// Registry names and creation.
@@ -71,6 +73,8 @@ pub struct Coordination {
     lock: OwnerLock,
     /// The lease variable and its value.
     pub lease: (OsString, OsString),
+    /// The real index the coordinated command writes.
+    pub real_index: std::path::PathBuf,
 }
 
 /// What:
@@ -296,7 +300,15 @@ pub fn coordinate_index_writer_checked(
     if let Err(reason) = version(input.context) {
         return Err(CoordinationFailure::Stop(reason));
     }
+    // The commit service holds the index while it lands a commit, which ends by itself: the command waits for it, naming it,
+    //  before it takes anything, and looks again once it holds the landing lock. A lock that is not the service's is a
+    //  foreign program's and is dealt with by the wait below.
+    let name: String = command_name(input.command);
+    let first: Waited = wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
     let lock: OwnerLock = acquire_landing(input.context, input.identity, &location)?;
+    if matches!(first, Waited::NotHeld | Waited::Released) {
+        wait_for_service_hold_here(location.real_index_path.as_path(), name.as_str());
+    }
     let consequence: String = format!("did not run git {}", command_name(input.command));
     match wait_for_lock(location.real_index_path.as_path(), input.timeout_ms, consequence.as_str()) {
         Ok(()) => {}
@@ -312,6 +324,7 @@ pub fn coordinate_index_writer_checked(
     return Ok(Some(Coordination {
         lock,
         lease: (OsString::from(LANDING_LEASE_VARIABLE), OsString::from(lease_value)),
+        real_index: location.real_index_path.clone(),
     }));
 }
 

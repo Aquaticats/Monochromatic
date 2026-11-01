@@ -200,6 +200,70 @@ const NEUTRAL_LONG: [&str; 15] = [
 /// Long options with a value that never decide whether an editor opens.
 const NEUTRAL_VALUE_LONG: [&str; 7] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template", "--pathspec-from-file"];
 
+/// Long options that take a value, whether attached with `=` or the next token.
+const VALUE_LONG: [&str; 11] = [
+    "--message", "--file", "--reuse-message", "--reedit-message", "--fixup", "--author", "--date", "--trailer", "--cleanup", "--template",
+    "--pathspec-from-file",
+];
+
+/// Short option letters whose value is the rest of the token, or the next token when nothing follows.
+const VALUE_LETTERS: [char; 5] = ['m', 'F', 'C', 'c', 't'];
+
+/// Short option letters whose value can only be attached.
+const ATTACHED_LETTERS: [char; 2] = ['S', 'u'];
+
+/// What:
+///  Whether the command line itself asks `git commit` to print no summary (`-q`, `--quiet`, in a cluster of short options).
+/// Why:
+///   The wrapper prints the summary line of a landed commit, so it must know whether the person asked for silence. Values of
+///  options are skipped, so `-m quick` is not a request for silence. A line this reading does not understand counts as not
+///  quiet: a summary printed without need costs a line, and one withheld hides the commit's name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// asksForQuiet(['-q', '-m', 'x'])
+/// ```
+pub fn asks_for_quiet(arguments: &[OsString]) -> bool {
+    let mut index: usize = 0;
+    while index < arguments.len() {
+        let Some(token) = arguments[index].to_str() else { return false };
+        index += 1;
+        if token == "--" {
+            break;
+        }
+        if let Some(long) = token.strip_prefix("--") {
+            let (name, attached): (&str, bool) = match long.split_once('=') {
+                Some((name, _)) => (name, true),
+                None => (long, false),
+            };
+            let dashed: String = format!("--{name}");
+            if dashed == "--quiet" {
+                return true;
+            }
+            if !attached && VALUE_LONG.contains(&dashed.as_str()) {
+                index += 1;
+            }
+        } else if token.starts_with('-') && token != "-" {
+            let letters: Vec<char> = token.chars().skip(1).collect();
+            for (at, letter) in letters.iter().enumerate() {
+                if *letter == 'q' {
+                    return true;
+                }
+                if ATTACHED_LETTERS.contains(letter) {
+                    break;
+                }
+                if VALUE_LETTERS.contains(letter) {
+                    if at + 1 == letters.len() {
+                        index += 1;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 /// What:
 ///  Whether `git commit` with these arguments may open an editor.
 /// Why:

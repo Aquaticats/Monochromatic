@@ -65,7 +65,7 @@ pub struct BuildInput<'a> {
     /// Whether the private index already holds a selection made with `--include`, `--patch` or `--interactive`, so that Git
     ///  is not given those options again.
     pub selected_privately: bool,
-    /// Whether Git is told to print no summary, for a build made again on a new tip after the first one printed its own.
+    /// Whether Git is told to print no summary, because the caller prints one line for the commit that lands.
     pub quiet: bool,
 }
 

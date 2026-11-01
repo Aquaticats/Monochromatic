@@ -2895,6 +2895,16 @@ Cli-git does not capture Git's stderr to detect a lock failure and re-forward,
 because capturing stderr changes Git's color and progress output.
 A residual race remains only with processes that bypass the wrapper.
 
+The resident commit service holds `index.lock` while it lands a commit, and writes its own mark in the lock.
+Before it takes the landing lock a classified writer waits for such a hold without polling
+(an inotify watch on the Git directory, ended by the release),
+and says what it waits for after the usual notice grace: that the commit service is finishing a commit in this repository.
+The wait ends at the wait limit every live-program wait ends at,
+and a hold older than a landing can last is a dead service's leftover and is not waited for.
+A lock without the mark is a foreign program's and keeps the classification rules above.
+Between one landing and the next the service may take the lock again before the writer's Git does,
+and then Git reports its own refusal, as it does against any busy committer.
+
 The forwarded Git receives `CLI_GIT_LANDING_LEASE` naming the held landing lock and its owner token.
 Hooks and `rebase --exec` commands of that Git can invoke the wrapper again;
 a nested invocation whose inherited lease names the same,

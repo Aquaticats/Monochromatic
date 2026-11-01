@@ -17,6 +17,8 @@
 use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
+/// How to allow a push longer, in the words of the program that runs it.
+use super::push_deadline_advice::extend_clause;
 /// The helpers and hooks a stopped push leaves running.
 use super::process_tree::{TreeMember, descendants_of, kill_members, still_running, terminate_members};
 /// Starts that ride out a short shortage of processes.
@@ -387,8 +389,8 @@ pub fn wait_until_done(
 pub fn budget_spent_message() -> String {
     return format!(
         "cli-git: the time this process may hold the push lock is spent, so this step was not started. \
-         Hint: your commit is already saved; push again when the connection works, or set \
-         {PUSH_DEADLINE_VARIABLE} to allow longer."
+         Hint: your commit is already saved; push again when the connection works, or {}.",
+        extend_clause()
     );
 }
 
@@ -438,9 +440,10 @@ pub fn run_bounded_push(
             let reason: String = match cause {
                 StopCause::Deadline => format!(
                     "cli-git: git push did not finish within {} seconds and was stopped; \
-                     set {PUSH_DEADLINE_VARIABLE} to allow longer. Hint: if you were pushing over a slow or \
+                     {}. Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
-                    deadline.as_secs()
+                    deadline.as_secs(),
+                    extend_clause()
                 ),
                 StopCause::Flood => format!(
                     "cli-git: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \

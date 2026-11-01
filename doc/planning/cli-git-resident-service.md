@@ -545,9 +545,15 @@ repository. A claim that was held by a service that died is taken back by lease 
 deadline) and the item is tried again up to three times. Items of other kinds, the standards review, are never claimed.
 
 What the person sees: the commit returns without waiting for the network. A failed push settles its items as failed and
-leaves one notice file under `<common git dir>/cli-git/notices/`; the next commit that goes through the service prints it
-once and removes it. The notice says the commit exists only on this computer for now, repeats what Git said, and says to run
-`git push` when ready. A handoff that could not be written or announced prints the plain `WorkNotHandedOver` text and does not
+leaves one notice file under `<common git dir>/cli-git/notices/`. The file holds the branch, the whole commit name and Git's
+words with every URL's credentials already masked (only the user name and password of a URL are masked, never the line around
+them); the next wrapped command that is not machine-read prints it once and removes it, in the worktree that has the branch
+checked out (in any worktree when none has it), naming the commit with the abbreviation Git gives it in the repository as
+it then is (`landed_summary.rs`, `object_abbreviation.rs`). A file an earlier release wrote, which is finished text, is shown
+as it is. The notice says the commit exists only on this computer for now, repeats what Git said, and says to run
+`git push` when ready. When the push was stopped at its deadline the text gives the remedy that reaches the service (the
+user manager's `systemctl --user set-environment` and a restart), not a variable of the terminal
+(`push_deadline_advice.rs`). A handoff that could not be written or announced prints the plain `WorkNotHandedOver` text and does not
 change the exit status; the records stay pending and the next wake for the repository runs them.
 
 Environment limit, stated plainly: the push runs in the service's environment, which is the one the unit file gives it, not

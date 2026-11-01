@@ -1,0 +1,177 @@
+//! What:
+//!  The wait of a wrapped command that writes the index for the commit service's own hold on the index: event-driven, with a
+//!  notice that names what is waited for, and over as soon as the hold is released.
+//! Why:
+//!  The service holds Git's `index.lock` while it lands a commit and marks it as its own. A wrapped `git add` run by another
+//!  process in the same worktree during that time must not fail, and must not be told the hold belongs to a program
+//!  nobody can prove alive: the hold is the product's own and ends by itself. A lock without the service's mark is a
+//!  foreign program's and keeps the behavior of native Git. The wait blocks on an inotify watch set before the first look,
+//!  so a release between the look and the wait is not missed, and it ends at the limit every wait on a live program ends at.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const outcome = await waitForServiceHold({ realIndex, command: 'add', limit, cadence, stderr });
+//! ```
+
+use super::live_lock::live_wait_limit;
+use super::service_index_lock::{LOCK_MARKER, Watch, lock_path_of};
+use super::wait_progress::{Cadence, Ticker};
+use std::io::{Read, Write};
+use std::path::Path;
+use std::time::{Duration, Instant};
+
+/// How many times an empty lock is read again before it is taken for a foreign program's, and the pause between the reads.
+///  The service writes its mark in the instant after it creates the lock; a foreign program leaves the file empty until it
+///  has an index to put in it.
+const EMPTY_LOOKS: u32 = 5;
+const EMPTY_PAUSE: Duration = Duration::from_millis(2);
+
+/// The longest the service holds the index for one landing: every step of a landing is bounded, so a hold older than this
+///  is a service that died with it, and nothing is waiting on it.
+pub const HOLD_LIMIT: Duration = Duration::from_secs(60);
+
+/// Who holds the index.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Holder {
+    /// Nobody: there is no lock.
+    Nobody,
+    /// The commit service, by its mark.
+    Service,
+    /// A program that is not the service, or a lock that cannot be read.
+    Foreign,
+}
+
+/// What came of the wait.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Waited {
+    /// The service did not hold the index when the command asked.
+    NotHeld,
+    /// The service held the index and let it go.
+    Released,
+    /// The service still held the index at the limit.
+    GaveUp,
+    /// The hold is older than any landing lasts, so it is a dead service's leftover and was not waited for.
+    Stale,
+}
+
+/// Who holds the lock at `lock` now.
+fn holder_of(lock: &Path) -> Holder {
+    for look in 0..EMPTY_LOOKS {
+        let mut file = match std::fs::File::open(lock) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Holder::Nobody,
+            Err(_) => return Holder::Foreign,
+        };
+        let mut head: [u8; LOCK_MARKER.len()] = [0; LOCK_MARKER.len()];
+        let mut filled: usize = 0;
+        while filled < head.len() {
+            match file.read(&mut head[filled..]) {
+                Ok(0) => break,
+                Ok(count) => filled += count,
+                Err(_) => return Holder::Foreign,
+            }
+        }
+        if filled == head.len() {
+            return if head == *LOCK_MARKER.as_bytes() { Holder::Service } else { Holder::Foreign };
+        }
+        if filled > 0 && !LOCK_MARKER.as_bytes().starts_with(&head[..filled]) {
+            return Holder::Foreign;
+        }
+        if look + 1 < EMPTY_LOOKS {
+            std::thread::sleep(EMPTY_PAUSE);
+        }
+    }
+    return Holder::Foreign;
+}
+
+/// Whether a program other than the service holds the index of `real_index` now.
+pub fn foreign_holds(real_index: &Path) -> bool {
+    return holder_of(lock_path_of(real_index).as_path()) == Holder::Foreign;
+}
+
+/// The line for the person while the wait lasts.
+fn waiting_line(command: &str, waited: Duration, limit: Duration) -> String {
+    return format!(
+        "cli-git: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; giving up after {} seconds.\n",
+        waited.as_secs(),
+        limit.as_secs()
+    );
+}
+
+/// How long ago the lock at `lock` was made.
+fn age_of(lock: &Path) -> Duration {
+    return std::fs::metadata(lock)
+        .and_then(|metadata| { return metadata.modified(); })
+        .ok()
+        .and_then(|made| { return std::time::SystemTime::now().duration_since(made).ok(); })
+        .unwrap_or(Duration::ZERO);
+}
+
+/// The line for the person when the hold is a leftover.
+fn stale_line(command: &str, age: Duration) -> String {
+    return format!(
+        "cli-git: the commit service's hold on this repository's index is {} seconds old, longer than a commit takes, so git {command} does not wait for it.\n",
+        age.as_secs()
+    );
+}
+
+/// The line for the person when the wait ran out.
+fn gave_up_line(command: &str, waited: Duration) -> String {
+    return format!(
+        "cli-git: the commit service was still finishing a commit in this repository after {} seconds, so git {command} runs now and reports what Git says.\n",
+        waited.as_secs()
+    );
+}
+
+/// What:
+///  Waits while the commit service holds the index of `real_index`, telling `out` what it waits for.
+/// Why:
+///   Returns at once when nobody holds the index or a foreign program does, so a command pays one file read when there is
+///  nothing to wait for. The first line comes after the grace every wait notice has, so a landing that ends at once prints
+///  nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitForServiceHold(realIndex, 'add', limit, cadence, stderr)
+/// ```
+pub fn wait_for_service_hold(real_index: &Path, command: &str, limit: Duration, cadence: Cadence, out: &mut dyn Write) -> Waited {
+    let lock = lock_path_of(real_index);
+    // The watch comes before the first look: a release between the look and the wait is then seen as an event.
+    let watch: Option<Watch> = lock.parent().and_then(Watch::on);
+    let began: Instant = Instant::now();
+    let mut ticker: Ticker = Ticker::new(cadence);
+    let mut held: bool = false;
+    loop {
+        if holder_of(&lock) != Holder::Service {
+            return if held { Waited::Released } else { Waited::NotHeld };
+        }
+        // Without a watch there is nothing to block on, and polling is not what this wait is for.
+        let Some(active) = watch.as_ref() else { return Waited::NotHeld };
+        let age: Duration = age_of(&lock);
+        if age >= HOLD_LIMIT {
+            let _noted = out.write_all(stale_line(command, age).as_bytes()).and_then(|()| { return out.flush(); });
+            return Waited::Stale;
+        }
+        held = true;
+        let elapsed: Duration = began.elapsed();
+        if elapsed >= limit {
+            let _noted = out.write_all(gave_up_line(command, elapsed).as_bytes()).and_then(|()| { return out.flush(); });
+            return Waited::GaveUp;
+        }
+        if ticker.due(elapsed) {
+            // A closed terminal is not a reason to stop the command the person asked for.
+            let _noted = out.write_all(waiting_line(command, elapsed, limit).as_bytes()).and_then(|()| { return out.flush(); });
+        }
+        active.wait(ticker.next_in(elapsed).min(limit.saturating_sub(elapsed)).max(Duration::from_millis(1)));
+    }
+}
+
+/// `wait_for_service_hold` with the limit and the notice cadence this process runs under.
+pub fn wait_for_service_hold_here(real_index: &Path, command: &str) -> Waited {
+    return wait_for_service_hold(real_index, command, live_wait_limit(), Cadence::from_environment(), &mut std::io::stderr());
+}
+
+/// The wait is controlled in the test module.
+#[cfg(test)]
+#[path = "service_index_wait_tests.rs"]
+mod tests;

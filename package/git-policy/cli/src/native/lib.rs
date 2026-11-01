@@ -1137,6 +1137,10 @@ pub mod repo_read_pack;
 #[cfg(unix)]
 pub mod repo_read_odb;
 
+/// The abbreviated object name Git prints (`core.abbrev`, the automatic length, uniqueness), computed without starting Git.
+#[cfg(unix)]
+pub mod object_abbreviation;
+
 /// In-process repository reads: trees, flattened trees and commit fields.
 #[cfg(unix)]
 pub mod repo_read_tree;
@@ -1230,6 +1234,15 @@ pub mod service_client;
 /// Which commit command lines the commit service covers, and the message they stand for.
 pub mod service_commit_args;
 
+/// The one summary line a landed commit prints, with the abbreviated name Git would print.
+pub mod landed_summary;
+
+/// The wait of a wrapped index writer for the commit service's own hold on the index.
+pub mod service_index_wait;
+
+/// A forwarded index writer started again when the commit service took the index before its Git did.
+pub mod service_hold_retry;
+
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
@@ -1268,6 +1281,9 @@ pub mod service_pruned;
 
 /// The record of a failed backup push and the rule for when a wrapper command shows it.
 pub mod push_failure_notice;
+
+/// The words that say how to change the push deadline, for the terminal and for the resident commit service.
+pub mod push_deadline_advice;
 
 /// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
 #[cfg(test)]
