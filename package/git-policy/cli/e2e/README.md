@@ -257,8 +257,9 @@ When the service sends a commit back because a path it names changed on the bran
 the wrapper merges the captured bytes onto the branch with the preparation base as merge base
 and never reads the worktree again,
 so a later worker's bytes cannot land under an earlier worker's message.
-Such an attempt exits `0`, or exits `1` with the `concurrent-commit/replay-conflict` finding naming its path
-(`landedOrConflicted`, `scenario-model-fixture.ts`).
+Such an attempt exits `0`, exits `1` with the `concurrent-commit/replay-conflict` finding naming its path,
+or exits `1` with the `concurrent-commit/already-committed` finding when commits that landed meanwhile already hold
+everything it changes (`landedOrConflicted`, `scenario-model-fixture.ts`).
 A worker that deletes or renames away a path an in-flight worker creates
 (or a path created by an in-flight worker before that one)
 waits until that worker's wrapper exited instead,

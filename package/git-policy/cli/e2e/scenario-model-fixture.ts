@@ -272,8 +272,32 @@ export function isReportedConflict(attempt: Pick<AttemptRecord, 'outcome' | 'sel
 }
 
 /**
- Expectation that every listed attempt landed its captured bytes merged onto the branch (exit 0)
- or failed as a reported replay conflict, which is the accepted design's only other outcome.
+ Whether an attempt ended because commits that landed while it was prepared already hold everything it changes:
+ exit 1 and the `concurrent-commit/already-committed` core finding, as native `git commit` says "nothing to commit"
+ for a path whose bytes an earlier commit took.
+
+ @param attempt - finished attempt
+
+ @returns whether the attempt ended with nothing left to commit
+
+ @example
+ ```ts
+ isAlreadyCommitted(attempt);
+ ```
+ */
+export function isAlreadyCommitted(attempt: Pick<AttemptRecord, 'outcome'>,): boolean {
+  return (attempt.outcome
+    .exitCode
+    === 1)
+    && attempt.outcome
+      .stderr
+      .includes('"code":"concurrent-commit/already-committed"',);
+}
+
+/**
+ Expectation that every listed attempt landed its captured bytes merged onto the branch (exit 0),
+ failed as a reported replay conflict,
+ or found its captured bytes already on the branch, which are the accepted design's outcomes.
 
  @param name - expectation name
 
@@ -296,7 +320,7 @@ export function landedOrConflicted({
   return allSucceeded({
     name,
     attempts: attempts.filter(function neither(attempt,) {
-      return !isReportedConflict(attempt,);
+      return !isReportedConflict(attempt,) && !isAlreadyCommitted(attempt,);
     },),
   },);
 }

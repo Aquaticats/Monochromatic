@@ -4,7 +4,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { isReportedConflict, } from './scenario-model-fixture.ts';
+import {
+  isAlreadyCommitted,
+  isReportedConflict,
+} from './scenario-model-fixture.ts';
 
 //region Fixtures
 
@@ -70,6 +73,20 @@ await describe({
               exitCode: 1,
               stderr: FINDING.replace('shared.txt', 'other.txt',),
             },),),).toBe(false,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: isAlreadyCommitted.name,
+      children: [
+        it({
+          name: 'accepts exit 1 with the already-committed finding and nothing else',
+          fn: async () => {
+            const finding = FINDING.replace('replay-conflict', 'already-committed',);
+            expect(isAlreadyCommitted(attemptOf({ exitCode: 1, stderr: finding, },),),).toBe(true,);
+            expect(isAlreadyCommitted(attemptOf({ exitCode: 0, stderr: finding, },),),).toBe(false,);
+            expect(isAlreadyCommitted(attemptOf({ exitCode: 1, stderr: FINDING, },),),).toBe(false,);
           },
         },),
       ],
