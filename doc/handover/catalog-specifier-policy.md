@@ -1076,8 +1076,10 @@ The user confirmed the shared understanding and the order below, after the third
 - Waiting on the toolchain owner (the earlier owner, `monochromatic-6e`, was replaced after the reboot; both current peers were
   told, each conditionally): lock 0.1.1, put `.cache/pnpm-shadow-bin` back on PATH ahead of `.cache/toolchain-bin`, then check
   `command -v pnpm`, and `pnpm --version`, `root` and `--help` with timeouts. The link was disabled after 0.1.0 looped.
-- Done by the user's answer ("Yes, bump to 0.5.1 now"): the cli-git 0.5.1 bump was in the working-tree lock with the shadow row
-  before the reboot; whether it was committed after the reboot was not checked from here.
+- Done by the user's answer ("Yes, bump to 0.5.1 now"): read with `git show HEAD:toolchain.lock.json | jq` after the reboot, the
+  committed lock names cli-git 0.5.1 and the `cargo:monochromatic-pnpm-shadow` row at 0.1.0 (so 0.1.1 is not locked yet).
+- Push state after the reboot: the handover commit `07c02186b1` was saved locally and its auto-push failed with the git-lfs 503
+  ("commit saved locally, but auto-push to origin failed"); the earlier release commit had already gone out with a push that worked.
 - For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
 - For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
 - Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
