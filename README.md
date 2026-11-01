@@ -154,6 +154,19 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 Install [Mise][mise-home] as the task runner,
 `curl`,
 `jq` and `tar`.
+Install [rustup](https://rustup.rs/) as well,
+with the minimal profile and no default toolchain,
+and put `~/.cargo/bin` on `PATH`
+(the `Dockerfile` runs `rustup-init -y --no-modify-path --profile minimal --default-toolchain none`
+after checking `rustup-init` against the checksum that rust-lang publishes beside it).
+The plan's `rust` entry runs `rustup toolchain install`,
+and every `cargo-binstall` tool runs `cargo binstall`,
+a cargo subcommand,
+so `mpm-shadow install` needs rustup before its first run;
+`mpm-shadow` does not provision rustup itself.
+rustup installs no toolchain at this step:
+the locked nightly arrives with the `rust` entry,
+and that entry's `RUSTUP_TOOLCHAIN` selects it for the `cargo` and `rustc` proxies.
 The toolchain commands are the Rust program `mpm-shadow`
 (see [Provision the toolchain](#clone-and-bootstrap) for the one prebuilt archive a fresh machine needs).
 Mise runs tasks only;
