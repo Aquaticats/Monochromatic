@@ -7358,3 +7358,10 @@ the real checkout, its `.git`, its worktrees and the commit service were not tou
   scratch intact.
 - The parents of the 127 root-owned files in the old tree are owned by the user, so deleting the old tree needs no root.
 - This entry is the first wrapped commit after the reboot (service started by socket activation).
+- After-reboot queue started (fresh agents; the pre-reboot agents did not survive the session restart):
+  0.5.7 integration resumed from `b1fe170dfe` (merge `3e9357aa05`, findings 5, 6, 4, 1, 2, 3, 7, 8 red first, final
+  suites, 16 e2e scenarios on two seeds, the three earlier e2e failures); resumable mutation campaigns plus a proper fix of
+  `live_lock::tests::a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit` with a kill-and-resume proof;
+  the `migrate-to-subvolume` subcommand resumed from `93a972ad32`; worktreeConfig support in `read_layout` with a
+  before and after count of Git process starts. The old tree is being deleted with `--remove-old`
+  (`~/temp/agent/subvol-migrate/remove-old.log`). Campaign m056 reruns after the resumable launcher lands.
