@@ -44,6 +44,27 @@ const POLL_MILLISECONDS = 10;
 //region Service
 
 /**
+ The runtime directory of a scenario's service.
+ Its name is short on purpose: a socket path holds about a hundred bytes, and the root of a scenario with a long name,
+ the runtime directory, the socket directory and the 32-digit instance name must all fit in it.
+
+ @param root - scenario root
+
+ @returns the directory the service's `cli-git/<instance>.sock` sits under
+
+ @example
+ ```ts
+ scenarioRuntimeDirectory('/work/2.55.0/baseline');
+ ```
+ */
+export function scenarioRuntimeDirectory(root: string,): string {
+  return join(
+    root,
+    'rt',
+  );
+}
+
+/**
  Starts the commit service of one scenario and waits until it listens.
 
  @param root - scenario root; the service keeps its runtime directory and journal under `service/`.
@@ -75,11 +96,7 @@ export async function startScenarioService({
   /**
    Runtime directory of the scenario.
    */
-  const runtime = join(
-    root,
-    'service',
-    'runtime',
-  );
+  const runtime = scenarioRuntimeDirectory(root,);
   /**
    Directory the socket sits in.
    */
