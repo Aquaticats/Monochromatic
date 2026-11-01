@@ -96,7 +96,8 @@ pub fn discard_path(path: &Path) {
 /// so a failed rename puts it back,
 /// and removed once the new one is in place.
 /// Why:
-/// The rename is atomic, so a reader sees no version directory or a whole one,
+/// The rename is atomic,
+/// so a reader sees no version directory or a whole one,
 /// and a copy that was working is never deleted before its replacement is in place.
 ///
 /// In TS you'd write (pseudocode):

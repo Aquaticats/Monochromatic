@@ -136,7 +136,9 @@ const PREFIX_SEARCH_PAGES: u32 = 10;
 /// followed by a version (see `version_after_prefix`).
 /// Why:
 /// One repository can tag the releases of several programs.
-/// The list is ordered by creation, not by version, so a backport release made after a newer line can sit first;
+/// The list is ordered by creation,
+/// not by version,
+/// so a backport release made after a newer line can sit first;
 /// the search therefore reads every page (until a short page or the cap) and keeps the highest version,
 /// the earlier one in the list when two are equal.
 /// A repository whose last 1000 releases hold none is an error that names the prefix and says the search stopped at

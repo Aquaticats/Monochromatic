@@ -116,7 +116,9 @@ pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
 /// The program the install must hold for it to count as finished:
 /// the first declared bin of a tool this repository publishes,
 /// or `None` for any other tool (a program missing from a third-party archive is reported by the sync as a missing
-/// bin, as it always was, and never fails the install).
+/// bin,
+/// as it always was,
+/// and never fails the install).
 fn required_program(tool: &LockedTool) -> Option<&str> {
     if !is_published_archive(tool) {
         return None;
@@ -180,6 +182,14 @@ fn unpack_into(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path
     return Ok(());
 }
 
+/// Unpacks the verified download into `staging`,
+/// checks it,
+/// and writes the completion marker last.
+fn unpack_and_mark(ctx: &Context, tool: &LockedTool, url: &str, download_path: &Path, staging: &Path) -> Result<(), ToolchainError> {
+    unpack_into(ctx, tool, url, download_path, staging)?;
+    return write_complete_marker(staging, &tool.declaration.id, &tool.version);
+}
+
 /// What:
 /// Downloads,
 /// verifies and unpacks the archive of one archive-route tool into its version directory.
@@ -207,9 +217,7 @@ fn install_archive_files(ctx: &Context, tool: &LockedTool) -> Result<(), Toolcha
     if let Err(error) = fs::create_dir_all(&staging) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", staging.display())));
     }
-    let staged: Result<(), ToolchainError> = unpack_into(ctx, tool, &artifact.url, &download_path, &staging)
-        .and_then(|()| return write_complete_marker(&staging, &tool.declaration.id, &tool.version));
-    if let Err(error) = staged {
+    if let Err(error) = unpack_and_mark(ctx, tool, &artifact.url, &download_path, &staging) {
         discard_path(&staging);
         return Err(error);
     }

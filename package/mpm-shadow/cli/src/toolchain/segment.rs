@@ -122,7 +122,8 @@ pub fn check_directory_name(label: &str, text: &str) -> Result<(), String> {
 /// the directory name `install_dir_name` makes of it must be one plain name,
 /// and not one of `RESERVED_TOOL_DIRECTORIES`.
 /// Why:
-/// `install_dir_name` already turns `/`, `\` and NUL into `-`,
+/// `install_dir_name` already turns `/`,
+/// `\` and NUL into `-`,
 /// so what remains to refuse is a dot-name and the names the toolchain root uses for other things.
 ///
 /// In TS you'd write (pseudocode):
