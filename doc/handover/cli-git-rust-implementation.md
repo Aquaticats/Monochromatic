@@ -6268,5 +6268,5 @@ This block supersedes "State at 2026-10-29 (night, later)".
     bound, and a panic guard at the hook.
   - `native:perf` cleanup race fixed (it waits for detached `git maintenance`).
   The agent's end-to-end `native:perf` run showed commit added latency of 130 ms, against 70 ms measured earlier today
-  on its own branch. That is one run, not established. Sent to the perf agent `a5…` (see the Agent launch) for paired
+  on its own branch. That is one run, not established. Sent to the perf agent `ae5d0d69af19e9c8c` for paired
   measurement and attribution, because 0.5.2 ships that code.
