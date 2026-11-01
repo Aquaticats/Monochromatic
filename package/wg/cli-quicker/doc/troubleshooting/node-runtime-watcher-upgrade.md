@@ -380,6 +380,21 @@ so one lookup outlasts the ten-second limit of the client.
   with the loopback and the own address fine,
   after it;
   reachable again after deleting the table).
+- The real stop and teardown,
+  in a disposable network namespace:
+  `mise run //package/wg/cli-quicker:test:integration:bypass` passes,
+  including the lifecycle scenario that brings the tunnel up with the built CLI and takes it down with a changed config.
+  The scenario had been failing since the fixture began staging a fresh copy of the CLI for every call (`c2558c6957`):
+  the copy that ran `up` started the watcher with its own script path,
+  and the copy that ran `down` refused it,
+  as designed,
+  because the watcher check compares the exact path of the script.
+  The fixture now takes one staged copy for both calls.
+  This task is not part of `buildAndTest`,
+  which is how the break went unnoticed.
+  One run in five failed on the timing of the route-synchronization wait while the host load average was above 35.
+- The refusal now says what the process runs and what was expected,
+  so the next occurrence is diagnosed from the message.
 - The refresh:
   tests of the five-second retry and of the unchanged delays,
   and a real timed-out call that carries the marker.

@@ -133,7 +133,10 @@ export async function watcherIsRunning(
       statePath,
     ],
   },)) {
-    throw new BypassRouteError(`Refusing to signal PID ${String(identity.pid,)} because command is not bypass watcher for ${statePath}.`,);
+    throw new BypassRouteError(
+      `Refusing to signal PID ${String(identity.pid,)} because command is not bypass watcher for ${statePath}. `
+        + `It runs ${JSON.stringify(live.commandLine,)} and the watcher is expected to run its node binary, ${JSON.stringify(watcherPath,)} and ${JSON.stringify(statePath,)}.`,
+    );
   }
   return true;
 }
