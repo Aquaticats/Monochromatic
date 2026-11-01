@@ -5762,4 +5762,46 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Owner, verbatim: "Modify the AGENTS.md rule that talked about io weight to say never to use one greater than 50." Done `4584f797e1`:
   RXS ends "never set `IOWeight` above 50"; RLM's limit moved RXS's podman or mvm clause into the fresh rule HXR. Every running agent
   was told to lower its units (`systemctl --user set-property <unit> IOWeight=50`). Asked the owner whether the cap also covers the
-  CLAUDE.md preamble's `IOWeight=<10-10000>` range and podman `--blkio-weight`.
+  CLAUDE.md preamble's `IOWeight=<10-10000>` range and podman `--blkio-weight`. Owner chose "Preamble range" only: done `b988d54089`
+  (`<10-50>`, never above 50); podman `--blkio-weight` unchanged.
+
+### Cross-vendor reviews of the LFS and hooks merges; planted controls; release checks; linter embedding READY
+
+- `sol-lfs2` (`~/temp/agent/sol/out-lfs2.md`): P1 findings where a push could publish LFS pointers without their objects: (1) upload
+  excludes objects on this clone's remote-tracking refs even when `pushurl` points elsewhere, (2) refspec split at the first colon breaks
+  `:/msg:refs/heads/new`, (3) the matching refspec `:` read as a deletion, (4) a failed `for-each-ref` expansion silently skips the
+  upload, (5) refspec `*` versus `for-each-ref` pattern semantics, (6) `remote.<name>.mirror` not read, (7) several `pushurl`s get one
+  upload. P2: credential-stripped `To` URL reused for `ls-remote`, relative local-path remotes, relative `PATH` entries under `-C`,
+  valueless `-c` switch, lock waiter deadlines (superseded by the service; skipped). P3: three tests that prove less than their names.
+  Dispatched to the LFS author `a2c239ccb199db9d8` (reproduce each with real Git first, fail closed, READY). Also sent: the
+  self-start `Command::new(request.own_executable)` in `push_stacking.rs` that the linter agent found (owner: the wrapper never starts itself).
+- Workload check (measured, so the LFS findings do not block 0.5.0 here): `git config --get-regexp '^remote\.origin\.'` shows only
+  `url` and `fetch` (no `pushurl`, `push`, `mirror`); `expand(` is called only for wildcard and all-refs plans
+  (`lfs_upload_plan.rs:266`, `:272`), which auto-push's literal branch never reaches. Recorded as open, not as fixed.
+- `sol-hooks2` (`~/temp/agent/sol/out-hooks2.md`): finding 1 is void (my question text still described `postCommit.actions`, which the
+  change deleted); finding 6 (stale planted control) fixed by me `ccd255f170`; open and dispatched to the hooks author
+  `a21d6fec9d0d04797`: (2) an alias carrying `-c core.hooksPath=...` lands after the hooks-off options, (3) `core.fsmonitor` runs a
+  configured program, (4) the blanket `git config` exemption lets `config --edit`'s editor start Git with hooks on, (5) `-c core.worktree`
+  in retained globals beats the shadow's `core.worktree` since `--work-tree` was dropped, (7) SPEC text still promises removed
+  behavior, (8) the event-completeness test skips without the manual page.
+- Planted controls: checking all 72 against the source found two more stale ones (failed-preparation named a deleted commit-msg test;
+  manual-push confirmation replaced a line the LFS rework rewrote). All three fixed `ccd255f170`. New unit test
+  `bin/native-planted-controls.unit.test.ts` (`9e8f54a17d`) fails on any control whose text does not occur exactly once or whose test
+  does not exist; shown failing with one control made stale, then restored. Still unproven: that each fixed control is noticed; the
+  parallel mutation launcher sets `NATIVE_MUTATION_SKIP_PLANTED=1`, so run one `native:mutation:scoped` without it on the gate image.
+- Release checks for 0.5.0 (version: hook support was published in 0.4.6, so removing it is a compatibility break): gate 4's commit
+  `67d9f5487a` has the same `src`, `Cargo.toml` and `Cargo.lock` as main `9e8f54a17d` (empty diff); crates.io has
+  `monochromatic-catalog-specifier 0.1.0` and `monochromatic-jsonc-edit 0.1.2`, the exact pins. Plan: dispatch the release when gate 4 is
+  green, follow it, then message `monochromatic-c0` the version and release commit.
+- Linter embedding READY from `a19be37e1bd9ea63d`: `9fb4da5edf` (branch `worktree-agent-a19be37e1bd9ea63d`). In-process
+  `run_embedded::fix_source` in the linter crate with a differential test against the CLI; wrapper guard thread with `catch_unwind` and
+  a 60 s `recv_timeout`, abandoned on timeout; linter stage removed from the gate image (`pathCrates` gains `linter/monochromatic-lint`);
+  optional default `semantic` feature so the wrapper links 11.2 MB instead of 27.9 MB. Measured cost: cold first start +1.4 to +1.8 ms
+  (about 16 percent), warm forwarded commands +0.1 to +0.2 ms; Markdown commit about 6 ms faster. NOT merged yet, on purpose: its pin
+  `monochromatic-lint = "=0.4.0"` with `default-features = false` needs a linter release with `run_embedded` and `semantic` first, so
+  merging it before the 0.5.0 wrapper release would make the wrapper unpublishable. Order: wrapper 0.5.0 from current main, then merge
+  the embedding, release the linter (old route: bump pushed to main, then `cargo-publish.yml`; it is not in
+  `package/crate-release/cli/releasable-crates.json`, and its fuzz crate pins `=0.4.0` too), bump the wrapper pin, gate, release the
+  wrapper again. Its own sol review is running (unit `mdlint-sol-review`, output `~/temp/agent/embedding-review.txt`). Its audit of other
+  started programs: on Linux only `/usr/bin/git` starts (38 times for a Markdown commit); `ps`, `lsof`, `df`, `diskutil` are macOS-only and
+  PowerShell is Windows-only, each with a named in-process replacement (libproc, `statfs`/`getattrlist`), not implemented.
