@@ -1,5 +1,12 @@
 # Independent review of expanded Depot graph failures
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 ## Purpose and scope
 
 Review the original retained graph artifact ZIPs and source-bound command logs,

@@ -1,0 +1,20 @@
+{
+  "forbidden-strings": {
+    "crateDir": "package/forbidden-strings/cli",
+    "scope": "forbidden-strings/cli",
+    "pinFiles": [
+      "package/git-policy/cli/Cargo.toml",
+      "package/forbidden-strings/cli.fuzz/Cargo.toml",
+      "package/forbidden-strings/core.bench/Cargo.toml"
+    ],
+    "checkBins": ["forbidden-strings"],
+    "lockDirs": ["package/git-policy/cli.fuzz"]
+  },
+  "monochromatic-git-policy-cli": {
+    "crateDir": "package/git-policy/cli",
+    "scope": "git-policy/cli",
+    "pinFiles": ["package/git-policy/cli.fuzz/Cargo.toml"],
+    "checkBins": ["cli-git-native"],
+    "lockDirs": ["package/git-policy/cli.fuzz"]
+  }
+}

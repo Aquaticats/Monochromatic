@@ -16,6 +16,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  MAX_LOOKBACK_LINES,
   extractAssertionExpression,
   extractLocationSubstring,
   isIntegerString,
@@ -184,20 +185,20 @@ await describe({
       name: 'does not reach an expect( beyond the lookback window',
       fn: async () => {
         /**
-         14 lines: an `expect(` opener on line 1, then 12 filler lines,
-         then the matcher on line 14, so the opener sits one line past
-         the 12-line lookback and must not be folded in.
+         One `expect(` opener, then MAX_LOOKBACK_LINES filler lines, then
+         the matcher, so the opener sits one line past the lookback window
+         and must not be folded in.
          */
         const sourceLines = [
           'expect(farAway,)',
-          ...Array.from({ length: 12, }, function filler(_unused, i,) {
+          ...Array.from({ length: MAX_LOOKBACK_LINES, }, function filler(_unused, i,) {
             return `const filler${String(i,)} = ${String(i,)};`;
           },),
           '  .toBe(0,);',
         ];
         expect(extractAssertionExpression({
           sourceLines,
-          lineNumber: 14,
+          lineNumber: MAX_LOOKBACK_LINES + 2,
         },),)
           .toBe('.toBe(0,);',);
       },

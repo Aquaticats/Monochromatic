@@ -22,6 +22,9 @@ advisor reads the transcript,
 sol reads only what you paste.
 Paste whole files,
 never prose.
+Attach a diff as an `@path` argument, not as prose.
+It is the cross-vendor reviewer:
+a Claude subagent is a second pass.
 `timeout` here takes SECONDS.
 Background it;
 never poll or kill it;
@@ -41,11 +44,19 @@ Start long background runs (emulators,
 every session's Bash commands share one `claude-code-bash` cgroup,
 and `systemd-oomd` kills it whole when other sessions' builds fill it.
 Name the unit so it can be found,
-and cap its memory
-and its CPU (`--property=CPUQuota=<threads>00%`),
+and cap its memory,
+its CPU (`--property=CPUQuota=<threads>00%`),
+its process count (`--property=TasksMax=<count>`)
+and its disk weight (`--property=IOWeight=<10-10000>`,
+lower for disk-heavy work),
+each sized to that command,
 because a transient unit sits outside the shared CPU cap that `claude-cpu-watch` applies to Bash commands.
 Rationale:
 `doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`.
+
+A command run in its own `systemd-run --user --scope` leaves the shared `claude-code-bash` cgroup,
+and with it the CPU cap `claude-cpu-watch` keeps there;
+that is fine.
 
 # Development guidelines for AI agents
 
@@ -273,8 +284,13 @@ CKB:
  revalidate remedy.
 Use sources,
 commands,
-or separate reviewer;
+or cross-vendor reviewer;
 never same-session self-review (`doc/agent/self-review.md`).
+
+IRW:
+ Independent review means a reviewer from another model vendor than the author, or the user.
+A same-vendor subagent is a second pass:
+ label it so, never as independent.
 
 XIC:
  Similar or concurrent symptoms stay separate incidents until user-visible boundaries match.
@@ -297,7 +313,9 @@ Categorical dismissals are one `rg`/conf-read away.
 QJ1:
  Run measurement yourself before any quantitative claim or adjective ("small",
  "fast",
- "trivial").
+ "trivial");
+ split a measured total by its logged steps before blaming one;
+ compare options step for step.
 
 FRC:
  Completion-time forecasts ("done today",
@@ -372,7 +390,7 @@ GXD:
 RRG:
  Grilling workflows:
  before asking the user to confirm shared understanding,
- have a separate reviewer re-review the current design
+ have a cross-vendor reviewer re-review the current design
  (never the same session),
  and fold its findings in first.
 
@@ -517,7 +535,7 @@ QRY:
  Search output claims the search ran and lines match;
  both fail silently (bad `--type`,
  masked stderr,
- `head` caps,
+ `head` and `--limit` caps,
  `-v` filters,
  hidden/ignored skips).
 Sanity-check broader,
@@ -713,14 +731,22 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Host-exhausting risks (heavy memory/process/fd use,
- unbounded loops,
- uncapped fan-outs,
- stress/bench/load):
- run in `podman run --memory=<size> --cpus=<count> --rm` or `mvm`,
- stating bounds;
- 2g and 2 are the defaults,
- choose other numbers per task when the work needs them.
+ Every command an agent does not consider trivial,
+ in every agent:
+ run it in its own cgroup with CPU,
+ memory,
+ process-count and disk-weight limits,
+ each sized to that command,
+ and state the bounds.
+
+RXS:
+ Per-command cgroups:
+ `systemd-run --user --scope` with `CPUQuota`,
+ `MemoryMax`,
+ `TasksMax`,
+ `IOWeight`;
+ host-exhausting risks:
+ `podman run --cpus --memory --pids-limit --blkio-weight --rm` or `mvm`.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
@@ -728,8 +754,7 @@ NLG:
  busy loops,
  `--stress-count`,
  or repeated full test runs;
- cap the test's own container (`--cpus`,
-default 2) instead.
+ cap the test's own container (`--cpus` sized to the test) instead.
 
 NLD:
  Every subagent brief quotes the synthetic-load ban;
@@ -830,11 +855,9 @@ CM6:
  nothing type-checks automatically.
 
 CM7:
- Provision tools with `mise run toolchain:install`;
- `toolchain.lock.json` pins every version,
- and ad-hoc installs or lock edits bypass the checked-in toolchain.
- Mise runs tasks;
- it manages no tools.
+ Install tools only from `toolchain.lock.json` (`mise run toolchain:install`;
+ in containers and CI use its row's archive and sha256);
+ never `cargo install` or compile a locked tool.
 
 ## Before editing code
 
@@ -1351,6 +1374,13 @@ TRV:
  A green test run counts only when its output contains the expected suite and test names;
  an unawaited lazy suite exits 0 while running nothing.
 
+MGN:
+ Tests never assert magic numbers or magic lists;
+ derive expectations from the named constant,
+ the input,
+ or the relation under test,
+ so a legitimate change breaks no test.
+
 GFP:
  A guard test proves nothing until shown to fail:
  commit it,
@@ -1537,6 +1567,7 @@ WRP:
 
 DPL:
  Repo-wide docs live in `doc/`;
+ community-health files go in `.github/`;
  root docs are only `README.md`,
  `SECURITY.md`,
  `AGENTS.md`,

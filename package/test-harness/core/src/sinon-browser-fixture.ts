@@ -6,6 +6,7 @@ import {
   expect,
   formatFailure,
   it,
+  RUNTIME_KEY,
   type TestContext,
 } from '../dist/final/neutral/index.mjs';
 
@@ -216,7 +217,7 @@ export async function runBrowserSandboxProbe({ processShim, }: {
     contextCount: contexts.size,
     nodeObserverInstalled: Reflect.has(
       globalThis,
-      Symbol.for('@monochromatic-dev/test-harness-core/async-failure-runtime/v1',),
+      RUNTIME_KEY,
     ),
     processShim,
   };

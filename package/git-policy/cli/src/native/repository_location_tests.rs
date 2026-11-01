@@ -152,7 +152,11 @@ fn the_query_puts_the_global_prefix_first_and_the_prefix_option_last() {
             "--show-prefix",
         ])
     );
-    assert_eq!(location_query_arguments(&[]).len(), 7);
+    // The empty prefix adds nothing: the identity query plus the prefix option.
+    assert_eq!(
+        location_query_arguments(&[]).len(),
+        crate::worktree_identity::IDENTITY_QUERY.len() + 1
+    );
 }
 
 /// The effective directory is the top level itself for an empty prefix,

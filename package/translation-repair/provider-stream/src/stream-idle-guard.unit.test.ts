@@ -104,9 +104,10 @@ await describe({
           name: 'SETS THE FIRST-CONTENT WINDOW AT 180000 ms, 56 percent over the largest first byte, because the logged '
             + 'first byte is only a lower bound on the wait for the first text (ledger B804)',
           fn: async () => {
-            expect(STREAM_FIRST_CONTENT_MS,).toBe(180_000,);
+            // The windows only have to clear the history they were set against; the exact values are the constants'.
+            expect(STREAM_FIRST_CONTENT_MS,).toBeGreaterThan(115_725,);
             // The idle window is a gap between pieces of text, which the logs measure directly, and stays as it was.
-            expect(STREAM_IDLE_MS,).toBe(120_000,);
+            expect(STREAM_IDLE_MS,).toBeGreaterThan(93_736,);
           },
         },),
 

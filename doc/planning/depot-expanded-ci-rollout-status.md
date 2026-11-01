@@ -1,5 +1,12 @@
 # Expanded CI rollout status
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 Status date:
 2026-10-19.
 Source plan:
@@ -110,7 +117,8 @@ The first paid reservation remains part of work item 4.
   the recovery rule and the reservation schema.
 - The USD 200 capacity ceiling,
   no-overage rule and storage stop are recorded.
-- [The admission gate](../../.github/workflows/admission-gate.yml) admits,
+- The admission gate (`.github/workflows/admission-gate.yml`,
+  deleted on 2026-11-01) admits,
   returns a public-GitHub fallback,
   marks incomplete,
   or rejects invalid input.
@@ -133,7 +141,7 @@ Done.
   explicit-dispatch rule,
   bounds,
   evidence format and acceptance.
-- The dispatch-only workflow is `.depot/workflows/weekly-native.yml` with a single-use
+- The dispatch-only workflow is `.depot/workflows/weekly-native.yml` (deleted on 2026-11-01) with a single-use
   [reservation](depot-weekly-native-reservation.json).
 - First dispatch `dmjf38bcz0` completed in 14 minutes 22 seconds within its 120-minute
   reservation.

@@ -55,18 +55,6 @@ directly as well.
 
 ### Running
 
-```bash
-# package/upstream-fork/p-memoize.fuzz/mise.toml
-
-# Default campaign as part of the unit suite
-mise run //package/upstream-fork/p-memoize.fuzz:test:unit
-
-# Longer property campaign
-mise run //package/upstream-fork/p-memoize.fuzz:fuzz -- --runs 5000
-
-# Coverage-reachability gate over the runtime package's src
-mise run //package/upstream-fork/p-memoize.fuzz:fuzz:coverage
-
-# Refreeze the coverage baseline after intentional reachability changes
-mise run //package/upstream-fork/p-memoize.fuzz:fuzz:coverage -- --write
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/upstream-fork/p-memoize.fuzz:<task>`.
+The unit suite runs each property 200 times by default.

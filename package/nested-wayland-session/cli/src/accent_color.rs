@@ -10,7 +10,7 @@ const HEX_DIGITS: usize = 6;
 
 /// The largest value of one 8-bit channel,
 ///  the divisor that maps a channel into 0 to 1.
-const CHANNEL_MAX: f64 = 255.0;
+pub(crate) const CHANNEL_MAX: f64 = 255.0;
 
 /// Tells whether one byte is an ASCII hexadecimal digit.
 fn is_hex_byte(byte: u8) -> bool {

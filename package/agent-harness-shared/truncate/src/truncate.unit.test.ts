@@ -11,6 +11,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  BYTES_PER_KIBIBYTE,
+  BYTES_PER_MEBIBYTE,
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   formatSize,
@@ -46,21 +48,21 @@ await describe({
           name: 'renders whole bytes below one kibibyte',
           fn: async () => {
             expect(formatSize(0,),).toBe('0B',);
-            expect(formatSize(1_023,),).toBe('1023B',);
+            expect(formatSize(BYTES_PER_KIBIBYTE - 1,),).toBe('1023B',);
           },
         },),
         it({
           name: 'renders one decimal kibibytes below one mebibyte',
           fn: async () => {
-            expect(formatSize(1_024,),).toBe('1.0KB',);
-            expect(formatSize(2_048,),).toBe('2.0KB',);
+            expect(formatSize(BYTES_PER_KIBIBYTE,),).toBe('1.0KB',);
+            expect(formatSize(2 * BYTES_PER_KIBIBYTE,),).toBe('2.0KB',);
           },
         },),
         it({
           name: 'renders one decimal mebibytes at one mebibyte and above',
           fn: async () => {
-            expect(formatSize(1_024 * 1_024,),).toBe('1.0MB',);
-            expect(formatSize(1_024 * 1_024 * 3,),).toBe('3.0MB',);
+            expect(formatSize(BYTES_PER_MEBIBYTE,),).toBe('1.0MB',);
+            expect(formatSize(BYTES_PER_MEBIBYTE * 3,),).toBe('3.0MB',);
           },
         },),
       ],

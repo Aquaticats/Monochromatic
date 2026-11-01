@@ -1,11 +1,11 @@
-import { readdir, readFile, writeFile, } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { INTERVAL_MS, } from './constants.ts';
+import { DEFAULT_BOOST_OFF_MHZ, DEFAULT_IO_WEIGHT, DEFAULT_THERMAL_TARGET_CELSIUS, INTERVAL_MS, PERIOD_USEC, } from './constants.ts';
 import { discoverSensors, } from './hwmon.ts';
 import { resolveLimits, resolveThermalTuning, } from './paths.ts';
 import { NO_READING, } from './power.ts';
@@ -105,9 +105,9 @@ await describe({
          Inputs with the default tuning.
          */
         const { inputs, } = await makeInputs({ env: {}, cpuPressure: 0, },);
-        expect(throttleShortfall({ celsius: 95, mhz: 4_000, inputs, },),).toBe(490,);
+        expect(throttleShortfall({ celsius: DEFAULT_THERMAL_TARGET_CELSIUS, mhz: DEFAULT_BOOST_OFF_MHZ - 490, inputs, },),).toBe(490,);
         expect(throttleShortfall({ celsius: 94.9, mhz: 1_000, inputs, },),).toBe(0,);
-        expect(throttleShortfall({ celsius: 95, mhz: 4_600, inputs, },),).toBe(0,);
+        expect(throttleShortfall({ celsius: DEFAULT_THERMAL_TARGET_CELSIUS, mhz: 4_600, inputs, },),).toBe(0,);
       },
     },),
     it({
@@ -122,8 +122,9 @@ await describe({
          */
         const state = await runPasses({ inputs, passes: 5, start: FRESH, },);
         expect(state.iteration,).toBe(5,);
-        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
-        expect(await readFile(join(root, 'cgroup', 'io.weight',), 'utf8',),).toBe('default 10',);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe(`${28 * PERIOD_USEC} ${PERIOD_USEC}`,);
+        expect(await readFile(join(root, 'cgroup', 'io.weight',), 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
+        expect(await readFile(join(root, 'cgroup', 'io.bfq.weight',), 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
         expect(l.messages.warn,).toEqual([],);
         expect(l.messages.error,).toEqual([],);
         /**
@@ -132,6 +133,46 @@ await describe({
         const files = await readdir(inputs.paths.sampleDir,);
         expect(files,).toHaveLength(1,);
         expect((await readFile(join(inputs.paths.sampleDir, files[0] ?? '',), 'utf8',)).trimEnd().split('\n',),).toHaveLength(2,);
+      },
+    },),
+    it({
+      name: 'a cgroup without any weight file logs IO-WEIGHT-UNAVAILABLE but the pass still applies the cap and advances',
+      fn: async function noWeightFiles() {
+        /**
+         Inputs for a host whose cgroup directory has no weight file.
+         */
+        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await rm(join(root, 'cgroup', 'io.weight',),);
+        await rm(join(root, 'cgroup', 'io.bfq.weight',),);
+        /**
+         State after one pass.
+         */
+        const state = await runPass({ state: FRESH, inputs, now: INTERVAL_MS, },);
+        expect(state.iteration,).toBe(1,);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe(`${28 * PERIOD_USEC} ${PERIOD_USEC}`,);
+        expect(l.messages.warn,).toHaveLength(1,);
+        expect(l.messages.warn[0],).toContain('IO-WEIGHT-UNAVAILABLE',);
+        expect(l.messages.error,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'a weight file that fails logs IO-WEIGHT-FAILED but the pass still applies the cap and the other weight',
+      fn: async function failingWeightFile() {
+        /**
+         Inputs for a host whose io.weight cannot be read as a file.
+         */
+        const { inputs, l, root, } = await makeInputs({ env: {}, cpuPressure: 0, },);
+        await rm(join(root, 'cgroup', 'io.weight',),);
+        await mkdir(join(root, 'cgroup', 'io.weight',),);
+        /**
+         State after one pass.
+         */
+        const state = await runPass({ state: FRESH, inputs, now: INTERVAL_MS, },);
+        expect(state.iteration,).toBe(1,);
+        expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe(`${28 * PERIOD_USEC} ${PERIOD_USEC}`,);
+        expect(await readFile(join(root, 'cgroup', 'io.bfq.weight',), 'utf8',),).toBe(`default ${DEFAULT_IO_WEIGHT}`,);
+        expect(l.messages.error,).toHaveLength(1,);
+        expect(l.messages.error[0],).toContain('IO-WEIGHT-FAILED',);
       },
     },),
     it({

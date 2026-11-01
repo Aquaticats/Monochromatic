@@ -15,7 +15,8 @@
 //! a shell that exits with a chosen code,
 //! or kills itself.
 
-/// Imports the function under test from this crate.
+/// Imports the exit-code offset and the function under test from this crate.
+use crate::constants::SIGNAL_EXIT_CODE_OFFSET;
 use crate::shim::run_program;
 
 /// Imports the owned operating-system text type the arguments use.
@@ -49,7 +50,10 @@ fn returns_the_exit_code_of_the_program() {
 /// the way a shell reports it.
 #[test]
 fn reports_death_by_signal_as_128_plus_the_signal() {
-    assert_eq!(run_program(Path::new("/bin/sh"), &shell("kill -TERM $$")).expect("the shell starts"), 143);
+    assert_eq!(
+        run_program(Path::new("/bin/sh"), &shell("kill -TERM $$")).expect("the shell starts"),
+        SIGNAL_EXIT_CODE_OFFSET + 15
+    );
 }
 
 /// A program that cannot be started is an error,

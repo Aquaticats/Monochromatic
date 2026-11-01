@@ -1,5 +1,12 @@
 # Independent whole-report review of the Depot evaluation
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 Status:
 recorded on 2026-10-18.
 This record is the independent whole-report sufficiency review that the evaluation says was still

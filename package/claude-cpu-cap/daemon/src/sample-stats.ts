@@ -70,6 +70,28 @@ export type BucketSummary = Readonly<{
 }>;
 
 /**
+ A settled sample: its power bucket and its Tctl.
+ */
+type SettledRow = Readonly<{
+  /**
+   Lower edge of the power bucket in watts.
+   */
+  bucket: number;
+  /**
+   Tctl in degrees Celsius.
+   */
+  tctl: number;
+}>;
+
+/**
+ One power bucket with the settled samples in it, as `Map.entries()` yields it.
+ */
+type BucketEntry = readonly [
+  number,
+  readonly SettledRow[]
+];
+
+/**
  Parses the sample CSV lines the summary reads, skipping the header and rows with an empty Tctl or watts field.
  
  @param csv - contents of one daily sample file
@@ -173,10 +195,7 @@ export function summarizeBuckets(rows: readonly SampleRow[],): readonly BucketSu
   const settled = rows.flatMap(function settledRow(
     row,
     index,
-  ): readonly Readonly<{
-    bucket: number;
-    tctl: number
-  }>[] {
+  ): readonly SettledRow[] {
     /**
      Power bucket of this row.
      */
@@ -209,12 +228,12 @@ export function summarizeBuckets(rows: readonly SampleRow[],): readonly BucketSu
   return grouped.entries()
     .toArray()
     .toSorted(function byBucketAscending(
-      [a,],
-      [b,],
+      [a,]: BucketEntry,
+      [b,]: BucketEntry,
     ): number {
       return a - b;
     },)
-    .map(function summarize([bucket, bucketRows,]): BucketSummary {
+    .map(function summarize([bucket, bucketRows,]: BucketEntry,): BucketSummary {
     /**
      Ascending Tctl values of the bucket.
      */

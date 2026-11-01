@@ -195,7 +195,9 @@ fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Obs
     next.env("CLI_GIT_PUSH_DEADLINE_SECONDS", "1");
     let again: Observed = observe(&mut next, b"");
     assert_eq!(again.code, Some(0), "the next commit lands: {}", stderr_of(&again));
-    assert!(!stderr_of(&again).contains("waiting for"), "the next commit waited for a lock: {}", stderr_of(&again));
+    // Every lock wait ends its notice with "giving up after"; the notice for a slow child says "stopping it after",
+    //  which a loaded host prints for any child that takes over a second and says nothing about a lock.
+    assert!(!stderr_of(&again).contains("giving up after"), "the next commit waited for a lock: {}", stderr_of(&again));
 }
 
 /// A connection that is refused fails the auto-push at once; the commit stays.

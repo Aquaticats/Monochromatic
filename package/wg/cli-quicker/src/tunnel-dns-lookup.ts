@@ -40,31 +40,31 @@ export const ERROR_NO_NAME_SERVERS = 'io.systemd.Resolve.NoNameServers';
  `SD_RESOLVED_DNS`:
  ask unicast DNS only.
  */
-const FLAG_DNS = 1;
+export const FLAG_DNS = 1;
 
 /**
  `SD_RESOLVED_NO_SEARCH`:
  ask the name exactly as written, so no search domain from the network is appended.
  */
-const FLAG_NO_SEARCH = 256;
+export const FLAG_NO_SEARCH = 256;
 
 /**
  `SD_RESOLVED_NO_SYNTHESIZE`:
  do not answer from local records such as the host name.
  */
-const FLAG_NO_SYNTHESIZE = 2_048;
+export const FLAG_NO_SYNTHESIZE = 2_048;
 
 /**
  `SD_RESOLVED_NO_ZONE`:
  do not answer from the local mDNS and LLMNR zone.
  */
-const FLAG_NO_ZONE = 8_192;
+export const FLAG_NO_ZONE = 8_192;
 
 /**
  `SD_RESOLVED_NO_TRUST_ANCHOR`:
  do not answer from the built-in trust anchors.
  */
-const FLAG_NO_TRUST_ANCHOR = 16_384;
+export const FLAG_NO_TRUST_ANCHOR = 16_384;
 
 /**
  Resolver flags for a lookup that uses only the DNS servers of the asked link.

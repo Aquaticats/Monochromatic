@@ -28,7 +28,7 @@ const NUM_RUNS_ENV_NAME = 'DEEPMERGE_FUZZ_NUM_RUNS';
  Fixed seed of the bounded layer. Any constant works; changing it changes
  which inputs the coverage gate reaches, so refreeze the baseline with it.
  */
-const BOUNDED_SEED = 20_260_923;
+export const BOUNDED_SEED = 20_260_923;
 
 /**
  Runs per property in the bounded layer. Each run merges a few small trees

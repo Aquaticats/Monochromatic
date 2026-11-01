@@ -63,7 +63,5 @@ tabs,
 
 ## Tasks
 
-`lint`,
-`lint:types`,
-`lint:oxlint`,
-`format:oxlint` and `test:unit` are the usual package checks.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/shell-argument/core:<task>`.

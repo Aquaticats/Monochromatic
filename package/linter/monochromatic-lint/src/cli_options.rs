@@ -20,11 +20,15 @@
 /// Import the unused-directive settings the two reporting options resolve to.
 use crate::directive_options::{DirectiveOptions, UnusedDirectiveSeverity};
 /// Import the incumbent CLI parser's trait and declaration macro.
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 /// Import the non-zero count type so a worker limit of zero cannot be expressed.
 use std::num::NonZeroUsize;
 /// Import native path storage and a strictly positive worker-count type.
 use std::path::PathBuf;
+
+/// One-line user-facing summary of the command,
+///  shared by the parser declaration and its output controls.
+pub const ABOUT: &str = "Lint Rust, Markdown and MDX with repository-owned policies.";
 
 /// What:
 ///  Parsed command options,
@@ -41,7 +45,7 @@ use std::path::PathBuf;
 #[command(
     name = "monochromatic-lint",
     version,
-    about = "Lint Rust, Markdown and MDX with repository-owned policies.",
+    about = ABOUT,
     // Without this, the parser would print this struct's source documentation as the long help text.
     long_about = None
 )]
@@ -133,6 +137,35 @@ impl CliOptions {
             self.report_unused_disable_directives_severity,
         );
     }
+}
+
+/// What:
+///  Every long option the command grammar accepts,
+///  in declaration order.
+/// Why:
+///  The help text is the user-facing option surface,
+///  so deriving the names from the parser's own declaration
+///  keeps the help checks from narrowing when an option is added.
+///  `--help` and `--version` are `clap`'s generated options,
+///  not options this struct declares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function longOptions(): string[]
+/// ```
+pub fn long_options() -> Vec<String> {
+    let command: clap::Command = CliOptions::command();
+    let mut options: Vec<String> = Vec::new();
+    for argument in command.get_arguments() {
+        let Some(long) = argument.get_long() else {
+            continue;
+        };
+        if long == "help" || long == "version" {
+            continue;
+        }
+        options.push(format!("--{long}"));
+    }
+    return options;
 }
 
 /// Argument grammar controls do not ship in release code.

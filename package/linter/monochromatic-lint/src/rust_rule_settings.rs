@@ -21,6 +21,10 @@ use crate::diagnostic::Severity;
 /// Import the exact JSONC representation.
 use monochromatic_jsonc_edit::JsoncValue;
 
+/// Default line limit of `rust/max-lines`:
+///  a selected rule without an explicit `max` reports files over this many code lines.
+pub const DEFAULT_MAX_LINES: usize = 300;
+
 /// A selected line-budget rule's complete execution parameters.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LineBudget {
@@ -67,7 +71,7 @@ type Options = (Option<Severity>, usize, Option<String>);
 ///  line limit and library path after ordinary schema validation.
 fn options(setting: &JsoncValue) -> Result<Options, ConfigError> {
     let mut selected: Option<Option<Severity>> = None;
-    let mut max: usize = 300;
+    let mut max: usize = DEFAULT_MAX_LINES;
     let mut library: Option<String> = None;
     for entry in setting
         .entries()

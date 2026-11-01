@@ -54,11 +54,10 @@ multi-line buffer and `starts` array for `fuzz_line_matches`.
 
 ## Commands
 
-- `mise run //package/forbidden-strings/core.fuzz:list` lists targets.
-- `mise run //package/forbidden-strings/core.fuzz:build` builds all targets (ASAN).
-- `mise run //package/forbidden-strings/core.fuzz:smoke` runs each target 30s.
-- `mise run //package/forbidden-strings/core.fuzz:run <target> -- -max_total_time=60` runs one,
-  or replays a crash artifact passed before `--`.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/forbidden-strings/core.fuzz:<task>`.
+A crash artifact or corpus directory is passed as an input path before the cargo-fuzz `--`;
+libFuzzer flags go after it.
 
 All tasks pin `--target x86_64-unknown-linux-gnu --sanitizer address`;
  macOS/Windows

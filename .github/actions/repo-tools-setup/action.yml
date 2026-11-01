@@ -16,13 +16,6 @@ inputs:
       Space-separated list of the programs to install: `file-enforcer`, `mpm-shadow`, or both.
     required: false
     default: 'file-enforcer'
-  repository:
-    description: >
-      The `owner/name` of the repository whose releases hold `file-enforcer`. The default is the `github` context
-      and not `$GITHUB_REPOSITORY`: Depot CI documents that context as supported, and its documentation lists no
-      default GITHUB_* variables beyond the environment-file ones.
-    required: false
-    default: ${{ github.repository }}
 
 runs:
   using: composite
@@ -32,7 +25,6 @@ runs:
       env:
         TOOLS: ${{ inputs.tools }}
         RUNNER_PLATFORM: ${{ runner.os }}-${{ runner.arch }}
-        REPOSITORY: ${{ inputs.repository }}
       run: |
         set -euo pipefail
         if ! command -v jq >/dev/null; then
@@ -70,7 +62,7 @@ runs:
               fi
               name="$crate-$version-$target.tar.gz"
               sums="$crate-$version-sha256sums.txt"
-              base="https://github.com/${REPOSITORY}/releases/download/$crate-v$version"
+              base="https://github.com/${GITHUB_REPOSITORY}/releases/download/$crate-v$version"
               archive="$work/$name"
               curl --fail --silent --show-error --location --output "$archive" "$base/$name"
               curl --fail --silent --show-error --location --output "$work/$sums" "$base/$sums"

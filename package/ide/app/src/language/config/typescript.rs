@@ -45,6 +45,10 @@ const DEFAULT_SERVER: &str = "typescript-language-server";
 /// Name of the application's definition of the TypeScript 7 server.
 pub(super) const SERVER: &str = "typescript-native";
 
+/// Arguments every launch of the server gets:
+///  the LSP transport over standard input and output.
+pub(super) const LAUNCH_ARGS: [&str; 2] = ["--lsp", "--stdio"];
+
 /// The launcher a project's TypeScript package installs,
 ///  relative to the project root.
 const LAUNCHER: &str = "node_modules/typescript/bin/tsc";
@@ -124,7 +128,7 @@ pub(super) fn apply(configuration: &mut Configuration, root: &Path, launcher: Op
             }
             .to_string_lossy()
             .into_owned(),
-            args: vec!["--lsp".to_string(), "--stdio".to_string()],
+            args: LAUNCH_ARGS.iter().map(ToString::to_string).collect(),
             environment,
             // `Some(...)` is the "value present" variant of `Option`.
             config: Some(settings()),

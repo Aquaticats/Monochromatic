@@ -1,5 +1,12 @@
 # Complete repository coverage and executable CI research
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 ## Current source-contract continuation on 2026-10-18
 
 The seven primary material jobs and the admitted design correction are terminal.

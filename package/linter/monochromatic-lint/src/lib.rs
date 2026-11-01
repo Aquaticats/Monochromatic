@@ -27,6 +27,21 @@ pub mod config_merge;
 /// Accepted command grammar with native path values.
 #[doc(hidden)]
 pub mod cli_options;
+/// The diagnostic code the closure check reports,
+///  exported so the executable's black-box tests need not repeat the string.
+#[doc(hidden)]
+pub use closure_findings::RULE as CLOSURE_RULE;
+
+/// The lockfile name and table header the stale-binary hint measures,
+///  exported for the executable's black-box tests.
+#[doc(hidden)]
+pub use config_pin::{LOCK_NAME, TOOL_TABLE};
+
+/// The diagnostic codes the executable's black-box tests assert,
+///  exported so they need not repeat the strings.
+#[doc(hidden)]
+pub use directive_findings::{NON_SUPPRESSIBLE, UNUSED};
+
 /// The `cargo` processes of the closure check.
 mod closure_cargo;
 /// The offline check that the Dylint driver exists or can be built from the cargo cache.

@@ -177,8 +177,9 @@ jobs:
           save_cache=true
         fi
 
-        # The Gradle cache stays restore-only until cache-off, invalidation and stale-output
-        # controls pass; doc/planning/depot-cache-admission.md records the admission state.
+        # The Gradle cache stays restore-only until three controls have been shown for the Gradle command boundary:
+        # a cache-off run that builds the same inputs, a check that a changed Gradle, Android Gradle plugin or wrapper
+        # input moves the key, and a check that an old cache cannot make a later build skip a changed input.
         save_gradle_cache=false
 
         # A push builds only when the version changed; a dispatch always builds, and a real
@@ -255,11 +256,23 @@ jobs:
           nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
           *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
         esac
-        binstall=$(jq --raw-output '.tools."cargo-binstall".version' toolchain.lock.json)
+        binstall_url=$(jq --raw-output '.tools."cargo-binstall".artifacts."linux-x64".url' toolchain.lock.json)
+        binstall_sha256=$(jq --raw-output '.tools."cargo-binstall".artifacts."linux-x64".sha256' toolchain.lock.json)
         about=$(jq --raw-output '.tools."cargo:cargo-about".version' toolchain.lock.json)
+        case "$binstall_url" in
+          https://github.com/cargo-bins/cargo-binstall/releases/download/v*) ;;
+          *) echo "::error::Unexpected cargo-binstall archive in toolchain.lock.json: '$binstall_url'"; exit 1 ;;
+        esac
         rustup toolchain install "$toolchain" --profile minimal --no-self-update
         echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
-        cargo install cargo-binstall --locked --version "$binstall"
+        # cargo-binstall comes from the prebuilt archive the lock pins, verified by the lock's sha256; compiling it
+        # with `cargo install` costs minutes and bypasses the lock (AGENTS.md CM7).
+        mkdir --parents "$RUNNER_TEMP/binstall"
+        curl --silent --show-error --fail --location --output "$RUNNER_TEMP/binstall.tgz" "$binstall_url"
+        echo "$binstall_sha256  $RUNNER_TEMP/binstall.tgz" | sha256sum --check --strict
+        tar --extract --gzip --file "$RUNNER_TEMP/binstall.tgz" --directory "$RUNNER_TEMP/binstall"
+        echo "$RUNNER_TEMP/binstall" >> "$GITHUB_PATH"
+        export PATH="$RUNNER_TEMP/binstall:$PATH"
         cargo binstall --no-confirm --version "$about" cargo-about
         cargo about --version
 

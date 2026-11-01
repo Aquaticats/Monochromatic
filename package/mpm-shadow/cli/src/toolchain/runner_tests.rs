@@ -5,10 +5,11 @@
 //! recording fake.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use super::fakes::FakeRunner;
 use super::runner::{ProcessRunner, RunRequest, Runner, toolchain_path_env};
-use super::scope::{EnvMap, repo_scope};
+use super::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, repo_scope};
 use crate::test_scratch::scratch;
 
 #[test]
@@ -60,7 +61,7 @@ fn the_toolchain_environment_sets_home_and_leads_path_with_the_scope_directories
     assert_eq!(merged.get("KEEP").map(String::as_str), Some("me"));
     let path = merged.get("PATH").expect("PATH");
     let parts: Vec<&str> = path.split(':').collect();
-    assert_eq!(parts[0], "/work/.cache/toolchain-bin");
+    assert_eq!(parts[0], Path::new("/work").join(EXPOSURE_DIR_RELATIVE).to_str().expect("a path of utf-8 names"));
     assert!(parts.contains(&"/cargo/bin"));
     assert_eq!(&parts[parts.len() - 2..], &["/usr/bin", "/bin"]);
 }

@@ -143,7 +143,7 @@ data class RailSection(
 // const KANA_ROWS: [string, string][] = [["あ", "あいうえおアイウエオぁぃぅぇぉァィゥェォ"], /* ... */];
 // ```
 /** Kana rows in gojuon order, each paired with the characters that belong to it. */
-private val KANA_ROWS: List<Pair<String, String>> = listOf(
+internal val KANA_ROWS: List<Pair<String, String>> = listOf(
     "あ" to "あいうえおアイウエオぁぃぅぇぉァィゥェォ",
     "か" to "かきくけこカキクケコがぎぐげごガギグゲゴ",
     "さ" to "さしすせそサシスセソざじずぜぞザジズゼゾ",
@@ -165,7 +165,7 @@ private val KANA_ROWS: List<Pair<String, String>> = listOf(
 // const KANJI_LABEL = "漢";
 // ```
 /** Cell label for Japanese names whose first character is not in a kana row. */
-private const val KANJI_LABEL: String = "漢"
+internal const val KANJI_LABEL: String = "漢"
 
 // What:     `private fun isLatin(first: Char): Boolean` tests whether a first character is in a Latin range.
 // Why:      The ranges mirror the JS scriptOf exactly, including the accented Latin block.

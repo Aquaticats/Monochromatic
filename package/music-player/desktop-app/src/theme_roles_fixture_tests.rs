@@ -6,15 +6,21 @@
 //           on the side that changed, and the fixture cannot silently go stale.
 
 use super::*;
+use super::theme_roles_declaration::role_fields;
 
-/// Path of the shared fixture, relative to the package directory (`CARGO_MANIFEST_DIR`).
+/// Path of the shared fixture,
+/// relative to the package directory (`CARGO_MANIFEST_DIR`).
 const FIXTURE_PATH: &str = "../android-app/app/src/test/resources/theme-roles-vector.txt";
 
-/// Fewest roots the fixture must hold, each in both schemes.
+/// Fewest roots the fixture must hold,
+/// each in both schemes.
 const MINIMUM_ROOTS: usize = 52;
 
-/// Roots the fixture must name (D118): the baseline, nearly gray roots that must still tint every gray (one-channel
-/// offsets and a weak chroma at other hues), and completely neutral roots that must give true grays.
+/// Roots the fixture must name (D118):
+/// the baseline,
+/// nearly gray roots that must still tint every gray (one-channel
+/// offsets and a weak chroma at other hues),
+/// and completely neutral roots that must give true grays.
 const REQUIRED_NEAR_GRAY_ROOTS: [(&str, u32); 6] = [
     ("weak-808088", 0x808088),
     ("weak-7F8080", 0x7F8080),
@@ -28,37 +34,20 @@ const REQUIRED_NEAR_GRAY_ROOTS: [(&str, u32); 6] = [
 const REQUIRED_NEUTRAL_ROOTS: [(&str, u32); 4] =
     [("neutral-8A8A8A", 0x8A8A8A), ("gray-mid", 0x808080), ("black", 0x000000), ("white", 0xFFFFFF)];
 
-/// What: `role_fields(set)` lists the fixture's role names (the Kotlin `ThemeRoles` field names) with their colors.
-/// Why:  the fixture writes one `name=RRGGBB` pair per role; this is the single place that maps them to `RoleSet`.
-fn role_fields(set: &RoleSet) -> [(&'static str, Srgb8); 18] {
-    return [
-        ("canvas", set.canvas),
-        ("deck", set.deck),
-        ("currentRow", set.current_row),
-        ("surfaceHigh", set.surface_high),
-        ("onSurface", set.on_surface),
-        ("onSurfaceVariant", set.on_surface_variant),
-        ("outline", set.outline),
-        ("outlineVariant", set.outline_variant),
-        ("primary", set.primary),
-        ("onPrimary", set.on_primary),
-        ("secondaryContainer", set.secondary_container),
-        ("secondaryContainerHovered", set.secondary_container_hovered),
-        ("secondaryContainerPressed", set.secondary_container_pressed),
-        ("onSecondaryContainer", set.on_secondary_container),
-        ("matchFill", set.match_fill),
-        ("error", set.error),
-        ("errorContainer", set.error_container),
-        ("onErrorContainer", set.on_error_container),
-    ];
-}
+// The fixture's role list, `role_fields(set)`, comes from `theme_roles_declaration.rs`'s `define_role_set!` expansion;
+// generating it from the declaration that builds `RoleSet` means a role added there is compared here automatically
+// instead of being skipped by a stale second list.
 
-/// What: `hex6(color)` is `RRGGBB` in upper case, the fixture's color syntax.
+/// What:
+/// `hex6(color)` is `RRGGBB` in upper case,
+/// the fixture's color syntax.
 fn hex6(color: Srgb8) -> String {
     return format!("{:02X}{:02X}{:02X}", color.red, color.green, color.blue);
 }
 
-/// What: `parse_hex6(text)` reads `RRGGBB`, or `None` for anything else.
+/// What:
+/// `parse_hex6(text)` reads `RRGGBB`,
+/// or `None` for anything else.
 fn parse_hex6(text: &str) -> Option<Srgb8> {
     let all_hex: bool = text.chars().all(|digit| {
         return digit.is_ascii_hexdigit();
@@ -70,20 +59,32 @@ fn parse_hex6(text: &str) -> Option<Srgb8> {
     return Some(Srgb8 { red: ((value >> 16) & 0xFF) as u8, green: ((value >> 8) & 0xFF) as u8, blue: (value & 0xFF) as u8 });
 }
 
-/// What: `FixtureReport { lines, roots, mismatches }`: what comparing a fixture text to the derivation found.
-/// Why:  a function from text to a report cannot pass vacuously: the test asserts the counts as well as the list.
+/// What:
+/// `FixtureReport { lines, roots, mismatches }`:
+/// what comparing a fixture text to the derivation found.
+/// Why:
+///  a function from text to a report cannot pass vacuously:
+/// the test asserts the counts as well as the list.
 struct FixtureReport {
     /// Number of role lines compared.
     lines: usize,
-    /// Root names seen, with the scheme names each appeared in.
+    /// Root names seen,
+    /// with the scheme names each appeared in.
     roots: Vec<(String, Vec<String>)>,
-    /// One entry per role, line or token that differs from the derivation.
+    /// One entry per role,
+    /// line or token that differs from the derivation.
     mismatches: Vec<String>,
 }
 
-/// What: `compare_fixture(text)` derives every root in the fixture and reports each difference.
-/// Why:  the Rust derivation is the source of the fixture, so every line must equal it exactly; a missing, extra,
-///       malformed or different token is a mismatch naming the root, the scheme and the role.
+/// What:
+/// `compare_fixture(text)` derives every root in the fixture and reports each difference.
+/// Why:
+///  the Rust derivation is the source of the fixture,
+/// so every line must equal it exactly;
+/// a missing,
+/// extra,
+///       malformed or different token is a mismatch naming the root,
+/// the scheme and the role.
 fn compare_fixture(text: &str) -> FixtureReport {
     let mut report: FixtureReport = FixtureReport { lines: 0, roots: Vec::new(), mismatches: Vec::new() };
     for (index, line) in text.lines().enumerate() {
@@ -117,7 +118,7 @@ fn compare_fixture(text: &str) -> FixtureReport {
             Some((_, schemes)) => schemes.push(scheme_name.to_string()),
             None => report.roots.push((name.to_string(), vec![scheme_name.to_string()])),
         }
-        let fields: [(&str, Srgb8); 18] = role_fields(&set);
+        let fields: Vec<(&'static str, Srgb8)> = role_fields(&set);
         let pairs: &[&str] = &tokens[3..];
         if pairs.len() != fields.len() {
             report.mismatches.push(format!("{name} {scheme_name}: {} role tokens, expected {}", pairs.len(), fields.len()));
@@ -139,20 +140,32 @@ fn compare_fixture(text: &str) -> FixtureReport {
     return report;
 }
 
-/// What: `fixture_text()` reads the Android fixture next to the Android unit tests.
-/// Why:  the file lives in the Android package, so the path climbs out of the desktop package; a missing file fails
-///       the test with the path, because skipping would hide exactly the drift this guards against. The podman
+/// What:
+/// `fixture_text()` reads the Android fixture next to the Android unit tests.
+/// Why:
+///  the file lives in the Android package,
+/// so the path climbs out of the desktop package;
+/// a missing file fails
+///       the test with the path,
+/// because skipping would hide exactly the drift this guards against.
+/// The podman
 ///       fallback of `mise.toml` (`containerCargo`) mounts the Android test resources read-only at
-///       `/android-app/app/src/test/resources`, so the same relative path from `/work` finds the file there.
+///       `/android-app/app/src/test/resources`,
+/// so the same relative path from `/work` finds the file there.
 fn fixture_text() -> String {
     let path: std::path::PathBuf = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(FIXTURE_PATH);
     return std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("cannot read the shared theme fixture at {}: {error}", path.display()));
 }
 
-/// What: `change_one_channel(text, line_start, role)` raises one channel of one role in the first line that starts
-/// with `line_start` by one step, wrapping 255 to 0, and leaves every other byte alone.
-/// Why:  the guard test edits the fixture by the smallest possible amount, one channel value.
+/// What:
+/// `change_one_channel(text, line_start, role)` raises one channel of one role in the first line that starts
+/// with `line_start` by one step,
+/// wrapping 255 to 0,
+/// and leaves every other byte alone.
+/// Why:
+///  the guard test edits the fixture by the smallest possible amount,
+/// one channel value.
 fn change_one_channel(text: &str, line_start: &str, role: &str) -> String {
     let mut changed: bool = false;
     let mut lines: Vec<String> = Vec::new();

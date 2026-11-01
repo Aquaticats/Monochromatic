@@ -6,9 +6,15 @@ import {
 
 import {
   baselineSkipArguments,
+  examinePatternOf,
   parseFileScopes,
   parseTimeoutAndExamine,
 } from './campaign-options.ts';
+import {
+  defaultBuildTimeoutSeconds,
+  maximumBuildTimeoutSeconds,
+} from './campaign-files.ts';
+import { buildTimeoutFlag } from './constants.ts';
 import { CargoMutantsToolingError } from './error.ts';
 
 /**
@@ -56,7 +62,8 @@ await describe({
               options: ['--file', 'src/native/a.rs'],
               rules: nativeTimeouts,
             })).toEqual({
-              timeoutSeconds: 300,
+              timeoutSeconds: nativeTimeouts.defaultTimeoutSeconds,
+              buildTimeoutSeconds: defaultBuildTimeoutSeconds,
               examine: [],
               scopeOptions: ['--file', 'src/native/a.rs'],
             });
@@ -70,6 +77,7 @@ await describe({
               rules: nativeTimeouts,
             })).toEqual({
               timeoutSeconds: 60,
+              buildTimeoutSeconds: defaultBuildTimeoutSeconds,
               examine: ['a|b', 'c::d'],
               scopeOptions: [],
             });
@@ -95,6 +103,52 @@ await describe({
           });
         }),
         it({
+          name: 'defaults the build timeout to the shared default and lets the last build timeout win',
+          fn: async () => {
+            const first = 10;
+            const last = 20;
+            expect(parseTimeoutAndExamine({ options: [], rules: nativeTimeouts }).buildTimeoutSeconds)
+              .toBe(defaultBuildTimeoutSeconds);
+            expect(parseTimeoutAndExamine({
+              options: [buildTimeoutFlag, String(first), buildTimeoutFlag, String(last)],
+              rules: nativeTimeouts,
+            }).buildTimeoutSeconds).toBe(last);
+          },
+        }),
+        it({
+          name: 'takes the build timeout default and maximum from the product when it names them',
+          fn: async () => {
+            const rules = {
+              ...nativeTimeouts,
+              defaultBuildTimeoutSeconds: defaultBuildTimeoutSeconds + 1,
+              maximumBuildTimeoutSeconds: defaultBuildTimeoutSeconds + 2,
+            };
+            expect(parseTimeoutAndExamine({ options: [], rules }).buildTimeoutSeconds)
+              .toBe(rules.defaultBuildTimeoutSeconds);
+            expect(failureOf(() => parseTimeoutAndExamine({
+              options: [buildTimeoutFlag, String(rules.maximumBuildTimeoutSeconds + 1)],
+              rules,
+            }))).toBe(`${buildTimeoutFlag} must be a whole number of seconds from 1 to ${rules.maximumBuildTimeoutSeconds}, got ${rules.maximumBuildTimeoutSeconds + 1}.`);
+          },
+        }),
+        ...[
+          '0',
+          String(maximumBuildTimeoutSeconds + 1),
+          '1.5',
+          '007',
+          undefined,
+        ].map(function buildRejection(value) {
+          return it({
+            name: `rejects a build timeout of ${String(value)} naming the flag and the shared maximum`,
+            fn: async () => {
+              expect(failureOf(() => parseTimeoutAndExamine({
+                options: value === undefined ? [buildTimeoutFlag] : [buildTimeoutFlag, value],
+                rules: nativeTimeouts,
+              }))).toBe(`${buildTimeoutFlag} must be a whole number of seconds from 1 to ${maximumBuildTimeoutSeconds}, got ${String(value)}.`);
+            },
+          });
+        }),
+        it({
           name: 'uses the maximum the product names in its message',
           fn: async () => {
             expect(failureOf(() => parseTimeoutAndExamine({
@@ -104,6 +158,33 @@ await describe({
                 maximumTimeoutSeconds: 60,
               },
             }))).toBe('--timeout must be a whole number of seconds from 1 to 60, got 90.');
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: examinePatternOf.name,
+      children: [
+        it({
+          name: 'returns a pattern of plain characters unchanged',
+          fn: async () => {
+            const pattern = String.raw`replace a|b::c (d) \* -x`;
+            expect(examinePatternOf(pattern)).toBe(pattern);
+          },
+        }),
+        ...['a;b', '$(id)', 'a`b`', "a'b", 'a\nb', 'a>b'].map(function badPattern(pattern) {
+          return it({
+            name: `rejects ${JSON.stringify(pattern)} naming the flag and the value`,
+            fn: async () => {
+              expect(failureOf(() => examinePatternOf(pattern)))
+                .toBe(`--examine must be a regular expression of plain characters, got ${pattern}.`);
+            },
+          });
+        }),
+        it({
+          name: 'rejects an absent value',
+          fn: async () => {
+            expect(failureOf(() => examinePatternOf())).toContain('got undefined');
           },
         }),
       ],

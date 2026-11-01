@@ -10,22 +10,29 @@ today the `cli-git-native` cache
 belongs to the version job of `npm-release.yml` alone,
 and the push to `main` that runs it is the only run that saves.
 
-## Amended on 2026-10-18
+## Amended on 2026-10-18, withdrawn on 2026-11-01
 
-[The Depot CI adoption decision](depot-ci-adoption.md) extends the cache write policy to every
-cache system this repository uses.
-The replaced scope is the statement at "pnpm store (not cached)" that "The tested cache system is
+The owner withdrew [the Depot CI adoption decision](depot-ci-adoption.md) on 2026-11-01:
+"Delete .depot as a whole and update relevant docs.
+We've decided to not adopt depot after all."
+The GitHub Actions cache is the only cache system this repository uses again,
+and this document is the whole cache policy again.
+No Depot cache is used or planned.
+The rest of this section records the amendment as it stood.
+
+[The Depot CI adoption decision](depot-ci-adoption.md) extended the cache write policy to every
+cache system this repository used.
+The replaced scope was the statement at "pnpm store (not cached)" that "The tested cache system is
 GitHub Actions `actions/cache` ... not Depot Cache or Cargo artifact caching"
 (lines 422 to 423):
-that remains true of the measurements below,
-and is no longer the whole policy.
-Under the current decision,
+that remains true of the measurements below.
+Under that decision,
 GitHub Actions cache,
 Depot Actions cache,
 Depot project BuildKit cache and
-organization-global Disk all admit writes only from `main` and explicit dispatches,
-restore only for pull requests and merge groups,
-and cache no shipped,
+organization-global Disk all admitted writes only from `main` and explicit dispatches,
+restored only for pull requests and merge groups,
+and cached no shipped,
 attested or published bytes.
 The measurements,
 key shapes,

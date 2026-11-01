@@ -90,7 +90,7 @@ fn typescript_family_is_served_by_the_projects_own_server() {
             .to_str()
             .expect("Unicode path")
     );
-    assert_eq!(launch.args, ["--lsp", "--stdio"]);
+    assert_eq!(launch.args, typescript::LAUNCH_ARGS);
     let settings = launch.settings.as_ref().expect("settings");
     assert_eq!(
         settings["typescript"]["inlayHints"]["parameterNames"]["enabled"],

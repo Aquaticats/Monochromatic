@@ -1,0 +1,130 @@
+name: crate-release
+
+# Releases a Rust crate on a GitHub runner instead of a developer machine
+# (doc/decision/releases-run-in-ci.md): bumps the version and the exact pins of
+# it, checks the crate, dry-runs the publish, commits the bump to main, and
+# starts cargo-publish.yml, which publishes. Start it with
+# `mise run //package/<crate>:release -- <from> <to> <note>`, which dispatches
+# this workflow; the arguments of each crate come from
+# package/crate-release/cli/releasable-crates.json, and the `crate` choices
+# below must list exactly its crates (a unit test compares them).
+#
+# - The bump is committed through the GraphQL API (crate-release-push), not
+#   `git push`: main requires signed commits, GitHub signs a commit made through
+#   that mutation, and a runner has no signing key. main moves every few minutes
+#   and a release takes a long while, so a refusal for a moved main is settled by
+#   comparing the new head with the checkout over every path the release depends
+#   on (its files, the crate and lock directories, the path dependencies that
+#   cargo metadata reports): the commit is sent again on the new head when none
+#   changed, and nothing is pushed when one did.
+# - Events caused by the repository's GITHUB_TOKEN do not start other workflows,
+#   except workflow_dispatch and repository_dispatch
+#   (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#:~:text=events%20triggered%20by%20the%20GITHUB_TOKEN%20will%20not%20create%20a%20new%20workflow%20run).
+#   So the push of the bump does not start cargo-publish.yml or any other
+#   workflow, and the publish job below dispatches cargo-publish.yml explicitly.
+# - cargo-publish.yml publishes the crate named by a dispatch whatever changed,
+#   reading its version from the commit the dispatch runs on, so the dispatch
+#   names main after the bump is there. Its `dry-run` input defaults to true,
+#   so it is set to false here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      crate:
+        description: 'Crate to release, as listed in package/crate-release/cli/releasable-crates.json'
+        type: choice
+        required: true
+        options:
+        - forbidden-strings
+        - monochromatic-git-policy-cli
+      from:
+        description: 'Version the crate holds now (the run fails when its Cargo.toml holds another)'
+        type: string
+        required: true
+      to:
+        description: 'Version to release'
+        type: string
+        required: true
+      note:
+        description: 'One-line summary that ends the commit subject (at most 200 characters)'
+        type: string
+        required: true
+      dry-run:
+        description: 'Do everything except push the bump and start the publish'
+        type: boolean
+        required: false
+        default: false
+
+permissions: {}
+
+# One release at a time: two would bump and push over each other's main.
+# cancel-in-progress=false lets a running release finish; the next one queues.
+concurrency:
+  group: crate-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    steps:
+    # The bump lands on main and cargo-publish.yml publishes what main holds, so a
+    # run on any other ref fails loudly instead of ending as a skipped, green run.
+    - name: Refuse a ref other than main
+      if: ${{ github.ref != 'refs/heads/main' }}
+      run: |
+        echo "::error::crate-release pushes to main, so dispatch it on main, not on $GITHUB_REF"
+        exit 1
+
+    - name: Checkout
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 1
+        persist-credentials: false
+
+    - name: Install Node, pnpm and the workspace dependencies
+      uses: ./.github/actions/task-cli-setup
+
+    - name: Install Rust toolchain
+      run: |
+        rustup toolchain install nightly --profile minimal --no-self-update
+        rustup default nightly
+
+    - name: Set the identity of the local release commit
+      run: |
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+    # Fails with the crate's manifest, the version it holds and the arguments when
+    # <from> is not the current version, before anything is changed.
+    - name: Bump, check, dry-run the publish and commit locally
+      env:
+        CRATE: ${{ inputs.crate }}
+        FROM: ${{ inputs.from }}
+        TO: ${{ inputs.to }}
+        NOTE: ${{ inputs.note }}
+      run: node package/crate-release/cli/bin/release.ts --crate "$CRATE" --host runner -- "$FROM" "$TO" "$NOTE"
+
+    - name: Push the bump to main as a signed commit
+      if: ${{ !inputs.dry-run }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CRATE: ${{ inputs.crate }}
+      run: node package/crate-release/cli/bin/push-release.ts --crate "$CRATE" --repo "$GITHUB_REPOSITORY" --branch main --scratch-dir "$RUNNER_TEMP"
+
+  publish:
+    needs: release
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
+    - name: Start cargo-publish for the crate on main
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CRATE: ${{ inputs.crate }}
+      run: gh workflow run cargo-publish.yml --repo "$GITHUB_REPOSITORY" --ref main --raw-field "crate=$CRATE" --raw-field dry-run=false

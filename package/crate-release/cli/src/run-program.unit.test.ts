@@ -6,6 +6,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { failureExitCode } from './constants.ts';
 import { spawnProgram } from './run-program.ts';
 
 /**
@@ -77,7 +78,7 @@ await describe({
               cwd: workingDirectory,
               capture: true,
             });
-            expect(result.status).toBe(1);
+            expect(result.status).toBe(failureExitCode);
           },
         }),
         it({

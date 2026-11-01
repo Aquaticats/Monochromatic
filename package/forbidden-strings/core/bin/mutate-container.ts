@@ -14,7 +14,6 @@ import { join } from 'node:path';
 
 import {
   campaignCommand,
-  defaultBuildTimeoutSeconds,
   parseContainerLimitOptions,
   parseFileScopes,
   parseTimeoutAndExamine,
@@ -47,10 +46,12 @@ const {
 });
 
 /**
- Per-mutant test limit, in seconds, and the mutant-name patterns, from `--timeout` and `--examine`.
+ Per-mutant test and build limits, in seconds, and the mutant-name patterns, from `--timeout`, `--build-timeout` and
+ `--examine`.
  */
 const {
   timeoutSeconds,
+  buildTimeoutSeconds,
   examine,
   scopeOptions,
 } = parseTimeoutAndExamine({
@@ -97,7 +98,7 @@ await runCampaign({
   command: campaignCommand({
     outputDirectory: containerReport,
     timeoutSeconds,
-    buildTimeoutSeconds: defaultBuildTimeoutSeconds,
+    buildTimeoutSeconds,
     additionalExclusions: [],
     useProjectConfig: true,
     tail: [
@@ -134,7 +135,7 @@ await runCampaign({
         memory: limits.memory,
         cpus: limits.cpus,
         pids: limits.pidsLimit,
-        buildTimeoutSeconds: defaultBuildTimeoutSeconds,
+        buildTimeoutSeconds,
         testTimeoutSeconds: timeoutSeconds,
       },
     };

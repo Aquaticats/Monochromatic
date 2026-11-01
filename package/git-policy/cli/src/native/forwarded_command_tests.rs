@@ -214,23 +214,21 @@ fn chain_context(length: usize) -> (GitContext, OsString) {
     return (context_with_aliases(pair_refs.as_slice()), OsString::from(names[0].as_str()));
 }
 
-/// Sixteen chained aliases,
-///  each one expansion,
-///  reach the built-in;
-///  the limit is 16 expansions.
+/// A chain as long as the limit,
+///  each alias one expansion,
+///  reaches the built-in.
 #[test]
-fn sixteen_chained_aliases_reach_the_builtin() {
-    assert_eq!(MAX_ALIAS_EXPANSIONS, 16);
-    let (context, first): (GitContext, OsString) = chain_context(16);
+fn the_expansion_limit_reaches_the_builtin() {
+    let (context, first): (GitContext, OsString) = chain_context(MAX_ALIAS_EXPANSIONS);
     let resolved: ResolvedCommand = resolve_forwarded_command(&context, &[first]);
     assert_eq!(resolved.route, Route::Alias);
     assert_eq!(resolved.word(), b"commit");
 }
 
-/// Seventeen chained aliases need one expansion more than the limit allows and stay unresolved.
+/// One chained alias more than the limit allows and the command stays unresolved.
 #[test]
-fn seventeen_chained_aliases_are_unresolved() {
-    let (context, first): (GitContext, OsString) = chain_context(17);
+fn one_expansion_past_the_limit_is_unresolved() {
+    let (context, first): (GitContext, OsString) = chain_context(MAX_ALIAS_EXPANSIONS + 1);
     let resolved: ResolvedCommand = resolve_forwarded_command(&context, &[first]);
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());

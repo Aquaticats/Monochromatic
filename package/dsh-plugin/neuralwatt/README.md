@@ -185,12 +185,8 @@ and the listing fetch bound in milliseconds.
 
 ## Tasks
 
-```sh
-# package/dsh-plugin/neuralwatt
-mise run build
-mise run lint:types
-mise run test:unit
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one from this directory with `mise run <task>`.
 
 Unit tests import package behavior from the built `dist` entry,
 so run `build`

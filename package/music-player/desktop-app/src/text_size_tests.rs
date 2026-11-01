@@ -45,7 +45,7 @@ fn every_element_has_its_own_session_key() {
     let mut keys: Vec<&str> = TextElement::ALL.iter().map(|element| return element.session_key()).collect();
     keys.sort_unstable();
     keys.dedup();
-    assert_eq!(keys.len(), 4);
+    assert_eq!(keys.len(), TextElement::ALL.len());
     assert!(keys.iter().all(|key| return key.starts_with("text_size_") && key.ends_with("_px")), "{keys:?}");
 }
 
@@ -67,19 +67,25 @@ fn a_step_stops_at_the_limits() {
     assert_eq!(top.stepped(TextElement::TrackTitle, 1), top);
     let bottom = all_at(MIN_TEXT_SIZE_PX);
     assert_eq!(bottom.stepped(TextElement::TrackTitle, -1), bottom);
-    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, 1000).get(TextElement::PaneTitle), 32);
-    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, -1000).get(TextElement::PaneTitle), 10);
-    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, i32::MAX).get(TextElement::PaneTitle), 32);
-    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, i32::MIN).get(TextElement::PaneTitle), 10);
+    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, 1000).get(TextElement::PaneTitle), MAX_TEXT_SIZE_PX);
+    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, -1000).get(TextElement::PaneTitle), MIN_TEXT_SIZE_PX);
+    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, i32::MAX).get(TextElement::PaneTitle), MAX_TEXT_SIZE_PX);
+    assert_eq!(TextSizes::default().stepped(TextElement::PaneTitle, i32::MIN).get(TextElement::PaneTitle), MIN_TEXT_SIZE_PX);
 }
 
 /// `with` holds a size inside the limits, so no caller builds one outside.
 #[test]
 fn with_holds_a_size_inside_the_limits() {
-    assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 0).get(TextElement::GroupHeading), 10);
-    assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 9).get(TextElement::GroupHeading), 10);
-    assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 33).get(TextElement::GroupHeading), 32);
-    assert_eq!(TextSizes::default().with(TextElement::GroupHeading, u16::MAX).get(TextElement::GroupHeading), 32);
+    assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 0).get(TextElement::GroupHeading), MIN_TEXT_SIZE_PX);
+    assert_eq!(
+        TextSizes::default().with(TextElement::GroupHeading, MIN_TEXT_SIZE_PX - 1).get(TextElement::GroupHeading),
+        MIN_TEXT_SIZE_PX
+    );
+    assert_eq!(
+        TextSizes::default().with(TextElement::GroupHeading, MAX_TEXT_SIZE_PX + 1).get(TextElement::GroupHeading),
+        MAX_TEXT_SIZE_PX
+    );
+    assert_eq!(TextSizes::default().with(TextElement::GroupHeading, u16::MAX).get(TextElement::GroupHeading), MAX_TEXT_SIZE_PX);
     assert_eq!(TextSizes::default().with(TextElement::GroupHeading, 21).get(TextElement::GroupHeading), 21);
 }
 
@@ -90,8 +96,8 @@ fn the_buttons_know_their_ends() {
     let top = all_at(MAX_TEXT_SIZE_PX);
     let middle = TextSizes::default();
     for element in TextElement::ALL {
-        assert!(!bottom.can_decrease(element) && bottom.can_increase(element), "{element:?} at 10");
-        assert!(top.can_decrease(element) && !top.can_increase(element), "{element:?} at 32");
+        assert!(!bottom.can_decrease(element) && bottom.can_increase(element), "{element:?} at {MIN_TEXT_SIZE_PX}");
+        assert!(top.can_decrease(element) && !top.can_increase(element), "{element:?} at {MAX_TEXT_SIZE_PX}");
         assert!(middle.can_decrease(element) && middle.can_increase(element), "{element:?} at its default");
     }
 }
@@ -107,7 +113,7 @@ fn is_default_follows_the_sizes() {
 /// A whole number inside the limits is the size; the ends count.
 #[test]
 fn a_stored_size_inside_the_limits_is_kept() {
-    for px in [10_u16, 11, 20, 31, 32] {
+    for px in [MIN_TEXT_SIZE_PX, 11, 20, 31, MAX_TEXT_SIZE_PX] {
         assert_eq!(size_or_default(TextElement::FolderName, Some(&Value::from(px))), px);
     }
 }
@@ -125,8 +131,8 @@ fn a_corrupt_stored_size_is_the_default_of_its_element() {
     let mut object = Map::new();
     object.insert("px".to_string(), Value::from(14));
     let corrupt = [
-        Value::from(9),
-        Value::from(33),
+        Value::from(MIN_TEXT_SIZE_PX - 1),
+        Value::from(MAX_TEXT_SIZE_PX + 1),
         Value::from(0),
         Value::from(-12),
         Value::from(70000),
@@ -150,7 +156,7 @@ fn a_corrupt_stored_size_is_the_default_of_its_element() {
 fn the_sizes_serialize_under_their_session_keys() {
     let value = serde_json::to_value(TextSizes::default()).expect("the sizes serialize");
     let object = value.as_object().expect("the sizes are a JSON object");
-    assert_eq!(object.len(), 4);
+    assert_eq!(object.len(), TextElement::ALL.len());
     for element in TextElement::ALL {
         assert_eq!(object.get(element.session_key()), Some(&Value::from(element.default_px())), "{element:?}");
     }

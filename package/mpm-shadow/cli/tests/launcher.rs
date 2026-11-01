@@ -10,6 +10,7 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use mpm_shadow::constants::NOT_FOUND_EXIT_CODE;
 use mpm_shadow::toolchain::launcher::{LaunchRecord, record_path, render_record};
 use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
 use mpm_shadow::toolchain::scope::ScopeKind;
@@ -135,7 +136,7 @@ fn a_missing_real_program_exits_127_naming_it_and_never_writes_standard_output()
     let tree = Tree::new("0.4.0", "0.4.4");
     fs::remove_file(tree.real()).expect("remove the program");
     let launched = run(&tree.launcher(), &[], &[]);
-    assert_eq!(launched.status.code(), Some(127));
+    assert_eq!(launched.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(launched.stdout.is_empty());
     assert!(String::from_utf8_lossy(&launched.stderr).contains("could not start"), "{}", String::from_utf8_lossy(&launched.stderr));
 }

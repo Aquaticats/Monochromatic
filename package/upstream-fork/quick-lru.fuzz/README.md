@@ -51,21 +51,9 @@ descriptor must match upstream's class-prototype flags.
 
 ### Running
 
-```bash
-# package/upstream-fork/quick-lru.fuzz/mise.toml
-
-# Cheap default budget (200 runs per property), as part of the unit suite
-mise run //package/upstream-fork/quick-lru.fuzz:test:unit
-
-# Longer campaign
-mise run //package/upstream-fork/quick-lru.fuzz:fuzz -- --runs 20000
-
-# Coverage-reachability gate (check against the frozen baseline)
-mise run //package/upstream-fork/quick-lru.fuzz:fuzz:coverage
-
-# Refreeze the baseline after intentionally changing reachable runtime functions
-mise run //package/upstream-fork/quick-lru.fuzz:fuzz:coverage -- --write
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/upstream-fork/quick-lru.fuzz:<task>`.
+The unit suite runs each property 200 times by default.
 
 Property files import quick-lru-fork source through its `/ts` subpath,
  so no

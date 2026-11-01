@@ -1,9 +1,15 @@
+import { timeoutExitStatus } from './constants.ts';
 import { exclusionArguments } from './excluded-mutants.ts';
 
 /**
  Seconds a campaign may spend building each mutant before cargo-mutants gives up on it.
  */
 export const defaultBuildTimeoutSeconds = 300;
+
+/**
+ Largest build limit, in seconds, a `--build-timeout` option may request when the product names no maximum of its own.
+ */
+export const maximumBuildTimeoutSeconds = 3_600;
 
 /**
  Length of a full content-addressed Podman image or container ID: a SHA-256 digest in hexadecimal.
@@ -194,4 +200,37 @@ export function exitRecord({
     reportCopied,
     ...(reportCopyError === undefined ? {} : { reportCopyError }),
   };
+}
+
+/**
+ Build the failure message of a campaign container that exited with a nonzero status.
+
+ A timeout status names both limits that can cause it, because cargo-mutants reports a build timeout and a test timeout
+ with the same status: the `TIMEOUT` lines of the output say which phase ran out, and each limit has its own option.
+
+ @param status - exit status of the container
+ 
+ @param reportCopied - whether the report was copied out of the container
+ 
+ @param evidence - directory that holds the evidence files
+ 
+ @returns the message, ending with where to look
+ 
+ @example
+ ```ts
+ campaignFailureMessage({ status: 2, reportCopied: true, evidence: '/e' });
+ ```
+ */
+export function campaignFailureMessage({
+  status,
+  reportCopied,
+  evidence,
+}: {
+  readonly status: number;
+  readonly reportCopied: boolean;
+  readonly evidence: string;
+}): string {
+  return `Mutation campaign exited ${status}${status === timeoutExitStatus
+    ? ' (a mutant timed out in its build or in its tests; the TIMEOUT lines name the phase, and --build-timeout or --timeout raises the limit)'
+    : ''}; report ${reportCopied ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`;
 }

@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 import {
   campaignContainerfile,
+  campaignFailureMessage,
   evidenceJson,
   exitRecord,
   isContentAddressedId,
@@ -365,7 +366,11 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     })),
   );
   if (result.status !== 0)
-    throw new CargoMutantsToolingError(`Mutation campaign exited ${result.status}; report ${copy.status === 0 ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`);
+    throw new CargoMutantsToolingError(campaignFailureMessage({
+      status: result.status,
+      reportCopied: copy.status === 0,
+      evidence,
+    }));
   if (copy.status !== 0)
     throw new CargoMutantsToolingError(`Mutation campaign passed but its report was not copied: ${copy.stderr}`);
   await definition.afterReport?.(evidence);

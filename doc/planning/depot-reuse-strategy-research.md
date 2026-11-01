@@ -1,5 +1,12 @@
 # Depot reuse strategy research
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
 `cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
 name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.

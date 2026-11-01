@@ -44,7 +44,7 @@ export type Totals = {
 /**
  Width the check id is padded to in the per-check table.
  */
-const ID_COLUMN_WIDTH = 34;
+export const ID_COLUMN_WIDTH = 34;
 
 /**
  Name of the summary file inside the output directory.
@@ -59,7 +59,7 @@ const SUMMARY_INDENT = 2;
 /**
  Milliseconds per second.
  */
-const MS_PER_SECOND = 1_000;
+export const MS_PER_SECOND = 1_000;
 
 /**
  Writes one line to the standard output.

@@ -6,6 +6,8 @@ use super::*;
 use crate::screen_geometry::OutputScale;
 /// The notification mode the new option selects.
 use crate::notification_mode::NotificationMode;
+/// The announced key repeat pair defaults.
+use crate::state::{DEFAULT_REPEAT_DELAY_MS, DEFAULT_REPEAT_RATE};
 
 /// Build owned parser arguments from borrowed test literals.
 fn args(values: &[&str]) -> Vec<String> {
@@ -61,8 +63,8 @@ fn defaults_are_preserved() {
     assert_eq!(config.app_cpu_weight, None);
     assert!(!config.isolate);
     assert_eq!(config.scale, OutputScale::ONE);
-    // The announced key repeat pair keeps the values earlier versions sent.
-    assert_eq!((config.repeat_rate, config.repeat_delay), (25, 200));
+    // The announced key repeat pair keeps the production defaults.
+    assert_eq!((config.repeat_rate, config.repeat_delay), (DEFAULT_REPEAT_RATE, DEFAULT_REPEAT_DELAY_MS));
 }
 
 /// The key repeat pair is configurable and bounded.

@@ -47,9 +47,8 @@ await describe({
         + 'so no seat is created and the roster list is the one it was',
       fn: async () => {
         // The eight Claude cards of 2026-10-22 joined after NeuralWatt did and are not NeuralWatt's to add.
-        expect(ROSTER_MODEL_IDS.filter(function notClaude(id,): boolean {
-          return !id.startsWith('claude-',);
-        },).length,).toBe(13,);
+        for (const card of cardsServing({ provider: 'neuralwatt', },))
+          expect(ROSTER_MODEL_IDS,).toContain(card.id,);
         expect(cardsServing({ provider: 'neuralwatt', },).map(function toId(card,): string {
           return card.id;
         },),).toEqual(['hf:zai-org/GLM-5.3-Flash', 'deepseek-v4.1-flash',],);

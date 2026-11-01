@@ -32,24 +32,8 @@ Same generated spec on both implementations,
 
 ### Running
 
-```bash
-# package/upstream-fork/pify.fuzz/mise.toml
-
-# The property files as the normal unit suite (200 runs per property)
-mise run //package/upstream-fork/pify.fuzz:test:unit
-
-# Longer campaign (5000 runs per property)
-mise run //package/upstream-fork/pify.fuzz:fuzz
-
-# Campaign with an explicit run budget
-mise run //package/upstream-fork/pify.fuzz:fuzz -- --runs 20000
-
-# Coverage-reachability gate over the runtime package's src
-mise run //package/upstream-fork/pify.fuzz:fuzz:coverage
-
-# Refreeze the coverage baseline after intentional reachability changes
-mise run //package/upstream-fork/pify.fuzz:fuzz:coverage -- --write
-```
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/upstream-fork/pify.fuzz:<task>`.
 
 The run budget per property comes from `PIFY_FORK_FUZZ_RUNS`
  (`fuzz-budget.ts`),

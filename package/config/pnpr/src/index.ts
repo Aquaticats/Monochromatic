@@ -1,5 +1,10 @@
 // Publish-planning helpers and the pnpr server config generator, built so unit tests exercise the bundled artifact.
 // The package declares no entry points, so it never publishes itself.
+export {
+  type BuildPlan,
+  MissingCiBuildTaskError,
+  planPackageBuild,
+} from './build-plan.ts';
 export { renderPnprConfig, } from './generated-config-render.ts';
 export {
   assertPnprPackageName,

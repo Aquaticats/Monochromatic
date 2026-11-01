@@ -87,13 +87,6 @@ is proportional coverage plus a fixed margin,
 
 ## Tasks
 
-Run with `mise run //package/music-player/truepeak-core.bench:<task>`.
-
-- `build`:
-   compile the bench.
-- `run`:
-   evaluate and search a corpus (pass the `tracks.jsonl` path after `--`).
-- `lint`,
-   `lint:clippy`:
-   the checks;
-   the repository's Rust rules run from the root `mise run lint`.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/music-player/truepeak-core.bench:<task>`.
+The repository's Rust rules run from the root `mise run lint`.

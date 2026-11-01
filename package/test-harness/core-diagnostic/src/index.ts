@@ -1,4 +1,5 @@
 export {
+  MAX_LOOKBACK_LINES,
   extractAssertionExpression,
   extractLocationSubstring,
   isIntegerString,

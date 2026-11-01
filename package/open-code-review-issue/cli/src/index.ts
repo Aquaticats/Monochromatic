@@ -83,6 +83,8 @@ export {
 export {
   capIssueTitle,
   renderIssueTitle,
+  TITLE_ELLIPSIS_BYTES,
+  TITLE_MAX_BYTES,
 } from './issue-title.ts';
 export { parseStructuredInput, } from './ingest.ts';
 export type {
@@ -99,7 +101,12 @@ export {
   buildNonInteractivePreview,
   buildPublicationPlan,
 } from './plan.ts';
-export { runCli, } from './cli-entry.ts';
+export {
+  EXIT_INVOCATION_MISUSE,
+  EXIT_RUNTIME_FAILURE,
+  EXIT_SUCCESS,
+  runCli,
+} from './cli-entry.ts';
 export {
   CliRuntimeError,
   executeRun,

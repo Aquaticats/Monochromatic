@@ -12,7 +12,7 @@ import {
  so a future tune (e.g. drop to 4 MiB on memory-constrained CI) lands in one place,
  and so the magnitude is greppable.
  */
-const DEFAULT_MAX_HASH_SIZE_MIB = 16;
+export const DEFAULT_MAX_HASH_SIZE_MIB = 16;
 
 /**
  Default upper bound for files the cache will hash, in bytes.

@@ -29,20 +29,10 @@ The build pipeline runs as a sequence of mise tasks (`mise run build`):
 
 ## Commands
 
-- `mise run build` -- full pipeline (client JS,
-   site,
-   postprocess,
-   compress)
-- `mise run build:site` -- site generation only (no postprocess or compression)
-- `mise run build:site:clean` -- site generation from scratch (clears `.cache/`)
-- `mise run build:postprocess` -- pagefind + asset fingerprinting (requires prior `build:site`)
-- `mise run build:search` -- pagefind indexing only (requires prior `build:site`;
-   standalone task for manual re-indexing)
-- `mise run dev` -- full build,
-   then serve with Caddy and rebuild on source changes
-- `mise run format` -- run every format task (fonts + images)
-- `mise run format:fonts` -- re-subset `fonts-source/*.woff2` into `public/`
-- `mise run format:images` -- convert raster images to AVIF
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one from this directory with `mise run <task>`.
+`build:postprocess` and `build:search` expect a prior `mise run build:site`;
+`build` runs the full pipeline.
 
 ## Content authoring
 

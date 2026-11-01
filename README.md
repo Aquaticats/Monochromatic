@@ -156,9 +156,24 @@ Install [Mise][mise-home] as the task runner,
 `jq` and `tar`.
 Install [rustup](https://rustup.rs/) as well,
 with the minimal profile and no default toolchain,
-and put `~/.cargo/bin` on `PATH`
-(the `Dockerfile` runs `rustup-init -y --no-modify-path --profile minimal --default-toolchain none`
-after checking `rustup-init` against the checksum that rust-lang publishes beside it).
+and put `~/.cargo/bin` on `PATH`.
+On Linux the steps are these;
+`rustup-init` is checked against the checksum that rust-lang publishes beside it,
+and `target` is `aarch64-unknown-linux-gnu` on arm64:
+
+```sh
+# Run anywhere; installs rustup into ~/.cargo and ~/.rustup without touching shell profiles.
+target=x86_64-unknown-linux-gnu
+work="$(mktemp --directory)"
+base="https://static.rust-lang.org/rustup/dist/${target}"
+curl --fail --silent --show-error --location --output "${work}/rustup-init" "${base}/rustup-init"
+curl --fail --silent --show-error --location --output "${work}/rustup-init.sha256" "${base}/rustup-init.sha256"
+echo "$(cut --delimiter=' ' --fields=1 "${work}/rustup-init.sha256")  ${work}/rustup-init" | sha256sum --check
+chmod +x "${work}/rustup-init"
+"${work}/rustup-init" --yes --no-modify-path --profile minimal --default-toolchain none
+rm --recursive --force "${work}"
+```
+
 The plan's `rust` entry runs `rustup toolchain install`,
 and every `cargo-binstall` tool runs `cargo binstall`,
 a cargo subcommand,
@@ -209,7 +224,7 @@ Fetch the `mpm-shadow` archive that `toolchain.lock.json` records for your platf
 check it against the SHA-256 recorded beside it,
 run its `install` from the repository root,
 and remove the throwaway copy
-(the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI and in the `Dockerfile`):
+(the same steps are in `.github/actions/repo-tools-setup/action.yml` for CI):
 
 ```sh
 # Run from the repository root; platform is linux-x64 or linux-arm64.

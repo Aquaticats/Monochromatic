@@ -3,7 +3,11 @@ import {
   usesOnly,
 } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 
-import { cratesIoApiBase } from './constants.ts';
+import {
+  cratesIoApiBase,
+  releaseWorkflow,
+  releaseWorkflowInputs,
+} from './constants.ts';
 import { CrateReleaseError } from './error.ts';
 import { parseCrateName } from './validate.ts';
 import { assertReleaseVersion } from './version.ts';
@@ -95,6 +99,161 @@ export function buildRunWatchArguments({
     'watch',
     runId,
     '--exit-status',
+    ...repoArguments(repo),
+  ];
+}
+
+/**
+ Arguments of `gh workflow run` that start the release workflow for a crate.
+
+ Each input travels as one `--raw-field=<name>=<value>` argument, so a note that starts with a hyphen or holds shell
+ syntax stays inside its value, and the workflow receives it as text.
+
+ @param crate - crate name, which is also the workflow's `crate` choice
+
+ @param from - version the crate holds now
+
+ @param to - version to release
+
+ @param note - one-line summary that ends the commit subject
+
+ @param dryRun - true to add the `dry-run` input, which stops the workflow before it pushes or publishes; false leaves
+ the input out, so the workflow's own default applies
+
+ @param repo - `owner/name`; absent to use the repository of the working directory
+
+ @returns the arguments after `gh`; the branch is left to `gh`, which uses the default branch
+
+ @example
+ ```ts
+ buildReleaseDispatchArguments({ crate: 'c', from: '0.1.0', to: '0.1.1', note: 'n', dryRun: false });
+ ```
+ */
+export function buildReleaseDispatchArguments({
+  crate,
+  from,
+  to,
+  note,
+  dryRun,
+  repo,
+}: {
+  readonly crate: string;
+  readonly from: string;
+  readonly to: string;
+  readonly note: string;
+  readonly dryRun: boolean;
+  readonly repo?: string;
+}): readonly string[] {
+  return [
+    'workflow',
+    'run',
+    releaseWorkflow,
+    `--raw-field=${releaseWorkflowInputs.crate}=${crate}`,
+    `--raw-field=${releaseWorkflowInputs.from}=${from}`,
+    `--raw-field=${releaseWorkflowInputs.to}=${to}`,
+    `--raw-field=${releaseWorkflowInputs.note}=${note}`,
+    ...(dryRun ? [`--raw-field=${releaseWorkflowInputs.dryRun}=true`] : []),
+    ...repoArguments(repo),
+  ];
+}
+
+/**
+ Arguments of `gh api graphql` that send a request body kept in a file.
+
+ @param requestFile - absolute path of the file that holds the JSON request
+
+ @returns the arguments after `gh`
+
+ @throws CrateReleaseError when the path is not absolute or starts with a hyphen that `gh` would read as an option
+
+ @example
+ ```ts
+ buildGraphqlInputArguments('/runner/temp/request.json');
+ ```
+ */
+export function buildGraphqlInputArguments(requestFile: string): readonly string[] {
+  if ((!requestFile.startsWith('/')) || requestFile.includes('\0'))
+    throw new CrateReleaseError(
+      `The request file must be an absolute path without NUL, got ${JSON.stringify(requestFile)}.`,
+    );
+  return [
+    'api',
+    'graphql',
+    `--input=${requestFile}`,
+  ];
+}
+
+/**
+ Arguments of `gh run view` that read when a run was created and how it stands, as JSON.
+
+ @param runId - numeric run identifier
+
+ @param repo - `owner/name`; absent to use the repository of the working directory
+
+ @returns the arguments after `gh`
+
+ @throws CrateReleaseError when the run identifier is not all digits
+
+ @example
+ ```ts
+ buildRunViewArguments({ runId: '123' });
+ ```
+ */
+export function buildRunViewArguments({
+  runId,
+  repo,
+}: {
+  readonly runId: string;
+  readonly repo?: string;
+}): readonly string[] {
+  if (!usesOnly({
+    text: runId,
+    allowed: decimalDigits
+  }))
+    throw new CrateReleaseError(`A run identifier must be all digits, got ${JSON.stringify(runId)}.`);
+  return [
+    'run',
+    'view',
+    runId,
+    '--json=createdAt,status,conclusion,url',
+    ...repoArguments(repo),
+  ];
+}
+
+/**
+ Arguments of `gh run list` for the latest manually started runs of a workflow, as JSON with their creation times.
+
+ The list is filtered by the caller in code, so no time or hash is interpolated into a query.
+
+ @param workflow - workflow file name
+
+ @param limit - how many recent runs to list
+
+ @param repo - `owner/name`; absent to use the repository of the working directory
+
+ @returns the arguments after `gh`
+
+ @example
+ ```ts
+ buildDispatchedRunListArguments({ workflow: 'cargo-publish.yml', limit: 10 });
+ ```
+ */
+export function buildDispatchedRunListArguments({
+  workflow,
+  limit,
+  repo,
+}: {
+  readonly workflow: string;
+  readonly limit: number;
+  readonly repo?: string;
+}): readonly string[] {
+  return [
+    'run',
+    'list',
+    `--workflow=${workflow}`,
+    '--event=workflow_dispatch',
+    `--limit=${String(limit)}`,
+    '--json=databaseId,headSha,createdAt',
     ...repoArguments(repo),
   ];
 }

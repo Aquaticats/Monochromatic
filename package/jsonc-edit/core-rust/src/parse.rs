@@ -73,7 +73,7 @@ use crate::value::{JsoncComment, JsoncEntry, JsoncKey, JsoncKind, JsoncValue};
 /// ```ts
 /// const MAX_CONTAINERS = 512;
 /// ```
-const MAX_CONTAINERS: usize = 512;
+pub(crate) const MAX_CONTAINERS: usize = 512;
 
 /// What:
 ///  The grammar phase of one open array or record frame.

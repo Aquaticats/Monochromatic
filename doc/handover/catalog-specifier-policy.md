@@ -502,6 +502,9 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
      `package/crate-release/cli/bin/release.ts` moves only inline `name = { ... version = "=x" }` lines, not table-style
      `[dependencies.name]`) and its own `release` and `release:wait` mise tasks like `package/forbidden-strings/cli/mise.toml`.
   2. 7a releases the wrapper (`native:release`, `native:release:wait`) once the policy, its tests and the mutation and fuzz gates pass.
+     Since 2026-11-01 those tasks only dispatch the `crate-release` workflow and follow its run, and nothing compiles on the
+     developer machine (`doc/decision/releases-run-in-ci.md`); the shared crate of step 1 also needs an entry in
+     `package/crate-release/cli/releasable-crates.json` and in the `crate` choices of `.github/workflows/crate-release.yml`.
   3. `toolchain:update` bumps the wrapper in `toolchain.lock.json`; it has no per-tool filter, so it also moves every other floating
      tool, and the user decides each time.
   4. `toolchain:sync` installs it as the production `git`.
@@ -693,29 +696,156 @@ The user confirmed the shared understanding and the order below, after the third
   agent cannot create one, and a stored token answered 403 in earlier sessions), then Trusted Publishing is created by API as for the
   other crates. That is the current blocker for step 2's publication.
 
+- 2026-11-01, step 2 published: `monochromatic-catalog-specifier` 0.1.0 was published to crates.io with the owner's bootstrap token,
+  after the user answered that the token was logged in.
+  `cargo package` packaged 15 files (115.7 KiB, 34.0 KiB compressed) and verified by compile; `cargo publish --dry-run` passed with no
+  403; the real `cargo publish` uploaded and waited for availability.
+  Registry check: `max_stable_version` `0.1.0`, one version, not yanked, keywords and categories present.
+  Consumer check: a disposable crate (`~/temp/agent/cs-consumer`) depending on `=0.1.0` from the registry compiled, and its
+  assertions passed (a clean manifest gave no findings; `"zod": "^4.6.7"` gave one, with the remedy text).
+  Trusted Publishing was created through the crates.io API with the token's `trusted-publishing` scope, printing statuses only:
+  config `30143`, owner `Aquaticats` (id 343218767), repository `Monochromatic`, workflow `cargo-publish.yml`, no environment; the
+  listing shows exactly one row.
+  Trusted Publishing exercised: the dispatch `gh workflow run cargo-publish.yml --ref main -f crate=monochromatic-catalog-specifier
+  -f dry-run=false` (run `41274797417`) concluded `success`; `cs-detect` and `cs-publish-crate` succeeded, including
+  `Authenticate with crates.io (Trusted Publishing)` and `Publish (skips if this version is already on crates.io)`, with
+  `Publish (dry run)` skipped. The log of `Publish (skips if this version is already on crates.io)` carries the annotation
+  `monochromatic-catalog-specifier 0.1.0 already on crates.io; skipping publish.` and no upload line.
+  The user answered that the token `monochromatic-catalog-specifier-bootstrap` was revoked; the agent then ran `cargo logout`,
+  which printed that the `crates-io` token was removed from local storage, and `~/.cargo/credentials.toml` holds no token entry.
+  The revocation itself happened in the dashboard and was not checked from here.
+  `monochromatic-7a` was told the crate is published and given the API, the pin form and the remaining policy work.
+
+- 2026-11-01, CI bootstrap measured while waiting for `monochromatic-7a` (task: the separate CI workflow, not yet written).
+  The user chose "install a pinned release from the lock". `toolchain.lock.json` records `cargo:monochromatic-git-policy-cli` at
+  `0.4.6` (route `cargo-binstall`, bin `cli-git-native`, linked as `git` into `.cache/cli-git-bin`, `artifacts` empty) and
+  `cargo-binstall` at `1.26.2`; the repository's precedent for using them in CI is `.github/workflows/music-player-release.yml`
+  (`jq` the version from the lock, `cargo install cargo-binstall --locked --version`, then `cargo binstall --no-confirm --version`).
+  Probe `~/temp/agent/cs-ci-bootstrap/Containerfile` (CachyOS `latest`, `podman build --memory=2g --cpu-quota=200000`, nothing
+  mounted, ordinary system git 2.56.0, fresh home, no cargo-installed binaries, no `node_modules`, a fixture repository holding one
+  literal dependency), log `build.log`, exit 0:
+  - `cargo install cargo-binstall --locked --version 1.26.2` compiled in 6 minutes 47 seconds on 2 CPUs.
+  - `cargo binstall --no-confirm --disable-strategies compile --root /opt/cli-git --version 0.4.6 monochromatic-git-policy-cli` took
+    2.8 seconds and logged `has been downloaded from github.com`, so the release archive exists and no compile was needed.
+  - `cli-git-native --version` printed `monochromatic-git-policy-cli 0.4.6, shadowing git at /usr/bin/git`; the binary runs by its
+    own name, so CI needs no `git` link: `cli-git-native cli-git check --all --policy <id>` is the whole command.
+  - A whole-repository check of an existing policy exited 0; naming `mono/catalog-specifiers` against 0.4.6 exited 2 with
+    `engine-failure` `config-invalid` (`Unknown policy ID`, listing the nine shipped ids), which is exactly the failure a lock
+    that predates the policy produces, so a lagging lock fails loudly instead of passing.
+  Correction after the user's challenge ("Doesn't cargo-binstall download gh releases too?"): yes, it does, and it fetched this same
+  release archive in 2.8 s in the probe above. The 6m47s was only the compile of cargo-binstall itself (`cargo install`, the
+  music-player precedent), and the "direct download against cargo-binstall" comparison that follows compared two different things.
+  The right comparison is how cargo-binstall itself is obtained. The lock already pins a prebuilt one: row `cargo-binstall`, route
+  `bin-sourced`, `artifacts.linux-x64` with `url`
+  `https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-x86_64-unknown-linux-gnu.tgz` and a `sha256`
+  (keys also for `linux-arm64`, `linux-arm64-musl`, `linux-x64-musl`).
+  Measured (`~/temp/agent/cs-binstall-from-lock.ts`, host, empty scratch directory): downloading that archive took 0.78 s and its
+  sha256 matched the lock; extraction 0.08 s; `cargo-binstall --no-confirm --disable-strategies compile --root <dir> --version 0.4.6
+  monochromatic-git-policy-cli` took 6.60 s and installed `cli-git-native`; `--version` printed
+  `monochromatic-git-policy-cli 0.4.6, shadowing git at /usr/bin/git`. About 7.5 s in total, with the cargo-binstall archive
+  verified by the lock's checksum.
+  Decision for the draft: use this lock-pinned route (prebuilt cargo-binstall from the lock row, verified by sha256, then binstall for
+  the pinned cli-git), not `cargo install cargo-binstall` and not a hand-rolled download of the cli-git archive.
+  The earlier direct-download measurement is kept as a measurement of that alternative only:
+  The direct route was measured afterwards
+  (`~/temp/agent/cs-direct-download.ts`, host, empty scratch directory): downloading
+  `monochromatic-git-policy-cli-0.4.6-x86_64-unknown-linux-gnu.tar.gz` from the release URL that the crate's
+  `[package.metadata.binstall]` `pkg-url` pattern gives took 0.67 s (2,685,208 bytes); `gh attestation verify <archive> --repo
+  Aquaticats/Monochromatic` exited 0 in 9.69 s; extraction took 0.03 s and holds `cli-git-native` and `README.md`.
+  The 0.4.6 release holds only the two Linux archives (x86_64 and aarch64) and no checksums file, so the attestation is the
+  integrity check, and the lock's `artifacts` stay empty for this route; the step needs `gh` and a token (`GH_TOKEN`) on the runner.
+  So the direct route costs about 11 seconds against about 7 minutes for the cargo-binstall route.
+  CI design so far (draft, not written): a separate workflow on push and pull request to `main` with `cancel-in-progress`;
+  read the two versions from the lock; install cargo-binstall and the pinned cli-git into `$RUNNER_TEMP`; run the check; plus a
+  negative-control step that checks a throwaway fixture repository with one literal dependency and requires a nonzero exit, so the
+  job cannot pass vacuously; the job fails on a violation (detection, not prevention).
+  Not yet measured: the policy itself (not built), a check in a shallow CI checkout, and the workflow on a GitHub runner.
+
+- 2026-11-01, rule changes after the user's challenges about the bootstrap measurement:
+  - `QJ1` now says to split a measured total by its logged steps before blaming one and to compare options step for step
+    (commit `f04bcf2590`).
+  - `CM7` now says to install tools only from `toolchain.lock.json` (in containers and CI use its row's archive and sha256) and never to
+    `cargo install` or compile a locked tool (commit `57f5078f6f`).
+  - Cause recorded: the probe container compiled cargo-binstall because I copied `cargo install cargo-binstall --locked` from the
+    music-player workflow without reading the lock's own `cargo-binstall` row, which pins a prebuilt archive with a sha256.
+- 2026-11-01, the same fault fixed in `.github/workflows/music-player-release.yml` (user answered "Fix it now"): job `notices`
+  (runner `ubuntu-24.04`) now reads the `linux-x64` url and sha256 from the lock, guards the url prefix, downloads, runs
+  `sha256sum --check --strict`, extracts into `$RUNNER_TEMP/binstall`, adds it to `GITHUB_PATH` and `PATH`, then runs the unchanged
+  `cargo binstall ... cargo-about`.
+  Checked here (`~/temp/agent/test-music-player-binstall-step.ts`, the new lines extracted from the workflow and run with a scratch
+  `RUNNER_TEMP` and `GITHUB_PATH` against the real lock): url guard, download, checksum check, extraction and the `GITHUB_PATH`
+  write succeeded; the extracted `cargo-binstall -V` printed `1.26.2` and its archive sha256 equals the lock's.
+  Not run: the workflow on a GitHub runner (the user chose to skip the full multi-platform dry run; there is no notices-only trigger),
+  and the rustup and cargo-about parts of the step. The next music-player dry run or release is the step's first runner test.
+  A push of the edit does not start the workflow: its push trigger watches only the two version `Cargo.toml` files.
+
+- 2026-11-01, user decision about the toolchain update: `monochromatic-7a` had said the `toolchain:update` after its cli-git release
+  moves every floating tool and needs a user decision each time; the user answered "I decide? No, just do it."
+  So the agent runs `toolchain:update` itself once the policy release is on crates.io, reviews the `toolchain.lock.json` diff
+  (the repository's review surface for it), and then lands the CI workflow; the user is not asked for that step.
+  7a was told, and asked to message the released version. State when this was recorded: crates.io newest `monochromatic-git-policy-cli`
+  is 0.4.6 (the lock's version); `package/git-policy/cli` has no catalog-specifiers code; the waiter `~/temp/agent/wait-cli-git-release.ts`
+  ends when crates.io lists a newer version (four-hour deadline).
+
+- 2026-11-01, `monochromatic-7a` status (a peer's report): wrapper 0.4.7 (30-second default push deadline, macOS signal fixes,
+  mutation-test additions) is being released and is not the catalog-specifiers release; 7a runs the lock update for 0.4.7 itself and
+  it lands before mine.
+  `mono/catalog-specifiers` is being built against `monochromatic-catalog-specifier` 0.1.0 on a separate, unmerged branch
+  (`off_unless_listed`, old configs still read, a direct `--policy` on an off policy exits 2, not listed in `cli-git.config.jsonc`).
+  7a will message the released version and release commit when the wrapper carrying the policy is on crates.io with its archives.
+  Consequence for the waiter `~/temp/agent/wait-cli-git-release.ts`: it fires on any version above 0.4.6, so it will fire on 0.4.7,
+  which is not the signal wanted; the agent restarts a waiter that ignores 0.4.7, and acts on 7a's message rather than on the waiter.
+
+- 2026-11-01, waiter result: the four-hour waiter ended at its deadline with crates.io still at 0.4.6, so not even the 0.4.7 wrapper
+  had been published. A waiter that ignores a wrapper release without the policy replaced it:
+  `~/temp/agent/wait-cli-git-policy-release.ts` ends only when a version above 0.4.6 is on crates.io and its source archive
+  contains the text `mono/catalog-specifiers` (eight-hour deadline). The last twelve releases of the crate came 25 minutes to about
+  24.5 hours apart (measured from crates.io), so no completion time can be forecast; 7a has given none.
+
+- 2026-11-01, `monochromatic-8c` status (a peer's report, now the session sending cli-git release news):
+  the wrapper branch for `mono/catalog-specifiers` (against `monochromatic-catalog-specifier` 0.1.0, `off_unless_listed`, default
+  severity `error`, no options, not listed in `cli-git.config.jsonc`) is being merged to main after fixing a gap (a selected policy
+  that is on but not run for the command still exited 0).
+  The 0.4.7 cut was abandoned; the policy ships in the next wrapper release with the 30-second push deadline, the commit-path
+  stat-index and timeout fixes, the layered gate image, and, when they merge, the LFS rework, the removal of external hook support
+  and the in-process linter. 8c will message the version and release commit once it is on crates.io with archives.
+  8c asked who owns the crate-release path; the answer sent: git history names only the author Aquaticat, and
+  `doc/decision/releases-run-in-ci.md` records the owner's choice "Release from CI", with `native:release` dispatching the workflow.
+
+- 2026-11-01, `monochromatic-8c` after reading all of `doc/decision/releases-run-in-ci.md` (a peer's report): `native:release` dispatches
+  the CI workflow and `native:release:wait` follows it through `cargo-publish.yml` to crates.io and the GitHub release.
+  The workflow has never run on a runner (the first release is its first run), and three things are unproven: that a runner
+  compiles the crates, that the token may call `createCommitOnBranch` on the protected branch, and that GitHub signs that commit
+  under `GITHUB_TOKEN`. 8c dry-runs first, so the first real wrapper release may need a retry.
+  The linter crate is not in `releasable-crates.json` (only forbidden-strings and the wrapper are); if the wrapper embeds the linter,
+  the linter publishes first by the old route. Consequence for my wait: no release time can be forecast, and a retry may delay it.
+
+- 2026-11-01, `monochromatic-8c` relaying `monochromatic-6e` (file-enforcer and toolchain verbs), a peer's advice that I checked against the repo:
+  scope the update to the wrapper's row, `mise run toolchain:update -- cargo:monochromatic-git-policy-cli`, because the task appends its
+  arguments to `mpm-shadow update` (read in `mise.toml`, task `toolchain:update`, `usage ... var=#true`) and an unscoped run moves every
+  `@latest` and channel tool (rule `UPN` names the tool). The row id exists in `toolchain.plan.jsonc` (`request`
+  `cargo:monochromatic-git-policy-cli@latest`, route `cargo-binstall`).
+  Adopted: this narrows the earlier plan of an unscoped `toolchain:update`; the user's delegation ("I decide? No, just do it.")
+  still covers running it. Steps: the scoped update, `mise run toolchain:install`, review the `toolchain.lock.json` diff, commit only
+  that file by explicit pathspec, and report separately any other row the diff shows.
+  Also from 6e: the CI release workflow has a known bug (the bump commit is refused when main moves during the run, seen on
+  forbidden-strings run 41303293802; nothing pushed) and a fix is in progress, so the wrapper release waits for it.
+
 ## Open items
 
-- Nothing below was asked after the confirmation; the earlier list is kept for the record.
-- The third review (rule `RRG`) is folded in above.
-- Decisions the third review needs from the user: the CI bootstrap model (install a pinned native release, or build from committed
-  sources); whether CI guarantees detection only or prevention through a required PR check (branch protection is the owner's
-  setting); whether the policy also rejects tracked `package.json5` and `package.yaml` files; whether the wrapper ships after the
-  commit policy and CI instead of alongside them; whether the `zod` catalog entry keeps `>=4.6.7` (repository convention, 155 of
-  156 entries are floors) or `^4.6.7`.
-- Adopted without asking, veto open: scan failures in the wrapper are advisory diagnostics followed by delegation to pnpm, a missing
-  workspace root means delegation, child status and signals are preserved, only a missing real pnpm is fatal; `--dir` and `-C` are
-  not parsed, so the wrapper checks the tree of its own current directory (a documented limit, since `pnpm --dir /other` from a
-  different tree scans the wrong one); the byte-to-findings contract is written before implementation; the guarantee is documented
-  as a source-`package.json` reference-syntax rule, not resolution enforcement; the wrapper is described as a separate
-  advisory scope, not the same repository check.
-- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder`
-  scope against the policy scope; whether branch protection exists.
-- Whether the `updateConfig` hook is kept as a second layer later is open; nothing is built.
+- Blocked on 7a: the released wrapper that carries `mono/catalog-specifiers` (task 3). 7a messages the version and commit.
+- After that release: run `toolchain:update`, review the `toolchain.lock.json` diff, confirm the lock names the new cli-git version,
+  then write the separate always-run CI workflow (lock-pinned cargo-binstall, binstall of the pinned cli-git, the check, and a
+  negative-control fixture that must exit nonzero).
+- Then tell 7a the CI step is ready so the policy is listed in `cli-git.config.jsonc` at severity `error`.
+- Last: the warn-only `pnpm-shadow` wrapper at `package/pnpm-shadow/cli` (task 4), Unix only, `ignore` crate walk, warns on every
+  invocation, no skip switch, advisory diagnostics then delegation to pnpm.
+- Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
+  pattern matched twice.
+- Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; the actual `ignore` `WalkBuilder` scope
+  against the policy scope; whether branch protection exists.
 
 ## Next action
 
-Ask the user to confirm the shared understanding and to decide the review-driven items above.
-After confirmation: tell `monochromatic-7a` to build the policy from the draft spec (after the library contract is fixed and the
-library is published, per its release order), fix `zod` first, build the library crate, then the CI workflow once the wrapper release
-is installed from the lock, then the pnpm wrapper.
-Nothing is implemented before that confirmation.
+Wait for 7a's message or for the waiter (`~/temp/agent/wait-cli-git-policy-release.ts`), then follow the order in Open items.
+Nothing else is runnable before the release.

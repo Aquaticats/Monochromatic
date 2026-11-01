@@ -154,7 +154,8 @@ fn query_length_is_bounded_with_a_diagnostic() {
     let too_long = "a".repeat(MAX_FIND_QUERY_CHARS + 1);
     let error = find_matches(&text, &too_long, MAX_FIND_MATCHES)
         .expect_err("an over-long query was accepted");
-    assert!(error.to_string().contains("at most 1000 characters"));
+    let bound = format!("at most {MAX_FIND_QUERY_CHARS} characters");
+    assert!(error.to_string().contains(&bound));
 }
 
 /// Source larger than the stated bound is refused before it is copied.

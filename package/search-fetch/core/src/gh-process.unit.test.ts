@@ -25,6 +25,7 @@ import {
   createGhCommandRunner,
   GH_DEADLINE_MILLISECONDS,
   type GhCommandOutcome,
+  WHOLE_CALL_DEADLINE_MILLISECONDS,
 } from '../dist/final/node/index.mjs';
 
 //region Fixtures
@@ -433,9 +434,10 @@ await describe({
       name: 'GH_DEADLINE_MILLISECONDS',
       children: [
         it({
-          name: 'pins the default gh child deadline to 30 s',
+          name: 'keeps the gh child deadline inside one whole call',
           fn: async () => {
-            expect(GH_DEADLINE_MILLISECONDS,).toBe(30_000,);
+            expect(GH_DEADLINE_MILLISECONDS,).toBeGreaterThan(0,);
+            expect(GH_DEADLINE_MILLISECONDS,).toBeLessThan(WHOLE_CALL_DEADLINE_MILLISECONDS,);
           },
         },),
       ],

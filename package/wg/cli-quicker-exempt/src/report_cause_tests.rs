@@ -4,7 +4,7 @@
 //! and the fixed phrase every loud line starts with must not hide the reason.
 
 /// The cause under test.
-use crate::report_cause::{held_suffix, normalized_cause, quote_name, without_held_suffix};
+use crate::report_cause::{held_suffix, normalized_cause, quote_name, without_held_suffix, MAX_CAUSE_CHARS};
 /// The producer of lines that embed cgroup names.
 use crate::routing_support::adoptable_cgroup;
 /// The producer of lines that embed install roots.
@@ -62,8 +62,8 @@ fn two_different_errors_behind_the_fixed_phrase_are_two_causes() {
 /// so a line cannot make the cause unboundedly long.
 #[test]
 fn the_cause_is_bounded() {
-    assert_eq!(normalized_cause(&"x".repeat(5000)).chars().count(), 1024);
-    assert_eq!(normalized_cause(&"word ".repeat(5000)).chars().count(), 1024);
+    assert_eq!(normalized_cause(&"x".repeat(5000)).chars().count(), MAX_CAUSE_CHARS);
+    assert_eq!(normalized_cause(&"word ".repeat(5000)).chars().count(), MAX_CAUSE_CHARS);
 }
 
 /// The note of held-back repeats is removed only when it has its exact shape.

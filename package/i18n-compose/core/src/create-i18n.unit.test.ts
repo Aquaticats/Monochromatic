@@ -103,7 +103,7 @@ await describe({
     it({
       name: 'returns the const locale list and default locale verbatim',
       fn: async () => {
-        expect(i18n.locales,).toEqual(['ca', 'en', 'zh',],);
+        expect(i18n.locales,).toEqual([...locales,],);
         expect(i18n.defaultLocale,).toBe('en',);
       },
     },),

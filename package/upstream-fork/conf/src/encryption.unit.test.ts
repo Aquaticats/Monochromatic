@@ -20,13 +20,16 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  AUTHENTICATION_TAG_LENGTH,
   bytesToString,
   DecryptionFailedError,
   decryptConfigData,
   decryptWithSalt,
   encryptSerializedStore,
+  INITIALIZATION_VECTOR_LENGTH,
   InvalidAuthenticationTagError,
   isSupportedEncryptionAlgorithm,
+  SEPARATOR_CODE_POINT,
   stringToBytes,
 } from '../dist/final/neutral/index.mjs';
 
@@ -130,7 +133,7 @@ await describe({
             encryptionAlgorithm,
           },);
           // Code point of the `:` separator following the initialization vector.
-          expect(encrypted[16],).toBe(58,);
+          expect(encrypted[INITIALIZATION_VECTOR_LENGTH],).toBe(SEPARATOR_CODE_POINT,);
           /**
            Config file path the store would have written these bytes to.
            */
@@ -167,7 +170,7 @@ await describe({
           encryptionAlgorithm: 'aes-256-gcm',
         },);
         // GCM ciphertext length equals plaintext length, so the trailing 16 bytes past the framing are exactly the tag.
-        expect(encrypted.length,).toBe(17 + '{"theme":"dark"}'.length + 16,);
+        expect(encrypted.length,).toBe(INITIALIZATION_VECTOR_LENGTH + 1 + '{"theme":"dark"}'.length + AUTHENTICATION_TAG_LENGTH,);
       },
     },),
     it({

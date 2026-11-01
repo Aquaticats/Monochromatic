@@ -1,5 +1,7 @@
 import {
+  buildTimeoutFlag,
   cpusFlag,
+  examineFlag,
   memoryFlag,
   timeoutFlag,
 } from './constants.ts';
@@ -7,7 +9,8 @@ import {
 /**
  Build the arguments that follow `--` on the campaign task's command line for one file.
 
- The container limits are forwarded only when the caller names them, so the task's own defaults apply otherwise.
+ The build timeout and the container limits are forwarded only when the caller names them, so the task's own defaults
+ apply otherwise; every mutant-name pattern is forwarded, in order, because the patterns apply to every file.
  The values are forwarded unchanged; the task validates them.
 
  @param scopeFlag - flag the task takes once per source-file scope
@@ -15,6 +18,10 @@ import {
  @param scope - file scope, with the scope prefix already applied
  
  @param timeoutSeconds - per-mutant test timeout
+ 
+ @param buildTimeoutSeconds - per-mutant build timeout, or absent for the task's default
+ 
+ @param examine - mutant-name patterns, forwarded one flag each, or absent for none
  
  @param memory - container memory limit, or absent for the task's default
  
@@ -31,18 +38,32 @@ export function buildTaskArguments({
   scopeFlag,
   scope,
   timeoutSeconds,
+  buildTimeoutSeconds,
+  examine = [],
   memory,
   cpus,
 }: {
   readonly scopeFlag: string;
   readonly scope: string;
   readonly timeoutSeconds: number;
+  readonly buildTimeoutSeconds?: number;
+  readonly examine?: readonly string[];
   readonly memory?: string;
   readonly cpus?: string;
 }): readonly string[] {
   return [
     timeoutFlag,
     String(timeoutSeconds),
+    ...(buildTimeoutSeconds === undefined ? [] : [
+      buildTimeoutFlag,
+      String(buildTimeoutSeconds)
+    ]),
+    ...examine.flatMap(function examineArguments(pattern) {
+      return [
+        examineFlag,
+        pattern
+      ];
+    }),
     scopeFlag,
     scope,
     ...(memory === undefined ? [] : [

@@ -15,6 +15,7 @@
 
 /// Import the pipeline and fixture helpers.
 use super::{FileOutcome, SourceOutcome, process_file, process_file_with, process_source};
+use crate::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
 use crate::run_lfs::LfsRepos;
 use crate::run_plan::FilePlan;
 use crate::run_test_support::{ALL_RULES, CONFIG, plan, read, write};
@@ -128,7 +129,7 @@ fn a_fix_that_would_empty_the_file_is_refused() {
     assert_eq!(
         codes(outcome.findings.as_slice()),
         [
-            "core/fix-refused",
+            FIX_REFUSED,
             "markdown/link-image-reference-definitions"
         ]
     );
@@ -171,8 +172,8 @@ fn incomplete_processing_blocks_every_fix_in_the_file() {
     assert_eq!(
         sorted,
         [
-            "core/fix-refused",
-            "core/processing-failure",
+            FIX_REFUSED,
+            PROCESSING_FAILURE,
             "markdown/no-trailing-punctuation"
         ]
     );
@@ -187,7 +188,7 @@ fn unreadable_and_non_utf8_files_are_processing_findings() {
     let missing: FileOutcome = process(&fixture.path, "missing.md", true);
     assert_eq!(
         codes(missing.findings.as_slice()),
-        ["core/processing-failure"]
+        [PROCESSING_FAILURE]
     );
     assert!(
         missing.findings[0].message.starts_with("Cannot read "),
@@ -201,7 +202,7 @@ fn unreadable_and_non_utf8_files_are_processing_findings() {
     let binary: FileOutcome = process(&fixture.path, "binary.md", true);
     assert_eq!(
         codes(binary.findings.as_slice()),
-        ["core/processing-failure"]
+        [PROCESSING_FAILURE]
     );
     assert!(
         binary.findings[0]
@@ -248,7 +249,7 @@ fn a_directory_named_like_a_source_file_is_a_processing_finding() {
     let outcome: FileOutcome = process(&fixture.path, "dir.md", true);
     assert_eq!(
         codes(outcome.findings.as_slice()),
-        ["core/processing-failure"]
+        [PROCESSING_FAILURE]
     );
     assert!(!outcome.written);
     assert!(fixture.path.join("dir.md").is_dir());
@@ -284,7 +285,7 @@ fn a_failed_write_reports_the_original_findings() {
         [
             "markdown/no-trailing-punctuation",
             "markdown/single-h1",
-            "core/processing-failure"
+            PROCESSING_FAILURE
         ]
     );
     let failure = &outcome.findings[2];

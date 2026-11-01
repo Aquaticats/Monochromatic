@@ -30,14 +30,14 @@ class FocusRingGeometryTest {
             assertEquals(0f, bands.inner.top, 0f)
             assertEquals(200f, bands.inner.right, 0f)
             assertEquals(56f, bands.inner.bottom, 0f)
-            assertEquals(-2f, bands.middle.left, 0f)
-            assertEquals(-2f, bands.middle.top, 0f)
-            assertEquals(202f, bands.middle.right, 0f)
-            assertEquals(58f, bands.middle.bottom, 0f)
-            assertEquals(-3f, bands.outer.left, 0f)
-            assertEquals(-3f, bands.outer.top, 0f)
-            assertEquals(203f, bands.outer.right, 0f)
-            assertEquals(59f, bands.outer.bottom, 0f)
+            assertEquals(-spec.nearWidth, bands.middle.left, 0f)
+            assertEquals(-spec.nearWidth, bands.middle.top, 0f)
+            assertEquals(200f + spec.nearWidth, bands.middle.right, 0f)
+            assertEquals(56f + spec.nearWidth, bands.middle.bottom, 0f)
+            assertEquals(-spec.outset, bands.outer.left, 0f)
+            assertEquals(-spec.outset, bands.outer.top, 0f)
+            assertEquals(200f + spec.outset, bands.outer.right, 0f)
+            assertEquals(56f + spec.outset, bands.outer.bottom, 0f)
         }
     }
 
@@ -48,15 +48,15 @@ class FocusRingGeometryTest {
             /** Bands of a 100 by 48 element with 12 dp corners. */
             val bands: FocusRingBands = focusRingBands(100f, 48f, RingCorners.uniform(12f), spec)
             assertEquals(RingCorners.uniform(12f), bands.inner.corners)
-            assertEquals(RingCorners.uniform(14f), bands.middle.corners)
-            assertEquals(RingCorners.uniform(15f), bands.outer.corners)
+            assertEquals(RingCorners.uniform(12f + spec.nearWidth), bands.middle.corners)
+            assertEquals(RingCorners.uniform(12f + spec.outset), bands.outer.corners)
         }
     }
 
     /** The room a clipping parent must leave is the sum of the gap and both widths: 3 dp. */
     @Test
     fun outsetIsThreeDp() {
-        assertEquals(3f, FIREFOX_RING_SPEC.outset, 0f)
+        assertEquals(FIREFOX_RING_SPEC.gap + FIREFOX_RING_SPEC.nearWidth + FIREFOX_RING_SPEC.outerWidth, FIREFOX_RING_SPEC.outset, 0f)
     }
 
     /** A pill stays a pill: every edge's radius is still half of that edge's own height. */
@@ -91,8 +91,8 @@ class FocusRingGeometryTest {
         /** Bands of a plain rectangle. */
         val bands: FocusRingBands = focusRingBands(300f, 64f, RingCorners.uniform(0f), FIREFOX_RING_SPEC)
         assertEquals(RingCorners.uniform(0f), bands.inner.corners)
-        assertEquals(RingCorners.uniform(2f), bands.middle.corners)
-        assertEquals(RingCorners.uniform(3f), bands.outer.corners)
+        assertEquals(RingCorners.uniform(FIREFOX_RING_SPEC.squareCornerRadius), bands.middle.corners)
+        assertEquals(RingCorners.uniform(FIREFOX_RING_SPEC.squareCornerRadius + FIREFOX_RING_SPEC.outerWidth), bands.outer.corners)
     }
 
     /** Only the square corner of a segment changes: the rounded corners grow by the widths. */
@@ -102,8 +102,8 @@ class FocusRingGeometryTest {
         val corners = RingCorners(topLeft = 24f, topRight = 0f, bottomRight = 0f, bottomLeft = 24f)
         /** Bands of that segment under Firefox. */
         val bands: FocusRingBands = focusRingBands(90f, 48f, corners, FIREFOX_RING_SPEC)
-        assertEquals(RingCorners(topLeft = 26f, topRight = 2f, bottomRight = 2f, bottomLeft = 26f), bands.middle.corners)
-        assertEquals(RingCorners(topLeft = 27f, topRight = 3f, bottomRight = 3f, bottomLeft = 27f), bands.outer.corners)
+        assertEquals(RingCorners(topLeft = 24f + FIREFOX_RING_SPEC.nearWidth, topRight = FIREFOX_RING_SPEC.nearWidth, bottomRight = FIREFOX_RING_SPEC.nearWidth, bottomLeft = 24f + FIREFOX_RING_SPEC.nearWidth), bands.middle.corners)
+        assertEquals(RingCorners(topLeft = 24f + FIREFOX_RING_SPEC.outset, topRight = FIREFOX_RING_SPEC.outset, bottomRight = FIREFOX_RING_SPEC.outset, bottomLeft = 24f + FIREFOX_RING_SPEC.outset), bands.outer.corners)
     }
 
     /** A gap, when a spec has one, moves both rings out and grows every radius by it. */
@@ -113,11 +113,11 @@ class FocusRingGeometryTest {
         val spec = FocusRingSpec(nearWidth = 2f, outerWidth = 1f, gap = 2f, squareCornerRadius = 0f)
         /** Bands of a 100 by 40 element with 10 dp corners. */
         val bands: FocusRingBands = focusRingBands(100f, 40f, RingCorners.uniform(10f), spec)
-        assertEquals(-2f, bands.inner.left, 0f)
-        assertEquals(RingCorners.uniform(12f), bands.inner.corners)
-        assertEquals(-4f, bands.middle.left, 0f)
-        assertEquals(-5f, bands.outer.left, 0f)
-        assertEquals(5f, spec.outset, 0f)
+        assertEquals(-spec.gap, bands.inner.left, 0f)
+        assertEquals(RingCorners.uniform(10f + spec.gap), bands.inner.corners)
+        assertEquals(-(spec.gap + spec.nearWidth), bands.middle.left, 0f)
+        assertEquals(-spec.outset, bands.outer.left, 0f)
+        assertEquals(spec.gap + spec.nearWidth + spec.outerWidth, spec.outset, 0f)
     }
 
     /** Inside, the outer edge of the pair is the element's own bounds, so nothing reaches outside it (D120). */
@@ -139,14 +139,14 @@ class FocusRingGeometryTest {
     fun insideRingsKeepTheTwoAndOneDpWidths() {
         /** Bands of a 200 by 56 row, drawn inside. */
         val bands: FocusRingBands = focusRingBandsInside(200f, 56f, RingCorners.uniform(0f), FIREFOX_RING_SPEC)
-        assertEquals(1f, bands.middle.left - bands.outer.left, 0f)
-        assertEquals(1f, bands.outer.right - bands.middle.right, 0f)
-        assertEquals(1f, bands.middle.top - bands.outer.top, 0f)
-        assertEquals(1f, bands.outer.bottom - bands.middle.bottom, 0f)
-        assertEquals(2f, bands.inner.left - bands.middle.left, 0f)
-        assertEquals(2f, bands.middle.right - bands.inner.right, 0f)
-        assertEquals(2f, bands.inner.top - bands.middle.top, 0f)
-        assertEquals(2f, bands.middle.bottom - bands.inner.bottom, 0f)
+        assertEquals(FIREFOX_RING_SPEC.outerWidth, bands.middle.left - bands.outer.left, 0f)
+        assertEquals(FIREFOX_RING_SPEC.outerWidth, bands.outer.right - bands.middle.right, 0f)
+        assertEquals(FIREFOX_RING_SPEC.outerWidth, bands.middle.top - bands.outer.top, 0f)
+        assertEquals(FIREFOX_RING_SPEC.outerWidth, bands.outer.bottom - bands.middle.bottom, 0f)
+        assertEquals(FIREFOX_RING_SPEC.nearWidth, bands.inner.left - bands.middle.left, 0f)
+        assertEquals(FIREFOX_RING_SPEC.nearWidth, bands.middle.right - bands.inner.right, 0f)
+        assertEquals(FIREFOX_RING_SPEC.nearWidth, bands.inner.top - bands.middle.top, 0f)
+        assertEquals(FIREFOX_RING_SPEC.nearWidth, bands.middle.bottom - bands.inner.bottom, 0f)
     }
 
     /** Inside, the pair is the outside pair of the row taken in by 3 dp, so the near ring's inner edge is 3 dp in. */
@@ -156,10 +156,10 @@ class FocusRingGeometryTest {
         val inside: FocusRingBands = focusRingBandsInside(120f, 48f, RingCorners.uniform(0f), FIREFOX_RING_SPEC)
         /** Bands of the same row taken in by 3 dp, drawn outside, moved back by 3 dp. */
         val outside: FocusRingBands = focusRingBands(114f, 42f, RingCorners.uniform(0f), FIREFOX_RING_SPEC)
-        assertEquals(3f, inside.inner.left, 0f)
-        assertEquals(3f, inside.inner.top, 0f)
-        assertEquals(117f, inside.inner.right, 0f)
-        assertEquals(45f, inside.inner.bottom, 0f)
+        assertEquals(FIREFOX_RING_SPEC.outset, inside.inner.left, 0f)
+        assertEquals(FIREFOX_RING_SPEC.outset, inside.inner.top, 0f)
+        assertEquals(120f - FIREFOX_RING_SPEC.outset, inside.inner.right, 0f)
+        assertEquals(48f - FIREFOX_RING_SPEC.outset, inside.inner.bottom, 0f)
         assertEquals(outside.middle.width, inside.middle.width, 0f)
         assertEquals(outside.outer.height, inside.outer.height, 0f)
         assertEquals(outside.outer.corners, inside.outer.corners)
@@ -171,8 +171,8 @@ class FocusRingGeometryTest {
         /** Bands of a plain rectangle, drawn inside. */
         val bands: FocusRingBands = focusRingBandsInside(300f, 64f, RingCorners.uniform(0f), FIREFOX_RING_SPEC)
         assertEquals(RingCorners.uniform(0f), bands.inner.corners)
-        assertEquals(RingCorners.uniform(2f), bands.middle.corners)
-        assertEquals(RingCorners.uniform(3f), bands.outer.corners)
+        assertEquals(RingCorners.uniform(FIREFOX_RING_SPEC.squareCornerRadius), bands.middle.corners)
+        assertEquals(RingCorners.uniform(FIREFOX_RING_SPEC.squareCornerRadius + FIREFOX_RING_SPEC.outerWidth), bands.outer.corners)
     }
 
     /** A circle stays a circle inside: the outer edge is the element's own circle and every edge is square. */
@@ -186,8 +186,8 @@ class FocusRingGeometryTest {
             assertEquals(edge.width / 2f, edge.corners.topLeft, 0f)
         }
         assertEquals(48f, bands.outer.width, 0f)
-        assertEquals(46f, bands.middle.width, 0f)
-        assertEquals(42f, bands.inner.width, 0f)
+        assertEquals(48f - 2f * FIREFOX_RING_SPEC.outerWidth, bands.middle.width, 0f)
+        assertEquals(48f - 2f * FIREFOX_RING_SPEC.outset, bands.inner.width, 0f)
     }
 
     /** A pill stays a pill inside: the outer edge keeps the element's radius, half its height. */
@@ -196,8 +196,8 @@ class FocusRingGeometryTest {
         /** Bands of a 160 by 40 pill, drawn inside. */
         val bands: FocusRingBands = focusRingBandsInside(160f, 40f, RingCorners.uniform(20f), FIREFOX_RING_SPEC)
         assertEquals(RingCorners.uniform(20f), bands.outer.corners)
-        assertEquals(RingCorners.uniform(19f), bands.middle.corners)
-        assertEquals(RingCorners.uniform(17f), bands.inner.corners)
+        assertEquals(RingCorners.uniform(20f - FIREFOX_RING_SPEC.outerWidth), bands.middle.corners)
+        assertEquals(RingCorners.uniform(20f - FIREFOX_RING_SPEC.outset), bands.inner.corners)
     }
 
     /** An element smaller than the rings gets empty inner outlines instead of negative sizes. */

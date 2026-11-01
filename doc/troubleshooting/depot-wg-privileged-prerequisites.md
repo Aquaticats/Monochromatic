@@ -1,5 +1,9 @@
 # iproute2 6.1.0 and Tini 0.19 help assumptions stop the Depot WG namespace consumer
 
+> Depot is not adopted (2026-11-01):
+> the Depot job named in this record belongs to a research branch,
+> and nothing in this repository runs it.
+
 ## Symptom
 
 The frozen WG privileged profile encountered independent prerequisite and isolation failures.

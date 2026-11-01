@@ -20,6 +20,8 @@
 mod closure_stub_support;
 
 use closure_stub_support::{Scenario, scenario};
+use monochromatic_lint::CLOSURE_RULE;
+use monochromatic_lint::run_failure::PROCESSING_FAILURE;
 use serde_json::Value;
 use std::{
     path::{Path, PathBuf},
@@ -149,7 +151,7 @@ fn a_report_is_a_warning_finding_and_exit_zero() {
     assert_eq!(output.status, 0, "{}", output.stderr);
     let found: Vec<Value> = records(&output.stdout);
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0]["code"], "rust/avoidable-closure");
+    assert_eq!(found[0]["code"], CLOSURE_RULE);
     assert_eq!(found[0]["severity"], "warn");
     assert_eq!(found[0]["filename"], "my pkg/src/lib.rs");
     assert_eq!(found[0]["labels"][0]["span"]["line"], 2);
@@ -229,7 +231,7 @@ fn an_unfulfilled_expectation_is_reported() {
         record("unfulfilled_lint_expectations", "src/lib.rs", 23).as_str(),
     )]);
     let output: Run = run(&fixture, &stub, &["my pkg"]);
-    assert_eq!(records(&output.stdout)[0]["code"], "rust/avoidable-closure");
+    assert_eq!(records(&output.stdout)[0]["code"], CLOSURE_RULE);
 }
 
 /// A fuzz or bench crate is never run,
@@ -351,7 +353,7 @@ fn an_unknown_prerequisite_exits_two() {
     let output: Run = run(&fixture, &stub, &["my pkg"]);
     assert_eq!(output.status, 2);
     let found: Vec<Value> = records(&output.stdout);
-    assert_eq!(found[0]["code"], "core/processing-failure");
+    assert_eq!(found[0]["code"], PROCESSING_FAILURE);
     assert_eq!(found[0]["filename"], "my pkg/Cargo.toml");
     assert!(
         found[0]["message"]
@@ -621,7 +623,7 @@ fn the_rule_is_listed_as_unsuppressible_with_a_library_option() {
     let listing: Run = run_with(&fixture, None, &["--rules"]);
     let rule: Value = records(&listing.stdout)
         .into_iter()
-        .find(|value| return value["id"] == "rust/avoidable-closure")
+        .find(|value| return value["id"] == CLOSURE_RULE)
         .expect("listed");
     assert_eq!(rule["suppressible"], false);
     assert_eq!(rule["options"].to_string(), r#"["library"]"#);
@@ -673,7 +675,7 @@ fn host_real_run_over_wg_quicker_exempt() {
     let findings: Vec<Value> = records(&String::from_utf8(linted.stdout).expect("UTF-8"));
     assert!(!findings.is_empty(), "the real lint reported nothing");
     for finding in &findings {
-        assert_eq!(finding["code"], "rust/avoidable-closure");
+        assert_eq!(finding["code"], CLOSURE_RULE);
         let name: &str = finding["filename"].as_str().expect("text");
         assert!(
             !name.contains("_tests.rs") && !name.contains("/tests/"),

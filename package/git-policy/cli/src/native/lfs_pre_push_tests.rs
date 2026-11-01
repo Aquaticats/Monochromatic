@@ -209,10 +209,17 @@ fn the_entry_blocks_when_the_program_cannot_be_started() {
 fn the_entry_blocks_when_the_program_is_ended_by_a_signal() {
     let root: PathBuf = fixture("lfs-entry-signal");
     let program: PathBuf = root.join("killed");
-    executable(program.as_path(), b"#!/bin/sh\nkill -TERM $$\nsleep 5\n");
+    let signal: i32 = libc::SIGTERM;
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nkill -{signal} $$\nsleep 5\n").as_bytes(),
+    );
     let (status, diagnostics) = run_entry(program.as_path(), &["origin", "u"]);
-    assert_eq!(status, 128 + 15);
-    assert!(diagnostics.contains("was ended by signal 15"), "{diagnostics}");
+    assert_eq!(status, crate::forwarding::SIGNAL_EXIT_BASE + signal);
+    assert!(
+        diagnostics.contains(format!("was ended by signal {signal}").as_str()),
+        "{diagnostics}"
+    );
     remove(root.as_path());
 }
 

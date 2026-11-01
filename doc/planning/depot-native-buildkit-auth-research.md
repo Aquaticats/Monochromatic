@@ -1,5 +1,12 @@
 # Native CI job authentication for container builds
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 Native run `pxx75mxnw2` passed the actual frozen-source queue producer and exported-file consumer
 using only its automatically injected job credential.
 The initial exporter fixture failure is retained separately.

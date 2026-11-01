@@ -52,6 +52,22 @@ export const defaultScopeFlag = '--file';
 export const timeoutFlag = '--timeout';
 
 /**
+ Exit status cargo-mutants returns when at least one mutant timed out, in its build or in its tests, and the baseline
+ passed; see `doc/troubleshooting/cargo-mutants-timeout-exit-status.md`.
+ */
+export const timeoutExitStatus = 3;
+
+/**
+ Flag the campaign task takes for the per-mutant build limit in seconds; forwarded only when the caller names a limit.
+ */
+export const buildTimeoutFlag = '--build-timeout';
+
+/**
+ Flag the campaign task takes once per mutant-name regular expression; forwarded once per pattern the caller names.
+ */
+export const examineFlag = '--examine';
+
+/**
  Flag the campaign task takes for the container memory limit; forwarded only when the caller names a limit.
  */
 export const memoryFlag = '--memory';

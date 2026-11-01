@@ -453,6 +453,106 @@ except where a musl platform now gets the musl build the release offers):
   `rustup: rustup@latest`
   and `go:github.com/charmbracelet/crush@latest` on the `go-install` route.
 
+### A second llama.cpp under another bin name
+
+The machine-global plan holds two llama.cpp builds.
+`github:lemonade-sdk/llamacpp-rocm` is the ROCm build for the GPU,
+and it declares `llama-cli` with the other `llama-*` names.
+`llama.cpp-cpu` is the plain `ubuntu-x64` release asset of `ggml-org/llama.cpp`,
+which is the CPU build,
+pinned to `b9829` like the `llama.cpp` entry of the repository plan.
+A bin name declared twice is refused,
+so the CPU build exposes its `llama-cli` as `llama-cpu-cli`.
+In `binAliases` the key is the exposed name and the value is the executable inside the archive,
+the same direction as the `bunx` and `pnpm` entries.
+
+```jsonc
+// ${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/toolchain.plan.jsonc
+"llama.cpp-cpu": {
+  "request": "github:ggml-org/llama.cpp@b9829",
+  "route": "archive",
+  "bins": ["llama-cpu-cli"],
+  "options": { "binAliases": { "llama-cpu-cli": "llama-cli" } }
+},
+```
+
+Adding it is the ordinary lifecycle,
+never `update --all`:
+
+```sh
+# Run from the repository root: lock the new entry alone, then converge the machine-global tools.
+mise run toolchain:update:global -- llama.cpp-cpu
+mise run toolchain:install:global
+```
+
+The lock then records `llama-b9829-bin-ubuntu-x64.tar.gz` for `linux-x64`,
+and `command -v llama-cpu-cli` names the exposure directory.
+The `llama-cli` of the ROCm build keeps its name.
+
+#### Xiaomi-OCR-0 on the CPU with `llama-cpu-cli`
+
+Issue 2576 asked for a global CPU-only command for `xiaomi-research/Xiaomi-OCR-0` without Python written by this repository.
+The research is `doc/research/xiaomi-ocr-without-python.md`,
+and the measurements are in `doc/troubleshooting/xiaomi-ocr-0-cpu-inference.md`.
+Release `b9829` loaded the community GGUF files of `prithivMLmods/Xiaomi-OCR-0-GGUF`
+and printed the same text for the sample image as the Transformers recipe did on 2026-11-01.
+Xiaomi says it has not evaluated those community conversions,
+and the check covered one image.
+
+Weights are not an mpm tool,
+so they are pinned with `hf download`,
+which the global plan already provides through `pipx:huggingface_hub`.
+They live in `${HOME}/models/Xiaomi-OCR-0-GGUF`,
+inside the `models` directory of the home directory,
+where `package/hall-monitor/daemon/src/analyze/llama.ts` also keeps its GGUF files.
+Both files match the SHA-256 values that the Hub listed for them at the pinned revision:
+`1e497ff06b91a3d822c543066df3e9ef69c62c5423be09d739dfa1db55630d3a` for the Q4_K_M text model
+and `634d6bc95781ebf4a3f06570a59859fa5082d488db540fd474bc6b4061aec90e` for the BF16 projector.
+
+```sh
+# Fetch the text model and the projector at a fixed revision of the community repository.
+hf download prithivMLmods/Xiaomi-OCR-0-GGUF Xiaomi-OCR-0.Q4_K_M.gguf Xiaomi-OCR-0.mmproj-bf16.gguf \
+  --revision 7bbfa072e0f3d70ac722e26fbccef5b9f64b7121 --local-dir "${HOME}/models/Xiaomi-OCR-0-GGUF"
+
+# Fetch the published sample image at the revision the Transformers recipe uses.
+hf download xiaomi-research/Xiaomi-OCR-0 example_pics/qianziwen.jpeg \
+  --revision bbd8cf8d21f256b3644b44cb860f3a7cecb93c30 --local-dir ./sample
+```
+
+The command line that was run:
+
+```sh
+# One-shot OCR of the sample on the CPU; the answer is on stdout between the prompt echo and the statistics line.
+llama-cpu-cli \
+  --model "${HOME}/models/Xiaomi-OCR-0-GGUF/Xiaomi-OCR-0.Q4_K_M.gguf" \
+  --mmproj "${HOME}/models/Xiaomi-OCR-0-GGUF/Xiaomi-OCR-0.mmproj-bf16.gguf" \
+  --image ./sample/example_pics/qianziwen.jpeg \
+  --prompt "Extract the text in the image." \
+  --reasoning off --temp 0 --single-turn --simple-io --no-display-prompt \
+  --ctx-size 4096 --n-predict 256 --threads 2
+```
+
+- `--single-turn` makes the CLI exit after one answer.
+  Do not use `--no-conversation`:
+  `llama-cli` at `b9829` answers "please use llama-completion instead",
+  and the run that carried it had written 16 GB to a redirected stdout when it was stopped after a few minutes.
+- `--ctx-size 4096` bounds the context.
+  Without it the CLI takes the model's own context length,
+  and the peak resident memory of the sample run was 4.18 GiB instead of 1.21 GiB.
+  A full page needs a larger value;
+  that case was not measured.
+- `--reasoning off` is honoured:
+  `--reasoning on` changed the sample's answer,
+  while `off` gave the text the Transformers recipe printed.
+- `--threads 2` is the two-CPU budget that the measurements used.
+- `llama-cli` prints a banner and a statistics line on stdout.
+  `llama-mtmd-cli` prints the answer alone,
+  after an empty `<think>` block,
+  but the ROCm entry owns that name and no CPU alias exists for it.
+- No `xiaomi-ocr` verb exists:
+  mpm links binaries as they are,
+  and this repository ships no wrapper script.
+
 ## Commands
 
 - `mpm-shadow install --lockfile-only --offline`:

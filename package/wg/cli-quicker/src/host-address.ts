@@ -13,13 +13,13 @@ import {
  Shortest pause between two DNS refreshes,
  in seconds.
  */
-const MIN_REFRESH_SECONDS = 30;
+export const MIN_REFRESH_SECONDS = 30;
 
 /**
  Longest pause between two DNS refreshes,
  in seconds.
  */
-const MAX_REFRESH_SECONDS = 900;
+export const MAX_REFRESH_SECONDS = 900;
 
 /**
  Bits in an IPv4 address.

@@ -22,6 +22,7 @@ import {
   PLAYWRIGHT_IMAGE_PLATFORM,
   PLAYWRIGHT_LOCAL_IMAGE,
   PLAYWRIGHT_REGISTRY_IMAGE,
+  PLAYWRIGHT_TAG_LENGTH,
   PlaywrightImageError,
   type Podman,
   type PodmanResult,
@@ -38,13 +39,18 @@ const DOCKERFILE = new TextEncoder().encode('abc',);
 /**
  SHA-256 of `abc` is `ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad` (FIPS 180-2 test vector).
  */
-const TAG = 'ba7816bf8f01cfea';
+const SHA256_OF_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+
+/**
+ The tag of the test vector: the first {@link PLAYWRIGHT_TAG_LENGTH} hex digits of {@link SHA256_OF_ABC}.
+ */
+const TAG = SHA256_OF_ABC.slice(0, PLAYWRIGHT_TAG_LENGTH,);
 
 /**
  Registry reference and local names for {@link TAG}.
  */
-const REFERENCE = `ghcr.io/aquaticats/monochromatic-playwright:${TAG}`;
-const TAGGED = `monochromatic-playwright:${TAG}`;
+const REFERENCE = `${PLAYWRIGHT_REGISTRY_IMAGE}:${TAG}`;
+const TAGGED = `${PLAYWRIGHT_LOCAL_IMAGE}:${TAG}`;
 
 /**
  The platform question the task asks podman before a pull.
@@ -58,7 +64,7 @@ const INFO = 'info --format {{.Host.OS}}/{{.Host.Arch}}';
 type Script = Readonly<Record<string, PodmanResult>>;
 
 /**
- Whether text is exactly 16 lowercase hex digits.
+ Whether text is a tag: exactly {@link PLAYWRIGHT_TAG_LENGTH} lowercase hex digits.
 
  @param text - Candidate tag
 
@@ -66,11 +72,11 @@ type Script = Readonly<Record<string, PodmanResult>>;
 
  @example
  ```ts
- isSixteenHexDigits('ba7816bf8f01cfea'); // true
+ isHexTag(TAG); // true
  ```
  */
-function isSixteenHexDigits(text: string,): boolean {
-  return (text.length === 16) && text.split('',).every(isLowercaseHexDigit,);
+function isHexTag(text: string,): boolean {
+  return (text.length === PLAYWRIGHT_TAG_LENGTH) && text.split('',).every(isLowercaseHexDigit,);
 }
 
 /**
@@ -151,7 +157,7 @@ const calls = join(dirname(process.argv[1]), 'calls.log');
 const args = process.argv.slice(2);
 appendFileSync(calls, args.join(' ') + '\\n');
 const exits = { image: process.env.FAKE_EXISTS_EXIT, pull: process.env.FAKE_PULL_EXIT, build: process.env.FAKE_BUILD_EXIT };
-if (args[0] === 'info') console.log(process.env.FAKE_PLATFORM ?? 'linux/amd64');
+if (args[0] === 'info') console.log(process.env.FAKE_PLATFORM ?? ${JSON.stringify(PLAYWRIGHT_IMAGE_PLATFORM,)});
 const code = Number(exits[args[0]] ?? '0');
 if (code !== 0) console.error(args[0] === 'pull' ? 'Error: initializing source docker://x: unauthorized' : 'step failed in ' + args[0]);
 process.exit(code);
@@ -284,10 +290,10 @@ await describe({
           fn: async () => {
             expect(playwrightImageTag(DOCKERFILE,),).toBe(TAG,);
             expect(
-              isSixteenHexDigits(playwrightImageTag(DOCKERFILE,),),
+              isHexTag(playwrightImageTag(DOCKERFILE,),),
             ).toBe(true,);
-            expect(isSixteenHexDigits('BA7816BF8F01CFEA',),).toBe(false,);
-            expect(isSixteenHexDigits('ba7816bf8f01cfe',),).toBe(false,);
+            expect(isHexTag(TAG.toUpperCase(),),).toBe(false,);
+            expect(isHexTag(TAG.slice(0, -1,),),).toBe(false,);
           },
         },),
         it({
@@ -308,7 +314,7 @@ await describe({
             const shell = await spawn('sha256sum', [file,],);
             expect(
               playwrightImageTag(readFileSync(file,),),
-            ).toBe(shell.stdout.slice(0, 16,),);
+            ).toBe(shell.stdout.slice(0, PLAYWRIGHT_TAG_LENGTH,),);
           },
         },),
       ],
@@ -330,7 +336,7 @@ await describe({
             const { podman, calls, lines, log, } = scripted({ image: { exitCode: 0, output: '', }, },);
             const source = await ensurePlaywrightImage({ dockerfile: DOCKERFILE, dockerfilePath: 'playwright.Dockerfile', podman, log, },);
             expect(source,).toBe('present',);
-            expect(calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} monochromatic-playwright`,],);
+            expect(calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} ${PLAYWRIGHT_LOCAL_IMAGE}`,],);
             expect(lines,).toEqual([`using ${TAGGED} (already local)`,],);
           },
         },),
@@ -345,7 +351,7 @@ await describe({
               INFO,
               `pull ${REFERENCE}`,
               `tag ${REFERENCE} ${TAGGED}`,
-              `tag ${REFERENCE} monochromatic-playwright`,
+              `tag ${REFERENCE} ${PLAYWRIGHT_LOCAL_IMAGE}`,
             ],);
             expect(lines,).toEqual([`pulled ${REFERENCE}`,],);
           },
@@ -363,7 +369,7 @@ await describe({
               `image exists ${TAGGED}`,
               INFO,
               `pull ${REFERENCE}`,
-              `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
+              `build --tag ${TAGGED} --tag ${PLAYWRIGHT_LOCAL_IMAGE} --file playwright.Dockerfile .`,
             ],);
             expect(lines[0],).toBe(
               `could not pull ${REFERENCE}: Error: unauthorized; building playwright.Dockerfile locally`,
@@ -460,8 +466,8 @@ await describe({
               caught = error;
             }
             expect(caught,).toBeInstanceOf(PlaywrightImageError,);
-            expect((caught as Error).message,).toContain(`podman tag ${TAGGED} monochromatic-playwright exited 125: image not known`,);
-            expect(calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} monochromatic-playwright`,],);
+            expect((caught as Error).message,).toContain(`podman tag ${TAGGED} ${PLAYWRIGHT_LOCAL_IMAGE} exited 125: image not known`,);
+            expect(calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} ${PLAYWRIGHT_LOCAL_IMAGE}`,],);
           },
         },),
         it({
@@ -476,10 +482,10 @@ await describe({
             expect(calls,).toEqual([
               `image exists ${TAGGED}`,
               INFO,
-              `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
+              `build --tag ${TAGGED} --tag ${PLAYWRIGHT_LOCAL_IMAGE} --file playwright.Dockerfile .`,
             ],);
             expect(lines[0],).toBe(
-              `could not pull ${REFERENCE}: the published image is linux/amd64 and this machine is linux/arm64; building playwright.Dockerfile locally`,
+              `could not pull ${REFERENCE}: the published image is ${PLAYWRIGHT_IMAGE_PLATFORM} and this machine is linux/arm64; building playwright.Dockerfile locally`,
             );
           },
         },),
@@ -533,7 +539,7 @@ await describe({
             }
             expect(caught,).toBeInstanceOf(PlaywrightImageError,);
             expect((caught as Error).message,).toContain(
-              `${REFERENCE} could not be pulled (the published image is linux/amd64 and this machine is linux/arm64)`,
+              `${REFERENCE} could not be pulled (the published image is ${PLAYWRIGHT_IMAGE_PLATFORM} and this machine is linux/arm64)`,
             );
           },
         },),
@@ -576,7 +582,7 @@ await describe({
               INFO,
               `pull ${REFERENCE}`,
               `tag ${REFERENCE} ${TAGGED}`,
-              `tag ${REFERENCE} monochromatic-playwright`,
+              `tag ${REFERENCE} ${PLAYWRIGHT_LOCAL_IMAGE}`,
             ],);
           },
         },),
@@ -588,11 +594,11 @@ await describe({
               withPodman: true,
             },);
             expect(run.exitCode,).toBe(0,);
-            expect(run.output,).toContain('the published image is linux/amd64 and this machine is linux/arm64',);
+            expect(run.output,).toContain(`the published image is ${PLAYWRIGHT_IMAGE_PLATFORM} and this machine is linux/arm64`,);
             expect(run.calls,).toEqual([
               `image exists ${TAGGED}`,
               INFO,
-              `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
+              `build --tag ${TAGGED} --tag ${PLAYWRIGHT_LOCAL_IMAGE} --file playwright.Dockerfile .`,
             ],);
           },
         },),
@@ -602,7 +608,7 @@ await describe({
             const run = await runEntry({ environment: {}, withPodman: true, },);
             expect(run.exitCode,).toBe(0,);
             expect(run.output,).toContain(`[prepare:playwright] using ${TAGGED} (already local)`,);
-            expect(run.calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} monochromatic-playwright`,],);
+            expect(run.calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} ${PLAYWRIGHT_LOCAL_IMAGE}`,],);
           },
         },),
         it({
@@ -610,11 +616,11 @@ await describe({
           fn: async () => {
             const run = await runEntry({ environment: { FAKE_EXISTS_EXIT: '1', FAKE_PULL_EXIT: '125', }, withPodman: true, },);
             expect(run.exitCode,).toBe(0,);
-            expect(run.output,).toContain('could not pull ghcr.io/aquaticats/monochromatic-playwright:',);
+            expect(run.output,).toContain(`could not pull ${PLAYWRIGHT_REGISTRY_IMAGE}:`,);
             expect(run.output,).toContain('Error: initializing source docker://x: unauthorized',);
             expect(run.output,).toContain('building playwright.Dockerfile locally',);
             expect(run.calls.at(-1,),).toBe(
-              `build --tag ${TAGGED} --tag monochromatic-playwright --file playwright.Dockerfile .`,
+              `build --tag ${TAGGED} --tag ${PLAYWRIGHT_LOCAL_IMAGE} --file playwright.Dockerfile .`,
             );
           },
         },),

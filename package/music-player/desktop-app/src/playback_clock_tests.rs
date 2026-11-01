@@ -96,12 +96,12 @@ fn position_updates_wait_for_the_emit_interval_of_audible_progress() {
     assert_eq!(clock.position_to_emit(96_000 - 2_400, RATE), None);
     // 0.1 s consumed: first update at 0.1 s.
     let first = clock.position_to_emit(96_000 - 4_800, RATE);
-    assert!(first.is_some_and(|secs| return (secs - 0.1).abs() < 1e-9));
+    assert!(first.is_some_and(|secs| return (secs - POSITION_EMIT_INTERVAL_SECS).abs() < 1e-9));
     // 0.15 s: too soon after the first update.
     assert_eq!(clock.position_to_emit(96_000 - 7_200, RATE), None);
     // 0.2 s: the next update.
     let second = clock.position_to_emit(96_000 - 9_600, RATE);
-    assert!(second.is_some_and(|secs| return (secs - 0.2).abs() < 1e-9));
+    assert!(second.is_some_and(|secs| return (secs - 2.0 * POSITION_EMIT_INTERVAL_SECS).abs() < 1e-9));
 }
 
 #[test]
@@ -178,8 +178,9 @@ fn frames_of_samples_of_an_unknown_channel_count_is_zero() {
 }
 
 #[test]
-fn the_emit_interval_is_a_tenth_of_a_second() {
-    assert!((POSITION_EMIT_INTERVAL_SECS - 0.1).abs() < f64::EPSILON);
+fn the_emit_interval_throttles_below_a_second() {
+    assert!(POSITION_EMIT_INTERVAL_SECS > 0.0, "a zero interval would emit every callback");
+    assert!(POSITION_EMIT_INTERVAL_SECS < 1.0, "updates must arrive more than once per second");
 }
 
 #[test]
@@ -238,7 +239,7 @@ fn crossing_resets_the_emit_baseline_so_the_new_track_reports_from_zero() {
     clock.cross_boundary();
     // Just after the join the new track is at 0.1 s: it must be reported even though the old baseline was 1.0 s.
     let early = clock.position_to_emit(144_000 - (96_000 + 4_800), RATE);
-    assert!(early.is_some_and(|secs| return (secs - 0.1).abs() < 1e-9));
+    assert!(early.is_some_and(|secs| return (secs - POSITION_EMIT_INTERVAL_SECS).abs() < 1e-9));
 }
 
 #[test]

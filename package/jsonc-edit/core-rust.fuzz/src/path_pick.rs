@@ -31,7 +31,7 @@ use monochromatic_jsonc_edit::{units_to_string, JsoncKind, JsoncPathSegment, Jso
 /// Why:
 ///       Generated documents nest at most a few containers,
 ///           so a larger cap would only produce repeated not-found paths.
-const MAX_SEGMENTS: usize = 6;
+pub(crate) const MAX_SEGMENTS: usize = 6;
 
 /// What:
 ///      Choose one address that resolves inside the given document.

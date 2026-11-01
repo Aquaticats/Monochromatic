@@ -323,6 +323,7 @@ function flushRepeated(
 //endregion
 
 export {
+  COLLAPSE_THRESHOLD,
   collapseCwdPaths,
   collapseHomePaths,
   collapseRepeatedChars,

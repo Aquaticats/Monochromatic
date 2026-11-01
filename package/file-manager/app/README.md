@@ -82,12 +82,7 @@ Run on the host with mise (Cargo builds against the system GTK 4.22 via pkg-conf
 mise run //package/file-manager/app:run
 ```
 
-Other tasks:
- `build` (release),
- `lint` (cargo check),
- `lint:clippy` (clippy,
- warnings denied),
- `test` (cargo nextest).
+The package's other tasks are defined in [`mise.toml`](mise.toml).
 
 ## Platform notes
 

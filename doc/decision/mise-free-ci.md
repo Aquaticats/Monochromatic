@@ -6,8 +6,11 @@ This decision is in force.
 
 ## Decision
 
-Mise is no longer installed, configured or invoked by any GitHub Actions or
-Depot CI workflow in this repository.
+Mise is no longer installed, configured or invoked by any GitHub Actions
+workflow in this repository.
+(When this was decided,
+the rule also covered the Depot CI workflows;
+Depot was not adopted and `.depot/workflows/` was deleted on 2026-11-01.)
 Every workflow installs its tools directly (Node and pnpm through the vendor
 archives `.github/actions/task-cli-setup` downloads, Java through the pinned
 Temurin archive, Rust through `rustup`) and runs the repository's tasks
@@ -16,7 +19,7 @@ through `task-run`, the node-native task CLI at
 No external GitHub action installs a tool: the user asked to avoid
 third-party actions where possible, because every one of them is an
 organization and repository allow-list entry
-(`doc/runbook/depot-trial-action-policy.md`).
+(`doc/troubleshooting/github-actions-organization-policy.md`).
 The root `mise.toml`, `mise.no-env.toml` and `mise.lock` remain as the local
 developer task system and the pinned-tool source of truth; `mise.lock` is
 still read for version pins, but mise itself is never executed in CI.
@@ -26,12 +29,13 @@ Moved on 2026-10-26:
 
 ## Scope
 
-- Applies to every workflow under `.github/workflows/` and
-  `.depot/workflows/`.
+- Applies to every workflow under `.github/workflows/`.
+  It also covered `.depot/workflows/` until Depot was not adopted and that folder was deleted on 2026-11-01.
 - Does not change local development: `mise run` keeps working unchanged on
   developer machines.
-- Does not change publishing issuers, release producers or the trust
-  boundaries recorded in `depot-ci-adoption.md`.
+- Does not change publishing issuers or release producers.
+  It also left the trust boundaries recorded in `depot-ci-adoption.md` unchanged,
+  a decision the owner withdrew on 2026-11-01.
 - Keeps `mise.lock` as the pinned version record CI reads for Rust, Node,
   pnpm, the Android SDK components and the conformance tool.
   Moved on 2026-10-26:
@@ -130,3 +134,19 @@ where `/usr/local/bin` does not exist.
   `logger-fuzz` fuzz smoke step red.
 - The `package/music-player/*/task.ts` bodies still need the port repairs the
   handover lists before `music-player-release` runs them.
+- `pnpr-publish` builds every trusted package whose version the registry lacks,
+  so it needs a CI build task for the whole trusted list, not for the packages a
+  workflow names. Measured on 2026-11-01 over the 169 trusted packages
+  (`package/config/pnpr/config.yaml`): 15 declare no build, 11 have a `task.ts`,
+  and 143 declare `build` only in `mise.toml`. Of those 143, 107 extend only the
+  root templates (`build`, `build:js`, then `build:js:node` or `build:js:browser`),
+  and 36 carry cross-package `depends` or a custom body (the `translation-repair`
+  family, `test-harness/core`, `oxlint-plugin/no-restricted-syntax` and
+  `typeface/aquaticat`). The publisher now refuses the 143 with
+  `MissingCiBuildTaskError` instead of publishing a tarball without its `dist`
+  (`package/config/pnpr/src/build-plan.ts`), so the workflow stays red until each
+  of them gets a `task.ts`, leaves the trusted list, or the task-system migration
+  (`doc/planning/task-slice-pants-migration.md`) replaces the `task.ts` mirrors.
+  Writing 143 mirrors extends a layer that `doc/handover/task-slice-plan-revision.md`
+  records the user calling a stopgap; holding for the migration leaves the registry
+  without those 143 new versions meanwhile. Neither is decided here.

@@ -18,13 +18,8 @@ A minimal Electron app proving this repo can ship a no-Vite,
 
 ## Tasks
 
-- `mise run //package/electron-infra/app-counter:build` builds the staged Electron app.
-- `mise run //package/electron-infra/app-counter:test` runs unit tests plus the nested Wayland boundary test.
-- `mise run //package/electron-infra/app-counter:distribute` builds Linux,
-   Windows,
-   and macOS bundles for x64 and arm64.
-- `mise run //package/electron-infra/app-counter:distribute:dry-run`
-   prints the exact distribution target matrix without downloading Electron zips.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/electron-infra/app-counter:<task>`.
 
 ## Pure Wayland verification
 

@@ -20,7 +20,8 @@ mise run //package/mutation-test/cli-cargo-mutants:campaign:parallel -- \
 ```
 
 The launcher starts one capped `systemd-run --user` unit per file and returns at once.
-Each unit runs `mise run <task> -- --timeout <seconds> <scope flag> <scope prefix><file>` through the slot limiter,
+Each unit runs `mise run <task> -- --timeout <seconds> <scope flag> <scope prefix><file>` through the slot limiter
+(plus `--build-timeout <seconds>` and one `--examine <regex>` per pattern when given, see the options),
 with the image tag in the variable named by `--tag-env`, so no two campaigns share an image.
 Output goes to `<log dir>/<log prefix>-<label>-<stem>.log.<attempt>`.
 The launcher prints one line per unit and a `systemctl --user is-active` command that waits for them.
@@ -41,7 +42,18 @@ Run the script without arguments for the same list with defaults.
   (default no prefix and `--file`).
   The scope flag needs the equals sign, because a value that starts with hyphens is read as another option.
 - `--setenv <NAME=value>`, repeatable, adds environment to every unit.
-- `--timeout <seconds>` is the per-mutant timeout forwarded to the task (default 900).
+- `--timeout <seconds>` is the per-mutant test timeout forwarded to the task (default 900).
+- `--build-timeout <seconds>` is the per-mutant build timeout, cargo-mutants' own `--build-timeout` ("maximum run time
+  for cargo build command"), forwarded to the task only when given; otherwise the task's default applies
+  (`defaultBuildTimeoutSeconds`, 300 seconds, in `src/campaign-files.ts`).
+  A `TIMEOUT ... in 300s build` line of a campaign log means the build of that one mutant used the whole build timeout,
+  which a heavily loaded host can cause; rerun that mutant with a larger `--build-timeout`.
+  Each product's scoped task accepts it up to its maximum (3600 seconds unless the product names another).
+- `--examine <regex>`, repeatable, is a mutant-name pattern forwarded to every unit's task, so only the mutants whose
+  names match are tried in every listed file; the pattern may hold the plain characters the scoped task accepts
+  (names, `|`, `:`, `.`, `*`, `?`, parentheses, backslash, space and hyphen) and is checked here by the same function.
+  It reruns one named mutant, for example a timed-out one:
+  `-- --timeout 2400 --build-timeout 1200 --examine read_regular_file m047 private_storage.rs`.
 - `--memory <size>` and `--cpus <count>` are the container limits.
   They are forwarded to the task only when given; otherwise nothing is forwarded and the task's defaults apply.
 - `--unit-memory-max <value>` and `--unit-cpu-quota <value>` cap the whole systemd unit (the task, the container client
@@ -79,7 +91,11 @@ that supplies its image names, scopes, limits defaults and manifest:
 - `excludedMutantKinds` and `exclusionArguments`: the two mutant kinds no campaign tries, one repository-wide
   constant; a product adds exclusions on top and never removes one.
 - `parseContainerLimitOptions` and the argument builders for `--memory`, `--cpus` and `--pids-limit`.
-- `parseTimeoutAndExamine`, `parseFileScopes` and `baselineSkipArguments`: the campaign options and their messages.
+- `parseTimeoutAndExamine`, `examinePatternOf`, `parseFileScopes` and `baselineSkipArguments`: the campaign options
+  (`--timeout`, `--build-timeout`, `--examine`, `--file`) and their messages.
+  A product passes the parsed `buildTimeoutSeconds` to `campaignCommand`, which hands it to cargo-mutants.
+- `campaignFailureMessage`: the failure text of a campaign container; the timeout exit status names both timeout
+  options, because cargo-mutants gives a build timeout and a test timeout the same status.
 - `campaignCommand`, `campaignContainerfile`, `evidenceJson` and `exitRecord`: the command, the Containerfile that
   layers cargo-mutants over a tested image, and the evidence files.
 - `runCampaign`: the whole container flow (inspect the tested image, build with `--iidfile`, create from the image
@@ -104,8 +120,8 @@ the campaigns themselves are run by a person, never by a test.
 
 ## Tasks
 
-- `campaign:parallel` runs the launcher.
-  Products give it their values in a task of their own,
-  for example `native:mutation:parallel` in the git-policy package.
-- `campaign:gate-slot` runs the limiter.
-- `lint`, `lint:types`, `lint:oxlint`, `format:oxlint` and `test:unit` are the usual package checks.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/mutation-test/cli-cargo-mutants:<task>`.
+
+Products give `campaign:parallel` its values in a task of their own,
+for example `native:mutation:parallel` in the git-policy package.

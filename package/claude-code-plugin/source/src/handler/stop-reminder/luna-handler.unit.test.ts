@@ -19,12 +19,14 @@ import {
 } from './continuation-depth.ts';
 import { createStopRemindersHandler, } from './index.ts';
 import { questionLead, } from './reminder-lead.ts';
+import { ACTIONS, ACT_PROBABILITY, } from './situation-action.ts';
 import {
   LUNA_MODEL,
   LunaKeyMissingError,
   SITUATIONS,
   type Situation,
 } from './luna-situation.ts';
+import { MESSAGE_TAIL_CHARS, } from './verdict-log.ts';
 
 /**
  Credential the fake gateway expects; never a real key.
@@ -339,6 +341,28 @@ const HISTORY = [
   JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Final words.', },], }, },),
 ] as const;
 
+/**
+ Stop-event background task state both generated suites assume: no task is running.
+ */
+const NO_RUNNING_BACKGROUND_TASK = { backgroundTasks: [], } as const;
+
+/**
+ Situations whose table entry blocks while no background task runs.
+
+ Derived from the canonical table rather than a hand-kept list, so a new
+ situation is always in exactly one of the two halves below.
+ */
+const BLOCKING_SITUATIONS = SITUATIONS.filter(function blocks(situation,) {
+  return ACTIONS[situation](NO_RUNNING_BACKGROUND_TASK,).kind === 'block';
+},);
+
+/**
+ Situations whose table entry releases while no background task runs.
+ */
+const RELEASING_SITUATIONS = SITUATIONS.filter(function releases(situation,) {
+  return ACTIONS[situation](NO_RUNNING_BACKGROUND_TASK,).kind === 'release';
+},);
+
 await describe({
   name: 'stop-reminder Luna situation check',
   children: [
@@ -423,7 +447,7 @@ await describe({
             expect((await records(h.logPath,))[0]?.action,).toBe('release',);
           },
         },),
-        ...(['pauses_for_handoff', 'work_closed',] as const).map(function releases(situation,) {
+        ...RELEASING_SITUATIONS.map(function releases(situation,) {
           return it({
             name: `releases ${situation}`,
             fn: async () => {
@@ -439,7 +463,10 @@ await describe({
         it({
           name: 'releases a verdict below the cutoff even for a blocking label',
           fn: async () => {
-            const h = await harness({ lines: OPEN, reply: verdictReply('announces_own_next_step', 0.4,), },);
+            const h = await harness({
+              lines: OPEN,
+              reply: verdictReply('announces_own_next_step', ACT_PROBABILITY - 0.1,),
+            },);
 
             expect((await h.run()).decision,).toBeUndefined();
           },
@@ -447,7 +474,10 @@ await describe({
         it({
           name: 'blocks at exactly the cutoff',
           fn: async () => {
-            const h = await harness({ lines: OPEN, reply: verdictReply('announces_own_next_step', 0.6,), },);
+            const h = await harness({
+              lines: OPEN,
+              reply: verdictReply('announces_own_next_step', ACT_PROBABILITY,),
+            },);
 
             expect((await h.run()).decision,).toBe('block',);
           },
@@ -455,13 +485,13 @@ await describe({
         it({
           name: 'leads every block reason with the marker the depth guard counts',
           fn: async () => {
-            const reasons = await Promise.all((
-              ['announces_own_next_step', 'leaves_open_work', 'waits_on_user', 'waits_on_background_work',] as const
-            ).map(async function reasonFor(situation,) {
-              const h = await harness({ lines: OPEN, reply: verdictReply(situation,), },);
+            const reasons = await Promise.all(
+              BLOCKING_SITUATIONS.map(async function reasonFor(situation,) {
+                const h = await harness({ lines: OPEN, reply: verdictReply(situation,), },);
 
-              return (await h.run({ background_tasks: [], },)).reason;
-            },),);
+                return (await h.run({ background_tasks: [], },)).reason;
+              },),
+            );
 
             expect(reasons.every((reason,) => reason?.includes(CONTINUATION_MARKER,) === true),).toBe(true,);
           },
@@ -779,7 +809,7 @@ await describe({
             await h.run({ last_assistant_message: `${'x'.repeat(2_000,)}END`, },);
 
             const [record,] = await records(h.logPath,);
-            expect(String(record?.message,),).toHaveLength(600,);
+            expect(String(record?.message,),).toHaveLength(MESSAGE_TAIL_CHARS,);
             expect(String(record?.message,).endsWith('END',),).toBe(true,);
           },
         },),

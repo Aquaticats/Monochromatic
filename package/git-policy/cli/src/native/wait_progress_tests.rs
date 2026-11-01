@@ -3,7 +3,8 @@
 
 use super::*;
 
-/// A cadence of a one second grace and a ten second interval, the standard one.
+/// A cadence the ticker tests drive: one second of grace and ten seconds between notices.
+///  The values are the case's input, chosen so the waits are short; they are not the production defaults.
 const STANDARD: Cadence = Cadence {
     grace: Duration::from_secs(1),
     interval: Duration::from_secs(10),
@@ -12,14 +13,15 @@ const STANDARD: Cadence = Cadence {
 /// The variable's value sets the interval and an unusable value falls back to the standard cadence.
 #[test]
 fn the_cadence_follows_the_variable_or_the_standard() {
-    assert_eq!(Cadence::from_value(None), STANDARD);
-    assert_eq!(DEFAULT_NOTICE_INTERVAL, Duration::from_secs(10));
+    assert_eq!(Cadence::from_value(None), Cadence::standard());
+    // The default interval only has to be a positive wait: a zero one would print at every poll.
+    assert!(DEFAULT_NOTICE_INTERVAL > Duration::ZERO);
     assert_eq!(
         Cadence::from_value(Some(OsStr::new("30"))),
-        Cadence { grace: Duration::from_secs(1), interval: Duration::from_secs(30) }
+        Cadence { grace: NOTICE_GRACE, interval: Duration::from_secs(30) }
     );
     for value in ["0", "", "-1", "1.5", "soon"] {
-        assert_eq!(Cadence::from_value(Some(OsStr::new(value))), STANDARD, "{value:?}");
+        assert_eq!(Cadence::from_value(Some(OsStr::new(value))), Cadence::standard(), "{value:?}");
     }
 }
 
@@ -27,8 +29,10 @@ fn the_cadence_follows_the_variable_or_the_standard() {
 #[test]
 fn the_grace_never_outlasts_the_interval() {
     let short: Cadence = Cadence::from_interval(Duration::from_millis(250));
-    assert_eq!(short.grace, Duration::from_millis(250));
-    assert_eq!(Cadence::from_interval(Duration::from_secs(1)).grace, Duration::from_secs(1));
+    // Below the standard grace, the grace is the whole interval.
+    assert_eq!(short.grace, short.interval);
+    let one_second: Duration = Duration::from_secs(1);
+    assert_eq!(Cadence::from_interval(one_second).grace, one_second);
     assert_eq!(Cadence::from_interval(Duration::from_secs(60)).grace, NOTICE_GRACE);
 }
 

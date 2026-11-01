@@ -1,5 +1,12 @@
 # Podman in an unprivileged `podman build` pulls an image with a single ID mapping but cannot run a container
 
+> Note 2026-11-01:
+> the repository `Dockerfile` and `docker-compose.yml` named below were removed,
+> after the owner said "If nothing can be proven to depend on anything docker,
+> remove it."
+> The measurements below stay true of any unprivileged `podman build`,
+> and `mise run prepare:playwright` still pulls the published image.
+
 The repository `Dockerfile` ended with `RUN mise run prepare`,
 which runs `prepare:playwright`,
 and that built `playwright.Dockerfile` with a nested `podman build`.

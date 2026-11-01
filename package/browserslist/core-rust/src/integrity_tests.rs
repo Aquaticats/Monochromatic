@@ -23,7 +23,7 @@ const ABC_INTEGRITY: &str =
 fn known_vector() {
     assert_eq!(integrity_of(b"abc"), ABC_INTEGRITY);
     assert_eq!(verify("pkg", ABC_INTEGRITY, b"abc"), Ok(()));
-    assert_eq!(parse_sha512(ABC_INTEGRITY).expect("parses").len(), 64);
+    assert_eq!(parse_sha512(ABC_INTEGRITY).expect("parses").len(), super::DIGEST_LENGTH);
 }
 
 /// Changed bytes fail with both digests in the error.

@@ -25,7 +25,7 @@ export const MAX_EXTRA_CAUSES_PER_INTERVAL = 32;
  because every loud line starts with a fixed phrase of over a hundred characters
  that would use up a short bound before the reason begins.
  */
-const MAX_CAUSE_CHARS = 1_024;
+export const MAX_CAUSE_CHARS = 1_024;
 
 /**
  What a name a user chose is replaced with.

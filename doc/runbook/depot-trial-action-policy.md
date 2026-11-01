@@ -1,5 +1,12 @@
 # Allow the approved Depot trial actions
 
+> Depot is not adopted (status of 2026-11-01),
+> so do not follow this runbook.
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> It stays as the record of how the Depot trial was set up.
+
 GitHub rejected the repository policy update with
 `Only 'local_only' actions and workflows are allowed in this organization.`
 The existing CLI credential lacks `admin:org`,

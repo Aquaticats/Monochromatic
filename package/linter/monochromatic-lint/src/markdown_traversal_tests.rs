@@ -12,6 +12,7 @@
 use super::{MarkdownError, MarkdownSource, traversal};
 /// Import the finding model and every rule that walks ancestors or descendants,
 ///  to observe how a walk failure is reported.
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::markdown_duplicate_headings::no_duplicate_heading;
 use crate::markdown_headings::no_emphasis_as_heading;
@@ -203,7 +204,7 @@ fn a_parent_index_cycle_is_a_typed_error_and_a_processing_failure() {
     ] {
         assert_eq!(findings.len(), 1, "{rule}");
         let failure: &Diagnostic = &findings[0];
-        assert_eq!(failure.code, "core/processing-failure", "{rule}");
+        assert_eq!(failure.code, PROCESSING_FAILURE, "{rule}");
         assert!(failure.processing_failure, "{rule}");
         assert_eq!(failure.severity, Severity::Error, "{rule}");
         assert_eq!(failure.fix, None, "{rule}");
@@ -301,7 +302,7 @@ fn a_child_index_cycle_is_a_typed_error_and_a_processing_failure() {
     ] {
         assert_eq!(findings.len(), 1, "{rule}");
         let failure: &Diagnostic = &findings[0];
-        assert_eq!(failure.code, "core/processing-failure", "{rule}");
+        assert_eq!(failure.code, PROCESSING_FAILURE, "{rule}");
         assert!(failure.processing_failure, "{rule}");
         assert_eq!(failure.severity, Severity::Error, "{rule}");
         assert_eq!(failure.fix, None, "{rule}");

@@ -3,6 +3,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { DEFAULT_BOOST_OFF_MHZ, DEFAULT_BURST_STEP_WATTS, DEFAULT_THERMAL_TARGET_CELSIUS, } from './constants.ts';
 import {
   limitFromEnv,
   resolveLimits,
@@ -58,7 +59,7 @@ await describe({
         it({
           name: 'defaults to 95 degrees, 4490 MHz and 25 W and honours overrides',
           fn: async function tuning() {
-            expect(resolveThermalTuning({},),).toEqual({ thermalTargetCelsius: 95, boostOffMhz: 4_490, burstStepWatts: 25, },);
+            expect(resolveThermalTuning({},),).toEqual({ thermalTargetCelsius: DEFAULT_THERMAL_TARGET_CELSIUS, boostOffMhz: DEFAULT_BOOST_OFF_MHZ, burstStepWatts: DEFAULT_BURST_STEP_WATTS, },);
             expect(resolveThermalTuning({
               CPU_WATCH_LIMIT_TEMP: '90',
               CPU_WATCH_LIMIT_BOOST_OFF_MHZ: '4000',
@@ -78,6 +79,8 @@ await describe({
               capFile: '/home/x/.config/claude-cpu-cap/threads',
               cgroupFile: '/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/app.slice/claude-code-bash/cpu.max',
               ioWeightFile: '/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/app.slice/claude-code-bash/io.weight',
+              ioBfqWeightFile:
+                '/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/app.slice/claude-code-bash/io.bfq.weight',
               hwmonRoot: '/sys/class/hwmon',
               procRoot: '/proc',
               sampleDir: '/home/x/.local/share/claude-cpu-cap/samples',
@@ -92,6 +95,7 @@ await describe({
                 CPU_WATCH_CAP_FILE: '/a',
                 CPU_WATCH_CGROUP_FILE: '/b',
                 CPU_WATCH_IO_WEIGHT_FILE: '/f',
+                CPU_WATCH_IO_BFQ_WEIGHT_FILE: '/g',
                 CPU_WATCH_HWMON_ROOT: '/c',
                 CPU_WATCH_PROC_ROOT: '/d',
                 CPU_WATCH_SAMPLE_DIR: '/e',
@@ -102,6 +106,7 @@ await describe({
               capFile: '/a',
               cgroupFile: '/b',
               ioWeightFile: '/f',
+              ioBfqWeightFile: '/g',
               hwmonRoot: '/c',
               procRoot: '/d',
               sampleDir: '/e',

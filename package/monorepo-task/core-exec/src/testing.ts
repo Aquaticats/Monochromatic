@@ -36,6 +36,7 @@ export {
   findProgramUnder,
   isFinishedVersion,
   listVersionNames,
+  STALE_LEFTOVER_AGE_MS,
 } from './mpm-shadow-lock-folder.ts';
 export { installLockedArchive, } from './mpm-shadow-lock-install.ts';
 export {

@@ -1,5 +1,12 @@
 # Connect the Depot trial to GitHub
 
+> Depot is not adopted (status of 2026-11-01),
+> so do not follow this runbook.
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> It stays as the record of how the Depot trial was set up.
+
 This connects the trial to `Aquaticats/Monochromatic` after its organization transfer.
 The Depot CLI preflight reports that Depot Code Access is not installed for `Aquaticats`.
 The GitHub installation API returned no installations for that organization.

@@ -25,8 +25,11 @@ import type {
 
 /**
  Rules a recorded candidate may name, as the detector writes them.
+
+ Exported so the reader's test builds one candidate under every rule; a rule added here therefore reaches that
+ test's loop instead of skipping it silently.
  */
-const RECORDED_RULES: readonly PresentTenseRule[] = [
+export const RECORDED_RULES: readonly PresentTenseRule[] = [
   'contraction',
   'copula-or-auxiliary',
   's-ending-verb',

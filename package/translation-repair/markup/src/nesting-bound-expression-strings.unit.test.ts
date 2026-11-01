@@ -18,7 +18,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { firstNestingExcess, } from '../dist/final/node/index.mjs';
+import {
+  DELIMITER_BOUND,
+  firstNestingExcess,
+  NESTING_BOUND,
+} from '../dist/final/node/index.mjs';
 
 //region Nesting bound expression strings tests
 
@@ -55,7 +59,7 @@ await describe({
         expect(firstNestingExcess({ body: `{cat "mew" {\n${DEEP_INFO_FENCE}`, grammar: 'mdx', },),).toEqual({
           kind: 'beyond',
           measure: 'brackets',
-          bound: 256,
+          bound: NESTING_BOUND,
           line: 2,
           column: 263,
         },);
@@ -67,7 +71,7 @@ await describe({
         expect(firstNestingExcess({ body: `{cat "mew {\n${DEEP_INFO_FENCE}`, grammar: 'mdx', },),).toEqual({
           kind: 'beyond',
           measure: 'brackets',
-          bound: 256,
+          bound: NESTING_BOUND,
           line: 2,
           column: 263,
         },);

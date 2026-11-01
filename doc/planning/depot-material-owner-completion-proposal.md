@@ -1,5 +1,12 @@
 # Finite material-owner completion proposal
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 This proposal closes the remaining authored IDE, terminal, file-manager and design owner gaps against frozen
 application `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`. The [machine
 proposal](../audit/depot-material-owner-concrete-proposal-2026-10-18.evidence.json) retains exact owner/task

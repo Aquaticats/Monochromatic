@@ -33,7 +33,7 @@ import dev.monochromatic.musicplayer.core.unplayableFilesNotice
 internal const val ANALYSIS_FAILURE_CHANNEL_ID: String = "analysis-failure"
 
 /** Channel name that the system settings show to the user. */
-private const val ANALYSIS_FAILURE_CHANNEL_NAME: String = "Analysis problems"
+internal const val ANALYSIS_FAILURE_CHANNEL_NAME: String = "Analysis problems"
 
 /** Fixed id of the analysis-failure notification, different from the progress notification's id. */
 internal const val ANALYSIS_FAILURE_NOTIFICATION_ID: Int = 4202

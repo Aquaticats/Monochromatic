@@ -76,7 +76,7 @@ class FolderDisplayNameTest {
     /** Confirms that the root of the primary volume is named Internal storage. */
     @Test
     fun primaryVolumeRootUsesInternalStorage() {
-        assertEquals("Internal storage", folderNameFromDocumentId("primary:"))
+        assertEquals(PRIMARY_VOLUME_NAME, folderNameFromDocumentId("primary:"))
     }
 
     // What:     `fun otherVolumeRootUsesVolumeId` checks the root of a removable volume.
@@ -102,7 +102,7 @@ class FolderDisplayNameTest {
     /** Confirms that an empty document id gives the fallback name. */
     @Test
     fun emptyIdUsesSelectedFolder() {
-        assertEquals("Selected folder", folderNameFromDocumentId(""))
+        assertEquals(UNNAMED_FOLDER_NAME, folderNameFromDocumentId(""))
     }
 
     // What:     `fun colonOnlyIdUsesSelectedFolder` checks a document id that has only the separator.
@@ -115,7 +115,7 @@ class FolderDisplayNameTest {
     /** Confirms that a document id with only the separator gives the fallback name. */
     @Test
     fun colonOnlyIdUsesSelectedFolder() {
-        assertEquals("Selected folder", folderNameFromDocumentId(":"))
+        assertEquals(UNNAMED_FOLDER_NAME, folderNameFromDocumentId(":"))
     }
 
     // What:     `fun resultIsNeverBlank` checks that every shape gives a name with visible text.
@@ -162,7 +162,7 @@ class FolderDisplayNameTest {
     /** Confirms that a missing or blank folder name gives the MediaStore name. */
     @Test
     fun libraryNameFallsBackToMediaStore() {
-        assertEquals("Music library", libraryDisplayName(null))
-        assertEquals("Music library", libraryDisplayName("   "))
+        assertEquals(SYSTEM_LIBRARY_NAME, libraryDisplayName(null))
+        assertEquals(SYSTEM_LIBRARY_NAME, libraryDisplayName("   "))
     }
 }

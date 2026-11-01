@@ -1,5 +1,12 @@
 # Expanded GitHub and Depot CI rollout
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 Status:
 accepted on 2026-10-18 after Q7.
 This revision replaces the earlier rollout draft.

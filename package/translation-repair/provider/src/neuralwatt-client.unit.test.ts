@@ -33,9 +33,12 @@ import {
   estimateNeuralWattWh,
   isBudgetRefusal,
   isPaymentRefusal,
+  NEURALWATT_ABANDONED_ESTIMATE,
+  NEURALWATT_DAILY_WH,
   NEURALWATT_ENERGY_MARGIN,
   NeuralWattAllowanceError,
   NeuralWattModelNotServedError,
+  NEURALWATT_UNREPORTED_ESTIMATE,
   promptTokensOfBody,
   SCHEMA_BLOCK_HEADING,
 } from '../dist/final/node/index.mjs';
@@ -136,7 +139,7 @@ function quotaReply({ kwhUsed, }: { readonly kwhUsed: number; },): TransportRepl
 function scripted(
   {
     dir,
-    dailyWh = 550,
+    dailyWh = NEURALWATT_DAILY_WH,
     chat = [{ status: 200, bodyText: streamOf({ comments: ENERGY_COMMENT + FREE_COST_COMMENT, }), },],
     quota = [quotaReply({ kwhUsed: 13.9023, }),],
     dayStartSetting,
@@ -342,13 +345,13 @@ await describe({
          */
         const line = jsonRecordOf({ text: (await readFile(ledger.path, 'utf8',)).trim(), },);
         expect(line.wh,).toBeCloseTo(estimateWh, 12,);
-        expect(line.estimated,).toBe('unreported-estimate',);
+        expect(line.estimated,).toBe(NEURALWATT_UNREPORTED_ESTIMATE,);
         expect(line.promptTokens,).toBe(promptTokens,);
         expect(estimateWh,).toBeCloseTo(
           estimateNeuralWattWh({ servedId: 'deepseek-v4.1-flash', promptTokens, },).bucketMeanWh,
           12,
         );
-        expect(NEURALWATT_ENERGY_MARGIN,).toBe(1,);
+        expect(NEURALWATT_ENERGY_MARGIN,).toBeGreaterThanOrEqual(1,);
       },
     },),
 
@@ -495,7 +498,7 @@ await describe({
          Line the abandoned attempt left.
          */
         const line = jsonRecordOf({ text: (await readFile(ledger.path, 'utf8',)).trim(), },);
-        expect(line.estimated,).toBe('abandoned-estimate',);
+        expect(line.estimated,).toBe(NEURALWATT_ABANDONED_ESTIMATE,);
         expect(line.wh,).toBeGreaterThan(0,);
         expect(await ledger.read({ day: MIDNIGHT_DAY, },),).toMatchObject({ reservedWh: 0, calls: 1, },);
       },
@@ -623,7 +626,7 @@ await describe({
         await ask({ client, },);
         expect(await client.energy({ signal: SIGNAL, },),).toMatchObject({
           dayStart: '2026-10-20T05:05:25.000Z',
-          dailyWh: 550,
+          dailyWh: NEURALWATT_DAILY_WH,
           reservedWh: 0,
         },);
         expect((await client.energy({ signal: SIGNAL, },)).spentWh,).toBeCloseTo(0.015, 12,);

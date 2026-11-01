@@ -40,6 +40,35 @@ use super::plan::Plan;
 use super::scope::{EnvMap, Scope};
 
 /// What:
+/// The `bin --json` document shape:
+/// each key,
+/// in render order,
+/// with the value it carries
+/// (`exposureDir` relative to the worktree,
+/// `pathDirs` the absolute existing program directories,
+/// `bins` the name-to-absolute-link map).
+/// Why:
+/// The writer builds the document from this one declaration,
+/// and the test reads the same declaration,
+/// so a fourth key cannot be written without the guard covering it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function documentFields(exposureDir: string, pathDirs: string[], bins: Record<string, string>): [string, unknown][]
+/// ```
+pub(super) fn document_fields(
+    exposure_dir: &str,
+    path_dirs: Vec<Value>,
+    bins: Map<String, Value>,
+) -> Vec<(&'static str, Value)> {
+    return vec![
+        ("exposureDir", Value::String(exposure_dir.to_string())),
+        ("pathDirs", Value::Array(path_dirs)),
+        ("bins", Value::Object(bins)),
+    ];
+}
+
+/// What:
 /// Builds the `bin` document.
 /// Why:
 /// A binary name declared twice is refused (the link farm could hold only one of them);
@@ -77,9 +106,9 @@ pub fn bin_paths_output(plan: &Plan, scope: &Scope, env: &EnvMap) -> Result<Valu
         }
     }
     let mut document: Map<String, Value> = Map::new();
-    document.insert("exposureDir".to_string(), Value::String(scope.exposure_dir_relative.clone()));
-    document.insert("pathDirs".to_string(), Value::Array(path_dirs));
-    document.insert("bins".to_string(), Value::Object(bins));
+    for (key, value) in document_fields(&scope.exposure_dir_relative, path_dirs, bins) {
+        document.insert(key.to_string(), value);
+    }
     return Ok(Value::Object(document));
 }
 

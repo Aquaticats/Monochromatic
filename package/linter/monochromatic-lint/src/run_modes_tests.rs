@@ -19,13 +19,36 @@ use super::{
 use crate::config_lookup::CONFIG_NAME;
 use crate::configuration::{ConfigBlock, parse_configuration};
 use crate::configuration_rules::RULE_IDS;
+use crate::directive_findings::UNUSED;
+use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_plan::ConfigStore;
+use crate::rust_rule_settings::DEFAULT_MAX_LINES;
 use crate::run_test_support::{read, records, write};
 use crate::test_fs::Fixture;
 use monochromatic_jsonc_edit::{
     JsoncPathSegment, JsoncValue, jsonc_key_path, jsonc_lookup, parse_jsonc,
 };
 use std::path::Path;
+
+/// Markdown rules without a fixer:
+///  their remedy is structural,
+///  so no grouped edit can repair them.
+const UNFIXABLE_MARKDOWN: [&str; 4] = [
+    "markdown/heading-increment",
+    "markdown/no-duplicate-heading",
+    "markdown/single-h1",
+    "markdown/no-emphasis-as-heading",
+];
+
+/// Rust rules no inline directive can suppress:
+///  the budget and documentation ratchets,
+///  and the compiler-backed closure check,
+///  which rustc's own `expect` attribute controls.
+const UNSUPPRESSIBLE_RUST: [&str; 3] = [
+    "rust/max-lines",
+    "rust/require-rustdoc",
+    "rust/avoidable-closure",
+];
 
 /// The listing has one JSON object per registered rule,
 ///  in registry order,
@@ -51,71 +74,33 @@ fn the_listing_describes_every_registered_rule_in_order() {
             r#"{"id":"shell/no-ampersand","fixable":false,"options":["max"],"suppressible":false}"#
         )
     );
-    let mut fixable: Vec<&str> = Vec::<&str>::new();
-    for rule in RULES {
-        if rule.fixable {
-            fixable.push(rule.id);
-        }
+    // Fixability is exactly the Markdown rules whose remedy is a grouped edit.
+    for id in RULE_IDS {
+        let rule = rule_info(*id).expect("registered rule is described");
+        let fixable: bool = id.starts_with("markdown/") && !UNFIXABLE_MARKDOWN.contains(id);
+        assert_eq!(rule.fixable, fixable, "{id}");
     }
-    assert_eq!(
-        fixable,
-        [
-            "markdown/commands-show-output",
-            "markdown/no-trailing-punctuation",
-            "markdown/no-bare-urls",
-            "markdown/fenced-code-language",
-            "markdown/link-image-reference-definitions",
-            "markdown/link-image-style",
-            "markdown/no-pipe-tables",
-            "markdown/semantic-line-breaks",
-            "markdown/lfs-image-url",
-        ]
-    );
     assert!(listing.ends_with('\n'));
 }
 
 /// Exactly the line budget,
 ///  the documentation requirement,
-///  the compiler-backed closure check and the nine shell rules refuse inline directives,
+///  the compiler-backed closure check and every shell rule refuse inline directives,
 ///  and the lookup answers by the identifier a finding carries.
 ///  The closure check is suppressed by rustc's own `expect` attribute only,
 ///  and the shell rules are held by configuration ratchets only.
 #[test]
 fn only_the_budget_rustdoc_closure_and_shell_rules_declare_themselves_unsuppressible() {
-    let mut unsuppressible: Vec<&str> = Vec::<&str>::new();
-    for rule in RULES {
-        if !rule.suppressible {
-            unsuppressible.push(rule.id);
-        }
+    // Suppressibility is exactly the rules outside the shell namespace and the three Rust ratchets.
+    for id in RULE_IDS {
+        let rule = rule_info(*id).expect("registered rule is described");
+        let suppressible: bool =
+            !(id.starts_with("shell/") || UNSUPPRESSIBLE_RUST.contains(id));
+        assert_eq!(rule.suppressible, suppressible, "{id}");
     }
-    assert_eq!(
-        unsuppressible,
-        [
-            "rust/max-lines",
-            "rust/require-rustdoc",
-            "rust/avoidable-closure",
-            "shell/max-lines",
-            "shell/no-pipe",
-            "shell/no-and-chain",
-            "shell/no-or-chain",
-            "shell/no-pipe-stderr",
-            "shell/no-semicolon",
-            "shell/no-dollar-paren",
-            "shell/no-backtick",
-            "shell/no-ampersand"
-        ]
-    );
-    assert_eq!(
-        rule_info("markdown/no-bare-urls").map(|rule| return rule.suppressible),
-        Some(true)
-    );
-    assert_eq!(
-        rule_info("rust/max-lines").map(|rule| return rule.suppressible),
-        Some(false)
-    );
     // Core and directive findings are not rules, so they are outside the registry and never suppressible.
-    assert!(rule_info("core/processing-failure").is_none());
-    assert!(rule_info("directive/unused").is_none());
+    assert!(rule_info(PROCESSING_FAILURE).is_none());
+    assert!(rule_info(UNUSED).is_none());
 }
 
 /// The starter is valid configuration that selects every rule except the Cargo-backed one,
@@ -209,7 +194,7 @@ fn effective_configuration_distinguishes_its_four_states() {
     let strict: serde_json::Value =
         serde_json::from_str::<serde_json::Value>(configured_text.as_str()).expect("strict JSON");
     assert_eq!(strict["rules"]["rust/max-lines"]["severity"], "warn");
-    assert_eq!(strict["rules"]["rust/max-lines"]["max"], 300);
+    assert_eq!(strict["rules"]["rust/max-lines"]["max"].as_u64(), Some(DEFAULT_MAX_LINES as u64));
     assert_eq!(strict["state"], "configured");
     let configured: JsoncValue = parse_jsonc(configured_text.as_str()).expect("parses");
     assert_eq!(member(&configured, "state").as_deref(), Some("configured"));
@@ -230,7 +215,8 @@ fn effective_configuration_distinguishes_its_four_states() {
     );
     let max_path: Vec<JsoncPathSegment> = jsonc_key_path(["rules", "rust/max-lines", "max"]);
     let max: &JsoncValue = jsonc_lookup(&configured, max_path.as_slice()).expect("max");
-    assert_eq!(max.number_token(), Some("300"));
+    let default_max: String = DEFAULT_MAX_LINES.to_string();
+    assert_eq!(max.number_token(), Some(default_max.as_str()));
     for (file, state) in [
         ("vendor/a.rs", "ignored"),
         ("doc/a.md", "unconfigured"),

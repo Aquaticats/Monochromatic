@@ -427,6 +427,12 @@ and accepted with this record:
   and `doc/decision/mpm-toolchain-adoption.md:348`,
   the `mise.toml` and `mise.no-env.toml` schema mappings in `.idea/jsonSchemas.xml:26,32`,
   and deletes `package/file-enforcer/core`.
+  The `Dockerfile` this list names was removed on 2026-11-01 with the root `docker-compose.yml`
+  and the `testDockerImage` task,
+  after the owner said "If nothing can be proven to depend on anything docker,
+  remove it."
+  The switch's `Dockerfile` repointing is therefore history,
+  not a file to maintain.
 - The global plan is converted directly,
   keeping a 0600 backup beside the original until the converted global sync is verified.
 

@@ -208,11 +208,7 @@ patterns and is fastest when the caller already feeds length-sorted lines.
 
 ## Tasks
 
-- `mise run //package/forbidden-strings/core:test` runs the unit and
-  integration tests.
-- `mise run lint:monochromatic-lint -- package/forbidden-strings/core`,
-  from the repository root,
-  enforces the code-line budget and required rustdoc.
-- `mise run //package/forbidden-strings/core:lint:clippy` runs clippy.
-- `mise run //package/forbidden-strings/core:bench` measures throughput
-  against `regex`.
+[`mise.toml`](mise.toml) defines this package's tasks.
+Run one with `mise run //package/forbidden-strings/core:<task>`.
+The repository linter runs from the repository root:
+`mise run lint:monochromatic-lint -- package/forbidden-strings/core`.

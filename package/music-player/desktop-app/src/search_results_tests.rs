@@ -5,6 +5,7 @@
 // Why:      Split across two sibling files so each stays under the line budget. Reaches the module items via
 //           `use super::*` because this file is the `tests` CHILD of search_results.
 use super::*;
+use crate::search_matcher::TIER_NAME_PREFIX;
 
 // What:     `fn library_of<S: AsRef<str>>(paths: &[S]) -> Vec<Track>` test helper: one track per display path.
 // Why:      Each track needs its own URI so that library positions are distinct in the results.
@@ -331,7 +332,7 @@ fn extension_is_not_matched() {
 #[test]
 fn multi_term_track_match_uses_title_only() {
     let state: SearchState = search("live cam", &["Other/Live at Camellia.flac"]);
-    assert_eq!(only(items_of(&state)).tier, 1);
+    assert_eq!(only(items_of(&state)).tier, TIER_NAME_PREFIX);
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -351,5 +352,5 @@ fn japanese_track_title_matches() {
     let state: SearchState = search("ラジオ", &["演歌/ラジオ体操.flac"]);
     let result: &SearchResult = only(items_of(&state));
     assert_eq!(result.name, "ラジオ体操");
-    assert_eq!(result.tier, 1);
+    assert_eq!(result.tier, TIER_NAME_PREFIX);
 }

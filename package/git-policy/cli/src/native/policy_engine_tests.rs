@@ -22,6 +22,7 @@ use super::{
     BLOCKED_EXIT_CODE, PolicyChecks, PolicyFinding, PolicyOutcome, StageEnd, StageRequest,
     StageResult, Unavailable, any_policy_applies, pass_exit_code, run_policy_stage,
 };
+use crate::action::ENGINE_FAILURE_EXIT_CODE;
 use crate::config_schema::PolicyConfig;
 use crate::diagnostics::EngineFailureCode;
 /// The event form of a pathname.
@@ -644,29 +645,37 @@ fn exit_code_follows_ending_then_events() {
         code: "all-flag",
         message: String::from("m"),
     };
-    assert_eq!(BLOCKED_EXIT_CODE, 1);
     assert_eq!(pass_exit_code(&[], StageEnd::Completed), 0);
     assert_eq!(pass_exit_code(&[warning_event()], StageEnd::Completed), 0);
     assert_eq!(
         pass_exit_code(&[warning_event(), error_event()], StageEnd::Completed),
-        1
+        BLOCKED_EXIT_CODE
     );
-    assert_eq!(pass_exit_code(&[error_event()], StageEnd::Stopped), 1);
+    assert_eq!(
+        pass_exit_code(&[error_event()], StageEnd::Stopped),
+        BLOCKED_EXIT_CODE
+    );
     assert_eq!(
         pass_exit_code(&[warning_event(), core], StageEnd::Completed),
-        1
+        BLOCKED_EXIT_CODE
     );
-    assert_eq!(pass_exit_code(&[error_event()], StageEnd::Failed), 2);
+    assert_eq!(
+        pass_exit_code(&[error_event()], StageEnd::Failed),
+        ENGINE_FAILURE_EXIT_CODE
+    );
     assert_eq!(
         pass_exit_code(
             &[error_event()],
             StageEnd::Unavailable(Unavailable::Lifecycle(Trigger::PostCommit))
         ),
-        2
+        ENGINE_FAILURE_EXIT_CODE
     );
     // A pending correction blocks even when every event is a warning.
-    assert_eq!(pass_exit_code(&[warning_event()], StageEnd::Proposed), 1);
-    assert_eq!(pass_exit_code(&[], StageEnd::Proposed), 1);
+    assert_eq!(
+        pass_exit_code(&[warning_event()], StageEnd::Proposed),
+        BLOCKED_EXIT_CODE
+    );
+    assert_eq!(pass_exit_code(&[], StageEnd::Proposed), BLOCKED_EXIT_CODE);
 }
 
 /// The finding `finding(code)` offering a fix.

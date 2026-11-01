@@ -1,11 +1,16 @@
 # Depot CI adoption
 
 Status:
-accepted on 2026-10-18 under `AGENTS.md` `DRR`.
-This decision is in force.
-The user confirmed the revised rollout plan at `d94e50bec4` in Q7 and accepted this record,
+withdrawn on 2026-11-01.
+The owner said on 2026-11-01:
+"Delete .depot as a whole and update relevant docs.
+We've decided to not adopt depot after all."
+This decision is no longer in force and no Depot work proceeds under it;
+the body below is kept unchanged as the historical record.
+It was accepted on 2026-10-18 under `AGENTS.md` `DRR`:
+the user confirmed the revised rollout plan at `d94e50bec4` in Q7 and accepted this record,
 so
-implementation is permitted.
+implementation was permitted.
 
 This decision consolidates the operating model settled in the 2026-10-18 interview.
 It is supported by [the evaluation](../planning/depot-expanded-ci-evaluation.md),

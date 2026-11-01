@@ -13,6 +13,7 @@
 //! ```
 
 /// Import the shared invocation fixtures.
+use crate::run_failure::{FIX_REFUSED, PROCESSING_FAILURE};
 use crate::run_output::RunOutput;
 use crate::run_test_support::{ALL_RULES, CONFIG, codes, read, records, run, write};
 use crate::test_fs::Fixture;
@@ -365,7 +366,7 @@ fn standard_input_setup_failures_exit_two() {
     assert_eq!(
         codes(refused.stderr.as_str()),
         [
-            "core/fix-refused",
+            FIX_REFUSED,
             "markdown/link-image-reference-definitions"
         ]
     );
@@ -522,7 +523,7 @@ fn lfs_rewrites_files_and_unusable_endpoints_are_processing_failures() {
     );
     let unusable: RunOutput = run(&fixture.path, &[], "");
     assert_eq!(unusable.exit_code, 2);
-    assert_eq!(codes(unusable.stdout.as_str()), ["core/processing-failure"]);
+    assert_eq!(codes(unusable.stdout.as_str()), [PROCESSING_FAILURE]);
     let message: String = String::from(
         records(unusable.stdout.as_str())[0]["message"]
             .as_str()

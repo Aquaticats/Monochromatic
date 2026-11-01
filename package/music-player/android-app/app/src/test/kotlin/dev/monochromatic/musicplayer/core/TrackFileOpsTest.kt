@@ -234,7 +234,7 @@ class TrackFileOpsTest {
     /** Confirms the authority is the text between the scheme and the first slash. */
     @Test
     fun authorityReadsHost() {
-        assertEquals("com.android.externalstorage.documents", authorityOf(DOC_IN_HELD))
+        assertEquals(TRASH_SAF_AUTHORITY, authorityOf(DOC_IN_HELD))
     }
 
     // What:     `authorityNullForNonContent` checks a string without the content scheme.
@@ -366,7 +366,7 @@ class TrackFileOpsTest {
     /** Confirms an unknown extension yields the generic type. */
     @Test
     fun mimeTypeForUnknownExtensionIsGeneric() {
-        assertEquals("application/octet-stream", mimeTypeFor("x.xyz"))
+        assertEquals(TRASH_MIME_DEFAULT, mimeTypeFor("x.xyz"))
     }
 
     // What:     `mimeTypeForNameWithoutDotIsGeneric` checks a name with no extension.
@@ -379,7 +379,7 @@ class TrackFileOpsTest {
     /** Confirms a name without a dot yields the generic type. */
     @Test
     fun mimeTypeForNameWithoutDotIsGeneric() {
-        assertEquals("application/octet-stream", mimeTypeFor("track"))
+        assertEquals(TRASH_MIME_DEFAULT, mimeTypeFor("track"))
     }
 
     // What:     `mimeTypeCoversEveryAcceptedExtension` checks that the table covers every accepted audio extension.
