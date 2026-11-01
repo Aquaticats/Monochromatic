@@ -1103,6 +1103,14 @@ each finished branch is reviewed and merged into `main`):
   the owner's "Delete it" recorded in the README and the decision record.
   Final re-check of `313a81668e..39be20e06b` running;
   a clean result releases it under the 0.2.1 rule.
+  Final re-check 2026-11-01:
+  no blocker,
+  no should-fix,
+  S1 and M1 to M6 closed (S1 executed on the final binary;
+  `cargo uninstall ... -- <crate>` checked with real cargo;
+  lint exit 0).
+  Merged into `main` as `caada873eb` and pushed;
+  release run `41269279750` started.
 - Switch fixes reported 2026-11-01,
   tip `3adda252e7` (`5adc06997f` code and tests,
   `3adda252e7` docs):
