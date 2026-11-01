@@ -137,10 +137,16 @@ habit and review only.
 A scan cannot check a path outside the repository,
 so the entry that cites such a file also states what it read,
 which is what B1295 now does.
-A script that a ledger cites by name lives in the folder of the round whose logs the entry cites,
+A script or a log that a ledger cites by name lives in the folder of the round whose logs the entry cites,
 or the entry names the folder it is in (`count-cases.ts` of B1327 is in `w405-fix`,
 and the entry first said the folder of its own round's logs,
-ledger B1359).
+ledger B1359;
+`spec-m2.json` and `red-m2-0.txt` to `red-m2-8.txt` of B1355 are in `w406-fix`,
+and the header of that ledger names `w407-fix`,
+ledger B1400).
+A bare name does not find its file:
+`rg --files --glob "spec-m2.json" /var/home/user/temp/agent/tr-fan` lists three folders that hold one,
+so the entry is written with the folder after that search has named the one it means.
 
 ## A limit of a tool is measured on the file
 
@@ -155,20 +161,35 @@ The control for the measurement,
 a file written twice,
 was no control:
 its errors were redeclarations and never reached the rule.
+The control that replaced it fired 400 `tsdoc(require-tsdoc)` errors beside the one for the rule,
+and the output of the count was never saved
+(ledger B1399).
 
 The rule:
 a claim that a tool does or does not limit something is measured on the file,
-with the tool and the configuration
-the repository runs:
-the count the rule would report (the rule at a limit of one line,
-with the same skips),
-and a positive control that the rule fires in that folder under that configuration (a file that must break it,
-with distinct declarations so that no other error hides it).
-The log of each is kept,
-and a log is never overwritten by the next run.
+with the tool and the configuration the repository runs.
+Two logs are kept,
+and neither is overwritten by the next run:
+the count the rule would report,
+and a positive control that the rule fires in that folder under that configuration.
+A control is read for the rule's own line and for the rest of its error total,
+and an entry that cites it names every other rule that fired.
+A claim about which files a limit exempts is read from every `off` of the rule in
+`package/config/oxlint/src/overrides.ts`,
+and the globs are quoted as written:
+`**/fixture.*` is a file named `fixture.something` and not a `*.test-fixture.ts`.
 
 What enforces it:
-habit and review.
+habit and review,
+with a recipe for the cap on lines of a file (`eslint/max-lines`).
+The count is made in a folder that holds a copy of the file,
+with `count.json` holding the rule at a limit of one line and the skips of `package/config/oxlint/src/rule/style.ts`:
+`{"rules":{"eslint/max-lines":["error",{"max":1,"skipBlankLines":true,"skipComments":true}]}}`.
+`oxlint --disable-nested-config --config count.json <file>` prints "File has too many lines (N)",
+and N is the figure to compare with 300.
+The overrides are listed by `rg --line-number "max-lines" package/config/oxlint/src`.
+For a limit of another tool no recipe is written,
+and the entry that cites it states the command it ran.
 
 ## What was covered is stated with what was not
 
@@ -179,8 +200,8 @@ and said that every branch was switched off or covered.
 36 failed a case at once,
 5 of the 20 that survived got a case,
 15 got none and were argued by reading,
-and the
-termination guard of a loop was not switched off (ledger B1327,
+and the termination guard of a loop was not switched off
+(ledger B1327,
 corrected in B1355).
 The heading,
 a note,
@@ -189,35 +210,57 @@ a test header and a commit message each said "every branch".
 The rule:
 a statement of what a check covered gives the number tried,
 the number that failed the check,
-the number that
-survived with what was done for each,
+the number that survived with what was done for each,
 and what was not tried and why.
 "Every" is written only where the list it ranges over is the list tried.
 
 What enforces it:
-habit and review.
+habit and review,
+with two checks made on the statement before it is committed.
+The numbers close:
+the number tried equals the number that failed plus the number that survived,
+and the survivors equal the ones given a case plus the ones argued
+(56 equals 36 plus 20,
+and 20 equals 5 plus 15,
+in B1355).
+A figure that does not close is a branch with no account.
+The word is searched for in every place that repeats the claim:
+`rg --line-number --word-regexp "every|all"` over the entry,
+the header of the test and the rule's own file,
+and `git show --no-patch --format=%B <sha>` for the message.
+Each hit is read against the list tried.
 
 ## A commit message that names an item or a count
 
 What happened:
-messages of round w406 named an item number two commits both claimed (item 14),
-a count that a later read of the log
-changed (two TSDoc descriptions where there were four),
+messages of round w406 named an item number that two commits both claimed (item 14),
+a count that a later read of the log changed (two TSDoc descriptions where there were four),
 "the previous commit" with no hash,
-and a fix of over-width
-lines that left some (ledger B1360).
+and a fix of over-width lines that left some (ledger B1360).
+Messages of rounds w406 to w408 also typed a commit `fix`,
+`docs` or `test` while its diff held a file of another kind,
+or left a changed file or a comment edit unnamed (ledger B1406).
 A message is not amended,
 so the error stays in the history.
 
 The rule:
 a message names a commit by its hash,
 an item by the entry that holds it,
-and a count after `git show --stat` or the
-log has been read;
+and a count after `git show --stat` or the log has been read;
 "the previous commit" is never written.
+Its type fits every file the commit changes,
+and a change outside the type is named in the message.
 A message found wrong is corrected by a sentence with the full hash in the ledger of the round that found it,
 and the lead posts the comment.
 
 What enforces it:
 the commit hook rejects nothing of this kind;
-review and the ledger carry it.
+review and the ledger carry it,
+with a check made right after the commit.
+`git show --stat --format=%B <sha>` is read against the message:
+each number in the message equals a count read from the stat or the log,
+and each group of files the stat lists is named or fits the type.
+`git show --name-only --format= <sha>` lists the paths for the type:
+`docs` only Markdown,
+`test` only `*.test.ts` and `*.test-fixture.ts` files,
+and a comment edit or an export line in a source file is named.

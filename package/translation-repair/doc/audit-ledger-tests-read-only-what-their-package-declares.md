@@ -788,7 +788,8 @@ A climb held in a constant is reported at the constant,
 and what is later joined to the constant is not part of the pin;
 the listed read is written whole,
 and a rewrite of it into a constant changes the expression and so fails.
-The last sentence was false (noted by round w406 on 2026-11-01,
+The sentence that says "a rewrite of it into a constant changes the expression and so fails" was false
+(noted by round w406 on 2026-11-01,
 B1326):
 the constant's initializer is the same expression as the listed read,
 so it matched the pin,

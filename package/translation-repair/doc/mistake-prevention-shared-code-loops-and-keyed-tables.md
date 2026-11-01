@@ -18,8 +18,7 @@ and two heading readers disagreed about HTML headings (M44,
 X20).
 
 Audit area six then found the family package-wide (ledger B1 to B15):
-31 groups of function bodies kept in two to
-six files,
+31 groups of function bodies kept in two to six files,
 among them two readings of one event stream,
 five span-rewrite appliers under three contracts,
 and a benchmark grader whose re-carved slices ran one behind the run's (B10).
@@ -487,8 +486,7 @@ Every hold a role honours is honoured for every model of its bench,
 the hand-picked static seats included.
 
 The hold is honoured on every path that can send the model to the provider it names,
-and not only where the pool of
-alternates is drawn.
+and not only where the pool of alternates is drawn.
 Round w407 applied the ruling to the paths its finding named,
 the re-ask of the same model on another provider and the recovery round's fall back,
 and left the first ask,
@@ -528,8 +526,8 @@ and fails for a model the reading withholds that a re-ask may ask or a bench sea
 and for a model it does not withhold that no re-ask asks;
 it is no guard of the other readings of the eight providers (ledger B1349);
 `provider-router-reask-hold.unit.test.ts` holds the same-model re-ask,
-`provider-router-first-ask-hold.unit.test.ts` and the forwarded refusal of `provider-router.unit.test.ts` hold the
-first ask,
+`provider-router-first-ask-hold.unit.test.ts` and the forwarded refusal of `provider-router.unit.test.ts`
+hold the first ask,
 `stage-first-ask-hold.unit.test.ts` holds what the stage makes of the refusal over the real router,
 `stage-recovery-runaway.unit.test.ts` the fall back,
 and `reask-alternate-models.unit.test.ts`,

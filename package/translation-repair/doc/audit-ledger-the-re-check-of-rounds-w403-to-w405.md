@@ -110,12 +110,17 @@ and failed on the scan as it stood (`red-m1-n6.txt`);
 the change turned it green (`green-m1-n6.txt`).
 B1314 is corrected in place.
 
-## B1327: the branches of the `package-reads` reader were switched off one at a time
+## B1327: every branch of the `package-reads` reader was switched off
 
-Heading of 2026-11-01 (round w407,
-B1355):
-the heading first said that every branch was switched off,
-and what was done is stated exactly in the rest of this entry and in B1355.
+Note of 2026-11-01 (round w407,
+B1355;
+the heading restored and the note kept by round w409d,
+B1397):
+the heading says that every branch was switched off,
+and that overclaims.
+What was done is stated exactly in the rest of this entry and in B1355:
+the branches of the reader were switched off one at a time,
+and the guard of the loop of held constants was not.
 
 The re-check showed four branches no case protected:
 the leading-flag skip of a git list,
@@ -168,9 +173,7 @@ since removing it never ends.
 The cases added:
 7 that must be found and 9 controls
 (the scan now has 89 and 33 in all,
-counted by `count-cases.ts`,
-which is in `/var/home/user/temp/agent/tr-fan/w405-fix/` and not in the folder of this
-round's logs):
+counted by `count-cases.ts`):
 a git read after a leading flag that is no `-C` and no `-c`;
 a join after a segment that stays where it is,
 and a resolve whose climbs are separated by an empty segment;
@@ -191,6 +194,14 @@ The remaining form the scan does not read is a working directory taken through a
 (`import { cwd } from 'node:process'`),
 which the header now lists among what is out of its reach.
 B1313 and the mistake-prevention entry are corrected in place.
+
+Note of 2026-11-01 (round w407,
+B1359;
+restored as a note by round w409d,
+B1397):
+`count-cases.ts` is in `/var/home/user/temp/agent/tr-fan/w405-fix/`
+and not in the folder of the logs of this round.
+Round w407 wrote that into the sentence in place.
 
 ## B1328: the case that holds the lists was shown red
 
@@ -218,6 +229,16 @@ a case derived from the scan's list would follow the list when a name is dropped
 gone.
 The header of the test says so,
 and the case that compares the two lists fails for a name added on either side.
+
+Note of 2026-11-01 (round w407,
+B1358;
+the original recorded by round w409d,
+B1397):
+this entry first read "The lists `READ_CASE_NAMES` and the four after it repeat the scan's lists",
+a pointer by position.
+Round w407 replaced it in place with the five names of the lists,
+and that one replacement stays,
+because the position rule names the pointer as the defect and the original is quoted here.
 
 ## B1330: a model the run withholds from a role is never that role's alternate
 
@@ -270,8 +291,7 @@ reading that has Hyper serving Qwen3.8-27B (`red-b-run-reading-ignored.txt`);
 with the reading dropped for every re-ask it fails with "not withheld by the reading but no re-ask asks it"
 (`red-b-run-dropped-everywhere.txt`).
 The drift case of `seat-role-pool.unit.test.ts` (A of the minor on weakened tests) now checks the hold-aware pool in
-the 8 readings of the three meters the holds read (B1349 corrects this:
-it first said all 256),
+all 256 readings,
 and the shared-contract case,
 the provider cases (`reask-alternate-models`,
 `reask-withheld`,
@@ -279,6 +299,17 @@ the provider cases (`reask-alternate-models`,
 `nudged-reask`),
 the stage cases (`stage-recovery-runaway`,
 `prompt-uniqueness-client`) and the backfill case hold each way a re-ask is made.
+
+Note of 2026-11-01 (round w407,
+B1349;
+restored as a note by round w409d,
+B1397):
+the drift case builds 8 readings and not all 256:
+the two states of Synthetic (NeuralWatt following it),
+Hyper and OpenRouter,
+with every other provider wet.
+Those are the three meters a hold reads.
+Round w407 rewrote the sentence in place.
 
 Paths checked and found not to leak:
 the re-seat hooks of the lanes and of the consolidation take their benches from `judgeSeatsFor`,
@@ -381,11 +412,15 @@ B1282 and the decision addendum are corrected in place.
   and the lanes phase counts the translators too.
   Measured by trying it:
   under DeepSeek and Anthropic wet (the one reading B1285 named for translators short with the writers at quorum) the
-  repair lane stops on the translators as the translate lane does.
-  Only that one reading was tried;
-  the sentence this entry first ended with,
-  that no reading of the meters seats one lane and stops the other,
-  was not shown by it (B1349).
+  repair lane stops on the translators as the translate lane does,
+  so no reading of the meters seats one lane and stops the other.
+  Note of 2026-11-01 (round w407,
+  B1349;
+  restored as a note by round w409d,
+  B1397):
+  only that one reading was tried,
+  and the phase table was not read for the claim,
+  so the conclusion that no reading of the meters seats one lane and stops the other was not shown by it.
   The case added reads a seating lane once and a stopping lane until its hold ends,
   each under the view that does it,
   with the read counts.
@@ -408,21 +443,26 @@ B1282 and the decision addendum are corrected in place.
   the test names with a script (`rewrap-strings.ts`),
   the comments by hand.
   Some remain (B1338).
-- `run-config.ts` (1,311 lines at the base of the round,
-  1,323 at its head) and `run-seats-read.unit.test.ts`
-  (1,206 lines at both) were named as grown;
-  the second did not grow (B1352).
-  This entry first said that no lint rule caps a file at 300 lines and that the 300 of the lint is for `index.ts`
-  files.
-  That was false (B1352):
-  `eslint/max-lines` is 300 for code files,
-  counting neither blank lines nor comments,
-  and
-  `run-config.ts` passes it at 277 counted lines.
-  A split is not needed under that rule,
-  and was not made in this round,
+- `run-config.ts` (1,311 lines) and `run-seats-read.unit.test.ts` (1,206 lines) grew.
+  No lint rule or repository rule caps a file at 300 or 1,000 lines for them:
+  the 300 of the lint is for `index.ts` files,
+  and `run-config.ts` passes `lint:oxlint` at its length.
+  They are not split in this round,
   because a split moves the roster constants that the load-time checks read in order;
   recorded here and open (B1342).
+  Note of 2026-11-01 (round w407,
+  B1352;
+  restored as a note by round w409d,
+  B1397):
+  `run-config.ts` has 1,311 lines at the base of round w406 and 1,323 at its head,
+  and `run-seats-read.unit.test.ts` has 1,206 lines at both,
+  so the second did not grow.
+  The statement that no lint rule caps a file at 300 lines and that the 300 of the lint is for `index.ts` files was
+  false:
+  `eslint/max-lines` is 300 for code files,
+  counting neither blank lines nor comments,
+  and `run-config.ts` passes it at 277 counted lines.
+  A split is not needed under that rule.
 
 ## B1335: the launch's `KillMode`, measured
 
@@ -450,6 +490,13 @@ Under `KillMode=mixed` the final SIGKILL goes to every process left in the group
 stop timeout passes,
 and the tools the pass starts get no SIGTERM of their own:
 what they do on that is a thing the measurement did not cover.
+Note of 2026-11-01 (round w409d,
+B1407):
+"the tools the pass starts get no SIGTERM of their own" is not exact,
+because the probe saw mise relay the SIGTERM it received to node.
+The exact statement,
+which the runbook now makes,
+is that systemd sends the tools no SIGTERM under `KillMode=mixed`.
 
 ## B1336: the ignored duplicate reaches the operator (the re-check of round w404, items 1, 2, 3 and 14)
 
@@ -485,12 +532,18 @@ what they do on that is a thing the measurement did not cover.
 - B1295 cited `sigprobe/signals.log`,
   which the lead's rerun removed (B1341).
   The entry says so,
-  copies the original reading (SIGTERM twice at 12:01:55.113Z;
-  the millisecond value 1793534515113 that round gave is derived from that timestamp,
-  since the file with the script's own clock is gone,
-  and round w407 checked it with `date --utc +%s%3N`),
+  copies the original reading (SIGTERM twice at 1793534515113),
   and cites `killmode-20261101.txt`,
   `signals-control-group.log` and `signals-mixed.log`.
+  Note of 2026-11-01 (round w407,
+  B1361;
+  restored as a note by round w409d,
+  B1397):
+  the surviving timestamp is 12:01:55.113Z,
+  and the millisecond value 1793534515113 that round gave is derived from it,
+  since the file with the script's own clock is gone.
+  Round w407 checked the derivation with `date --utc +%s%3N`,
+  and round w409d repeated it with the same result.
 - B1297 said the limit of the flush and the release is in the README,
   `configuration.md` and the runbook.
   The README says nothing of the second signal,
@@ -677,6 +730,15 @@ Slips:
   no article,
   `concurrency: 1`,
   and `refusalLinesOf` in the fixture.
+  Note of 2026-11-01 (round w409d,
+  B1396):
+  round w407 gave the four sites of `tsdoc-leading-articles` the wrong tags in the sentence of this bullet that opens
+  "round w407 counted four".
+  The diff of `70ef89b0f5` shows `@param` at `nudged-reask.unit.test.ts:842`,
+  `@returns` at `nudged-reask.unit.test.ts:844`,
+  `@returns` at `reask-reading.ts:21`
+  and `@param` at `run-config.ts:1231`.
+  The totals of two `@param` and two `@returns` stand.
 - The output file of a background task under `/tmp/claude-1000/` was read once by mistake and the harness refused it;
   nothing under that folder was read.
 - The baseline of `run` (209 pass lines) and of `corpus-pass` (237 pass lines) ran on the integration head before any

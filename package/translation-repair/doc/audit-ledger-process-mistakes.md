@@ -183,3 +183,9 @@ when it passed its 1,000-line bound.
   a count of branches),
   originals of historical entries rewritten in place,
   pointers by position and lines over the width (B1352 to B1359).
+- [Audit ledger: the re-check of round w407](audit-ledger-the-re-check-of-round-w407.md):
+  Originals rewritten in place by the round that wrote the rule against it (B1397),
+  counts and assumptions stated as measured (B1398 and B1399),
+  rules that rested on habit (B1401),
+  a whole source-scan run that was not read at the final head (B1402)
+  and commit messages that omit what they touched (B1406).

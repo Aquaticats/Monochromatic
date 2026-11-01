@@ -30,8 +30,39 @@ and the log is kept.
 What enforces it:
 `run-config.unit.test.ts` ("HANDS THE RUN'S READING OF THE METERS TO THE RE-ASK OF A RUNAWAY EDITOR")
 and the red log of ledger B1345.
-The same shape holds for any other single-line seam of the wiring;
-habit finds them.
+No scan finds a seam,
+and the name of a property does not find one either:
+the case that holds a seam asserts what the wiring changes and need not name the property.
+No line of `run-config.unit.test.ts` names `readDry` or `refuseSeat`,
+and the cases "HANDS THE RUN'S READING OF THE METERS TO THE RE-ASK OF A RUNAWAY EDITOR" and
+"HANDS THE RUN'S WITHHOLD TO THE RE-ASK OF A REASONING RUNAWAY" hold them.
+
+Two searches list the lines that may be seams.
+Only an optional property can be left out of the object the wiring builds and still type-check,
+so the first lists the optional properties of the types the wiring hands objects to.
+`rg --line-number "readonly [A-Za-z]+\?:" package/translation-repair/stage/src/prompt-uniqueness-client.ts`
+lists `store`,
+`refuseSeat` and `readDry`,
+the three the wrapper takes from `run-config.ts`.
+The same pattern over `package/translation-repair/provider/src/chat-contract.ts` lists the optional fields of
+`ModelClient`,
+`providerDryness` among them.
+The second pairs a wiring line with its case by the ledger entry both cite:
+`rg --line-number "ledger B1330" package/translation-repair/run/src/corpus-run/run-config.ts` and the same pattern over
+`run-config.unit.test.ts` print the comment above `readDry` and the name of its case.
+A property the wiring sets whose entry no case name cites is a candidate.
+
+The check is a removal.
+For each candidate,
+delete its line in `run-config.ts`,
+run `lint:types` of `run` and then `run-config.unit.test.ts`,
+and put the line back (`git diff` prints nothing for the file again).
+A line whose removal passes both has no case at the level that wires it,
+and that is the finding.
+A wiring file other than `run-config.ts` has its own list of types,
+found by reading what its returned object and its calls hand over.
+Round w409d ran no removal,
+because it may change no TypeScript file (ledger B1401).
 
 ## An absence is asserted beside the count of what was asked
 

@@ -863,6 +863,25 @@ and this one lists that index in their place
   the JSON hint and the exchange mark (B1379 and B1380),
   the two stage cases made exact (B1381 and B1382)
   and the gates and slips of the round (B1383).
+- [Audit ledger: the re-check of round w407](audit-ledger-the-re-check-of-round-w407.md):
+  The fixes of round w409d to what the second-pass reader of round w407 found:
+  the note of B1314 that names its sentence (B1395),
+  the tags of four TSDoc descriptions (B1396),
+  the originals that round w407 rewrote in place (B1397)
+  the files the run after the version commit wrote,
+  counted by kind (B1398),
+  the lint cap measured again (B1399)
+  the folder of the files B1355 cites (B1400)
+  the rules that rested on habit (B1401)
+  the head of the last whole source-scan run (B1402),
+  the pointers by position and the broken clauses (B1403),
+  the rewraps that went unsaid (B1404),
+  the index titles (B1405),
+  the commit messages that omit what they touched (B1406),
+  the runbook sentence on SIGTERM (B1407)
+  the details of the findings that were off (B1408)
+  and the gates,
+  the slips and what stays open (B1409).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

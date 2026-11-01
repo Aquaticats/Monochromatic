@@ -686,7 +686,7 @@ which lists every file of this record.
 - [B1317, the slips of round w405 and what stays open](audit-ledger-tests-read-only-what-their-package-declares.md)
 - [B1325, the corrections in place of round w405][w406]
 - [B1326, the listed lock read is pinned by what it reaches][w406]
-- [B1327, the branches of the `package-reads` reader were switched off one at a time][w406]
+- [B1327, every branch of the `package-reads` reader was switched off][w406]
 - [B1328, the case that holds the lists was shown red][w406]
 - [B1329, the lists of names in the test are independent of the scan's on purpose][w406]
 - [B1330, a model the run withholds from a role is never that role's alternate][w406]
@@ -704,7 +704,7 @@ which lists every file of this record.
 - [B1342, the slips of the round and what stays open][w406]
 - [B1343, the reading was awaited after the taken models were read][w406]
 - [B1344, the refine slice was handed the checker bench the hook names as its own][w406]
-- [B1345, the seam that keeps Qwen3.8-27B an editor alternate has a case at the level that wires it][w407]
+- [B1345, the seam that keeps Qwen3.8-27B an alternate of an editor has a case at the level that wires it][w407]
 - [B1346, the pins moved up, and the pinned lint version with them][w407]
 - [B1347, the case of the re-ask of Qwen3.8-27B asserts that a re-ask was made][w407]
 - [B1348, the refine key follows the hook for the judges and the checkers][w407]
@@ -719,10 +719,10 @@ which lists every file of this record.
 - [B1357, the runbook and B1296 against the `KillMode` probe][w407]
 - [B1358, pointers by position][w407]
 - [B1359, the width of the family's Markdown lines][w407]
-- [B1360, commit messages of round w406 that the record contradicts][w407]
+- [B1360, commit messages of round w406 that said something the record contradicts][w407]
 - [B1361, the smaller points of the ledger][w407]
 - [B1362, the by-id index is split by id range][w407]
-- [B1363, the slips of the round and what stays open][w407]
+- [B1363, the gates, the slips of the round and what stays open][w407]
 - [B1364, what the first ask of a held model did before B1365][w408]
 - [B1365, the router refuses the first ask of a held model for a seat that honours the hold][w408]
 - [B1366, the windows that remain][w408]
@@ -743,11 +743,27 @@ which lists every file of this record.
 - [B1381, the next-alternate case asserts the successor the order names][w409]
 - [B1382, the quorum retry rounds never asked the held seat, and the case reaches one][w409]
 - [B1383, the gates, the slips of the round and what stays open][w409]
+- [B1395, the note of B1314 names the sentence it calls false][w409d]
+- [B1396, the tags of the four TSDoc descriptions that `70ef89b0f5` changed][w409d]
+- [B1397, the originals that round w407 rewrote in place are restored, and the message of `9e7f5592ea`][w409d]
+- [B1398, the files the run after the version commit wrote, counted by kind][w409d]
+- [B1399, the lint cap measured again, with the output saved and the recipe written down][w409d]
+- [B1400, the files B1355 cites are in the folder of the round before][w409d]
+- [B1401, the rules that rested on habit give a search or a check, or say that none exists][w409d]
+- [B1402, the last whole source-scan run is read at the true final head][w409d]
+- [B1403, pointers by position and line breaks inside a clause in the files of round w407][w409d]
+- [B1404, the two places that round w406 rewrapped are said to be rewrapped][w409d]
+- [B1405, the index titles, and the sentence for `799dca3f06`][w409d]
+- [B1406, commit messages that omit what they touched][w409d]
+- [B1407, the runbook says what systemd sends the tools the pass starts][w409d]
+- [B1408, where the findings were wrong or partly wrong][w409d]
+- [B1409, the gates, the slips of the round and what stays open][w409d]
 
 [w406]: audit-ledger-the-re-check-of-rounds-w403-to-w405.md
 [w407]: audit-ledger-the-re-check-of-round-w406.md
 [w408]: audit-ledger-a-held-model-is-refused-at-its-first-ask.md
 [w409]: audit-ledger-the-gate-failure-and-the-re-check-of-round-w408.md
+[w409d]: audit-ledger-the-re-check-of-round-w407.md
 [b836-neuralwatt-ledger]: audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md
 [b837-floors-ledger]: audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md
 [b865-ledger]: audit-ledger-schema-source-check-as-a-whitelist.md

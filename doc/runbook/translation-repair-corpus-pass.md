@@ -450,7 +450,7 @@ TODO | DONE
     that foreground delivery has not been measured.
     With `KillMode=mixed` the final SIGKILL goes to every process left in the control group
     once the main process has exited or the stop timeout has passed,
-    and the tools the pass starts get no SIGTERM of their own.
+    and systemd sends them no SIGTERM.
     What those tools do when the stop signals the wrapper alone is not measured:
     the probe's units held mise and node and no other tool.
 
