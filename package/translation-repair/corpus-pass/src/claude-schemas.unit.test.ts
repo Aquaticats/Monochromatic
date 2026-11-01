@@ -1341,6 +1341,41 @@ await describe({
     },),
 
     it({
+      name: 'READS A PARAMETER NAMED LIKE A FORWARDER AS THAT FORWARDER, since a name the file neither declares nor '
+        + 'imports stands for the function of that name: a helper that calls its parameter `choose` is listed beside '
+        + 'the forwarder `choose`, and the same helper with the parameter named `decision` is not (B1264: the '
+        + 'router\'s exchange mark was listed, and its callers after it, until the parameter was renamed)',
+      fn: async () => {
+        /**
+         Forwarders of the family and of one imaginary helper whose parameter is called by the given name.
+         */
+        const imaginaryForwarders = async (parameter: string,): Promise<readonly string[]> =>
+          forwardersOf({
+            sources: [
+              ...await familySources(),
+              {
+                file: 'imaginary/src/mark-after.ts',
+                text: textOf([
+                  `export async function markAfter({ ${parameter}, request, }) {`,
+                  `  return await ${parameter}({ request, },);`,
+                  '}',
+                ],),
+              },
+            ],
+            notStageSchemas: NOT_STAGE_SCHEMAS,
+          },)
+            .filter(function isImaginary({ file, },): boolean {
+              return file.startsWith('imaginary/',);
+            },)
+            .map(function nameOf({ name, },): string {
+              return name;
+            },);
+        expect(await imaginaryForwarders('choose',),).toEqual(['markAfter',],);
+        expect(await imaginaryForwarders('decision',),).toEqual([],);
+      },
+    },),
+
+    it({
       name: 'HOLDS THE SCHEMA OF EVERY NAMED CALLER OF A SHARED BUILDER IN THE PRODUCER LIST, under the builder\'s own '
         + 'file, so the walks of this file read what each stage sends',
       fn: async () => {

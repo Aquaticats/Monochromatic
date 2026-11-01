@@ -476,6 +476,10 @@ Slips in how the work was run:
   the provider suite ran before `77e37c62f1` moved the reach readers and the exchange mark out of the router,
   and five files of it reran after,
   so the moved code is covered by its own new files and the router files and not by a second full run.
+- The `corpus-pass` suite ran before that split as well,
+  and 3 cases of `claude-schemas.unit.test.ts` were red from `77e37c62f1` on
+  (added 2026-11-01 in round w401,
+  with the cause and the fix in B1264).
 - The markdown-lint scan failed 28 times on the first run of the docs
   (a comma followed by more text on the same line),
   and a script that inserts the break at each position it names cleared them.
@@ -825,6 +829,57 @@ which leaves their runs out of the count.
   so even a change that did reach a key would ride inside them.
 
 ## B1264: the slips of the round and what stays open
+
+Three cases of `claude-schemas.unit.test.ts` of `corpus-pass` were red on `93dba14869`,
+and failed the same when the file ran alone
+(the rotation sweep of round w399,
+whose lone run's output is outside the repository).
+They list the files that declare an answer schema,
+7 more than the list holds,
+the shapes the search leaves unread
+(`editor-fidelity-probe.ts:91` and `corpus-pass.ts:170`),
+and the functions that hand a sender a builder call made from their own parameters:
+`markingAfterExchange`,
+then `createRoutingClient`,
+`runClientWithFloors`,
+`runClientFrom`,
+`createRunClientWithFloors`,
+`createRunClient`,
+`probeRunClientFrom`,
+`cardsClientFrom`
+and `newCardsClient`.
+
+The cause is the test's reading and not a change of behaviour.
+`77e37c62f1` moved the router's `chooseProviderMarked` into `markingAfterExchange`
+and gave it a parameter named `choose`,
+which it calls with its other parameters.
+A name a file neither declares nor imports stands,
+in the search,
+for the function of that name
+(`standsForKnown` in `claude-schema-usage.test-fixture.ts`),
+and the family declares a forwarder `choose` in `pass-consistency-carry-choose.ts`.
+So the helper was read as a forwarder,
+the files that call it as the files that write its arguments,
+and each caller of those in turn.
+The helper reaches no sender and no builder.
+It only rebuilds an error after the router's decision.
+At `abb1e953bc` the same code was `chooseProviderMarked`,
+which called `chooseProvider` by a name of its own and had no parameter that was a function,
+so the cases passed.
+
+The fix is in the code shape.
+The parameter is named `decision`
+(`provider-router-exchange-mark.ts`,
+its call in `provider-router.ts` and its test),
+and the 3 cases pass again with nothing added to the lists and nothing narrowed.
+A case of the same test pins the reading both ways:
+a helper that calls its parameter `choose` is listed beside the forwarder `choose`,
+and the same helper with `decision` is not.
+That case records the reading,
+and the three cases above name a new collision when one happens.
+The search stays fail-closed.
+It cannot tell a parameter that holds the forwarder from one that holds another function,
+and a file that really sends an answer schema through a function it takes as a parameter still fails.
 
 Slips of the round:
 

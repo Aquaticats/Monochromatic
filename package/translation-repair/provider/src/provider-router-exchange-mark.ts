@@ -16,7 +16,8 @@ import type { ChatTextRequest, } from './chat-contract.ts';
 
  @param exchanged - whether a call of this request was made before the decision
 
- @param choose - router's decision of which provider takes the call
+ @param decision - router's decision of which provider takes the call, NOT NAMED `choose`: the schema search reads a
+ free name as the forwarder of that name that `pass-consistency-carry-choose.ts` declares (B1264)
 
  @param request - call being routed
 
@@ -28,18 +29,18 @@ import type { ChatTextRequest, } from './chat-contract.ts';
 
  @example
  ```ts
- const provider = await markingAfterExchange({ exchanged: attempt > 0, choose, request, refused, },);
+ const provider = await markingAfterExchange({ exchanged: attempt > 0, decision, request, refused, },);
  ```
  */
 export async function markingAfterExchange(
   {
     exchanged,
-    choose,
+    decision,
     request,
     refused,
   }: {
     readonly exchanged: boolean;
-    readonly choose: (args: {
+    readonly decision: (args: {
       readonly request: ForeignBorrowed<ChatTextRequest>;
       readonly refused: ProviderName | typeof NOBODY_REFUSED;
     },) => Promise<ProviderName>;
@@ -48,7 +49,7 @@ export async function markingAfterExchange(
   },
 ): Promise<ProviderName> {
   try {
-    return await choose({
+    return await decision({
       request,
       refused,
     },);

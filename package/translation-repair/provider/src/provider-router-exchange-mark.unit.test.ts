@@ -78,7 +78,7 @@ async function raisedBy(
   try {
     return await markingAfterExchange({
       exchanged,
-      choose,
+      decision: choose,
       request: REQUEST,
       refused: 'bedrock',
     },);
