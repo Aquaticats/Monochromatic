@@ -36,7 +36,8 @@ use super::service_protocol::{ALLOWED_MODES, Change, CommitRequest, MAX_CHANGES,
 use super::service_handoff::ServiceHandoff;
 use super::service_install::{SOCKET_UNIT_NAME, platform_without_manager, unit_directory};
 use super::service_server::Bind;
-use super::transaction_git::{GitContext, GitRequest, run_git_checked};
+use super::config_snapshot::ConfigSnapshot;
+use super::transaction_git::{GitContext, GitRequest, run_git, run_git_checked};
 use super::transaction_journal::{Base, Conclusion, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::io::Write;
@@ -165,11 +166,14 @@ fn prepare<F: RepositoryFacts>(
     }
     let selection = decide_selection(invocation.region, layout.conclusion);
     let SymbolicHead::Branch(reference) = layout.symbolic_head.clone() else { return Ok(Prepared::Decline) };
-    if selection.mode != TransactionMode::ExplicitPath || selection.read_only {
+    // An index commit takes the whole index (`-a` first stages every tracked change); a commit of named paths takes only
+    //  those. A mix of the two, or anything that stages by hand, is the transaction's.
+    let named: bool = selection.mode == TransactionMode::ExplicitPath;
+    if selection.read_only || (selection.mode == TransactionMode::Index && selection.selects_paths) {
         return Ok(Prepared::Decline);
     }
     let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
-    if !matches!(capture.base, Base::Commit(_)) {
+    if !matches!(capture.base, Base::Commit(_)) || config_needs_native(capture.layout.config_snapshot.as_ref()) {
         return Ok(Prepared::Decline);
     }
     let base: String = base_revision(&capture);
@@ -183,12 +187,12 @@ fn prepare<F: RepositoryFacts>(
     let region_arguments: &[OsString] = &invocation.arguments[invocation.subcommand_index + 1..];
     let pathspecs: Vec<OsString> = invocation.region.pathspecs.iter().map(|at| { return region_arguments[*at].clone(); }).collect();
     let index_selection: IndexSelection<'_> = IndexSelection {
-        mode: TransactionMode::ExplicitPath,
-        pathspecs: pathspecs.as_slice(),
+        mode: selection.mode,
+        pathspecs: if named { pathspecs.as_slice() } else { &[] },
         pathspec_file: None,
         pathspec_file_nul: false,
         stage_into_index: false,
-        stage_tracked_changes: false,
+        stage_tracked_changes: selection.staged_all,
         base_revision: base.as_str(),
     };
     initialize_commit_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, &index_selection)
@@ -237,10 +241,88 @@ fn prepare<F: RepositoryFacts>(
     })));
 }
 
-/// One identity line (`Name <email> seconds zone`) from Git's own resolution of the variable.
-fn identity(context: &GitContext, cwd: &Path, variable: &str) -> Result<String, TransactionStop> {
-    let output = run_git_checked(context, &GitRequest::new(cwd, &["var", variable]))?;
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+/// One identity line (`Name <email> seconds zone`) from Git's own resolution of the variable, with the given overrides;
+///  nothing when Git cannot make one (a date it does not read), so native `git commit` gives its own message.
+fn identity(context: &GitContext, cwd: &Path, variable: &str, overrides: &[(&str, String)]) -> Result<Option<String>, TransactionStop> {
+    let mut request: GitRequest = GitRequest::new(cwd, &["var", variable]);
+    request.environment = overrides.iter().map(|(name, value)| { return (OsString::from(name), OsString::from(value)); }).collect();
+    let output = run_git(context, &request).map_err(|error| { return failed(format!("reading the commit identity failed: {error:?}")); })?;
+    if output.code != Some(0) {
+        return Ok(None);
+    }
+    return Ok(Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()));
+}
+
+/// The author variables `--author` and `--date` stand for.
+fn author_overrides(parsed: &ServiceCommitArgs) -> Vec<(&'static str, String)> {
+    let mut overrides: Vec<(&'static str, String)> = Vec::new();
+    if let Some(author) = parsed.author.as_deref() {
+        let (name, rest): (&str, &str) = author.split_once('<').unwrap_or((author, ""));
+        overrides.push(("GIT_AUTHOR_NAME", name.trim().to_string()));
+        overrides.push(("GIT_AUTHOR_EMAIL", rest.trim_end().trim_end_matches('>').to_string()));
+    }
+    if let Some(date) = parsed.date.as_deref() {
+        overrides.push(("GIT_AUTHOR_DATE", date.to_string()));
+    }
+    return overrides;
+}
+
+/// What:
+///  The message the command line stands for: `-m` texts or the `-F` file, cleaned as Git cleans it when no editor opens
+///  (or kept as given for `--cleanup=verbatim`), then given the `--trailer` lines by Git's own trailer interpreter.
+/// Why:
+///   Nothing here guesses: an empty message without `--allow-empty-message`, an unreadable file or a trailer Git refuses
+///  returns nothing, and native `git commit` then gives the person its own message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await buildMessage(invocation, parsed)
+/// ```
+fn build_message(invocation: &CommitInvocation<'_>, parsed: &ServiceCommitArgs) -> Result<Option<String>, TransactionStop> {
+    let texts: Vec<String> = match parsed.file.as_ref() {
+        Some(file) => match std::fs::read(invocation.cwd.join(file)).ok().and_then(|bytes| { return String::from_utf8(bytes).ok(); }) {
+            Some(text) => vec![text],
+            None => return Ok(None),
+        },
+        None => parsed.messages.clone(),
+    };
+    let cleaned: Option<String> = if parsed.verbatim {
+        Some(texts.iter().map(|text| { return if text.ends_with('\n') { text.clone() } else { format!("{text}\n") }; }).collect::<Vec<String>>().join("\n"))
+    } else {
+        cleanup_message(texts.as_slice())
+    };
+    let message: String = match cleaned {
+        Some(text) if !text.trim().is_empty() || parsed.verbatim => text,
+        _ if parsed.allow_empty_message => String::new(),
+        _ => return Ok(None),
+    };
+    if parsed.trailers.is_empty() {
+        return Ok(Some(message));
+    }
+    let mut arguments: Vec<String> = vec![String::from("interpret-trailers")];
+    for trailer in &parsed.trailers {
+        arguments.push(String::from("--trailer"));
+        arguments.push(trailer.clone());
+    }
+    let mut request: GitRequest = GitRequest::new(invocation.cwd, arguments.as_slice());
+    request.input = Some(message.into_bytes());
+    let output = run_git(invocation.context, &request).map_err(|error| { return failed(format!("preparing the commit message failed: {error:?}")); })?;
+    if output.code != Some(0) {
+        return Ok(None);
+    }
+    return Ok(String::from_utf8(output.stdout).ok());
+}
+
+/// Whether the repository's configuration makes native `git commit` do something the service does not: sign, apply a
+///  template or a clean-up mode, use another message encoding or another comment character, or change trailers.
+fn config_needs_native(snapshot: Option<&ConfigSnapshot>) -> bool {
+    const KEYS: [&str; 7] = ["commit.template", "commit.cleanup", "i18n.commitencoding", "core.commentchar", "core.commentstring", "commit.signoff", "commit.verbose"];
+    let Some(found) = snapshot else { return true };
+    return found.entries().iter().any(|entry| {
+        let value: String = entry.value.as_deref().map(|bytes| { return String::from_utf8_lossy(bytes).to_lowercase(); }).unwrap_or_default();
+        let signs: bool = entry.key == "commit.gpgsign" && !["false", "no", "off", "0"].contains(&value.as_str());
+        return signs || KEYS.contains(&entry.key.as_str()) || entry.key.starts_with("trailer.");
+    });
 }
 
 /// What:
@@ -265,17 +347,20 @@ pub fn try_service_commit<F: RepositoryFacts>(
         return Ok(None);
     };
     let region = invocation.region;
-    if region.all || region.include || region.interactive || region.patch || region.dry_run || region.amend || region.allow_empty
-        || region.fixup.is_some() || region.pathspec_from_file.is_some() || region.pathspecs.is_empty()
+    if region.include || region.interactive || region.patch || region.dry_run || region.amend || region.allow_empty
+        || region.fixup.is_some() || region.pathspec_from_file.is_some()
     {
         return Ok(None);
     }
     let after: &[OsString] = invocation.arguments.get(invocation.subcommand_index + 1..).unwrap_or(&[]);
-    let Some(ServiceCommitArgs { messages, quiet }) = parse_service_commit(after) else { return Ok(None) };
-    let Some(message) = cleanup_message(messages.as_slice()) else { return Ok(None) };
+    let Some(parsed) = parse_service_commit(after) else { return Ok(None) };
+    let quiet: bool = parsed.quiet;
+    let Some(message) = build_message(invocation, &parsed)? else { return Ok(None) };
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
-    let author: String = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT")?;
-    let committer: String = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT")?;
+    let Some(author) = identity(invocation.context, invocation.cwd, "GIT_AUTHOR_IDENT", author_overrides(&parsed).as_slice())? else {
+        return Ok(None);
+    };
+    let Some(committer) = identity(invocation.context, invocation.cwd, "GIT_COMMITTER_IDENT", &[])? else { return Ok(None) };
     let config: ClientConfig = ClientConfig { address, activation, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
     for attempt in 0..LANDING_ATTEMPTS {

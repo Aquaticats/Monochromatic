@@ -1060,8 +1060,9 @@ commit that waits says how many commits go first.
   service program next to the wrapper and the real Git, and enables the socket. It is repeatable and says what it did.
 - `git cli-git service uninstall` stops and removes them; `git cli-git service status` says whether the socket is ready.
 - Once the activation is installed, plain scoped commits go through the service with no setting. `CLI_GIT_COMMIT_SERVICE=0`
-  keeps a run out of it. Every command line the service does not cover yet (amend, `-a`, `-F`, an editor, signing, dates,
-  trailers) commits as before.
+  keeps a run out of it. Every command line the service does not cover yet (amend, an editor, signing, sign-off, templates,
+  `--allow-empty`, `--fixup`) commits as before, and so does a repository whose configuration sets a template, a clean-up mode,
+  signing or trailers.
 - `CLI_GIT_COMMIT_SERVICE=1` asks for the service on a machine that has not installed it: the commit stops at once with a plain
   message that names the install command, and nothing changes in the repository.
 - The backup push and the automatic upkeep of a commit the service landed run in the service after the command returned.

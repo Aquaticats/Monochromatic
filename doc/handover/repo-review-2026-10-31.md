@@ -1965,6 +1965,53 @@ lanes keep running):
   line 73, slice-cache on its remaining tests, corpus-pass on its remaining
   modules.
 
+Wave-4 fifty-first checkpoint (2026-11-01, corpus-pass round 2 verified and relaunched; the
+translation-repair/run package opened as a sixth lane):
+
+- corpus-pass round 2: eight more production modules and two targeted reads; rows
+  `w5-tr-corpus-pass-004` (three hand-written slice-N nameOf formatters with a
+  duplicated TSDoc sentence and no owner), `-005` (three copies of the
+  carrier-map recording loop in applyConsistency) and `-006` (consolidateDocument
+  logs contests.length while settling eligibleRows). Ledger 6 of 6; about 25 of 94
+  production modules. Next: consolidate-driver-subject.ts, id
+  w5-tr-corpus-pass-007, base rr-tcp-003.
+- Freed slot: package/translation-repair/run opened (228 tracked files), findings
+  to w5-tr-run.jsonl from id `w5-tr-run-001`, base rr-trrun-001, deduping the
+  pkg-array-at, w2-i18n, docs-decisions, w2-fs-a and orchestrator-central-tests
+  mentions.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, slice-cache on its remaining tests, corpus-pass on its remaining
+  modules, run on its package.
+
+Wave-4 fifty-second checkpoint (2026-11-01, slice-cache round 3 verified and relaunched; the
+other five lanes keep running):
+
+- slice-cache round 3: nine files and four re-read sources; rows
+  `w5-tr-slice-cache-008` (the store quorum arm is reached only through the
+  roundtrip suite's zero-voice gate), `-009` (roundTripValue TSDoc and example),
+  `-010` (entry-pictures claims two spying tests, one exists), `-011` (voicesOf is
+  the only helper without an explicit return type), `-012` (wellFormed fixtures
+  silently drop version; six pass 5 and write 21), `-013` (consolidatedArtifact's
+  loose inputs plus cast) and `-014` (the non-contested selection arm is
+  untested). Ledger 14 of 14; coverage floor 104 of 119. Next:
+  entry-attempt-queue.unit.test.ts, id w5-tr-slice-cache-015, base rr-tsc-004.
+- Active: cc-docs at position 423, fm-decision at position 49, troubleshooting at
+  line 73, corpus-pass on its remaining modules, run on its package, slice-cache
+  on its remaining tests.
+
+Wave-4 fifty-third checkpoint (2026-11-01, troubleshooting round 4 verified and relaunched; the
+other five lanes keep running):
+
+- doc/troubleshooting round 4: worklist lines 73 to 76, rows
+  `w2-logger-src-092` to `-098`. My spots: the catalog-tighten doc pins pnpm to a
+  mise.toml comment while the channel is toolchain.lock, and the charm-hyper
+  price record gives HYPER_PRICE_READ_ON as both 2026-09-11 and 2026-10-11. The
+  ledger is 97 of 97 clean; row 35 stays parked. Next: worklist line 77, id
+  w2-logger-src-099, base rr-ts-381.
+- Active: cc-docs at position 423, fm-decision at position 49, corpus-pass on its
+  remaining modules, run on its package, slice-cache on its remaining tests,
+  troubleshooting at line 77.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to

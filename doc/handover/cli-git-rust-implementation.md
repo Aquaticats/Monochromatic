@@ -39,6 +39,32 @@ Its result is read when the notification arrives, and survivors are killed or ju
 patch release.
 The passing gate (container tests, lint, check) still precedes every release.
 
+### Final re-review (queued 2026-11-01)
+
+The user's words on 2026-11-01:
+"You yourself do a re-review of the entire thing when all tasks are drained.
+During the re-review: Assume nothing on disk ever makes sense and I answered every question with via magic 8 ball."
+
+My reading, revisable by the user:
+
+- When it starts: after the queue is drained. That means every delegated agent has reported and its branch is
+  merged or rejected, gates are green, no release is in flight, and every task-list and handover queue item is
+  done or recorded as blocked with its reason.
+- Who does it: this coordinator session itself, not a delegate. A cross-vendor pass may run alongside it, but never
+  instead of it.
+- Scope ("the entire thing"): the `git-policy/cli` wrapper and everything this effort built or changed for it. That
+  covers the crate, the service, the embedded linter seam, the fuzz and mutation sidecars, the gate and release
+  tooling (`crate-release/cli`, the containerfile, the planted controls), and the docs (README, SPEC,
+  `doc/decision`, `doc/planning`, this handover).
+- "Nothing on disk ever makes sense": every comment, doc, test name, commit message, config and recorded result is
+  an unverified claim. Each one is checked against behavior I run in a throwaway fixture, or against the deciding
+  source. A test counts only once a planted fault has shown it failing.
+- "Every question answered with a magic 8 ball": recorded user decisions carry no evidence of being right. Judge each
+  on its merits for the target workload. Where my judgment differs, ask the user with options, pros, cons and a
+  ranking. Never change decided behavior without asking.
+- Output: a findings report in `doc/audit/` with evidence per finding. Clear bugs get fixed under the standing goal,
+  with GFP proofs. Flagged decisions go to the user in the question tool.
+
 ## Handoff 2026-10-05
 
 This session hands off to Claude Opus after the Astra usage limit was reached.
@@ -5966,3 +5992,32 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Service step 3 READY `5d0d527e2c` (backup push and upkeep run in the service as work items after the command returns; one
   coalesced push per branch, no lock; a failed push never fails the commit) merged as `8abacf428b`. Gate 9 runs in worktree
   `.claude/worktrees/gate-main9` (gate-main stays on `54bc241fab` for the m048d units). Step 4 continues as sub-steps 4a to 4d.
+- 0.5.1 PUBLISHED: crates.io created 2026-11-01T14:19:49Z; release assets x86_64 and aarch64 linux-gnu present; publish run
+  `41315248565` on `b0d0b14a01`. Messaged `monochromatic-c0` for the lock bump.
+- Tasks #69 and #78 closed as superseded: service step 4 deletes the old journal and shadow-repository path they target.
+- Queued: the user's final re-review, recorded under the heading "Final re-review (queued 2026-11-01)" in the Authority
+  section (task #79). It starts once the queue is drained.
+- 0.5.1 lock bump: `monochromatic-c0` declined, because its delegation covered only 0.5.0. I ran the scoped
+  `toolchain:update -- cargo:monochromatic-git-policy-cli` myself, under the user's standing "bump and publish"
+  authorization. It also wrote `monochromatic-6e`'s pnpm-shadow row, read from 6e's uncommitted `toolchain.plan.jsonc`;
+  both rows share one generated lock and digest. Agreed with 6e: they commit both rows together, naming the wrapper row
+  as mine, then run `toolchain:install` and tell me. Then I check `git --version` prints 0.5.1 and run a real commit.
+  The commit service is not installed on this machine (no unit files, no runtime socket), so commits keep the native path.
+- Service step 4a READY `96821029d5` merged as `9ca669c45f`. The service now lands `-F`, `--author`, `--date`,
+  `--trailer`, `--cleanup=whitespace|verbatim`, `--allow-empty-message` and `-a`, compared field by field with native.
+  It also closed a gap: repos with `commit.template`, `commit.cleanup`, `commit.gpgSign`, signoff, `trailer.*`,
+  `i18n.commitEncoding` or `core.commentChar` were silently ignored on the service path and now decline to the
+  transaction.
+- Decision for steps 4b to 4d, adopted from the owner's rules ("Invoke real git as rarely as possible"; locks banned),
+  veto open to the owner:
+  - Embed every option that is pure message or parent arithmetic: `-s`, `--allow-empty`, `-C`, `--amend` without an
+    editor, `--fixup`/`--squash` without an editor, `--cleanup=strip`.
+  - Use real `git commit` against a thin scratch git dir only where Git must run a program: the editor, or signing
+    (`-S`, `commit.gpgSign`). The service lands that commit by compare-and-swap, or answers `retry_prepare`.
+  - Rejected: keeping the old transaction (keeps the banned locks), and re-implementing the editor and signer in the
+    wrapper.
+- Standards-review shadow: off since 0.5.0, as accepted ("audit-only; accepted") until it is wired as a service work
+  item. Step 3 made work items drain, so the wiring is now unblocked; it gets an agent when a slot frees. Its review only
+  runs on a machine with the service installed, and this machine has none. Installing the service here would move every
+  session's commits to it, so the user decides that.
+- Gate 9 (`8abacf428b`) near its end; gate 10 on `9ca669c45f` follows in `.claude/worktrees/gate-main9`.
