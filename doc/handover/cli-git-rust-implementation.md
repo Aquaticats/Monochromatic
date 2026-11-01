@@ -6168,3 +6168,48 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - Readers decline: the bounded git-lfs fallback.
   The plain push of commits touching no LFS path is now the common case: none of today's 70 unpushed commits touched
   one. Pushed `11ad7efdf7..567cd0d70f` the same checked way.
+
+### LFS Worker Error 1102, integration branch, service handoff, 2026-11-01
+
+- Owner: "The lfs server is cf. Thought you might want to know." and "Just do whatever you need for cf. No need to ask
+  for my approval." (billing or plan changes are still reported first, not made).
+- Cause of the push 503s, measured: Cloudflare Error 1102. The JSON body reads `"title":"Error 1102: Worker exceeded
+  resource limits"`, `"detail":"A Worker script configured by the website owner exceeded its resource limits (CPU time
+  or memory) and was terminated."` The Worker is in this repo: `package/config/lfs-r2-worker`. Its `src/batch.ts`
+  `handleBatch` runs `env.BUCKET.head(oid)`, a debug log line and response building per object, all through
+  `Promise.all`; which of those costs the CPU or memory is not measured yet.
+- Threshold, read-only upload batches, two tries each: 10, 25 and 50 objects gave 200; 75 and 100 gave 503 (1102).
+  The git-lfs default batch is 100 (`git lfs help config`, `lfs.transfer.batchSize`).
+- Relief now: `git config --local lfs.transfer.batchSize 25` in the main clone (this clone's `.git/config`; shared by
+  every worktree). It cannot go in `.lfsconfig`, because git-lfs reads only a listed set of keys from that file and
+  this key is not among them.
+- Worker fix sent to agent `a7864939b58cd0166`: measure the cause, fix, deploy and verify live, then write a
+  troubleshooting doc.
+- In-process pointer detection (the owner's "why invoke git lfs at all") stays with the hotfix agent `ab7d550ba5af421b8`.
+- Merged into integration branch `integ-20261101`, worktree `.claude/worktrees/integ`, without conflicts: P provisioning
+  `5734655108`, review wiring `2f9bfbaddf`, m048d survivors and lint `7673b53530`. Head `aa047c648f`. Gate 12 runs there
+  (unit `gpc-main-gate12`, log `~/temp/agent/gate/main-gate12.log`). Main fast-forwards to it when green; then
+  `77697b39e2` (P's design-doc decisions) merges.
+- m048d dispositions:
+  - `child_watch` killed;
+  - `process_tree` timeout fixed (unbounded cleanup wait) and killed;
+  - `process_tree:109` equivalent on Linux (`cfg(not(linux))`);
+  - `real_index_lock.rs` superseded by step 4's deletion (its only callers are on the list).
+- P (provisioning) results:
+  - `$XDG_RUNTIME_DIR/systemd/user` runtime units;
+  - session-bus `StartUnit`;
+  - our old `~/.config` units removed;
+  - install, uninstall and the env switch deleted;
+  - idle exit 3 h.
+- Real-manager finding from P: a `Reload` took more than 20 s (log last written 09:59:48) and briefly broke other
+  clients ("Transport endpoint is not connected"). The reboot came later (`uptime -s` 10:08:37). No connection is claimed.
+  The wrapper now reloads only when an existing unit changed.
+- Steps 4b-2, 4c and 4d go to the new agent `af248a0e1f85cfae6`. Step 3 of its brief is a report of the still-declined
+  lines and the no-session-bus paths, with a stop before 4d's deletion.
+- Review gateway key, adopted (veto open): the wrapper passes the key from its own environment (where the old hook got
+  it, `mise.toml` `process.env.SHADOW_REVIEW_LLMGATEWAY_API_KEY`) in the in-memory work message over the user-only
+  socket; it is never stored in the on-disk work item. Rejected: the manager's `SetEnvironment` (every unit of the
+  account can read it) and `LoadCredential` (the key on disk). Queued for the next free agent slot (likely
+  `ad02e84404af49107`).
+- `package/git-policy/cli.fuzz` does not compile on main (`markdown.rs` imports the missing
+  `markdown_linter_output::interpret_linter_run`). Sent to `a0a08ba8c0924f668` with a request for a cheap compile check.
