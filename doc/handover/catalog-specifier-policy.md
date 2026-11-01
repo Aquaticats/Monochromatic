@@ -1000,6 +1000,45 @@ The user confirmed the shared understanding and the order below, after the third
   `git diff` of `toolchain.lock.json`: three changes only (the 0.5.0 to 0.5.1 version, the new shadow row, the digest). Not
   committed by this session on purpose: the file holds both sessions' uncommitted work.
 
+- 2026-11-01, defect in `monochromatic-pnpm-shadow` 0.1.0 found by the toolchain session (`monochromatic-6e`) and fixed in the tree:
+  - What 6e measured: after `toolchain:install` linked the shadow as `pnpm` through a launcher (an ELF that `mpm-shadow` writes for
+    every postinstall link), `pnpm --version` exited 126 with "pnpm-shadow: could not start .../pnpm-shadow-bin/pnpm: Res...", and
+    `pnpm root` and `pnpm --help` ran past a 60-second timeout. 6e disabled the link and took the PATH entry out; the plan row and the
+    lock row 0.1.0 stay.
+  - Cause: the shadow skips PATH candidates whose resolved path equals its own executable path. The link resolves to the
+    launcher, a different file, so the shadow took its own link as the real pnpm and started itself again: an endless exec chain, and
+    on the version and help path (a child process) nested children until the process limit. My tests had linked the binary directly,
+    never through a launcher.
+  - Fix, commits `fix(pnpm-shadow/cli)` (loop guard) and `fix(pnpm-shadow/cli)` (notice handshake), README section "Launchers and the
+    loop guard": each instance records the resolved path of the candidate it picks in the environment value `PNPM_SHADOW_GUARD`, and
+    the instance that candidate starts skips every recorded path, so the chain ends at the real pnpm; hard limit of eight hops. The value
+    is bound to a process (an exec guard to the process with the writer's id, a spawn guard to the writer's direct child), so a script
+    that the real pnpm runs never inherits it; an instance started by another does not warn again; for version and help the
+    innermost instance prints the notice and leaves a marker file named for the outer instance's process id in `XDG_RUNTIME_DIR`,
+    which the outer instance claims and stays silent (without that variable a launcher chain prints the notice twice).
+    6e suggested skipping every candidate in the directory the shadow was found in; that needs the invoked path, and argv[0] is the
+    bare word `pnpm` when the shell finds the link on PATH, so the guard records resolved candidates instead.
+  - Tests (68 pass, clippy clean): a launcher world (a bash script that runs the shadow under the name `pnpm`) for the exec and the
+    spawn path, a violation warning exactly once, a pnpm that runs `pnpm` again still finding the real one, and a launcher with no real
+    pnpm behind it ending with 127; plus unit tests of the guard text, the process binding, the skip list and the marker.
+    The tests were first wrong in their harness: `timeout` was not found because the child `PATH` held only the shadow and fake
+    directories (fixed with its absolute path).
+  - Proof that the tests can fail (rule on guard tests): in a podman container with `--memory=2g --cpus=2 --pids-limit=200`, inputs
+    baked in from `git archive HEAD`, with `is_meant_for` rewritten to always return false (`~/temp/agent/ps-guard-proof.ts`, log
+    `ps-guard-proof/run.log`), both launcher tests failed: "the exec path looped" (exit 124, killed by `timeout`) and the warning
+    count 9326 against the expected 1. Nothing ran on the host.
+  - Latency after the guard, paired medians against real pnpm 12.16.1 (`~/temp/agent/pnpm-shadow-pairs.ts`, 100 pairs): on a host that
+    other sessions loaded heavily (real medians up to 184.6 ms, several spreads of 13 ms to 60 ms) only `install --help` was clean
+    (+0.78 ms, p10 to p90 -1.7 to +3.3 ms, the same as before the guard); `--version` +1.48 ms and `root` -0.64 ms had spreads far above
+    those values and prove nothing either way.
+  - Not yet done: the fix is not released. 0.1.0 on crates.io and in the GitHub release is immutable and still carries the defect, so
+    a fixed release is a new version, 0.1.1. `monochromatic-6e` asked to be told when a fixed release is out, then puts the PATH entry back
+    and re-runs `command -v pnpm` plus `pnpm --version`, `root` and `--help` with timeouts.
+- 2026-11-01, `monochromatic-8c` said pushes may fail before `git push` with a `git-lfs` batch HTTP 503 since cli-git 0.5.1 (about 22 batch
+  requests per push, the server answers some with an intermittent 503); commits stay local and go out with the next successful push; a
+  0.5.2 hotfix is being built; `--no-verify` and `GIT_LFS_SKIP_PUSH=1` must not be used for pushes that add LFS files. Seen from here:
+  eight local commits ahead of `origin/main`, one of them mine (the README commit), the rest merges from other sessions.
+
 ## Open items
 
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
