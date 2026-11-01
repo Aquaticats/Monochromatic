@@ -91,58 +91,28 @@ fn a_plain_run_reports_git_status_or_the_start_failure() {
     remove(root.as_path());
 }
 
-/// A settled creation from the main checkout copies the named file after Git, and keeps Git's status.
-#[cfg(unix)]
+/// The path a plain `git worktree add` asks for is found after the global options and the options of `add`, and
+///  resolved against the directory Git runs in; anything else is not read.
 #[test]
-fn a_settled_creation_copies_the_named_file() {
-    let root: PathBuf = fixture("forward-settled");
-    let (main, common) = source(root.as_path());
-    let topic: PathBuf = root.join("topic");
-    let facts: CopyFacts = CopyFacts {
-        identity: main_identity(main.as_path(), common.as_path()),
-        creates_or_moves: true,
-        main_checkout_paths: vec![String::from(".cache/rules.txt")],
-        global_prefix: arguments(&["-C", main.to_str().expect("utf8")]),
-        environment: Vec::new(),
-    };
-    let created: ForwardedRun = run_forwarded_git(
-        Path::new(REAL_GIT),
-        arguments(&[
-            "-C",
-            main.to_str().expect("utf8"),
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "topic",
-            topic.to_str().expect("utf8"),
-        ])
-        .as_slice(),
-        isolated_overlay().as_slice(),
-        Some(&facts),
+fn the_added_path_is_read_from_the_command_line() {
+    let cwd: &Path = Path::new("/work/repo");
+    let path = |values: &[&str]| -> Option<PathBuf> { return added_worktree_path(arguments(values).as_slice(), cwd); };
+    assert_eq!(path(&["worktree", "add", "../topic"]), Some(PathBuf::from("/work/repo/../topic")));
+    assert_eq!(path(&["worktree", "add", "/abs/topic", "main"]), Some(PathBuf::from("/abs/topic")));
+    assert_eq!(
+        path(&["worktree", "add", "--quiet", "--lock", "--reason", "initializing", "-b", "new", "../topic"]),
+        Some(PathBuf::from("/work/repo/../topic")),
+        "the values of --reason and -b are not the path"
     );
-    assert_eq!(created, ForwardedRun::Ran(0));
-    assert_eq!(std::fs::read(topic.join(".cache/rules.txt")).expect("copied"), b"rules");
-    // Git's own failure keeps its status and copies nothing.
-    let failed: ForwardedRun = run_forwarded_git(
-        Path::new(REAL_GIT),
-        arguments(&[
-            "-C",
-            main.to_str().expect("utf8"),
-            "worktree",
-            "add",
-            "--quiet",
-            "-b",
-            "topic",
-            root.join("again").to_str().expect("utf8"),
-        ])
-        .as_slice(),
-        isolated_overlay().as_slice(),
-        Some(&facts),
-    );
-    assert_eq!(failed, ForwardedRun::Ran(255));
-    assert!(!root.join("again").exists());
-    remove(root.as_path());
+    assert_eq!(path(&["worktree", "add", "-B", "reset", "--detach", "-f", "../topic", "HEAD"]), Some(PathBuf::from("/work/repo/../topic")));
+    assert_eq!(path(&["worktree", "add", "--", "-odd"]), Some(PathBuf::from("/work/repo/-odd")), "after -- everything is a path");
+    assert_eq!(path(&["-C", "sub", "worktree", "add", "x"]), Some(PathBuf::from("/work/repo/sub/x")));
+    assert_eq!(path(&["-C", "/elsewhere", "-C", "inner", "worktree", "add", "x"]), Some(PathBuf::from("/elsewhere/inner/x")));
+    assert_eq!(path(&["-c", "core.quotepath=false", "--no-pager", "worktree", "add", "x"]), Some(PathBuf::from("/work/repo/x")));
+    assert_eq!(path(&["worktree", "move", "a", "b"]), None);
+    assert_eq!(path(&["worktree", "add"]), None);
+    assert_eq!(path(&["status"]), None);
+    assert_eq!(path(&[]), None);
 }
 
 /// A settled run whose Git cannot be started ends as an engine failure with the reason.

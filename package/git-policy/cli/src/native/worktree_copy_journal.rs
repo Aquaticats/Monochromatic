@@ -136,6 +136,11 @@ pub struct Journal {
     pub stage_container: String,
     /// The payload root inside the container.
     pub stage_root: String,
+    /// The administrative name of the registration the copy fills; nothing for a journal an older release wrote.
+    pub admin_id: Option<String>,
+    /// The identity of that registration (`worktrees/<name>/cli-git-registration`), which tells a registration from
+    ///  a later one that reuses its name; nothing for a journal an older release wrote.
+    pub registration: Option<String>,
 }
 
 /// What:
@@ -170,8 +175,15 @@ pub fn encode_journal(journal: &Journal) -> String {
         .iter()
         .map(encode_installed_entry)
         .collect();
+    // The two registration fields are written only when the journal has them, and every older reader ignores them.
+    let registration: String = match (&journal.admin_id, &journal.registration) {
+        (Some(admin_id), Some(token)) => {
+            format!("\"adminId\":{},\"registrationToken\":{},", quote(admin_id.as_str()), quote(token.as_str()))
+        }
+        _ => String::new(),
+    };
     return format!(
-        "{{\"createdEntries\":[{}],\"intendedEntries\":{},\"destinationRoot\":{},\"phase\":{},\"selectedRoots\":{},\"sourceRoot\":{},\"stageContainer\":{},\"stageRoot\":{},\"version\":1}}\n",
+        "{{\"createdEntries\":[{}],\"intendedEntries\":{},\"destinationRoot\":{},\"phase\":{},\"selectedRoots\":{},\"sourceRoot\":{},\"stageContainer\":{},\"stageRoot\":{},{registration}\"version\":1}}\n",
         created.join(","),
         string_array(journal.intended_entries.as_slice()),
         quote(journal.destination_root.as_str()),
@@ -331,6 +343,8 @@ fn read_shape(value: &serde_json::Value) -> Option<Journal> {
         source_root: object.get("sourceRoot")?.as_str()?.to_string(),
         stage_container: object.get("stageContainer")?.as_str()?.to_string(),
         stage_root: object.get("stageRoot")?.as_str()?.to_string(),
+        admin_id: object.get("adminId").and_then(serde_json::Value::as_str).map(String::from),
+        registration: object.get("registrationToken").and_then(serde_json::Value::as_str).map(String::from),
     });
 }
 
@@ -661,6 +675,25 @@ pub fn create_journal(
     destination_root: &Path,
     snapshot: &StagedSnapshot,
 ) -> Result<PendingJournal, WorktreeCopyError> {
+    return create_journal_for(common_dir, destination_root, snapshot, None);
+}
+
+/// What:
+///  Creates the staged journal of one destination that also names the registration it fills.
+/// Why:
+///   Recovery marks a finished copy against the registration's identity, so a registration that later reuses the same
+///  administrative name is not taken for the one that was copied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await createWorktreeCopyJournal({ commonDir, destinationRoot, snapshot, registration: { adminId, token } });
+/// ```
+pub fn create_journal_for(
+    common_dir: &Path,
+    destination_root: &Path,
+    snapshot: &StagedSnapshot,
+    registration: Option<(&str, &str)>,
+) -> Result<PendingJournal, WorktreeCopyError> {
     let root: PathBuf = ensure_journal_root(common_dir)?;
     let unique: String = random_uuid().map_err(|error| return raw_failure(&error.0))?;
     let path: PathBuf = root.join(format!("{unique}{JOURNAL_SUFFIX}"));
@@ -673,6 +706,8 @@ pub fn create_journal(
         source_root: snapshot.source_root.to_string_lossy().into_owned(),
         stage_container: snapshot.stage_container.to_string_lossy().into_owned(),
         stage_root: snapshot.stage_root.to_string_lossy().into_owned(),
+        admin_id: registration.map(|(admin_id, _)| return admin_id.to_string()),
+        registration: registration.map(|(_, token)| return token.to_string()),
     };
     write_journal(path.as_path(), &journal)?;
     return Ok(PendingJournal { path, journal });
@@ -688,6 +723,22 @@ pub fn create_journal(
 /// await readPendingWorktreeCopyJournals(commonDir);
 /// ```
 pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, WorktreeCopyError> {
+    return read_pending_journals_with(common_dir, &mut |_path| {});
+}
+
+/// What:
+///  `read_pending_journals` with a function called for each journal after it was found to exist and before it is checked.
+/// Why:
+///   A copy that finishes between those two steps removes its journal, and a test cannot otherwise place that removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readPendingWorktreeCopyJournals(commonDir, { betweenStatAndCheck });
+/// ```
+pub fn read_pending_journals_with(
+    common_dir: &Path,
+    between: &mut dyn FnMut(&Path),
+) -> Result<Vec<PendingJournal>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     // `match` treats an absent root as having no journals, and every other failure as fatal.
     match std::fs::symlink_metadata(root.as_path()) {
@@ -725,7 +776,14 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => return Err(raw_failure(&error)),
         }
-        assert_private_path(path.as_path(), Role::JournalFile)?;
+        between(path.as_path());
+        // A journal removed between the stat and the check is gone, not unsafe; any other refusal stands.
+        if let Err(refusal) = assert_private_path(path.as_path(), Role::JournalFile) {
+            match std::fs::symlink_metadata(path.as_path()) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                _ => return Err(refusal),
+            }
+        }
         let Some(text) = read_journal_text(path.as_path())? else {
             continue;
         };

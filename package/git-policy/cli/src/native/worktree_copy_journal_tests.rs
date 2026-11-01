@@ -22,6 +22,8 @@ fn sample(root: &Path) -> Journal {
         source_root: root.join("source").to_string_lossy().into_owned(),
         stage_container: stage.to_string_lossy().into_owned(),
         stage_root: stage.join("payload").to_string_lossy().into_owned(),
+        admin_id: None,
+        registration: None,
     };
 }
 
@@ -528,5 +530,51 @@ fn a_journal_removed_since_the_listing_is_skipped() {
     assert_eq!(read_journal_text(present.as_path()).expect("read"), Some(String::from("text")));
     let failure: WorktreeCopyError = read_journal_text(root.as_path()).expect_err("a directory is no journal");
     assert!(failure.0.starts_with("cli-git: could not read worktree-copy journal "), "{}", failure.0);
+    remove(root.as_path());
+}
+
+/// A journal that names its registration keeps the name and the identity through its own text, and one that does not
+///  reads back without them, as every journal an older release wrote does.
+#[test]
+fn a_journal_keeps_the_registration_it_names() {
+    let root: PathBuf = fixture("journal-registration");
+    let named: Journal = Journal {
+        admin_id: Some(String::from("topic")),
+        registration: Some(String::from("0f0e-token")),
+        ..sample(root.as_path())
+    };
+    let text: String = encode_journal(&named);
+    assert!(text.contains("\"adminId\":\"topic\",\"registrationToken\":\"0f0e-token\",\"version\":1"), "{text}");
+    let path: PathBuf = journal_root(root.as_path()).join("id.json");
+    assert_eq!(parse_journal(text.as_str(), path.as_path(), journal_root(root.as_path()).as_path()).expect("parsed"), named);
+    let plain: String = encode_journal(&sample(root.as_path()));
+    assert!(!plain.contains("registrationToken"), "{plain}");
+    let read: Journal = parse_journal(plain.as_str(), path.as_path(), journal_root(root.as_path()).as_path()).expect("parsed");
+    assert_eq!((read.admin_id, read.registration), (None, None));
+    remove(root.as_path());
+}
+
+/// A copy that finishes while another process lists the journals removes its journal between the listing's stat and its
+///  private-mode check; the journal is gone, not unsafe, and the listing goes on.
+#[cfg(unix)]
+#[test]
+fn a_journal_removed_between_the_stat_and_the_check_is_skipped() {
+    let root: PathBuf = fixture("journal-vanishes-mid-list");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    write_journal(journals.join("a.json").as_path(), &sample(root.as_path())).expect("first");
+    write_journal(journals.join("b.json").as_path(), &sample(root.as_path())).expect("second");
+    let listed: Vec<PendingJournal> = read_pending_journals_with(common.as_path(), &mut |path| {
+        if path.ends_with("a.json") {
+            std::fs::remove_file(path).expect("the finished copy removes its journal");
+        }
+    })
+    .expect("listed");
+    assert_eq!(listed.len(), 1);
+    assert!(listed[0].path.ends_with("b.json"));
+    // A journal that is present and unsafe is still refused: only a missing one is skipped.
+    std::fs::set_permissions(journals.join("b.json"), std::fs::Permissions::from_mode(0o644)).expect("shared");
+    read_pending_journals(common.as_path()).expect_err("an unsafe journal fails closed");
     remove(root.as_path());
 }

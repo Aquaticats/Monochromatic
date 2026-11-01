@@ -88,11 +88,68 @@ impl Drop for FixtureService {
     }
 }
 
+impl FixtureService {
+    /// Whether the service has ended (a test fault ended it).
+    pub fn has_ended(&mut self) -> bool {
+        return matches!(self.child.try_wait(), Ok(Some(_)));
+    }
+
+    /// Starts the service again at the same socket after it ended, as the service manager does for a killed service; the
+    ///  new one runs without a fault.
+    pub fn restart(&mut self, fixture: &Fixture) {
+        let _reaped = self.child.wait();
+        let socket: PathBuf = self.runtime.join("cli-git/service.sock");
+        let _stale = std::fs::remove_file(&socket);
+        self.child = spawn_service(fixture, &socket, None);
+        wait_until_listening(&socket);
+    }
+}
+
 /// The resident service program Cargo built for this test run.
 const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_cli-git-service");
 
 /// Numbers the runtime directories of one test process.
 static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Starts the service program listening at `socket`, with the journal in the fixture and killed by the kernel if the test
+///  process dies; `fault` names a point of the service at which it ends itself.
+fn spawn_service(fixture: &Fixture, socket: &Path, fault: Option<&str>) -> Child {
+    use std::os::unix::process::CommandExt;
+    let mut command: Command = Command::new(SERVICE_PROGRAM);
+    command
+        .args(["--journal"])
+        .arg(fixture.root.join("journal"))
+        .arg("--path")
+        .arg(socket)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", fixture.root.join("home"))
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    if let Some(point) = fault {
+        command.env("CLI_GIT_TEST_ONLY_SERVICE_FAULT", point);
+    }
+    // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
+    unsafe {
+        command.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            return Ok(());
+        });
+    }
+    return command.spawn().expect("the fixture's commit service starts");
+}
+
+/// Waits until something listens at the socket.
+fn wait_until_listening(socket: &Path) {
+    let began: std::time::Instant = std::time::Instant::now();
+    while std::os::unix::net::UnixStream::connect(socket).is_err() {
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
 
 /// What:
 ///  Starts the commit service of a fixture: listening at the socket path the wrapper looks for under a short runtime
@@ -102,50 +159,64 @@ static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::Atom
 ///  in the short agent scratch directory under the home. The parent-death signal means a control that panics or is killed
 ///  leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
-    use std::os::unix::process::CommandExt;
+    return start_fixture_service_with(fixture, None);
+}
+
+/// `start_fixture_service` with a test fault armed in the service (`service_fault.rs`).
+pub fn start_fixture_service_with(fixture: &Fixture, fault: Option<&str>) -> FixtureService {
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
     let socket: PathBuf = runtime.join("cli-git/service.sock");
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("runtime directory");
-    let mut command: Command = Command::new(SERVICE_PROGRAM);
-    command
-        .args(["--journal"])
-        .arg(fixture.root.join("journal"))
-        .arg("--path")
-        .arg(&socket)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("HOME", fixture.root.join("home"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
-    // SAFETY: the closure runs in the child between fork and exec and calls only `prctl`, which is async-signal-safe.
-    unsafe {
-        command.pre_exec(|| {
-            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
-            return Ok(());
-        });
-    }
-    let child: Child = command.spawn().expect("the fixture's commit service starts");
+    let child: Child = spawn_service(fixture, &socket, fault);
     let service: FixtureService = FixtureService { child, runtime };
-    let began: std::time::Instant = std::time::Instant::now();
-    while std::os::unix::net::UnixStream::connect(&socket).is_err() {
-        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the fixture's commit service never listened");
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    wait_until_listening(&socket);
     return service;
 }
 
-/// The runtime directory of the fixture's service, started on first use; nothing unless the run asked for services.
-fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
-    if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
-        return None;
-    }
+/// Gives the fixture a service armed with a fault, before the first wrapped command starts one without.
+pub fn arm_service_fault(fixture: &Fixture, fault: &str) {
+    let mut service = fixture.service.lock().expect("the fixture's service lock");
+    assert!(service.is_none(), "the fixture's service was started before the fault was armed");
+    *service = Some(start_fixture_service_with(fixture, Some(fault)));
+}
+
+/// Gives the fixture a service now, whether or not the run asked for services.
+pub fn ensure_service(fixture: &Fixture) {
     let mut service = fixture.service.lock().expect("the fixture's service lock");
     if service.is_none() {
+        *service = Some(start_fixture_service(fixture));
+    }
+}
+
+/// Waits for the fixture's service to end by itself, and starts it again at the same socket. The lock is held only while
+///  the service is looked at, so a wrapped command in another thread, which needs the lock to learn the socket, runs.
+pub fn restart_service_after_fault(fixture: &Fixture) {
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        {
+            let mut service = fixture.service.lock().expect("the fixture's service lock");
+            if let Some(started) = service.as_mut()
+                && started.has_ended()
+            {
+                started.restart(fixture);
+                return;
+            }
+        }
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the service never reached its fault point");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
+/// The runtime directory of the fixture's service, started on first use; nothing unless the run asked for services or a
+///  control gave the fixture one.
+fn service_runtime(fixture: &Fixture) -> Option<PathBuf> {
+    let mut service = fixture.service.lock().expect("the fixture's service lock");
+    if service.is_none() {
+        if std::env::var_os(SERVICE_VARIABLE).is_none_or(|value| { return value.is_empty(); }) {
+            return None;
+        }
         *service = Some(start_fixture_service(fixture));
     }
     return service.as_ref().map(|started| { return started.runtime.clone(); });

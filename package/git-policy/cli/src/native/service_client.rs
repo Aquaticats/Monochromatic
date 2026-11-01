@@ -105,7 +105,7 @@ fn read_message(reader: &mut BufReader<UnixStream>) -> Option<ServiceMessage> {
 /// ```ts
 /// const { stream, version } = await reach(config, notices)
 /// ```
-fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<(BufReader<UnixStream>, u32), ClientFailure> {
+pub fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -> Result<(BufReader<UnixStream>, u32), ClientFailure> {
     let started: Instant = Instant::now();
     loop {
         match connect(&config.address) {

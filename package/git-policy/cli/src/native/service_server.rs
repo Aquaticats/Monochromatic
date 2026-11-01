@@ -12,6 +12,7 @@
 //! for await (const batch of queue.batches()) { const outcomes = await landBatch(batch); for (...) reply(outcome); }
 //! ```
 
+use super::service_copy::{CopyJob, GitCopyRunner, copy_loop};
 use super::service_journal::landed_commits;
 use super::service_land::{LandContext, Outcome, land_batch, recover};
 use super::service_work::{GitHandlers, Wake, run_round};
@@ -110,7 +111,7 @@ fn send(stream: &UnixStream, message: &ServiceMessage) {
 }
 
 /// Reads one request line from a new connection, checks who sent it, and queues it.
-fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>) {
+fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake>, copies: &Sender<CopyJob>) {
     send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION });
     // SAFETY: `geteuid` takes no arguments and cannot fail.
     if peer_user(&stream) != Some(unsafe { libc::geteuid() }) {
@@ -137,6 +138,10 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<Wake
         }
         Ok(ClientMessage::Work { common_dir, review_key }) => {
             let _queued = work.send((common_dir, review_key));
+            let _touched = queue.send(Job::Activity);
+        }
+        Ok(ClientMessage::Copy { common_dir, ids }) => {
+            let _queued = copies.send(CopyJob { common_dir, ids, stream });
             let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
@@ -237,11 +242,17 @@ pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
     std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
+    // Worktree copies run on one thread of their own: they take minutes, and one thread keeps two of them from overlapping.
+    let (copy_sender, copy_receiver): (Sender<CopyJob>, Receiver<CopyJob>) = channel();
+    let copy_runner: GitCopyRunner = GitCopyRunner { context: context.git.clone() };
+    let copy_busy: Arc<AtomicUsize> = Arc::clone(&busy);
+    std::thread::spawn(move || { copy_loop(&copy_receiver, &copy_runner, &copy_busy); });
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
             let work: Sender<Wake> = work_sender.clone();
-            std::thread::spawn(move || { handle_connection(connection, &queue, &work); });
+            let copies: Sender<CopyJob> = copy_sender.clone();
+            std::thread::spawn(move || { handle_connection(connection, &queue, &work, &copies); });
         }
     });
     let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });

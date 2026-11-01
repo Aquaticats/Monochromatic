@@ -2,9 +2,16 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_copy_claim::claims_exist;
-use crate::worktree_copy_journal::{ensure_journal_root, journal_root, read_pending_journals};
+use crate::service_copy::tests::DirectRequester;
+use crate::worktree_copy_journal::{journal_root, read_pending_journals};
+use crate::worktree_copy_request::{CopyRequest, requests_exist};
+use crate::worktree_copy_selection::CopySelection;
 use std::process::Output;
+
+/// The requester that is the service in the same process.
+fn direct() -> DirectRequester {
+    return DirectRequester { context: git_context(), wakes: 0 };
+}
 
 /// A repository with an ignored `cache` directory, returned with its canonical common directory.
 fn source(root: &Path) -> (PathBuf, PathBuf) {
@@ -97,10 +104,10 @@ fn exit_status_follows_the_settlement_table() {
     );
 }
 
-/// A worktree added from a linked worktree gets its ignored files, the summary line, and leaves no claim behind.
+/// A worktree added from a linked worktree gets its ignored files, the summary line, and leaves no request behind.
 #[cfg(unix)]
 #[test]
-fn added_worktree_receives_ignored_state_and_its_claim_is_released() {
+fn added_worktree_receives_ignored_state_through_the_service_and_leaves_no_request() {
     let root: PathBuf = fixture("lifecycle-add");
     let (main, common) = source(root.as_path());
     std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
@@ -141,10 +148,12 @@ fn added_worktree_receives_ignored_state_and_its_claim_is_released() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
+            added_path: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
         &mut || return Ok(run_real(source_canonical.as_path(), args.as_slice())),
+        &mut direct(),
         &mut stderr,
     )
     .expect("settled");
@@ -160,7 +169,7 @@ fn added_worktree_receives_ignored_state_and_its_claim_is_released() {
             quote(source_canonical.to_string_lossy().as_ref())
         )
     );
-    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
+    assert!(!requests_exist(common.as_path()).expect("requests"));
     assert!(
         read_pending_journals(common.as_path())
             .expect("pending")
@@ -186,6 +195,7 @@ fn opted_out_invocation_skips_synchronization() {
             creates_or_moves: true,
             opted_out: true,
             short_circuit: false,
+            added_path: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -203,6 +213,7 @@ fn opted_out_invocation_skips_synchronization() {
                 ],
             ));
         },
+        &mut direct(),
         &mut stderr,
     )
     .expect("settled");
@@ -231,6 +242,7 @@ fn main_worktree_invocation_is_not_applicable() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
+            added_path: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -238,12 +250,13 @@ fn main_worktree_invocation_is_not_applicable() {
             seen.push(None);
             return Ok(GitStatus { code: Some(7) });
         },
+        &mut direct(),
         &mut Vec::new(),
     )
     .expect("settled");
     assert_eq!(exit_code(&settlement), 7);
     assert_eq!(seen, vec![None]);
-    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
+    assert!(!requests_exist(common.as_path()).expect("requests"));
     remove(root.as_path());
 }
 
@@ -266,6 +279,7 @@ fn non_worktree_command_runs_without_settlement() {
             creates_or_moves: false,
             opted_out: false,
             short_circuit: false,
+            added_path: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -273,6 +287,7 @@ fn non_worktree_command_runs_without_settlement() {
             seen.push(None);
             return Ok(GitStatus { code: Some(0) });
         },
+        &mut direct(),
         &mut Vec::new(),
     )
     .expect("settled");
@@ -288,45 +303,6 @@ fn linked_identity(root: &Path, common: &Path, admin: &Path) -> WorktreeIdentity
         git_dir: admin.to_path_buf(),
         worktree_root: root.to_path_buf(),
     };
-}
-
-/// Runs `git worktree add` for `topic` through the lifecycle, calling `after_git` with the new worktree's path once real Git returned.
-fn add_then(
-    root: &Path,
-    main: &Path,
-    common: &Path,
-    after_git: &mut dyn FnMut(&Path),
-) -> (Settlement, String, PathBuf) {
-    let topic: PathBuf = root.join("topic");
-    let identity: WorktreeIdentity = main_identity(main, common);
-    let args: Vec<String> = vec![
-        String::from("worktree"),
-        String::from("add"),
-        String::from("--quiet"),
-        String::from("-b"),
-        String::from("topic"),
-        topic.to_string_lossy().into_owned(),
-    ];
-    let mut stderr: Vec<u8> = Vec::new();
-    let settlement: Settlement = run_with_worktree_copy(
-        &Invocation {
-            identity,
-            effective_cwd: main.to_path_buf(),
-            creates_or_moves: true,
-            opted_out: false,
-            short_circuit: false,
-            context: git_context(),
-            main_checkout_paths: vec![String::from("cache/data")],
-        },
-        &mut || {
-            let status: GitStatus = run_real(main, args.as_slice());
-            after_git(topic.as_path());
-            return Ok(status);
-        },
-        &mut stderr,
-    )
-    .expect("settled");
-    return (settlement, String::from_utf8(stderr).expect("utf8"), topic);
 }
 
 /// A creating command run from a linked worktree that Git is still creating (a filter or hook of an enclosing
@@ -348,6 +324,7 @@ fn a_creating_command_inside_an_unfinished_source_only_forwards() {
             creates_or_moves: true,
             opted_out: false,
             short_circuit: false,
+            added_path: None,
             context: git_context(),
             main_checkout_paths: Vec::new(),
         },
@@ -355,6 +332,7 @@ fn a_creating_command_inside_an_unfinished_source_only_forwards() {
             ran += 1;
             return Ok(GitStatus { code: Some(0) });
         },
+        &mut direct(),
         &mut stderr,
     )
     .expect("settled");
@@ -365,51 +343,99 @@ fn a_creating_command_inside_an_unfinished_source_only_forwards() {
     remove(root.as_path());
 }
 
-/// A worktree another command already copied and marked is not this command's to count: it prints no summary.
+/// A command that creates nothing nudges the service only when a copy is pending, runs its own Git at once, and never
+///  waits for the copy.
 #[cfg(unix)]
 #[test]
-fn a_destination_a_peer_already_copied_is_not_counted() {
-    let root: PathBuf = fixture("lifecycle-peer-copied");
+fn a_command_that_creates_nothing_nudges_the_service_only_when_a_copy_is_pending() {
+    let root: PathBuf = fixture("lifecycle-wake");
     let (main, common) = source(root.as_path());
-    let (settlement, stderr, topic) = add_then(root.as_path(), main.as_path(), common.as_path(), &mut |_topic| {
-        std::fs::write(common.join("worktrees/topic").join(crate::worktree_copy_registry::COPIED_MARKER_NAME), b"")
-            .expect("the peer's marker");
-    });
-    assert_eq!(exit_code(&settlement), 0);
-    assert!(stderr.is_empty(), "{stderr}");
-    assert!(!topic.join("cache").exists(), "the peer's copy is the peer's");
+    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: common.clone(),
+        git_dir: common.clone(),
+        worktree_root: main.clone(),
+    };
+    let mut requester: DirectRequester = direct();
+    let mut ran: usize = 0;
+    let mut run = |requester: &mut DirectRequester| -> Settlement {
+        return run_with_worktree_copy(
+            &Invocation {
+                identity: identity.clone(),
+                effective_cwd: main.clone(),
+                creates_or_moves: false,
+                opted_out: false,
+                short_circuit: false,
+                added_path: None,
+                context: git_context(),
+                main_checkout_paths: Vec::new(),
+            },
+            &mut || {
+                ran += 1;
+                return Ok(GitStatus { code: Some(0) });
+            },
+            requester,
+            &mut Vec::new(),
+        )
+        .expect("settled");
+    };
+    assert_eq!(exit_code(&run(&mut requester)), 0);
+    assert_eq!(requester.wakes, 0, "nothing was pending");
+    // A copy a killed wrapper or service left: a request on disk.
+    let topic: PathBuf = root.join("topic");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", topic.to_str().expect("utf8")]);
+    let request: CopyRequest = CopyRequest {
+        id: crate::worktree_copy_request::new_request_id().expect("identity"),
+        admin_id: String::from("topic"),
+        registration: String::from("token"),
+        destination_root: std::fs::canonicalize(topic).expect("canonical"),
+        source_root: main.clone(),
+        selection: CopySelection::Ignored,
+        tries: 0,
+    };
+    crate::worktree_copy_request::write_request(common.as_path(), &request).expect("written");
+    assert_eq!(exit_code(&run(&mut requester)), 0);
+    assert_eq!(requester.wakes, 1, "a pending copy is the service's to finish");
+    assert_eq!(ran, 2, "the command ran its own Git both times");
     remove(root.as_path());
 }
 
-/// A worktree another command is copying right now is yielded to, with a notice, and no summary is printed.
+/// A worktree this command asked for with `--lock` is filled, and a locked worktree another command is creating is not:
+///  Git's lock decides, not the text in it.
 #[cfg(unix)]
 #[test]
-fn a_destination_a_peer_is_copying_is_yielded_to_with_a_notice() {
-    let root: PathBuf = fixture("lifecycle-peer-copying");
+fn a_locked_worktree_this_command_added_is_copied_and_a_locked_peer_is_not() {
+    let root: PathBuf = fixture("lifecycle-locked");
     let (main, common) = source(root.as_path());
-    let mut peer = None;
-    let (settlement, stderr, topic) = add_then(root.as_path(), main.as_path(), common.as_path(), &mut |topic| {
-        let canonical: PathBuf = std::fs::canonicalize(topic).expect("canonical");
-        let container: PathBuf = crate::worktree_copy_stage::new_stage_container(canonical.as_path()).expect("container");
-        peer = crate::worktree_copy_claim::publish_claim(
-            ensure_journal_root(common.as_path()).expect("root").as_path(),
-            "topic",
-            canonical.as_path(),
-            container.as_path(),
-        )
-        .expect("published");
-    });
-    assert_eq!(exit_code(&settlement), 0);
-    assert!(peer.is_some(), "the peer holds the claim");
-    let canonical: PathBuf = std::fs::canonicalize(topic.as_path()).expect("canonical");
-    assert_eq!(
-        stderr,
-        format!(
-            "cli-git: left the ignored-state copy into {} to another process: another descriptor of this process has it open.\n",
-            quote(canonical.to_string_lossy().as_ref())
-        )
-    );
-    assert!(!topic.join("cache").exists());
+    let topic: PathBuf = root.join("topic");
+    let peer: PathBuf = root.join("peer");
+    let identity: WorktreeIdentity = main_identity(main.as_path(), common.as_path());
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity,
+            effective_cwd: main.clone(),
+            creates_or_moves: true,
+            opted_out: false,
+            short_circuit: false,
+            added_path: Some(topic.clone()),
+            context: git_context(),
+            main_checkout_paths: vec![String::from("cache/data")],
+        },
+        // Two registrations appear while Git runs: the one asked for, locked by `--lock` with the sentinel text itself,
+        // and a peer's, locked with whatever text its language gives.
+        &mut || {
+            git(main.as_path(), &["worktree", "add", "--quiet", "--lock", "--reason", "initializing", "-b", "topic", topic.to_str().expect("utf8")]);
+            git(main.as_path(), &["worktree", "add", "--quiet", "--lock", "--reason", "initialisation", "-b", "peer", peer.to_str().expect("utf8")]);
+            return Ok(GitStatus { code: Some(0) });
+        },
+        &mut direct(),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{}", String::from_utf8_lossy(stderr.as_slice()));
+    assert!(topic.join("cache/data").exists(), "the worktree this command asked for was not filled");
+    assert!(!peer.join("cache").exists(), "a locked peer was filled by a command that did not create it");
+    assert!(!requests_exist(common.as_path()).expect("requests"));
     remove(root.as_path());
 }
 
@@ -459,19 +485,21 @@ fn add_from_main(
             creates_or_moves: flags.0,
             opted_out: flags.1,
             short_circuit: false,
+            added_path: None,
             context: git_context(),
             main_checkout_paths: named.iter().map(|path| return String::from(*path)).collect(),
         },
         &mut || return Ok(run_real(main, args.as_slice())),
+        &mut direct(),
         &mut stderr,
     )
     .expect("settled");
     return (settlement, String::from_utf8(stderr).expect("utf8"), topic);
 }
 
-/// Nothing of the copy stays behind: no claim, no pending journal and no private stage beside the worktree.
+/// Nothing of the copy stays behind: no request, no pending journal and no private stage beside the worktree.
 fn assert_nothing_left(root: &Path, common: &Path) {
-    assert!(!claims_exist(journal_root(common).as_path()).expect("claims"));
+    assert!(!requests_exist(common).expect("requests"));
     assert!(read_pending_journals(common).expect("pending").is_empty());
     let leftovers: Vec<String> = std::fs::read_dir(root)
         .expect("listing")

@@ -169,6 +169,58 @@ pub fn run_forwarded_git(
 }
 
 /// What:
+///  The path a plain `git worktree add` command line asks for, resolved against the directory Git runs in.
+/// Why:
+///   Git locks a worktree while it creates it and `--lock` keeps it locked, so the command that asked for a worktree is
+///  the only one entitled to fill a locked one; the command line says which worktree that is. Anything this reader does
+///  not recognize gives nothing, and the command then fills only the worktrees Git does not lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// addedWorktreePath(arguments, cwd)
+/// ```
+pub fn added_worktree_path(arguments: &[OsString], cwd: &Path) -> Option<PathBuf> {
+    /// Global options that take the next argument as their value.
+    const GLOBAL_WITH_VALUE: [&str; 6] = ["-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"];
+    /// The options of `worktree add` that take the next argument as their value.
+    const ADD_WITH_VALUE: [&str; 3] = ["-b", "-B", "--reason"];
+    let mut directory: PathBuf = cwd.to_path_buf();
+    let mut at: usize = 0;
+    while let Some(argument) = arguments.get(at) {
+        let text: &str = argument.to_str()?;
+        if text == "-C" {
+            directory = directory.join(arguments.get(at + 1)?);
+            at += 2;
+        } else if GLOBAL_WITH_VALUE.contains(&text) {
+            at += 2;
+        } else if text.starts_with('-') {
+            at += 1;
+        } else {
+            break;
+        }
+    }
+    if arguments.get(at)?.to_str()? != "worktree" || arguments.get(at + 1)?.to_str()? != "add" {
+        return None;
+    }
+    at += 2;
+    let mut options_end: bool = false;
+    while let Some(argument) = arguments.get(at) {
+        let text: &str = argument.to_str()?;
+        if !options_end && text == "--" {
+            options_end = true;
+            at += 1;
+        } else if !options_end && ADD_WITH_VALUE.contains(&text) {
+            at += 2;
+        } else if !options_end && text.starts_with('-') && text.len() > 1 {
+            at += 1;
+        } else {
+            return Some(directory.join(argument));
+        }
+    }
+    return None;
+}
+
+/// What:
 ///  The settled run: the lifecycle with real Git as its runner and the process's standard error as its stream.
 /// Why:
 ///   Real Git runs as a child between the recovery before it and the copy after it.
@@ -187,6 +239,7 @@ fn run_settled(
     use std::io::Write;
     use super::transaction_git::GitContext;
     use super::worktree_copy::{GitStatus, Invocation, exit_code, run_with_worktree_copy};
+    use super::service_copy_client::ServiceCopyRequester;
     use super::worktree_copy_error::WorktreeCopyError;
 
     let context: GitContext = GitContext {
@@ -205,7 +258,9 @@ fn run_settled(
         short_circuit: false,
         context,
         main_checkout_paths: facts.main_checkout_paths.clone(),
+        added_path: std::env::current_dir().ok().and_then(|cwd| return added_worktree_path(arguments, cwd.as_path())),
     };
+    let mut requester: ServiceCopyRequester = ServiceCopyRequester::from_environment(real_git);
     let mut stderr = std::io::stderr();
     // The runner starts Git as a child; nothing it runs, hooks and filters included, waits on or is told about the copy.
     let mut run_git = || -> Result<GitStatus, WorktreeCopyError> {
@@ -220,7 +275,7 @@ fn run_settled(
             }
         }
     };
-    match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
+    match run_with_worktree_copy(&invocation, &mut run_git, &mut requester, &mut stderr) {
         Ok(settlement) => {
             if let Some(failure) = &settlement.copy_failure {
                 // A closed standard error leaves nowhere to report the failure, and the exit status still carries it.

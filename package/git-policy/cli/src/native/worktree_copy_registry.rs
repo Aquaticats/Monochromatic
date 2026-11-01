@@ -16,6 +16,8 @@
 //! ```
 
 use super::git_metadata::{path_from_git_bytes, strip_git_line};
+use super::private_storage::{sync_directory, write_exclusive_synced};
+use super::random_id::random_uuid;
 use super::transaction_git::{GitContext, GitRequest, run_git};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use super::worktree_copy_selection::CopySelection;
@@ -56,6 +58,18 @@ const LOCKED_NAME: &str = "locked";
 /// const INITIALIZING_TEXT = 'initializing';
 /// ```
 const INITIALIZING_TEXT: &str = "initializing";
+
+/// What:
+///  The file inside a worktree's administrative directory that holds the identity of its registration.
+/// Why:
+///   Git deletes the directory, identity included, when it removes or prunes the worktree, and a later worktree of the
+///  same name starts without one, so the identity says which registration a copy was made for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REGISTRATION_NAME = 'cli-git-registration';
+/// ```
+pub const REGISTRATION_NAME: &str = "cli-git-registration";
 
 /// What:
 ///  The marker file a finished copy leaves inside the worktree's administrative directory.
@@ -111,6 +125,8 @@ pub struct CreatedWorktree {
     pub admin_id: String,
     /// Canonical created worktree root.
     pub root: PathBuf,
+    /// Whether Git has a lock file on the registration: it is still being created, or it was locked by its creator.
+    pub locked: bool,
 }
 
 /// What:
@@ -453,9 +469,32 @@ fn read_registered_worktrees(
 }
 
 /// What:
-///  Whether Git is still creating a registered worktree.
+///  Whether Git has a lock file on a registered worktree.
 /// Why:
-///   A copy into a half-checked-out worktree can make its checkout fail, so it is left to the command that creates it.
+///   Git writes it while it creates a worktree and removes it when the checkout is done; `--lock` keeps it. The text in
+///  it depends on the language and on `--reason`, so only its presence is evidence, and it is evidence of a worktree
+///  that must not be copied into by a command that did not ask for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await exists(join(adminRoot, adminId, 'locked'))
+/// ```
+pub fn is_locked(admin_root: &Path, admin_id: &str) -> Result<bool, WorktreeCopyError> {
+    // `match` on the stat: no `locked` file means no creation in progress; any other failure is reported.
+    match std::fs::symlink_metadata(admin_root.join(admin_id).join(LOCKED_NAME)) {
+        Ok(_) => return Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(false),
+        Err(error) => return Err(inspect_failure(admin_root, &error)),
+    }
+}
+
+/// What:
+///  Whether Git says in English that it is still creating a registered worktree.
+/// Why:
+///   A creating command run from inside a checkout (a filter or hook of an enclosing `git worktree add`) has a source
+///  that is not filled yet. This is a heuristic for that one case: a localized Git or a lock reason that spells the
+///  word defeats it, and nothing else depends on it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -472,18 +511,62 @@ pub fn is_initializing(admin_root: &Path, admin_id: &str) -> Result<bool, Worktr
 }
 
 /// What:
-///  Whether a finished copy marked this registration.
+///  The identity of a registration: the text of its registration file, or nothing when it has none or is gone.
 /// Why:
-///   An overlapping command that sees the worktree after the copy is done must not copy again.
+///   Git reuses an administrative name after a worktree is removed, so the name does not say which registration a copy
+///  was made for; a token written once into the directory does, because Git deletes it with the directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await exists(join(adminRoot, adminId, 'cli-git-copied'))
+/// await readFile(join(adminRoot, adminId, 'cli-git-registration'), 'utf8').catch(() => undefined)
 /// ```
-pub fn copied_marker_exists(admin_root: &Path, admin_id: &str) -> Result<bool, WorktreeCopyError> {
-    // `match` on the stat: absence means unmarked; any other failure is reported.
-    match std::fs::symlink_metadata(admin_root.join(admin_id).join(COPIED_MARKER_NAME)) {
-        Ok(_) => return Ok(true),
+pub fn registration_token(admin_root: &Path, admin_id: &str) -> Result<Option<String>, WorktreeCopyError> {
+    // `match` on the read: no file and no directory both mean no identity yet.
+    match std::fs::read_to_string(admin_root.join(admin_id).join(REGISTRATION_NAME)) {
+        Ok(text) => return Ok(Some(text.trim().to_string()).filter(|token| return !token.is_empty())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(None),
+        Err(error) => return Err(inspect_failure(admin_root, &error)),
+    }
+}
+
+/// What:
+///  The identity of a registration, written once if it has none yet.
+/// Why:
+///   The command that created the worktree gives it its identity; a creation or a request that finds one already there
+///  uses it, and a registration whose directory is gone has no identity to give.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await ensureRegistrationToken(adminRoot, adminId)
+/// ```
+pub fn ensure_registration_token(admin_root: &Path, admin_id: &str) -> Result<Option<String>, WorktreeCopyError> {
+    if let Some(known) = registration_token(admin_root, admin_id)? {
+        return Ok(Some(known));
+    }
+    let token: String = random_uuid().map_err(|error| return raw_failure(&error.0))?;
+    // `match` on the exclusive write: written now, written first by another command, or the registration is gone.
+    match write_exclusive_synced(admin_root.join(admin_id).join(REGISTRATION_NAME).as_path(), token.as_bytes()) {
+        Ok(()) => return Ok(Some(token)),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return registration_token(admin_root, admin_id),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(inspect_failure(admin_root, &error)),
+    }
+}
+
+/// What:
+///  Whether a finished copy marked this very registration.
+/// Why:
+///   A marker left by a copy of an earlier registration of the same name carries another token and says nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await readFile(join(adminRoot, adminId, 'cli-git-copied'), 'utf8').catch(() => '')).trim() === token
+/// ```
+pub fn copied_for(admin_root: &Path, admin_id: &str, token: &str) -> Result<bool, WorktreeCopyError> {
+    // `match` on the read: absence means unmarked; any other failure is reported.
+    match std::fs::read_to_string(admin_root.join(admin_id).join(COPIED_MARKER_NAME)) {
+        Ok(text) => return Ok(text.trim() == token),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(error) if error.kind() == std::io::ErrorKind::NotADirectory => return Ok(false),
         Err(error) => return Err(inspect_failure(admin_root, &error)),
@@ -491,25 +574,31 @@ pub fn copied_marker_exists(admin_root: &Path, admin_id: &str) -> Result<bool, W
 }
 
 /// What:
-///  Marks a registration as copied; a registration that is already marked or already removed needs nothing.
+///  Marks a registration as copied, durably: the marker is written whole, synchronized, renamed into place, and its
+///  directory synchronized. A registration that is gone needs no marker.
 /// Why:
-///   The copy has ended either way, and a removed worktree has no administrative directory left to mark.
+///   The marker is what tells recovery and later requests that the copy is over, and the journal is removed only after
+///  it is durable, so no crash can forget a finished copy. A marker of another token that stands in the way is replaced.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeFile(join(adminRoot, adminId, 'cli-git-copied'), '', { flag: 'wx' }).catch(ignoreExistsAndMissing);
+/// await writeFileAtomically(join(adminRoot, adminId, 'cli-git-copied'), token);
 /// ```
-pub fn mark_copied(admin_root: &Path, admin_id: &str) -> Result<(), WorktreeCopyError> {
-    // `match` on the exclusive create: marked already and removed meanwhile both mean there is nothing to write.
-    match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(admin_root.join(admin_id).join(COPIED_MARKER_NAME))
-    {
-        Ok(_) => return Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+pub fn write_copied_marker(admin_root: &Path, admin_id: &str, token: &str) -> Result<(), WorktreeCopyError> {
+    let directory: PathBuf = admin_root.join(admin_id);
+    let unique: String = random_uuid().map_err(|error| return raw_failure(&error.0))?;
+    let temporary: PathBuf = directory.join(format!("{COPIED_MARKER_NAME}.{unique}.tmp"));
+    let published: std::io::Result<()> = write_exclusive_synced(temporary.as_path(), token.as_bytes())
+        .and_then(|()| return std::fs::rename(temporary.as_path(), directory.join(COPIED_MARKER_NAME)))
+        .and_then(|()| return sync_directory(directory.as_path()));
+    // `match` on the publication: a registration removed meanwhile has nothing to mark, and a leftover temporary goes.
+    match published {
+        Ok(()) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(inspect_failure(admin_root, &error)),
+        Err(error) => {
+            let _ignored_removal: std::io::Result<()> = std::fs::remove_file(temporary.as_path());
+            return Err(inspect_failure(admin_root, &error));
+        }
     }
 }
 
@@ -533,6 +622,22 @@ pub fn refresh_before_admin_ids(
 }
 
 /// What:
+///  Every registered worktree root that exists, which a copy excludes from the source it stages.
+/// Why:
+///   The service stages long after the command that created the worktree returned, so it reads the roots itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await readRegisteredWorktrees({ observation, gitPath })).roots
+/// ```
+pub fn registered_roots_of(
+    context: &GitContext,
+    observation: &WorktreeCopyObservation,
+) -> Result<Vec<PathBuf>, WorktreeCopyError> {
+    return Ok(read_registered_worktrees(context, observation)?.roots);
+}
+
+/// What:
 ///  The worktrees newly registered since the observation, with every registered root.
 /// Why:
 ///   Runs after real Git returned, whatever its status,
@@ -547,13 +652,10 @@ pub fn find_created_worktrees(
     observation: &WorktreeCopyObservation,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
     let after_admin_ids: BTreeSet<String> = read_admin_ids(observation.admin_root.as_path())?;
-    let mut created_ids: Vec<String> = Vec::new();
-    for admin_id in after_admin_ids.difference(&observation.before_admin_ids) {
-        // A worktree Git is still creating belongs to the command that creates it.
-        if !is_initializing(observation.admin_root.as_path(), admin_id.as_str())? {
-            created_ids.push(admin_id.clone());
-        }
-    }
+    let created_ids: Vec<String> = after_admin_ids
+        .difference(&observation.before_admin_ids)
+        .cloned()
+        .collect();
     if created_ids.is_empty() {
         return Ok(CreatedWorktrees {
             created: Vec::new(),
@@ -574,9 +676,11 @@ pub fn find_created_worktrees(
                 None,
             ));
         };
+        let locked: bool = is_locked(observation.admin_root.as_path(), admin_id.as_str())?;
         created.push(CreatedWorktree {
             admin_id,
             root: root.clone(),
+            locked,
         });
     }
     return Ok(CreatedWorktrees {

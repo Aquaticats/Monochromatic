@@ -16,7 +16,7 @@ use super::service_review_key::ReviewKey;
 use std::path::PathBuf;
 
 /// The protocol version this build speaks; a service and a client agree when their versions are equal.
-pub const PROTOCOL_VERSION: u32 = 4;
+pub const PROTOCOL_VERSION: u32 = 5;
 
 /// The longest line either side accepts, in bytes.
 pub const MAX_LINE_BYTES: usize = 1 << 20;
@@ -160,6 +160,14 @@ pub enum ClientMessage {
         /// message and in the service's memory, never in a work item or on disk.
         review_key: Option<ReviewKey>,
     },
+    /// Copy requests were written for this repository: run what is pending and answer for these identities
+    ///  (`service_copy.rs`). With no identities the client only wakes the service and waits for nothing.
+    Copy {
+        /// The repository's common Git directory, which holds the copy requests.
+        common_dir: PathBuf,
+        /// The requests the client waits for.
+        ids: Vec<String>,
+    },
 }
 
 /// What the service sends.
@@ -226,6 +234,12 @@ pub fn encode_client(message: &ClientMessage) -> String {
             }
             object(entries)
         }
+        ClientMessage::Copy { common_dir, ids } => object(vec![
+            ("type", Value::from("copy")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("commonDir", Value::from(common_dir.to_string_lossy().as_ref())),
+            ("ids", Value::Array(ids.iter().map(|id| { return Value::from(id.as_str()); }).collect())),
+        ]),
         ClientMessage::Commit(request) => object(vec![
             ("type", Value::from("commit")),
             ("version", Value::from(PROTOCOL_VERSION)),
@@ -290,6 +304,21 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
                 Some(_) => return Err(String::from("work request is not acceptable")),
             };
             return Ok(ClientMessage::Work { common_dir, review_key });
+        }
+        "copy" => {
+            let common_dir: PathBuf = PathBuf::from(field(&value, "commonDir")?);
+            let mut ids: Vec<String> = Vec::new();
+            for entry in value.get("ids").and_then(Value::as_array).ok_or("ids is missing")? {
+                let id: &str = entry.as_str().ok_or("an id is not text")?;
+                if id.is_empty() || !id.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || byte == b'-'; }) {
+                    return Err(String::from("copy request is not acceptable"));
+                }
+                ids.push(id.to_string());
+            }
+            if !common_dir.is_absolute() || common_dir.to_string_lossy().contains('\0') || ids.len() > MAX_CHANGES {
+                return Err(String::from("copy request is not acceptable"));
+            }
+            return Ok(ClientMessage::Copy { common_dir, ids });
         }
         "commit" => {}
         other => return Err(format!("unknown message type {other}")),

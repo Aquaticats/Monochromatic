@@ -320,7 +320,8 @@ fn added_worktree_is_found_with_its_root() {
         found.created,
         vec![CreatedWorktree {
             admin_id: String::from("topic"),
-            root: topic_root.clone()
+            root: topic_root.clone(),
+            locked: false,
         }]
     );
     assert!(found.registered_roots.contains(&topic_root));
@@ -409,37 +410,98 @@ fn registration_without_root_fails() {
     remove(root.as_path());
 }
 
-/// Only Git's own `initializing` text marks a worktree as still being created; no file, or any other reason, does not.
+/// Only Git's own `initializing` text marks a worktree as being created in English, and any lock file at all marks it
+///  locked, whatever the text says.
 #[test]
-fn only_the_initializing_text_marks_a_worktree_as_being_created() {
+fn a_lock_file_is_evidence_and_only_the_english_word_is_the_heuristic() {
     let root: PathBuf = fixture("registry-initializing");
     let admin: PathBuf = root.join("worktrees");
     std::fs::create_dir_all(admin.join("topic")).expect("administrative directory");
     assert!(!is_initializing(admin.as_path(), "topic").expect("no lock file"));
+    assert!(!is_locked(admin.as_path(), "topic").expect("no lock file"));
     assert!(!is_initializing(admin.as_path(), "absent").expect("no administrative directory"));
+    assert!(!is_locked(admin.as_path(), "absent").expect("no administrative directory"));
     std::fs::write(admin.join("topic/locked"), b"initializing\n").expect("locked");
     assert!(is_initializing(admin.as_path(), "topic").expect("initializing"));
-    std::fs::write(admin.join("topic/locked"), b"added with --lock").expect("locked by the user");
-    assert!(!is_initializing(admin.as_path(), "topic").expect("a lock reason"));
+    assert!(is_locked(admin.as_path(), "topic").expect("locked"));
+    for text in ["added with --lock", "initialisation", "initialisierung", ""] {
+        std::fs::write(admin.join("topic/locked"), text).expect("locked by another reason or language");
+        assert!(!is_initializing(admin.as_path(), "topic").expect("not the English word"), "{text:?}");
+        assert!(is_locked(admin.as_path(), "topic").expect("locked"), "{text:?}");
+    }
     std::fs::write(admin.join("plain"), b"a file").expect("a file where a directory belongs");
     assert!(!is_initializing(admin.as_path(), "plain").expect("not a directory"));
+    assert!(!is_locked(admin.as_path(), "plain").expect("not a directory"));
     remove(root.as_path());
 }
 
-/// A marker is written once, reads back, and a registration that vanished needs none.
+/// A created worktree reports whether Git locked it, and a locked one is still found.
 #[test]
-fn the_copied_marker_is_written_once_and_a_removed_registration_needs_none() {
+fn a_created_worktree_reports_whether_it_is_locked() {
+    let root: PathBuf = fixture("registry-created-locked");
+    let main: PathBuf = repository(root.as_path(), "main");
+    let common: PathBuf = common_dir_of(main.as_path());
+    let observation: WorktreeCopyObservation = WorktreeCopyObservation {
+        admin_root: common.join("worktrees"),
+        before_admin_ids: BTreeSet::new(),
+        common_dir: common.clone(),
+        effective_cwd: main.clone(),
+        source_root: Some(main.clone()),
+        selection: CopySelection::Ignored,
+    };
+    let kept: PathBuf = root.join("kept");
+    let plain: PathBuf = root.join("plain");
+    git(main.as_path(), &["worktree", "add", "--quiet", "--lock", "-b", "kept", kept.to_str().expect("utf8")]);
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "plain", plain.to_str().expect("utf8")]);
+    let found: CreatedWorktrees = find_created_worktrees(&git_context(), &observation).expect("found");
+    let locked: Vec<(String, bool)> =
+        found.created.iter().map(|worktree| return (worktree.admin_id.clone(), worktree.locked)).collect();
+    assert_eq!(locked, vec![(String::from("kept"), true), (String::from("plain"), false)]);
+    remove(root.as_path());
+}
+
+/// A registration's identity is written once, read back, and absent for a registration that is gone.
+#[test]
+fn a_registration_identity_is_written_once() {
+    let root: PathBuf = fixture("registry-identity");
+    let admin: PathBuf = root.join("worktrees");
+    std::fs::create_dir_all(admin.join("topic")).expect("administrative directory");
+    assert_eq!(registration_token(admin.as_path(), "topic").expect("none yet"), None);
+    let token: String = ensure_registration_token(admin.as_path(), "topic").expect("written").expect("registered");
+    assert!(!token.is_empty());
+    assert_eq!(ensure_registration_token(admin.as_path(), "topic").expect("again"), Some(token.clone()));
+    assert_eq!(registration_token(admin.as_path(), "topic").expect("read"), Some(token));
+    assert_eq!(ensure_registration_token(admin.as_path(), "gone").expect("gone"), None);
+    assert_eq!(registration_token(admin.as_path(), "gone").expect("gone"), None);
+    std::fs::write(admin.join("plain"), b"a file").expect("a file where a directory belongs");
+    assert_eq!(registration_token(admin.as_path(), "plain").expect("not a directory"), None);
+    remove(root.as_path());
+}
+
+/// A marker says the copy of its own registration is over and nothing about another registration of the same name; it is
+///  replaced durably, and a registration that is gone needs none.
+#[test]
+fn a_marker_belongs_to_its_registration() {
     let root: PathBuf = fixture("registry-marker");
     let admin: PathBuf = root.join("worktrees");
     std::fs::create_dir_all(admin.join("topic")).expect("administrative directory");
-    assert!(!copied_marker_exists(admin.as_path(), "topic").expect("unmarked"));
-    mark_copied(admin.as_path(), "topic").expect("marked");
-    assert!(copied_marker_exists(admin.as_path(), "topic").expect("marked"));
-    mark_copied(admin.as_path(), "topic").expect("marked again");
-    mark_copied(admin.as_path(), "removed").expect("a removed registration has nothing to mark");
-    assert!(!copied_marker_exists(admin.as_path(), "removed").expect("removed"));
+    assert!(!copied_for(admin.as_path(), "topic", "first").expect("unmarked"));
+    write_copied_marker(admin.as_path(), "topic", "first").expect("marked");
+    assert!(copied_for(admin.as_path(), "topic", "first").expect("marked"));
+    assert!(!copied_for(admin.as_path(), "topic", "second").expect("another registration"));
+    // A later registration replaces a marker that stands in its way.
+    write_copied_marker(admin.as_path(), "topic", "second").expect("replaced");
+    assert!(copied_for(admin.as_path(), "topic", "second").expect("replaced"));
+    let leftovers: Vec<String> = std::fs::read_dir(admin.join("topic"))
+        .expect("listing")
+        .flatten()
+        .map(|entry| return entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(leftovers, vec![COPIED_MARKER_NAME.to_string()], "no temporary stays");
+    write_copied_marker(admin.as_path(), "removed", "any").expect("a removed registration has nothing to mark");
+    assert!(!copied_for(admin.as_path(), "removed", "any").expect("removed"));
     std::fs::write(admin.join("plain"), b"a file").expect("a file where a directory belongs");
-    assert!(!copied_marker_exists(admin.as_path(), "plain").expect("not a directory"));
+    assert!(!copied_for(admin.as_path(), "plain", "any").expect("not a directory"));
     remove(root.as_path());
 }
 

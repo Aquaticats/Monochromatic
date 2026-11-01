@@ -1081,9 +1081,9 @@ pub mod worktree_copy_rollback;
 #[cfg(unix)]
 pub mod worktree_copy_journal;
 
-/// The one-time claim on a destination's copy, held open for the copy's life, and the evidence that tells live from abandoned.
+/// The durable request to copy ignored state into one new worktree, written by the wrapper and run by the service.
 #[cfg(unix)]
-pub mod worktree_copy_claim;
+pub mod worktree_copy_request;
 
 /// The append-only install log of one stage: per-batch intents and creations, with resumption.
 #[cfg(unix)]
@@ -1240,6 +1240,12 @@ pub mod service_native;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
+
+/// The service's side of the worktree copy: the requests it runs in order, settles after a kill, and answers.
+pub mod service_copy;
+
+/// The wrapper's side of the worktree copy: hand the requests to the service and wait for its answers.
+pub mod service_copy_client;
 
 /// The wrapper's side of after-commit work: records, wake and notices.
 pub mod service_handoff;

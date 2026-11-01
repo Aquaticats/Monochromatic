@@ -1,5 +1,5 @@
 //! What:
-//!  One destination's journaled installation to an end, and the synchronization of every created worktree.
+//!  One destination's journaled installation to an end.
 //!  The journal records the phase, the install log records each batch's claims and creations,
 //!  and a finished or failed installation always removes its journal and stage.
 //! Why:
@@ -11,24 +11,16 @@
 //! const outcome = await completeJournal({ pending, snapshot });
 //! ```
 
-use super::transaction_git::GitContext;
-use super::worktree_copy_error::{WorktreeCopyError, raw_failure};
+use super::worktree_copy_error::WorktreeCopyError;
 use super::worktree_copy_install::{InstallRecorder, install_snapshot};
 use super::worktree_copy_install_entry::InstalledPath;
 use super::worktree_copy_install_log::{InstallLog, open_install_log};
-use super::worktree_copy_claim::{Claim, Claiming, claim_destination};
-use super::worktree_copy_journal::{
-    Journal, PendingJournal, Phase, create_journal, ensure_journal_root, remove_pending_journal, write_journal,
-};
+use super::worktree_copy_journal::{Journal, PendingJournal, Phase, remove_pending_journal, write_journal};
 use super::worktree_copy_manifest::{WorktreeCopyEntry, collect_entry_manifest};
-use super::worktree_copy_recovery::{Registration, destination_registration, report_recovered, settle_claim};
-use super::worktree_copy_registry::{CreatedWorktree, copied_marker_exists, mark_copied};
-use super::worktree_copy_selection::CopySelection;
-use super::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
+use super::worktree_copy_stage::StagedSnapshot;
 use crate::json_record::quote;
 use std::collections::BTreeSet;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// What:
 ///  The mutable durable state of one installation: the latest journal, the open log, and every claim and creation so far.
@@ -189,7 +181,7 @@ pub enum Outcome {
 /// ```ts
 /// async function installRecorded({ pending, snapshot }): Promise<{ latest; result }>;
 /// ```
-fn install_recorded(
+pub fn install_recorded(
     pending: PendingJournal,
     snapshot: &dyn Fn(&BTreeSet<String>) -> Result<StagedSnapshot, WorktreeCopyError>,
 ) -> Result<(PendingJournal, Outcome), WorktreeCopyError> {
@@ -262,194 +254,7 @@ pub fn complete_journal(
     return Ok(outcome);
 }
 
-/// What:
-///  How the synchronization of one created worktree ended.
-/// Why:
-///   Only a copy that ran counts toward the summary line; the others tell the user why nothing was copied here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Synchronized = { kind: 'copied'; entries: number } | { kind: 'already-copied' } | { kind: 'yielded'; reason: string } | { kind: 'unregistered' };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Synchronized {
-    /// This command ran the copy; the count is the number of entries it created.
-    Copied(usize),
-    /// A finished copy had already marked the worktree.
-    AlreadyCopied,
-    /// Another copy holds the worktree's claim, or its claim could not be settled; the text says why.
-    Yielded(String),
-    /// The worktree was removed before the copy installed anything, so nothing was created.
-    Unregistered,
-}
-
-/// What:
-///  Settles an abandoned claim found in the way of a new copy and prints its notices.
-/// Why:
-///   The new copy goes on after the old one is settled, and the user should read what happened to the old one first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// report(await settleClaim({ commonDir, claim }), stderr);
-/// ```
-fn settle_in_the_way(
-    common_dir: &Path,
-    claim: Claim,
-    stderr: &mut dyn Write,
-) -> Result<(), WorktreeCopyError> {
-    return report_recovered(&settle_claim(common_dir, claim)?, stderr);
-}
-
-/// What:
-///  Stages, journals and installs the ignored state of one newly created worktree, if this command wins its claim.
-/// Why:
-///   The claim is held from before the first staged byte until after the journal and stage are gone, and it names the
-///  stage, so no interruption leaves a stage that recovery cannot find and no other copy works on the destination
-///  meanwhile; a copy that loses the claim yields at once.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function synchronizeCreatedWorktree({ commonDir, sourceRoot, destination, registeredRoots, gitPath }): Promise<Synchronized>;
-/// ```
-pub fn synchronize_created_worktree(
-    context: &GitContext,
-    common_dir: &Path,
-    source_root: &Path,
-    destination: &CreatedWorktree,
-    registered_roots: &[PathBuf],
-    selection: &CopySelection,
-    stderr: &mut dyn Write,
-) -> Result<Synchronized, WorktreeCopyError> {
-    return synchronize_with_checkpoints(
-        context,
-        common_dir,
-        source_root,
-        destination,
-        registered_roots,
-        selection,
-        stderr,
-        &mut |_checkpoint| {},
-    );
-}
-
-/// What:
-///  The points of a synchronization a test can stop at: the claim is held, and the stage is journaled.
-/// Why:
-///   A worktree removal or a competing copy that lands at one of these points is the race the claim exists for, and
-///  a test cannot otherwise place it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type Checkpoint = 'claimed' | 'staged';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Checkpoint {
-    /// The claim is held and nothing is staged yet.
-    Claimed,
-    /// The stage is complete and its journal is written; nothing is installed yet.
-    Staged,
-}
-
-/// What:
-///  `synchronize_created_worktree` with a function called at each checkpoint.
-/// Why:
-///   The production entry passes a function that does nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await synchronizeCreatedWorktree({ ...options, checkpoint });
-/// ```
-pub fn synchronize_with_checkpoints(
-    context: &GitContext,
-    common_dir: &Path,
-    source_root: &Path,
-    destination: &CreatedWorktree,
-    registered_roots: &[PathBuf],
-    selection: &CopySelection,
-    stderr: &mut dyn Write,
-    checkpoint: &mut dyn FnMut(Checkpoint),
-) -> Result<Synchronized, WorktreeCopyError> {
-    let admin_root: PathBuf = common_dir.join("worktrees");
-    let marked_before_claiming: bool = copied_marker_exists(admin_root.as_path(), destination.admin_id.as_str())?;
-    if marked_before_claiming {
-        return Ok(Synchronized::AlreadyCopied);
-    }
-    let journals: PathBuf = ensure_journal_root(common_dir)?;
-    let container: PathBuf = new_stage_container(destination.root.as_path())?;
-    let claiming: Claiming = claim_destination(
-        journals.as_path(),
-        destination.admin_id.as_str(),
-        destination.root.as_path(),
-        container.as_path(),
-        &mut |abandoned| return settle_in_the_way(common_dir, abandoned, stderr),
-    )?;
-    let claim: Claim = match claiming {
-        Claiming::Claimed(claim) => claim,
-        Claiming::Held(reason) => return Ok(Synchronized::Yielded(reason)),
-    };
-    checkpoint(Checkpoint::Claimed);
-    // A copy that finished between the first look and the claim leaves its marker; the claim is released unused.
-    let marked_after_claiming: bool = copied_marker_exists(admin_root.as_path(), destination.admin_id.as_str())?;
-    if marked_after_claiming {
-        claim.release()?;
-        return Ok(Synchronized::AlreadyCopied);
-    }
-    let removed_before_staging: bool =
-        destination_registration(common_dir, destination.root.as_path())? == Registration::Unregistered;
-    if removed_before_staging {
-        claim.release()?;
-        return Ok(Synchronized::Unregistered);
-    }
-    // `match` on staging: a failure has already removed its container, so only the claim is left to release.
-    let snapshot: StagedSnapshot = match stage_ignored_snapshot(
-        context,
-        source_root,
-        claim.container().as_path(),
-        registered_roots,
-        selection,
-    ) {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            claim.release()?;
-            return Err(error);
-        }
-    };
-    let pending: PendingJournal = match create_journal(common_dir, destination.root.as_path(), &snapshot) {
-        Ok(pending) => pending,
-        Err(error) => {
-            // A failed removal replaces the journal failure, as the incumbent's cleanup throws its own error there.
-            std::fs::remove_dir_all(snapshot.stage_container.as_path())
-                .map_err(|removal| return raw_failure(&removal))?;
-            claim.release()?;
-            return Err(error);
-        }
-    };
-    checkpoint(Checkpoint::Staged);
-    // Staging takes minutes, so the worktree may have been removed meanwhile; nothing is installed into a removed one.
-    let removed_while_staging: bool =
-        destination_registration(common_dir, destination.root.as_path())? == Registration::Unregistered;
-    if removed_while_staging {
-        remove_pending_journal(&pending)?;
-        claim.release()?;
-        return Ok(Synchronized::Unregistered);
-    }
-    let staged: StagedSnapshot = snapshot.clone();
-    let outcome: Outcome = complete_journal(pending, &|_intended| return Ok(staged.clone()))?;
-    // The copy has ended, installed or failed, so a later arrival must not start it again.
-    mark_copied(admin_root.as_path(), destination.admin_id.as_str())?;
-    claim.release()?;
-    return match outcome {
-        Outcome::Installed(copied) => Ok(Synchronized::Copied(copied)),
-        Outcome::Ended(error) => Err(error),
-    };
-}
-
 /// Transaction controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_copy_transaction_tests.rs"]
 mod tests;
-
-/// The races a settlement lock used to prevent stay out of the release executable.
-#[cfg(test)]
-#[path = "worktree_copy_race_tests.rs"]
-mod race_tests;

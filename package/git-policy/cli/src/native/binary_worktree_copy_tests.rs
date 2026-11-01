@@ -14,10 +14,12 @@
 
 /// Import the shared fixtures and the bounded process helpers.
 use super::support::{
-    Fixture, Observed, fixture, git, observe, remove, repository, run_wrapped, stderr_of, wrapped,
+    Fixture, Observed, arm_service_fault, ensure_service, fixture, git, observe, remove, repository,
+    restart_service_after_fault, run_wrapped, stderr_of, wrapped,
 };
-use git_policy_cli::worktree_copy_claim::{claims_exist, publish_claim};
-use git_policy_cli::worktree_copy_journal::{create_journal, ensure_journal_root, journal_root, read_pending_journals};
+use git_policy_cli::worktree_copy_registry::ensure_registration_token;
+use git_policy_cli::worktree_copy_request::{CopyRequest, new_request_id, requests_exist, write_request};
+use git_policy_cli::worktree_copy_journal::{create_journal, read_pending_journals};
 use git_policy_cli::worktree_copy_selection::CopySelection;
 use git_policy_cli::worktree_copy_stage::{StagedSnapshot, new_stage_container, stage_ignored_snapshot};
 use git_policy_cli::transaction_git::GitContext;
@@ -102,6 +104,7 @@ fn assert_scanner_failed_closed(observed: &Observed, worktree: &Path) {
 #[test]
 fn worktree_added_from_the_main_checkout_receives_the_rules_file() {
     let fixture: Fixture = fixture("copy-main");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let created: Observed = run_wrapped(
         &fixture,
@@ -144,6 +147,7 @@ fn worktree_added_from_the_main_checkout_receives_the_rules_file() {
 #[test]
 fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
     let fixture: Fixture = fixture("copy-listed");
+    ensure_service(&fixture);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(
         repo.join("cli-git.config.jsonc"),
@@ -185,6 +189,7 @@ fn worktree_added_from_the_main_checkout_receives_every_listed_rules_file() {
 #[test]
 fn worktree_added_from_a_linked_worktree_receives_all_ignored_state() {
     let fixture: Fixture = fixture("copy-linked");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     assert_eq!(
         run_wrapped(
@@ -225,6 +230,7 @@ fn worktree_added_from_a_linked_worktree_receives_all_ignored_state() {
 #[test]
 fn a_source_without_the_rules_file_copies_nothing_and_the_scanner_fails_closed() {
     let fixture: Fixture = fixture("copy-absent");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, false);
     let created: Observed = run_wrapped(
         &fixture,
@@ -242,6 +248,7 @@ fn a_source_without_the_rules_file_copies_nothing_and_the_scanner_fails_closed()
 #[test]
 fn a_main_checkout_without_a_configured_rules_file_is_forwarded_plainly() {
     let fixture: Fixture = fixture("copy-unconfigured");
+    ensure_service(&fixture);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
     std::fs::create_dir_all(repo.join(".cache")).expect("cache");
@@ -261,6 +268,7 @@ fn a_main_checkout_without_a_configured_rules_file_is_forwarded_plainly() {
 #[test]
 fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {
     let fixture: Fixture = fixture("copy-alias");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let aliased: Observed = run_wrapped(
         &fixture,
@@ -281,11 +289,32 @@ fn an_aliased_worktree_add_is_copied_and_git_failures_keep_their_status() {
     remove(&fixture);
 }
 
-/// A copy interrupted before it finished is recovered by the next command run from a linked worktree:
-/// the staged files are installed, the recovery is reported, and the scanner then finds its rules.
+/// Waits, with a deadline, until a condition a service thread brings about holds.
+fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
+    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while !done() {
+        assert!(std::time::Instant::now() < deadline, "{what} never happened");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+/// Nothing of a copy stands in the repository: no request, no journal, and no stage beside the worktrees.
+fn nothing_of_a_copy_stands(fixture: &Fixture, common: &Path) -> bool {
+    let stages: bool = std::fs::read_dir(fixture.root.as_path()).expect("listing").flatten().any(|entry| {
+        return entry.file_name().to_string_lossy().starts_with(".cli-git-worktree-copy-");
+    });
+    return !stages
+        && !requests_exist(common).expect("requests")
+        && read_pending_journals(common).expect("pending").is_empty();
+}
+
+/// A copy interrupted before it finished is finished by the service when the next command runs from a linked worktree:
+/// the command itself forwards at once and prints nothing, the staged files are installed meanwhile, and the scanner then
+/// finds its rules.
 #[test]
-fn an_interrupted_copy_is_recovered_by_the_next_command() {
+fn an_interrupted_copy_is_finished_by_the_service_on_the_next_command() {
     let fixture: Fixture = fixture("copy-recovery");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let opted_out: Observed = run_wrapped(
         &fixture,
@@ -313,62 +342,113 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
     .expect("staged");
     create_journal(common.as_path(), one.as_path(), &snapshot).expect("journal");
     assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1);
-    // A read-only command from the linked worktree recovers it before Git runs.
+    // A read-only command from the linked worktree nudges the service and goes on.
     let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
     assert_eq!(status.stdout, b"true\n");
-    assert_eq!(
-        stderr_of(&status),
-        "cli-git: recovered ignored-state copies for 1 worktree transaction.\n"
-    );
-    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(status.stderr.is_empty(), "{}", stderr_of(&status));
+    wait_until("the service finishing the copy", || return nothing_of_a_copy_stands(&fixture, common.as_path()));
     assert!(one.join(RULES_FILE).exists());
     assert_scanner_has_rules(&check_all(&fixture, one.as_path()));
-    // Recovery is not repeated.
+    // Nothing is pending any more, so the next command nudges nobody.
     let again: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert!(again.stderr.is_empty(), "{}", stderr_of(&again));
     remove(&fixture);
 }
 
-/// A copy killed while it was still staging, before any journal existed, leaves a stage that the next command removes:
-/// the stage is reported once, its claim goes, and the command then runs as usual.
+/// A wrapper killed after Git created the worktree, and after it wrote the request, leaves the copy to the next command:
+/// the request is run from the start, the half-filled stage a killed service left beside the worktree is removed, and
+/// the worktree ends up filled.
 #[test]
-fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
-    let fixture: Fixture = fixture("copy-abandoned-stage");
+fn a_request_left_by_a_killed_wrapper_is_run_by_the_next_command() {
+    let fixture: Fixture = fixture("copy-request-left");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
-    let opted_out: Observed = run_wrapped(
-        &fixture,
-        repo.as_path(),
-        &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "one", "../one"],
+    assert_eq!(
+        run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "one", "../one"]).code,
+        Some(0)
     );
-    assert_eq!(opted_out.code, Some(0));
     let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    // The state a killed copy leaves: the claim nobody holds, and a half-filled private stage that no journal names.
-    let stage: PathBuf = new_stage_container(one.as_path()).expect("container");
-    let claim = publish_claim(
-        ensure_journal_root(common.as_path()).expect("journal root").as_path(),
-        "one",
-        one.as_path(),
-        stage.as_path(),
-    )
-    .expect("claim")
-    .expect("won the name");
-    drop(claim);
-    std::fs::create_dir(stage.as_path()).expect("stage");
-    std::fs::set_permissions(stage.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
-    std::fs::create_dir(stage.join("payload")).expect("payload");
-    std::fs::write(stage.join("payload/partial"), b"copied so far").expect("partial copy");
+    let token: String = ensure_registration_token(common.join("worktrees").as_path(), "one")
+        .expect("identity")
+        .expect("registered");
+    let request: CopyRequest = CopyRequest {
+        id: new_request_id().expect("identity"),
+        admin_id: String::from("one"),
+        registration: token,
+        destination_root: one.clone(),
+        source_root: std::fs::canonicalize(repo.as_path()).expect("canonical source"),
+        selection: CopySelection::Paths(vec![String::from(RULES_FILE)]),
+        tries: 0,
+    };
+    write_request(common.as_path(), &request).expect("request");
+    let half_stage: PathBuf = request.stage_container();
+    std::fs::create_dir(half_stage.as_path()).expect("stage");
+    std::fs::set_permissions(half_stage.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private");
+    std::fs::write(half_stage.join("half"), b"copied so far").expect("partial copy");
     let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
-    assert_eq!(status.stdout, b"true\n");
-    assert!(stderr_of(&status).starts_with("cli-git: removed the stage "), "{}", stderr_of(&status));
-    assert!(!stage.exists());
-    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
-    // Removal is not repeated.
-    let again: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
-    assert!(again.stderr.is_empty(), "{}", stderr_of(&again));
+    wait_until("the service running the request", || return nothing_of_a_copy_stands(&fixture, common.as_path()));
+    assert!(one.join(RULES_FILE).exists());
+    assert!(!half_stage.exists());
     remove(&fixture);
+}
+
+/// Where no service can run the copy fails loudly: status 2, the worktree exists, the message says the copy is saved, and
+/// once a service is there the next command finishes it.
+#[test]
+fn a_copy_with_no_service_fails_loudly_and_is_finished_when_one_is_there() {
+    let fixture: Fixture = fixture("copy-no-service");
+    let repo: PathBuf = repository_with_rules(&fixture, true);
+    let created: Observed = observe(
+        wrapped(&fixture)
+            .current_dir(&repo)
+            .env_remove("XDG_RUNTIME_DIR")
+            .args(["worktree", "add", "--quiet", "-b", "one", "../one"]),
+        b"",
+    );
+    assert_eq!(created.code, Some(2), "{}", stderr_of(&created));
+    assert!(stderr_of(&created).contains("The copy is saved"), "{}", stderr_of(&created));
+    assert!(stderr_of(&created).contains("the new worktree, which was created"), "{}", stderr_of(&created));
+    let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
+    assert!(one.join(".git").exists(), "Git created the worktree");
+    assert!(!one.join(RULES_FILE).exists());
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    assert!(requests_exist(common.as_path()).expect("requests"), "the request is saved");
+    // A service becomes available; the next command from the worktree finishes the copy.
+    ensure_service(&fixture);
+    let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
+    wait_until("the saved copy being made", || return nothing_of_a_copy_stands(&fixture, common.as_path()));
+    assert_scanner_has_rules(&check_all(&fixture, one.as_path()));
+    remove(&fixture);
+}
+
+/// The service is killed at each durable point of a copy and started again, as its manager starts a killed service: the
+/// wrapper that waits sends the same request again, and the copy ends complete with nothing left over and the
+/// registration marked.
+#[test]
+fn a_service_killed_at_each_point_of_a_copy_is_restarted_and_the_copy_finishes() {
+    for point in ["copy-staging", "copy-staged", "copy-installed", "copy-marked"] {
+        let fixture: Fixture = fixture(format!("copy-kill-{point}").as_str());
+        arm_service_fault(&fixture, point);
+        let repo: PathBuf = repository_with_rules(&fixture, true);
+        let created: Observed = std::thread::scope(|threads| {
+            let wrapper = threads.spawn(|| {
+                return run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "one", "../one"]);
+            });
+            restart_service_after_fault(&fixture);
+            return wrapper.join().expect("the wrapper");
+        });
+        assert_eq!(created.code, Some(0), "{point}: {}", stderr_of(&created));
+        let one: PathBuf = std::fs::canonicalize(fixture.root.join("one")).expect("canonical worktree");
+        let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+        assert!(one.join(RULES_FILE).exists(), "{point}");
+        assert!(nothing_of_a_copy_stands(&fixture, common.as_path()), "{point}");
+        assert!(common.join("worktrees/one/cli-git-copied").exists(), "{point}: the registration is marked");
+        remove(&fixture);
+    }
 }
 
 /// The lease variable of the settlement lock that older releases set is ignored: a command that inherits one runs
@@ -376,6 +456,7 @@ fn a_stage_abandoned_before_its_journal_is_removed_by_the_next_command() {
 #[test]
 fn a_leftover_lease_variable_is_ignored() {
     let fixture: Fixture = fixture("copy-lease");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let created: Observed = run_wrapped(
         &fixture,
@@ -404,6 +485,7 @@ fn a_leftover_lease_variable_is_ignored() {
 #[test]
 fn a_filter_that_creates_a_worktree_leaves_its_copy_to_the_enclosing_command() {
     let fixture: Fixture = fixture("copy-filter-nested");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let filter: PathBuf = fixture.root.join("smudge-filter");
     super::support::executable(
@@ -451,6 +533,7 @@ fn wait_for(marker: &Path) {
 #[test]
 fn overlapping_creations_each_copy_their_own_worktree_once() {
     let fixture: Fixture = fixture("copy-overlap");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     let filter: PathBuf = fixture.root.join("barrier-filter");
     super::support::executable(
@@ -515,7 +598,7 @@ fn overlapping_creations_each_copy_their_own_worktree_once() {
         );
     }
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    assert!(!claims_exist(journal_root(common.as_path()).as_path()).expect("claims"));
+    assert!(!requests_exist(common.as_path()).expect("requests"));
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     let stages: Vec<String> = std::fs::read_dir(fixture.root.as_path())
         .expect("listing")
@@ -532,6 +615,7 @@ fn overlapping_creations_each_copy_their_own_worktree_once() {
 #[test]
 fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
     let fixture: Fixture = fixture("copy-recovery-main");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     assert_eq!(
         run_wrapped(
@@ -580,6 +664,7 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
 #[test]
 fn moving_a_worktree_is_forwarded_and_prints_no_summary() {
     let fixture: Fixture = fixture("copy-move");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, true);
     assert_eq!(
         run_wrapped(
@@ -609,6 +694,7 @@ fn moving_a_worktree_is_forwarded_and_prints_no_summary() {
 #[test]
 fn a_failed_copy_ends_with_status_two_and_its_message() {
     let fixture: Fixture = fixture("copy-failure");
+    ensure_service(&fixture);
     let repo: PathBuf = repository_with_rules(&fixture, false);
     // A file the caller cannot read cannot be copied, and Git still lists it as an ignored file of the checkout.
     std::fs::create_dir_all(repo.join(".cache")).expect("cache directory");
@@ -633,12 +719,19 @@ fn a_failed_copy_ends_with_status_two_and_its_message() {
     assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
     std::fs::set_permissions(repo.join(RULES_FILE), std::fs::Permissions::from_mode(0o600))
         .expect("readable again");
-    // The failed copy released the lock, so the next creation is not held up.
+    // The failed copy is saved as a request, so it does not hold up the next creation, and once its cause is gone the
+    // next command from the worktree has the service make the copy.
+    assert!(requests_exist(common.as_path()).expect("requests"), "the failed copy is kept");
     let next: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
         &["worktree", "add", "--no-worktree-copy", "--quiet", "-b", "two", "../two"],
     );
     assert_eq!(next.code, Some(0), "{}", stderr_of(&next));
+    let one: PathBuf = fixture.root.join("one");
+    let status: Observed = run_wrapped(&fixture, one.as_path(), &["rev-parse", "--is-inside-work-tree"]);
+    assert_eq!(status.code, Some(0), "{}", stderr_of(&status));
+    wait_until("the failed copy being made again", || return one.join(RULES_FILE).exists());
+    wait_until("the request being finished", || return nothing_of_a_copy_stands(&fixture, common.as_path()));
     remove(&fixture);
 }

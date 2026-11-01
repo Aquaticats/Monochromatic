@@ -3,8 +3,8 @@
 //!  integrator calls, the settlement and summary it writes, and the exit status it returns.
 //! Why:
 //!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree,
-//!  copied under one claim per destination (nothing waits for another copy) and recovered first when an earlier copy
-//!  was interrupted (`doc/worktree-copy-claim.md`).
+//!  copied by the resident service, which is the only process that runs copies, from a request the wrapper writes after
+//!  Git returned (`doc/worktree-copy-claim.md`). Nothing here takes a lock or waits for another command.
 //!
 //! Integrator contract:
 //!  The caller decides the bypass facts (`--no-worktree-copy`, short-circuit global help or version, whether the
@@ -20,14 +20,14 @@
 //! ```
 
 use super::json_record::quote;
+use super::service_copy::CopyOutcome;
 use super::transaction_git::GitContext;
 use super::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure};
-use super::worktree_copy_recovery::recover_pending_worktree_copies;
 use super::worktree_copy_registry::{
-    CreatedWorktrees, WorktreeCopyObservation, find_created_worktrees, is_initializing, observe_copy_source,
-    refresh_before_admin_ids,
+    CreatedWorktree, CreatedWorktrees, WorktreeCopyObservation, ensure_registration_token, find_created_worktrees,
+    is_initializing, observe_copy_source,
 };
-use super::worktree_copy_transaction::{Synchronized, synchronize_created_worktree};
+use super::worktree_copy_request::{CopyRequest, copy_pending, new_request_id, write_request};
 use super::worktree_identity::WorktreeIdentity;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -78,6 +78,9 @@ pub struct Invocation {
     /// Repository paths a main-checkout source hands over (the configured rules file);
     ///  empty keeps the main checkout a bypass, and linked and bare sources ignore it.
     pub main_checkout_paths: Vec<String>,
+    /// The path the command line asked `git worktree add` to create, as written and not yet resolved; nothing when the
+    ///  command line is not a plain `worktree add` this module can read.
+    pub added_path: Option<PathBuf>,
     /// The real Git executable and the variables every Git child receives.
     pub context: GitContext,
 }
@@ -168,19 +171,26 @@ fn forward_only(run_git: &mut GitRunner) -> Result<Settlement, WorktreeCopyError
 }
 
 /// What:
-///  The notice for a worktree another copy holds the claim of.
+///  What a wrapper hands the resident service: the written requests, and a nudge for requests left pending.
 /// Why:
-///   The user reads why this command copied nothing into it, and that the holder finishes it.
+///   The copy is the service's work. A test supplies a requester that runs the service's drain in the same process, and
+///  production supplies one that talks to the service over its connection.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: left the ignored-state copy into ${JSON.stringify(root)} to another process: ${reason}.`
+/// interface CopyRequester { request(commonDir, ids, stderr): Promise<Outcome[]>; wake(commonDir): void }
 /// ```
-fn yielded_notice(destination: &Path, reason: &str) -> String {
-    return format!(
-        "cli-git: left the ignored-state copy into {} to another process: {reason}.\n",
-        quote(destination.to_string_lossy().as_ref())
-    );
+pub trait CopyRequester {
+    /// Hands over the requests with these identities, which are written, and waits until each is answered.
+    fn request(
+        &mut self,
+        common_dir: &Path,
+        ids: &[String],
+        stderr: &mut dyn Write,
+    ) -> Result<Vec<(String, CopyOutcome)>, WorktreeCopyError>;
+
+    /// Tells the service that requests or journals are pending, and waits for nothing.
+    fn wake(&mut self, common_dir: &Path);
 }
 
 /// What:
@@ -190,90 +200,158 @@ fn yielded_notice(destination: &Path, reason: &str) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `cli-git: skipped the ignored-state copy into ${JSON.stringify(root)}, which is no longer a registered worktree.`
+/// `cli-git: skipped the ignored-state copy into ${JSON.stringify(root)}, which is no longer the registered worktree it was made for.`
 /// ```
-fn unregistered_notice(destination: &Path) -> String {
+fn removed_notice(destination: &Path) -> String {
     return format!(
-        "cli-git: skipped the ignored-state copy into {}, which is no longer a registered worktree.\n",
+        "cli-git: skipped the ignored-state copy into {}, which is no longer the registered worktree it was made for.\n",
         quote(destination.to_string_lossy().as_ref())
     );
 }
 
+/// The sentence a copy failure ends with unless the copy was given up on.
+const KEPT_SENTENCE: &str =
+    "The request is kept and runs again the next time any git command runs in this repository.";
+
 /// What:
-///  Synchronizes every worktree the command registered and writes the summary line for the ones this command copied.
+///  Whether a created worktree is the one the command line asked to add.
 /// Why:
-///   Each destination is settled in turn, and the first failure stops the copy with no summary written; a destination
-///  another command already copied, or holds the claim of, is not this command's to count.
+///   Only that worktree can be a locked one that this command is entitled to fill: Git locks a worktree while it creates
+///  it and `--lock` keeps it locked, and the text of the lock says nothing reliable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const found = await findCreatedWorktrees(...); const summary = await synchronizeCreatedWorktrees(...); process.stderr.write(renderSummary(summary));
+/// realpath(addedPath) === created.root
 /// ```
-fn synchronize_after(
-    context: &GitContext,
+fn is_the_added_path(created: &CreatedWorktree, added_path: Option<&Path>) -> bool {
+    return added_path
+        .and_then(|path| return std::fs::canonicalize(path).ok())
+        .is_some_and(|canonical| return canonical == created.root);
+}
+
+/// What:
+///  The worktrees this command may fill: the one it asked Git to add, and every new one that Git does not lock.
+/// Why:
+///   A worktree another command is still creating is locked by Git, whatever its text says in the user's language, so it
+///  is that command's to fill; a worktree that is not locked is complete, and the service fills each registration once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// created.filter((worktree) => !worktree.locked || worktree.root === realpath(addedPath))
+/// ```
+pub fn ready_worktrees<'a>(created: &'a [CreatedWorktree], added_path: Option<&Path>) -> Vec<&'a CreatedWorktree> {
+    return created
+        .iter()
+        .filter(|worktree| return !worktree.locked || is_the_added_path(worktree, added_path))
+        .collect();
+}
+
+/// What:
+///  Writes the request for each worktree this command may fill, hands them to the service, waits for the answers, and
+///  writes the summary line for the copies that ran.
+/// Why:
+///   The requests are on disk before the service hears of them, so a wrapper or a service that is killed afterwards
+///  loses nothing; the first failure is reported once Git's status is known.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const found = await findCreatedWorktrees(...); await writeRequests(found); const outcomes = await service.request(ids); report(outcomes);
+/// ```
+fn copy_after(
+    invocation: &Invocation,
     observation: &WorktreeCopyObservation,
+    requester: &mut dyn CopyRequester,
     stderr: &mut dyn Write,
 ) -> Result<(), WorktreeCopyError> {
-    let found: CreatedWorktrees = find_created_worktrees(context, observation)?;
-    if found.created.is_empty() {
+    let found: CreatedWorktrees = find_created_worktrees(&invocation.context, observation)?;
+    let ready: Vec<&CreatedWorktree> = ready_worktrees(found.created.as_slice(), invocation.added_path.as_deref());
+    if ready.is_empty() {
         return Ok(());
     }
-    let mut copied: usize = 0;
-    let mut destinations: usize = found.created.len();
     // `match` on the source: a bare repository has nothing to copy, so only a worktree source is copied.
-    match observation.source_root.as_ref() {
-        None => {}
-        Some(source) => {
-            destinations = 0;
-            for destination in &found.created {
-                // `match` on how the destination ended: only a copy this command ran counts toward the summary.
-                match synchronize_created_worktree(
-                    context,
-                    observation.common_dir.as_path(),
-                    source.as_path(),
-                    destination,
-                    found.registered_roots.as_slice(),
-                    &observation.selection,
-                    stderr,
-                )? {
-                    Synchronized::Copied(entries) => {
-                        copied += entries;
-                        destinations += 1;
-                    }
-                    Synchronized::AlreadyCopied => {}
-                    Synchronized::Yielded(reason) => {
-                        stderr
-                            .write_all(yielded_notice(destination.root.as_path(), reason.as_str()).as_bytes())
-                            .map_err(|error| return raw_failure(&error))?;
-                    }
-                    Synchronized::Unregistered => {
-                        stderr
-                            .write_all(unregistered_notice(destination.root.as_path()).as_bytes())
-                            .map_err(|error| return raw_failure(&error))?;
-                    }
+    let Some(source) = observation.source_root.as_ref() else {
+        let line: String = summary_line(0, ready.len(), None);
+        return stderr.write_all(line.as_bytes()).map_err(|error| return raw_failure(&error));
+    };
+    let mut destinations: Vec<(String, PathBuf)> = Vec::new();
+    for worktree in ready {
+        // A registration that vanished between Git's return and now has nothing to fill.
+        let Some(token) = ensure_registration_token(observation.admin_root.as_path(), worktree.admin_id.as_str())? else {
+            continue;
+        };
+        let request: CopyRequest = CopyRequest {
+            id: new_request_id()?,
+            admin_id: worktree.admin_id.clone(),
+            registration: token,
+            destination_root: worktree.root.clone(),
+            source_root: source.clone(),
+            selection: observation.selection.clone(),
+            tries: 0,
+        };
+        write_request(observation.common_dir.as_path(), &request)?;
+        destinations.push((request.id, worktree.root.clone()));
+    }
+    if destinations.is_empty() {
+        return Ok(());
+    }
+    let ids: Vec<String> = destinations.iter().map(|(id, _)| return id.clone()).collect();
+    let answers: Vec<(String, CopyOutcome)> = requester.request(observation.common_dir.as_path(), ids.as_slice(), stderr)?;
+    let mut copied: usize = 0;
+    let mut finished: usize = 0;
+    let mut failures: Vec<String> = Vec::new();
+    for (id, outcome) in answers {
+        // `match` on how the request ended: only a copy that ran counts toward the summary.
+        match outcome {
+            CopyOutcome::Copied(entries) => {
+                copied += entries;
+                finished += 1;
+            }
+            CopyOutcome::AlreadyCopied | CopyOutcome::Settled => {}
+            CopyOutcome::Removed => {
+                if let Some((_, root)) = destinations.iter().find(|(known, _)| return *known == id) {
+                    stderr.write_all(removed_notice(root.as_path()).as_bytes()).map_err(|error| return raw_failure(&error))?;
                 }
             }
+            CopyOutcome::Failed(text) => failures.push(text),
         }
     }
-    if destinations == 0 {
-        return Ok(());
+    if finished > 0 {
+        let line: String = summary_line(copied, finished, observation.source_root.as_deref());
+        stderr.write_all(line.as_bytes()).map_err(|error| return raw_failure(&error))?;
     }
-    let line: String = summary_line(
-        copied,
-        destinations,
-        observation.source_root.as_deref(),
-    );
-    stderr
-        .write_all(line.as_bytes())
-        .map_err(|error| return raw_failure(&error))?;
+    if let Some(first) = failures.first() {
+        let kept: &str = if first.contains("given up") { "" } else { KEPT_SENTENCE };
+        return Err(WorktreeCopyError(format!("{first} {kept}").trim_end().to_string()));
+    }
     return Ok(());
+}
+
+/// What:
+///  Settles one forwarded invocation: bypasses forward untouched; a creating command runs real Git and then has the
+///  service copy into the worktrees it registered; any other command only nudges the service when a copy is pending.
+/// Why:
+///   The integrator calls this once per forwarded command and turns the settlement into the exit status with [`exit_code`].
+///  Nothing here waits for another command or takes a lock: the only wait is for the service's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
+/// ```
+pub fn run_with_worktree_copy(
+    invocation: &Invocation,
+    run_git: &mut GitRunner,
+    requester: &mut dyn CopyRequester,
+    stderr: &mut dyn Write,
+) -> Result<Settlement, WorktreeCopyError> {
+    return settle_invocation(invocation, run_git, requester, stderr).map_err(lifecycle_failure);
 }
 
 /// What:
 ///  Whether the invocation runs from a linked worktree that Git is still creating.
 /// Why:
 ///   Such a worktree has not been filled yet, so it is no source; a filter or hook of an enclosing `git worktree add`
-///  that creates another worktree leaves the copy to the enclosing command, which copies from the real source.
+///  that creates another worktree leaves the copy to the enclosing command, which copies from the real source. The test
+///  is Git's own English word in the lock file, a heuristic with no other consumer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -290,25 +368,6 @@ fn source_is_being_created(identity: &WorktreeIdentity) -> Result<bool, Worktree
 }
 
 /// What:
-///  Settles one forwarded invocation: bypasses forward untouched; creating commands recover what no running copy holds,
-///  run real Git and copy into the worktrees it registered; other commands only recover, and only when something is pending.
-/// Why:
-///   The integrator calls this once per forwarded command and turns the settlement into the exit status with [`exit_code`].
-///  Nothing here waits for another command: a running copy is skipped by recovery and yielded to by synchronization.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
-/// ```
-pub fn run_with_worktree_copy(
-    invocation: &Invocation,
-    run_git: &mut GitRunner,
-    stderr: &mut dyn Write,
-) -> Result<Settlement, WorktreeCopyError> {
-    return settle_invocation(invocation, run_git, stderr).map_err(lifecycle_failure);
-}
-
-/// What:
 ///  The settlement of one invocation, before the lifecycle words its raw failures.
 /// Why:
 ///   Only the top of the lifecycle words raw failures, as the incumbent's `asWorktreeCopyError` does.
@@ -320,6 +379,7 @@ pub fn run_with_worktree_copy(
 fn settle_invocation(
     invocation: &Invocation,
     run_git: &mut GitRunner,
+    requester: &mut dyn CopyRequester,
     stderr: &mut dyn Write,
 ) -> Result<Settlement, WorktreeCopyError> {
     // `if` chain in the incumbent's order: each bypass forwards without touching the repository.
@@ -339,18 +399,15 @@ fn settle_invocation(
     if invocation.creates_or_moves && source_is_being_created(&invocation.identity)? {
         return forward_only(run_git);
     }
-    // Recovery of what no running copy holds comes before Git, so an interrupted copy is finished before the next
-    // worktree is created; a command that creates nothing recovers and then forwards.
-    recover_pending_worktree_copies(observation.common_dir.as_path(), stderr)?;
     if !invocation.creates_or_moves {
+        // Requests or journals a killed wrapper or service left are the service's to finish; the command does not wait.
+        if copy_pending(observation.common_dir.as_path())? {
+            requester.wake(observation.common_dir.as_path());
+        }
         return forward_only(run_git);
     }
-    // The before-set is read after recovery, as close to Git as possible, so worktrees that other commands register
-    // meanwhile are told apart from this command's by their claims and not by luck.
-    let fresh: WorktreeCopyObservation = refresh_before_admin_ids(&observation)?;
     let git: GitStatus = run_git()?;
-    let copy_failure: Option<WorktreeCopyError> =
-        synchronize_after(&invocation.context, &fresh, stderr).err();
+    let copy_failure: Option<WorktreeCopyError> = copy_after(invocation, &observation, requester, stderr).err();
     return Ok(Settlement { git, copy_failure });
 }
 
