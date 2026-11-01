@@ -74,6 +74,16 @@ Read-only commands,
   The remote and refs come from the push's arguments (everything for `--all`, `--tags`, `--mirror` and glob
    refspecs; the branch Git would send for a bare push), and a failed upload stops the push before it starts.
   The wrapper, as the parent that ran the upload, prints the explanation.
+  For a configured remote that is fetched from and pushed to one place, `git-lfs` skips the objects the remote's
+   tracking refs reach, so a push that adds no LFS object sends no request to the LFS server.
+  A push URL, a `pushInsteadOf` rewrite, a URL or path destination, a mirror push or an unconfigured remote keeps
+   `--all`, which scans everything reachable from the pushed refs.
+  When `git-lfs push` fails with a server error (HTTP 500, 502 to 506 or 508; the lines `Server error: <url>` or
+   `Server error <url> from HTTP 5xx`), the wrapper runs it again after 2 seconds and, if needed, after 5 seconds;
+   a refused credential, a missing local object or any other failure is not retried.
+  `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` (a comma-separated list, at most five entries; empty for none) replaces the delays.
+  The wrapper reads the standard error of `git-lfs` through a private temporary file and relays it with the user and
+   password of every URL replaced by `<credentials>`.
   It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
    reconcile pushes.
   `--dry-run` pushes and the wrapper's own probes never upload.

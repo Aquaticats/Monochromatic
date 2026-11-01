@@ -877,20 +877,36 @@ The step:
   it starts the `git push`; the push carries no hook and no injected `-c`.
   The wrapper never starts its own executable, never writes shell text or scripts, and explains a failure from the
   parent process that owns the child (`doc/planning/cli-git-no-self-invocation.md`).
-  `--all` is always given, with the refs: `git lfs push <remote> <ref>` alone skips every object that a remote-tracking
-  ref of this clone mentions, and those refs need not describe the destination being pushed to (a fetch from one server
-  and a push to another, a changed push URL), which would publish pointers without objects. `--all` with refs uploads
-  everything reachable from exactly those refs, so it covers a superset and is idempotent, as objects are content
-  addressed. Measured with git-lfs 3.8.1 (`commands/uploader.go`, `uploadForRefUpdates`): without `--all` the scan is
-  bounded by the remote-tracking refs (`ScanMultiRangeToRemote`); with it the whole ref is scanned
-  (`ScanRefWithDeleted`). The old hook flow had the same bound for a new remote ref and a better one (the remote's own
-  value) for an existing ref; this step does at least as well for every case and costs a full scan of the pushed refs.
+  `git lfs push <remote> <ref>` alone skips every object that a remote-tracking ref of the remote mentions, so a push
+  that adds no LFS object sends no batch request. Those refs need not describe the destination being pushed to (a fetch
+  from one server and a push to another, a changed push URL), which would publish pointers without objects, so `--all`
+  (everything reachable from exactly those refs, a superset and idempotent as objects are content addressed) is kept
+  whenever the configuration the plan already holds says the tracking refs may not describe the destination: it is not
+  a configured remote (a URL, a path, a name nobody configured), the remote has any `pushurl`, any
+  `url.<base>.pushInsteadOf` rewrite exists, or the push is a mirror push. A configured remote with no tracking refs
+  needs no check: the bounded form then has nothing to skip and scans the whole refs itself.
+  Measured with git-lfs 3.8.1 (`commands/uploader.go`, `uploadForRefUpdates`, `uploadRangeOrAll`): without `--all` the
+  scan is bounded by the remote's tracking refs (`ScanMultiRangeToRemote`, `rev-list --not --remotes=<remote>`); with
+  it the whole ref is scanned (`ScanRefWithDeleted`). Both forms build the same scanner (`NewGitScannerForPush`), which
+  runs `git show-ref` and `git ls-remote --heads` against the remote (`calcSkippedRefs`), so dropping `--all` adds no
+  network round trip and no Git start. No tighter bound exists without one: `git lfs push` takes no remote object name,
+  and the `exclude` list of `uploadForRefUpdates` is empty on this path.
   The child runs with the real Git's directory first on `PATH`, so a `git` that `git-lfs` starts is the real Git and not
   the wrapper, but the `git-lfs` it starts is the first one the caller's own `PATH` finds (as an absolute path, so a relative `PATH` entry and
   `-C` cannot make the file that was checked differ from the file that runs). It runs in the directory a `-C`
   option selects and receives the global options as Git would pass them: `-c` pairs as `GIT_CONFIG_COUNT` variables
   after any pairs already set, `--git-dir`, `--work-tree` and `--namespace` as their variables. A signal sent to the
   wrapper is relayed to it.
+  The child's standard error goes to a private anonymous file; the wrapper reads it back after each run and relays it
+  with the user and password of every `scheme://userinfo@host` URL replaced by `<credentials>` (standard output stays
+  the caller's). When that file cannot be made, the push is refused with the ways forward.
+  A run that fails with a server error is run again at most twice, after 2 seconds and after 5 seconds
+  (`RETRY_DELAYS` in `lfs_server_retry.rs`; `CLI_GIT_LFS_RETRY_DELAYS_MILLISECONDS` replaces them in tests). A server
+  error is a `Server error: <url>` (HTTP 500) or `Server error <url> from HTTP 5xx` line of `git-lfs` (`lfshttp/errors.go`,
+  `defaultError`; `git-lfs` treats these as fatal and never repeats them), with no line naming a refused credential, a
+  missing or corrupt local object, a client error or locked files. Everything else, a signal and a stop by deadline
+  included, ends the step at once. The auto-push also stops retrying when the holder's time budget is shorter than the
+  next delay.
 - What is uploaded.
   The destinations and refs come from the push's own arguments, read with the same option table as the rest of the
   wrapper, and from the configuration Git would read for what the arguments leave out. The configuration entries

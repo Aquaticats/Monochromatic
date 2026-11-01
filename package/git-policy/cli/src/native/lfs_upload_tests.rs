@@ -237,8 +237,8 @@ fn failing_stand_in(directory: &std::path::Path, counter: &std::path::Path, fail
     let message_file: PathBuf = directory.join("message.txt");
     std::fs::write(&message_file, format!("{message}\n")).expect("message");
     let source: String = format!(
-        "#!/bin/sh\nn=$(cat '{counter}' 2>/dev/null || echo 0)\nn=$((n + 1))\necho $n > '{counter}'\n\
-         if [ \"$n\" -le {failures} ]; then cat '{message_file}' >&2; exit {status}; fi\nexit 0\n",
+        "#!/bin/sh\nn=$(/usr/bin/cat '{counter}' 2>/dev/null || echo 0)\nn=$((n + 1))\necho $n > '{counter}'\n\
+         if [ \"$n\" -le {failures} ]; then /usr/bin/cat '{message_file}' >&2; exit {status}; fi\nexit 0\n",
         counter = counter.display(),
         message_file = message_file.display()
     );
