@@ -1,5 +1,12 @@
 # Complete applicable CI measurement
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 ## Purpose and accepted scope
 
 Measure the complete validation graph selected by an actual repository change.

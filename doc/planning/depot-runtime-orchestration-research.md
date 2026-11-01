@@ -1,5 +1,12 @@
 # Depot runtime and orchestration research
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 ## Current execution boundary on 2026-10-18 at 12:20 UTC
 
 The corrected GitHub-hosted lifecycle `39125868595` passed its actual frozen `mvm` owner,

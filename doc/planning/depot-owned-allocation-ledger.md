@@ -1,5 +1,12 @@
 # Owned Depot allocation normalization
 
+> Depot is not adopted (status of 2026-11-01).
+> The owner said on 2026-11-01:
+> "Delete .depot as a whole and update relevant docs.
+> We've decided to not adopt depot after all."
+> This plan is withdrawn and none of it is in force;
+> it stays as the record of the Depot evaluation.
+
 The [normalized baseline](../audit/depot-owned-allocation-ledger-2026-10-18.evidence.json)
 reconciles expanded research targeting application
 `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.
