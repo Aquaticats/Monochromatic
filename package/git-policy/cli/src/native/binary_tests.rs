@@ -143,13 +143,17 @@ mod worktree_copy;
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
 
-/// An explicit push that lost a race to another session: the merge is published through the executable's own push.
+/// An explicit push that lost a race to another session: the merge is published by a push planned and run inside the same process.
 #[path = "binary_push_stacking_tests.rs"]
 mod push_stacking;
 
 /// The Git LFS upload before a push: every push the executable starts carries it, and a failure stops the push.
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
+
+/// The parent that owns an LFS push explains a failed upload from Git's own trace, and no wrapper is started for it.
+#[path = "binary_lfs_parent_tests.rs"]
+mod lfs_parent;
 
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]

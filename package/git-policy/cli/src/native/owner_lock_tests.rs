@@ -81,7 +81,7 @@ fn start_releasable_holder(root: &Path, lock_directory: &Path) -> (Child, PathBu
 /// Start the helper process and wait until it holds the lock.
 fn spawn_holder(root: &Path, lock_directory: &Path, hold_ms: u64, release: Option<&Path>) -> Child {
     let ready: PathBuf = root.join(format!("ready-{hold_ms}"));
-    let mut command: Command = Command::new(std::env::current_exe().expect("test binary"));
+    let mut command: Command = Command::new(crate::test_support::this_test_binary().expect("test binary"));
     command
         .args([
             "--exact",

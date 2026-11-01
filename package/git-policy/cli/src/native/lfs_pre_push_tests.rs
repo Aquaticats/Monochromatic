@@ -115,7 +115,9 @@ fn the_lookup_finds_only_an_executable_file_in_a_path_directory() {
     executable(with_program.join("git-lfs").as_path(), b"#!/bin/sh\n");
     std::fs::write(plain.join("git-lfs"), b"text").expect("plain file");
     std::fs::create_dir(directory_named_so.join("git-lfs")).expect("directory with the program's name");
-    let joined = |directories: &[&PathBuf]| std::env::join_paths(directories).expect("joined");
+    let joined = |directories: &[&PathBuf]| {
+        return std::env::join_paths(directories).expect("joined");
+    };
     assert!(program_on_path(joined(&[&without, &with_program]).as_os_str()));
     assert!(!program_on_path(joined(&[&without, &plain, &directory_named_so]).as_os_str()));
     assert!(!program_on_path(OsStr::new("")));

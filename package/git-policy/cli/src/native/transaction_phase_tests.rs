@@ -161,7 +161,7 @@ fn kill_marker_sigkills_the_process_after_writing_its_marker() {
     use std::os::unix::process::ExitStatusExt;
     let root: PathBuf = fixture("phase-kill");
     let value: String = format!("objects-migrated:kill:{}", root.display());
-    let status = std::process::Command::new(std::env::current_exe().expect("test binary"))
+    let status = std::process::Command::new(crate::test_support::this_test_binary().expect("test binary"))
         .args(["--exact", "transaction_phase::tests::child_reaches_objects_migrated", "--ignored"])
         .env(PHASE_SIGNAL_VARIABLE, &value)
         .status()

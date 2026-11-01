@@ -162,7 +162,7 @@ struct Reported {
 ///
 /// The helper's stderr is captured so each case reads what the terminal showed.
 fn start_helper(scenario: &Scenario, landed: &str, result: &Path) -> Child {
-    return Command::new(std::env::current_exe().expect("test binary"))
+    return Command::new(crate::test_support::this_test_binary().expect("test binary"))
         .args([
             "--exact",
             "auto_push::concurrency_tests::helper_auto_pushes",

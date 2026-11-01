@@ -86,7 +86,7 @@ fn a_caught_panic_shows_only_the_notice_in_its_own_process() {
     }
     let mut stderr_by_mode: Vec<String> = Vec::new();
     for mode in ["payload-free", "default"] {
-        let output: Output = Command::new(std::env::current_exe().expect("test executable"))
+        let output: Output = Command::new(crate::test_support::this_test_binary().expect("test executable"))
             .args([
                 "--exact",
                 "panic_notice::tests::a_caught_panic_shows_only_the_notice_in_its_own_process",

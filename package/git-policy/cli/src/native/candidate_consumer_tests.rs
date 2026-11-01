@@ -189,7 +189,10 @@ fn public_interface_runs_a_policy_pass() {
     std::fs::create_dir_all(&work).expect("fresh fixture");
     std::fs::create_dir(root.join("home")).expect("disposable home");
     // The scanner's rule cache and home directory are disposable for the child, never the real ones.
-    let output: Output = Command::new(std::env::current_exe().expect("test executable"))
+    // A control starts a helper copy of the test binary; the wrapper is never started this way.
+    #[allow(clippy::disallowed_methods, reason = "identifies the running test binary so the control can start a helper copy of it")]
+    let test_binary: PathBuf = std::env::current_exe().expect("test executable");
+    let output: Output = Command::new(test_binary)
         .args([
             "--exact",
             "public_interface_runs_a_policy_pass",

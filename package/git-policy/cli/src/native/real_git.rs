@@ -450,6 +450,12 @@ pub fn process_resolution_inputs(
 ) -> std::io::Result<ResolutionInputs> {
     let platform: Platform = host_platform();
     // A trailing `?` returns the OS error to our caller, or unwraps the value.
+    // Identification only: this path is excluded from the search for the real Git so the wrapper never selects itself;
+    //  nothing is started from it (doc/planning/cli-git-no-self-invocation.md).
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "identifies the wrapper so the search for the real Git skips it; nothing is started from the path"
+    )]
     let own_executable: PathBuf = std::env::current_exe()?;
     let current_directory: PathBuf = std::env::current_dir()?;
     // `.unwrap_or_default()` substitutes an empty value when the variable is unset.

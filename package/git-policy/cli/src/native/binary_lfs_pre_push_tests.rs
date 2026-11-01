@@ -11,18 +11,18 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// A repository, its bare origin, and the file the stand-in program appends to.
-struct World {
+pub(super) struct World {
     /// The working repository, on `main`.
-    repo: PathBuf,
+    pub(super) repo: PathBuf,
     /// The bare origin.
-    origin: PathBuf,
+    pub(super) origin: PathBuf,
     /// The record of the stand-in `git-lfs`.
-    record: PathBuf,
+    pub(super) record: PathBuf,
 }
 
 /// One run of the stand-in program.
 #[derive(Debug)]
-struct Run {
+pub(super) struct Run {
     /// Its arguments, joined by spaces.
     arguments: String,
     /// Its standard input lines.
@@ -50,7 +50,7 @@ fn stand_in_source(world_origin: &Path, record: &Path, status: i32, from_run: us
 }
 
 /// Create the repository and its origin, and a stand-in program that fails every run.
-fn world(fixture: &Fixture, lfs: bool, program: Option<i32>) -> World {
+pub(super) fn world(fixture: &Fixture, lfs: bool, program: Option<i32>) -> World {
     return world_failing_from(fixture, lfs, program, 0);
 }
 
@@ -77,7 +77,7 @@ fn world_failing_from(fixture: &Fixture, lfs: bool, program: Option<i32>, from_r
 }
 
 /// Every run the stand-in recorded, in order.
-fn runs(world: &World) -> Vec<Run> {
+pub(super) fn runs(world: &World) -> Vec<Run> {
     let text: String = std::fs::read_to_string(&world.record).unwrap_or_default();
     let mut found: Vec<Run> = Vec::new();
     for line in text.lines() {
@@ -93,7 +93,7 @@ fn runs(world: &World) -> Vec<Run> {
 }
 
 /// The object a reference names in a repository, or `absent`.
-fn ref_of(fixture: &Fixture, repo: &Path, name: &str) -> String {
+pub(super) fn ref_of(fixture: &Fixture, repo: &Path, name: &str) -> String {
     let output = direct(fixture)
         .current_dir(repo)
         .args(["rev-parse", "--verify", "--quiet", name])
@@ -104,14 +104,14 @@ fn ref_of(fixture: &Fixture, repo: &Path, name: &str) -> String {
 }
 
 /// Commit a file with real Git, so no auto-push runs.
-fn commit_directly(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
+pub(super) fn commit_directly(fixture: &Fixture, repo: &Path, name: &str, text: &str) {
     std::fs::write(repo.join(name), text).expect("fixture file");
     git(fixture, repo, &["add", "--", name]);
     git(fixture, repo, &["commit", "--quiet", &format!("--message={name}"), "--", name]);
 }
 
 /// Run one wrapped command in the repository.
-fn wrapped(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
+pub(super) fn wrapped(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
     return observe(&mut wrapped_commit(fixture, directory, arguments), b"");
 }
 

@@ -1051,3 +1051,8 @@ pub mod worktree_copy;
 
 /// Which forwarded invocations the copy applies to, and the child run that carries its settlement lease.
 pub mod worktree_copy_forward;
+
+/// The mechanical ban: no release code starts the wrapper, passes it management words or writes shell text.
+#[cfg(test)]
+#[path = "no_self_invocation_tests.rs"]
+mod no_self_invocation_tests;

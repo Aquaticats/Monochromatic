@@ -121,7 +121,7 @@ fn wait_for(path: &Path) {
 
 /// Start this test executable as the helper for one scenario.
 fn spawn_helper(mode: &str, directory: &Path) -> Child {
-    let executable_path: PathBuf = std::env::current_exe().expect("test executable");
+    let executable_path: PathBuf = crate::test_support::this_test_binary().expect("test executable");
     return Command::new(executable_path)
         .args(["--exact", "signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
         .env(MODE_VAR, mode)
@@ -360,7 +360,7 @@ fn spawn_terminal_helper(directory: &Path) -> (std::fs::File, Child) {
     let master_file: std::fs::File = unsafe { std::fs::File::from_raw_fd(master) };
     // SAFETY: as above; the slave is owned once and cloned into the helper's standard streams.
     let slave_owned: OwnedFd = unsafe { OwnedFd::from_raw_fd(slave) };
-    let executable_path: PathBuf = std::env::current_exe().expect("test executable");
+    let executable_path: PathBuf = crate::test_support::this_test_binary().expect("test executable");
     let mut command: Command = Command::new(executable_path);
     command
         .args(["--exact", "signal_relay::tests::helper_entry", "--nocapture", "--test-threads=1"])
