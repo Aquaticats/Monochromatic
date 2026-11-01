@@ -990,16 +990,27 @@ The user confirmed the shared understanding and the order below, after the third
   - Asked `monochromatic-6e` (the toolchain session, the owner of the plan and the link mechanism) to add and link the shadow as
     `pnpm`, with the facts above and the one open question: the real pnpm is already exposed as `.cache/toolchain-bin/pnpm`, so the link
     named `pnpm` must come first on `PATH` and the real pnpm must stay found after it. No reply yet.
+- 2026-11-01, user answers to three questions (question tool): bump the lock to cli-git 0.5.1 now ("Yes, bump to 0.5.1 now",
+  against the recommended "not now"); keep the `pnpm-shadow:` prefix on the wrapper's two failure messages; keep the warning
+  command set as listed. Peer reports after that: `monochromatic-8c` ran the scoped `toolchain:update` for 0.5.1 under what it called
+  the user's standing authorization, and `monochromatic-6e` staged the plan row `cargo:monochromatic-pnpm-shadow` (`cargo-binstall`,
+  bin `pnpm-shadow`, `os: linux`, a postinstall link of `pnpm-shadow` as `pnpm` into `.cache/pnpm-shadow-bin`) and an edit of
+  `.config/mise/conf.d/20-env.toml` putting that directory ahead of `.cache/toolchain-bin`, and locked `0.1.0`; 6e holds the install and
+  the commit until 8c commits, then checks `command -v pnpm`, `pnpm --version` and `pnpm root` and reports. Checked from here with
+  `git diff` of `toolchain.lock.json`: three changes only (the 0.5.0 to 0.5.1 version, the new shadow row, the digest). Not
+  committed by this session on purpose: the file holds both sessions' uncommitted work.
+
 ## Open items
 
 - Done: the lock bump to 0.5.0, the CI workflow, the policy activation and its first green run (run 41311571968).
 - Done: `pnpm-shadow` built, tested, published, released with archives and installed from the archive as a consumer.
-- Waiting on `monochromatic-6e`: the toolchain plan row and the link of the shadow as `pnpm` (request sent, no reply yet).
-- For the user: whether to bump the lock to cli-git 0.5.1 (`mise run toolchain:update -- cargo:monochromatic-git-policy-cli`, commit only
-  the lock); declined on 8c's word alone.
+- Waiting on `monochromatic-6e`: it staged the plan row and the link (uncommitted), holds the install and the commit until 8c
+  commits, then checks `command -v pnpm`, `pnpm --version` and `pnpm root` and reports.
+- Done by the user's answer ("Yes, bump to 0.5.1 now"): the cli-git 0.5.1 bump is in the working-tree lock; its commit is 6e's, together
+  with the shadow row, because both rows share one generated lock.
 - For the user: the `hook.standards-review-shadow` post-commit hook no longer runs under cli-git 0.5.0 and later.
 - For the user: whether a failing `catalog-specifiers.yml` run blocks a merge depends on branch protection, the owner's setting; not measured.
-- Veto open, mine: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix; the warning-command list (see the user directions entry).
+- Settled by the user: the two `pnpm-shadow` failure messages keep the `pnpm-shadow:` prefix, and the warning-command list stays as built.
 - Mutation run gaps never re-run: the `package.yml` mutation failed by compile error, and three mutations were skipped because their
   pattern matched twice.
 - Not measured: the effect of `--policy` on a shipped policy that is absent, `off` or `warn`; whether branch protection exists; whether
@@ -1007,4 +1018,5 @@ The user confirmed the shared understanding and the order below, after the third
 
 ## Next action
 
-Wait for `monochromatic-6e`'s answer on the plan row and the link, and for the user's answers on the 0.5.1 bump. Nothing else is queued.
+Wait for `monochromatic-6e`'s report that the shadow is installed and linked as `pnpm` and that `pnpm --version` and `pnpm root` behave as the
+README says; check that `catalog-specifiers.yml` still passes on the commit that lands the lock. Nothing else is queued.
