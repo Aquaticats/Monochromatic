@@ -275,7 +275,10 @@ export async function runRefinePhase(
            hook names now with the bench it was seated with, and refuses one below the checker floor, which it could
            not do if the slice were handed the bench the hook names as its own (ledger B1343).
            */
-          const stageModels: RepairModels = { ...sliceModels, checkerModelIds: models.checkerModelIds, };
+          const stageModels: RepairModels = {
+            ...sliceModels,
+            checkerModelIds: models.checkerModelIds,
+          };
           return await settleRefinePhaseSlice({
             client,
             outcome,
