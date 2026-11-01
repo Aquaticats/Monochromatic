@@ -534,7 +534,10 @@ export async function repairInvalidCandidates(
    */
   const authors = [
     ...new Set(voices.flatMap(function modelsOf(voice,): readonly RosterModelId[] {
-      return [voice.modelId, seatOfVoice({ voice, },),];
+      return [
+        voice.modelId,
+        seatOfVoice({ voice, },),
+      ];
     },),),
   ];
 

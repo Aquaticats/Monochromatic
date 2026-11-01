@@ -399,28 +399,39 @@ await describe({
             /**
              Label of the candidate holding a text on the sheet a judge was shown.
              */
-            const labelOfText = function labelOfText({ sheet, text, }: { readonly sheet: string; readonly text: string; },): string {
+            function labelOfText({ sheet, text, }: { readonly sheet: string; readonly text: string; },): string {
               return candidateTextsOf({ sheet, },)
                 .find(function holdsIt(candidate,): boolean {
                   return candidate.text === text;
                 },)
                 ?.label ?? '';
-            };
+            }
+            /**
+             Text a judge chooses: the writer's paragraph for the model asked in place of the runaway seat, the splice in the
+             first round and the writer's paragraph in the run-off for the second seat, and the current text in the first
+             round and the splice in the run-off for the third, so the first round has no majority and the run-off has one.
+
+             @param seat - judge asked
+
+             @param runOff - whether the sheet is the run-off among the finalists
+
+             @returns Text the judge's choice names
+             */
+            function textChosenBy({ seat, runOff, }: { readonly seat: string; readonly runOff: boolean; },): string {
+              if (seat === answerer)
+                return WRITTEN;
+              if (seat === SEAT_BEDROCK_ONLY_TEXT)
+                return runOff ? WRITTEN : SPLICED_PARAGRAPH;
+              return runOff ? SPLICED_PARAGRAPH : RECEIVING_ENGLISH;
+            }
             const scene = carryScene({
               behave: function splitsThenSettles({ seat, sheet, },): SeatBehaviour {
-                /**
-                 Whether the sheet is the run-off among the finalists.
-                 */
-                const runOff = sheet.includes('A first round of judges was split',);
-                /**
-                 Text each judge chooses: three ways in the first round, the writer's paragraph by two of three in the run-off.
-                 */
-                const text = (seat === answerer)
-                  ? WRITTEN
-                  : (seat === SEAT_BEDROCK_ONLY_TEXT)
-                  ? (runOff ? WRITTEN : SPLICED_PARAGRAPH)
-                  : (runOff ? SPLICED_PARAGRAPH : RECEIVING_ENGLISH);
-                return choosing({ choice: labelOfText({ sheet, text, }), },);
+                return choosing({
+                  choice: labelOfText({
+                    sheet,
+                    text: textChosenBy({ seat, runOff: sheet.includes('A first round of judges was split',), },),
+                  },),
+                },);
               },
             },);
             const inner = scene.context.client;

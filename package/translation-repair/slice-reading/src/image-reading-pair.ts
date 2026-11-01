@@ -427,7 +427,10 @@ export async function readImagePair(
     /**
      The reading and the model that gave it.
      */
-    const { reading, askedModelId, } = await readPastRefusalBy({
+    const {
+      reading,
+      askedModelId,
+    } = await readPastRefusalBy({
       client,
       modelId,
       bytes,

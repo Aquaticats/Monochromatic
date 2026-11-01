@@ -29,11 +29,13 @@ import {
 } from './family-source.test-fixture.ts';
 import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scan-findings.test-fixture.ts';
 import {
-  keysNamedInLiteralsOfType,
-  keysNamedInLiteralsUnder,
   rolesNamedAtCalls,
   sourceNamesFunction,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/reask-role-call.test-fixture.ts';
+import {
+  keysNamedInLiteralsOfType,
+  keysNamedInLiteralsUnder,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/reask-role-literal.test-fixture.ts';
 
 //region Measurement mode scan
 
@@ -176,7 +178,7 @@ await describe({
                   : 'other-model';
                 return rolesNamedAtCalls({ source: file.text, callee, key: 'reask', },)
                   .filter(function notNamed(named,): boolean {
-                    return !PASSED_ON.has(named,) && (named !== own);
+                    return (!PASSED_ON.has(named,)) && (named !== own);
                   },)
                   .map(function toFinding(named,): string {
                     return `${file.path}: a call of ${callee} names reask as ${named}`;

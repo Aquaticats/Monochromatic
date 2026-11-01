@@ -42,7 +42,10 @@ import {
   SEAT_WITHHOLD_ASKS,
 } from '@monochromatic-dev/translation-repair-stage';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
-import { HYPER_MESSAGES_URL, } from '@monochromatic-dev/translation-repair-shared-contract';
+import {
+  HYPER_MESSAGES_URL,
+  type RosterModelId,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   alternateModelsFor,
   BEDROCK_CREDIT_USD_VAR,
@@ -901,7 +904,7 @@ await describe({
             /**
              Models the re-ask could ask in place of the runaway.
              */
-            const alternatesOfRunaway: readonly string[] = alternateModelsFor({
+            const alternatesOfRunaway: readonly RosterModelId[] = alternateModelsFor({
               modelId: SHARED_SEAT,
               role: 'roster',
               bench: [SHARED_SEAT,],
@@ -911,9 +914,9 @@ await describe({
              Calls that reached a transport for a model other than the runaway one, when a runaway is asked, given how many
              asks each other model of the role has failed on the run's tally.
              */
-            const callsForOthers = async (
+            async function callsForOthers(
               { failedAsks, }: { readonly failedAsks: number; },
-            ): Promise<number> => {
+            ): Promise<number> {
               using _fresh = withFreshRunSeats();
               /**
                Models every exchange was labelled with, in order.
@@ -943,9 +946,11 @@ await describe({
                 reaskSeat: { role: 'roster', bench: [SHARED_SEAT,], reask: 'other-model', },
               },);
               return labels.filter(function isAnotherModel(label,): boolean {
-                return alternatesOfRunaway.includes(label,);
+                return alternatesOfRunaway.some(function isLabel(modelId,): boolean {
+                  return modelId === label;
+                },);
               },).length;
-            };
+            }
             /**
              Calls with nothing withheld, and with every alternate withheld.
              */

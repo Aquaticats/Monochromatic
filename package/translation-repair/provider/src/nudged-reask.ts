@@ -331,7 +331,11 @@ export async function reaskElsewhereNudged<ValueT,>(
       catch (error) {
         // THE CALLER'S ABORT AND EVERY PROVIDER DRY END THE RE-ASK, not the one model: the first stops all work, and the
         // second ends the run at the owner's instruction (below).
-        if (request.signal.aborted || (error instanceof EveryProviderDryError))
+        /**
+         Whether the caller stopped the work.
+         */
+        const { aborted, } = request.signal;
+        if (aborted || (error instanceof EveryProviderDryError))
           throw error;
         if (error instanceof NoProviderForModelError) {
           ol.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);

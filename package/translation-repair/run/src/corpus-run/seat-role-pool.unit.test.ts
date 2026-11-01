@@ -92,6 +92,7 @@ function withoutClaude({ modelIds, }: { readonly modelIds: readonly RosterModelI
  checker of the order is on it already). A served checker below the bench is only beyond its width, not withheld.
 
  @param seats - benches the run derives in the reading
+
  @param dry - reading of the meters
 
  @returns Checkers of the order the reading could have withheld, in rank order
@@ -112,10 +113,14 @@ function checkersRankedAboveBench(
 ): readonly RosterModelId[] {
   /**
    Whether a wet provider serves a model in this reading.
+
+   @param modelId - model under question
+
+   @returns True when the router would send its calls somewhere
    */
-  const served = function served(modelId: RosterModelId,): boolean {
+  function served(modelId: RosterModelId,): boolean {
     return providerServing({ reach: reachOf({ modelId, },), dry, },) !== NO_PROVIDER;
-  };
+  }
   if (!seats.checkers.every(served,))
     return RUN_CHECKER_ORDER;
   /**

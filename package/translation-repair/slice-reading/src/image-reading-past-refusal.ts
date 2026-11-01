@@ -713,10 +713,14 @@ export async function readPastRefusalBy(
     },);
   }
 
-  return {
+  /**
+   The last reading and the model that gave it.
+   */
+  const given: CutReask = {
     reading,
     askedModelId,
   };
+  return given;
 }
 
 /**

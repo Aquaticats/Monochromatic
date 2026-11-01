@@ -32,6 +32,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
@@ -376,12 +377,11 @@ await describe({
             /**
              Model the cut reader's picture was asked of.
              */
-            const answerer = asked.find(function isOther(model,): boolean {
+            const answerer = nonNullishOrThrow(asked.find(function isOther(model,): boolean {
               return !READERS.includes(model,);
-            },);
-            expect(answerer === undefined,).toBe(false,);
+            },),);
             expect(paired.readings
-              .map(function toModel(reading,): RosterModelId | undefined {
+              .map(function toModel(reading,): RosterModelId {
                 return reading.modelId;
               },),).toEqual([answerer, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],);
           },
