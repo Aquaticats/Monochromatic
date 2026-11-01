@@ -80,7 +80,7 @@ fn failure_label(plan: &OldCopyPlan) -> String {
 /// Why:
 /// `cargo uninstall` updates both of cargo's records and removes only the bin named,
 /// so a crate with other bins stays recorded for them.
-/// It decides from `.crates.toml` alone (measured 2026-10-31),
+/// It decides from `.crates.toml` alone (measured 2026-11-01),
 /// so a bin that file does not name is removed directly.
 ///
 /// In TS you'd write (pseudocode):

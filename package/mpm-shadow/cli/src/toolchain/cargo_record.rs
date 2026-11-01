@@ -5,7 +5,7 @@
 //! version and the binaries each install placed.
 //! Why:
 //! `cargo uninstall` decides from this file alone
-//! (measured 2026-10-31 with cargo 1.101.0-nightly in disposable homes:
+//! (measured 2026-11-01 with cargo 1.101.0-nightly in disposable homes:
 //! a crate named only in `.crates2.json` is "did not match any packages"),
 //! and the old-copy cleanup needs to know which crate a binary in the shared cargo bin directory belongs to.
 //! `src/installed.rs` reads the same file for versions only and ignores the binary lists.

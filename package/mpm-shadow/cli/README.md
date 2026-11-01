@@ -916,11 +916,15 @@ The retired TypeScript sync put such copies there (measured on the owner's machi
 and links in `~/.local/bin` and in every checkout's `.cache/*-bin` still run them.
 Cargo's records cannot say which copies are old:
 on that machine `.crates2.json` named `monochromatic-git-policy-cli` 0.2.13 for a 0.4.5 binary and had no entry for `mpm-shadow`,
-so the decision rests on where the file is,
-never on a record.
+and a copy placed by hand has no record at all.
+So the decision rests on where the file is.
+`.crates.toml` (the file `cargo uninstall` reads) is consulted for three things only:
+to leave alone a bin it attributes to a crate this repository does not publish,
+to keep a copy it says is newer than the managed one,
+and to choose between `cargo uninstall` and removing the file.
 No runbook step removes an old copy by hand:
 `install` does it,
-and the rest of this section is what it does.
+as the headings of this section describe.
 
 #### The order
 
@@ -1009,7 +1013,7 @@ when:
 - a link to the copy appeared after the search,
   or a link could not be re-pointed (that is also a failure,
   so `install` exits 1).
-- both toolchain roots hold a managed copy and a link outside every checkout resolves to the old copy (see the previous heading).
+- both toolchain roots hold a managed copy and a link outside every checkout resolves to the old copy (see "Which managed copy a link gets").
 
 A file that cargo's record attributes to a crate this repository does not publish is another program and is not judged at all.
 A `cargo uninstall` that fails (a locked package cache,
@@ -1045,7 +1049,7 @@ fix what cargo reports and run `install` again.
 
 #### Measured behaviour of cargo
 
-Measured on 2026-10-31 with cargo 1.101.0-nightly in disposable homes that held copies of the owner's records:
+Measured on 2026-11-01 (UTC) with cargo 1.101.0-nightly in disposable homes that held copies of the owner's records:
 - `cargo uninstall --root <cargo home> monochromatic-git-policy-cli` removed the file and the entries of both records although `.crates2.json` named another version.
 - A crate named only in `.crates2.json` is "did not match any packages" (exit 101),
   and so is a crate named in neither record,
