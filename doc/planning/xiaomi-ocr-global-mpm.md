@@ -2,6 +2,7 @@
 
 Status:
 implementation proposal for the maintainer to take forward.
+Tracked in [GitHub issue #2576](https://github.com/Aquaticats/Monochromatic/issues/2576).
 The global installation and provider changes have not been performed.
 The original checkpoint has passed CPU inference in a disposable environment.
 
