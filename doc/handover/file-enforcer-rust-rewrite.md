@@ -1385,6 +1385,23 @@ each finished branch is reviewed and merged into `main`):
   build both packages,
   `down` then `up` with the new build,
   then clean up the old scopes with `systemctl --user reset-failed` and `systemctl --user stop` of empty ones.
+- systemd stuck-scope doc merged:
+  `doc/troubleshooting/systemd-scope-adopting-an-exiting-pid-stays-running-empty.md`
+  (reproduced with systemd 262.1 as PID 1 on kernel 7.2.11 in a rootless container;
+  prototype fix `unit_cgroup_catchup(u)` in `scope_enter_running`, 28 of 256 stuck before and 0 of 192 after;
+  not filed, because systemd's `CONTRIBUTING.md` requires issues written by the reporter).
+  Corrections it made:
+  a pid gone at call time fails the call ("No such process") and creates no unit;
+  "No PIDs left" comes from a gated start;
+  the kernel tag `v7.2.11` object `8316c24e` is not the commit (`a2de78ee6e`).
+- The `mvm` MCP servers are stale:
+  three processes started 2026-10-30 21:22 to 21:23 load the old build,
+  whose lazy `libvirt-C2IRPclg.mjs` chunk the 2026-10-31 03:45 rebuild replaced with `libvirt-B8wDpRpJ.mjs`,
+  so their libvirt calls fail.
+  A reconnect (`/mcp`) loads the current build.
+  Design note,
+  not acted on:
+  a rebuild with hashed lazy chunks can break any long-running server started from `dist`.
 - #2576:
   the owner asked "What is going on? Why are we writing any Python?"
   after the dependency questions;
