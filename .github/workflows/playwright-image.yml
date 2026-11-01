@@ -6,7 +6,9 @@ name: playwright-image
 #
 # - A tag names one content: when it already exists nothing is built or pushed, so a rerun, or an edit of this file
 #   alone, never replaces an image that people already pulled (the Dockerfile installs bun from its latest installer,
-#   so a rebuild under the same tag would not be the same bytes).
+#   so a rebuild under the same tag would not be the same bytes). The check that decides this fails the run when it
+#   cannot tell (a registry error, a timeout) and only treats a missing tag, or a package the registry grants no token
+#   for, as absent, so a transient fault never leads to an overwrite.
 # - Authentication is the workflow's own GITHUB_TOKEN (packages: write). The first push creates the package, linked to
 #   this repository by the org.opencontainers.image.source label; a new package is private until the owner makes it
 #   public in its package settings (Danger Zone, Change visibility), which GitHub offers nowhere else. While it is
@@ -66,27 +68,48 @@ jobs:
           set -euo pipefail
           repository="${IMAGE#ghcr.io/}"
           accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
+          # A transport fault (no connection, a timeout after the retries) makes curl exit non-zero, which ends this
+          # step with curl's own message, so the build and the push are skipped.
+          curl_options=(--silent --show-error --max-time 30 --retry 3 --retry-delay 2)
+          absent() {
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$TAG is absent ($1); building it"
+            exit 0
+          }
+          unknown() {
+            echo "::error title=Cannot tell whether the tag exists::$1. Nothing was built or pushed, so no existing tag was replaced; rerun the job."
+            exit 1
+          }
+          body="$(mktemp)"
           # The registry's own token flow, the one `podman login` and `podman pull` use: the workflow's token is the
           # password of a basic-auth request and the answer is a bearer token for this repository. The credentials go
           # through stdin (`--config -`) and not the command line.
-          token="$(printf 'user = "%s:%s"\n' "$GITHUB_ACTOR_NAME" "$GITHUB_TOKEN" \
-            | curl --silent --config - "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull" \
-            | jq --raw-output '.token // empty')"
-          status=000
-          if [ -n "$token" ]; then
-            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --head \
-              --header "Authorization: Bearer $token" --header "Accept: $accept" \
+          token_status="$(printf 'user = "%s:%s"\n' "$GITHUB_ACTOR_NAME" "$GITHUB_TOKEN" \
+            | curl "${curl_options[@]}" --config - --output "$body" --write-out '%{http_code}' \
+              "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull")"
+          if [ "$token_status" = 403 ]; then
+            # The registry grants no token for a package that does not exist yet.
+            absent "no token for the package, which means it does not exist yet"
+          fi
+          if [ "$token_status" != 200 ]; then
+            unknown "The token request answered HTTP $token_status"
+          fi
+          if ! token="$(jq --raw-output '.token // empty' "$body")" || [ -z "$token" ]; then
+            unknown "The token response had no token"
+          fi
+          echo "::add-mask::$token"
+          manifest_status="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\n' "$token" "$accept" \
+            | curl "${curl_options[@]}" --config - --head --output /dev/null --write-out '%{http_code}' \
               "https://ghcr.io/v2/$repository/manifests/$TAG")"
-          fi
-          # Only a 200 means the tag exists. Anything else (no package yet, no tag yet, or a fault) goes on to the
-          # build, where a real authentication or network fault fails the push with its own message.
-          if [ "$status" = 200 ]; then
+          if [ "$manifest_status" = 200 ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:$TAG exists (HTTP $status); nothing to build"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:$TAG not found (HTTP $status); building it"
+            echo "$IMAGE:$TAG exists (HTTP $manifest_status); nothing to build"
+            exit 0
           fi
+          if [ "$manifest_status" = 404 ]; then
+            absent "HTTP 404 for the tag"
+          fi
+          unknown "The manifest request answered HTTP $manifest_status"
 
       - name: Build the image
         if: steps.exists.outputs.present != 'true'
@@ -124,21 +147,37 @@ jobs:
           set -euo pipefail
           repository="${IMAGE#ghcr.io/}"
           accept='application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.docker.distribution.manifest.list.v2+json'
-          # No credentials of ours: this is what a person without a login (or prepare:playwright) sees.
-          token="$(curl --silent "https://ghcr.io/token?scope=repository:$repository:pull" | jq --raw-output '.token // empty')"
-          status=000
+          # Advisory only: a fault here is reported as the status below (000 when nothing answered) and never fails a
+          # run that has already published the image. No credentials of ours are sent: this is what a person without
+          # a login (or prepare:playwright) sees.
+          curl_options=(--silent --max-time 30 --retry 3 --retry-delay 2)
+          body="$(mktemp)"
+          token_status="$(curl "${curl_options[@]}" --output "$body" --write-out '%{http_code}' \
+            "https://ghcr.io/token?service=ghcr.io&scope=repository:$repository:pull" || true)"
+          # What the first refused request answered: HTTP 403 and the registry's error code for a private package.
+          answer="$token_status"
+          token=""
+          if [ "$token_status" = 200 ]; then
+            token="$(jq --raw-output '.token // empty' "$body" 2>/dev/null || true)"
+          else
+            code="$(jq --raw-output '.errors[0].code // empty' "$body" 2>/dev/null || true)"
+            if [ -n "$code" ]; then
+              answer="$token_status ($code)"
+            fi
+          fi
           if [ -n "$token" ]; then
-            status="$(curl --silent --output /dev/null --write-out '%{http_code}' --head \
-              --header "Authorization: Bearer $token" --header "Accept: $accept" \
-              "https://ghcr.io/v2/$repository/manifests/$TAG")"
+            echo "::add-mask::$token"
+            answer="$(printf 'header = "Authorization: Bearer %s"\nheader = "Accept: %s"\n' "$token" "$accept" \
+              | curl "${curl_options[@]}" --config - --head --output /dev/null --write-out '%{http_code}' \
+                "https://ghcr.io/v2/$repository/manifests/$TAG" || true)"
           fi
           {
             echo "## Playwright image"
             echo "- image: \`$IMAGE:$TAG\`"
-            echo "- anonymous pull check: HTTP $status"
+            echo "- anonymous pull check: HTTP $answer"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$status" = 200 ]; then
+          if [ "$answer" = 200 ]; then
             echo "anyone can pull $IMAGE:$TAG"
           else
-            echo "::warning title=Playwright image is not public::An anonymous request for $IMAGE:$TAG answered HTTP $status, so the package is still private. The owner makes it public once: open the package from https://github.com/orgs/Aquaticats/packages, then Package settings, Danger Zone, Change visibility, Public. Until then prepare:playwright falls back to building playwright.Dockerfile locally."
+            echo "::warning title=Playwright image is not public::An anonymous request for $IMAGE:$TAG answered HTTP $answer, so the package is private or the tag is missing. The owner makes the package public once: open it from https://github.com/orgs/Aquaticats/packages, then Package settings, Danger Zone, Change visibility, Public. Until then prepare:playwright falls back to building playwright.Dockerfile locally."
           fi
