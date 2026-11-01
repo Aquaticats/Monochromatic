@@ -1769,6 +1769,40 @@ each finished branch is reviewed and merged into `main`):
   every sampled socket of the processes moved into update scopes carried `fwmark 0x64`,
   none unmarked.
   The wg work is live and verified.
+- Kopia backups (`~/.config/systemd/user/kopia-snapshot-all.service`, hourly timer)
+  have failed every run since at least 2026-10-25
+  (earliest failure in a week of journal; no success in that week):
+  its ExecStart names `~/.local/share/mise/installs/kopia/latest/kopia-0.23.0-linux-x64/kopia`,
+  but `latest` points to 0.23.1.
+  Not caused by the toolchain cutover (it predates it).
+  Fix:
+  ExecStart to `~/.local/share/monochromatic-dev/toolchain-global/exposure/kopia snapshot create --all`
+  (Kopia 0.23.1,
+  build `72ec08fd`).
+  The owner chose "Allow me to edit it",
+  but the auto-mode classifier refused the edit twice as "Unauthorized Persistence";
+  the owner was given a `!` command to apply it.
+  Backup of the unit:
+  `~/temp/agent/kopia-fix/kopia-snapshot-all.service.before`.
+  Queued:
+  after the owner applies it,
+  start the job once and confirm from the journal that the snapshot finished.
+- Owner 2026-11-01:
+  "\"xinyanchen\" - disable anything related."
+  Done:
+  `systemctl --user disable --now` on `xinyanchen-polypane-branch`,
+  `-preview`,
+  `-tunnel-m1-site`,
+  `-tunnel-vm-webdriver`
+  and `-mux` (the template `xinyanchen-polypane-branch@` has no enabled instance);
+  every unit file now `disabled`,
+  the preview's failed state reset,
+  no process mentioning `xinyan` and no listener on 4173,
+  4174,
+  4210
+  or 4454 left.
+  The unit files are kept,
+  so `systemctl --user enable --now <unit>` restores any of them.
   Then merge,
   build,
   and one restart (`down` then `up`).
