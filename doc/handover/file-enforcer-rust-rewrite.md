@@ -632,11 +632,17 @@ each finished branch is reviewed and merged into `main`):
   (a merge does not trigger the wrapper's auto-push;
   `main` was 21 commits ahead until `git push origin main`);
   release run `41262166385` started 2026-11-01T01:42:03Z.
-  Next:
-  verify crates.io,
-  the GitHub release assets and checksums,
-  and a throwaway-home run of the published binary,
-  then tell the switch agent 0.2.1 is out (its item 3).
+  Released 2026-11-01:
+  run `41262166385` succeeded (crate published,
+  both architectures built,
+  release created);
+  crates.io `max_version` is 0.2.1;
+  release `monochromatic-mpm-shadow-v0.2.1` has the x86_64 and aarch64 linux-gnu archives and `monochromatic-mpm-shadow-0.2.1-sha256sums.txt`;
+  the x86_64 archive passed `sha256sum --check`,
+  and its binary printed `mpm-shadow 0.2.1` in a throwaway home.
+  The switch agent was told to run item 3 (merge `main` with `package/mpm-shadow` resolved to `main`'s,
+  the lock regenerated with 0.2.1,
+  the final no-overlay Dockerfile build).
 - Second separate wg review (2026-10-31,
   range `8dbd3e47da..0174850d6d`):
   no blocker.
