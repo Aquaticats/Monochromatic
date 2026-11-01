@@ -324,7 +324,7 @@ async function buildImage(): Promise<void> {
       'COPY cargo-config /work/.cargo',
       `ENV CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_INCREMENTAL=0`,
       'WORKDIR /work/package/git-policy/cli',
-      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native"]',
+      'RUN ["cargo", "build", "--offline", "--locked", "--release", "--bin", "cli-git-native", "--bin", "cli-git-service"]',
       '',
       `FROM ${baseImage}`,
       'RUN ["mkdir", "--parents", "/opt/native/bin"]',
@@ -332,6 +332,8 @@ async function buildImage(): Promise<void> {
       // becomes the `git` the scenarios find first on PATH.
       'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-native /opt/native/cli-git-native',
       'RUN ["ln", "--symbolic", "/opt/native/cli-git-native", "/opt/native/bin/git"]',
+      // The commit service sits beside the wrapper, where the wrapper looks for it; the suite starts it before the scenarios.
+      'COPY --from=compile /work/package/git-policy/cli/target/release/cli-git-service /opt/native/cli-git-service',
       '',
     ].join('\n'),
   );
