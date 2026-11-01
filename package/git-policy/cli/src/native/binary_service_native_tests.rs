@@ -226,6 +226,126 @@ fn an_ssh_signed_commit_lands_through_the_service_and_verifies() {
     remove_settled(&fixture);
 }
 
+/// Turns on SSH signing for every commit of `repo` with a throwaway key made in the fixture, and sends the signer through a
+///  stand-in for `ssh-keygen` that first lets `race` happen. It counts its own calls in the returned file.
+fn ssh_signing_through(fixture: &Fixture, repo: &Path, race: &str) -> PathBuf {
+    let key: PathBuf = fixture.root.join("signing-key");
+    let made = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "fixture", "-f"])
+        .arg(&key)
+        .output()
+        .expect("ssh-keygen starts");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    let public: String = std::fs::read_to_string(key.with_extension("pub")).expect("public key");
+    let allowed: PathBuf = fixture.root.join("allowed-signers");
+    std::fs::write(&allowed, format!("fixture@example.invalid {}", public.trim())).expect("allowed signers");
+    let calls: PathBuf = fixture.root.join("signer-calls");
+    let signer: PathBuf = fixture.root.join("racing-signer");
+    let script: String = format!("#!/bin/sh\n{race}\necho call >> '{}'\nexec /usr/bin/ssh-keygen \"$@\"\n", calls.display());
+    executable(signer.as_path(), script.as_bytes());
+    for (setting, value) in [
+        ("gpg.format", "ssh"),
+        ("gpg.ssh.program", signer.to_str().expect("UTF-8")),
+        ("user.signingkey", key.to_str().expect("UTF-8")),
+        ("gpg.ssh.allowedsignersfile", allowed.to_str().expect("UTF-8")),
+        ("commit.gpgsign", "true"),
+    ] {
+        git(fixture, repo, &["config", setting, value]);
+    }
+    return calls;
+}
+
+/// The shell line that makes another commit on the branch, unless the signer was started by that very commit, and, when a
+///  marker is given, only the first time.
+fn racing_commit(repo: &Path, only_once_marker: Option<&Path>) -> String {
+    let guard: String = match only_once_marker {
+        Some(marker) => format!("[ -z \"$RACING\" ] && [ ! -e '{0}' ] && : > '{0}' && ", marker.display()),
+        None => String::from("[ -z \"$RACING\" ] && "),
+    };
+    return format!(
+        "{guard}RACING=1 env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+         GIT_AUTHOR_NAME=other GIT_AUTHOR_EMAIL=fixture@example.invalid GIT_COMMITTER_NAME=other GIT_COMMITTER_EMAIL=fixture@example.invalid \
+         /usr/bin/git -C '{}' commit --quiet --allow-empty --message=raced",
+        repo.display()
+    );
+}
+
+fn lines_in(path: &Path) -> usize {
+    return std::fs::read_to_string(path).map_or(0, |text| { return text.lines().count(); });
+}
+
+/// A signed commit with no editor is built again, and signed again, on the new tip when another commit lands on the branch
+///  while it is being signed: the person sees success, the commit sits on the other commit, and it is signed.
+#[test]
+fn a_signed_commit_is_built_again_on_the_new_tip_when_the_branch_moves() {
+    let fixture: Fixture = fixture("service-native-rebuild");
+    let (repo, start_commit) = repository_with_programs(&fixture);
+    let marker: PathBuf = fixture.root.join("raced-once");
+    let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, Some(marker.as_path())).as_str());
+    let name: String = format!("native-rebuild-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    edit_a(&repo);
+    let before: usize = finished(&fixture);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "signed and moved", "--", "a.txt"]);
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "{stderr}");
+    assert_eq!(finished(&fixture), before + 1, "the service landed it once");
+    assert_eq!(lines_in(&calls), 3, "the first build, the other commit's signature, and the build made again");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "signed and moved");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", "HEAD^"]), "raced", "it sits on the other commit");
+    assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD~2"]), start_commit);
+    assert!(git_text(&fixture, &repo, &["cat-file", "commit", "HEAD"]).contains("\ngpgsig -----BEGIN SSH SIGNATURE-----"), "signed again");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("signed and moved"), "one summary names the commit that landed: {}", String::from_utf8_lossy(&output.stdout));
+    assert_eq!(query(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\nedited");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// A branch that moves every time ends in the plain failure after the named number of builds, and nothing lands.
+#[test]
+fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_bound() {
+    let fixture: Fixture = fixture("service-native-rebuild-bound");
+    let (repo, _start_commit) = repository_with_programs(&fixture);
+    let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, None).as_str());
+    let name: String = format!("native-rebuild-bound-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    edit_a(&repo);
+    let before: usize = finished(&fixture);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "never lands", "--", "a.txt"]);
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    let bound: usize = git_policy_cli::service_commit::REBUILD_ATTEMPTS;
+    assert!(stderr.contains(&format!("changed {bound} times")), "{stderr}");
+    assert_eq!(finished(&fixture), before, "nothing landed");
+    assert_eq!(lines_in(&calls), 2 * bound, "a build and the other commit's signature, for each attempt");
+    assert_eq!(query(&fixture, &repo, &["log", "--format=%s", "--grep=never lands"]), "");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// An amend is never built again on a new tip, signed or not: the person asked to replace the commit they saw.
+#[test]
+fn a_signed_amend_is_not_built_again_when_the_branch_moves() {
+    let fixture: Fixture = fixture("service-native-rebuild-amend");
+    let (repo, _start_commit) = repository_with_programs(&fixture);
+    let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, None).as_str());
+    let name: String = format!("native-rebuild-amend-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    edit_a(&repo);
+    let before: usize = finished(&fixture);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "--amend", "--no-edit", "--", "a.txt"]);
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("moved while this commit was being prepared"), "{stderr}");
+    assert_eq!(finished(&fixture), before);
+    assert_eq!(lines_in(&calls), 2, "one build, and the other commit's signature");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
 /// An editor that leaves an empty message, or fails, ends the commit with Git's status; nothing lands, nothing moves, and
 ///  the commit's scratch directory is gone.
 #[test]
@@ -260,8 +380,9 @@ fn an_abandoned_editor_lands_nothing_and_leaves_no_scratch_behind() {
     remove_settled(&fixture);
 }
 
-/// A commit Git built is not moved onto a tip it was not made on: while the editor is open another commit lands on the
-///  branch, and the commit that was typed is refused with the plain failure and does not land.
+/// A commit with an editor is not moved onto a tip it was not made on: while the editor is open another commit lands on the
+///  branch, the commit that was typed does not land, and the message is saved where the failure says, so that
+///  `git commit -F <file>` makes the commit afterwards.
 #[test]
 fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_typed() {
     let fixture: Fixture = fixture("service-native-moved");
@@ -286,6 +407,19 @@ fn a_branch_that_moves_while_the_editor_is_open_refuses_the_commit_that_was_type
     assert_eq!(finished(&fixture), before, "nothing landed");
     assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "moved by someone");
     assert_eq!(query(&fixture, &repo, &["log", "--format=%s", "--grep=typed"]), "", "the typed commit is not on the branch");
+    let saved: PathBuf = std::fs::read_dir(repo.join(".git"))
+        .expect("git directory")
+        .flatten()
+        .map(|entry| { return entry.path(); })
+        .find(|path| { return path.file_name().is_some_and(|name| { return name.to_string_lossy().starts_with("cli-git-saved-message-"); }); })
+        .expect("the typed message was saved");
+    assert!(stderr.contains(&format!("git commit -F {}", saved.display())), "{stderr}");
+    assert!(std::fs::read_to_string(&saved).expect("saved message").starts_with("typed:"), "the typed text is what was saved");
+    // The saved file is what the failure said to use: with it the commit is made, with no editor.
+    git(&fixture, &repo, &["config", "core.editor", "false"]);
+    let reused: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-F", saved.to_str().expect("UTF-8"), "--", "a.txt"]);
+    assert!(reused.status.success(), "{}", String::from_utf8_lossy(&reused.stderr));
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "typed:");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

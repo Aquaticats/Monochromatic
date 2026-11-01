@@ -32,6 +32,14 @@ pub struct GitBuilt {
     pub commit: String,
     /// Its parents in order.
     pub parents: Vec<String>,
+    /// Its message as stored: what the person typed, after Git's clean-up.
+    pub message: String,
+}
+
+/// The message after the header block of a stored commit.
+pub fn message_of(raw: &[u8]) -> String {
+    let start: usize = raw.windows(2).position(|window| { return window == b"\n\n"; }).map_or(raw.len(), |at| { return at + 2; });
+    return String::from_utf8_lossy(&raw[start..]).into_owned();
 }
 
 /// Everything the build needs from the preparation that settled the private index.
@@ -54,6 +62,8 @@ pub struct BuildInput<'a> {
     pub mode: TransactionMode,
     /// Whether `-a` staged tracked changes into the private index.
     pub staged_all: bool,
+    /// Whether Git is told to print no summary, for a build made again on a new tip after the first one printed its own.
+    pub quiet: bool,
 }
 
 /// The parents named by a stored commit's header block.
@@ -102,7 +112,10 @@ pub fn private_invocation(arguments: &[OsString], pathspecs: &[String], mode: Tr
 pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
     let shadow = input.scratch.join("shadow");
     create_shadow_repository_at(input.context, input.cwd, input.capture, shadow.as_path(), input.scratch)?;
-    let (globals, commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all);
+    let (globals, mut commit_args): (Vec<String>, Vec<String>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all);
+    if input.quiet {
+        commit_args.push(String::from("--quiet"));
+    }
     let request: PreparationRequest<'_> = PreparationRequest {
         capture: input.capture,
         shadow: shadow.as_path(),
@@ -116,7 +129,7 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
         return Err(TransactionStop::NativeExit(status));
     }
     let prepared = read_prepared_commit(input.context, shadow.as_path())?;
-    return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), commit: prepared.oid });
+    return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid });
 }
 
 /// Controls for building with Git stay out of the release executable.

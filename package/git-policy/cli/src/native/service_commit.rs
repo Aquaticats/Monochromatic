@@ -30,7 +30,8 @@ use super::private_storage::{create_private_directory, remove_tree};
 use super::random_id::random_uuid;
 use super::repository_facts::RepositoryFacts;
 use super::service_client::{Activation, COMMIT_WAIT, ClientConfig, START_WAIT, Submitted, submit};
-use super::service_commit_args::{ServiceCommitArgs, parse_service_commit};
+use super::diagnostic_log::warn;
+use super::service_commit_args::{ServiceCommitArgs, opens_editor, parse_service_commit};
 use super::service_native::{BuildInput, GitBuilt, build_with_git};
 use super::service_amend::{AmendSource, amended_author, read_amend_source};
 use super::service_message::{author_overrides, build_message, identity};
@@ -54,6 +55,10 @@ pub struct ServiceCommit {
     /// How to leave the after-commit work for the service; absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
 }
+
+/// How many times a commit Git built is built again on the new tip when the branch moves before it lands, before the
+///  plain failure. A build is one signature, so the bound keeps a busy branch from keeping a person's command running.
+pub const REBUILD_ATTEMPTS: usize = 5;
 
 /// A scratch directory for the private indexes, removed when it goes out of scope.
 struct Scratch(PathBuf);
@@ -319,9 +324,11 @@ pub fn try_service_commit<F: RepositoryFacts>(
     let id: String = random_uuid().map_err(|error| { return failed(format!("an identity for this commit could not be made: {error:?}")); })?;
     let allow_empty: bool = region.allow_empty;
     let mut provisioned: bool = false;
+    // Whether an editor may have run, which decides what a moved branch costs the person: a message to keep or a signature to redo.
+    let editor_possible: bool = opens_editor(after);
     let config: ClientConfig = ClientConfig { address, activation: Activation::Managed, start_wait: START_WAIT, commit_wait: COMMIT_WAIT };
     let scratch_name: String = format!("cli-git-service-{id}");
-    for attempt in 0..LANDING_ATTEMPTS {
+    for attempt in 0..REBUILD_ATTEMPTS {
         let source: Option<&AmendSource> = embedded.as_ref().and_then(|found| { return found.source.as_ref(); });
         let mut prepared: Prepared = prepare(invocation, checks, request, scratch_name.as_str(), allow_empty, source, native)?;
         if matches!(prepared, Prepared::NeedsNative) {
@@ -335,6 +342,7 @@ pub fn try_service_commit<F: RepositoryFacts>(
             Prepared::Blocked(result) => return Ok(Some(ServiceCommit { result, handoff: None })),
             Prepared::Ready(ready) => ready,
         };
+        let mut typed: Option<String> = None;
         let (sent, first_parent): (CommitRequest, String) = match (&ready.native, embedded.as_ref().filter(|_| { return !native; })) {
             (Some(inputs), _) => {
                 let built: GitBuilt = build_with_git(&BuildInput {
@@ -347,8 +355,10 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     pathspecs: inputs.pathspecs.as_slice(),
                     mode: inputs.mode,
                     staged_all: inputs.staged_all,
+                    quiet: attempt > 0,
                 })?;
                 let parent: String = built.parents.first().cloned().unwrap_or_default();
+                typed = Some(built.message.clone());
                 let sent: CommitRequest = CommitRequest {
                     id: id.clone(),
                     repository: ready.repository.clone(),
@@ -404,6 +414,13 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let branch: &str = ready.reference.trim_start_matches("refs/heads/");
                     let _printed = writeln!(std::io::stdout(), "[{branch} {short}] {subject}");
                 }
+                if native && attempt > 0 {
+                    // Git printed no summary for the build that landed, and the first one named a commit that did not land.
+                    let subject: &str = typed.as_deref().and_then(|text| { return text.lines().next(); }).unwrap_or("");
+                    let short: &str = commit.get(..7).unwrap_or(commit.as_str());
+                    let branch: &str = ready.reference.trim_start_matches("refs/heads/");
+                    let _printed = writeln!(std::io::stdout(), "[{branch} {short}] {subject}");
+                }
                 let handoff: ServiceHandoff = ServiceHandoff {
                     config: config.clone(),
                     repository: ready.repository.clone(),
@@ -424,6 +441,30 @@ pub fn try_service_commit<F: RepositoryFacts>(
                     let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: LANDING_ATTEMPTS })));
                 }
+            }
+            Ok(Submitted::Moved) => {
+                let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+                if native && !sent.amend && !editor_possible {
+                    // Nobody typed anything: Git builds it again on the new tip (and signs it again), up to the bound.
+                    if attempt + 1 == REBUILD_ATTEMPTS {
+                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: REBUILD_ATTEMPTS })));
+                    }
+                    continue;
+                }
+                if native && editor_possible && let (Some(text), Some(inputs)) = (typed.as_deref(), ready.native.as_ref()) {
+                    // The person typed this message: keep it where they can reuse it.
+                    let file: PathBuf = inputs.capture.layout.git_dir.join(format!("cli-git-saved-message-{}", id.get(..8).unwrap_or(id.as_str())));
+                    match std::fs::write(&file, text) {
+                        Ok(()) => {
+                            let failure: ClientFailure = ClientFailure::BranchMovedMessageSaved { branch, file: file.display().to_string(), amend: sent.amend };
+                            return Err(TransactionStop::Message(render(&failure)));
+                        }
+                        Err(error) => warn("serviceCommit", format!("saving the typed message failed: {error}").as_str()),
+                    }
+                    let again: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+                    return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch: again })));
+                }
+                return Err(TransactionStop::Message(render(&ClientFailure::BranchMoved { branch })));
             }
             Err(failure) => return Err(TransactionStop::Message(render(&failure))),
         }

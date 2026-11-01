@@ -189,6 +189,99 @@ pub fn parse_service_commit(arguments: &[OsString]) -> Option<ServiceCommitArgs>
     return if has_text && reuse_ok && reset_ok && author_ok && parsed.file.as_deref().is_none_or(|file| { return file != "-"; }) { Some(parsed) } else { None };
 }
 
+/// Long options with no value that never decide whether an editor opens.
+const NEUTRAL_LONG: [&str; 13] = [
+    "--quiet", "--no-verify", "--only", "--no-status", "--no-post-rewrite", "--no-gpg-sign", "--all", "--signoff", "--allow-empty",
+    "--amend", "--reset-author", "--allow-empty-message", "--verbose",
+];
+
+/// Long options with a value that never decide whether an editor opens.
+const NEUTRAL_VALUE_LONG: [&str; 6] = ["--author", "--date", "--trailer", "--cleanup", "--gpg-sign", "--template"];
+
+/// What:
+///  Whether `git commit` with these arguments may open an editor.
+/// Why:
+///   The answer decides what happens to a commit Git built when the branch moved meanwhile: with no editor it is built
+///  again on the new tip, with an editor the typed message is saved for the person instead of being lost. It errs towards
+///  "may open": an option this reading does not know, or a spelling Git accepts as an abbreviation, counts as an editor,
+///  because a message saved without need costs nothing and a message lost costs the person's typing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// opensEditor(args)
+/// ```
+pub fn opens_editor(arguments: &[OsString]) -> bool {
+    let mut message_source: bool = false;
+    let mut edit: Option<bool> = None;
+    let mut index: usize = 0;
+    while index < arguments.len() {
+        let Some(token) = arguments[index].to_str() else { return true };
+        index += 1;
+        if token == "--" {
+            break;
+        }
+        if !token.starts_with('-') || token == "-" {
+            continue;
+        }
+        if let Some(long) = token.strip_prefix("--") {
+            let (name, value): (&str, Option<&str>) = match long.split_once('=') {
+                Some((name, value)) => (name, Some(value)),
+                None => (long, None),
+            };
+            let dashed: String = format!("--{name}");
+            let takes_value: bool = ["--message", "--file", "--reuse-message", "--reedit-message", "--fixup", "--squash"].contains(&dashed.as_str())
+                || NEUTRAL_VALUE_LONG.contains(&dashed.as_str());
+            // A separate value is the next token, except for the options whose value may be attached only.
+            let detached: Option<&str> = if takes_value && value.is_none() && !["--gpg-sign", "--squash"].contains(&dashed.as_str()) {
+                index += 1;
+                arguments.get(index - 1).and_then(|next| { return next.to_str(); })
+            } else {
+                None
+            };
+            let given: Option<&str> = value.or(detached);
+            match dashed.as_str() {
+                "--edit" => edit = Some(true),
+                "--no-edit" => edit = Some(false),
+                "--message" | "--file" | "--reuse-message" => message_source = true,
+                "--reedit-message" | "--squash" => return true,
+                "--fixup" => {
+                    if given.is_none_or(|text| { return text.contains(':'); }) {
+                        return true;
+                    }
+                    message_source = true;
+                }
+                other if NEUTRAL_LONG.contains(&other) || NEUTRAL_VALUE_LONG.contains(&other) => {}
+                _ => return true,
+            }
+        } else {
+            let letters: Vec<char> = token.chars().skip(1).collect();
+            let mut at: usize = 0;
+            while at < letters.len() {
+                let letter: char = letters[at];
+                at += 1;
+                match letter {
+                    'e' => edit = Some(true),
+                    'c' => return true,
+                    'm' | 'F' | 'C' | 't' => {
+                        message_source |= letter != 't';
+                        if at == letters.len() {
+                            index += 1;
+                        }
+                        at = letters.len();
+                    }
+                    'S' => at = letters.len(),
+                    'q' | 'n' | 'o' | 'a' | 's' | 'v' => {}
+                    _ => return true,
+                }
+            }
+        }
+    }
+    return match edit {
+        Some(wanted) => wanted,
+        None => !message_source,
+    };
+}
+
 /// What:
 ///  The commit message Git makes of the given texts when no editor opens.
 /// Why:

@@ -441,7 +441,7 @@ fn an_amend_lands_through_the_service_and_a_stale_one_is_refused() {
     assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD^"]), parent, "the replaced commit's parent");
     assert_eq!(count_of(&fixture, &repo, "message of amend-first"), 0, "the first commit was replaced");
     let refused = submit_quietly(&config(name.as_str()), &stale);
-    assert_eq!(refused, Err(ClientFailure::BranchMoved { branch: String::from("main") }));
+    assert_eq!(refused, Ok(Submitted::Moved));
     assert_eq!(query(&fixture, &repo, &["rev-parse", "HEAD"]), commit, "nothing changed");
     assert_healthy(&fixture, &repo, "amend");
     stop(service);
@@ -474,7 +474,7 @@ fn an_amend_among_plain_commits_neither_refuses_them_nor_lands_stale() {
     let answers: Vec<Result<Submitted, ClientFailure>> = handles.into_iter().map(|handle| { return handle.join().expect("client thread"); }).collect();
     for (position, answer) in answers.iter().enumerate() {
         if position == plain / 2 {
-            assert_eq!(answer, &Err(ClientFailure::BranchMoved { branch: String::from("main") }), "the amend");
+            assert_eq!(answer, &Ok(Submitted::Moved), "the amend");
         } else {
             assert!(matches!(answer, Ok(Submitted::Landed { already: false, .. })), "plain commit {position}: {answer:?}");
         }

@@ -79,6 +79,8 @@ pub enum ClientFailure {
     BranchKeepsChanging { branch: String, times: usize },
     /// The branch was no longer where the amended commit was prepared, so the amend was not made.
     BranchMoved { branch: String },
+    /// The branch moved while the person wrote a message; the message is saved in `file` for them to reuse.
+    BranchMovedMessageSaved { branch: String, file: String, amend: bool },
     /// The commit waited `minutes` minutes behind others.
     WaitedTooLong { minutes: u64 },
     /// The request was refused as malformed or unsafe.
@@ -149,6 +151,11 @@ pub fn render(failure: &ClientFailure) -> String {
             "The branch {branch} moved while this commit was being prepared, and a commit that replaces the last one, or one \
              that was written or signed by hand, cannot be moved onto a different last commit, so it was not made. Run the \
              commit again to make it on the branch as it is now. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::BranchMovedMessageSaved { branch, file, amend } => format!(
+            "The branch {branch} moved while this commit was being prepared, so it was not made. The message you wrote is saved \
+             in {file}. Run `git commit {}-F {file}` to make the commit on the branch as it is now. {NOTHING_CHANGED}",
+            if *amend { "--amend " } else { "" }
         ),
         ClientFailure::WaitedTooLong { minutes } => format!(
             "This commit waited {minutes} minutes behind other commits and was not made. Run it again later, or raise \

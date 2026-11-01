@@ -68,6 +68,9 @@ pub enum Submitted {
     Landed { commit: String, already: bool },
     /// A named path changed on the branch: prepare again from this base and submit again with the same identity.
     PrepareAgain { base: String },
+    /// The branch is no longer at the base of a commit that cannot be moved to another tip (an amend, or a commit Git built).
+    ///  The caller decides whether to build it again on the new tip or to stop.
+    Moved,
 }
 
 fn connect(address: &Bind) -> std::io::Result<UnixStream> {
@@ -200,6 +203,7 @@ pub fn submit(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn 
                 }
                 Some(ServiceMessage::Landed { commit, already, .. }) => return Ok(Submitted::Landed { commit, already }),
                 Some(ServiceMessage::RetryPrepare { base, .. }) => return Ok(Submitted::PrepareAgain { base }),
+                Some(ServiceMessage::Failed { code: FailureCode::BranchMoved, .. }) => return Ok(Submitted::Moved),
                 Some(ServiceMessage::Failed { code, .. }) => return Err(failure_for(code, request)),
                 Some(ServiceMessage::Welcome { .. }) => {}
                 None => break,
