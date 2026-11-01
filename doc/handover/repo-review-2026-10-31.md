@@ -383,6 +383,40 @@ Wave-4 sixth checkpoint (2026-11-01, all rows verified against the tree before r
   (core.bench 16, core.fuzz 12, then cli.fuzz 73); android-app tail in flight; wg/cli-quicker
   final turn in flight.
 
+Wave-4 seventh checkpoint (2026-11-01, all rows verified against the tree before recording):
+
+- Package completions: wg/cli-quicker complete at 138 of 138 (`w4-fe-core-tests` turns 3 to
+  14; rows `w4-wg-quicker-001` to `-026` verified 26 of 26; the mid-review
+  tunnel-bypass.integration-fixture.ts deletion was reverted by the concurrent session, so
+  nothing is moot; headline: update-hosts.unit.test.ts still scans the cutover-deleted
+  file-enforcer toolchain dir, so the suite is red at HEAD). android-app complete at 354 of
+  354 (rows `w2-async-b1-083` to `-107`; the JNI boundary verified 28 external fun
+  declarations against 28 Rust exports with matching load codes and panic boundary;
+  headline: rust/Cargo.toml claims API 35 while build.gradle.kts sets targetSdk 36).
+  forbidden-strings sidecars core.bench (16 of 16) and core.fuzz (12 of 12) complete (rows
+  `w4-fs-sidecars-001` to `-009` verified; headline: the raced-pattern README claim is
+  false, BUILTIN_RULES carries four `&~` rules; zero seed files are tracked despite the
+  committed-seeds claim). cli.fuzz (73 files) in flight.
+- Retraction (orchestrator, per the correction protocol): `w2-async-b1-094` claimed
+  FolderRail.kt cites `design/candidates/buckets.js` and `artists.js` "which exist nowhere";
+  both exist under `package/music-player/design/candidates/` (55 and 82 lines; 96 tracked
+  .dc.html mockups beside them). The child's repo-wide find silently failed (QRY class;
+  mp-design reported the same refusal). Row deleted from the findings file before batch-4
+  filing (now 106 rows, baseline BAD set unchanged); correction recorded in the scratch
+  `post-batch2-corrections.md`. Briefs now require a positive control before trusting a
+  "no matches" search result.
+- Orchestrator relocations since the sixth checkpoint: `w4-ide-app-001` (Cargo.toml 33 was
+  a digit transposition; the comment lives at 63), `w4-wg-quicker-025` (quote cited the
+  TSDoc delimiter at 153; the sentence lives at 154). Both findings stand.
+- In flight: `w4-mp-design` on the ide/app README (lines 1510 to 3120 verified clean;
+  3120 to 6801 plus mise.toml and task.ts remain), `w4-android-app` on the music-player
+  design remainder (README, candidates.md, Decisions.dc.html, the two JS helpers, then
+  the 96 .dc.html mockups; rows to docs-planning-audit.jsonl from -200),
+  `w4-desktop-app` rows through `pkg-observable-100` (99 rows verified; 81 files remain
+  from startup_failure_tests.rs), `w4-cc-statusline` on cli.fuzz, `w4-fe-core-tests` on
+  dependency-catalog (core-rust 22 files fresh, then core-native 54; new file
+  `w4-depcat.jsonl`), `w4-fm-variant-qt` manual slice 3 (from `pkg-array-at-002`).
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
