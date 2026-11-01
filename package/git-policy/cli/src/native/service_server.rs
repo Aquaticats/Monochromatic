@@ -21,7 +21,9 @@ use super::service_protocol::{
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// The most requests landed as one batch.
@@ -29,6 +31,10 @@ pub const MAX_BATCH: usize = 64;
 
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long the service waits with nothing to do before it exits; the manager's socket stays, so the next connection starts it
+///  again. Bazel's server does the same with `--max_idle_secs`, whose default is three hours, which is this value's precedent.
+pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 
 /// File descriptor the service manager passes the listening socket on (`SD_LISTEN_FDS_START`).
 pub const INHERITED_DESCRIPTOR: i32 = 3;
@@ -92,6 +98,8 @@ fn peer_user(stream: &UnixStream) -> Option<u32> {
 enum Job {
     Commit(Box<CommitRequest>, UnixStream),
     Retire,
+    /// After-commit work was announced; it only restarts the idle clock.
+    Activity,
 }
 
 fn send(stream: &UnixStream, message: &ServiceMessage) {
@@ -129,6 +137,7 @@ fn handle_connection(stream: UnixStream, queue: &Sender<Job>, work: &Sender<std:
         }
         Ok(ClientMessage::Work { common_dir }) => {
             let _queued = work.send(common_dir);
+            let _touched = queue.send(Job::Activity);
         }
         Err(reason) => {
             eprintln!("cli-git-service: refused a request line: {reason}");
@@ -192,8 +201,9 @@ fn land_group(context: &LandContext, seq: &mut u64, group: Vec<(Box<CommitReques
 /// ```ts
 /// for await (const dir of wakes) await drain(dir, handlers)
 /// ```
-fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers) {
+fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers, busy: &AtomicUsize) {
     while let Ok(first) = receiver.recv() {
+        busy.fetch_add(1, Ordering::SeqCst);
         let mut directories: Vec<std::path::PathBuf> = vec![first];
         while let Ok(more) = receiver.try_recv() {
             if !directories.contains(&more) {
@@ -203,6 +213,7 @@ fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers) {
         for directory in directories {
             drain(directory.as_path(), handlers, std::time::SystemTime::now());
         }
+        busy.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -216,7 +227,7 @@ fn work_loop(receiver: &Receiver<std::path::PathBuf>, handlers: &GitHandlers) {
 /// ```ts
 /// await serve(listener, context)
 /// ```
-pub fn serve(listener: UnixListener, context: &LandContext) {
+pub fn serve(listener: UnixListener, context: &LandContext, idle: Duration) {
     let _reports = recover(context);
     let mut landed: HashMap<String, String> = landed_commits(context.journal.as_path());
     let (sender, receiver): (Sender<Job>, Receiver<Job>) = channel();
@@ -224,7 +235,9 @@ pub fn serve(listener: UnixListener, context: &LandContext) {
     // After-commit work (push, upkeep) runs on its own thread, so a slow network never delays a landing.
     let (work_sender, work_receiver): (Sender<std::path::PathBuf>, Receiver<std::path::PathBuf>) = channel();
     let handlers: GitHandlers = GitHandlers { context: context.git.clone() };
-    std::thread::spawn(move || { work_loop(&work_receiver, &handlers); });
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
+    std::thread::spawn(move || { work_loop(&work_receiver, &handlers, &worker_busy); });
     std::thread::spawn(move || {
         for connection in listener.incoming().flatten() {
             let queue: Sender<Job> = acceptor_queue.clone();
@@ -235,7 +248,12 @@ pub fn serve(listener: UnixListener, context: &LandContext) {
     let mut seq: u64 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |elapsed| { return u64::try_from(elapsed.as_millis()).unwrap_or(1); });
     let mut retiring: bool = false;
     while !retiring {
-        let Ok(first) = receiver.recv() else { return };
+        let first: Job = match receiver.recv_timeout(idle) {
+            Ok(job) => job,
+            // Work in flight keeps the service; otherwise it exits and the manager starts it on the next connection.
+            Err(RecvTimeoutError::Timeout) if busy.load(Ordering::SeqCst) > 0 => continue,
+            Err(_) => return,
+        };
         let mut jobs: Vec<Job> = vec![first];
         while jobs.len() < MAX_BATCH {
             match receiver.try_recv() {
@@ -248,6 +266,7 @@ pub fn serve(listener: UnixListener, context: &LandContext) {
         for job in jobs {
             match job {
                 Job::Retire => retiring = true,
+                Job::Activity => {}
                 Job::Commit(request, stream) => {
                     let key = (request.common_dir.clone(), request.reference.clone());
                     match groups.iter_mut().find(|(existing, _)| { return *existing == key; }) {

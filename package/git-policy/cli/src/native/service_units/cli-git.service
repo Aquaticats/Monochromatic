@@ -1,11 +1,13 @@
+# Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file when it changes.
 [Unit]
 Description=Commit service for the git wrapper
 Requires=cli-git.socket
 After=cli-git.socket
 
 [Service]
-# The installer replaces the program and Git words below, each written between two at-signs, with absolute paths. The socket comes from the socket unit, so the program
-# is never started by the wrapper and is started again by the first connection after a crash.
+# The wrapper replaces the program and Git words below, each written between two at-signs, with absolute paths. The socket
+# comes from the socket unit, so the program is never started by the wrapper and is started again by the first
+# connection after an exit or a crash.
 ExecStart=@SERVICE_BINARY@ --journal %S/cli-git/service --git @GIT@
 StateDirectory=cli-git/service
 Restart=on-failure

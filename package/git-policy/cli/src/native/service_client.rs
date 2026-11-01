@@ -44,8 +44,6 @@ const CONNECT_PAUSE: Duration = Duration::from_millis(25);
 pub enum Activation {
     /// The manager owns the socket and starts the service on demand.
     Managed,
-    /// Nothing can start the service on this computer: the activation is not installed.
-    NotInstalled,
     /// This platform cannot start the service on demand.
     Unsupported(Platform),
 }
@@ -116,7 +114,6 @@ fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool) -
                 }
             }
             Err(_) => match config.activation {
-                Activation::NotInstalled => return Err(ClientFailure::NotInstalled),
                 Activation::Unsupported(platform) => return Err(ClientFailure::NoActivation(platform)),
                 Activation::Managed => {}
             },
