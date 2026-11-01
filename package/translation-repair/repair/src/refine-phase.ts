@@ -267,16 +267,20 @@ export async function runRefinePhase(
            */
           const sliceModels: RepairModels = seating.repairModels ?? models;
           /**
-           Rewriters of this slice, the lane's own where the reading names none.
+           Rewriters of this slice, the lane's own where the reading names none: the one list the stage reads, the key
+           hashes and the slice asks.
            */
-          const sliceRefiners = sliceModels.refinerModelIds ?? [];
+          const sliceRefiners = ((sliceModels.refinerModelIds ?? []).length === 0)
+            ? refinerModelIds
+            : (sliceModels.refinerModelIds ?? []);
           /**
            Roster the slice's stages read, holding the lane's checker bench: the checker stage compares the bench the
            hook names now with the bench it was seated with, and refuses one below the checker floor, which it could
-           not do if the slice were handed the bench the hook names as its own (ledger B1343).
+           not do if the slice were handed the bench the hook names as its own (ledger B1344).
            */
           const stageModels: RepairModels = {
             ...sliceModels,
+            refinerModelIds: sliceRefiners,
             checkerModelIds: models.checkerModelIds,
           };
           return await settleRefinePhaseSlice({
@@ -285,11 +289,11 @@ export async function runRefinePhase(
             slices,
             models: stageModels,
             ...((reseat === undefined) ? {} : { reseat, }),
-            refinerModelIds: (sliceRefiners.length === 0) ? refinerModelIds : sliceRefiners,
+            refinerModelIds: sliceRefiners,
             runShape: (seating.repairModels === undefined)
               ? runShape
               : refineRunShape({
-                refinerModelIds: (sliceRefiners.length === 0) ? refinerModelIds : sliceRefiners,
+                refinerModelIds: sliceRefiners,
                 judgeModelIds: sliceModels.judgeModelIds,
                 checkerModelIds: sliceModels.checkerModelIds,
                 ...(identityContext === undefined ? {} : { identityContext, }),

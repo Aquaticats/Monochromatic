@@ -1474,6 +1474,32 @@ Meow meow meow meow.
     },),
 
     it({
+      name: 'ASKS THE LANE\'S REFINERS WHERE THE ROSTER THE HOOK RETURNS NAMES NONE (ledger B1351), and keys the '
+        + 'refinement under them: the list the slice asks, the stage reads and the key hashes is one list',
+      fn: async () => {
+        /**
+         Roster the lane starts on, with one refiner nothing else in the roster asks.
+         */
+        const started: RepairModels = {
+          ...MODELS,
+          refinerModelIds: ['minimax-m3',],
+        };
+        /**
+         Roster the hook hands back: the same, with no refiner.
+         */
+        const bare: RepairModels = {
+          ...started,
+          refinerModelIds: [],
+        };
+        const hooked = await runRefineLane({ models: started, hookRoster: bare, },);
+        const stayed = await runRefineLane({ models: started, },);
+        expect(hooked.asked,).toContain('minimax-m3',);
+        expect(stayed.keys.length,).toBeGreaterThan(0,);
+        expect(hooked.keys,).toEqual(stayed.keys,);
+      },
+    },),
+
+    it({
       name: 'KEYS A REFINEMENT UNDER THE JUDGES AND THE CHECKERS THE HOOK RETURNS (ledger B1348): the key hashes both '
         + 'lists of the roster the slice ran on, so a lane re-seated in either writes the records of a lane that '
         + 'started on the re-seated roster, and not the ones of the roster at the lane\'s start',
