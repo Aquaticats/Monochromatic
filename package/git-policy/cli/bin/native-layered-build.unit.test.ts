@@ -1,4 +1,3 @@
-import { execFile, } from 'node:child_process';
 import {
   chmod,
   mkdir,
@@ -11,7 +10,6 @@ import {
 import {
   join,
 } from 'node:path';
-import { promisify, } from 'node:util';
 
 import {
   describe,
@@ -40,11 +38,6 @@ import { runCommand, } from './native-verification-process.ts';
 
 
 /**
- Promise form of `execFile`, which starts the generated `sh -c` command directly.
- */
-const execute = promisify(execFile);
-
-/**
  Image the generated Containerfile is built from; any text works because the tests read lines, never build.
  */
 const baseImage = 'base-image-for-line-checks';
@@ -60,6 +53,8 @@ function instructionOf(line: string): string {
  Lines of the last stage of a Containerfile, which is the test image.
 
  @param text - Containerfile text
+
+ @returns the lines from the final `FROM`
  */
 function lastStage(text: string): readonly string[] {
   /**
@@ -170,18 +165,24 @@ await describe({
           flag,
           command,
         ] = JSON.parse(instruction.slice('RUN '.length)) as [string, string, string];
-        await execute(
-          program,
-          [
+        await runCommand({
+          command: program,
+          args: [
             flag,
             command,
           ],
-          { env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH ?? ''}`, }, },
-        );
-        expect(JSON.parse(await readFile(
-          record,
-          'utf8',
-        ))).toEqual(cargoArguments);
+          capture: true,
+          env: {
+            ...process.env,
+            PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+          },
+        });
+        expect(
+          JSON.parse(await readFile(
+            record,
+            'utf8',
+          )),
+        ).toEqual(cargoArguments);
         expect((await stat(source)).mtimeMs).toBeGreaterThan(longAgo.getTime());
       },
     }),
@@ -313,30 +314,43 @@ await describe({
           'package',
           crate,
         );
-        for (const name of [
+        /**
+         Manifest and lock file, with their contents in the stand-in tree and in the real tree.
+         */
+        const copies = await Promise.all([
           'Cargo.toml',
           'Cargo.lock',
-        ]) {
-          expect(await readFile(
-            join(
-              stub,
-              name,
+        ].map(async function readBoth(name) {
+          return {
+            stub: await readFile(
+              join(
+                stub,
+                name,
+              ),
+              'utf8',
             ),
-            'utf8',
-          )).toBe(await readFile(
-            join(
-              real,
-              name,
+            real: await readFile(
+              join(
+                real,
+                name,
+              ),
+              'utf8',
             ),
-            'utf8',
-          ));
-        }
-        for (const path of Object.values(targetPaths)) {
-          expect((await stat(join(
+          };
+        }));
+        for (const copy of copies)
+          expect(copy.stub).toBe(copy.real);
+        /**
+         Stand-in file of every declared target.
+         */
+        const standIns = await Promise.all(Object.values(targetPaths).map(function statStandIn(path) {
+          return stat(join(
             stub,
             path,
-          ))).isFile()).toBe(true);
-        }
+          ));
+        }));
+        for (const standIn of standIns)
+          expect(standIn.isFile()).toBe(true);
         expect(await readFile(
           join(
             stub,
@@ -384,7 +398,7 @@ await describe({
          */
         const dependencyRun = lines.findIndex(function compilesDependencies(line) {
           return line.startsWith('RUN ') && line.includes('nextest') && line.includes('--no-run')
-            && !line.includes('touch');
+            && (!line.includes('touch'));
         });
         expect(dependencyRun).toBeGreaterThan(0);
         /**

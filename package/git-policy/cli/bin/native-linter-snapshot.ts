@@ -170,7 +170,10 @@ export function linterStageLines({ base, }: {
     ...builderPreludeLines({ environment: linterBuildEnvironment }),
     `COPY --chown=1000:1000 ${linterContextDirectory}/${imageRootDirectory} /work`,
     `WORKDIR ${crateDirectory}`,
-    `RUN ${JSON.stringify(['cargo', ...buildArguments])}`,
+    `RUN ${JSON.stringify([
+      'cargo',
+      ...buildArguments
+    ])}`,
     `COPY --chown=1000:1000 ${linterContextDirectory}/package ${imagePackageRoot}`,
     touchedCargoRun({
       touchedPaths: linterCrates.map(function sourceDirectory(crate) {

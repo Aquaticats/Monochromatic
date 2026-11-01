@@ -49,6 +49,8 @@ export const wrapperCrates: readonly string[] = [
 /**
  Top-level directories of `package` the path-crate layer copies, one `COPY` step each: crates share
  a step when their paths share a top-level directory.
+
+ @returns each distinct top-level directory once, in crate order
  */
 function pathCrateRoots(): readonly string[] {
   return [...new Set(pathCrates.map(function topDirectory(crate) {
@@ -74,9 +76,10 @@ export const runArguments = [
  build, so the failure option does not apply here.
  */
 const compileArguments = [
-  ...runArguments.slice(1).filter(function keepsBuildOption(argument) {
-    return argument !== '--no-fail-fast';
-  }),
+  ...runArguments.slice(1)
+    .filter(function keepsBuildOption(argument) {
+      return argument !== '--no-fail-fast';
+    }),
   '--no-run',
 ] as const;
 
@@ -136,13 +139,17 @@ export function testContainerfile({
     // summary and the failed-test list last.
     `CMD ${JSON.stringify([...runArguments])}`,
     // Dependency layer: compiles every registry crate once, from the stand-ins. Its cache key holds no source file.
-    `RUN ${JSON.stringify(['cargo', ...compileArguments])}`,
+    `RUN ${JSON.stringify([
+      'cargo',
+      ...compileArguments
+    ])}`,
     ...linterCopyLines(),
     'COPY clippy.toml cli-git.config.jsonc /work/',
     // Path-crate layer: the scanner's build script and the matcher compile here, and again only when they change.
-    ...pathCrateRoots().map(function pathCrateCopy(root) {
-      return `COPY --chown=1000:1000 package/${root} ${imagePackageRoot}/${root}`;
-    }),
+    ...pathCrateRoots()
+      .map(function pathCrateCopy(root) {
+        return `COPY --chown=1000:1000 package/${root} ${imagePackageRoot}/${root}`;
+      }),
     touchedCargoRun({
       touchedPaths: pathCrates.map(function pathCrateDirectory(crate) {
         return `${imagePackageRoot}/${crate}`;

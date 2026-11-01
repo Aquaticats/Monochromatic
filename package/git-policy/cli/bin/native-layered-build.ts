@@ -19,7 +19,10 @@ import {
   resolve,
 } from 'node:path';
 
-import { NativeVerificationError, runCommand, } from './native-verification-process.ts';
+import {
+  NativeVerificationError,
+  runCommand,
+} from './native-verification-process.ts';
 
 /**
  Directory below a stage's tree root that mirrors the image's `/work`: the stand-in `package` tree, the vendored `vendor`
@@ -81,38 +84,209 @@ type MetadataTarget = {
 };
 
 /**
- Narrow a parsed `cargo metadata --no-deps` document to the packages and targets this module reads.
+ Whether a parsed JSON value is an object whose members can be read by name.
+
+ @param value - parsed JSON value
+
+ @returns a type guard
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return ((typeof value) === 'object') && (value !== null);
+}
+
+/**
+ Whether a parsed JSON value is a list of strings.
+
+ @param value - parsed JSON value
+
+ @returns a type guard
+ */
+function isStringList(value: unknown): value is string[] {
+  if (!Array.isArray(value))
+    return false;
+  return value.every(function isString(item) {
+    return (typeof item) === 'string';
+  });
+}
+
+/**
+ Whether a parsed JSON value is a target with the fields this module reads.
+
+ @param value - parsed JSON value
+
+ @returns a type guard
+ */
+function isMetadataTarget(value: unknown): value is MetadataTarget {
+  if (!isRecord(value))
+    return false;
+  return isStringList(value.kind) && ((typeof value.src_path) === 'string');
+}
+
+/**
+ Narrow a parsed `cargo metadata --no-deps` document to the targets this module reads.
 
  @param value - parsed JSON document
 
- @returns the document with the fields this module reads
+ @returns the targets of every package of the document
 
- @throws NativeVerificationError when the document lacks those fields
+ @throws NativeVerificationError when the document lacks the fields this module reads
  */
 function metadataTargets(value: unknown): readonly MetadataTarget[] {
-  if ((typeof value !== 'object') || (value === null) || !('packages' in value) || !Array.isArray(value.packages))
+  if (!isRecord(value))
+    throw new NativeVerificationError('Cargo metadata did not return an object.');
+  if (!Array.isArray(value.packages))
     throw new NativeVerificationError('Cargo metadata did not return a package list.');
   /**
-   Targets collected from every package of the document.
+   Packages of the document, each still unchecked.
    */
-  const targets: MetadataTarget[] = [];
-  for (const entry of value.packages as unknown[]) {
-    if ((typeof entry !== 'object') || (entry === null) || !('targets' in entry) || !Array.isArray(entry.targets))
+  const packages: readonly unknown[] = value.packages;
+  return packages.flatMap(function packageTargets(entry) {
+    if (!isRecord(entry))
+      throw new NativeVerificationError('Cargo metadata returned a package that is not an object.');
+    if (!Array.isArray(entry.targets))
       throw new NativeVerificationError('Cargo metadata returned a package without targets.');
-    for (const target of entry.targets as unknown[]) {
-      if (
-        (typeof target !== 'object') || (target === null)
-        || !('kind' in target) || !Array.isArray(target.kind)
-        || !('src_path' in target) || (typeof target.src_path !== 'string')
-      )
+    /**
+     Targets of the package, each still unchecked.
+     */
+    const targets: readonly unknown[] = entry.targets;
+    return targets.map(function checkedTarget(target) {
+      if (!isMetadataTarget(target))
         throw new NativeVerificationError('Cargo metadata returned a target without kind and source path.');
-      targets.push({
-        kind: target.kind as string[],
-        src_path: target.src_path,
-      });
-    }
-  }
-  return targets;
+      return target;
+    });
+  });
+}
+
+/**
+ Write the stand-ins of one crate.
+
+ @param treeRoot - directory holding the real tree and receiving the stand-in tree
+
+ @param crate - crate directory below `package`
+
+ @throws NativeVerificationError when Cargo reports a target outside the crate or of a kind without a stand-in
+ */
+async function writeCrateStandIns({
+  treeRoot,
+  crate,
+}: {
+  readonly treeRoot: string;
+  readonly crate: string;
+}): Promise<void> {
+  /**
+   The crate's directory in the real tree.
+   */
+  const realDirectory = join(
+    treeRoot,
+    'package',
+    crate,
+  );
+  /**
+   The crate's directory in the stand-in tree.
+   */
+  const stubDirectory = join(
+    treeRoot,
+    imageRootDirectory,
+    'package',
+    crate,
+  );
+  await mkdir(
+    stubDirectory,
+    { recursive: true },
+  );
+  /**
+   Cargo's own list of the crate's targets, so the stand-ins follow the manifest and never a copy of its rules.
+   */
+  const described = await runCommand({
+    command: 'cargo',
+    args: [
+      'metadata',
+      '--no-deps',
+      '--format-version',
+      '1',
+      '--offline',
+      '--locked',
+      '--manifest-path',
+      join(
+        realDirectory,
+        'Cargo.toml',
+      ),
+    ],
+    capture: true,
+  });
+  /**
+   Stand-in files to write, each with its contents.
+   */
+  const standIns = metadataTargets(JSON.parse(described.stdout) as unknown)
+    .map(function standInOf(target) {
+      /**
+       Where the target's crate root sits relative to its crate.
+       */
+      const inside = relative(
+        realDirectory,
+        resolve(target.src_path),
+      );
+      if (inside.startsWith('..'))
+        throw new NativeVerificationError(`Target ${target.src_path} of ${crate} lies outside the crate.`);
+      /**
+       Kind of the target that selects its stand-in.
+       */
+      const kind = target.kind
+        .find(function hasStandIn(candidate) {
+          return standInByKind.has(candidate);
+        });
+      /**
+       Contents written for the target's kind.
+       */
+      const contents = (kind === undefined)
+        ? undefined
+        : standInByKind.get(kind);
+      if (contents === undefined) {
+        /**
+         Kinds Cargo reported for the target, named in the error.
+         */
+        const kinds = target.kind
+          .join(', ');
+        throw new NativeVerificationError(`Target ${inside} of ${crate} has kinds ${kinds}, none with a stand-in.`);
+      }
+      return {
+        file: join(
+          stubDirectory,
+          inside,
+        ),
+        contents,
+      };
+    });
+  await Promise.all([
+    ...[
+      'Cargo.toml',
+      'Cargo.lock',
+    ].map(function copyManifest(name) {
+      return copyFile(
+        join(
+          realDirectory,
+          name,
+        ),
+        join(
+          stubDirectory,
+          name,
+        ),
+      );
+    }),
+    ...standIns.map(async function writeStandIn(standIn: Readonly<{
+      file: string;
+      contents: string;
+    }>) {
+      await mkdir(
+        dirname(standIn.file),
+        { recursive: true },
+      );
+      await writeFile(
+        standIn.file,
+        standIn.contents,
+      );
+    }),
+  ]);
 }
 
 /**
@@ -139,107 +313,12 @@ export async function writeDependencyStubs({
   readonly treeRoot: string;
   readonly crates: readonly string[];
 }): Promise<void> {
-  for (const crate of crates) {
-    /**
-     The crate's directory in the real tree.
-     */
-    const realDirectory = join(
+  await Promise.all(crates.map(function writeStandIns(crate) {
+    return writeCrateStandIns({
       treeRoot,
-      'package',
       crate,
-    );
-    /**
-     The crate's directory in the stand-in tree.
-     */
-    const stubDirectory = join(
-      treeRoot,
-      imageRootDirectory,
-      'package',
-      crate,
-    );
-    await mkdir(
-      stubDirectory,
-      { recursive: true },
-    );
-    for (const name of [
-      'Cargo.toml',
-      'Cargo.lock',
-    ]) {
-      await copyFile(
-        join(
-          realDirectory,
-          name,
-        ),
-        join(
-          stubDirectory,
-          name,
-        ),
-      );
-    }
-    /**
-     Cargo's own list of the crate's targets, so the stand-ins follow the manifest and never a copy of its rules.
-     */
-    const described = await runCommand({
-      command: 'cargo',
-      args: [
-        'metadata',
-        '--no-deps',
-        '--format-version',
-        '1',
-        '--offline',
-        '--locked',
-        '--manifest-path',
-        join(
-          realDirectory,
-          'Cargo.toml',
-        ),
-      ],
-      capture: true,
     });
-    for (const target of metadataTargets(JSON.parse(described.stdout) as unknown)) {
-      /**
-       Where the target's crate root sits relative to its crate.
-       */
-      const inside = relative(
-        realDirectory,
-        resolve(target.src_path),
-      );
-      if (inside.startsWith('..'))
-        throw new NativeVerificationError(`Target ${target.src_path} of ${crate} lies outside the crate.`);
-      /**
-       Kind of the target that selects its stand-in.
-       */
-      const kind = target.kind
-        .find(function hasStandIn(candidate) {
-          return standInByKind.has(candidate);
-        });
-      if (kind === undefined)
-        throw new NativeVerificationError(
-          `Target ${inside} of ${crate} has kinds ${target.kind.join(', ')}, none with a stand-in.`,
-        );
-      /**
-       Contents written for the target's kind.
-       */
-      const contents = standInByKind.get(kind);
-      if (contents === undefined)
-        throw new NativeVerificationError(`No stand-in contents for kind ${kind}.`);
-      /**
-       Stand-in file path.
-       */
-      const file = join(
-        stubDirectory,
-        inside,
-      );
-      await mkdir(
-        dirname(file),
-        { recursive: true },
-      );
-      await writeFile(
-        file,
-        contents,
-      );
-    }
-  }
+  }));
 }
 
 /**
@@ -252,7 +331,7 @@ export async function writeDependencyStubs({
 function shellWord(word: string): string {
   return `'${word.replaceAll(
     '\'',
-    '\'\\\'\'',
+    String.raw`'\''`,
   )}'`;
 }
 
