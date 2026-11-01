@@ -4979,3 +4979,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   Git never starts the wrapper for hooks (options (i) wrapper runs `git hook run` itself, (ii) non-wrapper entries; it
   chooses by experiment). Next: review reports, merge, container gate, mutation campaign on the new files, release.
 - The catalog-specifiers policy agent (`a026a6b10f496cda2`) is still running in parallel on the registry and config files.
+
+### Correction: no shell in the wrapper's design
+
+- User, verbatim: "What the hell, we don't have to use any shell!" My brief to the LFS agent put a shell function in the
+  injected hook (taken from the advisor's variant 2), and the dispatcher brief offered POSIX `sh` entries as option (ii).
+  Both are withdrawn. The wrapper writes no shell text, scripts or shell wrappers, and is never started by Git.
+- Revised direction sent to both running agents: the wrapper, as parent, runs `git-lfs pre-push` itself as a bounded child
+  with the ref-update lines on stdin and pushes with no LFS hook (so it owns the step and prints the Rust explanation without
+  detection); for pushes whose lines cannot be computed faithfully the agent evaluates `git push --dry-run --porcelain` and a
+  plain `hook.cli-git-lfs-pre-push.command=git-lfs pre-push` with no shell constructs. The dispatcher agent runs the
+  configured hooks itself as bounded children (for example the real Git's `hook run`) and finishes the commit with Git's
+  hooks disabled.
+- Proposed `AGENTS.md` rule (not yet written; needs a fresh unique code checked against both forbidden-strings
+  appendixes): the git-policy wrapper never starts itself and never writes shell text or scripts; explanations come from
+  the parent process that owns the child. The user decides whether it is added.
