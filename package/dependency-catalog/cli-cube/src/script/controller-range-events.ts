@@ -76,9 +76,21 @@ function computeRangeExtent(
       0,
     ];
   }
+  // Unbounded input: reduce in a linear pass instead of spreading into
+  // call arguments, which engines cap (~65k in browsers, ~128k in V8 12+).
+  let min = values[0];
+  let max = values[0];
+  for (const value of values) {
+    if (value < min) {
+      min = value;
+    }
+    if (value > max) {
+      max = value;
+    }
+  }
   return [
-    Math.min(...values,),
-    Math.max(...values,),
+    min,
+    max,
   ];
 }
 
