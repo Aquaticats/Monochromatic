@@ -33,6 +33,7 @@ The groups that follow name the main ones.
   `readJudgeSeats`,
   `unmetBenchFloors`,
   `leaveOutFutileReturns`,
+  `writingBenchFor`,
   `WritingBenchUnreachableError`.
   Declared in `corpus-run/run-config.ts`,
   `corpus-run/run-client-create.ts`,
@@ -40,7 +41,15 @@ The groups that follow name the main ones.
   `corpus-run/run-seats-read.ts`,
   `corpus-run/run-seats-give-up-floors.ts`,
   `corpus-run/run-seats-futile.ts`,
+  `corpus-run/run-writing-backfill.ts`,
   and `corpus-run/run-seats-floor.ts`.
+  The editor and refiner benches a reading seats are derived from the reading:
+  the static seats a wet provider serves,
+  then the next models of the owner's role order that a wet provider serves,
+  up to the static width (`writingBenchFor`;
+  the owner's answer of 2026-11-01,
+  ledger B1280),
+  and the `JUDGE SEATS` line names the seats taken (`backfilled-by-role-order=`).
   The short-bench reading waits for the holds of providers that would lift a bench,
   except those whose last return served nothing (`leaveOutFutileReturns`;
   the owner's answer of 2026-10-29,

@@ -4,6 +4,11 @@ Superseded in part on 2026-10-25 by
 `package/translation-repair/doc/design-commitments-votes-repairs-and-run-offs.md`:
 the contest no longer asks a minimum ballot weight,
 and two answering judges decide whatever their weight.
+Extended on 2026-11-01 by the section "Addendum of 2026-11-01:
+a short writing bench backfills from the role order,
+and Sonnet refines":
+the floor stays,
+and the benches it counts are filled from the owner's role order before it stops an entry.
 
 Decision of 2026-09-08,
 the owner's,
@@ -102,3 +107,118 @@ The owner chose the first option on 2026-09-08.
     stops at the next chunk or finishes the phase;
     the sixth pass finished its consolidation on the judges that remained,
     and that reading is recorded under the thirteenth class.
+
+## Addendum of 2026-11-01: a short writing bench backfills from the role order, and Sonnet refines
+
+Corpus pass XingZ6024 (build `e9b966af55`) stopped both attempts with
+`JUDGE SEATS phase=lanes writing bench unreachable: refiners 1 of 3 reachable, floor 2`
+and shipped only an interim page (88 archive slices,
+30 source,
+0 settled).
+NeuralWatt was dry that day,
+and Hyper and OpenRouter had never been topped up,
+so GLM-5.3-Flash (served by NeuralWatt,
+Hyper and OpenRouter,
+all dry)
+and minimax-m3 (served by Hyper and OpenRouter,
+both dry) had no wet provider,
+and DeepSeek V4.1 Flash alone was reachable on the refiner bench.
+Kimi-K3 and Qwen3.8-27B,
+both measured refiners and both served by the wet Synthetic,
+sat unused,
+because the refiner bench was the static list.
+The checker bench already filled its dark seats from a ranked order;
+the writing benches did not.
+
+### The question and the answer
+
+The owner was asked,
+on 2026-11-01,
+what a run should do when a writing bench (editors or refiners) has fewer than 2 reachable seats.
+The options offered were
+"Backfill from your order (Recommended)",
+which fills dark seats with the next reachable models in the owner's role order,
+and "Add Sonnet as a refiner",
+which seats claude-sonnet-5-5 on the refiner bench as well as the editor bench.
+The owner's answer:
+"Backfill,
+and add sonnet".
+Both options are wanted.
+
+The role order is the owner's "Order by role standing (Recommended)" of 2026-10-31 (ledger B1144),
+held once in `shared-contract/src/seat-role-standing.ts`
+and applied by `alternateModelsFor` in `provider/src/reask-alternate-models.ts`.
+
+### What it means for the code
+
+-   A reading derives each writing bench as the checker bench is derived:
+    the static seats a wet provider serves,
+    then the next models of the role order that a wet provider serves
+    (not held out of the role by a card,
+    not withheld by the run on the provider that would serve them,
+    not already on the bench),
+    until the bench reaches its static width,
+    then the static seats nobody serves,
+    which a stage reads as unreachable as before (`run-writing-backfill.ts`,
+    `run-seats.ts`).
+-   The floor of two reachable seats is unchanged
+    (owner,
+    2026-09-08,
+    the decision this addendum sits in),
+    and it counts the derived bench:
+    a bench that the role order cannot lift to two still stops the entry with the clause,
+    and "Never wait,
+    relaunch" (owner,
+    2026-10-29) still holds:
+    nothing waits for NeuralWatt's day.
+-   Claude Sonnet 5.5 is the second static refiner,
+    as it is the second static editor.
+    It runs on the owner's Claude key with no effort sent,
+    as the editor seat does (the owner declined to pick an effort:
+    "Why don't you bench?"),
+    and is unmeasured as a refiner until the next `editor-calibrate`,
+    whose refiner chair seats it by name.
+-   The `JUDGE SEATS` line counts the editors and the refiners and names the seats taken from the role order
+    (`backfilled-by-role-order=`),
+    and the stop line says which seats the role order gave
+    (`backfilled by role order:`).
+-   Qwen3.8-27B was removed from the wide seats only (owner,
+    2026-10-29),
+    so it may write;
+    the run still withholds it while Hyper would serve it,
+    so the backfill skips it under that reading and takes the next model of the order.
+
+### What changed for the reading that founded this decision
+
+Bedrock alone,
+the eighth hakureico pass,
+stopped the lanes with no reachable editor and no reachable refiner.
+Bedrock serves `gemma-4-26b-a4b-it` and `google.gemma-4-e2b`,
+both in the pool of both roles,
+so Bedrock alone now reaches a pair of editors and a pair of refiners from the role order and the lanes go on.
+The editor calibration measured `gemma-4-26b-a4b-it` last of the six standings it recorded as an editor
+(7.0 percent,
+z -6.44) and as a refiner (3.4 percent),
+and `google.gemma-4-e2b` was measured in neither role.
+That is a consequence of "Backfill",
+not a choice made in the code,
+and it is recorded here for the owner to veto:
+a reading that leaves only these two Gemma sizes to write the repair lane will ship a page they wrote.
+The readings that still stop are those in which fewer than two seats of the static bench and the role order are served,
+such as DeepSeek alone or the Claude key alone.
+
+### A candidate that also checks
+
+A model of the measured checker order (Kimi-K3 is the case) may be a candidate for the writing benches.
+The checker contract refuses a model that edits or refines and also checks unless the run permits it
+(`checkerSelfCertificationPermitted`,
+owner,
+2026-08-24:
+"enable the discount and let every model do both"),
+and a checker's ballot is weighed by the seat that cast it,
+so a re-ask of a seat that ran away,
+recorded under that seat,
+would weigh in full for text its answerer wrote.
+The backfill therefore seats such a candidate only when the checker bench of the same reading holds it,
+where the discount on its own ballot applies,
+and only while the run permits the overlap.

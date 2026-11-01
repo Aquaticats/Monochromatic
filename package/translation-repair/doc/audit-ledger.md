@@ -865,6 +865,22 @@ named for that subject and listed here.
   the missing page that ships its fallback (B1262),
   the cache versions (B1263)
   and the slips with what stays open (B1264).
+- [Audit ledger: short writing benches backfill from the role order](audit-ledger-short-writing-benches-backfill-from-the-role-order.md):
+  The editor and refiner benches derived from the reading and filled from the owner's role order,
+  and Sonnet 5.5 as a refiner,
+  on the owner's answer of 2026-11-01 (B1280 to B1291):
+  the derivation (B1280),
+  the one role order (B1281),
+  the candidate that also checks (B1282),
+  the withheld candidate (B1283),
+  Sonnet as a refiner (B1284),
+  the readings that still stop (B1285),
+  the lines (B1286),
+  the readers of the static lists (B1287),
+  the cache versions (B1288),
+  what the package suites found (B1289),
+  the family of mistake (B1290)
+  and the slips with what stays open (B1291).
 - [Audit ledger: process mistakes](audit-ledger-process-mistakes.md):
   The index of the slips in how the work was run,
   checked,

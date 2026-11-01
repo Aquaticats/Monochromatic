@@ -709,7 +709,7 @@ export const RUN_MODELS: RunRepairModels = {
     // `editor-calibrate` measures it. It sits second, as on the editor bench, and ahead of the seats a dry provider
     // takes: the Claude key serves it in every reading in which that key is wet. A fourth refiner moves nothing in the
     // arithmetic the lane lives on: the quorum of a bench of four is two, as of three, and the last-seat grace needs a
-    // quorum above two.
+    // quorum greater than two.
     'claude-sonnet-5-5',
     'deepseek-v4.1-flash',
     'minimax-m3',
