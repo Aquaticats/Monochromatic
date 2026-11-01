@@ -210,9 +210,13 @@ export async function readDrynessPastShortBench(
    */
   const names = phaseBenches({ phase, },);
   /**
+   Seats as first read, which the lines that name what the role order gave are worded from.
+   */
+  const seatsFirst = judgeSeatsFor({ dry: first, },);
+  /**
    Benches as first read.
    */
-  const benches = benchesOf({ seats: judgeSeatsFor({ dry: first, },), },);
+  const benches = benchesOf({ seats: seatsFirst, },);
   /**
    How long each provider's refusal still holds it out, without the holds of providers whose last return served
    nothing, which are said once a bench is found short.
@@ -291,15 +295,18 @@ export async function readDrynessPastShortBench(
       meterDry,
       names,
       benches,
+      backfilled: seatsFirst.backfilled,
       unreachable,
       goesOn,
     },);
   }
   /**
-   What the waits have read so far: the dryness, the benches short of quorum, and the holds still running.
+   What the waits have read so far: the dryness, the seats it gives, the benches short of quorum, and the holds still
+   running.
    */
   const waiting = {
     dry: first,
+    seats: seatsFirst,
     short,
     running,
     meterDry,
@@ -360,10 +367,11 @@ export async function readDrynessPastShortBench(
     waiting.running = rerun.held;
     waiting.meterDry = await readMeterDry(waiting.running,);
     /* oxlint-enable no-await-in-loop */
+    waiting.seats = judgeSeatsFor({ dry: waiting.dry, },);
     /**
      Benches as read after the wait.
      */
-    const benchesAfter = benchesOf({ seats: judgeSeatsFor({ dry: waiting.dry, },), },);
+    const benchesAfter = benchesOf({ seats: waiting.seats, },);
     waiting.short = shortBenches({
       benches: benchesAfter,
       names,
@@ -421,7 +429,7 @@ export async function readDrynessPastShortBench(
    Writing benches still below the floor after the waits this reading takes.
    */
   const stillUnreachable = unreachableWritingBenches({
-    benches: benchesOf({ seats: judgeSeatsFor({ dry: waiting.dry, },), },),
+    benches: benchesOf({ seats: waiting.seats, },),
     names,
     dry: waiting.dry,
   },);
@@ -438,7 +446,7 @@ export async function readDrynessPastShortBench(
     /**
      Seats the last reading took from the role order.
      */
-    const { backfilled, } = judgeSeatsFor({ dry: waiting.dry, },);
+    const { backfilled, } = waiting.seats;
     l.error(
       `JUDGE SEATS phase=${phase} writing bench unreachable after waiting ${String(waiting.waitedMs,)}ms: `
         + `${statedAfter.join('; ',)}; backfilled by role order: ${

@@ -70,6 +70,11 @@ function isOneOf(
 }
 
 /**
+ The Claude model the owner named for both writing benches on 2026-11-01 ("Backfill, and add sonnet").
+ */
+const SONNET = 'claude-sonnet-5-5' satisfies RosterModelId;
+
+/**
  Models of the role order a pool-ordered run asks first, which every case leans on.
  */
 const [firstRefiner, secondRefiner,] = REFINER_BACKFILL_ORDER;
@@ -83,9 +88,9 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'IS THE OWNER\'S ROLE ORDER OF THE ROLE\'S POOL LESS THE STATIC BENCH: the models the calibration measured in '
-            + 'the role come first by standing, best first, and the pool is the role\'s, never a Claude card or a '
-            + 'decision-only seat',
+          name: 'IS THE OWNER\'S ROLE ORDER OF THE ROLE\'S POOL LESS THE STATIC BENCH: the models the calibration '
+            + 'measured in the role come first by standing, best first, and the pool is the role\'s, never a Claude '
+            + 'card or a decision-only seat',
           fn: async () => {
             for (const { role, staticSeats, order, } of [
               {
@@ -136,8 +141,8 @@ await describe({
           },
         },),
         it({
-          name: 'ENDS BOTH ORDERS WITH GEMMA 4 E2B BEFORE MERCURY, the owner\'s order of 2026-10-31 for the models never '
-            + 'measured in the role, which the share of runaways and then the roster fall into',
+          name: 'ENDS BOTH ORDERS WITH GEMMA 4 E2B BEFORE MERCURY, the owner\'s order of 2026-10-31 for the models '
+            + 'never measured in the role, which the share of runaways and then the roster fall into',
           fn: async () => {
             for (const order of [EDITOR_BACKFILL_ORDER, REFINER_BACKFILL_ORDER,]) {
               expect(order.slice(-2,),).toEqual(['google.gemma-4-e2b', 'inception/mercury-2.5',],);
@@ -175,8 +180,8 @@ await describe({
           },
         },),
         it({
-          name: 'FILLS EACH PLACE A DARK STATIC SEAT LEAVES FROM THE ROLE ORDER, served static seats first, and cuts at the '
-            + 'static width, so the dark seats the backfill replaced are gone',
+          name: 'FILLS EACH PLACE A DARK STATIC SEAT LEAVES FROM THE ROLE ORDER, served static seats first, and cuts '
+            + 'at the static width, so the dark seats the backfill replaced are gone',
           fn: async () => {
             /**
              The one static seat a wet provider serves here: the last, so that an unmoved order would show.
@@ -197,9 +202,9 @@ await describe({
           },
         },),
         it({
-          name: 'DROPS A STATIC SEAT THE READING WITHHOLDS AND FILLS ITS PLACE FROM THE ROLE ORDER (ledger B1330): a hold is '
-            + 'honoured for a hand-picked seat as for a candidate, so a served static seat that is not seatable is not '
-            + 'on the bench and is not put last either',
+          name: 'DROPS A STATIC SEAT THE READING WITHHOLDS AND FILLS ITS PLACE FROM THE ROLE ORDER (ledger B1330): a '
+            + 'hold is honoured for a hand-picked seat as for a candidate, so a served static seat that is not '
+            + 'seatable is not on the bench and is not put last either',
           fn: async () => {
             const [withheldSeat,] = STATIC_REFINERS;
             expect(withheldSeat,).toBeDefined();
@@ -219,8 +224,8 @@ await describe({
           },
         },),
         it({
-          name: 'KEEPS THE DARK STATIC SEATS LAST WHEN THE ROLE ORDER CANNOT FILL THEIR PLACES, so the bench still counts '
-            + 'them as seats nobody serves and the floor reads the shortfall',
+          name: 'KEEPS THE DARK STATIC SEATS LAST WHEN THE ROLE ORDER CANNOT FILL THEIR PLACES, so the bench still '
+            + 'counts them as seats nobody serves and the floor reads the shortfall',
           fn: async () => {
             /**
              The second static seat is the only one served, and no candidate is.
@@ -240,8 +245,8 @@ await describe({
           },
         },),
         it({
-          name: 'NEVER SEATS A CANDIDATE THE RUN WITHHOLDS, and the next of the order takes the place: the first candidate is '
-            + 'served and not seatable here, so it is skipped and not replaced by nothing',
+          name: 'NEVER SEATS A CANDIDATE THE RUN WITHHOLDS, and the next of the order takes the place: the first '
+            + 'candidate is served and not seatable here, so it is skipped and not replaced by nothing',
           fn: async () => {
             expect(firstRefiner,).toBeDefined();
             expect(secondRefiner,).toBeDefined();
@@ -263,10 +268,10 @@ await describe({
           },
         },),
         it({
-          name: 'SEATS A CANDIDATE OF THE MEASURED CHECKER ORDER WHEREVER THE CHECKER BENCH IS, and skips it only where it sits '
-            + 'on that bench and the contract does not let a checker confirm text it wrote (ledger B1333): the answerer '
-            + 'names the voice, so a candidate off the bench never casts a ballot on text it wrote at a weight the '
-            + 'discount does not halve',
+          name: 'SEATS A CANDIDATE OF THE MEASURED CHECKER ORDER WHEREVER THE CHECKER BENCH IS, and skips it only '
+            + 'where it sits on that bench and the contract does not let a checker confirm text it wrote (ledger '
+            + 'B1333): the answerer names the voice, so a candidate off the bench never casts a ballot on text it '
+            + 'wrote at a weight the discount does not halve',
           fn: async () => {
             const checkerCandidate = REFINER_BACKFILL_ORDER.find(function isChecker(modelId,): boolean {
               return MEASURED_CHECKER_ORDER.includes(modelId,);
@@ -314,8 +319,8 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'SAYS NONE WHEN NOTHING WAS TAKEN, and names each bench that took seats, in bench order, with the seats in '
-            + 'the order they were taken',
+          name: 'SAYS NONE WHEN NOTHING WAS TAKEN, and names each bench that took seats, in bench order, with the '
+            + 'seats in the order they were taken',
           fn: async () => {
             expect(backfillWordsOf({ backfilled: { editors: [], refiners: [], }, },),).toBe('none',);
             expect(backfillWordsOf({
@@ -339,11 +344,12 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'SEATS CLAUDE SONNET 5.5 ON THE REFINER BENCH SECOND, as it is on the editor bench, on the owner\'s word of '
-            + '2026-11-01',
+          name: 'SEATS CLAUDE SONNET 5.5 ON THE REFINER BENCH, as it is on the editor bench, on the owner\'s word of '
+            + '2026-11-01, named and not found by its position',
           fn: async () => {
-            expect(RUN_MODELS.refinerModelIds[1],).toBe(RUN_MODELS.editorModelIds[1],);
-            expect(MODEL_CARDS[RUN_MODELS.refinerModelIds[1] ?? 'glm-5.3'].anthropic,).toBeDefined();
+            expect(RUN_MODELS.refinerModelIds,).toContain(SONNET,);
+            expect(RUN_MODELS.editorModelIds,).toContain(SONNET,);
+            expect(MODEL_CARDS[SONNET].anthropic,).toBeDefined();
           },
         },),
         it({

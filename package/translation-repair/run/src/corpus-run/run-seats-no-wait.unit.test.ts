@@ -136,9 +136,13 @@ function callOf(
   },
 ): Called {
   /**
+   Seats as first read.
+   */
+  const seats = judgeSeatsFor({ dry: view, },);
+  /**
    Benches as first read.
    */
-  const benches = benchesOf({ seats: judgeSeatsFor({ dry: view, }), },);
+  const benches = benchesOf({ seats, },);
   /**
    Benches the phase leans on.
    */
@@ -158,6 +162,7 @@ function callOf(
     meterDry: new Set(),
     names,
     benches,
+    backfilled: seats.backfilled,
     unreachable: unreachableWritingBenches({
       benches,
       names,

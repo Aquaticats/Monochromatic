@@ -142,8 +142,8 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'HANDS THE REPAIR LANE THE DERIVED EDITORS AND REFINERS under a hold, so a chunk after a re-seating asks the '
-        + 'backfilled seats and not the dark static ones',
+      name: 'HANDS THE REPAIR LANE THE DERIVED EDITORS AND REFINERS under a hold, so a chunk after a re-seating asks '
+        + 'the backfilled seats and not the dark static ones',
       fn: async () => {
         const hooks = lanesHooksFor({
           client: heldClient(),
@@ -160,8 +160,8 @@ await describe({
       },
     },),
     it({
-      name: 'HANDS THE CONSOLIDATION POLISH THE DERIVED REFINERS under a hold, so the final naturalness rewrite asks the '
-        + 'backfilled seats too',
+      name: 'HANDS THE CONSOLIDATION POLISH THE DERIVED REFINERS under a hold, so the final naturalness rewrite asks '
+        + 'the backfilled seats too',
       fn: async () => {
         const hooks = consolidationHooksFor({
           client: heldClient(),

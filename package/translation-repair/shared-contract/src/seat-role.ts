@@ -23,9 +23,10 @@ import {
 // - `RUN_READER_MODELS` drops `reader-unmeasured` and `owner-culled` only ("Gemma 4 31B already reads without
 //   judging"), so a model the judge probe withheld can still read.
 // - The checker bench is a static order that only the cull empties.
-// - The static editor and refiner benches are hand-picked, and the places their dark seats leave are filled from the pool
-//   of the writers (the owner's answer of 2026-11-01, "Backfill, and add sonnet", ledger B1280): the editor calibration
-//   seats the roster's writers in both chairs (`editor-calibrate-lane.ts`), so their pool is the writers' (ledger B1100).
+// - The static editor and refiner benches are hand-picked, and the places their dark seats leave are filled from the
+//   pool of the writers (the owner's answer of 2026-11-01, "Backfill, and add sonnet", ledger B1280): the editor
+//   calibration seats the roster's writers in both chairs (`editor-calibrate-lane.ts`), so their pool is the writers'
+//   (ledger B1100).
 //
 // A ROLE ALSO HAS A POOL (ledger B1100, the lead's ruling of 2026-10-31): the models a re-ask of that role may ask. A
 // re-ask of the checker seat asks only a model the checker benchmark measured in, and no hold of a card says so, since
@@ -80,7 +81,8 @@ export const SEAT_ROLES = [
 export type SeatRole = typeof SEAT_ROLES[number];
 
 /**
- The holds of the writers' bench, which the editors and the refiners are hand-picked from (ledger B1100) and so honour too.
+ The holds of the writers' bench, which the editors and the refiners are hand-picked from (ledger B1100) and so honour
+ too.
  */
 const WRITER_HOLDS: readonly SeatHold[] = [
   'owner-culled',

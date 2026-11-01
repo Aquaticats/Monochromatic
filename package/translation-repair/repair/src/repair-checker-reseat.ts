@@ -31,8 +31,10 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
  refused a checker who refines and every other caller of the independence
  check passes them; and the bench read at the stage was read for quorum
  alone, so a re-seat naming this chunk's editor would have had it grade its
- own rewrite. Production seats derived benches against the static editors
- and refiners (`corpus-run/run-seats.ts`), so neither reached a run.
+ own rewrite. Production derives every bench, the editors and refiners
+ included since 2026-11-01 (ledger B1280), and asserts the independence of
+ the benches it derives (`corpus-run/run-seats.ts`), so neither reached a
+ run; this check still guards a roster a caller hands in by other means.
 
  @param models - roster the chunk was seated with, whose writers the bench
  must not hold

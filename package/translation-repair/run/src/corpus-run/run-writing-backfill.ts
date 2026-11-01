@@ -75,7 +75,9 @@ const WRITING_BENCH_NAMES = [
 
  @example
  ```ts
- const { bench, backfilled, } = writingBenchFor({ staticSeats, backfillOrder, served, seatable, checkers, selfCertificationPermitted, },);
+ const { bench, backfilled, } = writingBenchFor({
+   staticSeats, backfillOrder, served, seatable, checkers, selfCertificationPermitted,
+ },);
  ```
  */
 export type WritingBench = {
@@ -172,7 +174,9 @@ export const REFINER_BACKFILL_ORDER: readonly RosterModelId[] = backfillOrderOf(
 
  @example
  ```ts
- const refiners = writingBenchFor({ staticSeats, backfillOrder, served, seatable, checkers, selfCertificationPermitted: true, },);
+ const refiners = writingBenchFor({
+   staticSeats, backfillOrder, served, seatable, checkers, selfCertificationPermitted: true,
+ },);
  ```
  */
 export function writingBenchFor(
@@ -242,7 +246,8 @@ export function writingBenchFor(
 
  @example
  ```ts
- backfillWordsOf({ backfilled: { editors: [], refiners: ['hf:Qwen/Qwen3.8-27B',], }, },); // => 'refiners:hf:Qwen/Qwen3.8-27B'
+ backfillWordsOf({ backfilled: { editors: [], refiners: ['hf:Qwen/Qwen3.8-27B',], }, },);
+ // => 'refiners:hf:Qwen/Qwen3.8-27B'
  ```
  */
 export function backfillWordsOf(

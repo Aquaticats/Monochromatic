@@ -14,8 +14,10 @@ import {
   unmetBenchNames,
 } from './run-seats-hold-need.ts';
 import { belowFloorWritingBenches, } from './run-seats-floor.ts';
-import { judgeSeatsFor, } from './run-seats.ts';
-import { backfillWordsOf, } from './run-writing-backfill.ts';
+import {
+  backfillWordsOf,
+  type WritingBackfill,
+} from './run-writing-backfill.ts';
 import {
   withNeuralWattReturn,
   writtenRefusal,
@@ -67,6 +69,8 @@ const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for
 
  @param benches - each bench as first read, keyed by name
 
+ @param backfilled - seats the reading took from the role order, which the lines that name the stop are worded with
+
  @param unreachable - writing benches below their floor as first read
 
  @param goesOn - whether the phase goes on when a writing bench is below its floor
@@ -80,7 +84,7 @@ const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for
  @example
  ```ts
  return seatWithoutWaiting({
-   client, phase, l, warned, dry: first, running, holds, meterDry, names, benches, unreachable, goesOn,
+   client, phase, l, warned, dry: first, running, holds, meterDry, names, benches, backfilled, unreachable, goesOn,
  },);
  ```
  */
@@ -96,6 +100,7 @@ export function seatWithoutWaiting(
     meterDry,
     names,
     benches,
+    backfilled,
     unreachable,
     goesOn,
   }: {
@@ -109,6 +114,7 @@ export function seatWithoutWaiting(
     readonly meterDry: ReadonlySet<ProviderName>;
     readonly names: readonly BenchName[];
     readonly benches: Readonly<Record<BenchName, readonly RosterModelId[]>>;
+    readonly backfilled: WritingBackfill;
     readonly unreachable: readonly string[];
     readonly goesOn: boolean;
   },
@@ -162,10 +168,6 @@ export function seatWithoutWaiting(
     // writing a one-writer page. A PHASE THAT GOES ON WITHOUT ITS WRITERS says so once, naming the bench, and never
     // says the entry stops, since it does not.
     if (!(goesOn && repeated)) {
-      /**
-       Seats the reading took from the role order.
-       */
-      const { backfilled, } = judgeSeatsFor({ dry, },);
       l.error(
         `JUDGE SEATS phase=${phase} writing bench unreachable: ${stated.join('; ',)}; backfilled by role order: ${
           backfillWordsOf({ backfilled, },)

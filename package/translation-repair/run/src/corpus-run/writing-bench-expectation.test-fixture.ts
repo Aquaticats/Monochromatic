@@ -5,10 +5,9 @@ import {
   providerServing,
   reachOf,
 } from '@monochromatic-dev/translation-repair-provider';
-import {
-  MEASURED_CHECKER_ORDER,
-  type RosterModelId,
-  type SeatRole,
+import type {
+  RosterModelId,
+  SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 
 //region Writing bench expectation
@@ -16,8 +15,9 @@ import {
 // worked out from the pieces the owner's answer of 2026-11-01 ("Backfill, and add sonnet") names and nothing the
 // derivation under test returns: the static bench, the owner's role order (`alternateModelsFor`, which orders a role's
 // pool by standing and then by the share of runaways), who serves what (`providerServing`), the hold on Hyper-slow
-// models and the rule for a model that also checks. A case compares the bench the run derives with this one, so the
-// derivation cannot be right by agreeing with itself.
+// models and the rule for a model that also checks (skipped only where it sits on the checker bench and the contract
+// refuses the overlap). A case compares the bench the run derives with this one, so the derivation cannot be right by
+// agreeing with itself.
 
 /**
  One writing bench as one reading of the meters must derive it.
@@ -59,7 +59,9 @@ export type ExpectedWritingBench = {
 
  @example
  ```ts
- const { bench, } = expectedWritingBench({ role: 'refiner', dry, staticSeats, checkerBench, hyperSlow, selfCertificationPermitted: true, },);
+ const { bench, } = expectedWritingBench({
+   role: 'refiner', dry, staticSeats, checkerBench, hyperSlow, selfCertificationPermitted: true,
+ },);
  ```
  */
 export function expectedWritingBench(
@@ -115,27 +117,39 @@ export function expectedWritingBench(
     modelId: anyStatic,
     role,
     bench: staticSeats,
+    // THE READING DECIDES WHICH OF THEM IS WITHHELD, below, and not the order (ledger B1330).
+    routeTimeHolds: { applied: 'by-the-caller', },
   },);
   /**
-   Static seats a wet provider serves.
+   Whether the reading withholds a model while Hyper would serve it.
+
+   @param modelId - seat under question
+
+   @returns True when Hyper is the provider that would serve it and its card holds it out for that
    */
-  const servedStatic = staticSeats.filter(served,);
+  function withheldOnHyper(modelId: RosterModelId,): boolean {
+    return (servedBy(modelId,) === 'hyper') && hyperSlow.has(modelId,);
+  }
+  /**
+   Static seats a wet provider serves and the reading does not withhold.
+   */
+  const servedStatic = staticSeats.filter(function seated(modelId,): boolean {
+    return served(modelId,) && (!withheldOnHyper(modelId,));
+  },);
   /**
    Places the static bench has that no static seat a wet provider serves fills.
    */
   const open = staticSeats.length - servedStatic.length;
   /**
-   Candidates a reading may seat: served, not withheld while Hyper would serve them, and, when also a checker, on the
-   reading's own checker bench and only where the contract permits a checker to confirm text it wrote.
+   Candidates a reading may seat: served, not withheld while Hyper would serve them, and, when also on the reading's
+   own checker bench, only where the contract permits a checker to confirm text it wrote (ledger B1333).
    */
   const seatable = alternates.filter(function mayFill(modelId,): boolean {
     if (!served(modelId,))
       return false;
-    if ((servedBy(modelId,) === 'hyper') && hyperSlow.has(modelId,))
+    if (withheldOnHyper(modelId,))
       return false;
-    if (!MEASURED_CHECKER_ORDER.includes(modelId,))
-      return true;
-    return selfCertificationPermitted && checkerBench.includes(modelId,);
+    return selfCertificationPermitted || (!checkerBench.includes(modelId,));
   },);
   /**
    The candidates the open places take, in the order of the role.

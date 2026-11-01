@@ -388,10 +388,10 @@ await describe({
               l: levelCapturingLogger({ lines, },),
             },);
             expect(lines,).toEqual([
-              'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet anthropic=wet '
-                + 'hyper=wet openrouter=wet wide=7 select=8 '
-                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 editors=4 refiners=4 backfilled-by-role-order=none '
-                + 'withheld=none unserved=none '
+              'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet '
+                + 'anthropic=wet hyper=wet openrouter=wet wide=7 select=8 '
+                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 editors=4 refiners=4 '
+                + 'backfilled-by-role-order=none withheld=none unserved=none '
                 + 'threw-withheld=hf:Qwen/Qwen3.8-27B (threw 4 of 4 asks) waited=0ms',
             ],);
 
@@ -408,10 +408,10 @@ await describe({
               l: levelCapturingLogger({ lines: mixedLines, },),
             },);
             expect(mixedLines,).toEqual([
-              'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet anthropic=wet '
-                + 'hyper=wet openrouter=wet wide=7 select=8 '
-                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 editors=4 refiners=4 backfilled-by-role-order=none '
-                + 'withheld=none unserved=none '
+              'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet '
+                + 'anthropic=wet hyper=wet openrouter=wet wide=7 select=8 '
+                + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 editors=4 refiners=4 '
+                + 'backfilled-by-role-order=none withheld=none unserved=none '
                 + 'threw-withheld=none waited=0ms',
             ],);
           },
@@ -482,8 +482,8 @@ await describe({
               'info JUDGE SEATS phase=lanes neuralwatt=unreadable-treated-as-spendable '
                 + 'synthetic=unreadable-treated-as-spendable '
                 + 'bedrock=unreadable-treated-as-spendable deepseek=unreadable-treated-as-spendable '
-                + 'xiaomi=unreadable-treated-as-spendable anthropic=unreadable-treated-as-spendable hyper=unreadable-treated-as-spendable '
-                + 'openrouter=unreadable-treated-as-spendable ',
+                + 'xiaomi=unreadable-treated-as-spendable anthropic=unreadable-treated-as-spendable '
+                + 'hyper=unreadable-treated-as-spendable openrouter=unreadable-treated-as-spendable ',
             );
           },
         },),
@@ -522,8 +522,8 @@ await describe({
               l: warningRecordingLogger({ base: l, warnings, },),
             },);
             expect(warnings,).toEqual([
-              'judge seats: the budget view could not be read (refused by ProviderHttpError from synthetic with HTTP 502 '
-                + '(the provider said: "the cat meter is asleep")); seating the full bench',
+              'judge seats: the budget view could not be read (refused by ProviderHttpError from synthetic with HTTP '
+                + '502 (the provider said: "the cat meter is asleep")); seating the full bench',
             ],);
           },
         },),
@@ -653,8 +653,8 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'NAMES IN THE JUDGE SEATS LINE EVERY SEATED SEAT NO WET PROVIDER SERVES as unserved, and none when every '
-            + 'seated seat is served, and does not take a seat the router only refused for withheld (zheermao20: '
+          name: 'NAMES IN THE JUDGE SEATS LINE EVERY SEATED SEAT NO WET PROVIDER SERVES as unserved, and none when '
+            + 'every seated seat is served, and does not take a seat the router only refused for withheld (zheermao20: '
             + '"glm-5.3 threw 4 of 4 asks" for four refusals and no request)',
           fn: async () => {
             using _fresh = withFreshRunSeats();
@@ -863,9 +863,9 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'GOES ON WHEN THE WRITING BENCH IS BELOW ITS FLOOR AND NO PROVIDER HAS NAMED ITS RETURN: one error line '
-            + 'names the bench and says the phase goes on, none says the entry stops, and the benches below the floor are '
-            + 'handed back',
+          name: 'GOES ON WHEN THE WRITING BENCH IS BELOW ITS FLOOR AND NO PROVIDER HAS NAMED ITS RETURN: one error '
+            + 'line names the bench and says the phase goes on, none says the entry stops, and the benches below the '
+            + 'floor are handed back',
           fn: async () => {
             const script = scriptedViews({ views: [ALL_DRY,], },);
             const lines: string[] = [];
@@ -894,8 +894,8 @@ await describe({
               unreachableWriters: ['translators 0 of 8 reachable, floor 2',],
               translators: RUN_TRANSLATORS,
               errors: [
-                'error JUDGE SEATS phase=page consistency writing bench unreachable: translators 0 of 8 reachable, floor 2; '
-                  + 'backfilled by role order: none; '
+                'error JUDGE SEATS phase=page consistency writing bench unreachable: translators 0 of 8 reachable, '
+                  + 'floor 2; backfilled by role order: none; '
                   + 'no provider has named a return the pass can wait for, so the phase goes on without its writers',
               ],
               stops: [],
@@ -929,8 +929,8 @@ await describe({
           },
         },),
         it({
-          name: 'STILL WAITS OUT A NAMED HOLD ONCE, then goes on without the writers when the bench is still below its floor, '
-            + 'saying so after the wait in one error line that does not say the entry stops',
+          name: 'STILL WAITS OUT A NAMED HOLD ONCE, then goes on without the writers when the bench is still below its '
+            + 'floor, saying so after the wait in one error line that does not say the entry stops',
           fn: async ctx => {
             const stays = scriptedViews({ views: [ALL_DRY, ALL_DRY,], },);
             const lines: string[] = [];
@@ -1084,8 +1084,8 @@ await describe({
           },
         },),
         it({
-          name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL, still saying the entry stops, when every provider reads '
-            + 'dry with no hold to wait out before any chat call has been made, so the pass can stop instead of '
+          name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL, still saying the entry stops, when every provider '
+            + 'reads dry with no hold to wait out before any chat call has been made, so the pass can stop instead of '
             + 'filing each pending entry as an error',
           fn: async () => {
             const lines: string[] = [];
@@ -1171,8 +1171,8 @@ await describe({
         },),
 
         it({
-          name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL when every provider still reads dry after the one wait '
-            + 'for the shortest hold, as it does when none was held',
+          name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL when every provider still reads dry after the one '
+            + 'wait for the shortest hold, as it does when none was held',
           fn: async ctx => {
             /**
              What the seat reading stopped with.

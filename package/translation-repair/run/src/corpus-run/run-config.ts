@@ -703,8 +703,8 @@ export const RUN_MODELS: RunRepairModels = {
     'hf:zai-org/GLM-5.3-Flash',
     // SONNET 5.5 SEATS AS A REFINER AS WELL ON THE OWNER'S WORD OF 2026-11-01, "Backfill, and add sonnet", asked what a
     // run does when a writing bench has fewer than two reachable seats; the option was "Add Sonnet as a refiner" (seat
-    // claude-sonnet-5-5 on the refiner bench as well as the editor bench). It runs on the owner's own Claude key with no
-    // effort sent, as the editor seat does (the owner declined to pick one: "Why don't you bench?"). UNMEASURED AS A
+    // claude-sonnet-5-5 on the refiner bench as well as the editor bench). It runs on the owner's own Claude key with
+    // no effort sent, as the editor seat does (the owner declined to pick one: "Why don't you bench?"). UNMEASURED AS A
     // REFINER: the editor calibration seats it by name in the refiner lane (`editor-calibrate-lane.ts`), so the next
     // `editor-calibrate` measures it. It sits second, as on the editor bench, and ahead of the seats a dry provider
     // takes: the Claude key serves it in every reading in which that key is wet. A fourth refiner moves nothing in the
@@ -1035,9 +1035,9 @@ const l = contextRoot({ tag: 'translation-repair', },);
  The providers that keep a run going while they read wet: those that serve a model seated in a writing bench, the
  editors, the refiners or the translators, or one the role order may seat there when a static seat is dark (the pools
  of the editor and refiner roles, `run-writing-backfill.ts`). Every provider but Xiaomi in the roster of 2026-10-22,
- whose one seat is a checker. A wet provider outside this record does not count against "every provider dry", so a fleet that can write
- nothing ends the run instead of idling (`run-writing-providers.ts`; the lead's ruling of 2026-10-22, open to the
- owner's veto).
+ whose one seat is a checker. A wet provider outside this record does not count against "every provider dry", so a
+ fleet that can write nothing ends the run instead of idling (`run-writing-providers.ts`; the lead's ruling of
+ 2026-10-22, open to the owner's veto).
  */
 export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf({
   modelIds: [
@@ -1228,7 +1228,7 @@ export function runClientWithFloors(
   /**
    Which providers are dry now, holds folded in, as the router sees them.
 
-   @param args - the caller's abort signal
+   @param signal - the caller's abort signal
 
    @returns Dryness per provider
    */
@@ -1264,8 +1264,8 @@ export function runClientWithFloors(
           tally: RUN_SEATS,
           minAsks: SEAT_WITHHOLD_ASKS,
         },),
-        // THE READING THE ALTERNATES ARE LEFT OUT BY (ledger B1330): a model the run withholds from the seat's role while
-        // Hyper would serve it is not an alternate, and one Synthetic serves is.
+        // THE READING THE ALTERNATES ARE LEFT OUT BY (ledger B1330): a model the run withholds from the seat's role
+        // while Hyper would serve it is not an alternate, and one Synthetic serves is.
         readDry: readDryness,
       },),
       tally: RUN_SEATS,

@@ -373,11 +373,15 @@ export function judgeSeatsFor(
    */
   function writableIn(role: WritingRole,): (modelId: RosterModelId,) => boolean {
     return function writable(modelId: RosterModelId,): boolean {
-      return served(modelId,) && seated(modelId,) && (!isWithheldFromRole({
+      /**
+       Whether the reading withholds the model from the role, by the function a re-ask leaves its alternates out by.
+       */
+      const withheld = isWithheldFromRole({
         modelId,
         role,
         dry,
-      },));
+      },);
+      return served(modelId,) && seated(modelId,) && (!withheld);
     };
   }
   /**

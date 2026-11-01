@@ -29,7 +29,7 @@ import type {
 } from '@monochromatic-dev/translation-repair-provider';
 import {
   MEASURED_CHECKER_ORDER,
-  reaskPoolOf,
+  rolePoolOf,
 } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   benchesOf,
@@ -313,8 +313,8 @@ await describe({
           },
         },),
         it({
-          name: 'DERIVES BOTH WRITING BENCHES IN EVERY READING OF THE EIGHT METERS as the static seats a wet provider serves, '
-            + 'the role order, then the static seats nobody serves, never wider than the static bench and never repeating a seat',
+          name: 'DERIVES BOTH WRITING BENCHES IN EVERY READING OF THE EIGHT METERS as the static seats a wet provider '
+            + 'serves, the role order, then the static seats nobody serves, never wider than the static bench and never repeating a seat',
           fn: async () => {
             for (const dry of everyView()) {
               const {
@@ -330,15 +330,15 @@ await describe({
           },
         },),
         it({
-          name: 'NEVER SEATS A MODEL THE ROLE\'S POOL HOLDS OUT, nor one the owner culled, in any reading: only static seats and '
-            + 'models of the role pool sit on a writing bench',
+          name: 'NEVER SEATS A MODEL THE ROLE\'S POOL HOLDS OUT, nor one the owner culled, in any reading: only static '
+            + 'seats and models of the role pool sit on a writing bench',
           fn: async () => {
             for (const dry of everyView()) {
               const { derived, } = benchesFor({ dry, },);
               for (const { staticSeats, role, key, } of WRITING_ROLES) {
                 for (const modelId of derived[key]) {
                   expect(
-                    staticSeats.includes(modelId,) || reaskPoolOf({ role, },).includes(modelId,),
+                    staticSeats.includes(modelId,) || rolePoolOf({ role, },).includes(modelId,),
                   ).toBe(true,);
                 }
               }
@@ -346,8 +346,8 @@ await describe({
           },
         },),
         it({
-          name: 'SEATS NO MODEL WITH A HOLD OF ITS CARD or one only OpenRouter would buy when only Bedrock and OpenRouter '
-            + 'are wet, and still fills the dark seats from the role order',
+          name: 'SEATS NO MODEL WITH A HOLD OF ITS CARD or one only OpenRouter would buy when only Bedrock and '
+            + 'OpenRouter are wet, and still fills the dark seats from the role order',
           fn: async () => {
             const {
               derived,
@@ -387,8 +387,8 @@ await describe({
           },
         },),
         it({
-          name: 'SEATS A CANDIDATE THAT IS ALSO A CHECKER ONLY WHERE THE CHECKER BENCH OF THE SAME READING HOLDS IT, and only '
-            + 'while the contract permits a checker to confirm text it wrote (Kimi-K3 in the XingZ6024 reading)',
+          name: 'SEATS A CANDIDATE THAT IS ALSO A CHECKER ONLY WHERE THE CHECKER BENCH OF THE SAME READING HOLDS IT, '
+            + 'and only while the contract permits a checker to confirm text it wrote (Kimi-K3 in the XingZ6024 reading)',
           fn: async () => {
             expect(RUN_MODELS.checkerSelfCertificationPermitted,).toBe(true,);
             const { seats, derived, } = benchesFor({ dry: XINGZ6024, },);
@@ -407,8 +407,8 @@ await describe({
           },
         },),
         it({
-          name: 'REACHES EVERY READER OF THE BENCH: the roster the repair lane is handed, the benches the floor reads and the '
-            + 'stage rosters all carry the derived bench, and the floor counts it',
+          name: 'REACHES EVERY READER OF THE BENCH: the roster the repair lane is handed, the benches the floor reads '
+            + 'and the stage rosters all carry the derived bench, and the floor counts it',
           fn: async () => {
             const {
               seats,
@@ -433,8 +433,8 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'DOES NOT STOP THE LANES in the XingZ6024 reading, which stopped both attempts of the pass on `refiners 1 of 3 '
-            + 'reachable, floor 2`, and names the seats it backfilled on the JUDGE SEATS line',
+          name: 'DOES NOT STOP THE LANES in the XingZ6024 reading, which stopped both attempts of the pass on '
+            + '`refiners 1 of 3 reachable, floor 2`, and names the seats it backfilled on the JUDGE SEATS line',
           fn: async () => {
             const lines: string[] = [];
             const { seats, unreachableWriters, } = await readPhaseSeats({
@@ -461,8 +461,8 @@ await describe({
           },
         },),
         it({
-          name: 'STILL STOPS THE LANES WHEN EVERY BACKFILL CANDIDATE IS DARK (only DeepSeek wet), and the stop line says the '
-            + 'role order gave nothing',
+          name: 'STILL STOPS THE LANES WHEN EVERY BACKFILL CANDIDATE IS DARK (only DeepSeek wet), and the stop line '
+            + 'says the role order gave nothing',
           fn: async () => {
             const lines: string[] = [];
             const { seats, expected, } = benchesFor({ dry: DEEPSEEK_ALONE, },);
