@@ -1739,7 +1739,19 @@ each finished branch is reviewed and merged into `main`):
   `tos`,
   `nhid`
   or `nexthop` now refuses the bypass (fails closed);
-  the TSDoc and README wording sent back for that.
+  the TSDoc and README wording sent back for that,
+  done in `a255741468`.
+  The cross-vendor retry on the narrower diff also timed out empty (`sol-review3.txt`).
+  Owner 2026-11-01:
+  "Deploy, keep reviewing (Recommended)".
+  Merged as `63eed6d1c3`;
+  build and tests of both packages on it running,
+  then `down` and `up` through `~/temp/agent/wg-restart/restart.ts`,
+  while a further cross-vendor retry runs (`sol-review4.txt`,
+  default thinking level).
+  Queued:
+  if that review finds a defect,
+  fix it and restart again.
   Then merge,
   build,
   and one restart (`down` then `up`).
