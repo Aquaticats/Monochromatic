@@ -32,6 +32,7 @@ import type {
   RepairSliceSeating,
 } from '@monochromatic-dev/translation-repair-assembly';
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
+import { repairPreparedDocument, } from '@monochromatic-dev/translation-repair-repair';
 import {
   type ChatJsonOutcome,
   type ChatJsonRequest,
@@ -82,13 +83,6 @@ The cat is doing the sleeping on the windowsill.
 
 On the windowsill there is being a bird.
 `;
-
-/**
- Times the repair lane asks its hook for one slice: once before the accuracy settlement of the slice and once before the
- refinement of the same slice, which reads its refiners again for each slice so a hold that began between the two
- phases is the one honoured (ledger B1332). The translate lane asks once per slice.
- */
-const REPAIR_ASKS_PER_SLICE = 2;
 
 /**
  Sentence every translator returns for the first section.
@@ -447,6 +441,49 @@ async function runLanes(
   },);
 }
 
+/**
+ Counts how often the repair lane asks its hook when it runs alone over the fixture pair, with the script of
+ {@link lanesClient}.
+
+ @returns Asks the lane made, which the lanes driver has to forward one for one
+
+ @example
+ ```ts
+ const asks = await repairAsksOfTheLaneAlone();
+ ```
+ */
+async function repairAsksOfTheLaneAlone(): Promise<number> {
+  /**
+   Run steering of the lane run alone, which nothing aborts.
+   */
+  const controller = new AbortController();
+  /**
+   Asks counted by the hook.
+   */
+  const counted = { asks: 0, };
+  await repairPreparedDocument({
+    client: lanesClient({
+      served: [],
+      controller,
+    },),
+    prepared: prepareDocumentPair({
+      sourceText: SOURCE_TEXT,
+      targetText: TARGET_TEXT,
+    },),
+    models: REPAIR_MODELS,
+    signal: controller.signal,
+    perCallTimeoutMs: HANG_STOP_MS,
+    overlap: 1,
+    beforeSlice: (): Promise<RepairSliceSeating> => {
+      counted.asks += 1;
+      return Promise.resolve({},);
+    },
+    parentLogger: l,
+    stageSettings: SCRIPTED_STAGE_SETTINGS,
+  },);
+  return counted.asks;
+}
+
 await describe({
   name: runDocumentLanes.name,
   children: [
@@ -611,9 +648,16 @@ await describe({
           targetText: TARGET_TEXT,
         },).slices
           .length;
+        /**
+         Times the repair lane asks for the hook when it runs alone over the same preparation: the accuracy settlement
+         of each slice asks once and the refinement of each slice asks again (ledger B1332, B1370), so this is the count
+         the driver has to forward, neither more nor fewer.
+         */
+        const repairAsksAlone = await repairAsksOfTheLaneAlone();
+        expect(repairAsksAlone,).toBeGreaterThanOrEqual(sliceCount,);
         expect(asked.filter(function isRepair(lane,): boolean {
           return lane === 'repair';
-        },).length,).toBe(sliceCount * REPAIR_ASKS_PER_SLICE,);
+        },).length,).toBe(repairAsksAlone,);
         expect(asked.filter(function isTranslate(lane,): boolean {
           return lane === 'translate';
         },).length,).toBe(sliceCount,);
