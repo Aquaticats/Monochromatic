@@ -1872,6 +1872,36 @@ the other four lanes are still running):
   fm-decision at position 41, troubleshooting at line 71, slice-cache on its
   unread tests.
 
+Wave-4 forty-sixth checkpoint (2026-11-01, cc, desktop and fm returns verified; the desktop lane
+moves to corpus-pass, and troubleshooting and slice-cache keep running):
+
+- `w4-cc-statusline` (cc-docs round 6) deep-swept the 419 to 520 middles at
+  digest-plus-regional depth: 83 markdown files, 91,190 lines, zero new rows.
+  w4-docs.jsonl stays 37 of 37. Verified live: 432 backticked references, the
+  scratch-path notes, all four supersession markers, the rescreen arithmetic,
+  the chunk exit counts and the single H1 per file. Next: line-by-line deep
+  reads of the zero-cited tech-* vets, id w4-docs-039, base rr-gp-336.
+- Lane milestone: `w4-desktop-app` COMPLETE. The last 14 deepmerge-ts.fuzz
+  type files read end to end; rows `w4-upstream-fork-072` (isTypeLevelFile omits
+  type-export-name.ts, leaving one unrewritten specifier in 18 copied names),
+  `-073` (declaredTypeNames returns [''] for a type-only re-export) and `-074`
+  (type-record's "each case pins the runtime value" claim: 1 of 14 cases has no
+  expect). Ledger 74 of 74; the upstream-fork family is complete at 16 of 16.
+  The lane is released and its slot moved to translation-repair/corpus-pass.
+- `w4-fm-variant-qt` (fm-decision round 6) read positions 41 and 43: rows
+  `w4-docs-decision-052` to `-055` (mise.lock read as live, the floating stable
+  claims, the kopia-stack 2-gate Status against three FULL PASS plus 18 renders,
+  and the 29 split .NET wraps). Concurrent commit 93390c7afe shifted
+  cargo-publish.yml by two lines; I repaired rows 020 and 027 to :61 and :228
+  and the ledger is 55 of 55. Next: position 44, id w4-docs-decision-056, base
+  rr-fmv-63.
+- Freed slot: package/translation-repair/corpus-pass opened (362 tracked files),
+  findings to w5-tr-corpus-pass.jsonl from id `w5-tr-corpus-pass-001`, base
+  rr-tcp-001, deduping the earlier corpus-pass mentions.
+- Active: cc-docs on the deep middles, fm-decision at position 44,
+  troubleshooting at line 71, slice-cache on its unread tests, corpus-pass on
+  its package.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
