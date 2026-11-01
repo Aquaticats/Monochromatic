@@ -2304,6 +2304,26 @@ Wave-4 sixty-sixth checkpoint (2026-11-01, search-mcp closed):
   rolldown-import-attributes 001 rr-ria-001, runtime-error/bun 001 rr-reb-001,
   readable-stream shim 001 rr-psr-001, and proper-lockfile shim 001 rr-ppl-001.
 
+Wave-4 sixty-seventh checkpoint (2026-11-01, rolldown and runtime-error closed):
+
+- The planning slice hit the 100-turn limit with no rows after 10.3M tokens;
+  the retry is strict: positions 299 to 318 only (20 files), no project-wide
+  sweeps, append as it goes, at most 30 turns, id 045, base rr-dp-006.
+- `w5-rolldown-import-attributes` is COMPLETE: 14 rows, 14 of 14 clean; all 21
+  tracked files read, including license identity checks. The lint gate re-ran
+  here and fails with seven `require-eventual-artifact` and
+  `prefer-readonly-parameter-type` errors; the prototype-chain handler lookup is
+  the other headline warning. Next id 015; the lane is released.
+- `w5-runtime-error-bun` is COMPLETE: 14 of 14 files, 1 row, 1 of 1 clean. The
+  lint, type and dprint gates pass and seven fixtures ran; the only row is the
+  three-place hand-maintained fixture roster. Next id 002.
+- The two freed slots open `shim-node-domexception` (8 files, base rr-pnd-001)
+  and `shim-katex` (9 files, base rr-pkx-001); the pnpm family still has
+  `shim-ungap-structured-clone`, `stub-silent` and `stub-throwing` unassigned.
+- Live lanes: troubleshooting 129 rr-ts-386, planning retry 045 rr-dp-006,
+  readable-stream shim 001 rr-psr-001, proper-lockfile shim 001 rr-ppl-001,
+  node-domexception shim 001 rr-pnd-001, and katex shim 001 rr-pkx-001.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
