@@ -6238,3 +6238,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   - the m048d kills and the `bin/` lint fixes;
   - the wrapper-store fixes and the planted-control harness fix.
   The 0.5.2 release still waits for the LFS hotfix.
+- LFS hotfix READY `4788f85179` (agent `ab7d550ba5af421b8`): in-process pointer scan of the pushed commits.
+  - Zero new pointers: no git-lfs and no server request.
+  - New pointers: `git-lfs push --object-id` with exactly those objects, in runs of 500.
+  - Untrusted destination: whole-history scan.
+  - Readers decline: the git-lfs fallback.
+  - Bounded retry (2 s, 5 s) on 5xx, and URL userinfo masked in relayed output.
+  - GFP rounds A, B and C done (patch `~/temp/agent/hotfix/guard-removals.patch`).
+  Accepted behaviour changes: no lock verification on the `--object-id` path (the repository has no `lockable`); Ctrl-C
+  in a retry sleep exits; an old pointer re-added at a new path costs one batch; the stand-in tests use a decline
+  helper. Regression deferred to the next release: the submodule notice of `--recurse-submodules=on-demand` when the
+  superproject adds no pointer. That fix, plus the decoder and commit-order GFP rounds and a real start-count
+  measurement, went back to the same agent.
+- Merged onto `integ-20261101` (fast-forwarded to main first) as `f1db4e7d2c`; gate 14 runs there (unit
+  `gpc-main-gate14`). Next: merge to main, then `native:release -- 0.5.1 0.5.2 "<note>"`. Hold every merge touching the
+  wrapper or its path crates until the bump commit is on main. Then 6e bumps the lock and I verify a real push.
