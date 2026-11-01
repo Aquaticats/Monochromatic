@@ -45,6 +45,7 @@ const config: NodeFlavorConfigs = perEntryNodeConfig({
     './src/bypass-watch.ts',
     './src/linux-process-identity.ts',
     './src/tunnel-bypass-watcher-sidecar.ts',
+    './src/tunnel-bypass-watch-service.ts',
     './src/bypass-watch-sentinel-core.ts',
     './src/bypass-watch-sentinel.ts',
     './src/bypass-watch-sentinel-launch.ts',

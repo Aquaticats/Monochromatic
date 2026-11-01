@@ -68,42 +68,68 @@ function isErrnoException(error: unknown,): error is NodeJS.ErrnoException {
 
 /**
  Checks live process has exact watcher script and state arguments.
- 
+
+ A process that is exiting is not a different command:
+ once the kernel has released its address space,
+ `/proc/PID/cmdline` reads empty while the state still reads as live
+ (measured: a `node` process holding 200 MB showed state `R` with an empty command line for hundreds of consecutive reads, in four of six runs),
+ and that window falls inside the shutdown wait after a `SIGTERM`.
+ Reading it as another command made `down` refuse a watcher it had just stopped
+ and leave a half-removed tunnel
+ (live incident of 2026-10-31).
+ Its start time already identifies the process,
+ so an empty command line counts as a watcher that is no longer running,
+ and the shutdown wait still waits for its process group to disappear.
+
  @param identity - Persisted watcher identity.
- 
+
  @param statePath - Exact state argument expected in command line.
- 
+
+ @param watcherPath - Exact watcher script expected in command line,
+ replaceable in tests.
+
+ @param read - Reader of the live process,
+ replaceable in tests.
+
  @returns Whether same watcher remains live.
- 
+
  @throws {@link BypassRouteError} when PID names another live command.
- 
+
  @example
  ```ts
  await watcherIsRunning({ identity, statePath: '/tmp/state' });
  ```
  */
-async function watcherIsRunning(
+export async function watcherIsRunning(
   {
     identity,
     statePath,
+    watcherPath = WATCHER_PATH,
+    read = readLinuxProcessIdentity,
   }: {
     readonly identity: WatcherProcessIdentity;
     readonly statePath: string;
+    readonly watcherPath?: string;
+    readonly read?: typeof readLinuxProcessIdentity;
   },
 ): Promise<boolean> {
   /**
    Current process at persisted PID.
    */
-  const live = await readLinuxProcessIdentity({ pid: identity.pid, },);
+  const live = await read({ pid: identity.pid, },);
   if ((live === PROCESS_ABSENT)
     || (live.startTime !== identity.startTime)
     || (live.state === 'Z')) {
     return false;
   }
+  if (live.commandLine
+    .length
+    === 0)
+    return false;
   if (!processArgumentsMatch({
     identity: live,
     expected: [
-      WATCHER_PATH,
+      watcherPath,
       statePath,
     ],
   },)) {
@@ -163,7 +189,7 @@ function signalWatcherProcessGroup(
  watcherProcessGroupExists({ pid: 123 });
  ```
  */
-function watcherProcessGroupExists(
+export function watcherProcessGroupExists(
   { pid, }: { readonly pid: number; },
 ): boolean {
   if ((!Number.isSafeInteger(pid,)) || (pid <= 0))
@@ -188,21 +214,41 @@ function watcherProcessGroupExists(
  @param identity - Watcher identity being stopped.
  
  @param statePath - Expected command state argument.
- 
+
+ @param watcherPath - Expected watcher script argument,
+ replaceable in tests.
+
+ @param isRunning - Identity check,
+ replaceable in tests.
+
+ @param groupExists - Process-group check,
+ replaceable in tests.
+
+ @param pause - Wait between checks,
+ replaceable in tests.
+
  @returns Whether watcher disappeared before bound.
- 
+
  @example
  ```ts
  await waitForWatcherStop({ identity, statePath: '/tmp/state' });
  ```
  */
-async function waitForWatcherStop(
+export async function waitForWatcherStop(
   {
     identity,
     statePath,
+    watcherPath = WATCHER_PATH,
+    isRunning = watcherIsRunning,
+    groupExists = watcherProcessGroupExists,
+    pause = wait,
   }: {
     readonly identity: WatcherProcessIdentity;
     readonly statePath: string;
+    readonly watcherPath?: string;
+    readonly isRunning?: typeof watcherIsRunning;
+    readonly groupExists?: typeof watcherProcessGroupExists;
+    readonly pause?: (milliseconds: number,) => Promise<unknown>;
   },
 ): Promise<boolean> {
   /**
@@ -211,13 +257,14 @@ async function waitForWatcherStop(
   const cursor = { attempt: 0, };
   while (cursor.attempt < PROCESS_WAIT_ATTEMPTS) {
     // oxlint-disable-next-line eslint/no-await-in-loop -- Exact process identity must be rechecked after each bounded delay.
-    if ((!(await watcherIsRunning({
+    if ((!(await isRunning({
       identity,
       statePath,
-    },))) && (!watcherProcessGroupExists({ pid: identity.pid, })))
+      watcherPath,
+    },))) && (!groupExists({ pid: identity.pid, })))
       return true;
     // oxlint-disable-next-line eslint/no-await-in-loop -- Bounded shutdown wait avoids busy spin.
-    await wait(PROCESS_WAIT_DELAY_MS,);
+    await pause(PROCESS_WAIT_DELAY_MS,);
     cursor.attempt += 1;
   }
   return false;
@@ -290,14 +337,23 @@ export async function registerBypassWatcher(
  and complete command identity match.
  
  @param state - Persisted bypass state.
- 
+
+ @param watcherPath - Expected watcher script argument,
+ replaceable in tests.
+
  @example
  ```ts
  await stopBypassWatcher({ state });
  ```
  */
 export async function stopBypassWatcher(
-  { state, }: { readonly state: BypassState; },
+  {
+    state,
+    watcherPath = WATCHER_PATH,
+  }: {
+    readonly state: BypassState;
+    readonly watcherPath?: string;
+  },
 ): Promise<void> {
   /**
    Persisted state path and watcher identity.
@@ -315,6 +371,7 @@ export async function stopBypassWatcher(
   if (!(await watcherIsRunning({
     identity,
     statePath,
+    watcherPath,
   }))) {
     await rm(
       watcherIdentityPath({ statePath, },),
@@ -329,10 +386,12 @@ export async function stopBypassWatcher(
   if (!(await waitForWatcherStop({
     identity,
     statePath,
+    watcherPath,
   }))) {
     if (!(await watcherIsRunning({
       identity,
       statePath,
+      watcherPath,
     }))) {
       await rm(
         watcherIdentityPath({ statePath, },),
@@ -347,6 +406,7 @@ export async function stopBypassWatcher(
     if (!(await waitForWatcherStop({
       identity,
       statePath,
+      watcherPath,
     }))) {
       throw new BypassRouteError(`Bypass watcher PID ${String(identity.pid,)} survived SIGKILL.`,);
     }
