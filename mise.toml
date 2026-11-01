@@ -1104,8 +1104,8 @@ run = """
 # playwright.Dockerfile (doc/runbook/publish-playwright-image.md). This task pulls that tag and names it
 # monochromatic-playwright, the name the Playwright tasks run; it builds the file locally, printing why, only when the
 # pull fails. A local monochromatic-playwright:<tag> is kept as it is, so a repeat costs one `podman image exists`.
-# Do not edit playwright.Dockerfile on a branch that is not main: its tag would exist in the registry only after the
-# change reaches main and CI runs.
+# Any edit of playwright.Dockerfile changes the tag, and the new tag exists in the registry only after the edit has
+# reached main and CI has run; until then this task falls back to the local build.
 [tasks."prepare:playwright"]
 description = "Get the Playwright container image: pull the published one for this playwright.Dockerfile, or build it locally when the pull fails"
 shell = "node --input-type=module-typescript -e"

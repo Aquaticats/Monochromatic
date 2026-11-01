@@ -424,6 +424,25 @@ await describe({
           },
         },),
         it({
+          name: 'throws with the command when giving a local image of this tag the plain name fails',
+          fn: async () => {
+            const { podman, calls, log, } = scripted({
+              image: { exitCode: 0, output: '', },
+              tag: { exitCode: 125, output: 'image not known', },
+            },);
+            let caught: unknown;
+            try {
+              await ensurePlaywrightImage({ dockerfile: DOCKERFILE, dockerfilePath: 'playwright.Dockerfile', podman, log, },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(PlaywrightImageError,);
+            expect((caught as Error).message,).toContain(`podman tag ${TAGGED} monochromatic-playwright exited 125: image not known`,);
+            expect(calls,).toEqual([`image exists ${TAGGED}`, `tag ${TAGGED} monochromatic-playwright`,],);
+          },
+        },),
+        it({
           name: 'treats an exit status other than 0 from image exists as not local, as 1 and 125 both are',
           fn: async () => {
             /**
