@@ -1,36 +1,35 @@
 //! What:
 //!  The post-landing completion of one landed commit, in the incumbent's order:
 //!  added-path worktree copies, shadow and transaction removal with capture pruning,
-//!  automatic maintenance, then `post-commit` under the hook lock.
+//!  automatic maintenance, then the declared post-commit actions.
 //! Why:
 //!  The incumbent's `commit-transaction-conclusion.ts` runs these steps after a landing.
 //!  Worktree copies come first, so an interruption before cleanup leaves the journal for recovery to finish them.
-//!  Maintenance bounds the pack count each landing grows, so it runs before the hook.
-//!  A maintenance failure is logged and never fails the landed commit; a copy, disposal or hook failure
-//!  fails the command with its message, as the incumbent's thrown error does.
+//!  Maintenance bounds the pack count each landing grows, so it runs before the actions.
+//!  A maintenance failure is logged and never fails the landed commit, and neither does an action; a copy or
+//!  disposal failure fails the command with its message, as the incumbent's thrown error does.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! await installAddedWorktreeFiles({ gitPath, cwd, repositoryRoot, records: [...addedPaths, ...worktreeRecords], objectDirectory });
 //! await workspace[Symbol.asyncDispose]();
 //! await runAutoMaintenance({ gitPath, cwd: repositoryRoot, globalArgs });
-//! await runPostCommitHook({ gitPath, cwd: repositoryRoot, globalArgs, realIndexPath, landedOid, plan });
+//! await runPostCommitActions({ actions, landedOid, topLevel: repositoryRoot, environment });
 //! ```
 
 use super::diagnostic_log::{debug, warn};
-use super::hook_run::transaction_no_hooks_directory;
-use super::hook_dispatch_plan::HookDispatchPlan;
+use super::config_post_commit::PostCommitAction;
 use super::landed_disposal::{LandedTransactionPaths, dispose_landed_transaction};
 use super::config_snapshot::ConfigSnapshot;
 use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
-use super::post_commit_hook::{
-    PostCommitHookError, PostCommitHookOutcome, PostCommitHookRequest, run_post_commit_hook,
-};
+use super::post_commit_action::{ActionReport, PostCommitActionsRequest, run_post_commit_actions};
+use super::scratch_location::prepare_repository_scratch;
 use super::recovery_error::RecoveryError;
 use super::transaction_git::GitContext;
 use super::transaction_journal::AddedPath;
 use super::worktree_completion::{InstallResult, install_added_worktree_files};
 use std::fmt::{Display, Formatter};
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// What:
@@ -61,11 +60,11 @@ pub struct LandedTransaction {
     pub git_dir: PathBuf,
     /// Transaction registry root.
     pub registry_root: PathBuf,
-    /// Real index native Git names in `GIT_INDEX_FILE` for `post-commit`.
-    pub real_index: PathBuf,
+    /// Common Git directory, where the scratch for an action's streams lives.
+    pub common_dir: PathBuf,
     /// Paths a policy added, with their worktree completion records.
     pub added_paths: Vec<AddedPath>,
-    /// Selected corrections, then hook changes, whose worktree copies the landing completes.
+    /// Selected corrections whose worktree copies the landing completes.
     pub worktree_records: Vec<AddedPath>,
     /// The configuration read when the commit began, which supplies the maintenance keys when it models them.
     pub config_snapshot: Option<ConfigSnapshot>,
@@ -74,18 +73,21 @@ pub struct LandedTransaction {
 /// What:
 ///  The inputs of one post-landing completion.
 /// Why:
-///   The context carries the caller's global options for maintenance; the plan carries the hook lock and disabled events.
+///   The context carries the caller's global options for maintenance; the actions are the configuration's declared
+///  post-commit actions and the environment is the wrapper's, which they inherit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// { gitPath, globalArgs, plan, landed }
+/// { gitPath, globalArgs, actions, environment, landed }
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct PostLandingRequest<'a> {
     /// Real Git and the caller's global options.
     pub context: &'a GitContext,
-    /// Dispatch plan the commit computed before preparation.
-    pub plan: &'a HookDispatchPlan,
+    /// The declared post-commit actions.
+    pub actions: &'a [PostCommitAction],
+    /// The wrapper's environment.
+    pub environment: &'a [(OsString, OsString)],
     /// The landed commit and its transaction paths.
     pub landed: &'a LandedTransaction,
 }
@@ -93,7 +95,7 @@ pub struct PostLandingRequest<'a> {
 /// What:
 ///  What post-landing completion did, reported for the caller's diagnostics.
 /// Why:
-///   Only the hook's status can change the caller's output, and the incumbent ignores it, so the caller reports it and exits 0.
+///   An action's ending is reported on standard error by the runner and never changes the exit status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,8 +111,8 @@ pub struct PostLandingOutcome {
     pub pruned_captures: usize,
     /// Maintenance outcome, or `None` when maintenance could not start and the failure was logged.
     pub maintenance: Option<AutoMaintenanceOutcome>,
-    /// Whether `post-commit` ran and its status.
-    pub hook: PostCommitHookOutcome,
+    /// How each declared action ended, in declaration order.
+    pub actions: Vec<ActionReport>,
 }
 
 /// What:
@@ -120,7 +122,7 @@ pub struct PostLandingOutcome {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// throw error; // from installAddedWorktreeFiles, workspace disposal, or runPostCommitHook
+/// throw error; // from installAddedWorktreeFiles or workspace disposal
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PostLandingError {
@@ -128,8 +130,6 @@ pub enum PostLandingError {
     Install(RecoveryError),
     /// The shadow or the transaction directory could not be removed.
     Dispose(RecoveryError),
-    /// The post-commit run failed before its hook started.
-    Hook(PostCommitHookError),
 }
 
 impl Display for PostLandingError {
@@ -147,7 +147,6 @@ impl Display for PostLandingError {
             PostLandingError::Install(error) | PostLandingError::Dispose(error) => {
                 write!(formatter, "{}", error.0)
             }
-            PostLandingError::Hook(error) => write!(formatter, "{}", error.0),
         };
     }
 }
@@ -155,11 +154,11 @@ impl Display for PostLandingError {
 /// What:
 ///  Complete a landed commit's transaction in the incumbent's order and report what each step did.
 /// Why:
-///   Each step runs only after the one before it succeeded, except maintenance, whose failure never stops the hook.
+///   Each step runs only after the one before it succeeded, except maintenance, whose failure never stops the actions.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await installAddedWorktreeFiles(...); await workspace[Symbol.asyncDispose](); await runAutoMaintenance(...); await runPostCommitHook(...);
+/// await installAddedWorktreeFiles(...); await workspace[Symbol.asyncDispose](); await runAutoMaintenance(...); await runPostCommitActions(...);
 /// ```
 pub fn complete_landed_transaction(
     request: PostLandingRequest,
@@ -204,21 +203,33 @@ pub fn complete_landed_transaction(
             None
         }
     };
-    let hook: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
-        context: request.context,
-        worktree: landed.repository_root.as_path(),
-        real_index: landed.real_index.as_path(),
-        landed_oid: landed.landed_oid.as_str(),
-        plan: request.plan,
-        no_hooks_directory: transaction_no_hooks_directory(landed.directory.as_path()).as_path(),
-    })
-    .map_err(PostLandingError::Hook)?;
+    let scratch: Option<PathBuf> = if request.actions.is_empty() {
+        None
+    } else {
+        match prepare_repository_scratch(landed.common_dir.as_path()) {
+            Ok(directory) => Some(directory),
+            Err(error) => {
+                warn("completeLandedTransaction", format!("no scratch for the post-commit actions: {error}").as_str());
+                None
+            }
+        }
+    };
+    let actions: Vec<ActionReport> = match scratch {
+        Some(directory) => run_post_commit_actions(&PostCommitActionsRequest {
+            actions: request.actions,
+            landed_oid: landed.landed_oid.as_str(),
+            top_level: landed.repository_root.as_path(),
+            environment: request.environment,
+            scratch: directory.as_path(),
+        }),
+        None => Vec::new(),
+    };
     return Ok(PostLandingOutcome {
         landed_oid: landed.landed_oid.clone(),
         worktree,
         pruned_captures,
         maintenance,
-        hook,
+        actions,
     });
 }
 

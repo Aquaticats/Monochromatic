@@ -81,9 +81,9 @@ fn a_forwarded_command_does_not_run_a_hook_file() {
     remove_settled(&fixture);
 }
 
-/// A hook defined in the configuration still runs through the wrapper.
+/// A hook defined in the configuration never runs through the wrapper: the wrapper supports no external hook program.
 #[test]
-fn a_configured_hook_still_runs_for_a_forwarded_command() {
+fn a_configured_hook_never_runs_for_a_forwarded_command() {
     let fixture: Fixture = fixture("hooks-off-configured");
     let world: World = world(&fixture, false);
     marker_hook(&world, "post-checkout", 1);
@@ -93,7 +93,7 @@ fn a_configured_hook_still_runs_for_a_forwarded_command() {
     git(&fixture, world.repo.as_path(), &["config", "hook.control.command", script.to_str().expect("UTF-8")]);
     let switched: Observed = wrapped(&fixture, &world, &["checkout", "--quiet", "main"]);
     assert_eq!(switched.code, Some(0), "{}", stderr_of(&switched));
-    assert_eq!(markers(&world), "configured\n");
+    assert_eq!(markers(&world), "");
     remove_settled(&fixture);
 }
 
@@ -289,7 +289,7 @@ fn doctor_keeps_reporting_other_hooks_beside_the_shims() {
         String::from_utf8_lossy(&report.stdout),
         format!("{}\n", world.repo.join(".git/hooks/pre-commit").display())
     );
-    assert!(stderr_of(&report).contains("unsupported"), "{}", stderr_of(&report));
+    assert!(stderr_of(&report).contains("never run through cli-git"), "{}", stderr_of(&report));
     remove_settled(&fixture);
 }
 

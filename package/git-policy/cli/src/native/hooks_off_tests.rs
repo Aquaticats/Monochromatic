@@ -9,9 +9,21 @@ fn tokens(command: &Command) -> Vec<String> {
     return command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); }).collect();
 }
 
-/// The option as it is spelled on the command line.
-fn option() -> String {
-    return format!("core.hooksPath={NO_HOOKS_DIRECTORY}");
+/// The options as they are spelled on the command line: the hooks path, then one switch per event.
+fn prefix() -> Vec<String> {
+    let mut tokens: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={NO_HOOKS_DIRECTORY}")];
+    for event in switched_off_events() {
+        tokens.push(String::from("-c"));
+        tokens.push(format!("hook.{event}.enabled=false"));
+    }
+    return tokens;
+}
+
+/// The expected tokens: the prefix, then the caller's.
+fn with_prefix(rest: &[&str]) -> Vec<String> {
+    let mut tokens: Vec<String> = prefix();
+    tokens.extend(rest.iter().map(|token| { return String::from(*token); }));
+    return tokens;
 }
 
 /// Build the command the wrapper builds for `arguments` once the option is switched on.
@@ -35,12 +47,12 @@ fn the_option_is_added_only_after_the_process_switched_it_on() {
 /// The option goes first, so any `-c core.hooksPath` of the caller comes later and wins.
 #[test]
 fn the_option_precedes_every_argument_of_the_caller() {
-    assert_eq!(tokens(&built(&["status"])), vec!["-c", option().as_str(), "status"]);
+    assert_eq!(tokens(&built(&["status"])), with_prefix(&["status"]));
     assert_eq!(
         tokens(&built(&["-C", "dir", "-c", "core.hooksPath=mine", "push"])),
-        vec!["-c", option().as_str(), "-C", "dir", "-c", "core.hooksPath=mine", "push"]
+        with_prefix(&["-C", "dir", "-c", "core.hooksPath=mine", "push"])
     );
-    assert_eq!(tokens(&built(&["--version"])), vec!["-c", option().as_str(), "--version"]);
+    assert_eq!(tokens(&built(&["--version"])), with_prefix(&["--version"]));
 }
 
 /// A configuration query reports what the repository configures, so it goes without the option.
@@ -52,7 +64,7 @@ fn a_configuration_query_goes_without_the_option() {
         vec!["-C", "dir", "-c", "a=b", "config", "--list"]
     );
     // A word that only looks like the command is not one.
-    assert_eq!(tokens(&built(&["log", "config"])), vec!["-c", option().as_str(), "log", "config"]);
+    assert_eq!(tokens(&built(&["log", "config"])), with_prefix(&["log", "config"]));
 }
 
 /// The directory is below a device, so it can never exist.
@@ -91,20 +103,21 @@ fn hooked_repository(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
     return (repo, file_marker, config_marker);
 }
 
-/// A hook file does not run and a configured hook does, with the option; the same repository runs the file without it.
+/// Neither a hook file nor a configured hook runs with the options; the same repository runs both without them.
 #[test]
-fn real_git_runs_configured_hooks_and_no_hook_file() {
+fn real_git_runs_no_hook_file_and_no_configured_hook() {
     let root: PathBuf = fixture("hooks-off-real");
     let (repo, file_marker, config_marker) = hooked_repository(root.as_path());
     let committed = run(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     assert!(committed.status.success(), "{}", String::from_utf8_lossy(&committed.stderr));
     assert!(!file_marker.exists(), "the hook file must not run");
-    assert!(config_marker.exists(), "the configured hook must run");
-    // Positive control: without the option the same hook file runs and refuses the commit.
+    assert!(!config_marker.exists(), "the configured hook must not run");
+    // Positive control: without the options the same hook file runs and refuses the commit.
     git(repo.as_path(), &["reset", "--quiet", "--soft", "HEAD~1"]);
     let direct = crate::test_support::git_output(repo.as_path(), &["commit", "--quiet", "--message=one"]);
     assert!(!direct.status.success());
-    assert!(file_marker.exists(), "real Git without the option runs the hook file");
+    assert!(file_marker.exists(), "real Git without the options runs the hook file");
+    assert!(config_marker.exists(), "real Git without the options runs the configured hook");
     remove(root.as_path());
 }
 
@@ -131,5 +144,46 @@ fn a_configuration_query_still_reports_the_repositorys_hooks_path() {
     assert_eq!(String::from_utf8_lossy(&reported.stdout).trim(), "/somewhere/hooks");
     let listed = run(repo.as_path(), &["config", "--list"]);
     assert!(!String::from_utf8_lossy(&listed.stdout).contains("cli-git-no-hooks"));
+    remove(root.as_path());
+}
+
+/// Every listed name is a hook event real Git knows: `git hook list` refuses an unknown event name.
+#[test]
+fn every_listed_event_is_a_hook_event_of_real_git() {
+    let root: PathBuf = fixture("hooks-off-events");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    for event in HOOK_EVENTS {
+        let listed = crate::test_support::git_output(repo.as_path(), &["hook", "list", event]);
+        let text: String = String::from_utf8_lossy(&listed.stderr).into_owned();
+        assert!(!text.contains("unknown hook event"), "{event}: {text}");
+    }
+    let unknown = crate::test_support::git_output(repo.as_path(), &["hook", "list", "not-a-hook-event"]);
+    assert!(
+        String::from_utf8_lossy(&unknown.stderr).contains("unknown hook event"),
+        "positive control: Git must refuse a made-up name: {}",
+        String::from_utf8_lossy(&unknown.stderr)
+    );
+    remove(root.as_path());
+}
+
+/// A configured hook of any name and any listed event stays off, the wrapper's push event aside.
+#[test]
+fn a_configured_hook_for_each_switched_off_event_does_not_run() {
+    let root: PathBuf = fixture("hooks-off-each-event");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    for (index, event) in switched_off_events().enumerate() {
+        git(repo.as_path(), &["config", format!("hook.named-{index}.event").as_str(), event]);
+        git(repo.as_path(), &["config", format!("hook.named-{index}.command").as_str(), "true"]);
+    }
+    let listed = run(repo.as_path(), &["config", "--list"]);
+    assert!(String::from_utf8_lossy(&listed.stdout).contains("hook.named-0.event"));
+    let first = switched_off_events().next().expect("an event");
+    let switched = run(repo.as_path(), &["hook", "list", first]);
+    let shown: String = String::from_utf8_lossy(&switched.stdout).into_owned();
+    assert!(shown.contains("event-disabled") && shown.contains("named-0"), "Git must list the hook as disabled: {shown}");
+    // Positive control: without the switches Git lists the same hook as enabled.
+    let plain = crate::test_support::git_output(repo.as_path(), &["hook", "list", first]);
+    let plain_shown: String = String::from_utf8_lossy(&plain.stdout).into_owned();
+    assert!(plain_shown.contains("named-0") && !plain_shown.contains("event-disabled"), "{plain_shown}");
     remove(root.as_path());
 }

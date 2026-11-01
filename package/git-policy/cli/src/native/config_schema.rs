@@ -19,6 +19,7 @@
 /// ```ts
 /// import { POLICY_REGISTRY, type PolicyId, type Severity } from './policy-registry.ts';
 /// ```
+use super::config_post_commit::PostCommitAction;
 use super::policy_registry::{
     POLICY_REGISTRY, PolicyDescriptor, PolicyId, Severity, policy_descriptor,
 };
@@ -190,19 +191,22 @@ pub struct PolicyConfig {
 }
 
 /// What:
-///  Hook serialization tuning (`hooks` key).
+///  The retired `hooks` key.
 /// Why:
-///   `false` serializes preparation and post-landing hooks through the hook lock.
+///   `hooks.concurrentCommits` tuned the hook lock, and the wrapper runs no external hook, so there is no lock to
+///  tune.
+///  Older files that set it still load: the value is checked and ignored, and `git cli-git doctor` says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HooksConfig = { concurrentCommits: boolean };
+/// type HooksConfig = { concurrentCommits: boolean; present: boolean };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct HooksConfig {
-    /// Whether hooks of concurrent commits may overlap;
-    ///  default `false`.
+    /// The value the file gave; never used.
     pub concurrent_commits: bool,
+    /// Whether the file has a `hooks` key at all.
+    pub present: bool,
 }
 
 /// What:
@@ -266,7 +270,7 @@ pub struct ConcurrencyConfig {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CliGitConfig = { policies: PolicyConfig; concurrency: ConcurrencyConfig };
+/// type CliGitConfig = { policies: PolicyConfig; concurrency: ConcurrencyConfig; postCommitActions: PostCommitAction[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CliGitConfig {
@@ -274,6 +278,8 @@ pub struct CliGitConfig {
     pub policies: PolicyConfig,
     /// Concurrent-commit tuning.
     pub concurrency: ConcurrencyConfig,
+    /// The actions run after a commit lands, in the order declared.
+    pub post_commit_actions: Vec<PostCommitAction>,
 }
 
 /// What:
@@ -299,6 +305,7 @@ impl ConcurrencyConfig {
         return ConcurrencyConfig {
             hooks: HooksConfig {
                 concurrent_commits: false,
+                present: false,
             },
             index_lock: IndexLockConfig {
                 unproven_owner_timeout_ms: DEFAULT_UNPROVEN_OWNER_TIMEOUT_MS,
@@ -425,6 +432,7 @@ impl CliGitConfig {
         return CliGitConfig {
             policies: PolicyConfig::defaults(),
             concurrency: ConcurrencyConfig::defaults(),
+            post_commit_actions: Vec::new(),
         };
     }
 }

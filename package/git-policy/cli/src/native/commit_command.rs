@@ -27,7 +27,6 @@ use super::policy_trigger::Trigger;
 use super::post_commit::{PostCommitOutcome, PostCommitRequest, run_post_commit};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::GitContext;
-use super::transaction_lease::has_valid_preparation_lease;
 use super::wrapper_controls::Controls;
 use std::ffi::OsString;
 use std::io::Write;
@@ -181,7 +180,6 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
         region: command.region,
         config: command.config,
         controls: command.controls,
-        inherited_lease_valid: has_valid_preparation_lease(command.environment),
         executable: executable.as_path(),
     };
     let request: StageRequest = StageRequest {

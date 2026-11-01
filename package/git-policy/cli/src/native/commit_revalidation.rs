@@ -16,34 +16,23 @@ use super::capture_invocation::InvocationCapture;
 use super::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use super::commit_facts::PrivateIndexFacts;
 use super::commit_index::{list_changed_index_paths, write_private_tree};
-use super::commit_preparation::{NATIVE_UNSET_VARIABLES, install_guard_when_free};
 use super::commit_transaction::{CommitInvocation, TransactionStop, failed, settled_passes, staged_at_base};
 use super::commit_workspace::CommitWorkspace;
-use super::commit_worktree_records::{HookChanges, describe_hook_changes};
 use super::diagnostic_log::debug;
-use super::forwarding::{exit_code, git_command};
-use super::signal_relay::SignalGuard;
-use super::hook_dispatch_plan::HookDispatchPlan;
-use super::hook_run::{event_may_run, hold_hook_lock, lease_variable};
-use super::owner_lock::OwnerLock;
 use super::policy_checks::ShippedChecks;
 use super::policy_content::{ContentState, LifecycleContent};
 use super::policy_engine::{StageRequest, pass_exit_code};
 use super::policy_events::PolicyEvent;
 use super::policy_pass::{PassResult, run_policy_pass};
 use super::private_storage::create_private_directory;
-use super::replay_revalidation::{move_shadow_head, pre_commit_rerun_required, read_replayed_index, replayed_index_path};
+use super::replay_revalidation::{move_shadow_head, read_replayed_index, replayed_index_path};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::GitContext;
 use super::transaction_journal::SymbolicHead;
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// Module tag for diagnostics.
 const TAG: &str = "revalidateReplay";
-
-/// The exit status of a commit whose `pre-commit` hook rejected it, as native `git commit` exits.
-const HOOK_REJECTION_EXIT: i32 = 1;
 
 /// What:
 ///  The result of revalidating a replayed tree.
@@ -57,7 +46,7 @@ const HOOK_REJECTION_EXIT: i32 = 1;
 pub enum Revalidation {
     /// The replayed commit may land.
     Revalidated {
-        /// The tree to commit, with policy and hook changes.
+        /// The tree to commit, with the policy changes.
         tree: String,
         /// The private index holding that tree.
         index: PathBuf,
@@ -65,8 +54,6 @@ pub enum Revalidation {
         events: Vec<PolicyEvent>,
         /// The paths the replayed commit changes against its new parent.
         committed_paths: Vec<Vec<u8>>,
-        /// What the re-run `pre-commit` staged.
-        hook_changes: HookChanges,
     },
     /// A policy blocked the replayed commit.
     Blocked {
@@ -80,7 +67,7 @@ pub enum Revalidation {
 /// What:
 ///  What revalidation reads besides the policies.
 /// Why:
-///   The hook re-run needs the kept global options and the hook plan; the policies need the capture.
+///   The policies need the capture and the kept global options.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -93,72 +80,6 @@ pub struct RevalidationContext<'a> {
     pub capture: &'a InvocationCapture,
     /// Whether interactive or include selection forbids automatic patches.
     pub read_only_selection: bool,
-    /// The caller's kept global options.
-    pub global_args: &'a [String],
-    /// Whether the invocation bypassed `pre-commit` with `--no-verify`.
-    pub no_verify: bool,
-    /// The hook plan: it says whether a `pre-commit` hook can run, under which lock, and with which lease.
-    pub hooks: &'a HookDispatchPlan,
-}
-
-/// What:
-///  Re-run `pre-commit` against a replayed private index with Git's `hook run`, under the hook lock.
-/// Why:
-///   Native preparation ran the hook inside `git commit`; the replay has no commit to run, so the wrapper starts
-///  Git's hook runner itself, in the shadow with the replayed index, the editor Git gives `pre-commit` when no editor
-///  runs and the preparation lease.
-///  `prepare-commit-msg` and `commit-msg` do not re-run because the message is fixed.
-///  Git's runner reads the user's `hook.pre-commit.enabled` switch itself, and nothing is started when the
-///  configuration can define no hook or the user disabled the event.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await rerunPreCommit({ gitPath, worktreeRoot, globalArgs, shadowPath, hookPlan, indexPath });
-/// ```
-fn rerun_pre_commit(
-    context: &GitContext,
-    worktree_root: &Path,
-    global_args: &[String],
-    shadow: &Path,
-    hooks: &HookDispatchPlan,
-    index: &Path,
-) -> Result<(), TransactionStop> {
-    if !event_may_run(hooks, "pre-commit") {
-        debug(TAG, "no pre-commit hook can run; the re-run is skipped");
-        return Ok(());
-    }
-    let mut arguments: Vec<OsString> = global_args.iter().map(OsString::from).collect();
-    arguments.push(OsString::from(format!("--git-dir={}", shadow.display())));
-    for word in ["hook", "run", "--ignore-missing", "pre-commit"] {
-        arguments.push(OsString::from(word));
-    }
-    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
-    let (lease_name, lease_value): (OsString, OsString) = lease_variable(hooks);
-    command
-        .current_dir(worktree_root)
-        .env("GIT_INDEX_FILE", index)
-        .env(lease_name, lease_value)
-        // Native Git gives pre-commit `GIT_EDITOR=:` when no editor runs, and a replay never opens one.
-        .env("GIT_EDITOR", ":");
-    for name in NATIVE_UNSET_VARIABLES {
-        command.env_remove(name);
-    }
-    // Held across the run; a failure before the release drops it.
-    let hook_lock: Option<OwnerLock> = hold_hook_lock(hooks, &["pre-commit"])
-        .map_err(|error| { return failed(error.to_string()); })?;
-    let guard: SignalGuard = install_guard_when_free()
-        .map_err(|error| { return failed(format!("installing the signal guard failed: {error}")); })?;
-    let outcome = guard
-        .run_child(&mut command)
-        .map_err(|error| { return TransactionStop::Message(format!("git hook run could not start: {error}")); })?;
-    debug(TAG, format!("pre-commit re-run ended {outcome:?}").as_str());
-    if let Some(held) = hook_lock {
-        held.release().map_err(|error| { return failed(error.to_string()); })?;
-    }
-    if exit_code(outcome) != 0 {
-        return Err(TransactionStop::NativeExit(HOOK_REJECTION_EXIT));
-    }
-    return Ok(());
 }
 
 /// What:
@@ -179,11 +100,9 @@ pub fn revalidate_replay<F: RepositoryFacts>(
     replay: u64,
     merged_tree: &str,
     onto: &str,
-    approved_tree: &str,
 ) -> Result<Revalidation, TransactionStop> {
     let git: &GitContext = context.invocation.context;
     let cwd: &Path = context.invocation.cwd;
-    let root: &Path = context.capture.layout.repository_root.as_path();
     let index: PathBuf = replayed_index_path(workspace.landing.directory.as_path(), replay);
     let directory: PathBuf = workspace.landing.directory.join(format!("replay-{replay}"));
     ensure_replay_directory(directory.as_path())
@@ -229,37 +148,13 @@ pub fn revalidate_replay<F: RepositoryFacts>(
     }
     let policy_tree: String =
         write_private_tree(git, cwd, index.as_path(), workspace.object_directory.as_path())?;
-    let rerun: bool = pre_commit_rerun_required(context.no_verify, policy_tree.as_str(), approved_tree);
-    if rerun {
-        rerun_pre_commit(
-            git,
-            root,
-            context.global_args,
-            workspace.landing.shadow.as_path(),
-            context.hooks,
-            index.as_path(),
-        )?;
-    }
-    let tree: String = if rerun {
-        write_private_tree(git, cwd, index.as_path(), workspace.object_directory.as_path())?
-    } else {
-        policy_tree.clone()
-    };
-    let hook_changes: HookChanges = if rerun {
-        describe_hook_changes(git, cwd, workspace.object_directory.as_path(), policy_tree.as_str(), tree.as_str())?
-    } else {
-        HookChanges::default()
-    };
-    debug(
-        TAG,
-        format!("revalidated replay {replay} onto {onto}: tree {tree}{}", if rerun { " after pre-commit" } else { "" }).as_str(),
-    );
+    let tree: String = policy_tree;
+    debug(TAG, format!("revalidated replay {replay} onto {onto}: tree {tree}").as_str());
     return Ok(Revalidation::Revalidated {
         tree,
         index,
         events: super::commit_conclusion::events_with_changed_summary(pass.events, changed_passes, changed_paths.as_slice()),
         committed_paths: candidate_paths,
-        hook_changes,
     });
 }
 

@@ -115,8 +115,9 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
     let value: String = configured_hooks_path(snapshot?)?;
     let message: String = format!(
         "`core.hooksPath` is set to {value}, so this repository may use traditional Git hooks (executable scripts in \
-         a hooks directory). cli-git does not support traditional hooks and their behavior with it is undefined; \
-         only hooks configured with `hook.<name>.event` and `hook.<name>.command` are supported. \
+         a hooks directory). cli-git supports no external hook program, traditional or configured: every Git it \
+         starts has the hooks directory switched off, so these scripts never run. Declare what a script did natively \
+         instead (a policy under policies, or an action under postCommit.actions, in cli-git.config.jsonc). \
          Run `git cli-git doctor` to list the traditional hooks it can find."
     );
     return Some(render_configuration_warning(

@@ -1,18 +1,20 @@
 //! What:
-//!  Start the real Git with traditional hooks switched off.
+//!  Start the real Git with every hook switched off.
 //! Why:
-//!  Traditional hooks (executable files in `<git-common-dir>/hooks` or a `core.hooksPath` directory) are unsupported,
-//!  and `git lfs` writes its four shims there again whenever it cleans a file, so a hook file must never run
-//!  because of a start the wrapper made.
-//!  Every real-Git start of the wrapper therefore carries `-c core.hooksPath=<a directory that never exists>` ahead of
-//!  its arguments: Git then finds no hook file, while hooks defined in the configuration
-//!  (`hook.<name>.event` with `hook.<name>.command`) still run.
-//!  A `-c core.hooksPath=...` the caller writes comes later on the command line, so it wins.
-//!  The option is part of the argument vector, so it adds no system call and no process start.
+//!  The wrapper supports no external hook program: not a traditional hook (an executable file in
+//!  `<git-common-dir>/hooks` or a `core.hooksPath` directory; `git lfs` writes its four shims there again whenever it
+//!  cleans a file) and not a hook defined in the configuration (`hook.<name>.event` with `hook.<name>.command`).
+//!  Every real-Git start of the wrapper therefore carries `-c core.hooksPath=<a directory that never exists>`, which
+//!  finds no hook file, and `-c hook.<event>.enabled=false` for every hook event Git knows, which switches every
+//!  configured hook off whatever its name, ahead of its arguments.
+//!  A `-c` the caller writes comes later on the command line, so it wins.
+//!  The options are part of the argument vector, so they add no system call and no process start.
+//!  `pre-push` is the one event left on, because the wrapper's own Git LFS upload step rides it while the push phase
+//!  of the self-invocation ban is open.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! spawn(realGit, ['-c', `core.hooksPath=${NO_HOOKS_DIRECTORY}`, ...args]);
+//! spawn(realGit, ['-c', `core.hooksPath=${NO_HOOKS_DIRECTORY}`, ...HOOK_EVENTS.flatMap((e) => ['-c', `hook.${e}.enabled=false`]), ...args]);
 //! ```
 
 /// The global-option parser, to find the subcommand behind the caller's global options.
@@ -26,6 +28,48 @@ use std::process::Command;
 
 /// The `core.hooksPath` value of every start: below `/dev/null`, which is a device, so nothing can create it.
 pub const NO_HOOKS_DIRECTORY: &str = "/dev/null/cli-git-no-hooks";
+
+/// Every hook event of Git 2.56.0 (`githooks(5)`), server-side events included.
+///  A configured hook for an event missing here would run, so the control `every_listed_event_is_a_hook_event_of_real_git`
+///  asks the host Git whether each name is one.
+pub const HOOK_EVENTS: &[&str] = &[
+    "applypatch-msg",
+    "pre-applypatch",
+    "post-applypatch",
+    "pre-commit",
+    "pre-merge-commit",
+    "prepare-commit-msg",
+    "commit-msg",
+    "post-commit",
+    "pre-rebase",
+    "post-checkout",
+    "post-merge",
+    "pre-push",
+    "pre-receive",
+    "update",
+    "proc-receive",
+    "post-receive",
+    "post-update",
+    "reference-transaction",
+    "push-to-checkout",
+    "pre-auto-gc",
+    "post-rewrite",
+    "sendemail-validate",
+    "fsmonitor-watchman",
+    "p4-changelist",
+    "p4-prepare-changelist",
+    "p4-post-changelist",
+    "p4-pre-submit",
+    "post-index-change",
+];
+
+/// The event the wrapper's own Git LFS upload hook rides; its configured hooks stay on for now.
+pub const PUSH_EVENT: &str = "pre-push";
+
+/// The events a real-Git start of the wrapper switches off.
+pub fn switched_off_events() -> impl Iterator<Item = &'static str> {
+    return HOOK_EVENTS.iter().copied().filter(|event| { return *event != PUSH_EVENT; });
+}
 
 /// What:
 ///  Whether `arguments` run `git config`.
@@ -64,8 +108,8 @@ pub fn activate() {
 /// What:
 ///  Add the hooks-off option to a command, unless it is a configuration query.
 /// Why:
-///   The option goes before the arguments the command already carries or is about to carry, so a `-c core.hooksPath`
-///  of the caller comes later and wins.
+///   The options go before the arguments the command already carries or is about to carry, so a `-c core.hooksPath`
+///  or `-c hook.<event>.enabled` of the caller comes later and wins.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,6 +120,9 @@ pub fn add_hooks_off_option(command: &mut Command, arguments: &[OsString]) {
         return;
     }
     command.arg("-c").arg(format!("core.hooksPath={NO_HOOKS_DIRECTORY}"));
+    for event in switched_off_events() {
+        command.arg("-c").arg(format!("hook.{event}.enabled=false"));
+    }
 }
 
 /// What:

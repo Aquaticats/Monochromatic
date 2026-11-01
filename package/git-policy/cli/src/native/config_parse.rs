@@ -24,6 +24,7 @@
 /// ```
 use super::config_error::ConfigError;
 use super::config_policies::parse_policies;
+use super::config_post_commit::parse_post_commit;
 use super::config_schema::{CliGitConfig, ConcurrencyConfig};
 use super::config_values::{boolean, member_keys, member_path, safe_integer, wrong_kind};
 /// What:
@@ -47,9 +48,9 @@ use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ACCEPTED_KEYS = 'policies, hooks, indexLock, landing';
+/// const ACCEPTED_KEYS = 'policies, hooks, indexLock, landing, postCommit';
 /// ```
-const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing";
+const ACCEPTED_KEYS: &str = "policies, hooks, indexLock, landing, postCommit";
 
 /// What:
 ///  Explain a top-level key the schema does not accept.
@@ -155,6 +156,7 @@ fn apply_concurrency(
         let member_value: &JsoncValue = &entries[index].value;
         if key == "hooks" {
             result.hooks.concurrent_commits = boolean(member_value, path.as_str())?;
+            result.hooks.present = true;
         } else if key == "indexLock" {
             result.index_lock.unproven_owner_timeout_ms =
                 safe_integer(member_value, path.as_str(), 0)?;
@@ -212,6 +214,8 @@ pub fn parse_config(source: &str) -> Result<CliGitConfig, ConfigError> {
         let value: &JsoncValue = &entries[index].value;
         if key == "policies" {
             config.policies = parse_policies(value)?;
+        } else if key == "postCommit" {
+            config.post_commit_actions = parse_post_commit(value)?;
         } else if key == "hooks" || key == "indexLock" || key == "landing" {
             config.concurrency = apply_concurrency(config.concurrency, key.as_str(), value)?;
         } else {

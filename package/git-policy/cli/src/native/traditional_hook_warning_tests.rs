@@ -67,8 +67,8 @@ fn the_warning_says_what_is_wrong_and_what_to_run() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
     let line: String = traditional_hooks_warning(Some(&snapshot)).expect("a warning");
     assert!(line.contains("`core.hooksPath` is set to my-hooks"), "{line}");
-    assert!(line.contains("does not support traditional hooks"), "{line}");
-    assert!(line.contains("undefined"), "{line}");
+    assert!(line.contains("supports no external hook program"), "{line}");
+    assert!(line.contains("postCommit.actions"), "{line}");
     assert!(line.contains("`git cli-git doctor`"), "{line}");
     assert!(line.contains("\"hint\":\"Hint: "), "{line}");
 }

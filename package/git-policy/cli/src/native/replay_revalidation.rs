@@ -1,8 +1,8 @@
 //! What:
-//!  The parts of revalidation after a replay that need no policy and no hook:
-//!       the replayed index, the shadow `HEAD` move the policies see, and the decision whether `pre-commit` must re-run.
+//!  The parts of revalidation after a replay that need no policy:
+//!       the replayed index and the shadow `HEAD` move the policies see.
 //! Why:
-//!  Policies and the `pre-commit` re-run belong to the integrator, which owns the policy engine and the hook runs;
+//!  Policies belong to the integrator, which owns the policy engine;
 //!       these three steps are pure Git work the integrator calls before it.
 //!
 //! In TS you'd write (pseudocode):
@@ -90,20 +90,6 @@ pub fn move_shadow_head(
     let request: GitRequest = super::shadow_git::shadow_request(shadow, cwd, &arguments);
     run_git_checked(context, &request)?;
     return Ok(());
-}
-
-/// What:
-///  Whether `pre-commit` must see the replayed tree:
-///       the invocation did not bypass hooks, and the policies changed the tree `pre-commit` last approved.
-/// Why:
-///   An unchanged tree was already approved, so re-running the hook would only repeat its answer.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const rerun = !context.noVerify && policyTree !== approvedTree;
-/// ```
-pub fn pre_commit_rerun_required(no_verify: bool, policy_tree: &str, approved_tree: &str) -> bool {
-    return !no_verify && policy_tree != approved_tree;
 }
 
 #[cfg(test)]

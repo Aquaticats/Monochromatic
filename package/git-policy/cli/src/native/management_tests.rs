@@ -648,7 +648,7 @@ fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
     let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
     assert_eq!(code, 1);
     assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
-    assert!(stderr.contains("unsupported"), "{stderr}");
+    assert!(stderr.contains("never run through cli-git"), "{stderr}");
     remove(root.as_path());
 }
 

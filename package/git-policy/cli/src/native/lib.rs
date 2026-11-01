@@ -627,22 +627,25 @@ pub mod transaction_git;
 /// The preparation and landing leases nested wrapper invocations inherit.
 pub mod transaction_lease;
 
-/// The hook plan of one commit transaction, its JSON spelling and the config reads it makes.
-pub mod hook_dispatch_plan;
+/// Lexical path normalization.
+pub mod lexical_path;
 
-/// The user's `hook.<event>.enabled` switches for the commit events.
-pub mod hook_event_switches;
+/// The `postCommit` configuration key: declared actions.
+pub mod config_post_commit;
 
-/// The hooks directory of one transaction: its plan record, which holds the preparation lease.
-pub mod hook_plan_record;
-
-/// The hook lock and the preparation lease around the hooks Git runs or the wrapper runs for a commit.
-pub mod hook_run;
+/// The argument templates of a declared action.
+pub mod post_commit_template;
 
 /// The ban on Git starting the wrapper for a hook: no entry writer, no start-name dispatch.
 #[cfg(test)]
 #[path = "hook_self_invocation_tests.rs"]
 mod hook_self_invocation_tests;
+
+/// What `git cli-git doctor` reports from the configuration: configured hooks and the retired `hooks` key.
+pub mod doctor_config;
+
+/// The configured external hooks, read from the snapshot, and the loud report that none runs.
+pub mod external_hooks;
 
 /// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;
@@ -832,8 +835,8 @@ pub mod recovery_landing;
 /// Disposal of a landed transaction: shadow removal, directory removal, then landed-capture pruning.
 pub mod landed_disposal;
 
-/// The post-commit run after a landing: author environment, hook lock, and the hook runner with inherited streams.
-pub mod post_commit_hook;
+/// The declared post-commit actions the wrapper runs itself after a landing.
+pub mod post_commit_action;
 
 /// Post-landing completion of one landed commit: worktree copies, disposal, maintenance, then `post-commit`.
 pub mod post_landing;

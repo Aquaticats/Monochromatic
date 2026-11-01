@@ -20,8 +20,7 @@ use super::commit_replay_options::ReplayOptions;
 use super::commit_revalidation::{Revalidation, RevalidationContext, revalidate_replay};
 use super::commit_transaction::{CommitInvocation, TransactionStop, failed};
 use super::commit_workspace::CommitWorkspace;
-use super::commit_worktree_records::{HookChanges, settled_entry};
-use super::hook_dispatch_plan::HookDispatchPlan;
+use super::commit_worktree_records::settled_entry;
 use super::diagnostic_log::debug;
 use super::event_path::EventPath;
 use super::landing_attempt::{LandingOutcome, LandingPayload, LandingRequest, land_transaction};
@@ -62,16 +61,12 @@ struct Candidate {
     index: PathBuf,
     /// Whether that index is the one native preparation committed.
     exact_private_index: bool,
-    /// The tree `pre-commit` last approved.
-    approved_tree: String,
     /// The paths an explicit-path landing resets.
     committed_paths: Vec<Vec<u8>>,
     /// The policy-added paths.
     added_paths: Vec<AddedPath>,
     /// The selected, corrected and hook-changed worktree completions.
     worktree_records: Vec<AddedPath>,
-    /// Everything commit hooks staged so far.
-    hook_changes: HookChanges,
     /// The events of lost races, replays and revalidations so far.
     events: Vec<PolicyEvent>,
     /// The landing attempt number.
@@ -112,16 +107,12 @@ pub struct LoopInput<'a, F: RepositoryFacts> {
     pub global_args: &'a [String],
     /// Whether interactive or include selection forbids automatic patches.
     pub read_only_selection: bool,
-    /// The hook plan, which says whether a replay has a `pre-commit` hook to re-run and under which lock.
-    pub hooks: &'a HookDispatchPlan,
     /// The paths an explicit-path commit carries.
     pub committed_paths: Vec<Vec<u8>>,
     /// The policy-added paths.
     pub added_paths: Vec<AddedPath>,
     /// The worktree completions.
     pub worktree_records: Vec<AddedPath>,
-    /// What preparation hooks staged.
-    pub hook_changes: HookChanges,
     /// The backoff budget for a foreign `index.lock`.
     pub index_lock_timeout_ms: u64,
     /// The lost landing races after which the transaction takes the landing reservation.
@@ -321,9 +312,6 @@ fn replay_candidate<F: RepositoryFacts>(
             invocation: input.invocation,
             capture: input.capture,
             read_only_selection: input.read_only_selection,
-            global_args: input.global_args,
-            no_verify: input.options.no_verify,
-            hooks: input.hooks,
         };
         revalidate_replay(
             &context,
@@ -333,10 +321,9 @@ fn replay_candidate<F: RepositoryFacts>(
             replay,
             merged_tree.as_str(),
             onto,
-            candidate.approved_tree.as_str(),
         )?
     };
-    let (tree, index, revalidation_events, revalidated_paths, revalidated_hooks): (String, PathBuf, Vec<PolicyEvent>, Vec<Vec<u8>>, HookChanges) =
+    let (tree, index, revalidation_events, revalidated_paths): (String, PathBuf, Vec<PolicyEvent>, Vec<Vec<u8>>) =
         match revalidation {
             Revalidation::Blocked { events, exit_code } => {
                 return Ok(Err(LoopOutcome::Failed {
@@ -349,16 +336,14 @@ fn replay_candidate<F: RepositoryFacts>(
                 index,
                 events,
                 committed_paths,
-                hook_changes,
-            } => (tree, index, events, committed_paths, hook_changes),
+            } => (tree, index, events, committed_paths),
         };
     let rebuilt = match rebuild_replay(&replay_request(input, replay, onto), tree.as_str()) {
         Ok(found) => found,
         Err(error) => return Ok(Err(replay_failure(input.capture, onto, replay_error_text(&error)))),
     };
     let committed_paths: Vec<Vec<u8>> = union_paths(input.committed_paths.as_slice(), revalidated_paths);
-    let mut worktree_records: Vec<AddedPath> = retarget_records(input.invocation, index.as_path(), input.worktree_records.as_slice())?;
-    worktree_records.extend(revalidated_hooks.worktree_records.iter().cloned());
+    let worktree_records: Vec<AddedPath> = retarget_records(input.invocation, index.as_path(), input.worktree_records.as_slice())?;
     let mut events: Vec<PolicyEvent> = replayed_events(
         raced,
         input.prepared.oid.as_str(),
@@ -373,11 +358,9 @@ fn replay_candidate<F: RepositoryFacts>(
         expected_old: Base::Commit(String::from(onto)),
         index: index.clone(),
         exact_private_index: false,
-        approved_tree: tree,
         committed_paths,
         added_paths: retarget_records(input.invocation, index.as_path(), input.added_paths.as_slice())?,
         worktree_records,
-        hook_changes: HookChanges::combine(&input.hook_changes, &revalidated_hooks),
         events,
         attempt: next_attempt_number(candidate.attempt),
         lost_races: lost_races_after(candidate.lost_races),
@@ -548,11 +531,9 @@ fn run_loop<F: RepositoryFacts>(
         expected_old: input.capture.base.clone(),
         index: input.workspace.landing.commit_index.clone(),
         exact_private_index: true,
-        approved_tree: input.prepared.tree_oid.clone(),
         committed_paths: input.committed_paths.clone(),
         added_paths: input.added_paths.clone(),
         worktree_records: input.worktree_records.clone(),
-        hook_changes: input.hook_changes.clone(),
         events: Vec::new(),
         attempt: 1,
         lost_races: 0,
@@ -564,7 +545,7 @@ fn run_loop<F: RepositoryFacts>(
             expected_old: candidate.expected_old.clone(),
             landed_index: candidate.index.clone(),
             exact_private_index: candidate.exact_private_index,
-            guarded_paths: candidate.hook_changes.paths.clone(),
+            guarded_paths: Vec::new(),
         };
         let request: LandingRequest<'_> = LandingRequest {
             capture: input.capture,

@@ -1,8 +1,5 @@
-//! Controls for native preparation: real state unchanged, the shadow seen by hooks,
-//!  hook failures propagated with their exit code, and no shadow left behind.
-//!
-//!  Hooks are configured in the repository (`hook.<name>.event` with `hook.<name>.command`), which is what Git runs
-//!  natively inside the preparation; the tests pass a plan whose lock lives in the transaction directory.
+//! Controls for native preparation: real state unchanged, the shadow's shape, no hook of any kind run, and no shadow
+//!  left behind.
 
 use super::*;
 use crate::capture_invocation::{capture_invocation_base, capture_invocation_layout};
@@ -51,21 +48,8 @@ struct Fixture {
     intended_tree: String,
 }
 
-/// Define the hook `under-test` for `event`: the script is written under `root` and the repository's configuration
-///  names it as the hook's command, which is what Git runs natively inside the preparation.
-fn configure_hook(root: &Path, repo: &Path, event: &str, script: &str) {
-    let scripts: PathBuf = root.join("hook-scripts");
-    std::fs::create_dir_all(&scripts).expect("hook scripts");
-    let path: PathBuf = scripts.join(event);
-    std::fs::write(&path, script).expect("hook");
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("executable");
-    git(repo, &["config", "hook.under-test.event", event]);
-    git(repo, &["config", "hook.under-test.command", path.to_str().expect("UTF-8")]);
-}
-
 /// A repository with `a.txt` committed, the change to `a.txt` staged privately, and a shadow ready to prepare.
-fn prepared_fixture(root: &Path, hook_script: Option<(&str, &str)>) -> Fixture {
+fn prepared_fixture(root: &Path) -> Fixture {
     let repo: PathBuf = repository(root, "repo");
     std::fs::write(repo.join("a.txt"), "a\n").expect("a");
     git(repo.as_path(), &["add", "a.txt"]);
@@ -116,9 +100,6 @@ fn prepared_fixture(root: &Path, hook_script: Option<(&str, &str)>) -> Fixture {
         indexes.object_directory.as_path(),
     )
     .expect("tree");
-    if let Some((name, script)) = hook_script {
-        configure_hook(root, repo.as_path(), name, script);
-    }
     return Fixture {
         repo,
         shadow,
@@ -129,25 +110,12 @@ fn prepared_fixture(root: &Path, hook_script: Option<(&str, &str)>) -> Fixture {
     };
 }
 
-/// The hook plan of a fixture: configured hooks possible, no event disabled, the lock inside the transaction directory.
-fn hook_plan(fixture: &Fixture, skip_hook_lock: bool) -> HookDispatchPlan {
-    return HookDispatchPlan {
-        disabled_events: Vec::new(),
-        lease: String::from("a-lease"),
-        hook_lock_path: fixture.transaction.join("hook.lock").display().to_string(),
-        skip_hook_lock,
-        named_hooks_possible: true,
-    };
-}
-
-/// Runs the preparation of a fixture with the fixture's hook plan.
+/// Runs the preparation of a fixture.
 fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, PreparationError> {
-    let hooks: HookDispatchPlan = hook_plan(fixture, false);
     let commit_arguments: Vec<String> = commit_args.iter().map(|arg| { return String::from(*arg); }).collect();
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
-        hooks: &hooks,
         commit_index: fixture.commit_index.as_path(),
         global_args: &[],
         commit_args: commit_arguments.as_slice(),
@@ -170,7 +138,7 @@ fn prepare(fixture: &Fixture, commit_args: &[&str]) -> Result<PreparedCommit, Pr
 #[test]
 fn preparation_leaves_real_refs_index_and_worktree_unchanged() {
     let root: PathBuf = fixture("commit-preparation-success");
-    let fixture: Fixture = prepared_fixture(root.as_path(), None);
+    let fixture: Fixture = prepared_fixture(root.as_path());
     let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
     let index_before: Vec<u8> = std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
     let head_before: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
@@ -194,66 +162,17 @@ fn preparation_leaves_real_refs_index_and_worktree_unchanged() {
     remove(root.as_path());
 }
 
-/// A hook sees the shadow as the incumbent's hook sees it: `HEAD` at the base, the upstream,
-///  the `onbranch:` include and the Git directory is the shadow itself.
-#[cfg(unix)]
-#[test]
-fn a_hook_sees_the_shadow_head_upstream_include_and_git_dir() {
-    let root: PathBuf = fixture("commit-preparation-hook-view");
-    let out: PathBuf = root.join("out");
-    std::fs::create_dir(&out).expect("out");
-    let script: String = format!(
-        "#!/bin/sh\n\
-         git rev-parse HEAD > \"{o}/head\"\n\
-         git rev-parse --abbrev-ref '@{{upstream}}' > \"{o}/upstream\"\n\
-         git config --get x.v > \"{o}/onbranch\"\n\
-         git rev-parse --git-dir > \"{o}/gitdir\"\n",
-        o = out.display()
-    );
-    let fixture: Fixture = prepared_fixture(root.as_path(), Some(("pre-commit", script.as_str())));
-    let base: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
-    prepare(&fixture, &["-m", "message"]).expect("prepared");
-    assert_eq!(std::fs::read_to_string(out.join("head")).expect("head").trim(), base);
-    assert_eq!(std::fs::read_to_string(out.join("upstream")).expect("upstream").trim(), "origin/main");
-    assert_eq!(std::fs::read_to_string(out.join("onbranch")).expect("onbranch").trim(), "onbranch");
-    assert_eq!(
-        std::fs::read_to_string(out.join("gitdir")).expect("gitdir").trim(),
-        fixture.shadow.display().to_string()
-    );
-    remove(root.as_path());
-}
-
-/// A failing `commit-msg` hook stops preparation with Git's exit code and leaves no shadow repository.
-#[cfg(unix)]
-#[test]
-fn a_failing_commit_msg_hook_propagates_the_exit_code_and_removes_the_shadow() {
-    let root: PathBuf = fixture("commit-preparation-hook-fails");
-    let fixture: Fixture = prepared_fixture(root.as_path(), Some(("commit-msg", "#!/bin/sh\nexit 7\n")));
-    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
-    let error: PreparationError = prepare(&fixture, &["-m", "message"]).expect_err("hook fails");
-    match error {
-        PreparationError::NativeExit { exit_code } => assert_eq!(exit_code, 1),
-        other => panic!("expected the native exit code, got {other}"),
-    }
-    assert!(!fixture.shadow.exists(), "the shadow must be removed");
-    assert!(!fixture.transaction.join(PREPARED_FILENAME).exists());
-    assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
-    remove(root.as_path());
-}
-
 /// A commit with nothing selected fails with Git's own nonzero code and leaves no shadow.
 #[test]
 fn a_nothing_to_commit_failure_removes_the_shadow() {
     let root: PathBuf = fixture("commit-preparation-nothing");
-    let fixture: Fixture = prepared_fixture(root.as_path(), None);
+    let fixture: Fixture = prepared_fixture(root.as_path());
     let commit_index_empty: PathBuf = fixture.transaction.join("empty.index");
     std::fs::copy(fixture.repo.join(".git").join("index"), &commit_index_empty).expect("index");
-    let hooks: HookDispatchPlan = hook_plan(&fixture, false);
     let commit_arguments: Vec<String> = vec![String::from("-m"), String::from("message")];
     let request: PreparationRequest = PreparationRequest {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
-        hooks: &hooks,
         commit_index: commit_index_empty.as_path(),
         global_args: &[],
         commit_args: commit_arguments.as_slice(),
@@ -272,7 +191,7 @@ fn a_nothing_to_commit_failure_removes_the_shadow() {
     remove(root.as_path());
 }
 
-/// The native command names the shadow, turns traditional hooks off, and names no work tree and no `post-commit` switch.
+/// The native command names the shadow and turns traditional hooks off, and names no work tree.
 #[test]
 fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
     let capture_root: PathBuf = fixture("commit-preparation-arguments");
@@ -280,19 +199,11 @@ fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
     let context = git_context();
     let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
     let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
-    let hooks: HookDispatchPlan = HookDispatchPlan {
-        disabled_events: vec![String::from("commit-msg")],
-        lease: String::from("a-lease"),
-        hook_lock_path: String::from("/unused/hook.lock"),
-        skip_hook_lock: true,
-        named_hooks_possible: true,
-    };
     let commit_arguments: Vec<String> = vec![String::from("-m"), String::from("x")];
     let global: Vec<String> = vec![String::from("-c"), String::from("a.b=1")];
     let request: PreparationRequest = PreparationRequest {
         capture: &capture,
         shadow: Path::new("/s"),
-        hooks: &hooks,
         commit_index: Path::new("/i"),
         global_args: global.as_slice(),
         commit_args: commit_arguments.as_slice(),
@@ -384,7 +295,7 @@ fn converge_fixture(fixture: &Fixture) -> CommitConvergence {
 #[test]
 fn the_final_newline_correction_reaches_the_prepared_commit() {
     let root: PathBuf = fixture("preparation-final-newline");
-    let mut prepared_for: Fixture = prepared_fixture(root.as_path(), None);
+    let mut prepared_for: Fixture = prepared_fixture(root.as_path());
     let objects: PathBuf = shadow_objects(&prepared_for);
     let uncorrected: Correction = Correction {
         path: b"a.txt".to_vec(),
@@ -411,17 +322,6 @@ fn the_final_newline_correction_reaches_the_prepared_commit() {
     let prepared: PreparedCommit = prepare(&prepared_for, &["--quiet", "-m", "corrected"])
         .expect("the corrected commit prepares");
     assert_eq!(shadow_text(&prepared_for, prepared.oid.as_str(), "a.txt"), "changed\n");
-    remove(root.as_path());
-}
-
-/// A pre-commit hook that re-stages a selected file changes the prepared commit, and the change is kept.
-#[test]
-fn a_pre_commit_hook_restaging_a_selected_file_is_kept_in_the_prepared_commit() {
-    let root: PathBuf = fixture("preparation-hook-restage");
-    let script: &str = "#!/bin/sh\nblob=$(printf 'reformatted\\n' | git hash-object -w --stdin) && git update-index --cacheinfo 100644,\"$blob\",a.txt\n";
-    let hooked: Fixture = prepared_fixture(root.as_path(), Some(("pre-commit", script)));
-    let prepared: PreparedCommit = prepare(&hooked, &["--quiet", "-m", "hooked"]).expect("the hooked commit prepares");
-    assert_eq!(shadow_text(&hooked, prepared.oid.as_str(), "a.txt"), "reformatted\n");
     remove(root.as_path());
 }
 
@@ -552,77 +452,43 @@ fn an_error_with_the_guard_wording_but_not_its_type_is_not_retried() {
     assert!(waited.is_err());
     assert_eq!(calls, 1);
 }
-/// A hook script that records its arguments, the lease it inherited, whether the hook lock exists and the work tree
-///  variable Git gave it.
-#[cfg(unix)]
-fn recording_script(record: &Path, lock: &Path) -> String {
-    return format!(
-        "#!/bin/sh\n{{ printf 'args=%s\\n' \"$*\"; printf 'lease=%s\\n' \"$CLI_GIT_PREPARATION_LEASE\"; \
-         if [ -d '{}' ]; then printf 'locked=yes\\n'; else printf 'locked=no\\n'; fi; \
-         printf 'work_tree=[%s]\\n' \"$GIT_WORK_TREE\"; }} >> '{}'\n",
-        lock.display(),
-        record.display()
-    );
-}
 
-/// Run only the native commit of a fixture under `hooks`, and return its exit code.
-#[cfg(unix)]
-fn native_commit(fixture: &Fixture, hooks: &HookDispatchPlan) -> i32 {
-    let commit_arguments: Vec<String> = ["--quiet", "-m", "message"].iter().map(|argument| { return String::from(*argument); }).collect();
-    let request: PreparationRequest = PreparationRequest {
-        capture: &fixture.capture,
-        shadow: fixture.shadow.as_path(),
-        hooks,
-        commit_index: fixture.commit_index.as_path(),
-        global_args: &[],
-        commit_args: commit_arguments.as_slice(),
+/// The shadow shows what a policy and a commit need: `HEAD` at the base, the upstream, the `onbranch:` include, and its
+///  own Git directory.
+#[test]
+fn the_shadow_shows_head_upstream_include_and_git_dir() {
+    let root: PathBuf = fixture("commit-preparation-shadow-view");
+    let prepared: Fixture = prepared_fixture(root.as_path());
+    let base: String = git_text(prepared.repo.as_path(), &["rev-parse", "HEAD"]);
+    let shadow: String = format!("--git-dir={}", prepared.shadow.display());
+    let in_shadow = |arguments: &[&str]| {
+        let mut all: Vec<&str> = vec![shadow.as_str()];
+        all.extend_from_slice(arguments);
+        return git_text(prepared.repo.as_path(), all.as_slice());
     };
-    return run_native_commit(&git_context(), fixture.repo.as_path(), &request).expect("commit");
-}
-
-/// Git runs the configured `commit-msg` hook inside the preparation with its message file, the plan's lease, and the
-///  hook lock held; the transaction's lock is gone once the preparation ends.
-#[cfg(unix)]
-#[test]
-fn a_configured_hook_runs_inside_the_preparation_under_the_lock_and_the_lease() {
-    let root: PathBuf = fixture("preparation-hook-lock");
-    let record: PathBuf = root.join("record.txt");
-    let hooked: Fixture = prepared_fixture(root.as_path(), None);
-    let lock: PathBuf = hooked.transaction.join("hook.lock");
-    configure_hook(root.as_path(), hooked.repo.as_path(), "commit-msg", recording_script(record.as_path(), lock.as_path()).as_str());
-    assert_eq!(native_commit(&hooked, &hook_plan(&hooked, false)), 0);
-    let seen: String = std::fs::read_to_string(&record).expect("the hook ran");
-    assert!(seen.contains("args=") && seen.contains("COMMIT_EDITMSG"), "{seen}");
-    assert!(seen.contains("lease=a-lease"), "{seen}");
-    assert!(seen.contains("locked=yes"), "{seen}");
-    assert!(seen.contains("work_tree=[]"), "Git leaves GIT_WORK_TREE unset for the hook: {seen}");
-    assert!(!lock.exists(), "the lock is released when the native commit ends");
+    assert_eq!(in_shadow(&["rev-parse", "HEAD"]).trim(), base);
+    assert_eq!(in_shadow(&["rev-parse", "--abbrev-ref", "@{upstream}"]).trim(), "origin/main");
+    assert_eq!(in_shadow(&["config", "--get", "x.v"]).trim(), "onbranch");
+    assert_eq!(in_shadow(&["rev-parse", "--git-dir"]).trim(), prepared.shadow.display().to_string());
     remove(root.as_path());
 }
 
-/// A plan that skips the lock (concurrent commits, or a hook's own nested commit) holds none while the hook runs.
+/// A configured hook for every hook event, whatever its name, does not run in the native commit, and the commit
+///  succeeds: the shadow's own config switches every event off.
 #[cfg(unix)]
 #[test]
-fn a_plan_that_skips_the_lock_holds_none_around_the_native_commit() {
-    let root: PathBuf = fixture("preparation-hook-no-lock");
-    let record: PathBuf = root.join("record.txt");
-    let hooked: Fixture = prepared_fixture(root.as_path(), None);
-    let lock: PathBuf = hooked.transaction.join("hook.lock");
-    configure_hook(root.as_path(), hooked.repo.as_path(), "pre-commit", recording_script(record.as_path(), lock.as_path()).as_str());
-    assert_eq!(native_commit(&hooked, &hook_plan(&hooked, true)), 0);
-    let seen: String = std::fs::read_to_string(&record).expect("the hook ran");
-    assert!(seen.contains("locked=no"), "{seen}");
-    remove(root.as_path());
-}
-
-/// A plan whose configuration can define no hook takes no lock and the native commit still succeeds.
-#[cfg(unix)]
-#[test]
-fn a_plan_without_possible_hooks_takes_no_lock() {
-    let root: PathBuf = fixture("preparation-no-hooks-no-lock");
-    let plain: Fixture = prepared_fixture(root.as_path(), None);
-    let hooks: HookDispatchPlan = HookDispatchPlan { named_hooks_possible: false, ..hook_plan(&plain, false) };
-    assert_eq!(native_commit(&plain, &hooks), 0);
-    assert!(!plain.transaction.join("hook.lock").exists());
+fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
+    let root: PathBuf = fixture("commit-preparation-no-hooks");
+    let prepared: Fixture = prepared_fixture(root.as_path());
+    let marker: PathBuf = root.join("hook-ran");
+    for (index, event) in crate::hooks_off::HOOK_EVENTS.iter().enumerate() {
+        let script: String = format!("#!/bin/sh\necho {event} >> '{}'\nexit 7\n", marker.display());
+        let path: PathBuf = root.join(format!("hook-{index}"));
+        crate::test_support::executable(path.as_path(), script.as_bytes());
+        git(prepared.repo.as_path(), &["config", format!("hook.named-{index}.event").as_str(), event]);
+        git(prepared.repo.as_path(), &["config", format!("hook.named-{index}.command").as_str(), path.to_str().expect("UTF-8")]);
+    }
+    prepare(&prepared, &["--quiet", "-m", "message"]).expect("no hook runs, so none can refuse the commit");
+    assert!(!marker.exists(), "a hook ran: {:?}", std::fs::read_to_string(&marker));
     remove(root.as_path());
 }

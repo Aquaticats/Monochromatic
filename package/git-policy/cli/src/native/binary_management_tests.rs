@@ -441,7 +441,7 @@ fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
         stdout_text(&found),
         format!("{}\n{}\n", repo.join(".git/hooks/commit-msg").display(), repo.join("custom/pre-commit").display())
     );
-    assert!(stderr_text(&found).contains("unsupported"), "{}", stderr_text(&found));
+    assert!(stderr_text(&found).contains("never run through cli-git"), "{}", stderr_text(&found));
     let refused: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor", "--all"]);
     assert_eq!(refused.code, Some(2), "{}", stderr_text(&refused));
     remove(&fixture);

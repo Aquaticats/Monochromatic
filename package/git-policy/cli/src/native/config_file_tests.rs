@@ -218,7 +218,7 @@ fn legacy_configuration_alone_requires_migration() {
             message,
             format!(
                 "Legacy configuration {} is not executed or read by the native cli-git. \
-                 Translate its settings into {} (data only: policies, hooks, indexLock, landing), \
+                 Translate its settings into {} (data only: policies, hooks, indexLock, landing, postCommit), \
                  then remove the legacy file. Plugins, executable paths, command arrays and trust \
                  settings have no JSONC equivalent because every policy is built in.",
                 root.join(reported).display(),

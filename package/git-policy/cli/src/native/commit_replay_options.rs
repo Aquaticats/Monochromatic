@@ -1,13 +1,12 @@
 //! What:
-//!  The commit options a replay repeats outside native `git commit`:
-//!  whether hooks were bypassed with `--no-verify`, and the key a signed commit is re-signed with.
+//!  The commit options a replay repeats outside native `git commit`: the key a signed commit is re-signed with.
 //! Why:
-//!  A replay rebuilds the prepared commit on a moved parent, so it must sign the same way and must know whether
-//!  `pre-commit` is allowed to run again (`src/policy-engine/commit-replay-options.ts`).
+//!  A replay rebuilds the prepared commit on a moved parent, so it must sign the same way
+//!  (`src/policy-engine/commit-replay-options.ts`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! replayOptions(['-n', '-Sabc', '-m', 'x']); // { noVerify: true, signingKey: 'abc' }
+//! replayOptions(['--gpg-sign=abc', '-m', 'x']); // { signingKey: 'abc' }
 //! ```
 
 use super::commit_args::normalise_commit_args;
@@ -44,12 +43,10 @@ const LONG_VALUE_OPTIONS: [&str; 12] = [
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ReplayOptions = { noVerify: boolean; signingKey?: string };
+/// type ReplayOptions = { signingKey?: string };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ReplayOptions {
-    /// Whether `pre-commit` and `commit-msg` were bypassed.
-    pub no_verify: bool,
     /// The key ID given to `-S` or `--gpg-sign`, absent for the configured key.
     pub signing_key: Option<String>,
 }
@@ -61,12 +58,10 @@ pub struct ReplayOptions {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ScanState = { noVerify; signingKey; valueNext; done };
+/// type ScanState = { signingKey; valueNext; done };
 /// ```
 #[derive(Clone, Debug, Default)]
 struct ScanState {
-    /// The latest `--verify` or `--no-verify` decision.
-    no_verify: bool,
     /// The latest signing key, empty for the configured key.
     signing_key: String,
     /// Whether the next token is an option value.
@@ -76,9 +71,9 @@ struct ScanState {
 }
 
 /// What:
-///  Apply one short-option cluster such as `-nS` or `-Skey`.
+///  Apply one short-option cluster such as `-aS` or `-Skey`.
 /// Why:
-///   Boolean letters before a value letter can include `n`, and an attached value after `S` is the key.
+///   An attached value after `S` is the key, and a value letter consumes the next token.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -89,17 +84,12 @@ fn scan_cluster(state: &ScanState, token: &str) -> ScanState {
     let value_index: Option<usize> = letters.iter().position(|letter| {
         return VALUE_LETTERS.contains(letter) || ATTACHED_VALUE_LETTERS.contains(letter);
     });
-    let flags: &[char] = match value_index {
-        Some(index) => &letters[..index],
-        None => letters.as_slice(),
-    };
     let value_letter: Option<char> = value_index.map(|index| { return letters[index]; });
     let attached: String = match value_index {
         Some(index) => letters[index + 1..].iter().collect(),
         None => String::new(),
     };
     return ScanState {
-        no_verify: state.no_verify || flags.contains(&'n'),
         signing_key: if value_letter == Some('S') { attached.clone() } else { state.signing_key.clone() },
         value_next: value_letter.is_some_and(|letter| { return VALUE_LETTERS.contains(&letter); }) && attached.is_empty(),
         done: state.done,
@@ -127,12 +117,6 @@ fn scan_token(state: ScanState, token: &str) -> ScanState {
     }
     if token == PATHSPEC_SEPARATOR {
         return ScanState { done: true, ..state };
-    }
-    if token == "--no-verify" || token == "--verify" {
-        return ScanState {
-            no_verify: token == "--no-verify",
-            ..state
-        };
     }
     if token == "--gpg-sign" || token.starts_with("--gpg-sign=") {
         return ScanState {
@@ -168,7 +152,6 @@ pub fn replay_options(commit_args: &[String]) -> ReplayOptions {
         state = scan_token(state, token.as_str());
     }
     return ReplayOptions {
-        no_verify: state.no_verify,
         signing_key: if state.signing_key.is_empty() { None } else { Some(state.signing_key) },
     };
 }

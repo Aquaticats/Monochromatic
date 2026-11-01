@@ -22,14 +22,12 @@ use super::commit_no_change::{NoChangeInput, complete_no_change_transaction};
 use super::commit_preparation::{PREPARED_FILENAME, PreparationRequest, read_prepared_commit, run_native_commit};
 use super::commit_replay_options::{ReplayOptions, replay_options};
 use super::journal_record::RecordSync;
-use super::commit_transaction::{CommitInvocation, Selection, TransactionResult, TransactionStop, failed, write_journal_record};
+use super::commit_transaction::{CommitInvocation, Selection, TransactionResult, TransactionStop, write_journal_record};
 use super::commit_workspace::CommitWorkspace;
-use super::commit_worktree_records::{HookChanges, describe_hook_changes, selected_worktree_records};
+use super::commit_worktree_records::selected_worktree_records;
 use super::diagnostic_log::debug;
 use super::global_arguments::global_layout;
-use super::hook_plan_record::write_hook_plan_record;
 use super::lfs_pre_push::uses_lfs;
-use super::hook_dispatch_plan::{HookDispatchPlan, HookPlanInputs, compute_hook_dispatch_plan, new_preparation_lease};
 use super::policy_checks::ShippedChecks;
 use super::policy_engine::StageRequest;
 use super::policy_events::PolicyEvent;
@@ -201,20 +199,6 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         return Ok(result);
     }
     let (global_args, commit_args): (Vec<String>, Vec<String>) = private_invocation(&pass, pathspecs, selection);
-    let lease: String = new_preparation_lease(workspace.landing.directory.as_path())
-        .map_err(|error| { return failed(format!("{error:?}")); })?;
-    let plan: HookDispatchPlan = compute_hook_dispatch_plan(&HookPlanInputs {
-        context,
-        cwd,
-        common_directory: capture.layout.common_dir.as_path(),
-        lease: lease.as_str(),
-        concurrent_commits: invocation.config.concurrency.hooks.concurrent_commits,
-        inherited_lease_valid: invocation.inherited_lease_valid,
-        snapshot: capture.layout.config_snapshot.as_ref(),
-    })
-    .map_err(|error| { return failed(format!("{error:?}")); })?;
-    write_hook_plan_record(workspace.hooks_directory.as_path(), &plan)
-        .map_err(|error| { return failed(error.to_string()); })?;
     let native_args: Vec<String> = if selection.staged_all {
         without_all_flag(commit_args.as_slice())
     } else {
@@ -223,7 +207,6 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
     let preparation: PreparationRequest<'_> = PreparationRequest {
         capture,
         shadow: workspace.landing.shadow.as_path(),
-        hooks: &plan,
         commit_index: workspace.landing.commit_index.as_path(),
         global_args: global_args.as_slice(),
         commit_args: native_args.as_slice(),
@@ -233,19 +216,8 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         return Err(TransactionStop::NativeExit(status));
     }
     let prepared = read_prepared_commit(context, workspace.landing.shadow.as_path())?;
-    let hook_changes: HookChanges = describe_hook_changes(
-        context,
-        cwd,
-        workspace.object_directory.as_path(),
-        intended_tree.as_str(),
-        prepared.tree_oid.as_str(),
-    )?;
-    debug(
-        TAG,
-        format!("prepared {}; hooks changed {} paths", prepared.oid, hook_changes.paths.len()).as_str(),
-    );
-    let mut prepared_records: Vec<AddedPath> = selected.clone();
-    prepared_records.extend(hook_changes.worktree_records.iter().cloned());
+    debug(TAG, format!("prepared {}", prepared.oid).as_str());
+    let prepared_records: Vec<AddedPath> = selected.clone();
     write_journal_record(
         workspace.landing.directory.as_path(),
         PREPARED_FILENAME,
@@ -277,11 +249,9 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         options: &options,
         global_args: global_args.as_slice(),
         read_only_selection: selection.read_only,
-        hooks: &plan,
         committed_paths: committed_paths.clone(),
         added_paths: Vec::new(),
         worktree_records: prepared_records.clone(),
-        hook_changes,
         index_lock_timeout_ms: timeout_ms,
         reserve_after_lost_races: invocation.config.concurrency.landing.reserve_after_lost_races,
     })?;
@@ -312,14 +282,15 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         shadow: workspace.landing.shadow.clone(),
         git_dir: capture.layout.git_dir.clone(),
         registry_root: capture.layout.registry_root.clone(),
-        real_index: capture.layout.real_index_path.clone(),
+        common_dir: capture.layout.common_dir.clone(),
         added_paths: final_added,
         worktree_records: final_worktree,
         config_snapshot: capture.layout.config_snapshot.clone(),
     };
     let completed = complete_landed_transaction(PostLandingRequest {
         context,
-        plan: &plan,
+        actions: invocation.config.post_commit_actions.as_slice(),
+        environment: invocation.environment,
         landed: &landed,
     });
     if let Err(error) = completed {

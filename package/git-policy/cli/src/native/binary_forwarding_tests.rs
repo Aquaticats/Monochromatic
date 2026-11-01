@@ -150,8 +150,18 @@ fn argument_bytes_reach_git_unchanged() {
         .args(probe_arguments.as_slice()),
         b"",
     );
-    // The wrapper's own hooks-off option comes first; the caller's bytes follow it unchanged.
-    let mut expected: Vec<u8> = b"13\0-c\0core.hooksPath=/dev/null/cli-git-no-hooks\0version\0".to_vec();
+    // The wrapper's own hooks-off options come first; the caller's bytes follow them unchanged.
+    let mut off: Vec<String> = vec![String::from("-c"), format!("core.hooksPath={}", git_policy_cli::hooks_off::NO_HOOKS_DIRECTORY)];
+    for event in git_policy_cli::hooks_off::switched_off_events() {
+        off.push(String::from("-c"));
+        off.push(format!("hook.{event}.enabled=false"));
+    }
+    let count: usize = off.len() + 1 + adversarial.len();
+    let mut expected: Vec<u8> = format!("{count}\0").into_bytes();
+    for argument in off.iter().map(String::as_str).chain(std::iter::once("version")) {
+        expected.extend_from_slice(argument.as_bytes());
+        expected.push(0);
+    }
     for argument in &adversarial {
         expected.extend_from_slice(argument.as_bytes());
         expected.push(0);
