@@ -199,6 +199,16 @@ export async function createScenarioRepository({
       ],
     },);
   }
+  // The scenario's service is the commit service of the worktree its commands run in, as in production: one per worktree.
+  await service.bind({ gitDir: options.worktree === 'linked' ? join(
+    directories.main,
+    '.git',
+    'worktrees',
+    'linked',
+  ) : join(
+    directories.main,
+    '.git',
+  ), },);
   /**
    Installed programs.
    */

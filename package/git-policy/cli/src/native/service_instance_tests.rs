@@ -20,6 +20,13 @@ fn an_instance_belongs_to_one_worktrees_own_git_directory() {
     remove(root.as_path());
 }
 
+/// The suite names a worktree's service in TypeScript (`e2e/service-launch-fixture.ts`); this vector is pinned there too, so
+///  the two cannot drift apart.
+#[test]
+fn the_name_of_a_path_that_cannot_be_resolved_is_pinned() {
+    assert_eq!(instance_of(Path::new("/nonexistent/instance-vector")), "b82882c15388721fd60c7ae28508d85b");
+}
+
 /// The name fits a unit name and a socket path whatever the directory is called.
 #[test]
 fn the_name_is_short_and_plain_for_any_directory() {
