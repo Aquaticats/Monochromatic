@@ -1664,6 +1664,42 @@ tree; the two git-policy ledgers are fully clean after repairs and moot disposit
   standing block and the next slices above. The batch-4 pipeline waits for wave 4
   to complete; the two git-policy ledgers and the docs ledgers are clean now.
 
+Wave-4 thirty-seventh checkpoint (2026-11-01, three follow-on lane returns verified; the android
+lane is still running and is recorded in the next checkpoint):
+
+- `w4-cc-statusline` (cc-docs round 2) returned positions 310 to 343: rows
+  `w4-docs-028` (ten prose lines over 120 characters across the reading-a-picture
+  record and its two siblings) and `w4-docs-029` (127 long lines in the
+  standards-review-gate-shadow log, the largest count in the range). My spots:
+  the two quoted gate-shadow lines measure 246 and 312 characters, and the
+  reading-a-picture line 18 measures 162; w4-docs.jsonl 29 of 29 by my run.
+  Row 029 is marked concurrent: doc/audit/standards-review-gate-shadow.md still
+  carries another session's uncommitted edits, so its line refs and 127 count
+  need re-verification before filing. Next: positions 345 to 416, then 419 to 520,
+  id w4-docs-030, base rr-gp-332.
+- `w4-desktop-app` (desktop-fork round 2) closed conf and conf.fuzz: rows
+  `w4-upstream-fork-055` to `-061`, w4-upstream-fork.jsonl 61 of 61 by my run.
+  My spots: ten conf test files hand-copy captureThrown (the row's ten sites);
+  the ascending-order migration test name is at conf.migrations line 396 and the
+  fixture inserts 2.0.0 before 1.0.0 in the sibling test; the conf.fuzz
+  coverage baseline records 15 errors.ts functions with the authentication-tag
+  constructor unreached; the remaining findings cover the hardcoded separator,
+  the classic for over a literal 10, the value-less toHaveProperty tautology and
+  the bookkeeping fixture. Coverage: conf 56 of 56 reviewable, conf.fuzz 15 of 15,
+  family 15 of 16 subpackages. Next: deepmerge-ts.fuzz, 126 files, id
+  w4-upstream-fork-062, base rr-desktop-086.
+- `w4-fm-variant-qt` (fm-decision round 2) returned positions 7 to 17: rows
+  `w4-docs-decision-025` to `-028`, w4-docs-decision.jsonl 28 of 28 by my run.
+  My spots: mise-action and jdx have zero hits in .github while the composite
+  repo-tools-setup action is tracked and called twice; package/rust-module and
+  package/linter/rust are absent from the tree and disk; cargo-publish.yml has 39
+  runs-on ubuntu-latest and zero ubuntu-24.04; the four MD6 heading sites are the
+  only blank-line gaps in 2239 headings. Next: position 11,
+  cli-git-concurrent-commits.md, id w4-docs-decision-029, base rr-fmv-59.
+- Active: android-native at position 560 (26 files to 585, id
+  w4-git-policy-b-075, base rr-gpb-071), cc-docs at positions 345 to 416,
+  desktop-fork on deepmerge-ts.fuzz, fm-decision from position 11.
+
 Wave 3 spawned (direct; briefs = stable template + canonical schema verbatim + cgroup
 wrapper + .scope footgun + synthetic-load ban + 60-minute budget + 250-word final message):
 - `w3-fe-core`: package/file-enforcer/core positions 169 to 242 (skip covered), findings to
