@@ -24,7 +24,14 @@ use crate::config_decode::ConfigScope;
 use crate::event::{Event, EventSink};
 /// Imports `OutputScope` from `crate::output_scope`.
 use crate::output_scope::OutputScope;
-/// Imports  from `crate::rpc_protocol`.
+/// Imports `ERROR_FAILED`,
+/// `ERROR_METHOD`,
+/// `ERROR_MISMATCH`,
+/// `ERROR_PARSE`,
+/// `PROTOCOL_VERSION`,
+/// `error_line`,
+/// `notification_line`,
+/// `result_line` from `crate::rpc_protocol`.
 use crate::rpc_protocol::{
     ERROR_FAILED, ERROR_METHOD, ERROR_MISMATCH, ERROR_PARSE, PROTOCOL_VERSION, error_line, notification_line, result_line,
 };
