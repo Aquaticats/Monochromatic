@@ -583,6 +583,9 @@ and the update-host destinations cover the rest of what the slice reaches by des
 A new connection of the slice to any other destination is dropped for as long as the block stands,
 which is a few moments in a `down` that succeeds and until the next `down` finishes after a failed one.
 This follows from the code and was not run against the real watcher.
+The owner accepted this gap on 2026-11-01 (the option "Accept the gap"):
+the order stays as it is,
+with the application watcher stopped before the block is installed.
 
 These rules stand ahead of the drop of their chain,
 in the same nft transaction that installs the block.
