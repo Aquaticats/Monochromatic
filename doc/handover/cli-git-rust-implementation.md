@@ -6427,3 +6427,5 @@ This block supersedes "State at 2026-10-29 (night, later)".
     service.
   - Sent to a new agent: one shared entry list for every snapshot, a fast guard against missing path dependencies, and
     real e2e and interop runs. Those runs also verify the e2e service fixture.
+- Gate 18 GREEN on `54a8610195` (`integ-20261101`, the review key in memory): 3142 of 3142 passed, 8 skipped. Merge into
+  main HELD until the 0.5.4 bump commit lands. Then merge and ship it with the next release.
