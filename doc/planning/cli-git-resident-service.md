@@ -490,7 +490,7 @@ making the opt-in the default; the amend, `-a`, `-F`, editor and signing command
 maintenance out of the command into work items; per-repository parallel landing; the 2 GiB, 2 CPU container variant of
 issue 1770; deleting the old landing path with its locks, shadow, replay and recovery once no command line reaches it.
 
-## Install command, default and the uninstalled machine
+## Install command, default and the uninstalled machine (superseded by "Provisioning")
 
 `git cli-git service install` fills the two unit templates (`@SERVICE_BINARY@` is the `cli-git-service` program next to the
 wrapper, `@GIT@` is the real Git the wrapper resolves), writes only the files that differ, runs `daemon-reload` and
@@ -615,3 +615,91 @@ client cannot find a running server instance, it starts a new one."; the client 
 version mismatch "the server is stopped and a new one started". So the install step, the installed-or-not default and the
 `CLI_GIT_COMMIT_SERVICE` switch are internal things the user must never see. Adopted: the wrapper provisions socket
 activation itself the first time a commit needs the service.
+
+## Provisioning
+
+Supersedes the install command, the installed-or-not default and the `CLI_GIT_COMMIT_SERVICE` switch, which were removed.
+The owner's correction (verbatim above) is the requirement: the first commit that needs the service makes socket activation
+exist, as Bazel's client starts its server.
+
+What the wrapper does, in order, only when the socket `$XDG_RUNTIME_DIR/cli-git/service.sock` does not already exist and the
+session bus socket and the `cli-git-service` program beside the wrapper do:
+1. Remove units of an earlier release from `~/.config/systemd/user` (they outrank runtime units in the unit search path),
+   recognized by content, plus the enabling link they left. A file of the same name that something else wrote is never
+   touched; the commit stops with a message naming the file.
+2. Write `cli-git.socket` and `cli-git.service` into `$XDG_RUNTIME_DIR/systemd/user` through a temporary file and a rename,
+   only when the content differs. Nothing remains in the home directory, and the runtime directory disappears at logout, so
+   the next first use provisions again. Concurrent first commits agree through idempotence alone: identical content, atomic
+   renames, no lock.
+3. Reload the manager only when a unit file that already existed changed or went away (an upgrade moved the program). A new
+   file needs no reload: measured on this machine, the probe unit below was found and started with no reload, while one
+   reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
+4. Start `cli-git.socket` through the manager. The manager, not the wrapper, starts the daemon on the first connection, so
+   the daemon is in its own cgroup (`doc/troubleshooting/systemd-oomd-reaps-terminal-scope-with-the-agent-in-it.md`).
+
+The calls go to the user session bus (`DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus`) as `org.freedesktop.systemd1`
+on `/org/freedesktop/systemd1`: `Hello` on the bus daemon, then `StartUnit(ss) -> o` (and `Reload()` when needed), the
+signatures in `org.freedesktop.systemd1(5)`. The manager's private socket is not used: `systemd(1)` calls it private to
+systemd.
+
+Build versus buy for the D-Bus client. zbus would add roughly fifty crates and an executor to a binary that starts on every
+git command; `dbus` links the C library; the only small pure-Rust candidate, rustbus, is not in the offline registry cache.
+The wrapper needs two methods with string arguments, so it carries a hand-written client of a few hundred lines
+(`systemd_dbus.rs`): the writer and the reader cover the types those calls and the bus's replies use (`s`, `o`, `g`, `u`),
+the reader is total over arbitrary bytes (a unit control walks every prefix and single-byte change; the `dbus_reply` fuzz
+target in `cli.fuzz` holds it to that), and the whole exchange is bounded by one deadline of twenty seconds so a stuck bus
+never hangs a commit. The layout of a call is checked against a message worked out by hand from the specification, and the
+whole client was verified once against the real user manager with a uniquely named runtime-only probe unit (written,
+started, found listening, stopped, removed; the `#[ignore]` control `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit`).
+
+Failures follow the owner's rule: no session bus or no user manager is the plain message with the remedy for the platform; a
+refused call says the service manager refused and gives its words, without its internal error name.
+
+Idle exit and version skew follow Bazel. The service exits after three hours with nothing to do (`--idle-seconds`, default
+`IDLE_EXIT`; Bazel's `--max_idle_secs` default is three hours); an announced push or upkeep keeps it alive. On a version
+mismatch the client asks the older service to retire, which drains its queue and exits, and the next connection activates
+the new program.
+
+What a machine without a user manager does: until the earlier landing path is deleted (4d), it keeps that path, because it is
+the only writer such a machine has. After 4d the same commit stops with the plain message. Before 4d runs, the paths that
+would hit that message (the gate containers, CI release jobs, `mise` tasks that commit) must be listed and reported.
+
+### Landing is replaced, preparation is kept (coordinator decision, owner veto open)
+
+For the command lines the service still does not cover (editor, signing, amend and the rest of the declined list), the
+transaction's preparation stays: policy rewrites installed into the worktree, unborn and detached heads, and merge,
+cherry-pick and revert conclusions. Only its landing step becomes the service's compare-and-swap, which is the one place
+the owner's ban applies ("Didn't I say locks are bad?": the ban is on locks and polling, not on preparation logic). Step 4d
+then deletes the landing machinery (the owner lock and its records, replay and the reservation, landing recovery, the
+shadow when it served landing), not the preparation.
+
+### Measured reload of the user manager (record, no claimed connection)
+
+The first probe against the real user manager called `Reload` and then `StartUnit`. Its test log was last written at
+2026-11-01 09:59:48 EST, the run took about forty seconds (two attempts of up to twenty seconds each, both cut by the
+deadline), and the connection errors `systemd-run` printed in the next minutes were "Transport endpoint is not connected".
+The machine's boot time afterwards reads 2026-11-01 10:08:37 EST (`uptime --since`). These times are recorded so they can
+be compared with the reboot's cause later; no connection between them is claimed.
+
+### Paths that would hit the no-manager failure (preliminary, to be completed and reported before 4d deletes anything)
+
+The failure applies only after 4d, to a commit that runs the wrapper with no socket and no session bus. First pass, from
+the repository's workflows and tasks:
+- `mise.toml` line with `cli-git-native cli-git fix --all --policy mono/dependent-version-bump`: a management command,
+  not a commit; unaffected.
+- `.github/workflows/catalog-specifiers.yml`: detection after the fact; it runs no commit through the wrapper.
+- Gate containers and the CI release jobs: not yet listed. Each must be checked for a `git commit` run with the wrapper first
+  on `PATH` and without a user session bus; the list, with the evidence for each, goes in this section and in 4d's READY
+  before anything is deleted.
+- Anything that runs the wrapper in a plain shell without a login session (cron, `systemd-run --scope` from a service, a
+  container, `ssh` without a session) has no session bus, and would stop after 4d with the message for that platform.
+
+### Secrets in the service's environment (open for the coordinator)
+
+A systemd user service does not inherit the terminal's environment, and no secret is written into a unit file. If a handler
+needs a key, for example `SHADOW_REVIEW_LLMGATEWAY_API_KEY`, the clean ways provisioning could use are: the user manager's
+own environment block, set through `SetEnvironment` on the manager at provisioning time from the wrapper's environment (held
+in the manager's memory, never on disk, and visible to every unit of the account until the manager restarts); or a
+credential the manager passes with `LoadCredential`, which needs the key in a file the account owns. Neither is
+implemented. The first is one more call on the same bus connection, with the cost that other units of the account can read
+the value; that exposure is the decision.

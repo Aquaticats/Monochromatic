@@ -14,7 +14,8 @@
 
 use super::iso_time::format_iso_milliseconds;
 use super::standards_review_client::{Gateway, Reply, SCRIPT_DEADLINE, post_decision};
-use super::standards_review_entry::{ReviewEntry, append_entry, render_review, render_skipped};
+use super::standards_review_append::{deliver, names_commit};
+use super::standards_review_entry::{ReviewEntry, render_review, render_skipped};
 use super::standards_review_input::{LOG_RELATIVE, LandedCommit, Plan, ReviewInput, build_input, plan_for};
 use super::standards_review_request::{ENDPOINT, Judged, read_answer, request_body};
 use super::standards_review_text::seconds_with_tenth;
@@ -58,6 +59,8 @@ pub struct ReviewOptions {
     pub deadline: Duration,
     /// A PEM authority replacing the embedded roots (tests only).
     pub trusted_pem: Option<Vec<u8>>,
+    /// Where each delivered entry is also kept, so a later delivery can put back one another writer overwrote.
+    pub spool: Option<PathBuf>,
 }
 
 /// What:
@@ -73,7 +76,7 @@ pub struct ReviewOptions {
 pub fn options_from_environment(repo_root: &Path, variable: &dyn Fn(&str) -> Option<String>) -> ReviewOptions {
     let log_path: PathBuf = variable(LOG_VARIABLE).map_or_else(|| return repo_root.join(LOG_RELATIVE), PathBuf::from);
     let api_key: Option<String> = variable(KEY_VARIABLES[0]).or_else(|| return variable(KEY_VARIABLES[1]));
-    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), deadline: SCRIPT_DEADLINE, trusted_pem: None };
+    return ReviewOptions { log_path, api_key, endpoint: String::from(ENDPOINT), deadline: SCRIPT_DEADLINE, trusted_pem: None, spool: None };
 }
 
 /// What:
@@ -110,6 +113,8 @@ pub enum ReviewOutcome {
     Unread(String),
     /// The entry could not be appended.
     Unwritable(String),
+    /// The log already names this commit (a repeated item): nothing was asked and nothing was added.
+    AlreadyLogged,
 }
 
 /// What:
@@ -156,13 +161,16 @@ pub fn review_landed(
     let code_files: Vec<String> = match plan_for(names) {
         Plan::Silent => return ReviewOutcome::NoEntry,
         Plan::NoCode => {
-            return match append_entry(options.log_path.as_path(), render_skipped(sha, subject).as_str()) {
-                Ok(()) => ReviewOutcome::Skipped,
-                Err(error) => ReviewOutcome::Unwritable(error.to_string()),
+            return match deliver(options.log_path.as_path(), options.spool.as_deref(), sha, render_skipped(sha, subject).as_str()) {
+                Ok(_) => ReviewOutcome::Skipped,
+                Err(message) => ReviewOutcome::Unwritable(message),
             };
         }
         Plan::Review(files) => files,
     };
+    if names_commit(options.log_path.as_path(), sha) {
+        return ReviewOutcome::AlreadyLogged;
+    }
     let commit: LandedCommit = match read(code_files.as_slice()) {
         Ok(read_commit) => read_commit,
         Err(message) => return ReviewOutcome::Unread(message),
@@ -183,9 +191,9 @@ pub fn review_landed(
         top: judged.top.clone(),
         outcome: judged.outcome.clone(),
     };
-    return match append_entry(options.log_path.as_path(), render_review(&entry).as_str()) {
-        Ok(()) => ReviewOutcome::Reviewed(judged),
-        Err(error) => ReviewOutcome::Unwritable(error.to_string()),
+    return match deliver(options.log_path.as_path(), options.spool.as_deref(), sha, render_review(&entry).as_str()) {
+        Ok(_) => ReviewOutcome::Reviewed(judged),
+        Err(message) => ReviewOutcome::Unwritable(message),
     };
 }
 

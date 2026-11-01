@@ -28,9 +28,10 @@ after the owner's cost correction of 2026-10-29
 closed the full-model census
 (65 priced runs cost 9167.9 s of reviewer wall clock,
 median 133.4 s per landing).
-`SHADOW_REVIEW_ALLOW=1` runs the pinned full review instead,
-for deliberate replays.
-A landing gets its log entry either way,
+The full review through `pi` (pinned `openai/gpt-6.1-sol`) is no longer run by anything:
+the port into the resident service does not start child programs,
+and the owner can ask for an embedded full-review client separately.
+A landing gets its log entry,
 with the route named in it.
 
 ## Definitions
@@ -65,22 +66,19 @@ Every term below is operational;
   (`doc/agent/self-review.md`),
   shown only the candidate diff's code and `AGENTS.md`.
 - Trigger:
-  until the owner decides otherwise,
-  none runs it:
-  the local Git config hook `hook.standards-review-shadow`
-  (event `post-commit`)
-  started `mise run shadow-review` in a detached systemd user unit after each landing,
-  and cli-git supports no external hook program,
-  switches every configured hook off,
-  and runs no program that any configuration names.
-  What replaces the trigger is an open owner decision recorded in
-  `doc/planning/cli-git-no-self-invocation-dispatcher.md`.
+  the wrapper.
+  When the resident service lands a commit in a worktree that holds `doc/audit/standards-review-gate-shadow.md`,
+  the wrapper leaves a `review` work item for that commit in `<git dir>/cli-git/work/`
+  (`doc/planning/cli-git-standards-review-port.md`, heading `The work-item record`).
+  The service claims it on its work thread after the command has returned.
+  The former trigger,
+  the local Git config hook `hook.standards-review-shadow` running `mise run shadow-review`,
+  and that task are removed:
+  cli-git runs no program that any configuration names.
 - May run it:
-  anyone may invoke `mise run shadow-review` by hand
-  and nobody needs to:
-  the `Trigger` starts it on every landing.
-  `SHADOW_REVIEW_ALLOW=1` on that invocation runs the pinned full review
-  instead of the Luna leg.
+  nobody needs to,
+  and nobody can start it by hand:
+  the service runs it for every landed commit in a worktree that keeps the log.
   Its findings are required by nothing
   and checked by nothing,
   so a landing completes unchanged either way.
@@ -92,63 +90,55 @@ Claude Code first,
 since its dismissals started this work.
 A shadow run attaches to the candidate diff it sits beside.
 
-The `Trigger` starts the run on each landing,
+The `Trigger` leaves the work item on each landing,
 independent of the session that landed,
 so coverage depends on nobody remembering.
-An empty log now means the trigger did not run
+An empty log means the service did not run the item
 (no landings yet,
-or a misconfiguration),
+no service installed,
+or a failed item in `<git dir>/cli-git/work/failed/`),
 never that there was nothing to catch.
 Each run appends its entry as an uncommitted change
 that some later commit carries.
 
 ## How to run it
 
-`mise run shadow-review` performs these steps
-(`SHADOW_REVIEW_LOG` points the log at a disposable fixture,
-`SHADOW_REVIEW_SHA` replays any commit instead of `HEAD`,
-`SHADOW_REVIEW_ALLOW=1` runs the pinned full review instead of the Luna leg,
+Nobody runs it by hand.
+The resident service runs one `review` work item per landed commit
+(`package/git-policy/cli/src/native/service_review.rs`),
+within a 20 s budget on the service's work thread:
+a call deadline of 10 s for the gateway and the Git reads and the write inside the rest.
+The environment of the service carries the settings:
+`SHADOW_REVIEW_LOG` points the log at a disposable fixture,
 and `SHADOW_REVIEW_LLMGATEWAY_API_KEY`,
 with the stop-hook key as fallback,
-carries the Luna credential):
+carries the credential.
+Without a credential the entry records `Luna failed: no ... API_KEY`.
 
-Two routes share the isolation and the log shape.
-The Luna leg classifies the candidate diff and excerpt
+The review classifies the candidate diff and excerpt
 with one choice question,
 the verdict a standards review would give on superlinear cost
 (`yes`,
 `partial`,
 or `no`),
 and its answer with the probability distribution is the entry.
-The full review runs these steps:
+The steps:
 
 1.
-   Isolate the code the reviewer sees:
-   the changed regions as they stand in the candidate,
-   without commit messages,
-   without the author's reasoning,
-   and without any later fix.
+   Read the landed commit's names, subject, patch and the changed code files
+   (two Git starts for a commit with code, none for a commit without).
 2.
-   Launch a fresh reviewer
-   (a separate session or subagent,
-   never the author;
-   `doc/agent/self-review.md`).
-   The prompt is standards-directed:
-   review against `AGENTS.md`,
-   report findings with function name,
-   severity,
-   tag code,
-   and rationale,
-   findings only.
+   Build the capped input and ask the gateway once.
+   A failure of the call is an entry (`Luna failed: ...`), not a failed item.
 3.
-   Hold two requirements that came from the two measured misses
-   (heading `Recall measurement results` in `doc/handover/superlinear-cost-dismissal-gate.md`):
-   account cost across call boundaries,
-   since a per-entry or per-run call into a helper that walks unbounded data is superlinear,
-   and never accept an inline complexity claim as proof,
-   since an "O(n)" or "one linear pass" comment is a claim and not evidence.
+   Append the entry to the worktree's `doc/audit/standards-review-gate-shadow.md`
+   with one append-only write, once per commit,
+   and put back any of the latest few entries that another writer's rewrite of the file lost
+   (`doc/planning/cli-git-standards-review-port.md`, heading `Appending to the shared log`).
+   The file is never created by the service.
 4.
-   Append the run to `doc/audit/standards-review-gate-shadow.md`.
+   A commit that cannot be read, a log that cannot be written, or a review that runs past its budget
+   leaves its item in `<git dir>/cli-git/work/failed/` as a plain record and nothing else.
 
 ## What the shadow log holds
 

@@ -16,6 +16,7 @@ use super::iso_time::now_iso;
 use super::service_client::{ClientConfig, wake};
 use super::service_messages::ClientFailure;
 use super::service_work::{take_notices, work_directory};
+use super::standards_review_input::has_shadow_log;
 use super::work_item::{WorkItem, WorkKind, enqueue};
 use std::io::Write;
 use std::path::PathBuf;
@@ -50,7 +51,9 @@ pub const HANDED_OVER: [WorkKind; 2] = [WorkKind::Push, WorkKind::Maintenance];
 /// ```
 pub fn hand_over(handoff: &ServiceHandoff, landed: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
     let work_dir: PathBuf = work_directory(handoff.common_dir.as_path());
-    for kind in HANDED_OVER {
+    // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
+    let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
+    for kind in HANDED_OVER.iter().chain(review.iter()).copied() {
         let item: WorkItem = WorkItem {
             kind,
             repository: handoff.repository.display().to_string(),

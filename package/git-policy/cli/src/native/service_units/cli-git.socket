@@ -1,3 +1,4 @@
+# Written by the git wrapper for its commit service (cli-git-unit); the wrapper rewrites this file when it changes.
 [Unit]
 Description=Commit service socket for the git wrapper
 
@@ -6,6 +7,3 @@ Description=Commit service socket for the git wrapper
 ListenStream=%t/cli-git/service.sock
 SocketMode=0600
 DirectoryMode=0700
-
-[Install]
-WantedBy=sockets.target

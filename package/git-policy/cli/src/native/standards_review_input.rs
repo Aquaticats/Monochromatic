@@ -18,6 +18,20 @@ use std::collections::BTreeMap;
 /// The shadow log's repository-relative path; a commit that changes nothing else is the hook's own record.
 pub const LOG_RELATIVE: &str = "doc/audit/standards-review-gate-shadow.md";
 
+/// What:
+///  Whether a worktree has the shadow log: the review exists only where the repository keeps one.
+/// Why:
+///   The log is a tracked file, so its presence is the repository's own switch; no configuration names a program, the
+///   wrapper leaves a review item only where it is true, and the service never creates the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// existsSync(join(repository, logRelative))
+/// ```
+pub fn has_shadow_log(repository: &std::path::Path) -> bool {
+    return repository.join(LOG_RELATIVE).is_file();
+}
+
 /// Patch lines kept for the model.
 pub const CAP_LINES: usize = 2000;
 
