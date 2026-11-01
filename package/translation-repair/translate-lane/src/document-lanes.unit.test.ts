@@ -153,6 +153,73 @@ type SchemaLog = string[];
 type AskedLog = { readonly schema: string; readonly modelId: RosterModelId; }[];
 
 /**
+ Asks of the hook and calls of the repair lane in the order they happened: `ask:<lane>` for each ask and
+ `call:<slice index>` for each call, the index being minus one where the call names no slice.
+ */
+type EventLog = string[];
+
+/**
+ Words that tell which slice of the fixture pair a call belongs to, in slice order.
+ */
+const SLICE_MARKERS: readonly string[] = [
+  '## 第一节',
+  '## 第二节',
+];
+
+/**
+ Asks of the hook that came before the calls of each slice.
+
+ EACH ASK BELONGS TO THE NEXT CALL OF A SLICE: the hook is awaited before the stage buys, so the asks since the last
+ call are the ones that slice made.
+
+ @param events - asks and calls in order
+ @param slices - number of slices
+
+ @returns Asks of the repair lane per slice, in slice order
+
+ @example
+ ```ts
+ const asks = asksPerSlice({ events: ['ask:repair', 'call:0',], slices: 1, },);
+ ```
+ */
+function asksPerSlice(
+  {
+    events,
+    slices,
+  }: {
+    readonly events: EventLog;
+    readonly slices: number;
+  },
+): readonly number[] {
+  return (function count(): readonly number[] {
+    /**
+     Asks counted for each slice.
+     */
+    const counts = Array.from({ length: slices, }, () => 0,);
+    /**
+     Asks made since the last call.
+     */
+    let pending = 0;
+    for (const event of events) {
+      if (event === 'ask:repair') {
+        pending += 1;
+      }
+      else if (event.startsWith('call:',)) {
+        /**
+         Slice the call belongs to.
+         */
+        const slice = Number(event.slice('call:'.length,),);
+        if ((slice >= 0) && (slice < slices)) {
+          counts[slice] = (counts[slice] ?? 0) + pending;
+          pending = 0;
+        }
+      }
+    }
+    return counts;
+  })();
+}
+
+/**
  Successful model calls in flight for one stage.
  */
 type StageConcurrency = {
@@ -195,12 +262,14 @@ function lanesClient(
     abortAfterCriticCalls,
     activity,
     askedBy,
+    events,
   }: {
     readonly served: SchemaLog;
     readonly controller: AbortController;
     readonly abortAfterCriticCalls?: number;
     readonly activity?: LaneConcurrency;
     readonly askedBy?: AskedLog;
+    readonly events?: EventLog;
   },
 ): ModelClient {
   return {
@@ -227,6 +296,12 @@ function lanesClient(
         },)
         .join('\n',);
       served.push(schema,);
+      // A CALL OF THE REPAIR LANE NAMES THE SLICE IT BELONGS TO, so the asks of its hook can be told apart by slice.
+      if (schema !== 'translation_report') {
+        events?.push(`call:${String(SLICE_MARKERS.findIndex(function carries(marker,): boolean {
+          return content.includes(marker,);
+        },),)}`,);
+      }
       askedBy?.push({
         schema,
         modelId: request.modelId,
@@ -387,6 +462,7 @@ async function runLanes(
     reseatTranslate,
     beforeSlice,
     askedBy,
+    events,
     prepared = prepareDocumentPair({
       sourceText: SOURCE_TEXT,
       targetText: TARGET_TEXT,
@@ -403,6 +479,7 @@ async function runLanes(
       args: { readonly lane: 'repair' | 'translate'; },
     ) => Promise<RepairSliceSeating>;
     readonly askedBy?: AskedLog;
+    readonly events?: EventLog;
     readonly prepared?: ReturnType<typeof prepareDocumentPair>;
     readonly logger?: Logger;
   },
@@ -416,6 +493,7 @@ async function runLanes(
       served,
       controller,
       ...((askedBy === undefined) ? {} : { askedBy, }),
+      ...((events === undefined) ? {} : { events, }),
       ...((abortAfterCriticCalls === undefined)
         ? {}
         : { abortAfterCriticCalls, }),
@@ -445,14 +523,16 @@ async function runLanes(
  Counts how often the repair lane asks its hook when it runs alone over the fixture pair, with the script of
  {@link lanesClient}.
 
+ @param events - log the asks of the hook and the calls of the lane are written to, in order
+
  @returns Asks the lane made, which the lanes driver has to forward one for one
 
  @example
  ```ts
- const asks = await repairAsksOfTheLaneAlone();
+ const asks = await repairAsksOfTheLaneAlone({ events: [], },);
  ```
  */
-async function repairAsksOfTheLaneAlone(): Promise<number> {
+async function repairAsksOfTheLaneAlone({ events, }: { readonly events: EventLog; },): Promise<number> {
   /**
    Run steering of the lane run alone, which nothing aborts.
    */
@@ -465,6 +545,7 @@ async function repairAsksOfTheLaneAlone(): Promise<number> {
     client: lanesClient({
       served: [],
       controller,
+      events,
     },),
     prepared: prepareDocumentPair({
       sourceText: SOURCE_TEXT,
@@ -476,6 +557,7 @@ async function repairAsksOfTheLaneAlone(): Promise<number> {
     overlap: 1,
     beforeSlice: (): Promise<RepairSliceSeating> => {
       counted.asks += 1;
+      events.push('ask:repair',);
       return Promise.resolve({},);
     },
     parentLogger: l,
@@ -633,10 +715,16 @@ await describe({
          Lanes asked, in the order asked.
          */
         const asked: string[] = [];
+        /**
+         Asks and calls of the driver's run, in order.
+         */
+        const events: EventLog = [];
         const lanes = await runLanes({
           served,
+          events,
           beforeSlice: async ({ lane, },): Promise<RepairSliceSeating> => {
             asked.push(lane,);
+            events.push(`ask:${lane}`,);
             return {};
           },
         },);
@@ -653,8 +741,22 @@ await describe({
          of each slice asks once and the refinement of each slice asks again (ledger B1332, B1370), so this is the count
          the driver has to forward, neither more nor fewer.
          */
-        const repairAsksAlone = await repairAsksOfTheLaneAlone();
+        /**
+         Asks and calls of the lane's run alone, in order.
+         */
+        const aloneEvents: EventLog = [];
+        const repairAsksAlone = await repairAsksOfTheLaneAlone({ events: aloneEvents, },);
         expect(repairAsksAlone,).toBeGreaterThanOrEqual(sliceCount,);
+        // EVERY SLICE IS ASKED FOR (ledger B1414): a floor on the total passes when one slice is asked twice and another
+        // not at all, so the asks are counted for each slice, and the driver forwards the same asks to each.
+        /**
+         Asks the lane made before each slice, run alone.
+         */
+        const perSliceAlone = asksPerSlice({ events: aloneEvents, slices: sliceCount, },);
+        expect(perSliceAlone.length,).toBe(sliceCount,);
+        for (const asks of perSliceAlone)
+          expect(asks,).toBeGreaterThanOrEqual(1,);
+        expect(asksPerSlice({ events, slices: sliceCount, },),).toEqual(perSliceAlone,);
         expect(asked.filter(function isRepair(lane,): boolean {
           return lane === 'repair';
         },).length,).toBe(repairAsksAlone,);
