@@ -273,7 +273,11 @@ fn dot_git_target(worktree: &Path) -> Option<Option<(PathBuf, bool)>> {
 /// const format: ObjectFormat | undefined = readFormat(entries); // undefined: ask Git
 /// ```
 fn object_format_of(entries: &[ConfigEntry]) -> Option<ObjectFormat> {
-    let version: Option<&[u8]> = last_entry(entries, "core.repositoryformatversion").and_then(|entry| { return entry.value.as_deref(); });
+    // A bare `core.repositoryformatversion` is an error in Git, not an absent key.
+    let version: Option<&[u8]> = match last_entry(entries, "core.repositoryformatversion") {
+        Some(entry) => Some(entry.value.as_deref()?),
+        None => None,
+    };
     let version_one: bool = match version {
         None | Some(b"0") => false,
         Some(b"1") => true,

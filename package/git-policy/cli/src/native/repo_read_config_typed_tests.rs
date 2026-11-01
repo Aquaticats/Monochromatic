@@ -16,6 +16,9 @@ use std::process::Stdio;
 /// a negative number, a small number, an overflowing number and a `~user` path of a user that does not exist.
 const MALFORMED_VARIANTS: [Option<&str>; 7] = [Some("maybe"), None, Some(""), Some("-1"), Some("3"), Some("99999999999999999999"), Some("~no-such-user-here/x")];
 
+/// Sections whose text values name remotes, branches and rewrites that the query readers interpret.
+const SEMANTIC_SECTIONS: [&str; 3] = ["branch", "remote", "url"];
+
 /// How many keys one sweep batch holds; a batch that shows a difference is split until the key is found.
 const BATCH_SIZE: usize = 24;
 
@@ -287,6 +290,11 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
         let Some(kind) = kind_of(key.as_str()) else {
             continue;
         };
+        // The query readers read these values themselves and decline the ones they cannot follow, so Git changing its
+        // answer for an arbitrary text value is no evidence about the proof.
+        if SEMANTIC_SECTIONS.iter().any(|section| { return key.starts_with(format!("{section}.").as_str()); }) && matches!(kind, Kind::Text) {
+            continue;
+        }
         let mut spellings: Vec<Option<String>> = vec![None, Some(String::new())];
         match kind {
             Kind::Boolean | Kind::IntegerOrBoolean => spellings.extend(["true", "yes", "on", "false", "no", "off", "1", "0", "-1", "TRUE"].map(|word| { return Some(word.to_string()); })),
@@ -301,6 +309,7 @@ fn accepted_spellings_are_silent_in_git_and_keep_the_readers_answering() {
             Kind::Integer { low, high } => spellings.extend([low, high, (low + high) / 2].map(|number| { return Some(number.to_string()); })),
             Kind::Color => spellings.extend(["red", "bold red", "red blue", "bold ul green", "brightblue", "12", "#00ff7f", "nobold", "no-dim", "normal", "default"].map(|word| { return Some(word.to_string()); })),
             Kind::Abbreviation => spellings.extend(["auto", "false", "4", "40"].map(|word| { return Some(word.to_string()); })),
+            Kind::Refspec => spellings.extend(["refs/heads/*:refs/remotes/origin/*", "+refs/heads/*:refs/remotes/origin/*", "refs/heads/main:refs/heads/main"].map(|word| { return Some(word.to_string()); })),
             Kind::Text | Kind::Pathname | Kind::CommentText => spellings.extend(["plain", "~/x", "/abs/path"].map(|word| { return Some(word.to_string()); })),
             Kind::FalseOnly => spellings.extend(["false", "0"].map(|word| { return Some(word.to_string()); })),
             Kind::Refused => {}

@@ -131,8 +131,7 @@ const DRIVER_TEXT_NAMES: [&str; 4] = ["command", "textconv", "wordregex", "xfunc
 const REMOTE_BOOLEAN_NAMES: [&str; 6] = ["mirror", "promisor", "prune", "prunetags", "skipdefaultupdate", "skipfetchall"];
 
 /// Per-remote keys whose value is text.
-const REMOTE_TEXT_NAMES: [&str; 13] = [
-    "fetch",
+const REMOTE_TEXT_NAMES: [&str; 12] = [
     "negotiationinclude",
     "negotiationrestrict",
     "partialclonefilter",
@@ -195,6 +194,9 @@ enum Kind {
     Abbreviation,
     /// `core.commentChar` and `core.commentString`: not empty, no line break, never bare.
     CommentText,
+    /// A refspec `[+]refs/<name>:refs/<name>` whose names are plain and whose wildcards match; every other form is
+    ///  left to Git, which checks a refspec against its full rules.
+    Refspec,
     /// A value that must be false: setting it to anything else starts a program or a daemon.
     FalseOnly,
     /// A key Git warns about, or fails on, in spellings the proof does not model: its presence alone is declined.
@@ -250,7 +252,7 @@ fn kind_of(key: &str) -> Option<Kind> {
         ("remote", _) if REMOTE_BOOLEAN_NAMES.contains(&name) => Some(Kind::Boolean),
         ("remote", _) if REMOTE_TEXT_NAMES.contains(&name) => Some(Kind::Text),
         ("remote", "followremotehead") => Some(Kind::OneOf { words: &["create", "warn", "always", "never"], empty: false }),
-        ("remote", "push") => Some(Kind::Refused),
+        ("remote", "fetch" | "push") => Some(Kind::Refspec),
         ("url", "insteadof" | "pushinsteadof") => Some(Kind::Text),
         ("color", _) => color_kind(subsection, name),
         _ => None,
@@ -388,6 +390,39 @@ fn is_color_text(text: &str) -> bool {
     return colors <= 2 && words.iter().all(|word| { return is_color_word(word); });
 }
 
+/// Whether `name` is a ref name or pattern of plain components under `refs/`, with at most one wildcard component.
+fn is_plain_ref_pattern(name: &str) -> Option<bool> {
+    let rest: &str = name.strip_prefix("refs/")?;
+    let mut wildcards: usize = 0;
+    for component in rest.split('/') {
+        if component == "*" {
+            wildcards += 1;
+            continue;
+        }
+        let plain: bool = !component.is_empty()
+            && !component.starts_with('.')
+            && !component.contains("..")
+            && !component.ends_with(".lock")
+            && !component.ends_with('.')
+            && component.bytes().all(|byte| { return byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'); });
+        if !plain {
+            return None;
+        }
+    }
+    return if wildcards > 1 { None } else { Some(wildcards == 1) };
+}
+
+/// Whether `text` is `[+]refs/...:refs/...` with plain names and a wildcard on both sides or on neither.
+fn is_plain_refspec(text: &str) -> bool {
+    let Some((source, destination)) = text.strip_prefix('+').unwrap_or(text).split_once(':') else {
+        return false;
+    };
+    return match (is_plain_ref_pattern(source), is_plain_ref_pattern(destination)) {
+        (Some(left), Some(right)) => left == right,
+        _ => false,
+    };
+}
+
 /// Whether `text` is a comma-separated list of the listed words.
 fn is_word_list(text: &str, words: &[&str], empty: bool, negatable: bool) -> bool {
     if text.is_empty() {
@@ -421,6 +456,7 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
         Kind::Abbreviation => text == "auto" || is_false_text(text) || number_of(text).is_some_and(|number| { return (MINIMUM_ABBREVIATION..=MAXIMUM_ABBREVIATION).contains(&number); }),
         Kind::CommentText => !text.is_empty() && !text.contains('\n'),
         Kind::FalseOnly => is_false_text(text),
+        Kind::Refspec => is_plain_refspec(text),
         Kind::Refused => false,
     };
 }
